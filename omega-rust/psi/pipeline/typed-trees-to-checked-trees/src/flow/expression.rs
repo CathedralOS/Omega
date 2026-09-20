@@ -10,7 +10,6 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::build_call_flow_fact;
-use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::common;
 use crate::flow::filter_contexts_after_place_mutations;
@@ -185,14 +184,16 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     }
                     Some(CallSite::Statement(_)) => InvocationSite::Statement,
                     Some(CallSite::TransitionNamed { .. }) => {
-                        let Some(target) = crate::semantic_calls::transition_call_target(
-                            program,
-                            machine,
-                            state,
-                            statement_index,
-                            call.call_ordinal,
-                        )
-                        .filter(|target| target.is_valid()) else {
+                        let Some(target) = context
+                            .transition_call_target_at(
+                                program,
+                                machine,
+                                state,
+                                statement_index,
+                                call.call_ordinal,
+                            )
+                            .filter(|target| target.is_valid())
+                        else {
                             malformed = true;
                             return None;
                         };
@@ -297,7 +298,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> Option<bool> {
-        let value = self.evaluate_expression(expression, contexts, constraints);
+        let value = { self.evaluate_expression(expression, contexts, constraints) };
         self.append_result_domains(expression, contexts, constraints);
         value
     }
@@ -608,7 +609,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.operand_writes.push(
                         super::operator_calls::named_operator_call_mutated_places(
                             self.program,
-                            self.context.operators,
+                            self.context,
                             self.state.symbol,
                             self.statement_index,
                             call,
@@ -729,7 +730,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         expression: ExpressionHandle,
         contexts: HandleSpan<FlowSemanticContextRef>,
     ) -> Option<bool> {
-        let place = canonical_place_from_expression_in_state(
+        let place = self.context.canonical_place_at(
             self.program,
             self.state.symbol,
             self.statement_index,
@@ -752,7 +753,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     }
 
     fn changed_operand_sources(
-        &self,
+        &mut self,
         operands: &[(ExpressionHandle, usize)],
     ) -> Vec<CanonicalPlace> {
         let mut changed = Vec::new();
@@ -768,14 +769,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             ) {
                 continue;
             }
-            let mut occurrences = Vec::new();
-            crate::facts::contract_occurrences::append_expression_occurrences(
-                self.program,
-                *expression,
-                &mut occurrences,
-            );
-            for occurrence in occurrences {
-                let Some(place) = canonical_place_from_expression_in_state(
+            let occurrences = self
+                .context
+                .expression_occurrences_at(self.program, *expression);
+            for occurrence in occurrences.iter().copied() {
+                let Some(place) = self.context.canonical_place_at(
                     self.program,
                     self.state.symbol,
                     self.statement_index,

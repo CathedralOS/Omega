@@ -79,7 +79,6 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             exact_integer_casts,
         );
     }
-
     let baseline = semantic.clone();
     // Declaration contexts do not change during flow. Retain their handles
     // once, in typed-machine order, instead of rediscovering Global/Machine
@@ -170,7 +169,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         pass_limit = pass_limit.saturating_add(ctx.new_state_field_input_height);
         if ctx.dirty_state_value_inputs.is_empty() {
             if complete_pass {
-                let mut flow = ctx.finish();
+                let mut flow = { ctx.finish() };
                 attach_reach_summaries(&mut flow, service_reaches, operational);
                 return flow;
             }
@@ -207,7 +206,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             );
         }
     }
-    let mut flow = ctx.finish();
+    let mut flow = { ctx.finish() };
     attach_reach_summaries(&mut flow, service_reaches, operational);
     flow
 }

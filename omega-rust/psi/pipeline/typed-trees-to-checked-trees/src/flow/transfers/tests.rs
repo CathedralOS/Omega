@@ -418,8 +418,22 @@ fn nested_fixed_array_fixture() -> CorrespondenceFixture {
 }
 
 fn retain(fixture: &mut CorrespondenceFixture) {
+    let scalar_expressions = Default::default();
+    let operators = Default::default();
+    let state_mutation_summary_cache = crate::flow::StateMutationSummaryCache::default();
+    let mut ctx = crate::flow::FlowBuildContext::new(
+        &Default::default(),
+        &Default::default(),
+        &fixture.semantic,
+        &scalar_expressions,
+        &operators,
+        &[],
+        None,
+        &state_mutation_summary_cache,
+    );
     retain_qualification_correspondence(
         &fixture.program,
+        &mut ctx,
         &mut fixture.semantic,
         fixture.source_fact,
         fixture.destination_fact,

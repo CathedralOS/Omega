@@ -53,15 +53,13 @@ pub(super) fn append_state_exit_facts(
             }],
         );
 
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == machine_symbol)
+        let machine = ctx
+            .machine_index(program, machine_symbol)
+            .map(|index| &program.machines()[index])
             .expect("exit machine");
-        let state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == state_symbol)
+        let state = ctx
+            .state_index_in_machine(program, machine_symbol, state_symbol)
+            .and_then(|index| program.machine_states(machine).get(index))
             .expect("exit state");
         let (rebased_contexts, parameter_origins) = super::entry_origins::rebase_contexts(
             program,

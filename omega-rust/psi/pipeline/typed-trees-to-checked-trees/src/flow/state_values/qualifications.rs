@@ -226,7 +226,7 @@ fn capture_parameter(
 pub(in crate::flow) fn capture_argument(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
-    flow_context: &FlowBuildContext,
+    flow_context: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -240,10 +240,9 @@ pub(in crate::flow) fn capture_argument(
     else {
         return Vec::new();
     };
-    let Some(destination) = program
-        .machine_states(machine)
-        .iter()
-        .find(|candidate| candidate.symbol == path.symbol)
+    let Some(destination) = flow_context
+        .state_index_in_machine(program, machine.symbol, path.symbol)
+        .and_then(|index| program.machine_states(machine).get(index))
     else {
         return Vec::new();
     };
@@ -255,12 +254,9 @@ pub(in crate::flow) fn capture_argument(
     else {
         return Vec::new();
     };
-    let Some(source) = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index,
-        argument,
-    ) else {
+    let Some(source) =
+        flow_context.canonical_place_at(program, state.symbol, statement_index, argument)
+    else {
         return Vec::new();
     };
     // A `self`-rooted argument moves through the transition's receiver path,
@@ -271,7 +267,7 @@ pub(in crate::flow) fn capture_argument(
         return Vec::new();
     }
     let Some(source_type) =
-        validation::expression_result_type_reference(program, machine, state, argument)
+        flow_context.expression_result_type_at(program, machine, state, argument)
     else {
         return Vec::new();
     };

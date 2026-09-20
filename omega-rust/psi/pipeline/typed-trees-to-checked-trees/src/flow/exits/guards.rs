@@ -509,19 +509,14 @@ pub(in crate::flow) fn append_predicate_context(
     if !expression_is_stable_predicate(program, expression) {
         return;
     }
-    let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        expression,
-        &mut occurrences,
-    );
+    let occurrences = ctx.expression_occurrences_at(program, expression);
     append_observation_context(
         program,
         semantic,
         ctx,
         state_symbol,
         statement_index,
-        occurrences,
+        occurrences.as_slice(),
         FactPayload::BooleanValue { expression, value },
         point,
         active_contexts,
@@ -570,10 +565,10 @@ pub(in crate::flow) fn append_match_pattern_context(
     }
     let mut occurrences = Vec::new();
     for expression in [subject, pattern] {
-        crate::facts::contract_occurrences::append_expression_occurrences(
-            program,
-            expression,
-            &mut occurrences,
+        occurrences.extend(
+            ctx.expression_occurrences_at(program, expression)
+                .iter()
+                .copied(),
         );
     }
     append_observation_context(
@@ -582,7 +577,7 @@ pub(in crate::flow) fn append_match_pattern_context(
         ctx,
         state_symbol,
         statement_index,
-        occurrences,
+        &occurrences,
         payload,
         point,
         active_contexts,
@@ -634,14 +629,14 @@ fn append_observation_context(
     ctx: &mut FlowBuildContext,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    occurrences: Vec<ExpressionHandle>,
+    occurrences: &[ExpressionHandle],
     payload: FactPayload,
     point: ProgramPoint,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
     let mut places = Vec::new();
-    for occurrence in occurrences {
+    for occurrence in occurrences.iter().copied() {
         let Some(place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
             program,
             semantic,

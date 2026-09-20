@@ -1,6 +1,5 @@
 //! Exact reference and immutable scalar origins across named-state arguments.
 use crate::flow::FlowBuildContext;
-use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::common;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
@@ -181,7 +180,7 @@ fn parameter_edges(
     edges
 }
 
-fn state_origins(
+pub(super) fn state_origins(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -285,7 +284,7 @@ pub(super) fn rebase_contexts(
         // Entry can also be reached by a named backedge. Immutable scalar
         // bindings retain the original invocation value only when every
         // incoming argument preserves it, just as for other named states.
-        let incoming_origins = state_origins(program, machine, state);
+        let incoming_origins = ctx.entry_origin_chain_at(program, machine, state);
         // Exit substitution refers to the caller's original input referent,
         // even when the source gives its local reference binding `mut`.
         // Initial assumptions are still admitted above; this is only the
@@ -314,7 +313,9 @@ pub(super) fn rebase_contexts(
             })
             .collect()
     } else {
-        state_origins(program, machine, state)
+        ctx.entry_origin_chain_at(program, machine, state)
+            .as_ref()
+            .clone()
     };
     // `self` is the machine attachment context, explicitly admitted by each
     // state's self parameter rather than an ordinary named jump argument.
@@ -386,15 +387,11 @@ pub(super) fn rebase_contexts(
             };
             let mut required_roots = Vec::new();
             if let Some(contract) = contract {
-                for occurrence in crate::facts::contract_occurrences::fact_referenced_occurrences(
-                    program, contract,
-                ) {
-                    if let Some(place) = canonical_place_from_expression_in_state(
-                        program,
-                        entry.symbol,
-                        0,
-                        occurrence,
-                    ) && let facts::PlaceRoot::Symbol(root) = place.root
+                let contract_occurrences = ctx.proof_fact_occurrences_at(program, contract);
+                for occurrence in contract_occurrences.iter().copied() {
+                    if let Some(place) =
+                        ctx.canonical_place_at(program, entry.symbol, 0, occurrence)
+                        && let facts::PlaceRoot::Symbol(root) = place.root
                     {
                         required_roots.push(root);
                     }

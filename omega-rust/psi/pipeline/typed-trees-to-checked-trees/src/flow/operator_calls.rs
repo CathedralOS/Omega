@@ -2,7 +2,6 @@ use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::canonical_place_from_expression;
-use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::common;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
@@ -100,6 +99,7 @@ struct OperatorStatementOperand {
 
 fn operator_statement_operands<'program>(
     program: &'program typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -154,13 +154,8 @@ fn operator_statement_operands<'program>(
             let argument = arguments.get(argument_index).copied();
             argument_index = argument_index.saturating_add(1);
             let place = argument.and_then(|expression| {
-                canonical_place_from_expression_in_state(
-                    program,
-                    caller_state_symbol,
-                    statement_index,
-                    expression,
-                )
-                .or_else(|| canonical_place_from_expression(program, expression))
+                ctx.canonical_place_at(program, caller_state_symbol, statement_index, expression)
+                    .or_else(|| canonical_place_from_expression(program, expression))
             });
             let label = argument.map_or_else(
                 || parameter.name.to_string(),
@@ -187,6 +182,7 @@ fn operator_statement_operands<'program>(
 /// contract instantiation renders identical operand names either way.
 fn named_operator_call_operands<'program>(
     program: &'program typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call: &typed_trees::expression::TableCallExpression,
@@ -200,13 +196,9 @@ fn named_operator_call_operands<'program>(
             .iter()
             .zip(operand_expressions.iter())
             .map(|(parameter, expression)| {
-                let place = canonical_place_from_expression_in_state(
-                    program,
-                    caller_state_symbol,
-                    statement_index,
-                    *expression,
-                )
-                .or_else(|| canonical_place_from_expression(program, *expression));
+                let place = ctx
+                    .canonical_place_at(program, caller_state_symbol, statement_index, *expression)
+                    .or_else(|| canonical_place_from_expression(program, *expression));
                 let label = place.as_ref().map_or_else(
                     || program.expression_table.display_name(*expression),
                     |place| {
@@ -260,6 +252,7 @@ pub(super) fn apply_named_operator_call_effects(
     };
     let Some(operands) = named_operator_call_operands(
         program,
+        ctx,
         caller_state_symbol,
         statement_index,
         call,
@@ -323,7 +316,7 @@ pub(super) fn apply_named_operator_call_effects(
 /// `operator_statement_call_mutated_places`.
 pub(super) fn named_operator_call_mutated_places(
     program: &typed_trees::TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
+    ctx: &mut FlowBuildContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call: &typed_trees::expression::TableCallExpression,
@@ -331,10 +324,14 @@ pub(super) fn named_operator_call_mutated_places(
 ) -> Option<Vec<CanonicalPlace>> {
     let operator = typed_trees::operator::declaration_by_symbol(
         program,
-        operators.named_uses.get(named_use).selected_operator_symbol,
+        ctx.operators
+            .named_uses
+            .get(named_use)
+            .selected_operator_symbol,
     )?;
     let operands = named_operator_call_operands(
         program,
+        ctx,
         caller_state_symbol,
         statement_index,
         call,
@@ -352,6 +349,7 @@ pub(super) fn named_operator_call_mutated_places(
 /// operator's postconditions are introduced.
 pub(super) fn operator_statement_call_mutated_places(
     program: &typed_trees::TypedTrees,
+    ctx: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -359,6 +357,7 @@ pub(super) fn operator_statement_call_mutated_places(
 ) -> Vec<CanonicalPlace> {
     operator_statement_operands(
         program,
+        ctx,
         caller_machine_symbol,
         caller_state_symbol,
         statement_index,
@@ -391,6 +390,7 @@ pub(super) fn append_operator_statement_ensures(
 ) {
     let Some((operator, operands)) = operator_statement_operands(
         program,
+        ctx,
         caller_machine_symbol,
         caller_state_symbol,
         statement_index,

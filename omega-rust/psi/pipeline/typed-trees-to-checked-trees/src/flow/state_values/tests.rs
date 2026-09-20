@@ -247,7 +247,7 @@ fn computed_argument_capture_requires_unique_exact_source_and_destination() {
         let semantic = Default::default();
         let operators = Default::default();
         let state_mutation_summary_cache = crate::flow::StateMutationSummaryCache::default();
-        let context = super::FlowBuildContext::new(
+        let mut context = super::FlowBuildContext::new(
             &Default::default(),
             &Default::default(),
             &semantic,
@@ -260,7 +260,7 @@ fn computed_argument_capture_requires_unique_exact_source_and_destination() {
         let value = super::capture_argument(
             program,
             &semantic,
-            &context,
+            &mut context,
             machine,
             state,
             0,

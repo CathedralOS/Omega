@@ -163,15 +163,19 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // overwrites the target. Retire loans carried by the old value before
         // activating loans carried by the replacement below; otherwise the
         // replacement spuriously conflicts with the value it is replacing.
+        let reassigned_place = if let StatementNode::Assignment(assignment) = statement {
+            ctx.canonical_place_at(program, state.symbol, statement_index, assignment.target)
+        } else {
+            None
+        };
         *active_constraints = filter_reassigned_borrow_loans(
             &mut ctx.borrow_lifetimes.weakenings,
             &mut ctx.contexts.constraint_refs,
             *active_constraints,
             borrow,
             program,
-            state.symbol,
+            reassigned_place,
             statement_index,
-            statement,
         );
 
         while let Some(loan) = borrow_loans.get(loan_index) {
@@ -202,14 +206,16 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             );
         }
 
-        let storage_writes = statement_storage_writes(
-            program,
-            machine.symbol,
-            state.symbol,
-            statement_index,
-            statement,
-            ctx.call_frames,
-        );
+        let storage_writes = {
+            statement_storage_writes(
+                program,
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                statement,
+                ctx.call_frames,
+            )
+        };
         if storage_writes.is_none() {
             *active_contexts = HandleSpan::empty();
             *active_constraints = project_constraint_refs_to_active_contexts(
@@ -227,6 +233,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         if let StatementNode::Call(call) = statement {
             mutated_places.extend(operator_statement_call_mutated_places(
                 program,
+                ctx,
                 machine.symbol,
                 state.symbol,
                 statement_index,
@@ -266,7 +273,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 active_constraints,
             );
         }
-
         propagate_statement_transfers(
             program,
             borrow,
@@ -294,7 +300,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             *active_constraints = fallthrough_constraints;
         }
     }
-
     append_proof_output_ensures(
         proof,
         semantic,

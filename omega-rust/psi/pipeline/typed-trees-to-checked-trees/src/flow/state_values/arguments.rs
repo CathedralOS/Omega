@@ -2,7 +2,6 @@
 use super::{ScalarValue, TransitionTargetNode};
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
-use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::state_values::literal;
 use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
@@ -15,7 +14,7 @@ use facts::FactPlan;
 pub(in crate::flow) fn capture_argument(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
-    context: &FlowBuildContext,
+    context: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -41,10 +40,9 @@ pub(in crate::flow) fn capture_argument(
     {
         return ScalarValue::Unknown;
     }
-    let Some(destination) = program
-        .machine_states(machine)
-        .iter()
-        .find(|candidate| candidate.symbol == path.symbol)
+    let Some(destination) = context
+        .state_index_in_machine(program, machine.symbol, path.symbol)
+        .and_then(|index| program.machine_states(machine).get(index))
     else {
         return ScalarValue::Unknown;
     };
@@ -77,23 +75,23 @@ pub(in crate::flow) fn capture_argument(
         return ScalarValue::Unknown;
     };
     let plans = context.scalar_expressions;
-    let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-        binding.state == state.symbol
-            && binding.statement_ordinal == statement_ordinal
-            && binding.role == role
-    });
-    if let Some((_, binding)) = bindings.next() {
+    let mut bindings = context
+        .scalar_binding_handles_at(state.symbol, statement_ordinal)
+        .iter()
+        .map(|handle| plans.source_bindings.get(*handle))
+        .filter(|binding| binding.role == role);
+    if let Some(binding) = bindings.next() {
         if bindings.next().is_some()
             || binding.expression != argument
             || binding.destination != parameter.symbol
         {
             return ScalarValue::Unknown;
         }
-        let mut expressions = plans.expressions.iter().filter(|expression| {
-            expression.state == state.symbol
-                && expression.statement_ordinal == statement_ordinal
-                && expression.role == role
-        });
+        let mut expressions = context
+            .scalar_expression_rows_at(state.symbol, statement_ordinal)
+            .iter()
+            .map(|row| &plans.expressions[*row])
+            .filter(|expression| expression.role == role);
         let Some(expression) = expressions.next() else {
             return ScalarValue::Unknown;
         };
@@ -128,8 +126,7 @@ pub(in crate::flow) fn capture_argument(
     }
     // Projected reads can use existing exact place facts. Dynamic selectors
     // still need their own captured index identity before they carry values.
-    let Some(place) =
-        canonical_place_from_expression_in_state(program, state.symbol, statement_index, argument)
+    let Some(place) = context.canonical_place_at(program, state.symbol, statement_index, argument)
     else {
         return ScalarValue::Unknown;
     };
