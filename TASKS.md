@@ -6718,7 +6718,35 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **D-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **D-REQUEST-ADMISSION-ROUTE** — mined candidate; verify scope then implement.
 - **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
-- **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
+- **D-SCALAR-OPERATION-CLOSURE.** Scope verified and the closure landed:
+  the item re-mines OMEGA-D's "extend parsed scalar operations" clause, and
+  `scalar_compilation.epsilon` now closes the operator set the parser
+  already retains — the fold tracks a per-node carrier class (u8 vs
+  Boolean), `true`/`false` literals and the `==`/`!=`/`<`/`<=`/`>`/`>=`
+  comparisons, `&&`/`||`, and the `!` complement fold to Boolean results
+  that subjectful transition blocks consume, equality compares same-class
+  operands while ordering/logical operators gate their operand classes, a
+  class mismatch publishes a carrier-class Reject, and a folded Boolean at
+  the `u8` terminal stays a coverage refusal (as does `-`, still not total
+  on an unsigned carrier under Exact). New controls_i.epsilon pins four
+  Boolean-subject executions to the same 42-tape shape plus the terminal
+  refusal and three class rejections. controls_e's `!1` pin stays
+  Incomplete: the parser does not retain a statement-leading `!` (its
+  statement-leading punctuation table admits only `}` and `(`), so a bare
+  `!x` terminal is a parse-level refusal beside the `-1` pin — the `!`
+  fold governs every position the grammar retains (subjects, groups, call
+  arguments), where a u8 operand is a carrier-class Reject and a Boolean
+  operand complements. The digest cascade was re-bound end to end (manifest, packed
+  closure, compiler_env.sh, four gate.py pins, source-closure.py,
+  d_closure.py, d-composition, all 14 omega-identity.sh packed-customer
+  tuples, and every README/prose record). Witnesses on Linux x86-64
+  (seed-execution host): `tests/bootstrap/omega-identity.sh` green,
+  `source-closure.sh` 4/4, `check-chain-hygiene.sh` green, the
+  omega-executable controls-i part drove the real packed compiler over the
+  new entry to the expected observation (9,866s compile; emitted tape
+  exits 42) and controls-e passed beside it (`!1` still Incomplete at
+  parse, the `-1`/`~`-family pins unchanged); the refinement model checks
+  the repacked closure plus the new entry clean.
 - **DELTA-COMPILER** — mined candidate; verify scope then implement.
 - **DELTA-EPSILON-CLOSURE-ACCEPTANCE.** Scope verified at `54d5dc1cb1`: the
   alias names the Delta→Epsilon evaluator closure's *acceptance* surface,
@@ -7420,8 +7448,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   host-gated to macOS arm64 / Windows x64. Remaining legs: request semantic
   phases 3–5/7–8 (package keys, ordering, graph, snapshot admissions,
   commitment binding — the `coverage_request_semantics` provision, code 25)
-  plus the rest of the scalar coverage families (codes 15–24: comparisons,
-  paths, `!`/`-`, locals, assignments, remaining transition forms)
+  plus the rest of the scalar coverage families (codes 15–24 minus the
+  shipped operators: paths, `-`, locals, assignments, remaining transition
+  forms — the comparison, logical, and `!` operator family and the
+  carrier-class discipline landed under D-SCALAR-OPERATION-CLOSURE)
   — tracked under the OMEGA-D-REQUEST-* / OMEGA-D-SCALAR-* sibling rows.
 - **OMEGA-D-REQUEST-OUTCOME-TABLES** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-ROUTE-ENTRY** — mined candidate; verify scope then implement.
