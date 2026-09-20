@@ -10769,7 +10769,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TRUSTED-SURFACE-DIGEST-REFRESH name the same maintenance op.
 - **TRUSTED-SURFACE-LEDGER-REFRESH** — mined candidate; scope verified, resolved — the trusted-surface digest ledger is current on main, same settled surface as TRUSTED-SURFACE-LEDGER-RERECORD (annotated sibling, this section): BASELINE-VERIFIER-DIGEST-LEDGER re-recorded the drifted rows and registered `proof-admission/src/classicality.rs`, and `terminal-verifier`'s `trusted_surface` suite re-verifies green (`cargo nextest run -p terminal-verifier --test suite trusted_surface`: 9/9, linux x86-64, including `recorded_digests_match_the_working_tree`; re-run at 54984323b2, re-run again at 5b839c31ab). The ledger self-audits — any future drift fails that test — so no standing refresh task remains on this row.
 - **TRUSTED-SURFACE-LEDGER-RERECORD** — mined candidate; scope verified, resolved — the trusted-surface digest ledger is current on main: BASELINE-VERIFIER-DIGEST-LEDGER re-recorded the drifted rows and registered `proof-admission/src/classicality.rs`, and `terminal-verifier`'s trusted_surface suite passes 15/15 on linux x86-64 including `recorded_digests_match_the_working_tree` (re-run at f1e9a3733d). The ledger self-audits: any future drift fails that test, so no standing re-record task remains.
-- **TV-BOUNDARY-SETTLEMENTS-REPLAY** — mined candidate; verify scope then implement.
+- **TV-BOUNDARY-SETTLEMENTS-REPLAY.** Mined candidate; scope verified at
+  59610bf809, resolved — names the boundary-settlements leg of
+  TRANSLATION-VALIDATION (TASKS_OPTIMIZER.md), which is landed:
+  `native-artifact/src/physical/derivation/evidence.rs` joins each
+  installed settlement's closed `(CompilerBuiltinExecution,
+  BoundaryRealization)` pair against `HOSTED_BUILTIN_SETTLEMENTS`
+  (children.rs) — complete over the closed three-variant enum
+  (HostedExitProcessI32/HostedWriteByteI32/HostedReadByte), each row
+  declaring supported targets, admitted scalar forms, and result custody
+  for `derive_hosted_builtin_child`; mismatched or unclassified pairs
+  fall through to provider lanes as `UnsupportedSettlementRealization`
+  gaps, and occurrences with neither settlement nor foreign call yield
+  no evidence. Witnessed on linux x86-64 at 59610bf809: `cargo nextest
+  run -p native-artifact --lib -E 'test(~settlement) or
+  test(~physical_child)'` 6/6 PASS — including
+  `structural_boundary_settlement_identity_binds_the_complete_result_declaration`,
+  `admitted_provider_settlement_identity_binds_the_complete_retained_row`,
+  and the bijection/coordinate rejections. The 12 native-differential
+  `physical_child_replay` pins each drive a boundary-settlement parent
+  through emission + independent replay (family green at
+  rc_native_matrix_hosts). Residual is future extension only: a fourth
+  hosted builtin = one enum variant + one catalog row.
 - **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; verify scope then implement.
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS** — verified 14e6f8f72e: the span-arm surface
