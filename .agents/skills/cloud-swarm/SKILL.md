@@ -91,6 +91,24 @@ lists them; `get` returning 403 means foreign-parented.
   verdict — cheap, but the real width limiter is unfenced path supply, not
   session count. TASKS.md regenerates legs as landings append board notes.
 
+### Coordinator pre-partitioning (the fix for churn)
+
+The coordinator owns the task graph — workers never choose work, so they never
+conflict. When unfenced items run out, do NOT park the pool:
+
+- **Split multi-path items.** Claims are per-path, not per-item. Take a claimed
+  item's path list from `claims.py status`, slice it into disjoint subsets, and
+  assign each as a split leg (`item/sub-leg` naming). Sibling workers on
+  disjoint subtrees of one item never collide.
+- **Mine every board.** TASKS.md exhausts fast at width; TASKS_OPTIMIZER.md,
+  TASKS_BOOTSTRAP.md, and `samples/apps/*/TASKS.md` are extra supply.
+- **Keep a retry schedule.** For each `blocked` verdict, record the blocking
+  ticket's `expires_utc`; foreign leases die in waves — mass-retry the moment
+  a batch lapses.
+- **Persist the pool map.** Write `name → session_id` to a json file
+  (`build/swarm/w9/zergling-map.json`) and refresh it from
+  `devin_session_search` each cycle — never trust in-context session IDs.
+
 ## Slots
 
 - The concurrency cap is **org-wide and shared across every coordinator and
