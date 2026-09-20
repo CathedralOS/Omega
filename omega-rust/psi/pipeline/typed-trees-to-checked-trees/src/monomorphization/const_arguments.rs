@@ -8,9 +8,11 @@ use numerics::literals::LandedIntegerType;
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::statement::StatementNode;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -> Option<String> {
     if argument.type_reference.is_valid()
@@ -438,6 +440,73 @@ fn validate_structural_type_arguments(
     callees: &[CalleeState],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // A range-bound call belongs to the declaration containing its type, not
+    // to whichever machine happens to share its arena. Follow only that
+    // caller's type roots; named data does not lend its separate binder scope.
+    fn collect_type_expressions(
+        program: &TypedTrees,
+        reference: TypeReferenceHandle,
+        visited: &mut Vec<TypeReferenceHandle>,
+        expressions: &mut Vec<ExpressionHandle>,
+    ) {
+        if !reference.is_valid() || visited.contains(&reference) {
+            return;
+        }
+        visited.push(reference);
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { referee, .. } => {
+                collect_type_expressions(program, *referee, visited, expressions);
+            }
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => {
+                collect_type_expressions(program, *element_type, visited, expressions);
+            }
+            TypeReferenceNode::Generic { arguments, .. } => {
+                for argument in program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                {
+                    collect_type_expressions(program, *argument, visited, expressions);
+                }
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                collect_type_expressions(program, *base_type, visited, expressions);
+                for constraint in program.type_reference_table.constraints(*constraints) {
+                    match constraint {
+                        TypeConstraintNode::Range {
+                            minimum, maximum, ..
+                        } => {
+                            super::selection::collect_expression_tree(
+                                program,
+                                *minimum,
+                                expressions,
+                            );
+                            super::selection::collect_expression_tree(
+                                program,
+                                *maximum,
+                                expressions,
+                            );
+                        }
+                        TypeConstraintNode::Domain(domain) => {
+                            for argument in &domain.arguments {
+                                collect_type_expressions(program, *argument, visited, expressions);
+                            }
+                        }
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                    }
+                }
+            }
+            TypeReferenceNode::ConstExpression(expression) => {
+                super::selection::collect_expression_tree(program, *expression, expressions);
+            }
+            TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::DynamicTrait { .. }
+            | TypeReferenceNode::Unit => {}
+        }
+    }
     fn contains_type(arguments: &[StaticMachineArgument]) -> bool {
         arguments.iter().any(|argument| {
             argument.type_reference.is_valid()
@@ -453,6 +522,8 @@ fn validate_structural_type_arguments(
         arguments: &[StaticMachineArgument],
         symbols: &validation::TopLevelSymbols<'_>,
         diagnostics: &mut Vec<Diagnostic>,
+        visited_types: &mut Vec<TypeReferenceHandle>,
+        expressions: &mut Vec<ExpressionHandle>,
     ) {
         for argument in arguments {
             if argument.type_reference.is_valid() {
@@ -463,6 +534,12 @@ fn validate_structural_type_arguments(
                     symbols,
                     diagnostics,
                 );
+                collect_type_expressions(
+                    program,
+                    argument.type_reference,
+                    visited_types,
+                    expressions,
+                );
             }
             if let Some(application) = &argument.application {
                 validate_types(
@@ -471,6 +548,8 @@ fn validate_structural_type_arguments(
                     &application.arguments,
                     symbols,
                     diagnostics,
+                    visited_types,
+                    expressions,
                 );
             }
         }
@@ -484,7 +563,14 @@ fn validate_structural_type_arguments(
     let mut owned = Vec::new();
     for machine in program.machines() {
         let mut expressions = Vec::new();
+        let mut visited_types = Vec::new();
         for item in program.machine_owned_data(machine) {
+            collect_type_expressions(
+                program,
+                item.type_reference,
+                &mut visited_types,
+                &mut expressions,
+            );
             super::selection::collect_expression_tree(
                 program,
                 item.initial_value,
@@ -502,10 +588,32 @@ fn validate_structural_type_arguments(
             super::selection::collect_contract_facts(program, contract.facts, &mut expressions);
         }
         for state in program.machine_states(machine) {
+            collect_type_expressions(
+                program,
+                state.return_type,
+                &mut visited_types,
+                &mut expressions,
+            );
+            for parameter in program.state_parameters(state) {
+                collect_type_expressions(
+                    program,
+                    parameter.type_reference,
+                    &mut visited_types,
+                    &mut expressions,
+                );
+            }
             for contract in program.state_contracts(state) {
                 super::selection::collect_contract_facts(program, contract.facts, &mut expressions);
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::LocalData(local) = statement {
+                    collect_type_expressions(
+                        program,
+                        local.type_reference,
+                        &mut visited_types,
+                        &mut expressions,
+                    );
+                }
                 super::collect_statement_expression_trees(program, statement, &mut expressions);
                 if let StatementNode::Call(call) = statement {
                     validate_types(
@@ -514,11 +622,15 @@ fn validate_structural_type_arguments(
                         &call.machine_arguments,
                         &symbols,
                         diagnostics,
+                        &mut visited_types,
+                        &mut expressions,
                     );
                 }
             }
         }
-        for expression in expressions {
+        let mut expression_position = 0;
+        while let Some(expression) = expressions.get(expression_position).copied() {
+            expression_position += 1;
             if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
                 validate_types(
                     program,
@@ -526,6 +638,8 @@ fn validate_structural_type_arguments(
                     &call.machine_arguments,
                     &symbols,
                     diagnostics,
+                    &mut visited_types,
+                    &mut expressions,
                 );
                 if !owned.contains(&expression) {
                     owned.push(expression);

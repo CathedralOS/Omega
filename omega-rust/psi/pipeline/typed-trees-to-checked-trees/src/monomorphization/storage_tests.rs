@@ -20,6 +20,72 @@ fn typed(source: &str) -> TypedTrees {
 }
 
 #[test]
+fn structural_endpoint_arguments_follow_their_machine_declaration_types() {
+    for declaration in [
+        "machine keep(value: u64[0..=endpoint<[u8; 7]>()]) {}",
+        "machine keep() -> u64[0..=endpoint<[u8; 7]>()] { 3 }",
+        "machine keep() -> u64 { let value: u64[0..=endpoint<[u8; 7]>()] = 3; value }",
+        "machine keep<'item>(value: u64[0..=endpoint<[Borrowed<'item>; 1]>()]) {}",
+        "machine keep(value: u64[0..=endpoint<[u8[0..=7]; 1]>()]) {}",
+    ] {
+        let mut program = typed(&format!(
+            "data Borrowed<'item> {{ value: &'item u8; }}
+             machine endpoint<T>() -> u64 {{ 7 }} {declaration}"
+        ));
+        crate::specialize_static_machine_calls(&mut program)
+            .unwrap_or_else(|errors| panic!("{declaration}: {errors:?}"));
+        assert!(!program.machine_specializations.is_empty(), "{declaration}");
+    }
+}
+
+#[test]
+fn structural_endpoint_cannot_borrow_another_machine_lifetime_scope() {
+    let mut program = typed(
+        "data Borrowed<'item> { value: &'item u8; }
+         machine endpoint<T>() -> u64 { 7 }
+         machine unrelated<'hidden>() {}
+         machine keep(value: u64[0..=endpoint<[Borrowed<'hidden>; 1]>()]) {}",
+    );
+    let errors = crate::specialize_static_machine_calls(&mut program)
+        .expect_err("an unrelated owner cannot authorize a type argument's lifetime");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("undeclared lifetime")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn detached_structural_endpoint_cannot_borrow_an_arena_neighbour_scope() {
+    let mut program = typed(
+        "machine endpoint<T>() -> u64 { 7 }
+         machine keep(value: u64[0..=endpoint<[u8; 7]>()]) {}",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "keep")
+        .unwrap();
+    let state = program.machine_states(machine)[0].clone();
+    let reference = program.state_parameters(&state)[0].type_reference;
+    let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+        *program.type_reference_table.type_reference(reference)
+    else {
+        panic!("authored range")
+    };
+    program.state_parameters.span_mut_or_empty(state.parameters)[0].type_reference = base_type;
+    let errors = crate::specialize_static_machine_calls(&mut program)
+        .expect_err("an arena entry without its declaration remains unowned");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("no retained caller")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn named_type_arguments_cannot_reorder_the_authored_binder_tuple() {
     for argument in ["u8", "Marker"] {
         for body in [

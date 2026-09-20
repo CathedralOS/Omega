@@ -71,6 +71,26 @@ fn typed_range_endpoint_drives_inferred_capacity_through_native_execution() {
     assert_endpoint_executes(checked_source(TYPED_RANGE_SOURCE));
 }
 
+#[test]
+fn structural_type_endpoint_keeps_its_caller_context_through_native_execution() {
+    let source = TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "identity<u64[0..=7]>(7)");
+    assert_endpoint_executes(checked_source(&source));
+}
+
+#[test]
+fn structural_type_endpoint_rejects_its_argument_outside_the_selected_range() {
+    let source = TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "identity<u64[0..=6]>(7)");
+    let errors = check_source(&source)
+        .map(|_| ())
+        .expect_err("closed structural type arguments retain their value obligations");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("outside declared range")),
+        "{errors:?}"
+    );
+}
+
 const TYPED_RANGE_SOURCE: &str = r#"
         machine identity<T>(value: T) -> T { value }
         machine capacity<const N: u64>(value: u64[0..=N]) -> u64 { N }
