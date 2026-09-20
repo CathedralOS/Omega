@@ -6411,7 +6411,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; verify scope then implement.
 - **PRODUCER-CHECKER-SHARING-AUDIT** — mined candidate; verify scope then implement.
 - **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
-- **PROGRAM-ENTRY-SELECTION-DIVISION** — mined candidate; verify scope then implement.
+- **PROGRAM-ENTRY-SELECTION-DIVISION** — resolved: superseded on `origin/main` (verified 8479b3ab86). Entry selection already divides on every axis the entry-roots contract names: per-profile matrix selection (foreign rows resolve profile/slot ownership then stay out of the durable projection), exactly-one binding per required slot, free vs. provisioned receiver modes, the two-surface semantic/physical calling-plan check, and a closed `TargetRequiredRootSlotDeclaration` kind enum that keeps build-bound `ProgramEntry` divided from runtime-installed root kinds (foreign kinds reject by name). Witnesses: 12/12 `build-evaluation admission::selection::tests`; `OMEGA_PASS_CANARY_FILTER="program_entry,root_binding"` corpus green. Known residual: `tests/omega/fail/build/program_entry_binding_outside_build` expected.txt predates the "compiler-issued &mut Build receiver" diagnostic — fenced by RC-DIAGNOSTICS-GATE at verification time, so repinning belongs to that lane.
 - **PROGRAM-ENTRY-SELECTION-EXACTNESS** — mined candidate; verify scope then implement.
 - **PROMOTION-REJOIN-EVIDENCE** — mined candidate; verify scope then implement.
 - **PROMOTION-ROLLBACK-REJOIN-LEGS** — mined candidate; verify scope then implement.
