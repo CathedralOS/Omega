@@ -131,6 +131,31 @@ pub(crate) fn exact_adapter_receiver_shape(
     }
 }
 
+/// Whether the field's requirement family -- the boundary trait or the
+/// top-level requirement machine -- owns the call's exact target state. A
+/// `self` receiver place registers once per requirement on its owner type, so
+/// one receiver symbol can map to several fields and only the family owning
+/// the target selects the adapter.
+fn field_owns_target(
+    typed: &TypedTrees,
+    requirement_family: symbols::SymbolHandle,
+    target_symbol: symbols::SymbolHandle,
+) -> bool {
+    typed.machines().iter().any(|machine| {
+        machine.symbol == requirement_family
+            && typed
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == target_symbol)
+    }) || typed.traits().iter().any(|definition| {
+        definition.symbol == requirement_family
+            && typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| signature.symbol == target_symbol)
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn resolve_adapter_call<'adapter>(
     typed: &TypedTrees,
@@ -142,7 +167,19 @@ pub(crate) fn resolve_adapter_call<'adapter>(
     target_name: &str,
     machine_arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> Result<Option<&'adapter AdapterRow>, Diagnostic> {
-    let field = fields.iter().find(|field| field.symbol == receiver_symbol);
+    let candidates = fields
+        .iter()
+        .filter(|field| field.symbol == receiver_symbol)
+        .collect::<Vec<_>>();
+    let field = if candidates.len() > 1 {
+        candidates
+            .iter()
+            .copied()
+            .find(|field| field_owns_target(typed, field.trait_symbol, target_symbol))
+            .or(candidates.first().copied())
+    } else {
+        candidates.first().copied()
+    };
     let Some(field) = field else {
         return Ok(None);
     };

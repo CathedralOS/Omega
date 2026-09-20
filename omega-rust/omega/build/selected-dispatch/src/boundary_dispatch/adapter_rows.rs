@@ -2,6 +2,7 @@
 
 use crate::boundary_dispatch::boundary_fields::{
     exact_adapter_receiver_shape, exact_boundary_trait, exact_conformance_requirement_identity,
+    named_type_symbol,
 };
 use crate::boundary_dispatch::signature_families::{FamilyProbe, finite_signature_family};
 use diagnostics::Diagnostic;
@@ -373,12 +374,18 @@ pub(crate) fn resolve_selected_adapter_row(
 }
 
 /// Resolve the one exact checked adapter realizing a top-level `boundary
-/// requirement`. The first rung is deliberately closed: a public, nongeneric,
-/// receiver-free requirement (`pub boundary requirement Owner::name(...);`)
-/// and a nongeneric checked-body adapter whose sole `satisfies` edge rejoins
-/// that exact requirement symbol with the same non-self arity. The row keys
-/// on the requirement symbol and the owner the direct call retains as its
-/// receiver; execution consumes the association while Terminal retains the
+/// requirement`. Two rungs are deliberately closed: a public, nongeneric
+/// requirement (`pub boundary requirement Owner::name(...);`) and a
+/// nongeneric checked-body adapter whose sole `satisfies` edge rejoins that
+/// exact requirement symbol with the same non-self arity. A receiver-free
+/// requirement admits only an exact-arity adapter and the row keys on the
+/// nominal owner the direct call retains as its receiver. A by-value `self`
+/// requirement (`Owner::name(self, ...)`) admits only an adapter taking the
+/// owner as its leading parameter; the row forwards the member call's
+/// receiver place as argument zero, so the row keys on each receiver place's
+/// own symbol instead of the owner. Borrowed or qualified receivers stay
+/// closed: their custody and obligation transfer are a separate shape.
+/// Execution consumes the association while Terminal retains the
 /// requirement.
 fn resolve_top_level_requirement_adapter_row(
     typed: &TypedTrees,
@@ -404,13 +411,19 @@ fn resolve_top_level_requirement_adapter_row(
             "selected top-level boundary requirement `{requirement_name}` has no exact entry-state symbol",
         )));
     }
-    if typed
+    // `self` types as a plain `Named` `Self` reference; `&self`/`&mut self`
+    // carry a `Reference` node and an `in`-qualified receiver a `Constrained`
+    // node, both of which stay closed here -- borrowed-receiver custody and
+    // obligation transfer are separate shapes this row does not settle.
+    let self_receiver = typed
         .state_parameters(entry)
         .iter()
-        .any(|parameter| parameter.is_self)
+        .find(|parameter| parameter.is_self);
+    if let Some(self_receiver) = self_receiver
+        && named_type_symbol(typed, self_receiver.type_reference).is_none()
     {
         return Err(Diagnostic::error(format!(
-            "selected top-level boundary requirement `{requirement_name}` takes a `self` receiver; only a receiver-free requirement settles a direct-call dispatch row",
+            "selected top-level boundary requirement `{requirement_name}` takes a borrowed `self` receiver; only an owned `self` receiver settles a direct-call dispatch row",
         )));
     }
     if plan.provider_type.is_empty() {
@@ -464,15 +477,30 @@ fn resolve_top_level_requirement_adapter_row(
             method.requirement_identity,
         )));
     }
-    let actual_parameters = typed
+    let actual_parameters: Vec<_> = typed
         .state_parameters(adapter_entry)
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .count();
-    if actual_parameters != method.parameter_count {
+        .collect();
+    let forward_receiver = match exact_adapter_receiver_shape(
+        typed,
+        &actual_parameters,
+        method.parameter_count,
+        requirement.attached_data_symbol,
+    ) {
+        Some(forward_receiver) => forward_receiver,
+        None => {
+            let count = actual_parameters.len();
+            return Err(Diagnostic::error(format!(
+                "selected checked adapter `{machine_identity}` has {count} non-self entry parameters; top-level boundary requirement `{}` requires {} or one leading `{}` receiver",
+                method.requirement_identity, method.parameter_count, plan.provider_type,
+            )));
+        }
+    };
+    if self_receiver.is_some() != forward_receiver {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has {actual_parameters} non-self entry parameters; top-level boundary requirement `{}` requires {}",
-            method.requirement_identity, method.parameter_count,
+            "selected checked adapter `{machine_identity}` receiver shape does not match top-level boundary requirement `{}`: a `self` requirement forwards the receiver place to a leading owner parameter, a receiver-free requirement takes the exact declared arity",
+            method.requirement_identity,
         )));
     }
     // A direct machine call targets the requirement's entry state, exactly
@@ -486,7 +514,7 @@ fn resolve_top_level_requirement_adapter_row(
         requirement_symbol: entry.symbol,
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: adapter_entry.symbol,
-        forward_receiver: false,
+        forward_receiver,
         family_tuple: Box::default(),
         family_tuple_display: Box::default(),
         top_level_owner: Some(requirement.attached_data_symbol),

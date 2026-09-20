@@ -283,9 +283,14 @@ fn plan_selected_boundary_adapter_dispatch(
     // A top-level requirement row is reached by the direct call
     // `Owner::name(...)`, whose retained receiver is the exact nominal owner.
     // The owner joins the requirement symbol directly; no field, parameter or
-    // routed-service receipt participates.
+    // routed-service receipt participates. A `self` requirement's calls keep
+    // the receiver place instead, so the owner key is registered only for a
+    // receiver-free row.
     let mut boundary_fields = Vec::new();
     for adapter in &adapters {
+        if adapter.forward_receiver {
+            continue;
+        }
         let Some(owner) = adapter.top_level_owner else {
             continue;
         };
@@ -295,6 +300,92 @@ fn plan_selected_boundary_adapter_dispatch(
         };
         if !boundary_fields.contains(&field) {
             boundary_fields.push(field);
+        }
+    }
+
+    // A by-value `self` requirement is called through a member receiver
+    // (`token.consume()`), whose retained receiver symbol is the receiver
+    // PLACE -- a per-site parameter, `self` binding or local -- not the
+    // nominal owner. Register the receiver place of each member call that
+    // targets a settled self row after verifying its declared type is the
+    // requirement owner; the row's forward_receiver flag carries that place
+    // into the adapter's leading argument. Borrowed receivers do not reach
+    // here: settlement already rejected a `&self`/`&mut self` requirement
+    // row, and a receiver place that does not resolve to the owner keeps no
+    // field, so its call is diagnosed below.
+    let self_adapters = adapters
+        .iter()
+        .filter(|adapter| adapter.forward_receiver && adapter.top_level_owner.is_some())
+        .collect::<Vec<_>>();
+    if !self_adapters.is_empty() {
+        // The declared type of one receiver place, wherever it is bound --
+        // place symbols are unique across the program, so the search is exact
+        // rather than scoped to the call's state.
+        let receiver_place_types = |receiver_symbol: symbols::SymbolHandle| {
+            let mut type_references = Vec::new();
+            for machine in typed.machines() {
+                for state in typed.machine_states(machine) {
+                    for parameter in typed.state_parameters(state) {
+                        if parameter.symbol == receiver_symbol {
+                            type_references.push(parameter.type_reference);
+                        }
+                    }
+                    for statement in typed.statement_table.statements(state.statement_nodes) {
+                        if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                            && local.symbol == receiver_symbol
+                        {
+                            type_references.push(local.type_reference);
+                        }
+                    }
+                }
+            }
+            type_references
+        };
+        let mut register_receiver_place =
+            |receiver_symbol: symbols::SymbolHandle, target_symbol: symbols::SymbolHandle| {
+                let Some(adapter) = self_adapters
+                    .iter()
+                    .find(|adapter| adapter.requirement_symbol == target_symbol)
+                else {
+                    return;
+                };
+                let Some(owner) = adapter.top_level_owner else {
+                    return;
+                };
+                if !receiver_place_types(receiver_symbol)
+                    .iter()
+                    .any(|type_reference| named_type_symbol(typed, *type_reference) == Some(owner))
+                {
+                    return;
+                }
+                let field = BoundaryField {
+                    symbol: receiver_symbol,
+                    trait_symbol: adapter.receiver_trait,
+                };
+                if !boundary_fields.contains(&field) {
+                    boundary_fields.push(field);
+                }
+            };
+        for machine in typed.machines() {
+            for state in typed.machine_states(machine) {
+                for statement in typed.statement_table.statements(state.statement_nodes) {
+                    let typed_trees::statement::StatementNode::Call(call) = statement else {
+                        continue;
+                    };
+                    register_receiver_place(call.receiver_symbol, call.target_symbol);
+                }
+            }
+        }
+        for (_, expression) in typed.expression_table.expression_entries() {
+            let typed_trees::expression::ExpressionNode::Call(call) = expression else {
+                continue;
+            };
+            let receiver = match typed.expression_table.expression(call.receiver) {
+                typed_trees::expression::ExpressionNode::Member(member) => member.member_symbol,
+                typed_trees::expression::ExpressionNode::Name(path) => path.symbol,
+                _ => continue,
+            };
+            register_receiver_place(receiver, call.target_symbol);
         }
     }
 
@@ -468,12 +559,22 @@ fn plan_selected_boundary_adapter_dispatch(
         return Err(diagnostics);
     }
     // Check every source occurrence against the exact selected requirement.
-    // Source names remain diagnostics, never dispatch identity.
+    // Source names remain diagnostics, never dispatch identity. A member call
+    // whose receiver place failed to join a settled receiver-forwarding row
+    // must not silently keep the requirement seam: it would interpret as an
+    // unselected reach row while a provider was selected for it.
+    let receiver_forwarded_target = |target_symbol| {
+        adapters.iter().any(|adapter| {
+            adapter.forward_receiver
+                && adapter.top_level_owner.is_some()
+                && adapter.requirement_symbol == target_symbol
+        })
+    };
     for machine in typed.machines() {
         for state in typed.machine_states(machine) {
             for statement in typed.statement_table.statements(state.statement_nodes) {
                 if let typed_trees::statement::StatementNode::Call(call) = statement {
-                    resolve_adapter_call(
+                    let adapter = resolve_adapter_call(
                         typed,
                         &adapters,
                         &generic_requirements,
@@ -484,6 +585,12 @@ fn plan_selected_boundary_adapter_dispatch(
                         &call.machine_arguments,
                     )
                     .map_err(|error| vec![error])?;
+                    if adapter.is_none() && receiver_forwarded_target(call.target_symbol) {
+                        return Err(vec![Diagnostic::error(format!(
+                            "member call `{}` names a selected receiver-bearing boundary requirement, but its receiver place does not join the settled row: only an owned receiver place of the requirement owner type forwards as argument 0",
+                            call.target.as_str(),
+                        ))]);
+                    }
                 }
             }
         }
@@ -497,7 +604,7 @@ fn plan_selected_boundary_adapter_dispatch(
             typed_trees::expression::ExpressionNode::Name(path) => path.symbol,
             _ => continue,
         };
-        resolve_adapter_call(
+        let adapter = resolve_adapter_call(
             typed,
             &adapters,
             &generic_requirements,
@@ -508,6 +615,12 @@ fn plan_selected_boundary_adapter_dispatch(
             &call.machine_arguments,
         )
         .map_err(|error| vec![error])?;
+        if adapter.is_none() && receiver_forwarded_target(call.target_symbol) {
+            return Err(vec![Diagnostic::error(format!(
+                "member call `{}` names a selected receiver-bearing boundary requirement, but its receiver place does not join the settled row: only an owned receiver place of the requirement owner type forwards as argument 0",
+                call.target.as_str(),
+            ))]);
+        }
     }
     let mut dispatch = Vec::new();
     for receiver in boundary_fields {
