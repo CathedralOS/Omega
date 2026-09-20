@@ -21,6 +21,8 @@ mod scalar_call;
 #[cfg(test)]
 mod narrow_load_tests;
 #[cfg(test)]
+mod rejection_inventory_tests;
+#[cfg(test)]
 mod tests;
 
 use route::{HostedChannel, RowRoute};
