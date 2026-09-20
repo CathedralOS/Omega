@@ -1317,6 +1317,21 @@ Owners include
   `UEFI-PHYSICAL-SEMANTIC-ENTRY`'s claim. The open frontier is the source-issued
   leg above. `AP-BRINGUP` owns its concrete arrival/cancellation state repair.
 
+  Source-side issuance gates verified at `a0591618c7ba`
+  (`cargo nextest run -p typed-trees-to-checked-trees checks::content`,
+  linux x86-64, 10/10): the authorized issuance routes in
+  `checks/content/call_results.rs` (bare-result `-> T in D` and case-payload
+  spellings), the transferred-input-is-not-fresh-supply rejection, the
+  duplicate-claim-identity and undeclared-result-field rejections all hold —
+  the checker's half of "reject forged source construction, foreign/replayed
+  receipts, substituted geometry and duplicate fresh supply" is already
+  exercised. The remaining frontier narrows to the provider-planning and
+  native-settlement join to the installed occurrence — fenced this wave to
+  `PROVIDER-ATTACHMENT-MACHINE-PLAN` (`execution/unit/providers.rs`, ~22:37Z),
+  `PLACED-ACCESS-NATIVE-OPS` (`execution/unit` neighbor surface, ~00:56Z) and
+  the external-roots subtree under `RC-REPOSITORY-BASELINE-GREEN` (~23:46Z)
+  and `AP-BRINGUP` (~01:40Z).
+
   Acceptance: source-issued content retains geometry, backing, issuer, lineage,
   route and exact occurrence through independent replay. Reject forged source
   construction, foreign/replayed receipts, substituted geometry and duplicate
