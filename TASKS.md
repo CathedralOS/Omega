@@ -1451,20 +1451,37 @@ Owners include
     `available_target` caller view onto `CheckedComposedUnitControlStatePlan`;
     `digit_write`'s byte-store `ScalarResult` needs that, since
     `CheckedByteSequenceStoreValue` has no `Computation` carrier. On
-    2026-09-19 (Linux x86-64)
+    2026-09-20 (Linux x86-64) the call-store pair is admitted through
+    composed-control emission: `state_graph/body.rs` counts
+    `ScalarResult`-valued shared stores as body effects, gives `ScalarCall`
+    a binding namespace that skips discarded results, and admits the
+    `ScalarCall` + `LocalData`/`Assignment`/`Call` operand pairs;
+    `composed_control/admission.rs` retains `ScalarCall` operations
+    through source-call custody, callee fingerprint/commitment, and
+    per-kind service-reach agreement; `composed_control/scalar_calls.rs`
+    collects op-level call targets into the embedded catalog;
+    `composed_control/emission.rs` emits `ScalarCall` as
+    `OperationKind::Call`/`CallStructuralScalar` through the same
+    binding-ordinal and contract checks ordinary machines use.
     `content_text_and_carriers::runtime_number_to_decimal_exit_canary_runs`
-    still fails before the native run, but the omission advanced past state 8
-    to `Lowering(Unsupported("Unit graph dropped or added a body effect"))`:
-    the `ScalarCall` + `StructuralByteSequenceFieldByteStore` pair is two
-    operations for one statement, and the foreign
-    `checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/body.rs`
-    count check plus its missing `ScalarCall` emission arm refuse it.
-    Resume there: admit the call-store pair in `body.rs` emission (TR3-TR8's
-    claim this wave) and check whether Terminal `OperationKind` still lacks a
-    leaf reading bounded-field byte content. Sibling canaries
-    `runtime_bounded_carrier_write_read_exit` and `utf8_equals_literal_exit`
-    already fail in this closure's custody gates at base, so the equality
-    frontier is shared, not decimal-specific.
+    now advances past `digit_write` to the `check` guard and fails at
+    `Lowering(Unsupported("indexed reads require a whole byte-view
+    parameter"))`: the named check is affirmative — Terminal
+    `OperationKind` still lacks a leaf reading bounded-field byte content.
+    The t2c equality decomposition emits `StructuralParameterIndexedRead`
+    conjuncts with `path=[Field(out)]`, while
+    `expression_preparation/prepare_expression.rs` only admits the
+    whole-parameter byte view and terminal `ByteSequenceRead` carries no
+    field path (`StructuralByteSequenceFieldLength`/
+    `StructuralByteSequenceFieldByteStore` are the only field-path byte
+    ops). Resume there: add a field-path byte-read leaf through Terminal
+    `OperationKind` (parallel to `ByteSequenceFieldLength`, resolving
+    through `structural_fields::resolve_byte_length`'s carrier walk) —
+    `representations/terminal-psi` is outside this wave's TR3-TR8 claim.
+    Sibling canaries `runtime_bounded_carrier_write_read_exit` and
+    `utf8_equals_literal_exit` already fail in this closure's custody
+    gates at base, so the equality frontier is shared, not
+    decimal-specific.
   - Lowering still gives a live scalar call result only a `Return` or
     `LocalInitializer` role in `emission/call_source_custody.rs`, so a store
     consuming its own statement's call result has no authored destination

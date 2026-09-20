@@ -74,6 +74,7 @@ fn lower_composed_services(
         let service_reach = match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
+            | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)

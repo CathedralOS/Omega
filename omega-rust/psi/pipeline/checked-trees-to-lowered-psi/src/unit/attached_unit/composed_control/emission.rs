@@ -5,17 +5,19 @@ use super::super::super::{
 };
 use super::super::{
     Block, BoundaryMachineResult, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-    CompletionReceipt, Operation, OperationKind, OperationResult, PlaceId,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id, lookup_machine_id,
-    lookup_type_id, lower_structural_arguments, lower_structural_path, place_id,
-    terminal_scalar_type, unsupported, validate_transfer_shape,
+    CompletionReceipt, Operation, OperationKind, OperationResult, PlaceId, SemanticDomainId,
+    StructuralDomainId, StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeId, Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id,
+    lookup_machine_id, lookup_type_id, lower_checked_crash_route_buckets,
+    lower_structural_arguments, lower_structural_path, place_id, terminal_scalar_type, unsupported,
+    validate_transfer_shape, value_id,
 };
 use super::{
     CheckedTrees, LoweringError, catalogs, internal_calls, literal_arguments, state_graph,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 
 pub(crate) fn emit_call_leaf(
     checked: &CheckedTrees,
@@ -577,6 +579,24 @@ pub(super) fn emit_call_operations(
                     operations,
                 )?
             }
+            CheckedUnitEffectOperationPlan::ScalarCall { .. } => emit_scalar_call_operation(
+                checked,
+                state,
+                operation,
+                parameters,
+                &catalogs.type_ids,
+                &catalogs.domain_ids,
+                claim_bindings,
+                &catalogs.structural_types,
+                arguments.as_deref(),
+                erased_parameters,
+                &mut catalogs.scalar_calls,
+                &byte_argument_places,
+                &catalogs.result_places,
+                values,
+                next_value,
+                operations,
+            )?,
             _ => return unsupported("composed Unit operation escaped exact call custody"),
         }
         if let CheckedUnitEffectOperationPlan::StructuralCall {
@@ -770,5 +790,271 @@ pub(super) fn emit_boundary_call_operation(
                 .collect::<Result<Vec<_>, LoweringError>>()?,
         },
     });
+    Ok(())
+}
+
+/// Lower one checked `ScalarCall` into the shared call lane. A store reading
+/// the produced scalar shares the call's authored statement; the dense scalar
+/// namespace still binds the result exactly like the ordinary sequencer does.
+#[allow(clippy::too_many_arguments)]
+fn emit_scalar_call_operation(
+    checked: &CheckedTrees,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+    parameters: &[StructuralParameterDeclaration],
+    type_ids: &[(String, StructuralTypeId)],
+    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
+    structural_types: &[StructuralTypeDeclaration],
+    scalar_values: Option<&[ValueDeclaration]>,
+    caller_erased_formals: &[ValueDeclaration],
+    scalar_calls: &mut super::scalar_calls::ComposedScalarCalls,
+    byte_argument_places: &[PlaceId],
+    result_places: &[StructuralPlaceDeclaration],
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<(), LoweringError> {
+    let CheckedUnitEffectOperationPlan::ScalarCall {
+        coordinate,
+        result,
+        target_machine,
+        target_state,
+        erased_scalar_arguments,
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = operation
+    else {
+        return unsupported("composed Unit scalar call custody drifted before emission");
+    };
+    let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
+    if target.entry_state()? != *target_state
+        || target.result_type()? != terminal_scalar_type(result.primitive_type)?
+    {
+        return unsupported(
+            "composed Unit scalar call disagrees with its checked target signature",
+        );
+    }
+    if usize::try_from(result.binding_ordinal)
+        .ok()
+        .and_then(|ordinal| ordinal.checked_add(state.scalar_parameters.len()))
+        != Some(values.len())
+    {
+        return unsupported("Unit scalar result binding ordinal drifted from source order");
+    }
+    // The plan's scalar roster carries only retained operands; the proof-only
+    // erased lane rejoins its own checked actuals.
+    let arguments = super::super::argument_evaluation::validated_values(
+        scalar_values,
+        &target
+            .parameter_types()?
+            .iter()
+            .map(|primitive| terminal_scalar_type(*primitive))
+            .collect::<Result<Vec<_>, LoweringError>>()?,
+    )?;
+    if erased_scalar_arguments.len() != target.erased_parameters().len() {
+        return unsupported(
+            "composed Unit scalar call erased lane disagrees with its target roster",
+        );
+    }
+    let erased_arguments = erased_scalar_arguments
+        .iter()
+        .map(|argument| {
+            let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
+                return unsupported(
+                    "composed Unit scalar call erased actual must be a pure checked expression",
+                );
+            };
+            crate::proofs::crash_routes::checked_scalar_term(
+                expression,
+                values.as_slice(),
+                caller_erased_formals,
+            )
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    if checked
+        .facts
+        .contract_plans
+        .for_machine(*target_machine)
+        .is_none()
+    {
+        return Err(LoweringError::Unsupported(
+            "composed Unit scalar call target has no checked contract",
+        ));
+    }
+    let mut calls = scalar_calls.emission_context();
+    let requirement_count = calls
+        .requirement_counts
+        .iter()
+        .find_map(|(source, count)| (*source == *target_machine).then_some(*count))
+        .ok_or(LoweringError::Unsupported(
+            "composed Unit scalar call target has no prepared contract",
+        ))?;
+    let requirement_obligations = (0..requirement_count)
+        .map(|_| calls.allocate_requirement())
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let callee = lookup_machine_id(calls.machine_ids, *target_machine)?;
+    scalar_calls.next_call_obligation = calls.next_obligation_identity;
+    let crash_continuations = lower_checked_crash_route_buckets(
+        &crate::unit::effective_crash_routes(checked, *target_machine)?,
+        &arguments,
+    )?;
+    let value = ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(allocate_dense(next_value)?),
+        scalar_type: terminal_scalar_type(result.primitive_type)?,
+    };
+    let operation_id = operations.allocate();
+    operations.record_source_call(
+        SourceCallCoordinate {
+            state: state.state,
+            statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
+                LoweringError::Unsupported("composed Unit statement coordinate exceeds usize")
+            })?,
+            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
+                LoweringError::Unsupported("composed Unit call coordinate exceeds usize")
+            })?,
+        },
+        None,
+        operation_id,
+        *target_state,
+    )?;
+    let argument_ids = arguments
+        .iter()
+        .map(|argument| argument.id)
+        .collect::<Vec<_>>();
+    let kind = if !structural_arguments.is_empty()
+        || !claim_transfers.is_empty()
+        || target.requires_structural_frame()
+    {
+        if target.structural_parameters().is_empty() && !structural_arguments.is_empty() {
+            return unsupported("structural scalar call has no structural checked body");
+        }
+        // Binding ordinals belong to this source state, whereas the place
+        // catalog spans the whole emitted machine. Rejoin the current
+        // operation registry.
+        let earlier_results = if structural_arguments.iter().any(|argument| {
+            argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+        }) {
+            operations
+                .structural_values
+                .iter()
+                .enumerate()
+                .map(|(binding_position, (ordinal, result))| {
+                    if *ordinal as usize != binding_position {
+                        return unsupported(
+                            "composed scalar call result binding namespace is stale or duplicated",
+                        );
+                    }
+                    let mut declarations = result_places
+                        .iter()
+                        .filter(|place| place.id == result.place);
+                    let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+                        "composed scalar call completed result has no place declaration",
+                    ))?;
+                    if declarations.next().is_some()
+                        || !matches!(declaration.kind,
+                            StructuralPlaceKind::OperationResult { structural_type, producer }
+                                if structural_type == result.structural_type && operations.operations.iter().any(|candidate|
+                                    candidate.id == producer && candidate.result.structural() == Some(result)))
+                    {
+                        return unsupported(
+                            "composed scalar call result declaration differs from its operation",
+                        );
+                    }
+                    Ok((*declaration, false))
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?
+        } else {
+            Vec::new()
+        };
+        validate_transfer_shape(
+            structural_arguments,
+            claim_transfers,
+            parameters,
+            &[],
+            &earlier_results,
+            target.structural_parameters(),
+            type_ids,
+            structural_types,
+            // A claim-carrying `self` formal fed by a completed result consumes
+            // the moved frontier instead of publishing a transfer row; every
+            // other entry claim expects exactly one.
+            &target
+                .entry_claims()
+                .iter()
+                .filter(|claim| {
+                    target
+                        .structural_parameters()
+                        .get(claim.parameter_index as usize)
+                        .zip(structural_arguments.get(claim.parameter_index as usize))
+                        .is_none_or(|(parameter, argument)| {
+                            !parameter.is_self
+                                || argument
+                                    .source_structural_result_binding_ordinal()
+                                    .is_none()
+                        })
+                })
+                .map(|claim| claim.parameter_index)
+                .collect::<Vec<_>>(),
+            &[],
+            Some(
+                crate::unit::attached_unit::parameters::StructuralResultCustody {
+                    results: &operations.structural_values,
+                    domains: domain_ids,
+                    claims: claim_bindings,
+                    target_entry_claims: target.entry_claims(),
+                },
+            ),
+        )?;
+        OperationKind::CallStructuralScalar {
+            callee,
+            arguments: argument_ids,
+            erased_arguments,
+            structural_arguments: lower_structural_arguments(
+                structural_arguments,
+                parameters,
+                &[],
+                &earlier_results,
+                byte_argument_places,
+                &[],
+            )?,
+            claim_transfers: crate::unit::attached_unit::parameters::emitted_claim_transfers(
+                structural_arguments,
+                claim_transfers,
+                target.structural_parameters(),
+                &operations.structural_values,
+                claim_bindings,
+            )?,
+            requirement_obligations,
+            crash_continuations,
+        }
+    } else {
+        OperationKind::Call {
+            callee,
+            arguments: argument_ids,
+            erased_arguments,
+            requirement_obligations,
+            crash_continuations,
+        }
+    };
+    operations.push(Operation {
+        static_reach_binding: None,
+        id: operation_id,
+        result: OperationResult::Scalar(value),
+        kind,
+    });
+    // A discarded call keeps its typed result without entering the caller's
+    // scalar namespace; a retained one is the next dense value.
+    if !crate::emission::call_source_custody::initializers::discards_result(
+        checked,
+        state.state,
+        *coordinate,
+    )? {
+        values.push(value);
+    }
     Ok(())
 }

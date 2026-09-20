@@ -227,27 +227,50 @@ pub(crate) fn validate_operation(
                 .typed
                 .statement_table
                 .statements(state.statement_nodes);
-            // A final scalar call owns the return expression, not an invented
-            // local. Completion replay separately checks its exact result binding.
-            let role = if result.statement_index as usize + 1 == statements.len()
-                && matches!(
-                    statements.last(),
-                    Some(checked_trees::statement::StatementNode::Expression(_))
-                ) {
-                CheckedScalarExpressionRole::Return
-            } else {
-                CheckedScalarExpressionRole::LocalInitializer {
-                    binding_ordinal: result.binding_ordinal,
+            if let Some(checked_trees::statement::StatementNode::Assignment(_)) =
+                statements.get(result.statement_index as usize)
+            {
+                // A store consuming its own statement's call product has no
+                // authored local binding; the consuming store's ScalarResult
+                // lane rejoins the value by dense scalar position. The authored
+                // assignment's right-hand side is this call, so its exact
+                // signature still pins the stored result.
+                let call = authored::locate_source(checked, caller_state, *coordinate)?;
+                let target =
+                    authored::target_signature(checked, caller_machine, call.source_target)?;
+                if result.statement_index != coordinate.statement_index
+                    || checked.primitive_type_reference(target.return_type)
+                        != Some(result.primitive_type)
+                {
+                    return unsupported("stored scalar result changed its authored signature");
                 }
-            };
-            let source = crate::expression_preparation::source_custody::locate(
-                checked,
-                caller_state,
-                result.statement_index,
-                role,
-            )?;
-            if source.machine != caller_machine || source.primitive_type != result.primitive_type {
-                return unsupported("call result binding disagrees with its authored scalar local");
+            } else {
+                // A final scalar call owns the return expression, not an invented
+                // local. Completion replay separately checks its exact result binding.
+                let role = if result.statement_index as usize + 1 == statements.len()
+                    && matches!(
+                        statements.last(),
+                        Some(checked_trees::statement::StatementNode::Expression(_))
+                    ) {
+                    CheckedScalarExpressionRole::Return
+                } else {
+                    CheckedScalarExpressionRole::LocalInitializer {
+                        binding_ordinal: result.binding_ordinal,
+                    }
+                };
+                let source = crate::expression_preparation::source_custody::locate(
+                    checked,
+                    caller_state,
+                    result.statement_index,
+                    role,
+                )?;
+                if source.machine != caller_machine
+                    || source.primitive_type != result.primitive_type
+                {
+                    return unsupported(
+                        "call result binding disagrees with its authored scalar local",
+                    );
+                }
             }
         }
     }

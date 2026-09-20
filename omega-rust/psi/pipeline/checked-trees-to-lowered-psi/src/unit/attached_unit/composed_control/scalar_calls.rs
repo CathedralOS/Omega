@@ -12,13 +12,13 @@ pub(super) fn prepare(
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
     internal_targets: &[catalogs::LoweredComposedInternalTarget],
 ) -> Result<ComposedScalarCalls, LoweringError> {
-    let roots = selected_roots(checked, machine, states)?;
+    let targets = selected_targets(checked, machine, states)?;
     let excluded_sources = std::iter::once(machine)
         .chain(internal_targets.iter().map(|target| target.source))
         .collect::<Vec<_>>();
-    ComposedScalarCalls::prepare_computations(
+    ComposedScalarCalls::prepare_targets(
         checked,
-        &roots,
+        &targets,
         &excluded_sources,
         internal_targets
             .len()
@@ -144,6 +144,9 @@ fn selected_roots(
                 | CheckedUnitEffectOperationPlan::StructuralCall {
                     scalar_arguments, ..
                 }
+                | CheckedUnitEffectOperationPlan::ScalarCall {
+                    scalar_arguments, ..
+                }
                 | CheckedUnitEffectOperationPlan::CallUnit {
                     scalar_arguments, ..
                 } => scalar_arguments,
@@ -178,5 +181,20 @@ pub(super) fn selected_targets(
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let roots = selected_roots(checked, machine, states)?;
-    crate::scalar_graph::scalar_call_closure::embedded::computation_targets(checked, &roots)
+    let mut targets =
+        crate::scalar_graph::scalar_call_closure::embedded::computation_targets(checked, &roots)?;
+    // A statement-level scalar call carries its callee on the operation, not
+    // inside an operand computation.
+    for operation in states
+        .iter()
+        .flat_map(|state| state.operation_dependencies())
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
+        if let CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } = operation
+            && !targets.contains(target_machine)
+        {
+            targets.push(*target_machine);
+        }
+    }
+    Ok(targets)
 }

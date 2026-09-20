@@ -39,6 +39,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::StructuralCall { service_reach, .. }
+            | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)

@@ -48,8 +48,32 @@ pub(super) fn validate(
             )
         })
         .count();
+    // A store whose value is the scalar call result its own statement produced
+    // shares that statement instead of consuming a new one.
+    let shared_result_stores = state
+        .operations
+        .iter()
+        .filter(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => matches!(
+                store.value,
+                checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+            ),
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                matches!(
+                    store.value,
+                    checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                )
+            }
+            CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => matches!(
+                write.value,
+                checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+            ),
+            _ => false,
+        })
+        .count();
     if prefix > end
-        || state.operations.len() + marker_count != end - prefix + tail_value + continuation_count
+        || state.operations.len() + marker_count
+            != end - prefix + tail_value + continuation_count + shared_result_stores
     {
         return unsupported("Unit graph dropped or added a body effect");
     }
@@ -93,18 +117,65 @@ pub(super) fn validate(
                             "Unit graph scalar binding count overflow",
                         ))?;
             }
+            CheckedUnitEffectOperationPlan::ScalarCall {
+                coordinate, result, ..
+            } => {
+                if result.binding_ordinal != next_scalar_binding {
+                    return unsupported("Unit graph scalar binding namespace drifted");
+                }
+                // A discarded call result occupies its ordinal unclaimed; only
+                // a retained result advances the namespace.
+                if !crate::emission::call_source_custody::initializers::discards_result(
+                    checked,
+                    state.state,
+                    *coordinate,
+                )? {
+                    next_scalar_binding =
+                        next_scalar_binding
+                            .checked_add(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "Unit graph scalar binding count overflow",
+                            ))?;
+                }
+            }
             _ => {}
         }
-        let ordinal =
-            if let CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } =
-                operation
-            {
+        let ordinal = match operation {
+            CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
                 coordinate.statement_index as usize
-            } else {
+            }
+            // A store consuming its own statement's scalar call result rejoins
+            // that statement; the producing call already advanced the cursor.
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
+                if matches!(
+                    store.value,
+                    checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                ) =>
+            {
+                store.statement_index as usize
+            }
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store)
+                if matches!(
+                    store.value,
+                    checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                ) =>
+            {
+                store.statement_index as usize
+            }
+            CheckedUnitEffectOperationPlan::ByteSequenceWrite(write)
+                if matches!(
+                    write.value,
+                    checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                ) =>
+            {
+                write.statement_index as usize
+            }
+            _ => {
                 let ordinal = cursor;
                 cursor += 1;
                 ordinal
-            };
+            }
+        };
         match (
             operation,
             statements.get(ordinal).ok_or(LoweringError::Unsupported(
@@ -371,6 +442,43 @@ pub(super) fn validate(
             ) if claim_transfers.is_empty()
                 && coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0 =>
+            {
+                crate::emission::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+            }
+            (
+                CheckedUnitEffectOperationPlan::ScalarCall {
+                    coordinate, result, ..
+                },
+                StatementNode::LocalData(local),
+            ) if !local.is_mutable
+                && coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0
+                && result.statement_index == coordinate.statement_index
+                && checked.primitive_type_reference(local.type_reference)
+                    == Some(result.primitive_type) =>
+            {
+                crate::emission::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+            }
+            (
+                CheckedUnitEffectOperationPlan::ScalarCall {
+                    coordinate, result, ..
+                },
+                StatementNode::Assignment(_) | StatementNode::Call(_),
+            ) if coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0
+                && result.statement_index == coordinate.statement_index =>
             {
                 crate::emission::call_source_custody::validate_operation(
                     checked,
