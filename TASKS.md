@@ -7637,7 +7637,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-D-REQUEST-ROUTE-ENTRY** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-TABLE-COMPLETION** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-TABLES** — mined candidate; verify scope then implement.
-- **OMEGA-D-REQUEST-V1-TABLES** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-V1-TABLES.** Mined candidate; scope verified at
+  `8a37f82686`: re-mine of the OMEGA-D EREQ v1 request clause — the
+  request/outcome table surface of the first full Omega compiler in
+  `bootstrap/5_omega/omega_compiler.epsilon.sources` (16,152 lines, 8
+  members). Live same-item claim: `Devin / z22-omega-d-request-v1-tables`
+  fences `bootstrap/5_omega/outcome.epsilon` + `tests/bootstrap/omega-outcome`
+  until ~2026-09-21T01:24Z; surrounding surfaces are also claimed (OMEGA-D's
+  `bootstrap/5_omega` dir ~22:27Z, D-SCALAR-OPERATION-CLOSURE's
+  `scalar_compilation.epsilon` ~01:46Z, DELTA-COMPILER's `tests/epsilon`
+  ~21:48Z). No workable leg under this stub while they stand. Sibling
+  re-mines of the same clause: OMEGA-D-REQUEST-ADMISSION,
+  OMEGA-D-REQUEST-AND-ENTRY-ROUTE, OMEGA-D-REQUEST-AND-SCALAR-COMPILATION,
+  OMEGA-D-REQUEST-OUTCOME-TABLES, OMEGA-D-REQUEST-ROUTE-ENTRY,
+  OMEGA-D-REQUEST-TABLE-COMPLETION, OMEGA-D-REQUEST-TABLES.
 - **OMEGA-D-SCALAR-ALPHA-EMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-COMPILATION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-EMISSION-EXTENSION** — mined candidate; verify scope then implement.
