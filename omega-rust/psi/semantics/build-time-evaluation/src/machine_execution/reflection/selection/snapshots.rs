@@ -229,6 +229,20 @@ pub(crate) fn snapshot_revision(snapshot: &SelectionSnapshot) -> u64 {
     );
     text(&mut hash, &snapshot.requirement.trait_identity);
     optional_text(&mut hash, &snapshot.requirement.requirement_identity);
+    match &snapshot.requirement.trait_application {
+        Some(application) => {
+            byte(&mut hash, 1);
+            uint(&mut hash, application.type_argument_identities.len() as u64);
+            for identity in &application.type_argument_identities {
+                text(&mut hash, identity);
+            }
+            uint(&mut hash, application.lifetime_arguments.len() as u64);
+            for ordinal in &application.lifetime_arguments {
+                uint(&mut hash, u64::from(*ordinal));
+            }
+        }
+        None => byte(&mut hash, 0),
+    }
     uint(&mut hash, snapshot.records.len() as u64);
     for record in &snapshot.records {
         text(&mut hash, &record.member_identity);
