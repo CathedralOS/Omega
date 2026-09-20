@@ -44,9 +44,8 @@ package-source's `test-fixtures` feature.
 
 A single full eight-thread workspace run at the recorded revision took 168.522
 seconds including build work, with 7,681 passes, three failures, and 14 ignored
-tests across 117 targets. The failures were the package-source local-origin
-case and two platform-custody persistent-journal cases. This uncontrolled run
-does not establish a workspace speedup.
+tests across 117 targets. This uncontrolled historical run does not establish
+a workspace speedup or identify current implementation work.
 
 A nextest 0.9.140 experiment with per-package groups of eight stopped after
 240.846 seconds total (57.96 seconds compilation) and was incomplete. A later
