@@ -336,7 +336,29 @@ pub(super) fn operation(
     let LegalizedScalarInstructionKind::Call(call) = &node.kind else {
         return Err(replay.invalid());
     };
-    if call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
+    // Mirror the construction routing: an owned actual that re-presents the
+    // caller's complete signature replays the slot-addressed forward lane.
+    let signature_equal_forward = source.structural.as_ref().is_some_and(|signature| {
+        call.result_placement.is_none()
+            && call.arguments.len() == signature.parameters.len()
+            && !call.arguments.is_empty()
+            && call.call_plan == source.call_plan
+            && call.arguments.iter().all(|argument| {
+                matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
+                if semantic.access == StructuralAccess::Owned
+                    && semantic.path.is_empty()
+                    && signature.parameters.iter().any(|parameter|
+                        parameter.semantic.place == semantic.place)
+                    && matches!(target.destination.locations.as_slice(),
+                        [ValueLocation::Indirect {
+                            pointer: IndirectPointerLocation::Register(_),
+                            copy_stack_byte_offset: Some(_),
+                            ..
+                        }]))
+            })
+    });
+    if !signature_equal_forward
+        && call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
         if semantic.access == StructuralAccess::Owned
             && crate::selection::scalar_call_abi::owned_value_shape(source, target.structural_type).is_none())) {
         super::unit_call::validate(source, node, environment, replay)?;
@@ -445,35 +467,43 @@ pub(super) fn operation(
                 &provenance(node),
             )?;
         }
-        let address = result(replay, semantic.place, 0)?;
-        memory(
-            replay,
-            node,
-            semantic.place,
-            0,
-            u32::from(*byte_size),
-            SelectedMemoryAccessRole::AddressOutgoing { slot },
-        )?;
-        replay.check_instruction(
-            SelectedInstructionKind::FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
-                byte_offset: 0,
-            },
-            replay
-                .constraints
-                .keys
-                .frame_address
-                .ok_or_else(|| replay.invalid())?,
-            &[address],
-            &provenance(node),
-        )?;
-        pointers.push((
-            address,
-            environment
-                .fixed_register_view(*pointer)
-                .ok_or_else(|| replay.invalid())?,
-        ));
+        pointers.push((semantic.place, *byte_size, *pointer, slot));
     }
+    // Construction materializes each outgoing-slot address after the argument
+    // copies; replay follows the same instruction order.
+    let pointers = pointers
+        .into_iter()
+        .map(|(place, byte_size, pointer, slot)| {
+            let address = result(replay, place, 0)?;
+            memory(
+                replay,
+                node,
+                place,
+                0,
+                u32::from(byte_size),
+                SelectedMemoryAccessRole::AddressOutgoing { slot },
+            )?;
+            replay.check_instruction(
+                SelectedInstructionKind::FrameAddress {
+                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+                    byte_offset: 0,
+                },
+                replay
+                    .constraints
+                    .keys
+                    .frame_address
+                    .ok_or_else(|| replay.invalid())?,
+                &[address],
+                &provenance(node),
+            )?;
+            Ok((
+                address,
+                environment
+                    .fixed_register_view(pointer)
+                    .ok_or_else(|| replay.invalid())?,
+            ))
+        })
+        .collect::<Result<Vec<_>, SelectedInstructionError>>()?;
     let key = replay
         .constraints
         .keys

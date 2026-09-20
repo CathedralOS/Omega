@@ -10,7 +10,6 @@ pub(super) fn is_owned_parameter(
     parameter.access == StructuralAccess::Owned
         && parameter.multiplicity != StructuralMultiplicity::Linear
         && !parameter.is_self
-        && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
         && value_layout(parameter.structural_type, types).is_ok()
 }
@@ -19,6 +18,7 @@ pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
+    function: &AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
@@ -37,8 +37,8 @@ pub(super) fn argument(
         if home.structural_type() != declaration.structural_type
             || home.multiplicity() != declaration.multiplicity
             || home.has_claims()
-            || !home.qualifications().is_empty()
-            || !home.projected_qualifications().is_empty()
+            || home.qualifications() != declaration.qualifications.as_slice()
+            || home.projected_qualifications() != declaration.projected_qualifications.as_slice()
             || home.layout != expected_layout
         {
             return Err(invalid());
@@ -52,10 +52,19 @@ pub(super) fn argument(
             .iter()
             .find(|parameter| parameter.place == argument.place)
             .ok_or_else(invalid)?;
+        // The callee's whole-root preconditions transfer only when the
+        // caller's declared roster on this place equals them exactly.
+        let caller_qualifications = function
+            .structural_parameters
+            .iter()
+            .find(|source| source.place == argument.place)
+            .map(|source| source.qualifications.as_slice())
+            .unwrap_or(&[]);
         if parameter.access != StructuralAccess::Owned
             || parameter.multiplicity != declaration.multiplicity
             || parameter.structural_type != declaration.structural_type
             || parameter.shape != expected_shape
+            || caller_qualifications != declaration.qualifications.as_slice()
         {
             return Err(invalid());
         }
