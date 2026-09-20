@@ -23,13 +23,22 @@ fn build_dir(label: &str) -> std::path::PathBuf {
 }
 
 fn request(target: &str, output_dir: std::path::PathBuf) -> CompileRequest {
-    request_for(selected_canary().join("main.omg"), target, output_dir)
+    request_for(
+        selected_canary().join("main.omg"),
+        target,
+        output_dir,
+        [
+            Optimization::ControlFlowCleanup,
+            Optimization::CopyPropagation,
+        ],
+    )
 }
 
 fn request_for(
     root_path: std::path::PathBuf,
     target: &str,
     output_dir: std::path::PathBuf,
+    disabled: impl IntoIterator<Item = Optimization>,
 ) -> CompileRequest {
     CompileRequest::new(CompileOptions {
         root_path,
@@ -38,12 +47,65 @@ fn request_for(
     })
     .with_requested_product(RequestedCompileProduct::NativeArtifact)
     .with_optimization_rollback(
-        OptimizationRollback::new([
-            Optimization::ControlFlowCleanup,
-            Optimization::CopyPropagation,
-        ])
-        .expect("the rollback request is duplicate-free"),
+        OptimizationRollback::new(disabled).expect("the rollback request is duplicate-free"),
     )
+}
+
+fn dead_scalar_project(
+    project_dir: std::path::PathBuf,
+    select_dead_scalar: bool,
+) -> std::path::PathBuf {
+    std::fs::create_dir_all(&project_dir).expect("create the dead-scalar project directory");
+    std::fs::write(
+        project_dir.join("main.omg"),
+        "data Main { }\nmachine Main::main(&mut self) {\n    let dead_const: i32 = 7;\n}\n",
+    )
+    .expect("write the dead-scalar project root");
+    let mut build_source = concat!(
+        "machine build(builder: &mut Build) {\n",
+        "    builder.application(\"dead-scalar-rollback\");\n",
+        "    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n",
+        "    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n",
+        "    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n",
+        "    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n",
+    )
+    .to_owned();
+    if select_dead_scalar {
+        build_source.push_str(
+            "    builder.optimizations.enable(Optimization::DeadPureScalarElimination);\n",
+        );
+    }
+    build_source.push_str("}\n");
+    std::fs::write(project_dir.join("build.omg"), build_source)
+        .expect("write the dead-scalar build file");
+    project_dir.join("main.omg")
+}
+
+fn compile_ordinary_retained_native(
+    root_path: std::path::PathBuf,
+    target: &str,
+) -> compiler::RetainedNativeArtifact {
+    let output_dir = build_dir(target);
+    let report = compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path,
+            build_dir: Some(output_dir.clone()),
+            target_name: Some(target.to_owned()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .unwrap_or_else(|diagnostics| {
+        panic!("ordinary compilation for {target} failed: {diagnostics:#?}")
+    });
+    let artifact = report
+        .into_retained_native_artifact()
+        .expect("native compilation must retain its artifact");
+    artifact
+        .validate()
+        .expect("the retained ordinary artifact must replay");
+    let _ = std::fs::remove_dir_all(output_dir);
+    artifact
 }
 
 #[test]
@@ -106,6 +168,75 @@ fn rollback_to_empty_selection_rejoins_exact_ordinary_path_on_every_target() {
             "{target}"
         );
         let _ = std::fs::remove_dir_all(output_dir);
+    }
+}
+
+#[test]
+fn dead_scalar_rollback_rejoins_exact_ordinary_path_on_every_target() {
+    for target in HOSTED_NATIVE_TARGETS {
+        let pair_dir = build_dir("dead-scalar-pair");
+        let selected_root = dead_scalar_project(pair_dir.join("selected"), true);
+        let ordinary_root = dead_scalar_project(pair_dir.join("ordinary"), false);
+        let output_dir = build_dir(target);
+        let report = compiler::compile(request_for(
+            selected_root,
+            target,
+            output_dir.clone(),
+            [Optimization::DeadPureScalarElimination],
+        ))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| panic!("rollback compilation failed: {diagnostics:#?}"));
+        let receipt = report
+            .optimization_rollback_receipt()
+            .expect("a nonempty rollback request must leave custody");
+        assert_eq!(
+            receipt.build_selected().as_slice(),
+            &[Optimization::DeadPureScalarElimination],
+            "{target}"
+        );
+        assert_eq!(
+            receipt.requested_disabled().as_slice(),
+            &[Optimization::DeadPureScalarElimination],
+            "{target}"
+        );
+        assert_eq!(
+            receipt.actually_disabled().as_slice(),
+            &[Optimization::DeadPureScalarElimination],
+            "{target}"
+        );
+        assert!(receipt.effective().is_empty(), "{target}");
+
+        let rolled_back = report
+            .into_retained_native_artifact()
+            .expect("native compilation must retain its artifact");
+        let ordinary = compile_ordinary_retained_native(ordinary_root, target);
+        assert_eq!(
+            retained_native_snapshot(target, &rolled_back),
+            retained_native_snapshot(target, &ordinary),
+            "{target}"
+        );
+        assert_eq!(
+            rolled_back.semantic_bytes(),
+            ordinary.semantic_bytes(),
+            "{target}"
+        );
+        assert_eq!(
+            rolled_back.proof_bytes(),
+            ordinary.proof_bytes(),
+            "{target}"
+        );
+        assert_eq!(
+            rolled_back.object().text_bytes(),
+            ordinary.object().text_bytes(),
+            "{target}"
+        );
+        assert_eq!(
+            rolled_back.image().output().bytes,
+            ordinary.image().output().bytes,
+            "{target}"
+        );
+        let _ = std::fs::remove_dir_all(output_dir);
+        let _ = std::fs::remove_dir_all(pair_dir);
     }
 }
 
