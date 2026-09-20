@@ -6861,7 +6861,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **COMPILER-PASS-PROFILE-TIMINGS** — advanced: the omega-side product legs now record into the `CompileTimings` accumulator the checked record carries. `CheckedCompilation::timings_mut` exposes it; `produce_retained_terminal_artifact` records `terminal-production`, `terminal-verification` and `native-realization-proposal` rows via take/put-back; the direct route carries `terminal-production` on `ProgramEntryTerminalArtifact::stage_timings` (merged back in `prepare_native_product`), and `NativeInputReuse` records `native-input-preparation` on cache miss. Remaining legs: enable the accumulator at `checking.rs` (`shared_timings = CompileTimings::default()`; INTERNAL-PASS-PROFILE-TIMINGS's fence), merge the stage ladder into `CompileReport` and print rows under `--timings` (compilation-report + omega CLI fences), then decompose the coarse boundary rows into per-stage rows — finer in-Psi rows need a Psi-owned timing carrier because `terminal-production` cannot depend on `artifacts` under `psi_does_not_depend_on_omega`.
 - **COMPILER-PASS-PROFILING** — mined candidate; verify scope then implement.
 - **COMPOSABLE-PAIR-DESCRIPTORS** — mined candidate; verify scope then implement.
-- **COMPUTED-CONSTANT-LEAF-CARRIER** — mined candidate; verify scope then implement.
+- **COMPUTED-CONSTANT-LEAF-CARRIER.** Mined candidate; scope verified at
+  df74f38606, resolved — re-mines the computed-constant leaf surface landed
+  under PKG-INPUTS-FLOAT-IDENTITY-LANDING (`742a2f1d84`, "psi: evaluate and
+  independently replay floating constant declarations").
+  `syntax-trees-to-symbol-resolved-trees/src/constant/initializer_leaves.rs`
+  now carries every computed leaf kind with exact declared carriers:
+  builtin scalar leaves (integer/Boolean, extended to floats by the land),
+  closed generic applications via `closed_leaf_carrier` + parameter
+  substitution, nominal literals, array literals and constrained carriers —
+  each with an explicit refusal rather than a silent pass. Witness on the
+  sibling row: `public_float_constants_retain_landed_identity_and_exact_import_owner`
+  green at `cdee121ee9`. Sibling stubs on the same surface:
+  PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF, PACKAGE-INPUTS-PSI-FAILURES.
 - **CONCURRENCY-COMPOSITION-EXTRACTION.** Resolved — mined alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface; its authorization gate applies (spec defers whole-composition extraction until a concrete protocol or safety-profile customer needs it).
 - **CONCURRENT-COMPOSITION-EXTRACTION.** Resolved — mined alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface; its authorization gate applies (spec defers whole-composition extraction until a concrete protocol or safety-profile customer needs it).
 - **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
