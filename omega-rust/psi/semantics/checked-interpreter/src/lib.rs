@@ -114,9 +114,9 @@ pub use evaluation::{
     DescribedProductSchema, EvaluationObservations, EvaluationSemanticsIdentity,
     EvaluationStepScheduleIdentity, EvaluationUsage, EvaluationUsageSchemaIdentity,
     ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
-    ExecutedRootBinding, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
-    MAX_INCLUDED_BUILD_SOURCES, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
-    PrivateLayoutPlacementReceipt,
+    ExecutedProviderSelection, ExecutedProviderSelectionSite, ExecutedRootBinding,
+    InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS, MAX_INCLUDED_BUILD_SOURCES,
+    MeasuredBuildMachineEvaluation, MeasuredEvaluation, PrivateLayoutPlacementReceipt,
 };
 pub use filesystem::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,

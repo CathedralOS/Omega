@@ -387,6 +387,23 @@ pub struct ExecutedRootBinding {
     pub described: Option<DescribedProductEntry>,
 }
 
+/// A provider choice executed against the activation's original Build cell.
+/// Its operands are declaration references, never evaluated product code.
+/// Omega rejoins this coordinate to validate product scope and provider coverage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutedProviderSelection {
+    pub machine: symbols::SymbolHandle,
+    pub site: ExecutedProviderSelectionSite,
+    /// Zero means the omitted default; otherwise the evaluated toolchain case.
+    pub composition_case: symbols::SymbolHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecutedProviderSelectionSite {
+    Statement(typed_trees::statement::StatementHandle),
+    Expression(typed_trees::expression::ExpressionHandle),
+}
+
 /// One crash, physical-authority, or service exclusion selection that
 /// actually evaluated against the activation's original Build value
 /// (wiki/spec/build/behavior_exclusions.md): exclusions are evaluated Build
@@ -704,6 +721,7 @@ pub struct MeasuredBuildMachineEvaluation<T> {
     pub(crate) observations: EvaluationObservations,
     pub(crate) executed_root_bindings: Vec<ExecutedRootBinding>,
     pub(crate) executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
+    pub(crate) executed_provider_selections: Vec<ExecutedProviderSelection>,
 }
 
 impl<T> MeasuredBuildMachineEvaluation<T> {
@@ -713,12 +731,14 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         observations: EvaluationObservations,
         executed_root_bindings: Vec<ExecutedRootBinding>,
         executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
+        executed_provider_selections: Vec<ExecutedProviderSelection>,
     ) -> Self {
         Self {
             measured: MeasuredEvaluation::new(value, usage),
             observations,
             executed_root_bindings,
             executed_behavior_exclusions,
+            executed_provider_selections,
         }
     }
 
@@ -730,6 +750,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             observations: EvaluationObservations::default(),
             executed_root_bindings: Vec::new(),
             executed_behavior_exclusions: Vec::new(),
+            executed_provider_selections: Vec::new(),
         }
     }
 
@@ -763,6 +784,10 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         &self.executed_behavior_exclusions
     }
 
+    pub fn executed_provider_selections(&self) -> &[ExecutedProviderSelection] {
+        &self.executed_provider_selections
+    }
+
     pub fn into_value(self) -> T {
         self.measured.into_value()
     }
@@ -780,6 +805,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         EvaluationObservations,
         Vec<ExecutedRootBinding>,
         Vec<ExecutedBehaviorExclusion>,
+        Vec<ExecutedProviderSelection>,
     ) {
         let (value, usage) = self.measured.into_parts();
         (
@@ -788,6 +814,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             self.observations,
             self.executed_root_bindings,
             self.executed_behavior_exclusions,
+            self.executed_provider_selections,
         )
     }
 }

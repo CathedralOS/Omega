@@ -322,15 +322,50 @@ pub machine Runner::run(&mut self) reaches Reader invokes Reader; crashes Trap {
 
 #[test]
 fn same_leaf_module_providers_dispatch_to_their_own_native_bodies() {
+    run_module_providers(false);
+}
+
+#[test]
+fn executed_build_selection_dispatches_shared_slot_to_selected_native_provider() {
+    run_module_providers(true);
+}
+
+fn run_module_providers(explicit_selection: bool) {
     let Some(profile) = target::TargetProfile::host_if_supported() else {
         eprintln!("SKIP: provider execution requires a supported hosted target");
         return;
     };
     for (entry_module, expected) in [("left", 11), ("right", 37)] {
+        let requirement_module = if explicit_selection {
+            "contract"
+        } else {
+            entry_module
+        };
+        let (selection, helper) = if explicit_selection {
+            let call =
+                format!("builder.select_provider<contract::Reader, {entry_module}::Provider>();");
+            if entry_module == "right" {
+                (
+                    "choose(builder);".to_owned(),
+                    format!("machine choose(builder: &mut Build) {{ {call} }}"),
+                )
+            } else {
+                (call, String::new())
+            }
+        } else {
+            (String::new(), String::new())
+        };
+        let build = format!(
+            "{}\n{helper}",
+            application_build(&format!(
+                "builder.roots.bind({}::ProgramEntry, Main::run); {selection}",
+                profile.root_slot_owner_name()
+            ))
+        );
         let project = TempProject::with_main(
             &format!(
                 r#"use left; use right;
-use {entry_module}::Reader;
+use {requirement_module}::Reader;
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {{ reader: Service<Reader>; }}
@@ -339,18 +374,25 @@ machine Main::run(&mut self) reaches Reader, Console invokes Reader; {{
 }}
 "#
             ),
-            &application_build(&format!(
-                "builder.roots.bind({}::ProgramEntry, Main::run);",
-                profile.root_slot_owner_name()
-            )),
+            &build,
         );
+        if explicit_selection {
+            std::fs::write(project.0.join("contract.omg"),
+                "module contract; use omega_language_std::console; pub boundary trait Reader { machine check() reaches Console invokes Console; }")
+                .expect("shared requirement fixture");
+        }
         for (module, result) in [("left", 11), ("right", 37)] {
+            let requirement = if explicit_selection {
+                "use contract::Reader;"
+            } else {
+                "pub boundary trait Reader { machine check() reaches Console invokes Console; }"
+            };
             std::fs::write(
                 project.0.join(format!("{module}.omg")),
                 format!(
                     r#"module {module};
 use omega_language_std::console;
-pub boundary trait Reader {{ machine check() reaches Console invokes Console; }}
+{requirement}
 pub data Provider {{}}
 machine Provider::check() satisfies Reader::check reaches Console invokes Console; {{
     Console::exit_process({result});

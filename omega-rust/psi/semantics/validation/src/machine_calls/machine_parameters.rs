@@ -275,10 +275,12 @@ fn validate_call_selection(
     nominal_uses: &mut Vec<ValidatedNominalMachineUse>,
     specializations: &mut Vec<ValidatedRequirementCallSpecialization>,
 ) {
-    if matches!(
-        target_name,
-        "select_provider" | "select_representation" | "exclude_service"
-    ) {
+    if !target_symbol.is_valid()
+        && matches!(
+            target_name,
+            "select_provider" | "select_representation" | "exclude_service"
+        )
+    {
         return;
     }
     let (requirements, generic_types): (Vec<_>, Vec<_>) = if let Some((callee, _)) =

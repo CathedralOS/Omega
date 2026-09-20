@@ -1,6 +1,128 @@
 use super::{
     Fixture, PackageReviewNominalOwner, TargetProfile, fixtures, package_identity, project,
 };
+
+#[test]
+fn executed_helper_selection_replays_without_activating_dead_choices() {
+    let source = "pub boundary trait Reader { machine read() -> i32; }
+        pub data Left {} pub data Right {}
+        machine Left::read() -> i32 satisfies Reader::read { 11 }
+        machine Right::read() -> i32 satisfies Reader::read { 37 }";
+    let build = "machine build(builder: &mut Build) {
+        builder.package(\"review-fixture\"); choose(builder);
+    }
+    machine choose(builder: &mut Build) { builder.select_provider<Reader, Left>(); }
+    machine unused(builder: &mut Build) { builder.select_provider<Reader, Right>(); }";
+    let fixture = Fixture::local(source, build, TargetProfile::WindowsX64);
+    let policy = project(&fixture);
+    assert!(
+        policy
+            .plans()
+            .iter()
+            .any(|plan| plan.schema_declaration().path() == "Reader")
+    );
+
+    // Review must rejoin the selected helper's authored declaration, not
+    // merely accept a still-aligned immutable plan/provenance pair.
+    let mut changed = fixture.checked.clone();
+    let statements = changed
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose")
+        .map(|machine| {
+            changed
+                .typed
+                .machine_states(machine)
+                .iter()
+                .map(|state| state.statement_nodes)
+                .collect::<Vec<_>>()
+        })
+        .unwrap();
+    let mut replaced = 0;
+    let mut expressions = Vec::new();
+    for statements in statements {
+        for statement in changed.typed.statement_table.statements_mut(statements) {
+            if let typed_trees::statement::StatementNode::Call(call) = statement
+                && call.target.as_str() == "select_provider"
+            {
+                call.target = typed_trees::name::Identifier::generated("not_a_selection");
+                replaced += 1;
+            }
+            if let typed_trees::statement::StatementNode::Expression(expression) = statement {
+                expressions.push(*expression);
+            }
+        }
+    }
+    for expression in expressions {
+        if let typed_trees::expression::ExpressionNode::Call(call) =
+            changed.typed.expression_table.expression_mut(expression)
+            && call.target.as_str() == "select_provider"
+        {
+            call.target = typed_trees::name::Identifier::generated("not_a_selection");
+            replaced += 1;
+        }
+    }
+    assert_eq!(replaced, 1);
+    assert!(
+        super::project_checked_selected_provider_policy(
+            &changed,
+            fixture.target,
+            package_identity()
+        )
+        .is_err()
+    );
+
+    // Keeping the selecting call intact is insufficient: redirecting its
+    // caller would execute a different choice under the old receipt.
+    let mut redirected = fixture.checked.clone();
+    let unused = redirected
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "unused")
+        .unwrap()
+        .symbol;
+    let statements = redirected
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .map(|machine| {
+            redirected
+                .typed
+                .machine_states(machine)
+                .iter()
+                .map(|state| state.statement_nodes)
+                .collect::<Vec<_>>()
+        })
+        .unwrap();
+    let mut replaced = 0;
+    for statements in statements {
+        for statement in redirected.typed.statement_table.statements_mut(statements) {
+            if let typed_trees::statement::StatementNode::Call(call) = statement
+                && call.target.as_str() == "choose"
+            {
+                call.target = typed_trees::name::Identifier::generated("unused");
+                call.target_symbol = unused;
+                replaced += 1;
+            }
+        }
+    }
+    assert_eq!(replaced, 1);
+    let errors = super::project_checked_selected_provider_policy(
+        &redirected,
+        fixture.target,
+        package_identity(),
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("unchanged typed Build input"))
+    );
+}
+
 #[test]
 fn same_spelled_service_reach_and_invocation_keep_their_exact_source_owner() {
     let extra = "pub boundary trait Extra {}\n";

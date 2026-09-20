@@ -450,11 +450,13 @@ impl<'program> Evaluator<'program> {
         // harvested statically by the build-config pass; evaluation serves
         // the marker as a no-op so the build machine runs through it.
         if call.target.as_str().starts_with("accept_boundary#")
-            || call.target.as_str() == "select_provider"
             || call.target.as_str() == "select_representation"
             || call.target.as_str().starts_with("wire_compatibility#")
         {
             return Ok(Value::Unit);
+        }
+        if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
+            return Ok(value);
         }
         // Build behavior exclusions are EVALUATED selections: the executed
         // call against the activation's root Build records the selection;

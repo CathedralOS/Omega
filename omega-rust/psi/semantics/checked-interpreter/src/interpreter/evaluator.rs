@@ -82,6 +82,7 @@ mod output_obligations;
 mod product_entries;
 mod product_providers;
 mod product_schemas;
+mod provider_selections;
 mod root_bindings;
 
 // The filesystem.
@@ -281,6 +282,7 @@ pub(crate) struct Evaluator<'program> {
     /// Executed `exclude_crash`/`exclude_service` selections on the root
     /// Build, in evaluation order.
     pub(super) executed_behavior_exclusions: Vec<crate::ExecutedBehaviorExclusion>,
+    pub(super) executed_provider_selections: Vec<crate::ExecutedProviderSelection>,
     /// Compiler-issued product-entry descriptions handed to evaluated code as
     /// opaque `ProductEntryRef` markers. The marker value indexes this table;
     /// evaluated code can copy the marker but cannot read or fabricate the

@@ -96,27 +96,22 @@ fn validate_authored_activation(
     let [build] = builds.as_slice() else {
         return Err(rejected("selected build machine is missing or ambiguous"));
     };
-    let selections = build_evaluation::harvest_provider_selections(&compilation.typed, build)?;
+    // Sealed provenance contains the calls the original Build actually
+    // executed, including helper calls. A source scan would resurrect
+    // unexecuted selections and omit selections made by helpers.
     for retained in provenance {
         if let ProviderSelectionProvenance::BuildOverride(declarations) = &retained.selected_by
             && declarations.iter().any(|declaration| {
-                declaration.selecting_machine != build_symbol || !selections.contains(declaration)
+                !build_evaluation::validate_executed_provider_selection_declaration(
+                    &compilation.typed,
+                    declaration,
+                )
             })
         {
             return Err(rejected(
                 "build selection differs from its current authored declaration",
             ));
         }
-    }
-    if selections.iter().any(|selection| {
-        !provenance.iter().any(|retained| {
-            matches!(&retained.selected_by, ProviderSelectionProvenance::BuildOverride(declarations)
-                if declarations.contains(selection))
-        })
-    }) {
-        return Err(rejected(
-            "an authored build selection is absent from the selected closure",
-        ));
     }
     let authored = build_evaluation::harvest_root_grants(&compilation.typed, build)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -131,7 +126,20 @@ fn validate_authored_activation(
             "provider grants differ from exact authored selected-plan replay",
         ));
     }
-    validate_target_defaults(compilation)
+    validate_target_defaults(compilation)?;
+    // Build can observe arbitrary helpers, control flow, constants and
+    // reflected declarations. Even an empty choice set is an execution
+    // result: a changed input could add a choice. Rejoin that input after
+    // the independent plan/default/grant checks, rather than inventing a
+    // second dependency tracker or Build evaluator inside package review.
+    if !std::ptr::eq(&compilation.typed, &compilation.custody.typed)
+        && compilation.typed != compilation.custody.typed
+    {
+        return Err(rejected(
+            "executed provider choices require their unchanged typed Build input; changed input requires a new Build evaluation",
+        ));
+    }
+    Ok(())
 }
 
 fn validate_target_defaults(compilation: &PackageReviewInput<'_>) -> Result<(), Vec<Diagnostic>> {

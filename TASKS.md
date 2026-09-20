@@ -532,21 +532,6 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     product checked instance, never its build copy; bare queries retain the
     same-package product frontier. Source names and evaluator table indices
     are not durable selection authority.
-  - Execute static `select_provider` under exact original-Build authority,
-    including ordinary helpers and expression calls; root-syntax harvesting
-    must not apply unexecuted or lookalike selections. Reuse the interpreter's
-    root-binding/behavior-exclusion receipt route and the existing declaration
-    converter; preserve separate target-default admission. Resolve operands in
-    the authorized product occurrence, not the host build namespace.
-    On macOS ARM64 at `ac123199ec`, a native probe with
-    `builder.select_provider<contract::Reader, left::Provider>()` and two
-    module-owned candidates rejected before selection: an authored
-    `StaticArgument` occurrence remained unresolved. The owner is
-    `syntax-trees-to-symbol-resolved-trees/src/symbols/targets/calls.rs`;
-    its helper is also used by service exclusion and lacks exact Build
-    operation authority. Do not grant product lookup by method spelling.
-    After the executed-selection route is connected, require both left/right
-    choices for one shared slot to publish natively and exit 11/37.
   - Extend the existing provider/description owners, retaining the
     [separate checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts) and using
     BUILD-ADMISSION-CHECKPOINT for source custody.

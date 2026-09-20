@@ -74,6 +74,36 @@ pub fn typed_operator_has_no_authored_selection(
     authored_selections::typed_operator_has_no_authored_selection(program, expression)
 }
 
+/// Whether an unresolved typed call selects the toolchain Build provider
+/// operation. Runtime separately requires the activation's original Build cell.
+pub fn typed_build_provider_selection(
+    program: &typed_trees::TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    authored_selections::is_build_provider_selection(program, expression)
+}
+
+/// Unresolved provider-selection expressions owned by this machine, including
+/// nested expressions. This establishes declaration membership, not execution
+/// or Build authority; callers must independently validate those obligations.
+pub fn typed_provider_selection_expressions(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Vec<typed_trees::expression::ExpressionHandle> {
+    authored_selections::provider_selection_expressions(program, machine)
+}
+
+/// Resolve a designated product operand after the caller has established the
+/// exact Build operation. Ordinary declaration selection must not use this API.
+pub fn typed_product_provider_selection_operand(
+    program: &typed_trees::TypedTrees,
+    argument: &typed_trees::expression::StaticMachineArgument,
+    occurrence: source::SourceSpan,
+    subject: bool,
+) -> Option<symbols::SymbolHandle> {
+    authored_selections::resolve_product_operand(program, argument, occurrence, subject)
+}
+
 /// Exact declaration selected by one late-bound member access whose typed
 /// `member_symbol` is still invalid, derived from the receiver's owner type
 /// exactly as checked binding derives it. Build-time authority confines that

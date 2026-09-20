@@ -858,6 +858,7 @@ fn expression_candidates(
                 program,
                 expression,
                 &call.machine_arguments,
+                call.target.as_str() == "select_provider" && !call.target_symbol.is_valid(),
                 &mut candidates,
             );
         }
@@ -1035,6 +1036,7 @@ fn collect_static_argument_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    defer_call_arguments: bool,
     candidates: &mut Vec<Candidate>,
 ) {
     for argument in arguments {
@@ -1046,7 +1048,15 @@ fn collect_static_argument_candidates(
                     program.tables.bodies.expressions.source_span(expression),
                 ),
                 kind: static_argument_kind(program, argument.symbol),
-                target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
+                // An unresolved receiver call may become the exact Build
+                // selection once its type is known. Defer, without granting
+                // product authority; ordinary callees still retain and check
+                // their original argument symbols at finalization.
+                target: if defer_call_arguments {
+                    CandidateTarget::LateBound(LateBinding::CheckedStaticArgument)
+                } else {
+                    resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument)
+                },
             });
         }
         if let Some(application) = &argument.application {
@@ -1054,6 +1064,7 @@ fn collect_static_argument_candidates(
                 program,
                 expression,
                 &application.arguments,
+                defer_call_arguments,
                 candidates,
             );
         }
