@@ -56,6 +56,103 @@ pub(super) struct PreparedEntry {
     pub shim: EntryShim,
 }
 
+/// One hosted Unit entry leg: the adapter's encode/decode pair, its shim
+/// residency, and the format-family header probe that proves the published
+/// image selects exactly this adapter. The four target legs share one
+/// mechanics pipeline and differ only in their encoder bytes, their tail
+/// decode, and the final header check, so the rows live behind one form
+/// rather than four parallel bodies.
+struct UnitEntryForm {
+    target: fn() -> target::NativeTarget,
+    label: &'static str,
+    name: &'static str,
+    byte_count: usize,
+    encode: fn(usize, usize) -> Result<Vec<u8>, Diagnostic>,
+    decode: fn(&[u8], usize) -> Option<usize>,
+    shim: fn(ObjectSymbolHandle, usize) -> EntryShim,
+    header_check: fn(&image::EmittedImageOutput, usize, &[u8]) -> bool,
+    header_error: &'static str,
+}
+
+/// Select the mechanics row for the artifact's target. `NativeTarget`
+/// deliberately collapses hosted Windows and UEFI x86-64 into one PE32+
+/// layout. A free Unit entry carries no parameters or entry claims, so the
+/// same physical completion applies on both surfaces: the hosted loader maps
+/// the entry return value to the process exit code, and the EFI image entry
+/// maps it to EFI_STATUS. Returning zero is success under either contract;
+/// parameterized EFI arrivals are not free Unit entries.
+fn unit_entry_form(target: target::NativeTarget) -> Option<UnitEntryForm> {
+    Some(if target == target::NativeTarget::macos_arm64() {
+        UnitEntryForm {
+            target: target::NativeTarget::macos_arm64,
+            label: "Darwin",
+            name: "omega_darwin_unit_entry",
+            byte_count: 20,
+            encode,
+            decode,
+            shim: |symbol, offset| EntryShim::DarwinUnit { symbol, offset },
+            header_check: |output, offset, _expected| main_points_to(&output.bytes, offset),
+            header_error: "Mach-O LC_MAIN does not select the exact Unit entry adapter",
+        }
+    } else if target == target::NativeTarget::windows_x64() {
+        UnitEntryForm {
+            target: target::NativeTarget::windows_x64,
+            label: "Windows",
+            name: "omega_windows_unit_entry",
+            byte_count: 16,
+            encode: encode_windows,
+            decode: decode_windows,
+            shim: |symbol, offset| EntryShim::WindowsUnit { symbol, offset },
+            header_check: |output, offset, expected| {
+                pe_entry_points_to(&output.bytes, offset, expected)
+            },
+            header_error: "PE AddressOfEntryPoint does not select the exact Unit entry adapter",
+        }
+    } else if target == target::NativeTarget::linux_x64() {
+        UnitEntryForm {
+            target: target::NativeTarget::linux_x64,
+            label: "Linux x86-64",
+            name: "omega_linux_x86_64_unit_entry",
+            byte_count: 19,
+            encode: encode_linux_x86_64,
+            decode: decode_linux_x86_64,
+            shim: |symbol, offset| EntryShim::LinuxUnit { symbol, offset },
+            header_check: |output, offset, expected| {
+                elf_entry_points_to(
+                    &output.bytes,
+                    62,
+                    output.final_image_layout.text_address,
+                    offset,
+                    expected,
+                )
+            },
+            header_error: "ELF e_entry does not select the exact Linux x86-64 Unit entry adapter",
+        }
+    } else if target == target::NativeTarget::linux_arm64() {
+        UnitEntryForm {
+            target: target::NativeTarget::linux_arm64,
+            label: "Linux ARM64",
+            name: "omega_linux_arm64_unit_entry",
+            byte_count: 20,
+            encode: encode_linux_arm64,
+            decode: decode_linux_arm64,
+            shim: |symbol, offset| EntryShim::LinuxArm64Unit { symbol, offset },
+            header_check: |output, offset, expected| {
+                elf_entry_points_to(
+                    &output.bytes,
+                    183,
+                    output.final_image_layout.text_address,
+                    offset,
+                    expected,
+                )
+            },
+            header_error: "ELF e_entry does not select the exact Linux ARM64 Unit entry adapter",
+        }
+    } else {
+        return None;
+    })
+}
+
 pub(super) fn prepare(
     artifact: &crate::ObjectArtifact,
 ) -> Result<Option<PreparedEntry>, Diagnostic> {
@@ -65,53 +162,54 @@ pub(super) fn prepare(
     if !crate::function_fragments::replay::has_free_unit_entry(artifact)? {
         return Ok(None);
     }
-    if artifact.target == target::NativeTarget::macos_arm64() {
-        return prepare_darwin(artifact).map(|(object, text, shim)| {
-            Some(PreparedEntry {
-                object,
-                text,
-                shim,
-                relocations: artifact.relocations.clone(),
-            })
-        });
-    }
-    // `NativeTarget` deliberately collapses hosted Windows and UEFI x86-64 into
-    // one PE32+ layout. A free Unit entry carries no parameters or entry claims,
-    // so the same physical completion applies on both surfaces: the hosted
-    // loader maps the entry return value to the process exit code, and the
-    // EFI image entry maps it to EFI_STATUS. Returning zero is success under
-    // either contract; parameterized EFI arrivals are not free Unit entries.
-    if artifact.target == target::NativeTarget::windows_x64() {
-        return prepare_windows(artifact).map(|(object, text, shim)| {
-            Some(PreparedEntry {
-                object,
-                text,
-                shim,
-                relocations: artifact.relocations.clone(),
-            })
-        });
-    }
-    if artifact.target == target::NativeTarget::linux_x64() {
-        return prepare_linux_x86_64(artifact).map(|(object, text, shim)| {
-            Some(PreparedEntry {
-                object,
-                text,
-                shim,
-                relocations: artifact.relocations.clone(),
-            })
-        });
-    }
-    if artifact.target == target::NativeTarget::linux_arm64() {
-        return prepare_linux_arm64(artifact).map(|(object, text, shim)| {
-            Some(PreparedEntry {
-                object,
-                text,
-                shim,
-                relocations: artifact.relocations.clone(),
-            })
-        });
-    }
-    Ok(None)
+    let Some(form) = unit_entry_form(artifact.target) else {
+        return Ok(None);
+    };
+    let bytes = (form.encode)(
+        artifact.text_bytes.len(),
+        artifact.entry_function().text_offset,
+    )?;
+    let (object, text, symbol, offset) = append_entry_shim(artifact, bytes, form.name)?;
+    Ok(Some(PreparedEntry {
+        object,
+        text,
+        shim: (form.shim)(symbol, offset),
+        relocations: artifact.relocations.clone(),
+    }))
+}
+
+/// Append `bytes` to `.text`, grow the section, and install a fresh function
+/// symbol as the object entry; returns the symbol and the shim's text offset.
+/// Shared by the free-Unit adapters and the hosted-receiver bridges; the
+/// caller names how a missing text section reports so each surface keeps its
+/// own custody diagnostic.
+pub(super) fn install_entry_shim(
+    object: &mut ObjectPlan,
+    text: &mut Vec<u8>,
+    bytes: &[u8],
+    name: &str,
+    missing_text_section: &dyn Fn() -> Diagnostic,
+) -> Result<(ObjectSymbolHandle, usize), Diagnostic> {
+    let offset = text.len();
+    text.extend_from_slice(bytes);
+    let section = object
+        .layout
+        .sections
+        .iter()
+        .find(|(_, row)| row.kind == SectionKind::Text)
+        .map(|(handle, _)| handle)
+        .ok_or_else(missing_text_section)?;
+    object.layout.sections.get_mut(section).size = text.len();
+    let symbol = object.layout.symbols.insert(SymbolPlan {
+        name: name.into(),
+        section: SymbolSection::Section(SectionKind::Text),
+        offset,
+        size: bytes.len(),
+        kind: SymbolKind::Function,
+        import_library: String::new(),
+    });
+    object.layout.entry_symbol = symbol;
+    Ok((symbol, offset))
 }
 
 fn append_entry_shim(
@@ -121,74 +219,10 @@ fn append_entry_shim(
 ) -> Result<(ObjectPlan, Vec<u8>, ObjectSymbolHandle, usize), Diagnostic> {
     let mut object = artifact.object.clone();
     let mut text = artifact.text_bytes.clone();
-    let offset = text.len();
-    text.extend(bytes);
-    let section = object
-        .layout
-        .sections
-        .iter()
-        .find(|(_, row)| row.kind == SectionKind::Text)
-        .map(|(handle, _)| handle)
-        .ok_or_else(|| Diagnostic::error("hosted Unit entry has no text section"))?;
-    object.layout.sections.get_mut(section).size = text.len();
-    let symbol = object.layout.symbols.insert(SymbolPlan {
-        name: name.into(),
-        section: SymbolSection::Section(SectionKind::Text),
-        offset,
-        size: text.len() - offset,
-        kind: SymbolKind::Function,
-        import_library: String::new(),
-    });
-    object.layout.entry_symbol = symbol;
+    let (symbol, offset) = install_entry_shim(&mut object, &mut text, &bytes, name, &|| {
+        Diagnostic::error("hosted Unit entry has no text section")
+    })?;
     Ok((object, text, symbol, offset))
-}
-
-fn prepare_darwin(
-    artifact: &crate::ObjectArtifact,
-) -> Result<(ObjectPlan, Vec<u8>, EntryShim), Diagnostic> {
-    let bytes = encode(
-        artifact.text_bytes.len(),
-        artifact.entry_function().text_offset,
-    )?;
-    let (object, text, symbol, offset) =
-        append_entry_shim(artifact, bytes, "omega_darwin_unit_entry")?;
-    Ok((object, text, EntryShim::DarwinUnit { symbol, offset }))
-}
-
-fn prepare_windows(
-    artifact: &crate::ObjectArtifact,
-) -> Result<(ObjectPlan, Vec<u8>, EntryShim), Diagnostic> {
-    let bytes = encode_windows(
-        artifact.text_bytes.len(),
-        artifact.entry_function().text_offset,
-    )?;
-    let (object, text, symbol, offset) =
-        append_entry_shim(artifact, bytes, "omega_windows_unit_entry")?;
-    Ok((object, text, EntryShim::WindowsUnit { symbol, offset }))
-}
-
-fn prepare_linux_x86_64(
-    artifact: &crate::ObjectArtifact,
-) -> Result<(ObjectPlan, Vec<u8>, EntryShim), Diagnostic> {
-    let bytes = encode_linux_x86_64(
-        artifact.text_bytes.len(),
-        artifact.entry_function().text_offset,
-    )?;
-    let (object, text, symbol, offset) =
-        append_entry_shim(artifact, bytes, "omega_linux_x86_64_unit_entry")?;
-    Ok((object, text, EntryShim::LinuxUnit { symbol, offset }))
-}
-
-fn prepare_linux_arm64(
-    artifact: &crate::ObjectArtifact,
-) -> Result<(ObjectPlan, Vec<u8>, EntryShim), Diagnostic> {
-    let bytes = encode_linux_arm64(
-        artifact.text_bytes.len(),
-        artifact.entry_function().text_offset,
-    )?;
-    let (object, text, symbol, offset) =
-        append_entry_shim(artifact, bytes, "omega_linux_arm64_unit_entry")?;
-    Ok((object, text, EntryShim::LinuxArm64Unit { symbol, offset }))
 }
 
 /// `call entry` followed by `exit_group(0)`: the kernel supplies no return
@@ -211,31 +245,53 @@ fn encode_linux_x86_64(offset: usize, destination: usize) -> Result<Vec<u8>, Dia
     Ok(bytes)
 }
 
-/// `bl entry` followed by `exit_group(0)` under the AArch64 Linux syscall
-/// contract (`x8 = 94`); like the kernel-arrival x86-64 surface, there is no
-/// return continuation to honor.
-fn encode_linux_arm64(offset: usize, destination: usize) -> Result<Vec<u8>, Diagnostic> {
+/// AArch64 kernel-arrival adapters share one form: `bl entry` against a
+/// fixed exit tail. Both Darwin and Linux supply no return continuation, so
+/// only the trailing completion block differs between them.
+fn encode_aarch64_call_exit(
+    offset: usize,
+    destination: usize,
+    exit_tail: &[u8],
+    adapter: &str,
+) -> Result<Vec<u8>, Diagnostic> {
     if !offset.is_multiple_of(4) || !destination.is_multiple_of(4) {
-        return Err(Diagnostic::error(
-            "Linux ARM64 Unit entry requires aligned instructions",
-        ));
+        return Err(Diagnostic::error(format!(
+            "{adapter} requires aligned instructions"
+        )));
     }
     let displacement = i64::try_from(destination)
         .ok()
         .zip(i64::try_from(offset).ok())
         .and_then(|(destination, origin)| destination.checked_sub(origin))
         .filter(|value| value % 4 == 0 && (-134_217_728..134_217_728).contains(value))
-        .ok_or_else(|| {
-            Diagnostic::error("Linux ARM64 Unit entry call is outside aligned BL range")
-        })?;
+        .ok_or_else(|| Diagnostic::error(format!("{adapter} call is outside aligned BL range")))?;
     let mut bytes: Vec<u8> = (0x9400_0000u32 | ((displacement / 4) as u32 & 0x03ff_ffff))
         .to_le_bytes()
         .to_vec();
-    bytes.extend(isa_aarch64::encode_hosted_exit_process_i32(
-        target::NativeTarget::linux_arm64(),
-        0,
-    )?);
+    bytes.extend_from_slice(exit_tail);
     Ok(bytes)
+}
+
+/// Decode the shared `bl entry` + fixed exit-tail form back to the semantic
+/// entry's text offset.
+fn decode_aarch64_call_exit(bytes: &[u8], offset: usize, exit_tail: &[u8]) -> Option<usize> {
+    if bytes.len() != 4 + exit_tail.len() || !offset.is_multiple_of(4) {
+        return None;
+    }
+    let word = u32::from_le_bytes(bytes[..4].try_into().ok()?);
+    if word & 0xfc00_0000 != 0x9400_0000 || bytes[4..] != *exit_tail {
+        return None;
+    }
+    let displacement = ((word << 6) as i32 >> 4) as i64;
+    usize::try_from(i64::try_from(offset).ok()?.checked_add(displacement)?).ok()
+}
+
+/// `bl entry` followed by `exit_group(0)` under the AArch64 Linux syscall
+/// contract (`x8 = 94`); like the kernel-arrival x86-64 surface, there is no
+/// return continuation to honor.
+fn encode_linux_arm64(offset: usize, destination: usize) -> Result<Vec<u8>, Diagnostic> {
+    let exit = isa_aarch64::encode_hosted_exit_process_i32(target::NativeTarget::linux_arm64(), 0)?;
+    encode_aarch64_call_exit(offset, destination, &exit, "Linux ARM64 Unit entry")
 }
 
 /// `call entry; xor eax,eax; ret` under the ordinary Windows x64 entry ABI.
@@ -258,49 +314,29 @@ fn encode_windows(offset: usize, destination: usize) -> Result<Vec<u8>, Diagnost
     Ok(bytes)
 }
 
+/// Darwin Unit exit tail: `movz x0, #0; movz x16, #0x30; svc #0x80; brk #0`
+/// — the hosted syscall path completing the process with status zero.
+const DARWIN_UNIT_EXIT_TAIL: [u8; 16] = [
+    0x00, 0x00, 0x80, 0xd2, // movz x0, #0
+    0x30, 0x00, 0x80, 0xd2, // movz x16, #0x30
+    0x01, 0x10, 0x00, 0xd4, // svc #0x80
+    0x00, 0x00, 0x20, 0xd4, // brk #0
+];
+
 fn encode(offset: usize, destination: usize) -> Result<Vec<u8>, Diagnostic> {
-    if !offset.is_multiple_of(4) || !destination.is_multiple_of(4) {
-        return Err(Diagnostic::error(
-            "Darwin Unit entry requires aligned instructions",
-        ));
-    }
-    let displacement = i64::try_from(destination)
-        .ok()
-        .zip(i64::try_from(offset).ok())
-        .and_then(|(destination, origin)| destination.checked_sub(origin))
-        .filter(|value| value % 4 == 0 && (-134_217_728..134_217_728).contains(value))
-        .ok_or_else(|| Diagnostic::error("Darwin Unit entry call is outside aligned BL range"))?;
-    // The root has settled its normal-return frontier before physical completion.
-    // No extra frame or source-level process-abandonment effect is introduced.
-    Ok([
-        0x9400_0000 | ((displacement / 4) as u32 & 0x03ff_ffff),
-        0xd280_0000,
-        0xd280_0030,
-        0xd400_1001,
-        0xd420_0000,
-    ]
-    .into_iter()
-    .flat_map(u32::to_le_bytes)
-    .collect())
+    // The root has settled its normal-return frontier before physical
+    // completion. No extra frame or source-level process-abandonment effect
+    // is introduced.
+    encode_aarch64_call_exit(
+        offset,
+        destination,
+        &DARWIN_UNIT_EXIT_TAIL,
+        "Darwin Unit entry",
+    )
 }
 
 fn decode(bytes: &[u8], offset: usize) -> Option<usize> {
-    if bytes.len() != 20 || !offset.is_multiple_of(4) {
-        return None;
-    }
-    let words: Vec<_> = bytes
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .map(|word| u32::from_le_bytes(*word))
-        .collect();
-    if words[0] & 0xfc00_0000 != 0x9400_0000
-        || words[1..] != [0xd280_0000, 0xd280_0030, 0xd400_1001, 0xd420_0000]
-    {
-        return None;
-    }
-    let displacement = ((words[0] << 6) as i32 >> 4) as i64;
-    usize::try_from(i64::try_from(offset).ok()?.checked_add(displacement)?).ok()
+    decode_aarch64_call_exit(bytes, offset, &DARWIN_UNIT_EXIT_TAIL)
 }
 
 fn decode_linux_x86_64(bytes: &[u8], offset: usize) -> Option<usize> {
@@ -321,20 +357,9 @@ fn decode_linux_x86_64(bytes: &[u8], offset: usize) -> Option<usize> {
 }
 
 fn decode_linux_arm64(bytes: &[u8], offset: usize) -> Option<usize> {
-    if bytes.len() != 20 || !offset.is_multiple_of(4) {
-        return None;
-    }
-    let word = u32::from_le_bytes(bytes[..4].try_into().ok()?);
-    if word & 0xfc00_0000 != 0x9400_0000 {
-        return None;
-    }
     let exit =
         isa_aarch64::encode_hosted_exit_process_i32(target::NativeTarget::linux_arm64(), 0).ok()?;
-    if bytes[4..] != *exit.as_slice() {
-        return None;
-    }
-    let displacement = ((word << 6) as i32 >> 4) as i64;
-    usize::try_from(i64::try_from(offset).ok()?.checked_add(displacement)?).ok()
+    decode_aarch64_call_exit(bytes, offset, &exit)
 }
 
 fn decode_windows(bytes: &[u8], offset: usize) -> Option<usize> {
@@ -376,7 +401,11 @@ pub(super) fn unique_region(
         == 1
 }
 
-pub(super) fn validate_darwin(
+/// Shared Unit entry custody check: the adapter decodes back to the exact
+/// semantic entry, owns one executable region, and the format header selects
+/// it. Each leg only rebinds its byte width, decoder, and final header probe.
+fn validate_unit_entry(
+    form: &UnitEntryForm,
     artifact: &crate::ObjectArtifact,
     object: &ObjectPlan,
     text: &[u8],
@@ -385,33 +414,53 @@ pub(super) fn validate_darwin(
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
     let end = offset
-        .checked_add(20)
-        .ok_or_else(|| Diagnostic::error("Darwin entry range overflow"))?;
-    if artifact.target != target::NativeTarget::macos_arm64()
+        .checked_add(form.byte_count)
+        .ok_or_else(|| Diagnostic::error(format!("{} entry range overflow", form.label)))?;
+    if artifact.target != (form.target)()
         || !crate::function_fragments::replay::has_free_unit_entry(artifact)?
         || offset != artifact.text_bytes.len()
         || object.layout.entry_symbol != symbol
         || text
             .get(offset..end)
-            .and_then(|bytes| decode(bytes, offset))
+            .and_then(|bytes| (form.decode)(bytes, offset))
             != Some(artifact.entry_function().text_offset)
         || output.final_text_bytes.get(offset..end) != text.get(offset..end)
     {
-        return Err(Diagnostic::error(
-            "Darwin Unit entry lost exact source, call, or completion custody",
-        ));
+        return Err(Diagnostic::error(format!(
+            "{} Unit entry lost exact source, call, or completion custody",
+            form.label
+        )));
     }
-    if !unique_region(object, symbol, offset, 20, output) {
-        return Err(Diagnostic::error(
-            "Darwin Unit entry has no unique executable region",
-        ));
+    if !unique_region(object, symbol, offset, form.byte_count, output) {
+        return Err(Diagnostic::error(format!(
+            "{} Unit entry has no unique executable region",
+            form.label
+        )));
     }
-    if !main_points_to(&output.bytes, offset) {
-        return Err(Diagnostic::error(
-            "Mach-O LC_MAIN does not select the exact Unit entry adapter",
-        ));
+    if !(form.header_check)(output, offset, &text[offset..end]) {
+        return Err(Diagnostic::error(form.header_error));
     }
     Ok(())
+}
+
+pub(super) fn validate_darwin(
+    artifact: &crate::ObjectArtifact,
+    object: &ObjectPlan,
+    text: &[u8],
+    symbol: ObjectSymbolHandle,
+    offset: usize,
+    output: &image::EmittedImageOutput,
+) -> Result<(), Diagnostic> {
+    validate_unit_entry(
+        &unit_entry_form(target::NativeTarget::macos_arm64())
+            .ok_or_else(|| Diagnostic::error("Darwin Unit entry has no mechanics row"))?,
+        artifact,
+        object,
+        text,
+        symbol,
+        offset,
+        output,
+    )
 }
 
 pub(super) fn validate_windows(
@@ -422,34 +471,16 @@ pub(super) fn validate_windows(
     offset: usize,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    let end = offset
-        .checked_add(16)
-        .ok_or_else(|| Diagnostic::error("Windows entry range overflow"))?;
-    if artifact.target != target::NativeTarget::windows_x64()
-        || !crate::function_fragments::replay::has_free_unit_entry(artifact)?
-        || offset != artifact.text_bytes.len()
-        || object.layout.entry_symbol != symbol
-        || text
-            .get(offset..end)
-            .and_then(|bytes| decode_windows(bytes, offset))
-            != Some(artifact.entry_function().text_offset)
-        || output.final_text_bytes.get(offset..end) != text.get(offset..end)
-    {
-        return Err(Diagnostic::error(
-            "Windows Unit entry lost exact source, call, or completion custody",
-        ));
-    }
-    if !unique_region(object, symbol, offset, 16, output) {
-        return Err(Diagnostic::error(
-            "Windows Unit entry has no unique executable region",
-        ));
-    }
-    if !pe_entry_points_to(&output.bytes, offset, &text[offset..end]) {
-        return Err(Diagnostic::error(
-            "PE AddressOfEntryPoint does not select the exact Unit entry adapter",
-        ));
-    }
-    Ok(())
+    validate_unit_entry(
+        &unit_entry_form(target::NativeTarget::windows_x64())
+            .ok_or_else(|| Diagnostic::error("Windows Unit entry has no mechanics row"))?,
+        artifact,
+        object,
+        text,
+        symbol,
+        offset,
+        output,
+    )
 }
 
 pub(super) fn validate_linux_x86_64(
@@ -460,40 +491,16 @@ pub(super) fn validate_linux_x86_64(
     offset: usize,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    let end = offset
-        .checked_add(19)
-        .ok_or_else(|| Diagnostic::error("Linux x86-64 entry range overflow"))?;
-    if artifact.target != target::NativeTarget::linux_x64()
-        || !crate::function_fragments::replay::has_free_unit_entry(artifact)?
-        || offset != artifact.text_bytes.len()
-        || object.layout.entry_symbol != symbol
-        || text
-            .get(offset..end)
-            .and_then(|bytes| decode_linux_x86_64(bytes, offset))
-            != Some(artifact.entry_function().text_offset)
-        || output.final_text_bytes.get(offset..end) != text.get(offset..end)
-    {
-        return Err(Diagnostic::error(
-            "Linux x86-64 Unit entry lost exact source, call, or completion custody",
-        ));
-    }
-    if !unique_region(object, symbol, offset, 19, output) {
-        return Err(Diagnostic::error(
-            "Linux x86-64 Unit entry has no unique executable region",
-        ));
-    }
-    if !elf_entry_points_to(
-        &output.bytes,
-        62,
-        output.final_image_layout.text_address,
+    validate_unit_entry(
+        &unit_entry_form(target::NativeTarget::linux_x64())
+            .ok_or_else(|| Diagnostic::error("Linux x86-64 Unit entry has no mechanics row"))?,
+        artifact,
+        object,
+        text,
+        symbol,
         offset,
-        &text[offset..end],
-    ) {
-        return Err(Diagnostic::error(
-            "ELF e_entry does not select the exact Linux x86-64 Unit entry adapter",
-        ));
-    }
-    Ok(())
+        output,
+    )
 }
 
 pub(super) fn validate_linux_arm64(
@@ -504,40 +511,16 @@ pub(super) fn validate_linux_arm64(
     offset: usize,
     output: &image::EmittedImageOutput,
 ) -> Result<(), Diagnostic> {
-    let end = offset
-        .checked_add(20)
-        .ok_or_else(|| Diagnostic::error("Linux ARM64 entry range overflow"))?;
-    if artifact.target != target::NativeTarget::linux_arm64()
-        || !crate::function_fragments::replay::has_free_unit_entry(artifact)?
-        || offset != artifact.text_bytes.len()
-        || object.layout.entry_symbol != symbol
-        || text
-            .get(offset..end)
-            .and_then(|bytes| decode_linux_arm64(bytes, offset))
-            != Some(artifact.entry_function().text_offset)
-        || output.final_text_bytes.get(offset..end) != text.get(offset..end)
-    {
-        return Err(Diagnostic::error(
-            "Linux ARM64 Unit entry lost exact source, call, or completion custody",
-        ));
-    }
-    if !unique_region(object, symbol, offset, 20, output) {
-        return Err(Diagnostic::error(
-            "Linux ARM64 Unit entry has no unique executable region",
-        ));
-    }
-    if !elf_entry_points_to(
-        &output.bytes,
-        183,
-        output.final_image_layout.text_address,
+    validate_unit_entry(
+        &unit_entry_form(target::NativeTarget::linux_arm64())
+            .ok_or_else(|| Diagnostic::error("Linux ARM64 Unit entry has no mechanics row"))?,
+        artifact,
+        object,
+        text,
+        symbol,
         offset,
-        &text[offset..end],
-    ) {
-        return Err(Diagnostic::error(
-            "ELF e_entry does not select the exact Linux ARM64 Unit entry adapter",
-        ));
-    }
-    Ok(())
+        output,
+    )
 }
 
 /// Independently parse the emitted PE32+ headers: `AddressOfEntryPoint` must
