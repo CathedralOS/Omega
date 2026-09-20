@@ -358,6 +358,8 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::WrappingSubtractI64 => MachineSemanticKind::WrappingSubtractI64,
         SelectedInstructionKind::WrappingMultiplyI64 => MachineSemanticKind::WrappingMultiplyI64,
         SelectedInstructionKind::WrappingDivideI64 { .. } => MachineSemanticKind::WrappingDivideI64,
+        SelectedInstructionKind::ExactDivideI64 { .. } => MachineSemanticKind::ExactDivideI64,
+        SelectedInstructionKind::ExactRemainderI64 { .. } => MachineSemanticKind::ExactRemainderI64,
         SelectedInstructionKind::WrappingShiftLeftI64 => MachineSemanticKind::WrappingShiftLeftI64,
         SelectedInstructionKind::WrappingShiftRightI64 => {
             MachineSemanticKind::WrappingShiftRightI64

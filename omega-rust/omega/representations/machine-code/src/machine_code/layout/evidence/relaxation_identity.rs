@@ -243,6 +243,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::WrappingSubtractI64 => 90,
         MachineAlternativeFamily::WrappingMultiplyI64 => 91,
         MachineAlternativeFamily::WrappingDivideI64 => 92,
+        MachineAlternativeFamily::ExactDivideI64 => 112,
+        MachineAlternativeFamily::ExactRemainderI64 => 113,
         MachineAlternativeFamily::BitwiseOrI64 => 93,
         MachineAlternativeFamily::BitwiseNotI64 => 94,
         MachineAlternativeFamily::SaveFloatingControl => 103,

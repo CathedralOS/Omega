@@ -116,6 +116,12 @@ fn family_and_operand_count(
         SelectedInstructionKind::WrappingDivideI64 { .. } => {
             (MachineAlternativeFamily::WrappingDivideI64, 4, 0..=0)
         }
+        SelectedInstructionKind::ExactDivideI64 { .. } => {
+            (MachineAlternativeFamily::ExactDivideI64, 4, 0..=0)
+        }
+        SelectedInstructionKind::ExactRemainderI64 { .. } => {
+            (MachineAlternativeFamily::ExactRemainderI64, 4, 0..=0)
+        }
         // The carrier's realization shape fixes the operand count: the u64
         // add and every unsigned subtract are three-operand forms, everything
         // else carries the early-clobber scratch or the fixed RDX input.

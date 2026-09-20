@@ -131,6 +131,10 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ExactRemainderU64 => self.remainder_u64,
             MachineSemanticKind::WrappingRemainderI64 => self.remainder_i64,
             MachineSemanticKind::WrappingDivideI64 => self.divide_i64,
+            // The exact signed forms share the signed divide rows: the same
+            // RAX/RDX/RCX pinning serves both policies.
+            MachineSemanticKind::ExactDivideI64 => self.divide_i64,
+            MachineSemanticKind::ExactRemainderI64 => self.remainder_i64,
             // Every shift reads its value and count sources and defines the
             // result through the same two-source row; x86-64 pins the count
             // to `rcx` while AArch64 leaves all three allocatable.

@@ -168,6 +168,12 @@ fn family_and_operand_count(
         SelectedInstructionKind::WrappingDivideI64 { .. } => {
             (MachineAlternativeFamily::WrappingDivideI64, 3)
         }
+        SelectedInstructionKind::ExactDivideI64 { .. } => {
+            (MachineAlternativeFamily::ExactDivideI64, 3)
+        }
+        SelectedInstructionKind::ExactRemainderI64 { .. } => {
+            (MachineAlternativeFamily::ExactRemainderI64, 3)
+        }
         SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (MachineAlternativeFamily::ExactSubtractI64, 3)
         }
@@ -445,7 +451,8 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
-        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+        SelectedInstructionKind::WrappingRemainderI64 { .. }
+        | SelectedInstructionKind::ExactRemainderI64 { .. } => {
             if registers[2] == registers[0] || registers[2] == registers[1] {
                 return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
             }
@@ -461,6 +468,16 @@ fn encode_unchecked(
                     | (u32::from(registers[1]) << 16)
                     | (u32::from(registers[0]) << 10)
                     | (u32::from(registers[2]) << 5)
+                    | u32::from(registers[2]),
+            );
+        }
+        SelectedInstructionKind::ExactDivideI64 { .. } => {
+            // `sdiv` on the normalized operands: the proven obligations
+            // exclude the only quotient SDIV could not represent exactly.
+            words.push(
+                0x9ac0_0c00
+                    | (u32::from(registers[1]) << 16)
+                    | (u32::from(registers[0]) << 5)
                     | u32::from(registers[2]),
             );
         }

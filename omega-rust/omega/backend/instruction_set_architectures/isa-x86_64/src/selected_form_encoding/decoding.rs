@@ -724,6 +724,36 @@ pub(crate) fn validate_decoded(
                         },
                     ]
         }
+        SelectedInstructionKind::ExactDivideI64 { .. } => {
+            registers[0] == 0
+                && registers[2] == 0
+                && registers[3] == 2
+                && registers[1] != 2
+                && decoded
+                    == [
+                        DecodedInstruction::SignExtendDividend,
+                        DecodedInstruction::SignedDivide {
+                            divisor: registers[1],
+                        },
+                    ]
+        }
+        SelectedInstructionKind::ExactRemainderI64 { .. } => {
+            registers[0] == 0
+                && registers[2] == 0
+                && registers[3] == 2
+                && registers[1] != 2
+                && decoded
+                    == [
+                        DecodedInstruction::SignExtendDividend,
+                        DecodedInstruction::SignedDivide {
+                            divisor: registers[1],
+                        },
+                        DecodedInstruction::Move {
+                            source: 2,
+                            destination: 0,
+                        },
+                    ]
+        }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             registers[0] == 0
                 && registers[2] == 0
@@ -1273,7 +1303,9 @@ pub(crate) fn footprint(
         ),
         SelectedInstructionKind::WrappingRemainderI64 { .. }
         | SelectedInstructionKind::ExactRemainderU64 { .. }
-        | SelectedInstructionKind::WrappingDivideI64 { .. } => (
+        | SelectedInstructionKind::WrappingDivideI64 { .. }
+        | SelectedInstructionKind::ExactDivideI64 { .. }
+        | SelectedInstructionKind::ExactRemainderI64 { .. } => (
             vec![operands[0], operands[1]],
             vec![operands[2], operands[3]],
             true,
@@ -1438,7 +1470,9 @@ pub(crate) fn footprint(
                 SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1, 3],
                 SelectedInstructionKind::WrappingRemainderI64 { .. }
                 | SelectedInstructionKind::ExactRemainderU64 { .. }
-                | SelectedInstructionKind::WrappingDivideI64 { .. } => vec![0, 1],
+                | SelectedInstructionKind::WrappingDivideI64 { .. }
+                | SelectedInstructionKind::ExactDivideI64 { .. }
+                | SelectedInstructionKind::ExactRemainderI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::WrappingAddI64
                 | SelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
@@ -1500,7 +1534,9 @@ pub(crate) fn footprint(
                 SelectedInstructionKind::ExactDivideU64 { .. } => vec![2],
                 SelectedInstructionKind::WrappingRemainderI64 { .. }
                 | SelectedInstructionKind::ExactRemainderU64 { .. }
-                | SelectedInstructionKind::WrappingDivideI64 { .. } => vec![2, 3],
+                | SelectedInstructionKind::WrappingDivideI64 { .. }
+                | SelectedInstructionKind::ExactDivideI64 { .. }
+                | SelectedInstructionKind::ExactRemainderI64 { .. } => vec![2, 3],
                 SelectedInstructionKind::CompareI64 => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
                 _ => unreachable!("control forms handled separately"),
@@ -1554,6 +1590,8 @@ pub(crate) fn footprint(
             SelectedInstructionKind::WrappingRemainderI64 { .. }
                 | SelectedInstructionKind::ExactRemainderU64 { .. }
                 | SelectedInstructionKind::WrappingDivideI64 { .. }
+                | SelectedInstructionKind::ExactDivideI64 { .. }
+                | SelectedInstructionKind::ExactRemainderI64 { .. }
         ) {
             effects.implicit_unit_clobbers = units("rflags");
             effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;

@@ -1076,33 +1076,76 @@ pub(in crate::selection) fn validate_with_environment(
                         if left_type != scalar_type || right_type != scalar_type {
                             return Err(invalid());
                         }
-                        if matches!(
+                        let divide_operator = matches!(
                             *operator,
                             legalized_operations::LegalizedExactIntegerOperator::Divide
                                 | legalized_operations::LegalizedExactIntegerOperator::Remainder
-                        ) && scalar_type
-                            != ScalarType::Integer(
-                                semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                                    .map_err(|_| invalid())?,
+                        );
+                        // Exact divide/remainder: u64 keeps the unsigned entry
+                        // (its dividend range escapes i64); every other fixed
+                        // 8/16/32/64 carrier checks against the signed i64
+                        // entry because scalar transport normalizes the
+                        // operands and the proven obligations exclude the
+                        // faulting inputs the wrapping forms guard against.
+                        if divide_operator
+                            && !matches!(
+                                scalar_type,
+                                ScalarType::Integer(integer)
+                                    if integer.carrier()
+                                        == semantic_vocabulary::IntegerCarrier::Fixed
+                                        && matches!(integer.bits(), 8 | 16 | 32 | 64)
                             )
                         {
                             return Err(invalid());
                         }
+                        let unsigned_divide = divide_operator
+                            && scalar_type
+                                == ScalarType::Integer(
+                                    semantic_vocabulary::IntegerType::new(
+                                        IntegerSign::Unsigned,
+                                        64,
+                                    )
+                                    .map_err(|_| invalid())?,
+                                );
                         let (kind, key) = match operator {
-                            legalized_operations::LegalizedExactIntegerOperator::Divide => (
-                                SelectedInstructionKind::ExactDivideU64 {
-                                    obligation: *obligation,
-                                    accepted_fact: *accepted_fact,
-                                },
-                                constraints.keys.divide_u64,
-                            ),
-                            legalized_operations::LegalizedExactIntegerOperator::Remainder => (
-                                SelectedInstructionKind::ExactRemainderU64 {
-                                    obligation: *obligation,
-                                    accepted_fact: *accepted_fact,
-                                },
-                                constraints.keys.remainder_u64,
-                            ),
+                            legalized_operations::LegalizedExactIntegerOperator::Divide => {
+                                if unsigned_divide {
+                                    (
+                                        SelectedInstructionKind::ExactDivideU64 {
+                                            obligation: *obligation,
+                                            accepted_fact: *accepted_fact,
+                                        },
+                                        constraints.keys.divide_u64,
+                                    )
+                                } else {
+                                    (
+                                        SelectedInstructionKind::ExactDivideI64 {
+                                            obligation: *obligation,
+                                            accepted_fact: *accepted_fact,
+                                        },
+                                        constraints.keys.divide_i64,
+                                    )
+                                }
+                            }
+                            legalized_operations::LegalizedExactIntegerOperator::Remainder => {
+                                if unsigned_divide {
+                                    (
+                                        SelectedInstructionKind::ExactRemainderU64 {
+                                            obligation: *obligation,
+                                            accepted_fact: *accepted_fact,
+                                        },
+                                        constraints.keys.remainder_u64,
+                                    )
+                                } else {
+                                    (
+                                        SelectedInstructionKind::ExactRemainderI64 {
+                                            obligation: *obligation,
+                                            accepted_fact: *accepted_fact,
+                                        },
+                                        constraints.keys.remainder_i64,
+                                    )
+                                }
+                            }
                             legalized_operations::LegalizedExactIntegerOperator::Add => (
                                 SelectedInstructionKind::ExactAddI64 {
                                     obligation: *obligation,
@@ -1132,17 +1175,16 @@ pub(in crate::selection) fn validate_with_environment(
                         )?;
                         let mut operands = vec![left_register, right_register, output];
                         if environment.target().architecture == target::Architecture::X86_64 {
-                            if *operator
-                                == legalized_operations::LegalizedExactIntegerOperator::Divide
+                            if unsigned_divide
+                                && *operator
+                                    == legalized_operations::LegalizedExactIntegerOperator::Divide
                             {
                                 operands.push(division_scratch(&mut replay)?);
-                            } else if *operator
-                                == legalized_operations::LegalizedExactIntegerOperator::Remainder
-                            {
+                            } else if divide_operator {
                                 // The realized form pins the divisor to RCX so
-                                // its RDX zeroing cannot read a live divisor. A
-                                // shared dividend/divisor register cannot carry
-                                // RAX and RCX fixed views at once, so the
+                                // its RDX extension cannot read a live divisor.
+                                // A shared dividend/divisor register cannot
+                                // carry RAX and RCX fixed views at once, so the
                                 // divisor arrives through its own copy first.
                                 if right_register == left_register {
                                     right_register = replay.check_copy(

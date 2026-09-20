@@ -708,6 +708,8 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
             | ExactRemainderU64 { .. }
             | WrappingRemainderI64 { .. }
             | WrappingDivideI64 { .. }
+            | ExactDivideI64 { .. }
+            | ExactRemainderI64 { .. }
             | SaturatingAdd { .. }
             | SaturatingSubtract { .. }
             | SaturatingDivide { .. }
