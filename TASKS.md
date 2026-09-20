@@ -7205,7 +7205,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   lane owner's doc leg (BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE).
 - **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION.** Done on linux x86-64: the three `source_evaluated_native_realization/*hosted_receiver*` fixtures already run the post-migration package-inputs harness (accepted semantic bindings + checked entry); what remained was the same stale source spelling family as the canary_suite siblings — `console: Service<Console> in Bound` (closed carrier) and unqualified `select_provider<Console, ConsoleNativeProvider>` (product-scope operands). Respelled linux + linux_arm64 fixtures to `Service<Console>` and `omega_language_std::{Console, ConsoleNativeProvider}`; windows fixture needed none (storage-only, no service field). All 5 hosted_receiver legs in the module pass: linux x86-64 emits and executes real ELF to exit 37/0, arm64 cross-emits with validated binding, windows storage leg cross-emits its PE. Remaining: windows/arm64 runtime execution is host-gated.
-- **NATIVE-DIFFERENTIAL-MATRIX** — mined candidate; verify scope then implement.
+- **NATIVE-DIFFERENTIAL-MATRIX.** Mined candidate; scope verified at
+  `ac4e4eee9b`: names the native-differential leg of the
+  [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
+  gate — `mbx nextest run -p omega-native-differential-test --all-targets
+  --no-fail-fast` per hosted row (`wiki/drafts/rc_native_matrix_*.md`;
+  linux_x86_64 witnessed red 22/38 at `e76d715c8e`, windows_x86_64 open —
+  no runner, macOS ARM64 in flight). The crate is
+  `tests/native-differential`; each fenced file family is an owned lane.
+  Note: a live same-item claim by `Jarod / swarm-w9-native-differential-matrix`
+  (expires ~2026-09-20T23:27Z) already fences
+  `tests/native-differential/tests/abstract_publication*`; per-host rows and
+  sibling suites are likewise claimed (RC-NATIVE-MATRIX-MACOS-ARM64 legs,
+  RC-NATIVE-MATRIX-HOSTS, BASELINE-NATIVE-DIFF-*). Coordinate before working
+  it.
 - **NATIVE-I32-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-MATRIX-MATCHING-HOSTS** — mined candidate; verify scope then implement.
 - **NON-X86-LAYOUT-RELAXATION** — mined candidate; scope verified at `8734480a01`, no authorized implementation surface. The only function-relative layout rule in the catalog is `X86RelaxConditionalBranchesToRel8V1`, deliberately `Architecture::X86_64`-scoped: selecting it for AArch64 is an explicit `UnsupportedTarget` rejection, not a silent skip (`resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs`). Non-x86 branch encodings are single fixed-width forms — there is no short/long rel8-style pair to relax between — and out-of-range AArch64 targets reject at sequence emission (`isa-aarch64/src/hosted_sequences.rs` "target is out of range"). A veneer/trampoline mechanism for >±1MB conditional branches is a different mechanism named only by `machine_state_evidence.md`'s final-artifact validation list; it needs an authorizing spec and a concrete failing customer before it is an item.
