@@ -4327,10 +4327,16 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         );
     }
     let replay = recursive_rust_source(&graph_input.join("target"));
+    // The node/operation correspondence is pinned by its comparison, not by
+    // the receiver it counts. `a5e899517663` (borrowed descriptor-parameter
+    // calls) filtered descriptor declarations out of the source side, since
+    // they are declarations rather than replayed rows, so the whole-slice
+    // `source.nodes.len()` became a filtered `.count()`. The invariant is
+    // unchanged and strictly stronger; only the spelling moved.
     for required in [
         "graph.blocks.len() != optimized.blocks.len()",
         "block.block != source.id",
-        "source.nodes.len() != block.operations.len() + 1",
+        "!= block.operations.len() + 1",
         "super::unit::validate_operation(",
     ] {
         assert!(
