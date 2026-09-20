@@ -8509,7 +8509,36 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NAMED-TRAIT-OPERATORS** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
 - **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET** — mined candidate; verify scope then implement.
-- **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY.** Mined candidate — scope
+  verified, resolved (assigned name: PSI-HOSTED-ENTRY-RECEIVER-PROVISIONING —
+  no literal board row; this stub is the nearest hosted-entry
+  receiver-provisioning subject). The leg is the hosted-receiver custody
+  family recorded in `wiki/drafts/known_baseline_failures.md`: five
+  `terminal_psi_source` tests failing "native artifact ProgramEntry receiver
+  provisioning failed: hosted receiver requires exact checked initialization
+  and cleanup custody" because the `stage_terminal_component_with_policies`
+  harness built the native request by hand and never attached the checked
+  entry. That prescribed migration is landed: the helper now supplies
+  `.with_checked_entry(&checked_program_entry)`
+  (`tests/native-differential/tests/terminal_psi_source.rs:213`), and the
+  provisioning contract itself is unchanged and enforced in
+  `native-realization/src/native_realization.rs` (`checked_entry.ok_or`
+  → exact checked initialization/cleanup custody; receiver-mode
+  preservation, attachment equality, self-parameter identity, supported
+  bridge per catalogued target, ZII eligibility, `entry_boundary_without_
+  receiver` for receiverless admissions). Re-verified green on linux
+  x86-64 at `c267df86ac`: `cargo nextest run -p omega-native-differential-
+  test --test terminal_psi_source -E 'test(~...)'` on the surviving named
+  members — `control_flow_cleanup_source_reaches_the_publication_gate`,
+  `selected_preterminal_optimizers_rejoin_one_native_pipeline`,
+  `selected_progress_free_source_stages_non_visible_terminal_candidate`,
+  `selected_source_entry_retains_build_bound_progress_for_terminal_
+  publication` — 4/4 pass; the fifth recorded name
+  (`retired_selected_lowering_rejects_before_native_publication`) no
+  longer exists in the file. The harness file remains fenced by
+  NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET (696791fe, exp 04:47Z) for the
+  retarget leg; the stale failure row belongs to the
+  KNOWN-BASELINE-FAILURES-REFRESH lane. No implementable slice remains.
 - **NATIVE-DIFFERENTIAL-MATRIX.** Mined candidate; scope verified at
   `ac4e4eee9b`: names the native-differential leg of the
   [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
