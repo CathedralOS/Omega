@@ -117,14 +117,17 @@ repair beside this row. Only two of the six non-ledger failures were
   pin still exercises the type-table fence on both the machine and boundary
   routes. The fence question this row left open is answered — presentation
   admits the scalar-leaf case, the type table owns the remaining rejection.
-- `structural_scalar_fields::owned_reads::block_parameters::owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
-  expects `InvalidStructuralSuccessorArgument { edge: EdgeId(3), place: PlaceId(2) }`
-  and now sees `EdgeAffineDiscardsInvalid { edge: EdgeId(3) }`. Both reject
-  the same module. `frontier/block_parameters.rs` documents the intended
-  order — "phase one consumes each owned source before the residual and
-  trivial cleanup for the same edge runs" — and the edge's trivial-discard
-  roster is now checked first, so the reported error names the cleanup
-  roster rather than the transfer of a disposed place.
+- Repaired: `structural_scalar_fields::owned_reads::block_parameters::owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
+  expected `InvalidStructuralSuccessorArgument { edge: EdgeId(3), place: PlaceId(2) }`
+  and saw `EdgeAffineDiscardsInvalid { edge: EdgeId(3) }`; both reject the
+  same module. The documented order in `frontier/block_parameters.rs` —
+  phase one consumes each owned source before the residual and trivial
+  cleanup for the same edge runs — is the settled order: the fixture now
+  pins both diagnostics, so a same-arity alias still reports
+  `InvalidStructuralSuccessorArgument`, while naming a still-live
+  transferred place in the edge's trivial-discard roster reports
+  `EdgeAffineDiscardsInvalid` as malformed discard evidence rather than a
+  bad argument. Passing at bbfda8bc2e.
 
 ## compiler canary suite (pass canaries)
 
