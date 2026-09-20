@@ -210,19 +210,6 @@ fn divergent_or_unproven_carrier_results_stay_opaque() {
             "machine pf(mut a: View) -> &mut u64 { consume(&mut a.body); a.body }",
             "let view: View = View { body: &mut self.value }; let alias: &mut u64 = pf(view); alias = 1; let sink: u64 = 0;",
         ),
-        // Reborrowing the bound result for another call stays behind the
-        // frozen-binding exposure gate.
-        (
-            "reborrowed_result_binding",
-            "machine pf(a: View) -> &mut u64 { a.body }",
-            "let view: View = View { body: &mut self.value }; let alias: &mut u64 = pf(view); consume(&mut alias);",
-        ),
-        // The same exposure gate keeps a direct local carrier leaf closed.
-        (
-            "reborrowed_local_leaf",
-            "",
-            "let view: View = View { body: &mut self.value }; let alias: &mut u64 = view.body; consume(&mut alias);",
-        ),
     ] {
         let program = probe_program(body, helpers);
         let [state, _public] = caller_frames(&program);
@@ -230,5 +217,37 @@ fn divergent_or_unproven_carrier_results_stay_opaque() {
             state.is_none(),
             "{name} state frame must stay opaque: {state:?}"
         );
+    }
+}
+
+// Reborrowing a binding whose provenance is a proven local reference leaf
+// writes the leaf's declared referent; the exposure gate only fires when
+// the slot itself can be replaced.
+#[test]
+fn reborrowed_proven_leaf_bindings_retain_exact_referent() {
+    for (name, helpers, body) in [
+        (
+            "reborrowed_result_binding",
+            "machine pf(a: View) -> &mut u64 { a.body }",
+            "let view: View = View { body: &mut self.value }; let alias: &mut u64 = pf(view); consume(&mut alias);",
+        ),
+        (
+            "reborrowed_local_leaf",
+            "",
+            "let view: View = View { body: &mut self.value }; let alias: &mut u64 = view.body; consume(&mut alias);",
+        ),
+        (
+            "reborrowed_stored_leaf_argument",
+            "",
+            "let view: View = View { body: &mut self.value }; consume(&mut view.body);",
+        ),
+        (
+            "nested_stored_leaf_reborrow",
+            "",
+            "let outer: Outer = Outer { inner: View { body: &mut self.value } }; consume(&mut outer.inner.body);",
+        ),
+    ] {
+        let program = probe_program(body, helpers);
+        assert_frames(&program, Some(&["self.value"]), Some(&["self.value"]), name);
     }
 }
