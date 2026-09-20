@@ -6649,7 +6649,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PROOF-CERTIFICATION-BRIDGE's `src/tests` claim (expires ~2026-09-21T00:51Z)
   — same migration applies there when the fence settles.
 - **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.
-- **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; verify scope then implement.
+- **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; scope
+  verified, real residual, fenced. Re-mines the provider-attachment members
+  of the `InvalidUnitMachinePlan` family recorded in
+  `wiki/drafts/known_baseline_failures.md` (missing checked transitive
+  machine plan). Re-witnessed on linux x86-64 at `797e99ead7a`:
+  `cargo nextest run -p checked-trees-to-lowered-psi -E
+  'test(~provider_attachments)|test(~provider_attachment_source)'` → 15/15
+  still red at identical panic sites — `provider_attachment_source` ×6
+  (:97, stops at `signature`) and `unit_state_graph::provider_attachments`
+  ×9 (:220/:50, stops at `attached data shape, state 0`), all `` `X` has no
+  admitted body (local construction stopped at <phase>) ``. Fixtures pass
+  source checking (migrated in `0e1977994b`); the gap is admitting the
+  attached closure's transitive machine plans — repair surfaces are
+  `execution/unit/providers.rs` (PROVIDER-ATTACHMENT-MACHINE-PLAN, 22:37Z),
+  `execution/unit/{control,state_graph,composed_control}`
+  (GENERAL-CYCLIC-EXECUTION / -OPTIMIZER, 23:38Z/03:48Z), and
+  `execution/unit/{mod.rs,candidate_closure,calls}` per the doc fence map.
+  No unfenced slice exists.
 - **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — names the
   baseline row's verifier cleanup-order surface
   (wiki/drafts/known_baseline_failures.md terminal-verifier section),
