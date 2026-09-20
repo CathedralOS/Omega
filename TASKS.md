@@ -5816,7 +5816,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 ## Mined items (deep-mine sweep, wave 9)
 
 - **AARCH64-BRANCH-RELAXATION** — mined candidate; verify scope then implement.
-- **ABI-LAYOUT-REDERIVATION-AUDIT** — mined candidate; verify scope then implement.
+- **ABI-LAYOUT-REDERIVATION-AUDIT.** Audit that every retained ABI plan
+  coordinate on `ForeignCallRelocation` is re-derived at image custody:
+  `object_artifact/call_sites.rs` re-derives the call facet via
+  `evaluate_call_plan` but never re-derives `boundary_entry_plan.state`;
+  compare the retained state facet to the ordinary-entry re-derivation.
 - **ALIGNMENT-STRING-PARSING** — mined candidate; verify scope then implement.
 - **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.

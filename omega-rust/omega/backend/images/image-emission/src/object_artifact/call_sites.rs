@@ -509,15 +509,17 @@ pub(crate) fn validate_foreign_scalar_arguments(
         parameters: native_shapes,
         result: result_shape,
     };
-    let expected_plan = calling_conventions::evaluate_call_plan(
+    let expected_boundary = calling_conventions::evaluate_ordinary_boundary_entry_plan(
         calling_conventions::CallingPolicy::native_for_target(target),
         &signature,
     )
     .map_err(|_| invalid())?;
+    let expected_plan = &expected_boundary.plan().call;
     let mut ordinary_call_plan = call.call_plan.clone();
     ordinary_call_plan.callback_materializations.clear();
     if call.boundary_entry_plan.call != call.call_plan
-        || ordinary_call_plan != expected_plan
+        || call.boundary_entry_plan.state != expected_boundary.plan().state
+        || ordinary_call_plan != *expected_plan
         || call.call_plan.policy != calling_conventions::CallingPolicy::native_for_target(target)
         || call.call_plan.entry_control != calling_conventions::EntryControl::CallReturn
         || call.call_plan.parameters.len() != native_parameter_count
@@ -532,7 +534,7 @@ pub(crate) fn validate_foreign_scalar_arguments(
         None => return Err(invalid()),
     }
     let expected_outbound =
-        expected_foreign_scalar_outbound_bytes(&expected_plan, target.architecture)
+        expected_foreign_scalar_outbound_bytes(expected_plan, target.architecture)
             .ok_or_else(invalid)?;
     match (expected_outbound, call.unit_stack.outbound) {
         (0, None) => {}
