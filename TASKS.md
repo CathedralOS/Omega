@@ -2170,6 +2170,15 @@ Owners include
   Candidate naming syntax is not a prerequisite. These controls do not
   establish full mathematical coverage.
 
+  Claim evidence (~20:5xZ, Zergling-181): two same-item claims are live —
+  swarm-w9-proof-contract-migration (proof dir,
+  `typed-trees-to-checked-trees/src/proof`, expires ~21:52Z) and
+  Zergling-39 (`source/library/core`, expires ~03:56Z) — and both the
+  enumerated pending legs (machine-valued body denotation, authored-name →
+  symbol-identity classification, checked-signature Terminal encoding)
+  name surfaces inside those claims. No independent bounded slice exists
+  outside them; do not re-mine.
+
 - **PROOF-CERTIFICATION-BRIDGE.** A functional claim about a ranked loop must
   be checked against the generated loop, not inherited from termination, under
   the [publication contract](wiki/spec/proofs/publication.md): a ranked
