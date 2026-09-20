@@ -87,65 +87,80 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
   [Squalr application](samples/apps/README.md) through its nested package builds
-  and native execution: geometry first, then the supplied-byte scan and filtered
-  results. Preserve the essentially 1:1 Rust algorithms and complete dependency
-  graph. The submodule's TASKS owns port work; this item owns integration and
-  compiler blockers exposed by that application.
+  and native execution: geometry, then supplied-byte scanning and repeated
+  filtering. Preserve the essentially 1:1 Rust algorithms and complete package
+  graph. The application board owns port work; this item owns compiler
+  integration and the unchanged application acceptance.
 
-  The tracked app `4b1f7a6` retains the 12-check geometry baseline and std
-  `daa47e2d5048b67840393d2bb05ede58ea38e7c7`. The local app candidate
-  `ea6c80735e93ae69d3cb8f7d961fdf2b8413e50b` adds region alignment and expansion.
-  With Omega `47db1d16478dc615b5a13155122eec8328f3ef53`, macOS ARM64,
-  a release compiler, Python 3.13 and `RUST_MIN_STACK=67108864`,
-  `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <executable>`
-  passes all 24 checks: native exit 0, `Squalr geometry: PASS` (167.2 s).
-  Omit `--target` for execution; explicit targets only emit an executable.
-  Compiler repairs distinguish callee-local storage from structural call inputs
-  in Terminal and abstract replay, align physical traversal capacity, and remove
-  duplicate ARM64 operand-footprint tables. Source ownership and independent
-  checking remain intact.
+  Squalr uses only `main`: no feature branches or alternate publication
+  lineages. The parent pin must be a tested commit on the application's remote
+  `main`; an older ancestor is valid, an unpublished or divergent commit is
+  not. Reconcile retained work onto that line before advancing the pin, without
+  force-pushing away other application work.
 
-  Application publication is pending: GitHub denied the configured `NH21B` account write
-  access to Squalr-Omega (HTTP 403; repository permissions report `push: false`).
-  The app has a local checkpoint commit; it must be published before changing
-  this repository's pin. The compiler repairs can be integrated independently.
-  The failed app enqueue left no ticket or reservation. Next app integration
-  acceptance is publication of the verified app and the parent pin, not
-  another helper test.
-  Checkout relocation still requires ordinary local-source update/review.
-  Windows execution and the supplied-byte scanner remain open.
+  At Omega `0504c60747`, the pin is `251699c4669d5e2ae107051a5aa100f4565edaf7`,
+  containing geometry, scalar scan/RLE/dispatch sources and target-read
+  scaffolding. The fetched application `origin/main` is `52bcf254c9`, an
+  ancestor of that pin, not a branch containing it. This needs application
+  publication/reconciliation, not another port of the already-present scan
+  sources. Source presence does not establish native scanning acceptance.
+  Preserve the geometry and scanning work when reconciling; prior parent pins
+  switched between lineages and lost previously landed source.
 
-  The pinned Rust reference is
-  `568aa7589b68b2fd4621cc66c6dde23fa14c7f50`; the ordinary 17-package/37-edge
-  graph is unchanged. Runtime growable storage remains an implementation
-  dependency: `core/vec.omg` declares no construction or storage mechanics.
-  **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** own element establishment
-  and content-preserving growth; a fixed-capacity scanner does not satisfy
-  this customer.
+  Next deliveries:
 
-  Keep one integration owner and work from the actual application command:
+  - Publish the cumulative application on its `main`, then rerun
+    `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
+    through ordinary package review on each available matching host. Record
+    exact app/compiler pins and host; historical geometry results do not
+    validate this pin.
+  - **VEC-NATIVE-GROWTH** owns the missing executable growable storage. Connect
+    it to the supplied-byte scanner's partitioned results and repeated
+    filtering. Keep **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** as the
+    allocator and placed-access dependencies, not substitute application
+    acceptance. Do not replace growable results with fixed capacity or a
+    pull-only interface merely to bypass the missing storage.
 
-  1. Preserve the working geometry command as the compiler integration control,
-     and run it on Windows after ordinary target-specific package review.
-     Publish application changes in its own repository before updating the
-     gitlink. Assign only newly witnessed compiler failures to their existing
-     semantic/realization owners.
-  2. Drive the submodule's supplied-byte scan and repeated
-     filtering through the real growable/partitioned storage and result path.
-     Keep build-only packages explicitly unported; no fixed-capacity substitute,
-     Rust FFI scanner, package flattening, or isolated-helper milestone replaces
-     application progress.
-
-  Acceptance: `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
-  executes the geometry app and prints `Squalr geometry: PASS`; then the
-  supplied-byte path matches Rust's exact addresses/ranges, including overlap,
-  tails, empty input, and repeated filtering. Retain results under the app's
-  ignored `build/verification/`, with exact app/compiler pins and host.
-  Package acceptance, Terminal publication, and hosted-entry test execution alone
-  do not close either application milestone. Preserve disjoint receiver/stack/
-  continuation storage and missing-establishment rejection. Ordinary artifact
+  Acceptance: geometry prints `Squalr geometry: PASS`; supplied-byte scans
+  and repeat filtering produce the Rust reference's exact addresses/ranges,
+  including overlap, tails and empty input. Use the application harness and
+  ignored `build/verification/` outputs. Package checking, Terminal publication,
+  build-only packages and isolated helper tests do not establish native
+  application behavior. Keep the 17-package/37-edge layout, no Rust FFI scanner,
+  and no application-specific behavior in the compiler. Ordinary artifact
   production has [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
   not a fabricated runtime installation grant or a required Rust supervisor.
+
+- **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Implement the ordinary
+  library `Vec<T>` needed by **SQUALR-HEADLESS**'s growable scan results.
+  Owners: `source/library/core/vec.omg`, `source/library/alloc/`, and the
+  existing compiler operations exposed by that source program. The vector
+  surface has no construction/storage implementation; the allocator canary's
+  finite retained buffer has no executable element storage.
+
+  First acceptance: a native `Vec<u32>` program takes explicit backing,
+  constructs the vector, appends past its initial capacity, reads the preserved
+  prefix and appended elements, and cleans up/returns backing under the selected
+  allocator's contract. Exercise another growth, empty cleanup, allocation
+  failure preserving the original contents, and rejection of invalidated loans
+  or duplicate cleanup. This is the first instance of generic library code,
+  not a compiler-owned vector special case or a fixed-capacity replacement.
+
+  Reuse the [ordinary allocation contract](wiki/spec/resources/allocation.md).
+  **BUMP-ALLOCATOR-CANARY** owns the package allocator and returned extents;
+  **PLAN-LAID-VIEWS** owns element establishment/access/retirement;
+  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS** owns content-preserving
+  transfers; **BORROWED-STORAGE-RESTORATION** owns move-out/replace operations
+  when the source implementation needs them. Follow the actual program to its
+  next missing operation rather than waiting for every related task to finish.
+
+  Growth must move elements and their exact custody, retain or return old
+  backing as the allocator contract requires, and use explicit indirection for
+  variable retained storage. A recursively owned inline record has infinite
+  layout; neither implicit boxing nor a new compiler `Arena` is the repair.
+  Keep the source program as the outer acceptance while fixing its producer,
+  interpreter and native consumers; then use the same library implementation
+  in the supplied-byte scan.
 
 - **MACOS-APPLICATION-PUBLICATION.** Close end-to-end acceptance of the
   [macOS publication contract](wiki/spec/build/macos_application.md), using the
@@ -3078,112 +3093,57 @@ Owners include
 
 ## P5 - Cathedral over general Omega primitives
 
-- **BUMP-ALLOCATOR-CANARY.** Resolved — substrate landed and green; no unowned slice remains (verified 1edade1a48; re-verified de81c972d4, linux-x86_64 — same selectors, pass fixture + all twelve fail controls green). `tests/omega/pass/memory/bump_allocator_canary` (944-line checked-only fixture: two allocations, tail-ward `release`, fallible `Attempt` consume, `BumpVec` retained-slot growth, full-capacity reset, one resident place/read/retire) plus all twelve `fail/memory/bump_allocator_*` controls re-verify green on the documented selectors (`RUST_MIN_STACK=67108864`, pass + fail canary filters). Every remaining acceptance leg is routed to a named owner: the container/element route to PLAN-LAID-VIEWS (placed-access ops; PLACED-ACCESS-NATIVE-OPS holds its crates), partition theorems to CONSERVATION-CONTRACT/TERMINAL-CONTENT-CLAIMS, the strategy borrow to BORROWED-STORAGE-RESTORATION, and joined retained-storage custody to the machine_lowering demand-exit work; interpreter/native execution additionally needs a selected backing provider and a seed host. Original text follows for the routed legs.
-
-  Build a package-level allocator over one qualified
+- **BUMP-ALLOCATOR-CANARY.** Complete a package allocator over a qualified
   `Extent` under the [allocation contract](wiki/spec/resources/allocation.md):
-  two coexisting allocations, exact cleanup/recomposition, and reset only after
-  full return. Use it to discover the real `Vec<T>` contract; do not add
-  allocator semantics to the compiler.
+  coexisting allocations, fallible allocation preserving unchanged state,
+  exact return/recomposition, and reset only after every live allocation and
+  resident has returned. Allocator strategy remains ordinary Omega source.
 
-  `tests/omega/pass/memory/bump_allocator_canary` checks that chain, a
-  fallible request returning and consuming both `Attempt` cases, tail-ward
-  `release` of the newest allocation while an older stays live (a third
-  request consumes the restored residual and reset still waits for the
-  remaining pair), a `BumpVec` reservation with one optional retained buffer,
-  fallible growth from the tail, reset through either retained-slot case,
-  full original-capacity reuse after returning both allocations without a
-  runtime guard, and one resident place/read/retire; seven
-  `fail/memory/bump_allocator_*` controls pin the rejections. Its header
-  records the contract edges found so far — the release chain added one:
-  reclaim is tail-ward only, because the boundary composes adjacent pairs and
-  no gap form expresses an interior hole, so a `Vec<T>`-style owner can
-  shrink this backing only from the newest end. This is source
-  checking only: the fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster,
-  `Main::main` is empty, and `ExtentPartition`/`ResidentStorage` are
-  fixture-local boundary traits with no conformer or selected provider.
-  Split/merge conservation and resident establishment are asserted boundary
-  laws, and nothing lowers or executes. The seventh control pins the
-  tail-ward analogue of `reset_with_live_resident`:
-  `fail/memory/bump_allocator_release_with_live_resident` rejects a `release`
-  of a resident-bearing region at the `returned: Vacant` parameter, before
-  its merge is reached. `source/library/alloc` holds only a `.gitkeep`; no
-  expected-reject controls live there yet.
-
-  Resume evidence: Linux x86-64, 2026-09-20, the resident-bearing release
-  control: the focused command below accepts the fixture, and
-  `OMEGA_FAIL_CANARY_FILTER=memory/bump_allocator_` with the
-  `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
-  selector rejects all seven controls. Both use `RUST_MIN_STACK=67108864`.
-  Check the actual fixture with
-  `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
-  cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
-  -E 'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'`.
+  The `tests/omega/pass/memory/bump_allocator_canary` fixture and
+  `fail/memory/bump_allocator_*` controls establish checked-source examples,
+  not an executable allocator: the pass fixture is checked-only,
+  `Main::main` is empty, and its `ExtentPartition`/`ResidentStorage`
+  boundaries have no selected provider. `source/library/alloc/` contains only
+  `.gitkeep`. **VEC-NATIVE-GROWTH** owns the unfinished container delivery;
+  assigning its dependencies does not complete either customer.
 
   Remaining work:
 
-  - Container. A `Vec<T>`-style owner needs elements, a length and
-    content-preserving growth. Elements need the source
-    `Initialize`/view/retire route of
-    [placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)
-    (evaluated plan of `P` over `T`, Stable-supply admission), which
-    `PLAN-LAID-VIEWS` owns. `source/library` declares neither that family nor
-    `ResidentContentTransfer<P, T>`; the fixture's `ResidentStorage` is a
-    stand-in to replace when the route exists. Growth retains backing but
-    still has no elements: `merge` demands `Vacant` parts, so a
-    buffer with a live resident cannot fold back for reset — pinned by
-    `fail/memory/bump_allocator_grow_with_live_resident`. Element transfer
-    waits on the same placed-access route as establishment.
-  - Retained storage. Replace the finite slot with genuinely growable storage,
-    explicit placed-storage indirection, and a ranking proof over that
-    representation. A recursively owned inline `Retired` record has infinite
-    layout; Omega does not implicitly box it. The finite fixture exercises
-    retained backing and rejection, not a fixed-capacity substitute for Squalr.
-    `checks/multiplicity/claim_outcomes/joins.rs` owns exact normal-exit claim
-    alternatives and caller substitution; `linear_validation/recorded_events.rs`
-    reconstructs custody from source before replaying those alternatives.
-    Constructor checks retain selected-case facts and authored operand order.
-    Keep inactive payloads distinct from consumed claims and preserve exact
-    invocation identity through wrappers. Anonymous linear results without
-    known claim evidence, recursive expansion, unresolved array extents and
-    outcome-specific partition frontiers remain implementation limits.
-    Terminal/native execution needs portable exit-alternative correspondence;
-    demanded joined custody currently rejects explicitly in
+  - Replace fixture-local split/merge assertions through
+    **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**' invoked partition
+    route. Establish request geometry and the counted-residual-to-tail
+    invariant; normal-return length laws alone do not prove a request fits.
+    Preserve exact claim alternatives through wrappers and normal returns,
+    with caller substitution and independent reconstruction. Demanded joined
+    custody still needs its route through
     `checked-trees-to-lowered-psi/src/machine_lowering.rs`.
-  - Partition theorems. No checked body splits one `Granted` extent into two;
-    the fixture delegates that step to a boundary. Returning `Granted` custody
-    from two consumed qualified inputs still rejects as ambiguous at a boundary,
-    so merge takes one `Split` record. Ordinary checked wrappers can fold
-    retained backing through that boundary; this is not a checked partition
-    implementation. Replace the stand-in through
-    `CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS`' invoked partition route.
-    The normal-return length laws do not prove that arbitrary requests fit
-    backing: that route must establish the geometric request bound and the
-    strategy's counted-residual-to-tail invariant before calling a real provider.
-  - Strategy borrow. The contract has allocation borrow the strategy
-    exclusively; the fixture threads `Bump` by value because a `&mut` carve
-    rejected. Retry it through `BORROWED-STORAGE-RESTORATION`'s move-out/replace
-    window before keeping the by-value shape.
+  - Replace the fixture's `ResidentStorage` through **PLAN-LAID-VIEWS**'s
+    evaluated layout/access plan, establishment, transfer and retirement.
+    Keep routed resident introduction sealed and reject unrouted casts or
+    boundaries; a nominal resident marker is not establishment. A live resident
+    cannot be merged as vacant. Reuse
+    `bump_allocator_grow_with_live_resident` and the live-resident release/reset
+    controls while adding actual element transfer.
+  - Implement the strategy's temporary exclusive borrow. The fixture passes
+    `Bump` by value; exercise **BORROWED-STORAGE-RESTORATION** where moving and
+    replacing its fields is required. The strategy borrow ends at allocation
+    return, so coexisting allocations must not require a permanently borrowed
+    compiler-owned arena.
+  - Carry retired backing through explicit storage and prove its traversal and
+    recomposition. The finite retained slot is a checking example, not the
+    variable storage implementation needed by the vector. Do not silently turn
+    the fixture's tail-ward release operation into the whole allocation contract.
+  - Supply actual backing and execute the package through the interpreter and
+    a supported native host, retaining exact storage/claim custody through calls.
+    Record unsupported hosts separately.
 
-  Acceptance: a package container over the bump chain places, reads and retires
-  elements and grows while retaining its old buffer until reset, with the
-  allocator still ordinary package source. It checks and executes through the
-  interpreter and a supported native host with a selected backing provider;
-  report unavailable hosts. A live allocation or resident at reset, dropped
-  custody, double placement, a wrong `Resident` index and an unrouted `Resident`
-  introduction reject. Route each new contract edge to its owning task.
-
-  Flag: `Extent::Resident<P, T>` is declared in `core/extent.omg` with no
-  predicate and no `established by`, so
-  [domains](wiki/spec/language/domains.md#exact-coercion-and-erasure) lets `as`
-  introduce it although placed access fixes its route set. The landed fence,
-  `append_unevidenced_establishment_diagnostics` in
-  `typed-trees-to-checked-trees/src/facts/index_compatibility.rs`, refuses only
-  a typed `let` whose value is an `ExpressionNode::Call`. A cast supplies its
-  own instance and passes, and any package boundary may name `Resident` in a
-  result type, as both fixtures do. The general mechanism is the existing
-  routed-qualification rule: declare the family's routes when the placed
-  operations exist, then delete the call-shaped check.
+  Acceptance: two allocations coexist, cleanup returns their exact extents,
+  failed requests preserve the allocator, and reset restores the original
+  backing only after full return. Live allocations or residents at reset,
+  dropped custody, double placement, wrong resident indices and unrouted
+  introduction reject. The vector uses this allocator in
+  **VEC-NATIVE-GROWTH**; an empty entry or passing checked-only fixture is not
+  executable acceptance.
 
 - **ADDRESS-TRANSLATION-CANARY.** Continue Cathedral's page-table hierarchy,
   backing, policy, installation and teardown in Omega source under
@@ -3547,108 +3507,58 @@ Owners include
 ## Parallel language and compiler lanes
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
-  Carry [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
-  from the source checker through lowering, Terminal verification and native
-  realization. `typed-trees-to-checked-trees/src/checks/multiplicity/borrowed_windows.rs`
-  opens a window on the exact resolved storage place for a consuming move
-  through an exclusive chain, closes it at a same-typed store, and rejects an
-  open window at returns and non-crash transition edges. The guide canary
-  `pass/ownership/move_keyword_field_assignment` checks, and
-  `checked-interpreter/tests/borrowed_restoration.rs` executes a round trip and
-  a consuming transform with caller-visible contents. That canary is on the
-  checked-only roster: source lowering does not yet produce the restoration
-  operations specified by
-  [Terminal ownership](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).
-  The product parser still avoids the pattern by borrowing the lexer's stream.
+  Connect ordinary source move-out/replace operations to the existing
+  [borrowed-storage invariant window](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
+  lowering and native route. The next delivery is
+  `pass/ownership/move_keyword_field_assignment` reaching verified Terminal
+  operations; another emitter-only test does not connect its missing producer.
+  This also enables the product parser's ownership pattern and, where needed,
+  the allocator strategy used by **BUMP-ALLOCATOR-CANARY**.
+
+  The checker and checked interpreter already handle consuming a field through
+  an exclusive borrow and restoring it. Terminal verification, codec and
+  interpretation also handle the move/store pair, and
+  `terminal-psi-to-abstract-operations/src/lowering/machine/operation/borrowed_windows.rs`
+  carries both operations. Reuse those owners.
 
   Remaining work:
 
-  - Lowering: `checked-trees-to-lowered-psi/src/emission/borrowed_window.rs`
-    owns the Terminal spelling — `BorrowedWindowLedger::emit_move` emits
-    `MoveStructuralField` for a checked owned place beneath a mutable-borrowed
-    parameter and `emit_store` emits `StoreStructuralField` on the same exact
-    route from a whole owned value of the hole's type; every unpinned shape
-    (non-exclusive root, whole-root/indexed/referent route, scalar field, type
-    drift, overlapping extraction, wrong-place repair, open hole at an exit,
-    disagreeing join) fails closed as
-    `LoweringError::UnpinnedBorrowedStorageWindow` naming the place, and the
-    emitted pair replays through `terminal_verifier::validate_module` in its
-    tests. Nothing routes to it yet: `CheckedUnitEffectOperationPlan`
-    (checked-trees) has no move-out or whole-structural-field-store row, and
-    `typed-trees-to-checked-trees` omits the guide canary body at local
-    construction ("call statement shape: call count without a statement
-    sequence") with no structural value root at the move statement, so
-    `lower_machine` still fails with `InvalidUnitMachinePlan` (pinned by
-    `emission::borrowed_window::tests::the_guide_canary_body_has_no_checked_unit_plan_to_route_here_yet`).
-    Remaining: add the plan row(s) for the pair, produce them in the checked
-    stage's `execution/unit` statement sequence from the ordinary move/store
-    facts (the checker records no window fact), and call the ledger from the
-    attached-Unit plan consumer, checking `require_closed` at every non-crash
-    exit and `require_same_frontier` at joins. Then move
-    `ownership/move_keyword_field_assignment` from `CHECKED_ONLY_PASS_CANARIES`
-    to `ACTIVE_PASS_CANARIES` in `compiler/tests/canary_suite.rs`; native
-    production also needs the fixture to bind `ProgramEntry` roots like the
-    active ownership canaries (a copy with those bindings currently stops at
-    "selected ProgramEntry establishment rejoins 0 Terminal attachment
-    identities").
-  - Terminal (landed): `terminal-verifier/src/validation/borrowed_windows.rs`
-    reconstructs the restoration debt from operations, loan authority and
-    control flow — `MoveStructuralField` opens a per-root hole ledger keyed by
-    canonical field path, `StoreStructuralField` discharges an exactly-typed
-    whole owned place into it, stale reads/edge arguments/non-crash exits
-    reject, and crash exits retain no obligation. `terminal-interpreter`
-    replays the consuming transform with caller-visible subtree contents and
-    exact-once custody across fuel splits
-    (`cargo nextest run -p terminal-verifier --test suite borrowed_storage_windows`,
-    `-p terminal-codec --test suite canonical::borrowed_storage_windows`,
-    `-p terminal-interpreter --test unit borrowed_storage_windows`;
-    linux-x86_64). `terminal-psi-to-abstract-operations` carries both
-    operations into abstract operations
-    (`lowering/machine/operation/borrowed_windows.rs`); target lowering and
-    native realization remain open.
-  - Checker (landed the reconvergence-agreement leg): a move evaluated inside
-    a `match` arm opens a pending debt on that arm's own edge and commits one
-    joined hole at the match's join point iff every reachable arm resolves the
-    same absent places — nested agreement lifts into the enclosing arm, call
-    argument moves attribute to the evaluating arm, dead arms owe nothing, and
-    per-edge holes fence the arm's own reads and suspending/boundary calls.
-    Arm disagreement, repeated extraction on one edge, moves in
-    short-circuit-conditional positions, matches on conditional or transition
-    edges, and an open window at the join all keep the plain rejection.
-    Match-result custody dispatch (`match_dispatch.rs`) admits borrowed-receiver
-    arm values through the transfer check and the result custody join so the
-    agreement rule can witness. Open-window checking consumes the existing
-    per-call suspension/blocking summaries, including initializer, assignment,
-    aggregate and call-argument positions; replacement evaluation is checked
-    before the repair store. Quiet checked bodies remain usable even with an
-    authored may-ceiling. Nonblocking boundary/service calls, including
-    empty-reach boundaries and named/spelled boundary operators hidden behind
-    ordinary wrappers, require repair first. The fence follows retained call
-    topology and scheduled operator invocations; exact no-service builtins and
-    quiet recursive helpers remain usable. Regressions:
-    `typed-trees-to-checked-trees --lib` filtered by `borrowed_restoration`
-    (55/55, linux-x86_64), `checked-interpreter --test suite` with the same
-    filter (4/4), and compiler fail canary
-    `ownership/borrowed_storage_boundary_call` (macOS ARM64 — host
-    unavailable). Moves on transition edges still reject — they cannot be
-    repaired before the edge leaves — and conditional extraction outside the
-    arm-agreement shape keeps the rejection rather than treating one path as
-    unconditional. Contained-loan transport and recoverable-failure paths have
-    no regression.
+  - Add the move-out and whole-structural-field-store rows to
+    `CheckedUnitEffectOperationPlan` in checked-trees. Produce them from
+    ordinary source facts in `typed-trees-to-checked-trees/src/execution/unit`,
+    retaining the structural value root and exact borrowed place.
+    The guide body currently has no checked Unit plan and fails at
+    `InvalidUnitMachinePlan`, pinned by
+    `emission::borrowed_window::tests::the_guide_canary_body_has_no_checked_unit_plan_to_route_here_yet`.
+  - Consume those rows through
+    `checked-trees-to-lowered-psi/src/emission/borrowed_window.rs`'s existing
+    `BorrowedWindowLedger::emit_move`/`emit_store`. Require closure at
+    non-crash exits and equal open-place frontiers at joins. No production
+    caller reaches that emitter yet. Preserve its exact type/path checks;
+    unsupported whole-root, indexed, referent and scalar-field routes reject.
+  - Promote the guide fixture from checked-only to the active lowering roster
+    once connected, then bind ordinary ProgramEntry roots and complete target
+    lowering/native realization. The source, Terminal and abstract halves are
+    not evidence that the native consumer exists.
+  - Preserve arm agreement: each live arm must restore the same places, nested
+    agreement composes, dead arms owe nothing, and source evaluation order
+    determines when the hole opens. Transition-edge moves and conditional
+    extraction without that agreement stay rejected. Add missing
+    contained-loan and recoverable-failure controls; retain the checker and
+    checked-interpreter `borrowed_restoration` suites and
+    `fail/ownership/borrowed_storage_boundary_call`.
 
   Acceptance: a consuming transform followed by replacement executes with
   caller-visible updated contents and exact-once custody in the Terminal
-  interpreter and supported native targets, beside disjoint sibling work, repair
-  on both branches and contained-loan transport. Missing repair on one
-  returning branch, early return, stale field use, overlapping borrows,
-  wrong-place replacement, repeated extraction and whole-owner cleanup reject,
-  and tampered Terminal evidence fails independent replay. Outcome controls
-  cover recoverable failure, suspension/resume/cancellation custody and
-  crash/process-exit abandonment without invented rollback or survivor
-  guarantees. `src/tests/multiplicity/borrowed_restoration.rs` holds the
-  checker half. Do not add a recognizer for adjacent move/assignment
-  statements, weaken nominal-drop restrictions, or delete the rejection gate
-  wholesale; unsupported paths stay rejected until their evidence exists.
+  interpreter and supported native targets, beside disjoint sibling work,
+  repair on both branches and contained-loan transport. Missing repair,
+  early return, stale reads, overlapping borrows, wrong-place replacement,
+  repeated extraction and whole-owner cleanup reject; tampered Terminal
+  evidence fails independent replay. Cover recoverable failure,
+  suspension/resume/cancellation custody and crash/process-exit abandonment
+  without invented rollback or survivor guarantees. Do not add an adjacent
+  move/assignment recognizer, weaken nominal-drop restrictions, or delete
+  rejection gates before their required evidence exists.
 
 - **MATCH-SELECTIVE-LOWERING.** Complete the [value-dispatch
   contract](wiki/spec/language/patterns.md) for owned/nonnumeric results with
@@ -5162,81 +5072,35 @@ Owners include
   No structural or effectful observer crosses the quotient unless its law is
   explicit and checked. Custody-bearing quotients remain fenced.
 
-  Validation already composes the canonical correspondence row on the ordinary
-  path, dispatches one bridged form from the composed certificate's evidence,
-  rejects a representative or selected theorem whose transitive closure
-  reaches an admitted or boundary machine, and receives sealed
-  `Quotient::define`/`Quotient::lift` requests on the compiler route. Every
-  request still rejects; the `tests/omega/fail/proofs/quotient_*` canaries pin
-  the rule rejections through `omega --check`.
+  Managed direct `Quotient::define` requests now pass source checking.
+  Validation defers admission until `build_check_facts` has proved termination;
+  `admit_checked_quotient_requests` reads `facts.termination` through
+  `CheckedTerminationOracle`. The request finalizes as a proof-only intrinsic,
+  not an executable callee. Preserve the rejection controls in
+  `tests/omega/fail/proofs/quotient_*`.
+
+  Published correspondence also reaches its intended execution fence:
+  `retain_checked_quotient_correspondences`, called from
+  `lower_terminal_selection`, rederives and retains the admitted batch.
+  Lowering the admitted program's empty entry rejects with
+  `ModuleError::NonExecutableQuotientCorrespondence`, pinned by
+  `proofs::quotient_correspondence::tests::lowering_any_machine_of_an_admitted_program_stops_at_the_published_correspondence_gate`.
+  Do not reopen the repaired early-admission path or add a runtime value plan
+  merely to bypass that fence. The requesting machine itself has no checked
+  scalar plan; the execution gate needs no such plan.
 
   Remaining work:
 
-  - Admit a request. The Terminal side is wired:
-    `retain_checked_quotient_correspondences`
-    (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs`,
-    called from `lower_terminal_selection`) runs the extractor on
-    `CheckedTrees::typed` whenever a call carries `quotient_operation`,
-    answering termination eligibility from `facts.termination` through
-    validation's `CheckedTerminationOracle` (the typed machine carries no
-    guarantee on the compiler route; the checked stage proves termination
-    after validation), installs the complete admitted batch, and refuses any
-    other shape as `LoweringError::UnadmittedQuotientRequest`; a nonempty
-    table then stops at the execution gate
-    (`ModuleError::NonExecutableQuotientCorrespondence`) as the spec
-    requires. Nothing reaches it yet because
-    `reject_quotient_operation_requests`
-    (`validation/src/proof_contracts/quotients/formation_collection.rs`, via
-    `validate_quotients`, which answers termination from the typed summaries
-    and so cannot admit on the compiler route — `omega --check` on a total
-    direct `define` stops at "the termination fence, the selected theorem
-    termination fence") still rejects every request before checked trees
-    exist, and `typed-trees-to-checked-trees` exits every value path whose
-    call carries `quotient_operation`: `build_checked_value_computation_plans`
-    (`values/scalar/computations.rs`), `nested_structural_call_sites` /
-    `nested_structural_call_return_type` (`values/scalar/call_arguments.rs`),
-    `capture_call` (`flow/transfers/scalar_values/calls.rs`),
-    `collection_view_source_place` (`flow/transfers/projected.rs`),
-    `append_builtin_collection_view` (`flow/ownership/moves/observations.rs`),
-    `call_result_sources` (`flow/reference_places/result_candidates.rs`),
-    `structural_operands::collect` (`execution/unit/control`),
-    `build_payloadless_guarded_call_return_machine`
-    (`execution/unit/returns/guarded_call_returns.rs`), `call_result_place`
-    (`checks/termination/progress/origins.rs`) and
-    `retain_call_expression_machines` (`product_pruning/dependencies.rs`).
-    The compiler route admits the extractable batch: `validate_typed_program`
-    defers request rejection
-    (`validate_specialized_program_deferring_quotient_requests`,
-    `QuotientRequestAdmission::AfterCheckedFacts`) and `lower_typed_trees`
-    calls `admit_checked_quotient_requests` right after `build_check_facts`,
-    answering the `CheckedTerminationOracle` from `facts.termination`; the
-    sealed request call finalizes as the proof-only
-    `AuthoredDeclarationSelectionIntrinsic::{QuotientDefine, QuotientLift}`
-    (no callee, no value plan, no Terminal row). `omega --check` on a managed
-    project holding a total direct `define` compiles; a standalone source
-    still stops at the bridge's hermetic identity rule ("declaration
-    `EquivalenceClass` has non-hermetic source origin `User`",
-    `normalized_hermetic_symbol_identity`) because it has no `package:`
-    provenance. The published-correspondence gate holds on the real route:
-    the rows are program facts, so lowering any machine of the admitted
-    program — its empty `Main::main` entry — runs
-    `retain_checked_quotient_correspondences` and stops at
-    `ModuleError::NonExecutableQuotientCorrespondence`
-    (`proofs::quotient_correspondence::tests::lowering_any_machine_of_an_admitted_program_stops_at_the_published_correspondence_gate`);
-    the requesting machine itself has no plan family and fails closed
-    before a module exists ("machine has no source-independent checked
-    scalar control plan"), pinned beside it. No proof-only value plan for
-    the request is added: the spec forbids executing the operation, the
-    gate needs no carrier, and the value-path exits stay under live claims.
-    Remaining on this leg: a checked-only corpus fixture for the managed
-    shape once `tests/omega/pass/proofs` is free (PROOF-CERTIFICATION-BRIDGE),
-    and a CLI native-route witness: on this host `omega --target
-    macos_arm64` stops in package review before Terminal production (the
-    accepted std review predates upstream's `core/nat_metric.omg` change;
-    a fresh std review needs a `ContractEntailmentOpenObligation`
-    discharge), and the active ownership canaries stop on the same CLI
-    route at ProgramEntry establishment, so the harness route, not the
-    CLI, is the native witness.
+  - Put the managed admission shape on the checked-only source corpus and
+    retain rejection of unproved termination, invalid laws and non-hermetic
+    identities. Use package provenance: a standalone user source currently
+    rejects at `normalized_hermetic_symbol_identity`.
+  - Exercise the same gate through the CLI after ordinary package review and
+    ProgramEntry establishment. At `0504c60747`, the recorded macOS ARM64
+    CLI probe stops earlier in std review
+    (`ContractEntailmentOpenObligation` after `core/nat_metric.omg` changed);
+    the lowering regression is not a successful CLI native run. Route those
+    earlier failures to their owners without weakening review or entry checks.
   - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
     language-semantics, codec, verifier and review rows belong to
     **PROOF-CONTRACT-MIGRATION**.
@@ -5251,7 +5115,7 @@ Owners include
   [published correspondence](wiki/spec/proofs/quotients.md#published-quotient-correspondence)
   rows rederived on decode, while implicit lifts, missing, surplus or reversed
   roles, admitted or boundary theorem closures, and custody-bearing quotients
-  still reject.
+  still reject. Mathematical admission does not grant executable realization.
 
 - **EVALUATED-FOREIGN-BINDINGS.** Carry the typed compile-time locator values
   for PE, versioned ELF, and Darwin/Mach-O through the remaining port-bearing
@@ -9104,7 +8968,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   unfenced slice remains. Sibling re-mines on this family:
   PLACE-ACCESS-GEOMETRY, PLACED-ACCESS-NATIVE-OPS (claimed), plus the
   entered-extent siblings under ENTRY-CONTENT-ROOTS.
-- **PLACED-ACCESS-NATIVE-OPS** — mined candidate; verify scope then implement.
+- **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
+  handed off by **WRITE-ONLY-BORROW**. The checked producer, Terminal verifier,
+  codec/interpreter and verified abstract inventory already carry the runtime
+  index, array path, stored value and bounds through optimization. Target
+  lowering in
+  `abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs`
+  still rejects `WriteOnlyIndexedPrimitiveStore` with
+  `UnsupportedWriteOnlyPrimitiveStore`.
+
+  Recover the original borrowed parameter address, scale by the element width,
+  and preserve independently checked bounds and access authority through the
+  ordinary target route. Start with
+  `tests/native-differential/tests/terminal_psi_indexed_receivers/indexed_stores.rs`:
+  `declared_range_runtime_index_store_reaches_verified_abstract_inventory`
+  currently expects that native refusal. Coordinate its source fixture with
+  **REMOVE-BRACKETED-RANGE-ANNOTATIONS**: use contract/domain facts, not another
+  admission of the revoked annotation syntax.
+
+  Acceptance: source-driven native `&write` and `&mut` calls mutate the
+  caller-selected element and leave its neighbors untouched; invalid indices,
+  substituted bounds or access authority reject. **PLAN-LAID-VIEWS** separately
+  owns provider-backed view establishment and access-plan realization; this
+  indexed-store delivery does not complete that larger contract.
 - **PLATFORM-RUN-LINUX-X86-64** — mined candidate; verify scope then implement.
 - **POC-NATIVE-WRAPPER-RELOCATION** — scope verified 2026-09-20: the name
   re-mines the `optimized_semantic_wrapper_{encoding,object}` surface in
@@ -10823,36 +10709,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   independent slice. Sibling stubs: UNSEQUENCED-SPILL-DISPOSITION
   (resolved same-way), UNSEQUENCED-SPILL-STAGE-DISPOSITION,
   UNSEQUENCED-SPILL-FAMILY-DISPOSITION.
-- **UNSEQUENCED-SPILL-STAGES-DISPOSITION.** Mined candidate. Upstream:
-  [TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md) PIPELINE-OWNER-CONSOLIDATION flag —
-  `selected-instructions-to-register-homes/src/unsequenced_spill_stages/` holds
-  18 spill families (~25,700 non-test lines) that `stage_register_allocation`
-  never calls; SPILL-REALIZATION owns sequencing the ones it needs, the
-  executable `assignment/runtime_spill` route supersedes the rest. Sequence a
-  staged family behind the executable route or delete it; do not extend both.
+- **UNSEQUENCED-SPILL-STAGES-DISPOSITION.** Finish the disposition owned by
+  **SPILL-REALIZATION** and **PIPELINE-OWNER-CONSOLIDATION** in
+  [TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md). The remaining
+  `selected-instructions-to-register-homes/src/unsequenced_spill_stages/`
+  families must either supply a needed executable operation or be deleted with
+  their obsolete exports, test consumers and architecture tables.
 
-  Verified scope (origin/main 3dd805679c): every family is publicly re-exported
-  in the stage's `lib.rs` and has external consumers — native-differential
-  `pipeline_ownership` stage tests, `tests/architecture/optimizer_source_organization`
-  entrance/ladder/retired-paths tables, and machine emission's
-  `frame_layout/spill_requirements/`. The families also form a dependency
-  chain (e.g. `synthetic_reload_values` consumes
-  `ValidatedAbstractSpillInsertion` + `ValidatedReloadValueHomes`), so
-  deletions must proceed leaf-consumer-first. Identified duplicate-owner pair:
-  `stack_slot_coloring` (interval coloring) vs. `runtime_spill/slot.rs` (the
-  executable route's slot reuse).
+  Logical spill planning has moved to `assignment/logical_spill_operations`:
+  executable recovery calls it and retains/replays its result, but still
+  selects and rewrites victims independently in
+  `assignment/runtime_spill/recovery.rs`. The remaining join is to the
+  emitted spill/reload or frame obligations, not another call to the planner.
+  **SPILL-REALIZATION** owns connecting that result where needed or removing
+  redundant planning; retention and replay alone do not complete the join.
 
-  Note for the coordinator: this stub is one of four mined duplicates for the
-  same directory — UNSEQUENCED-SPILL-STAGE-DISPOSITION,
-  UNSEQUENCED-SPILL-STAGE-TRIAGE and UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE
-  cover the identical ground and should be collapsed into one item.
-
-  Remaining: disposition each of the 18 families — sequence (via
-  SPILL-REALIZATION/POC-SPILL-FAMILY-SEQUENCING) or delete with its lib.rs
-  re-exports, native-differential consumers and architecture tables. Whole
-  territory is currently fenced: `selected-instructions-to-register-homes`
-  wholesale (POC-SPILL-FAMILY-SEQUENCING), `optimizer_source_organization`
-  (ORPHAN-STAGE-OUTPUT-AUDIT), `pipeline_ownership` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS).
+  Follow actual consumers before deleting dependent families. In particular,
+  `unsequenced_spill_stages/stack_slot_coloring` and the executable
+  `runtime_spill/slot.rs` still represent competing slot-reuse owners.
+  Acceptance and physical correspondence stay on the optimizer board; this
+  item does not add a second spill implementation.
 - **UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
 - **VERIFIER-EDGE-CLEANUP-PHASE-ORDER** — mined candidate; scope verified, resolved — alias of the terminal-verifier cleanup-order row already repaired on `origin/main`: edge validation consumes owned successor sources before the residual and trivial discard rosters (`validation/frontier/block_parameters.rs` documents the order; `terminators.rs` runs it), and `d96a0fda39` repinned `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to expect `EdgeAffineDiscardsInvalid`. All 26 `structural_scalar_fields::owned_reads` tests pass at `ff596a06e6`. EDGE-CLEANUP-ERROR-PRECEDENCE's landed annotation already names this stub among the row's aliases.
 - **WAIT-WAKE-SUBSTRATE.** Scope verified — authorization gate recorded.
