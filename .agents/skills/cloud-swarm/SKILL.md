@@ -105,6 +105,12 @@ lists them; `get` returning 403 means foreign-parented.
   never wait for notifications. Refire `waiting_for_user` AND `suspended`
   every cycle, indiscriminately; alternate retry prompts with mine legs so
   blocked churn still manufactures board supply.
+- **High `blocked` rate = supply shortage, not worker shortage.** When most
+  settles come back `blocked`, stop blind-retrying and route settled workers
+  to mine legs — each `mine_report` carries candidate item names the
+  coordinator dedupes and commits to TASKS.md (authorized), converting churn
+  into new unfenced supply. When retrying anyway, shard big items into
+  per-file legs so claims hit narrower (freer) fences.
 
 ### Coordinator pre-partitioning (the fix for churn)
 
