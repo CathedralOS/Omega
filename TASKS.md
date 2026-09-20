@@ -7996,7 +7996,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   remaining named residual is the native-route corpus pin, which the
   resolved row assigns to the ACTIVE_FAIL roster — not this stub.
 - **ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE** — mined candidate; verify scope then implement.
-- **ZERO-LENGTH-BYTE-ARRAY-FENCE** — mined candidate; verify scope then implement.
 - **ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE** — mined candidate; verify scope then implement.
 
 ## Platform-gated verification
