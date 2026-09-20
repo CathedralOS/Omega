@@ -471,6 +471,12 @@ pub(crate) struct ParameterRangeRequirements {
     /// endpoints could not be retained exactly — so consumers fail closed
     /// rather than read a partial roster as complete.
     pub(crate) float_entry_ranges: Option<Vec<checked_trees::ClosedFloatRangeRequirement>>,
+    /// The retained integer roster in dense scalar-parameter order. `None`
+    /// records an incomplete roster — a present integer range whose
+    /// normalized endpoints could not be retained exactly — so consumers
+    /// fail closed rather than read a partial roster as complete. Each row
+    /// shares the exact landed literals its `Predicate` clause carries.
+    pub(crate) integer_entry_ranges: Option<Vec<checked_trees::ClosedIntegerRangeRequirement>>,
 }
 
 /// Bracket constraints are native numeric requires sugar. Keep every present
@@ -485,11 +491,13 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
         integer_predicates: Vec::new(),
         scalar_clauses: Vec::new(),
         float_entry_ranges: Some(Vec::new()),
+        integer_entry_ranges: Some(Vec::new()),
     };
     let Some(entry) = program.machine_states(machine).first() else {
-        // No entry state means no constraints at all; the roster stays
-        // `None` rather than claiming an empty-but-complete floating roster.
+        // No entry state means no constraints at all; the rosters stay
+        // `None` rather than claiming an empty-but-complete roster.
         ranges.float_entry_ranges = None;
+        ranges.integer_entry_ranges = None;
         return ranges;
     };
     let parameters = program.state_parameters(entry);
@@ -546,11 +554,15 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                             // Endpoints have already been evaluated under their
                             // own selected meaning. Land the normalized interval,
                             // not an exclusive end outside the subject carrier.
+                            let minimum_literal =
+                                validation::land_integer_value(&low, primitive_type)?;
+                            let maximum_literal =
+                                validation::land_integer_value(&high, primitive_type)?;
                             let minimum = CheckedScalarExpression::IntegerLiteral {
-                                literal: validation::land_integer_value(&low, primitive_type)?,
+                                literal: minimum_literal.clone(),
                             };
                             let maximum = CheckedScalarExpression::IntegerLiteral {
-                                literal: validation::land_integer_value(&high, primitive_type)?,
+                                literal: maximum_literal.clone(),
                             };
                             let subject = CheckedScalarExpression::Parameter {
                                 position,
@@ -558,7 +570,7 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                             };
                             // This is the meaning of TypeConstraintNode::Range,
                             // not an authored selectable <= operator occurrence.
-                            Some(CheckedBooleanExpression::And {
+                            let predicate = CheckedBooleanExpression::And {
                                 left: Box::new(construct_integer_comparison(
                                     BinaryOperator::LessOrEqual,
                                     minimum,
@@ -569,7 +581,17 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                                     subject,
                                     maximum,
                                 )?),
-                            })
+                            };
+                            // The retained roster row shares the exact landed
+                            // endpoints the predicate carries so clause and
+                            // evidence can never disagree.
+                            let requirement = checked_trees::ClosedIntegerRangeRequirement {
+                                position,
+                                primitive_type,
+                                minimum: minimum_literal,
+                                maximum: maximum_literal,
+                            };
+                            Some((predicate, requirement))
                         };
                         let requirement = || {
                             // Existing source validation rejects range constraints
@@ -632,13 +654,34 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                                 }
                             }
                         } else {
-                            ranges.scalar_clauses.push(
-                                predicate
-                                    .clone()
-                                    .map(checked_trees::ClosedScalarContractValue::Predicate),
-                            );
+                            match predicate {
+                                Some((predicate, requirement)) => {
+                                    // One authored integer range retains its
+                                    // normalized bounds on the roster while the
+                                    // requires tail keeps the predicate clause.
+                                    // One failed endpoint voids the whole roster
+                                    // so no consumer reads a partial one.
+                                    if let Some(roster) = &mut ranges.integer_entry_ranges {
+                                        roster.push(requirement);
+                                    }
+                                    ranges.scalar_clauses.push(Some(
+                                        checked_trees::ClosedScalarContractValue::Predicate(
+                                            predicate.clone(),
+                                        ),
+                                    ));
+                                    ranges.integer_predicates.push(Some(predicate));
+                                }
+                                None => {
+                                    ranges.integer_entry_ranges = None;
+                                    ranges.scalar_clauses.push(None);
+                                    ranges.integer_predicates.push(None);
+                                }
+                            }
+                            continue;
                         }
-                        ranges.integer_predicates.push(predicate);
+                        ranges
+                            .integer_predicates
+                            .push(predicate.map(|(predicate, _)| predicate));
                     }
                     type_reference = *base_type;
                 }

@@ -7,8 +7,12 @@ use super::{
     BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, TerminalMachine, TerminalModule,
     Terminator, ValueId,
 };
-use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId, ScalarType};
-use terminal_psi::{ScalarFloatRange, ScalarQualificationCoercion, ValueDeclaration};
+use semantic_vocabulary::{
+    Proposition, ScalarDomainId, ScalarQualificationSetId, ScalarTerm, ScalarType,
+};
+use terminal_psi::{
+    ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCoercion, ValueDeclaration,
+};
 
 fn invalid(reason: &'static str) -> ModuleError {
     ModuleError::InvalidScalarQualification(reason)
@@ -20,6 +24,18 @@ fn invalid_float_range(
     reason: &'static str,
 ) -> ModuleError {
     ModuleError::InvalidScalarFloatRange {
+        machine,
+        parameter,
+        reason,
+    }
+}
+
+fn invalid_integer_range(
+    machine: MachineId,
+    parameter: ValueId,
+    reason: &'static str,
+) -> ModuleError {
+    ModuleError::InvalidScalarIntegerRange {
         machine,
         parameter,
         reason,
@@ -98,10 +114,104 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
         }
         float_ranges.insert(key, range);
     }
+    // Retained authored integer ranges are closed delivery requirements on
+    // direct scalar parameters, ordered and owned exactly like the floating
+    // rows. The carrier must be the parameter's declared fixed-width integer
+    // type — an address carrier is not an entry-range carrier — and both
+    // inclusive endpoints must be admitted and ordered under its signedness.
+    // Unlike a floating row the same bounds also publish as `requires`
+    // propositions on the owner contract: `LTE(minimum, parameter)` and
+    // `LTE(parameter, maximum)`. A row whose owner does not publish both
+    // conjuncts claims a bound no call edge replays, so it fails closed.
+    let mut integer_ranges: BTreeMap<(MachineId, ValueId), &ScalarIntegerRange> = BTreeMap::new();
+    let mut previous_integer = None;
+    for range in &catalog.integer_entry_ranges {
+        let key = (range.machine, range.parameter);
+        if previous_integer.is_some_and(|previous| previous >= key) {
+            return Err(invalid_integer_range(
+                range.machine,
+                range.parameter,
+                "noncanonical scalar integer entry ranges",
+            ));
+        }
+        previous_integer = Some(key);
+        let owner = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == range.machine)
+            .ok_or_else(|| {
+                invalid_integer_range(
+                    range.machine,
+                    range.parameter,
+                    "unknown range owner machine",
+                )
+            })?;
+        let parameter = owner
+            .parameters
+            .iter()
+            .find(|parameter| parameter.id == range.parameter)
+            .ok_or_else(|| {
+                invalid_integer_range(
+                    range.machine,
+                    range.parameter,
+                    "range is not attached to a direct scalar parameter",
+                )
+            })?;
+        if !range.ordered() {
+            return Err(invalid_integer_range(
+                range.machine,
+                range.parameter,
+                "range carrier is an address or the endpoints are not admitted and ordered",
+            ));
+        }
+        if parameter.scalar_type != ScalarType::Integer(range.integer_type) {
+            return Err(invalid_integer_range(
+                range.machine,
+                range.parameter,
+                "range carrier does not retain the parameter's declared integer type",
+            ));
+        }
+        let minimum = ScalarTerm::integer(range.integer_type, range.minimum).map_err(|_| {
+            invalid_integer_range(
+                range.machine,
+                range.parameter,
+                "range minimum is outside its declared carrier",
+            )
+        })?;
+        let maximum = ScalarTerm::integer(range.integer_type, range.maximum).map_err(|_| {
+            invalid_integer_range(
+                range.machine,
+                range.parameter,
+                "range maximum is outside its declared carrier",
+            )
+        })?;
+        let subject = ScalarTerm::value(parameter.id, parameter.scalar_type);
+        let published = |expected: &Proposition| {
+            let mut pending: Vec<&Proposition> = owner.contract.requires.iter().collect();
+            while let Some(proposition) = pending.pop() {
+                match proposition {
+                    Proposition::Conjunction(terms) => pending.extend(terms.iter()),
+                    proposition if proposition == expected => return true,
+                    _ => {}
+                }
+            }
+            false
+        };
+        if !published(&Proposition::LessOrEqual(minimum, subject.clone()))
+            || !published(&Proposition::LessOrEqual(subject, maximum))
+        {
+            return Err(invalid_integer_range(
+                range.machine,
+                range.parameter,
+                "range bounds are not published as owner requires propositions",
+            ));
+        }
+        integer_ranges.insert(key, range);
+    }
     // Boundary scalar signatures currently carry only payload types. A
     // provider installation cannot supply or forget membership — or a retained
-    // floating range — through that older interface, even when its in-module
-    // body has a valid signature.
+    // floating or integer range — through that older interface, even when its
+    // in-module body has a valid signature.
     for provider in &module.provider_candidates {
         if module
             .machines
@@ -113,10 +223,10 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                     .iter()
                     .chain(machine.result.scalar_ref())
                     .any(|value| !value.qualifications.is_empty())
-                    || machine
-                        .parameters
-                        .iter()
-                        .any(|parameter| float_ranges.contains_key(&(machine.id, parameter.id)))
+                    || machine.parameters.iter().any(|parameter| {
+                        float_ranges.contains_key(&(machine.id, parameter.id))
+                            || integer_ranges.contains_key(&(machine.id, parameter.id))
+                    })
             })
         {
             return Err(invalid("qualified scalar provider boundary is unsupported"));
@@ -264,6 +374,31 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
                             };
                             if !admitted {
                                 return Err(ModuleError::ScalarFloatRangeDelivery {
+                                    caller: machine.id,
+                                    operation: operation.id,
+                                    callee: callee.id,
+                                    parameter: parameter.id,
+                                });
+                            }
+                        }
+                        // A ranged integer parameter publishes the same bounds
+                        // as `requires` propositions, so call composition
+                        // already reconstructs the delivery obligation and its
+                        // proof replays constants, forwarded parameters, and
+                        // computed arguments alike. The one delivery shape the
+                        // obligation cannot make more precise is an exact
+                        // `IntegerConstant` outside the authored interval:
+                        // reject it here so the failure names the delivery
+                        // instead of surfacing as an unprovable obligation.
+                        for (argument, parameter) in arguments.iter().zip(&callee.parameters) {
+                            let Some(range) = integer_ranges.get(&(callee.id, parameter.id)) else {
+                                continue;
+                            };
+                            if let Some(OperationKind::IntegerConstant { value }) =
+                                producers.get(argument)
+                                && !range.contains(*value)
+                            {
+                                return Err(ModuleError::ScalarIntegerRangeDelivery {
                                     caller: machine.id,
                                     operation: operation.id,
                                     callee: callee.id,

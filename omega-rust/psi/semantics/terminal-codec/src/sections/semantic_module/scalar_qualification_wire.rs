@@ -2,13 +2,14 @@
 use super::{
     CodecError, decode_counted,
     scalar_wire::{
-        decode_ieee_float_value, decode_scalar_type, encode_ieee_float_value, encode_scalar_type,
+        decode_ieee_float_value, decode_integer_type, decode_integer_value, decode_scalar_type,
+        encode_ieee_float_value, encode_integer_type, encode_integer_value, encode_scalar_type,
     },
     wire::{Reader, Writer},
 };
 use semantic_vocabulary::ScalarQualificationSetId;
 use terminal_psi::{
-    ScalarDomainDeclaration, ScalarFloatRange, ScalarQualificationCatalog,
+    ScalarDomainDeclaration, ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCatalog,
     ScalarQualificationCoercion, ScalarQualificationSet,
 };
 
@@ -50,6 +51,17 @@ pub(crate) fn encode(
         encode_ieee_float_value(writer, range.maximum);
         writer.boolean(range.maximum_inclusive);
     }
+    writer.len(
+        "scalar integer entry ranges",
+        catalog.integer_entry_ranges.len(),
+    )?;
+    for range in &catalog.integer_entry_ranges {
+        writer.id(range.machine);
+        writer.id(range.parameter);
+        encode_integer_type(writer, range.integer_type);
+        encode_integer_value(writer, range.minimum);
+        encode_integer_value(writer, range.maximum);
+    }
     Ok(())
 }
 
@@ -88,6 +100,15 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 minimum: decode_ieee_float_value(reader)?,
                 maximum: decode_ieee_float_value(reader)?,
                 maximum_inclusive: reader.boolean()?,
+            })
+        })?,
+        integer_entry_ranges: decode_counted(reader, |reader| {
+            Ok(ScalarIntegerRange {
+                machine: reader.id("MachineId")?,
+                parameter: reader.id("ValueId")?,
+                integer_type: decode_integer_type(reader)?,
+                minimum: decode_integer_value(reader)?,
+                maximum: decode_integer_value(reader)?,
             })
         })?,
     })
@@ -141,6 +162,23 @@ pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), Codec
         .float_entry_ranges
         .iter()
         .any(|range| range.minimum.format() != range.maximum.format())
+    {
+        return Err(CodecError::NonCanonicalEncoding);
+    }
+    if catalog
+        .integer_entry_ranges
+        .windows(2)
+        .any(|pair| (pair[0].machine, pair[0].parameter) >= (pair[1].machine, pair[1].parameter))
+    {
+        return Err(CodecError::NonCanonicalOrder("scalar integer entry ranges"));
+    }
+    // An integer entry range is canonical only on a fixed-width carrier with
+    // both endpoints admitted and ordered; an address carrier, a
+    // sign-mismatched endpoint, or a reversed interval is malformed wire.
+    if catalog
+        .integer_entry_ranges
+        .iter()
+        .any(|range| !range.ordered())
     {
         return Err(CodecError::NonCanonicalEncoding);
     }

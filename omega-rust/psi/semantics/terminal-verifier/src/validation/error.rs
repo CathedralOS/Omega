@@ -66,6 +66,26 @@ pub enum ModuleError {
         callee: MachineId,
         parameter: ValueId,
     },
+    /// A retained authored integer range row is malformed: unknown machine
+    /// or parameter, a non-integer or address carrier, a carrier that
+    /// disagrees with the parameter's declared type, endpoints outside the
+    /// carrier or unordered, or bounds the owner contract does not publish
+    /// as `requires` propositions.
+    InvalidScalarIntegerRange {
+        machine: MachineId,
+        parameter: ValueId,
+        reason: &'static str,
+    },
+    /// A call delivers an exact integer constant the callee parameter's
+    /// retained integer range cannot admit. Other producers discharge the
+    /// same delivery through the published `requires` propositions and their
+    /// reconstructed proof obligations, not through this early check.
+    ScalarIntegerRangeDelivery {
+        caller: MachineId,
+        operation: OperationId,
+        callee: MachineId,
+        parameter: ValueId,
+    },
     NonCanonicalScalarBlockInvariants,
     InvalidScalarBlockInvariant {
         machine: MachineId,

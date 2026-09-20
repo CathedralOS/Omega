@@ -420,14 +420,20 @@ pub(crate) fn lower_scalar_call_closure(
         scalar_qualifications
             .coercions
             .append(&mut lowered.semantic_module.scalar_qualifications.coercions);
-        // Floating entry ranges are machine-local rows keyed by the emitted
-        // machine and parameter identities: they merge without sharing the
-        // domain/set namespace.
+        // Floating and integer entry ranges are machine-local rows keyed by
+        // the emitted machine and parameter identities: they merge without
+        // sharing the domain/set namespace.
         scalar_qualifications.float_entry_ranges.append(
             &mut lowered
                 .semantic_module
                 .scalar_qualifications
                 .float_entry_ranges,
+        );
+        scalar_qualifications.integer_entry_ranges.append(
+            &mut lowered
+                .semantic_module
+                .scalar_qualifications
+                .integer_entry_ranges,
         );
         let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
             unreachable!("one prepared scalar graph emits one terminal machine")
@@ -444,6 +450,9 @@ pub(crate) fn lower_scalar_call_closure(
     }
     scalar_qualifications
         .float_entry_ranges
+        .sort_by_key(|range| (range.machine, range.parameter));
+    scalar_qualifications
+        .integer_entry_ranges
         .sort_by_key(|range| (range.machine, range.parameter));
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {

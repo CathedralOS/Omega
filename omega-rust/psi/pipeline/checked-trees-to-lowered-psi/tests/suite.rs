@@ -34,6 +34,7 @@ mod field_rhs_operand_custody;
 mod float_entry_ranges_source;
 mod general_partial_affine;
 mod guarded_scalar_returns_source;
+mod integer_entry_ranges_source;
 mod integer_policy_realization;
 mod local_record_receivers_source;
 mod mixed_shift_source;

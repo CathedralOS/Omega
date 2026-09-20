@@ -79,10 +79,10 @@ fn structural_declaration_encoder_matches_the_existing_module_section() {
     let declaration =
         terminal_codec::encode_structural_type_declaration(&module.structural_types[0]).unwrap();
     let module_bytes = encode_module(&module).unwrap();
-    // Header, entry machine, four empty scalar-qualification catalog counts
-    // (domains, sets, coercions, float entry ranges), and the
-    // structural-declaration count.
-    let declaration_start = 8 + 2 + 2 + 8 + 4 * 4 + 4;
+    // Header, entry machine, five empty scalar-qualification catalog counts
+    // (domains, sets, coercions, float entry ranges, integer entry ranges), and
+    // the structural-declaration count.
+    let declaration_start = 8 + 2 + 2 + 8 + 4 * 5 + 4;
     assert_eq!(
         declaration,
         module_bytes[declaration_start..declaration_start + declaration.len()]

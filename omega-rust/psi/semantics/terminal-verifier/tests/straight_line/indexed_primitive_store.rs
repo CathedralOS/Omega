@@ -11,7 +11,8 @@ use super::{
 };
 use semantic_vocabulary::PsiSemanticId;
 use terminal_psi::{
-    BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, ValueDeclaration,
+    BindingRelevance, ScalarIntegerRange, StructuralFieldDeclaration, StructuralFieldType,
+    ValueDeclaration,
 };
 
 fn id<T: PsiSemanticId>(raw: u64) -> T {
@@ -168,6 +169,82 @@ fn runtime_indexed_store_reconstructs_extent_obligation_and_verifies() {
         validate_module(&module).unwrap();
         verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
     }
+}
+
+/// A retained integer entry range publishes `index <= maximum` as a requires
+/// proposition on the owning contract, so the reconstructed
+/// `index < extent` obligation is discharged from that bound by discreteness —
+/// the exact replay the write-only indexed-store producer relies on instead of
+/// a literal index equation.
+#[test]
+fn retained_integer_range_index_proves_the_store_extent_bound() {
+    let (mut module, _) = fixture(StructuralAccess::WriteOnlyBorrow);
+    let owner = module.machines[0].id;
+    {
+        let machine = &mut module.machines[0];
+        // `index` (value 10) becomes a scalar parameter carrying the authored
+        // `0..=2` interval instead of a produced constant; drop the constant.
+        machine.parameters = vec![ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(10),
+            scalar_type: u64_type(),
+        }];
+        machine.contract.requires = vec![Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(count(0), index_term()),
+            Proposition::LessOrEqual(index_term(), count(2)),
+        ])];
+        machine.blocks[0].operations.remove(0);
+    }
+    module.scalar_qualifications.integer_entry_ranges = vec![ScalarIntegerRange {
+        machine: owner,
+        parameter: id(10),
+        integer_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        minimum: IntegerValue::Unsigned(0),
+        maximum: IntegerValue::Unsigned(2),
+    }];
+
+    let site = reconstruct_operation_obligations(&module)
+        .unwrap()
+        .pop()
+        .expect("the indexed store obligation");
+    assert_eq!(
+        site.obligation.proposition,
+        Proposition::LessThan(index_term(), count(3))
+    );
+
+    // `index <= 2` is the range's second requires conjunct; discreteness turns
+    // it into `index < 3`, matching the `[u8; 3]` extent.
+    let upper = Proposition::LessOrEqual(index_term(), count(2));
+    let bundle = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: site.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: id(1),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: site.obligation.proposition.clone(),
+                    rule: ProofRule::IntegerOrderDiscreteness {
+                        relation: Box::new(ProofNode {
+                            conclusion: upper,
+                            rule: ProofRule::ConjunctionElimination {
+                                conjunction: Box::new(ProofNode {
+                                    conclusion: Proposition::Conjunction(vec![
+                                        Proposition::LessOrEqual(count(0), index_term()),
+                                        Proposition::LessOrEqual(index_term(), count(2)),
+                                    ]),
+                                    rule: ProofRule::Assumption { index: 0 },
+                                }),
+                                conjunct: 1,
+                            },
+                        }),
+                    },
+                },
+            }),
+        }],
+        ..ProofBundle::default()
+    };
+    validate_module(&module).unwrap();
+    verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
 }
 
 #[test]

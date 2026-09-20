@@ -59,5 +59,9 @@ pub(crate) fn with_result_range(
     // A result refinement cannot reconstruct the retained floating entry
     // roster; it rides back through unchanged so requires-tail `FloatRange`
     // clauses keep their delivery evidence.
-    .with_float_entry_ranges(plan.float_entry_ranges().map(<[_]>::to_vec)))
+    .with_float_entry_ranges(plan.float_entry_ranges().map(<[_]>::to_vec))
+    // The retained integer roster rides through unchanged for the same
+    // reason: its rows are the exact endpoint evidence behind the
+    // requires-tail `Predicate` conjunctions.
+    .with_integer_entry_ranges(plan.integer_entry_ranges().map(<[_]>::to_vec)))
 }

@@ -166,13 +166,15 @@ fn module_spans(encoded: &[u8]) -> ModuleSpans {
     walker.take(2); // format marker
     walker.take(2); // vocabulary marker
     walker.take(8); // entry machine identity
-    // The scalar-qualification catalog encodes four counted rosters even when
-    // empty: domains, qualification sets, coercions, and float entry ranges.
+    // The scalar-qualification catalog encodes five counted rosters even when
+    // empty: domains, qualification sets, coercions, and the float and integer
+    // entry ranges.
     for label in [
         "scalar domains",
         "scalar qualification sets",
         "scalar qualification coercions",
         "scalar float entry ranges",
+        "scalar integer entry ranges",
     ] {
         walker.expect_empty_count(label);
     }
