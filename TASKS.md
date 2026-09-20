@@ -10931,13 +10931,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-mines the explicit-crash leg of the resolved
   STAGED-LOCAL-SEQUENCE-LOWERING row, identical to sibling verdict
   STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION (this section). Re-verified
-  at `9ff8673b310` (linux x86-64): `cargo nextest run -p
-  omega-native-differential-test --test terminal_psi_source -E
-  'test(~staged_local)'` — 7/7 pass, including
+  at `9ff8673b310` (linux x86-64) and again at `d4dff2f9e9`: `cargo
+  nextest run -p omega-native-differential-test --test
+  terminal_psi_source -E 'test(~staged_local)'` — 7/7 pass, including
   `checked_source_staged_local_sequences_before_an_explicit_crash`.
   The stale `wiki/drafts/known_baseline_failures.md` entry
   (`UnsupportedControlFlow(MachineId(1))`, expectation from
-  `2694d433d3`) belongs to the known-failures doc lane.
+  `2694d433d3`, still present at :643-646) belongs to the
+  known-failures doc lane — fenced by LOWERED-UNIT-FAILURE-ATTRIBUTION
+  until ~01:17Z at verification time.
 - **STALE-CUSTODY-GATE-EXPECTATIONS.** Scope verified at `10d93dd448d`:
   the custody-gate expectation slice left by TERMINAL-SOURCE-CUSTODY-GATE-ORDER
   is current, not stale. All five custody-named fail fixtures
