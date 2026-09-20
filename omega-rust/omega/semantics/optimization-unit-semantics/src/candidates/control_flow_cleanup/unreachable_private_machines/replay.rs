@@ -272,7 +272,7 @@ pub(crate) fn pruned_machine_provenance(
 mod tests {
     use abstract_operations::AbstractResult;
 
-    use super::*;
+    use super::{MachineId, O, validator_machine_references};
 
     fn stored_dynamic_dispatch(
         owner: MachineId,
