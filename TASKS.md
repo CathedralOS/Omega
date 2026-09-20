@@ -9447,7 +9447,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `jump_applies_a_canonical_subset_of_affine_discards`, and the
   `result_residuals` custody rows. No open slice remains; the
   lowered-psi cleanup-roster emission leg stays owned by
-  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.
+  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING. Sibling
+  OWNED-SUCCESSOR-DISCARD-ORDER was resolved as the same landed alias
+  at `34f36c13ef` and its row swept at `41a7bde098` — re-verified
+  holding at `66a6ea93f7` (linux x86-64):
+  `cargo nextest run -p terminal-verifier -E 'test(~discard) |
+  test(~owned_successors)' --no-fail-fast` 15/15 pass.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; scope
   verified, covered — re-mines the review-projection input-resolution clause
