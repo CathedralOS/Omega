@@ -7511,7 +7511,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SCALAR-SCAN-AND-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-DISPATCH** — mined candidate; verify scope then implement.
-- **SCAN-SCALAR-SCAN** — mined candidate; verify scope then implement.
+- **SCAN-SCALAR-SCAN** — verified e0927237: already landed via the squalr
+  pin advance `05416dd1a0` → Squalr-Omega `43329a3` ("squalr: port scalar
+  scan, run-length encoder, and element-scan dispatch"). The scalar leg is
+  present in the pinned app: `ScalarIterativeScan` pull driver over
+  current/previous u64 windows, `ScannerScalarSingleElement`, and
+  `SnapshotRegionFilterRunLengthEncoder` preserving upstream
+  stride/byte_advance semantics, selected by `ElementScanDispatcher` for
+  Scalar plans. Re-verified on linux-x86_64: `omega --check` clean on both
+  packages at the pin (squalr-engine-api 24 files, squalr-engine-scanning
+  28 files). Row consumed. Siblings SCALAR-SCAN-AND-DISPATCH,
+  SCAN-SCALAR-DISPATCH, SCAN-SCALAR-COMPARISON-DISPATCH decompose the same
+  landed commit.
 - **SCHEDULING-RELOCATION-ADMISSION** — mined candidate; verify scope then implement.
 - **SCHEDULING-RELOCATION-UNIFICATION** — mined candidate; verify scope then implement.
 - **SCOPED-LOOKUP-MAP-AUDIT** — mined candidate; verify scope then implement.
