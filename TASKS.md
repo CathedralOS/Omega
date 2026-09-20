@@ -8795,8 +8795,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DERIVATION-RECHECK-CACHE (resolved), PROOF-SEARCH-DERIVATION-CACHE,
   PROOF-SEARCH-MEASUREMENT.
 - **PROOF-DERIVATION-STORE.** Resolved — covered by owned sibling rows. The stub re-mines `wiki/drafts/proof_search_cache.md`'s derivation-store leg, which is already delivered and decomposed: the store substrate is `proof/src/derivation_store.rs` (PROOF-DERIVATION-STORE-INDEX, landed `68ce33d9de` — canonical `ProofObligationKey` index, generational `DerivationId` handles, `DerivationStoreFull` refusal, key-granularity invalidate, candidate-only lookups), the `check_proof_plan` consultation is DERIVATION-RECHECK-CACHE (resolved at `28a3cc7fea` — `check_proof_plan_with_derivation_cache` re-decides retained candidates through the admission kernel with `DerivationCacheReport` tallies), measurement gating the whole scheme is PROOF-SEARCH-MEASUREMENT (resolved — `OMEGA_PROOF_MEASUREMENTS`), and the open residual is dependency invalidation, owned by the adjacent PROOF-CACHE-DEPENDENCY-INVALIDATION row. No independent slice remains under this name.
-- **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC** — mined candidate; scope
-  verified: merged alias of PROOF-INTERCHANGE-IMPORT's "arithmetic import"
+- **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC.** Mined candidate; scope
+  verified, resolved: merged alias of PROOF-INTERCHANGE-IMPORT's
+  "arithmetic import"
   clause (the third of its 3 mined aliases, adjudicated at e76d715c8e (verified base 6ef64f6dd6)).
   Re-verified on this host at b972133cad: `proof-admission/src/admission/`
   contains only `evidence.rs`, `normalization.rs` and `recursion.rs` — no
