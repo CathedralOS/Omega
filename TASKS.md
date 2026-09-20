@@ -6488,7 +6488,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-COMPARISON-METRICS** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-SLICE-COMPARISON** — mined candidate; verify scope then implement.
-- **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING** — mined candidate; verify scope then implement.
+- **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.** Verified scope
+  (Zergling-181): the "typed-to-one-sorted encoding" bullet of the bounded
+  comparison in `wiki/drafts/matching_logic.md`, drafted in
+  `wiki/drafts/matching_logic_sort_encoding.md` — encode `Nat`, `Int`,
+  `addr`, slices, and a user sum into the one-sorted finitary basic fragment
+  as membership patterns with disjointness/refinement clauses, definedness
+  preconditions for partial operations, junk-model quantifier guards,
+  revision (refinement-not-invalidation) rules, and borrow/multiplicity loan
+  clauses. Landed (queued on `zergling/z181-...` pending mainline):
+  `tools/matching-logic-sort-encoding/sort_encoding.py` emits the clause
+  inventory plus the evidence record the doc names (fragment, rule and
+  semantics versions — sha256 of the source draft — subject digest, target
+  capsule, observation profile, bridge graph, admissions, diagnostics) and
+  `check` enforces definedness coverage, intended-model inhabitedness,
+  revision refinement, exclusive-loan disjointness, reborrow lineage,
+  pair-constructor injectivity, sum tag disjointness, declared payload/slice
+  memberships, and fixpoint certificates. Pinned cases: `cases/reference.json`
+  positive plus seven negatives. Verified:
+  `python3 tools/tests/test_matching_logic_sort_encoding.py -v` — 8/8 green
+  on linux x86-64. Remaining acceptance: wire the emitted clauses and
+  evidence into the bounded comparison harness — fenced to
+  MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice/`, live claim);
+  no encoding-to-checker translation is admitted authority.
 - **MATCHING-LOGIC-VERTICAL-SLICE** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-VERTICAL-SLICE-COMPARISON** — mined candidate; verify scope then implement.
   Verified scope: the name re-mines the "possible bounded comparison"

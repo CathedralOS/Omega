@@ -1,0 +1,69 @@
+{
+  "schema": "omega-sort-encoding-case/1",
+  "subject": "doc-table: Nat, Int64, addr, u3 slice, user sum",
+  "target": {
+    "capsule": "linux_x86_64",
+    "address_model": "flat_u64"
+  },
+  "types": {
+    "integers": {
+      "signed_widths": [64],
+      "unsigned_widths": [8]
+    },
+    "ranged": [
+      {"name": "U3", "low": 0, "high": 3}
+    ],
+    "addresses": true,
+    "slices": [
+      {"name": "Bytes", "element": "u8"}
+    ],
+    "sums": [
+      {
+        "name": "MaybeI64",
+        "arms": [
+          {"tag": "Some", "payload": "i64"},
+          {"tag": "None", "payload": null}
+        ]
+      }
+    ]
+  },
+  "operations": [
+    {
+      "name": "exact_divide",
+      "definedness": "divisor != 0"
+    },
+    {
+      "name": "bytes_index",
+      "definedness": "i < l on b + i"
+    }
+  ],
+  "pair_constructor_injective": true,
+  "inhabitants": {
+    "Integer": 3,
+    "Nat": 2,
+    "Int64": 2,
+    "UInt8": 2,
+    "U3": 1,
+    "Addr": 1,
+    "Bytes": 1,
+    "MaybeI64": 1,
+    "Tag_MaybeI64_Some": 1,
+    "Tag_MaybeI64_None": 1,
+    "Loan_shared": 1,
+    "Loan_mut": 1
+  },
+  "regions": ["buf"],
+  "revisions": [
+    {
+      "element": "x",
+      "prior_lower": 0,
+      "prior_upper": 7,
+      "tightened_upper": 3
+    }
+  ],
+  "loans": [
+    {"element": "b1", "kind": "mut", "region": "buf", "parent": null},
+    {"element": "r1", "kind": "shared", "region": "scratch", "parent": null},
+    {"element": "s1", "kind": "shared", "region": "scratch", "parent": "r1"}
+  ]
+}

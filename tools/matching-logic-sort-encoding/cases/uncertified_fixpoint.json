@@ -1,0 +1,15 @@
+{
+  "schema": "omega-sort-encoding-case/1",
+  "subject": "negative: fixpoint symbol without a bounded certificate",
+  "target": {"capsule": "linux_x86_64", "address_model": "flat_u64"},
+  "types": {
+    "integers": {}
+  },
+  "fixpoints": [
+    {"name": "mu_list", "certificate": null}
+  ],
+  "inhabitants": {
+    "Integer": 1,
+    "Nat": 1
+  }
+}
