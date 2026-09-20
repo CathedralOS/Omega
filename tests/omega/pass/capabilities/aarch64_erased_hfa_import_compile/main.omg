@@ -4,11 +4,11 @@ use omega::language::core::service;
 
 // Evidence is semantic-only. The erased-stripped Pair is still a two-member
 // AAPCS64 HFA and must feed d0/d1 from one aggregate source place.
-data Evidence {
+pub data Evidence {
     case Only;
 }
 
-data Pair {
+pub data Pair {
     first: f64;
     proof [erased]: Evidence;
     second: f64;
