@@ -51,6 +51,23 @@ impl PackageSourceBinding {
         Ok(self)
     }
 
+    /// The same capture routed through one persistent checked-source cache:
+    /// an unchanged root replays its retained index, and any drift rebuilds
+    /// through the full hashing capture. The bound index is identical either
+    /// way.
+    pub fn with_cached_canonical_source_metadata(
+        mut self,
+        cache: &crate::checked_source_cache::CheckedSourceCache,
+    ) -> Result<Self, String> {
+        self.canonical_source_metadata = Some(
+            cache
+                .capture(&self.source_root)?
+                .canonical_source_metadata()
+                .clone(),
+        );
+        Ok(self)
+    }
+
     pub const fn identity(&self) -> PackageKeyIdentity {
         self.identity
     }
