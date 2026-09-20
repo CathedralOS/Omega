@@ -7,6 +7,12 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/delta/compiler_env.sh"
 
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
+    *) echo "Gamma composed artifact: unsupported host; needs macOS arm64 or Windows x64" >&2
+       exit 2 ;;
+esac
+
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 INVOKE="$OMEGA_REPO_ROOT/tools/bootstrap/gamma/invoke.py"
