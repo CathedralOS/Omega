@@ -4,7 +4,9 @@ use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::RegisterOperandAccess;
 
 use crate::rewrites::block_edges::terminator_successors;
-use crate::{FunctionLiteralFold, LiteralFoldError, PairMachineEffects, ValidatedSelectedAnalysis};
+use crate::{
+    FunctionLiteralFold, LiteralFoldError, PairUnitDefRelation, ValidatedSelectedAnalysis,
+};
 
 use super::constraints::AdmittedPairs;
 
@@ -43,7 +45,7 @@ pub(super) fn fold_usage(
         // The operand-swapped compare grammar's reader-flow audit ran
         // while this action was derived — re-derive that the enabled
         // pair bound to the action's consumer grammar declares
-        // `OperandSwappedUnitDefs` and charge its walk: for each
+        // `OperandSwapped` and charge its walk: for each
         // implicit unit the consumer defines, the audit visits a block
         // at most twice — once from the consumer's tail position and
         // once at its head through a back edge — scanning every
@@ -76,7 +78,7 @@ pub(super) fn fold_usage(
         let audited = rows
             .for_position(consumer.kind, victim_position)
             .is_some_and(|pair| {
-                pair.rule.machine_effects() == PairMachineEffects::OperandSwappedUnitDefs
+                pair.rule.machine_effects().unit_defs == PairUnitDefRelation::OperandSwapped
             });
         if !audited {
             continue;
