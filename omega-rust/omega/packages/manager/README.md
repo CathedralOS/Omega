@@ -144,8 +144,8 @@ fresh compiler reviews; there is no parallel initial-conflict comparison or
 second approval decision. Contract-entailment obligations remain unadmittable
 while open; canonically recorded,
 locally rechecked assumption discharges compose separately across the complete
-closure with their original package owners and checked contexts. The result remains review and
-policy state.
+closure with their original package owners and checked contexts. The result
+remains review and policy state.
 
 `admission` rechecks live source custody, obligation reconstruction, and accepted
 policy before producing in-memory evidence. That evidence retains exact
@@ -173,7 +173,7 @@ Its `package_pass.rs` owns dependency-order compilation and projection for each
 required build/product occurrence, using the same roster as lock comparison and
 reconstruction. Acquisition and parsed source are shared; checked targets,
 generated bundles, bindings, component descriptions and reviews are not.
-session, policy budgeting, and ledger budgeting live beneath that same owner.
+Session, policy budgeting, and ledger budgeting live beneath that same owner.
 [`review_set.rs`](src/review/candidate/review_set.rs) describes the issued output.
 
 `compile_resolved_package_reviews` with `SemanticBindingReview::Discover` is
@@ -187,8 +187,8 @@ This creates no source exports: missing imported modules still reject. Explicit
 root check entries and native application entry requirements remain unchanged.
 It uses one preliminary compiler review only to discover supported
 package-owned semantic surfaces, then recompiles with exact consumer-scoped
-bindings. Only that final review may proceed to policy comparison and admission; the
-discovery pass is neither policy nor evidence that an audit occurred.
+bindings. Only that final review may proceed to policy comparison and admission;
+the discovery pass is neither policy nor evidence that an audit occurred.
 The two passes share per-package immutable parse checkpoints, not checked reviews.
 Discovery requests a source-output slot on the ordinary `CheckedCompileRequest`;
 the compiler clears it before validation and publishes preparation only on success.
