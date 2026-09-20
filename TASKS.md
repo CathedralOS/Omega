@@ -16452,6 +16452,40 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   passes 3/3 — no drift since the `b868b9ee8f` re-witness; adjudication
   unchanged (TERMINATION-RANKING-CHECKS lane owns the family).
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS.** — scope verified 2026-09-20:
+||||||| parent of 26c62405a63c (board: TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS — marker repair, restamped)
+  belongs to its live CTTL-FAILURE-ATTRIBUTION claim or the
+  KNOWN-BASELINE-FAILURES-REFRESH items.
+- **TERMINATION-RANK-RANGE-FIELDS.** Resolved — alias of the landed
+  T2C-RANK-RANGE-FIELD-ENDPOINTS surface, which already names this stub as
+  covering the same work: rank-range endpoints expressed as field chains.
+  `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
+  resolves `ExpressionNode::Member` chains root-to-leaf through declared
+  field types (`EndpointInput`), reads the leaf's store-enforced field
+  bounds, and re-checks preservation on every self edge. Re-verified green
+  on linux x86-64 at `0f5ae41e7d` (same command, same 49/49; earlier stamp
+  `a4ffd1aff8`):
+  `cargo nextest run -p typed-trees-to-checked-trees --lib -E
+  'test(/field_endpoint/)'` — 49/49 pass across field_coordinates,
+  field_endpoint_arithmetic, field_endpoint_pins, field_arrivals and
+  computed_field_limits. No independent slice remains.
+- **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS** — scope verified 2026-09-20:
+  belongs to its live CTTL-FAILURE-ATTRIBUTION claim or the
+  KNOWN-BASELINE-FAILURES-REFRESH items.
+- **TERMINATION-RANK-RANGE-FIELDS.** Resolved — alias of the landed
+  T2C-RANK-RANGE-FIELD-ENDPOINTS surface, which already names this stub as
+  covering the same work: rank-range endpoints expressed as field chains.
+  `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
+  resolves `ExpressionNode::Member` chains root-to-leaf through declared
+  field types (`EndpointInput`), reads the leaf's store-enforced field
+  bounds, and re-checks preservation on every self edge. Re-verified green
+  on linux x86-64 at `0f5ae41e7d` (same command, same 49/49; earlier stamp
+  `a4ffd1aff8`):
+  `cargo nextest run -p typed-trees-to-checked-trees --lib -E
+  'test(/field_endpoint/)'` — 49/49 pass across field_coordinates,
+  field_endpoint_arithmetic, field_endpoint_pins, field_arrivals and
+  computed_field_limits. No independent slice remains.
+- **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS.** Scope verified 2026-09-20;
+  re-verified at `3533f7d0e86`:
   re-mines [chapter 14](wiki/language_guide/chapter_14_traits.md)'s recorded
   gap that a trait requirement expressing an arbitrary nondecidable validity
   condition uses a
@@ -16460,9 +16494,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is **PROOF-CONTRACT-MIGRATION**'s connected implementation (the migration
   item explicitly owns contract proof semantics and core mathematical traits,
   elaborating to PROOF-KERNEL-CORE's term model rather than a second logical
-  representation); its kernel substrate is under a live PROOF-KERNEL-CORE
-  claim and its bindings leg under MATH-FOUNDATION-BINDINGS at verification
-  time. No independent slice exists here. Sibling re-mines of the same
+  representation); its kernel substrate stays under a live PROOF-KERNEL-CORE
+  claim (until 06:47Z) and its bindings leg under MATH-FOUNDATION-BINDINGS
+  (until 00:09Z) at verification time. No independent slice exists here. Sibling re-mines of the same
   surface: MATHEMATICAL-PREDICATE-PARAMETERS, MATHEMATICAL-FOUNDATIONS-REAL,
   MATH-PROOFS-CALL-SELECTION-OCCURRENCE, MATH-PROOFS-DECLARATION-SELECTION.
 - **TRANSFORM-CODEC-RELOCATION.** — verified 54984323b2: duplicate of the
