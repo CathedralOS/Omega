@@ -6,10 +6,10 @@ limits, not a different generated-source language.
 
 ## Entry points
 
-- [build_scope.rs](src/pipeline/build_scope.rs) binds request staging and sponsor
+- [build_scope.rs](../../build/build-evaluation/src/evidence/filesystem_scope.rs) binds request staging and sponsor
   inputs to the package/root filesystem scope. It checks canonical Source metadata
   before reopening review-only replay; it does not admit or execute the build.
-- [checked_entry.rs](src/pipeline/checked_entry.rs): `AdmittedBuildCheckpoint`
+- [checked_entry.rs](../../pipeline/assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
   couples the coherent frontend, admitted build, package verdict, and base source
   map. Execution verifies the returned build symbol. `try_seeded_extension`
   continues the retained frontend rather than reconstructing it.
@@ -17,7 +17,7 @@ limits, not a different generated-source language.
   `AdmittedBuildProgram` retains the prepared program and program-bound entry
   token with reach/admission, initial Build value, target, scope, and sponsor.
   Evaluation and replay consume the admitted route.
-- [source assembly](src/pipeline/source_assembly.rs): generated units and
+- [source assembly](../../pipeline/source-files-to-assembled-syntax/src/source_assembly.rs): generated units and
   dependency bundles retain source bytes, logical paths, and producer custody.
 - [seeded resolution](../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.

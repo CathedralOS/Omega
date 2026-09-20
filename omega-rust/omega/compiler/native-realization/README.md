@@ -24,7 +24,7 @@ Independent fragment, object, and image replay still check the complete join.
 
 [Target selection](../../../../wiki/spec/build/configuration.md) defines child
 identity and isolation. The compiler batch route prepares each child's canonical
-Terminal artifact independently. [PreparedNativeRealizationInput](src/native_realization/input.rs)
+Terminal artifact independently. [PreparedNativeRealizationInput](src/native_realization/input_preparation.rs)
 shares target-neutral decoding, proof admission, and abstract-input lowering
 only for equal complete `TerminalArtifactIdentity`, exact `AdmissionProfile`,
 and exact `PostTerminalOptimizationSelections`; it rechecks that key on use.
@@ -66,7 +66,7 @@ opaque companion by value on both success and rejection. That wrapper does not
 admit, lower, fingerprint, or interpret its contents.
 
 Native callback arguments separately enter the realization request. Their
-[target-side carrier](../../pipeline/abstract-operations-to-target-operations/src/model.rs)
+[target-side carrier](../../pipeline/abstract-operations-to-target-operations/src/lowering/coordination/native_callbacks.rs)
 binds a Terminal operation, placement index, private function, native parameter
 application, registrar plan/context, and application commitment. Target lowering
 validates the one-slot relation. The commitment remains producer provenance:
