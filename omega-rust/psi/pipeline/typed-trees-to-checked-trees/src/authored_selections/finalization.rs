@@ -15,7 +15,7 @@ use crate::authored_selections::operator_targets::{
 };
 use crate::authored_selections::selection_collection::{
     checked_struct_literal_type_symbol, collect_checked_proof_membership_selections,
-    collect_checked_statement_selections,
+    collect_checked_proof_view_call_selections, collect_checked_statement_selections,
 };
 use crate::authored_selections::{CheckedResolution, CheckedResolutionTarget};
 use checked_trees::CheckFacts;
@@ -340,6 +340,7 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
         &mut inferred_conformances,
     )?;
     collect_checked_proof_membership_selections(program, facts, &mut resolutions)?;
+    collect_checked_proof_view_call_selections(program, &mut resolutions)?;
 
     let mut selections = program.authored_declaration_selections().clone();
     for resolution in resolutions {

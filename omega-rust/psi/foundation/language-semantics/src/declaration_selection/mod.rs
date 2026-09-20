@@ -151,6 +151,14 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// selections own nominal declaration authority.
     WireDecode,
     InlineAssemblyOperation,
+    /// A contract-fact call whose spelled name selects no package
+    /// declaration. Undeclared proof views (`Seq`/`Bag`/`Range`-style
+    /// schematic atoms) are admitted as opaque proof terms: they carry no
+    /// machine realization, numeric interpretation, or equality semantics.
+    /// The ledger retains their provenance as a compiler-owned admission so
+    /// a successful selection never stays unresolved and admission never
+    /// invents a declaration symbol.
+    ProofView,
 }
 
 /// Deterministic identity of one authored occurrence within a compilation's

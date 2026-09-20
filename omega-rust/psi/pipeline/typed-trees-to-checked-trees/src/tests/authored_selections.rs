@@ -1374,3 +1374,35 @@ fn public_conformance_rejects_private_header_declarations() {
     assert!(rendered.contains("public conformance `CircleShape` exposes private data `Circle`"));
     assert!(rendered.contains("public conformance `CircleShape` exposes private trait `Shape`"));
 }
+
+#[test]
+fn undeclared_contract_view_calls_finalize_as_proof_view_intrinsics() {
+    let source = r#"
+        machine carries(items: &[u64], before: &[u64])
+        requires Bag(items) == Bag(before)
+        ensures Bag(items) == Bag(before)
+        {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("admitted proof view checks");
+    let proof_view_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.target()
+                == AuthoredDeclarationSelectionTarget::Intrinsic(
+                    AuthoredDeclarationSelectionIntrinsic::ProofView,
+                )
+        })
+        .count();
+    assert_eq!(
+        proof_view_selections,
+        4,
+        "each authored Bag call occurrence finalizes as a proof view: {:#?}",
+        checked.authored_declaration_selections()
+    );
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
