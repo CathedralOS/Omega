@@ -4664,12 +4664,28 @@ Owners include
   (`pass/providers/checked_boundary_requirement_statement_call_exit`, with the
   unselected fence `fail/providers/boundary_requirement_statement_call_unselected`).
 
+  An owned-`self` receiver is now the same route too: `token.consume();` on a
+  public `boundary requirement Token::consume(self)` settles a
+  receiver-place-keyed `forward_receiver` dispatch row (one row per
+  single-place receiver site, keyed on the place's own symbol), and the
+  rewrite splices that place in as the adapter's leading argument —
+  `Provider::entry(token)` — in both statement and expression position. The
+  interpreter binds it as an ordinary call, and Unit construction admits the
+  attached adapter through its ordinary structural-argument rungs
+  (`tests/fixtures/boundary-requirement-member-call`, harness
+  `canary_suite/top_level_requirement_member_call.rs`; Linux x86-64 verified:
+  interpreter exit and native-artifact exit both execute the selected
+  adapter). Borrowed (`&self`/`&mut self`), multi-place (`self.f.m()`), and
+  non-single-symbol receivers stay fenced: settlement leaves them unrowed and
+  the direct call rejects.
+
   Remaining work:
 
-  - Receiver-bearing and parameterized requirements.
-    `is_directly_callable_top_level_requirement` admits no `self`, type or
-    lifetime parameter, and the rewrite rejects `forward_receiver` and family
-    rows. `core/task.omg` (`Task::finish<T>(self)`, `request_cancel`) and
+  - Parameterized and projected-receiver requirements.
+    `is_directly_callable_top_level_requirement` still admits no type or
+    lifetime parameter, and the rewrite rejects family rows and receiver
+    paths longer than one member. `core/task.omg` (`Task::finish<T>(self)`,
+    `request_cancel`) and
     `core/interrupt.omg` (`InterruptMaskGuard::restore`,
     `InterruptAcknowledgement::complete`) have no library or canary satisfier
     and reach execution only as installation-bound reach rows
