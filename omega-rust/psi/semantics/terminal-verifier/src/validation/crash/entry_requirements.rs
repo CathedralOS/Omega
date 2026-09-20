@@ -3,17 +3,170 @@
 //! retain their independently reconstructed exact routes.
 
 use proof_admission::{
-    PrimitiveJudgment, ProofNode, ProofRule, check_predicate_denotations,
-    check_predicate_denotations_with_value_equalities,
+    CheckedPredicateDenotations, PredicateDenotationError, PrimitiveJudgment, ProofNode, ProofRule,
+    check_predicate_denotations, check_predicate_denotations_with_value_equalities,
 };
-use semantic_vocabulary::{Proposition, PropositionContext, StructuralPlaceKind};
-use terminal_psi::{CrashRouteBucket, CrashRouteGuard, TerminalMachine};
+use semantic_vocabulary::{
+    BlockId, EdgeId, MachineId, Proposition, PropositionContext, StructuralPlaceKind,
+};
+use terminal_psi::{
+    CrashRouteBucket, CrashRouteGuard, TerminalMachine, TerminalModule, Terminator,
+};
+
+use super::super::machine_value_context;
+use super::ModuleError;
 
 mod integer_order;
 mod order_chain;
 
 const MAXIMUM_SEARCH_STEPS: usize = 4096;
 const MAXIMUM_PROOF_DEPTH: usize = 64;
+
+/// One denotation conversion the producer can search under. The lane flag in
+/// `SuppliedCertificate` selects the identical conversion at check time.
+type DenotationConversion =
+    for<'input> fn(
+        &'input PropositionContext,
+        &'input Proposition,
+        &'input [Proposition],
+        &'input [Proposition],
+    ) -> Result<CheckedPredicateDenotations<'input>, PredicateDenotationError>;
+
+/// Producer lanes in search order: the smaller Boolean-only question first,
+/// then the same question under contextual value-equality transport.
+const DENOTATION_LANES: [(bool, DenotationConversion); 2] = [
+    (false, check_predicate_denotations),
+    (true, check_predicate_denotations_with_value_equalities),
+];
+
+/// A producer-supplied certificate for one crash goal: which denotation lane
+/// the producing search ran under and the proof node it emitted. Consumers
+/// re-run only the recorded conversion and re-decide the node; they never
+/// search for a route themselves.
+pub(super) struct SuppliedCertificate {
+    with_value_equalities: bool,
+    proof: ProofNode,
+}
+
+/// The producer stage of the crash ledger: bounded proof search over the
+/// denotation lanes, recording which lane each emitted node was built under.
+/// An empty supply is not a rejection verdict — the consumer's check of a
+/// supplied node is what grants coverage, and no supply means none passes.
+pub(super) fn prove_certificates(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<SuppliedCertificate> {
+    DENOTATION_LANES
+        .into_iter()
+        .filter_map(|(with_value_equalities, convert)| {
+            prove_lane(convert, context, goal, requirements, semantic_axioms).map(|proof| {
+                SuppliedCertificate {
+                    with_value_equalities,
+                    proof,
+                }
+            })
+        })
+        .collect()
+}
+
+/// Every node the producing search emitted for one reconstructed crash site:
+/// per asserted guard, in guard order, plus the infeasibility discharge over
+/// the same site axioms. A site whose supply is empty or checks to nothing
+/// fails `CrashSiteGuardUnproved` at the consumer.
+pub(super) struct SiteCertificates {
+    guards: Vec<Vec<SuppliedCertificate>>,
+    infeasible: Vec<SuppliedCertificate>,
+}
+
+impl SiteCertificates {
+    /// Nodes supplied for the asserted guard at this predicate position.
+    pub(super) fn guard(&self, predicate: usize) -> &[SuppliedCertificate] {
+        self.guards.get(predicate).map_or(&[], Vec::as_slice)
+    }
+
+    /// Nodes supplied for the infeasibility discharge (`Falsehood` goal).
+    pub(super) fn infeasible(&self) -> &[SuppliedCertificate] {
+        &self.infeasible
+    }
+}
+
+/// Produce certificates for one roster of reconstructed crash sites. Sites
+/// arrive as plain `(machine, block, edge, axioms)` tuples — parallel to, and
+/// in the same order as, `reconstruct_validated_crash_site_facts` — so this
+/// producer stage needs no view into the reconstruction record type.
+pub(super) fn certify_crash_sites<'a>(
+    module: &TerminalModule,
+    sites: impl Iterator<Item = (MachineId, BlockId, EdgeId, &'a [Proposition])>,
+) -> Result<Vec<SiteCertificates>, ModuleError> {
+    let mut certificates = Vec::new();
+    for (machine_id, block_id, _edge_id, semantic_axioms) in sites {
+        let Some(machine) = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == machine_id)
+        else {
+            certificates.push(SiteCertificates {
+                guards: Vec::new(),
+                infeasible: Vec::new(),
+            });
+            continue;
+        };
+        let context = machine_value_context(module, machine)?;
+        let site_guard = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == block_id)
+            .and_then(|block| match &block.terminator {
+                Terminator::Crash { site_guard, .. } => Some(site_guard.as_slice()),
+                _ => None,
+            })
+            .unwrap_or(&[]);
+        let guards = site_guard
+            .iter()
+            .map(|guard| {
+                prove_certificates(
+                    &context,
+                    guard.proposition(),
+                    &machine.contract.requires,
+                    semantic_axioms,
+                )
+            })
+            .collect();
+        let infeasible = prove_certificates(
+            &context,
+            &Proposition::Falsehood,
+            &machine.contract.requires,
+            semantic_axioms,
+        );
+        certificates.push(SiteCertificates { guards, infeasible });
+    }
+    Ok(certificates)
+}
+
+/// Check a supplied crash certificate without searching. The recorded
+/// denotation lane is part of the certificate: a node produced under equality
+/// transport is replayed against that conversion exactly as produced.
+pub(super) fn check_supplied_certificate(
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+    certificate: &SuppliedCertificate,
+) -> bool {
+    let convert = if certificate.with_value_equalities {
+        check_predicate_denotations_with_value_equalities
+    } else {
+        check_predicate_denotations
+    };
+    let Ok(denotations) = convert(context, goal, requirements, semantic_axioms) else {
+        return false;
+    };
+    denotations
+        .check_certificate(context, &certificate.proof)
+        .is_ok()
+}
 
 /// Establish a crash predicate from invocation requirements and any exact
 /// independently reconstructed site facts. Call ceilings supply no site facts.
@@ -24,34 +177,32 @@ pub(super) fn establishes(
     requirements: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> bool {
-    // Prefer the smaller Boolean-only question. Nested SSA expressions need
-    // contextual equality transport, checked by the proof owner from the
-    // original local equations. Do not substitute a symbolic summary into the
-    // reconstructed axiom roster or use a claimed guard to define its values.
-    // Keeping the direct attempt also avoids making an already provable guard
-    // depend on expansion of unrelated equations or its extra work budget.
-    for convert in [
-        check_predicate_denotations,
-        check_predicate_denotations_with_value_equalities,
-    ] {
-        let Ok(denotations) = convert(context, goal, requirements, semantic_axioms) else {
-            continue;
-        };
-        let mut remaining = MAXIMUM_SEARCH_STEPS;
-        let Some(proof) = prove(
-            denotations.goal(),
-            denotations.requirements(),
-            denotations.semantic_axioms(),
-            &mut remaining,
-            0,
-        ) else {
-            continue;
-        };
-        if denotations.check_certificate(context, &proof).is_ok() {
-            return true;
-        }
-    }
-    false
+    // A produced node whose check fails never locks the goal into its
+    // producer lane: any other supplied certificate may still check.
+    prove_certificates(context, goal, requirements, semantic_axioms)
+        .iter()
+        .any(|certificate| {
+            check_supplied_certificate(context, goal, requirements, semantic_axioms, certificate)
+        })
+}
+
+/// Run the bounded search under exactly one denotation conversion.
+fn prove_lane(
+    convert: DenotationConversion,
+    context: &PropositionContext,
+    goal: &Proposition,
+    requirements: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    let denotations = convert(context, goal, requirements, semantic_axioms).ok()?;
+    let mut remaining = MAXIMUM_SEARCH_STEPS;
+    prove(
+        denotations.goal(),
+        denotations.requirements(),
+        denotations.semantic_axioms(),
+        &mut remaining,
+        0,
+    )
 }
 
 fn prove(
@@ -353,7 +504,8 @@ fn projection(
 mod tests {
     use super::{
         MAXIMUM_PROOF_DEPTH, MAXIMUM_SEARCH_STEPS, ProofNode, ProofRule, Proposition,
-        PropositionContext, common_consequence, establishes, prove,
+        PropositionContext, check_supplied_certificate, common_consequence, establishes, prove,
+        prove_certificates,
     };
     use proof_admission::check_certificate;
 
@@ -392,6 +544,51 @@ mod tests {
         ])];
         let mut remaining = MAXIMUM_SEARCH_STEPS;
         assert!(prove(&goal, &requirements, &[], &mut remaining, 0).is_none());
+    }
+
+    #[test]
+    fn supplied_certificates_are_redecided_not_trusted() {
+        use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
+        let identity = ValueId::new(1).unwrap();
+        let context =
+            PropositionContext::from_value_types([(identity, ScalarType::Boolean)]).unwrap();
+        let goal = Proposition::Equal(
+            ScalarTerm::value(identity, ScalarType::Boolean),
+            ScalarTerm::boolean(true),
+        );
+        let requirements = [Proposition::Conjunction(vec![
+            Proposition::Truth,
+            goal.clone(),
+        ])];
+        let certificates = prove_certificates(&context, &goal, &requirements, &[]);
+        assert!(!certificates.is_empty());
+        // Every supplied node is replayed through the recorded denotation
+        // conversion and the kernel check; supply alone grants nothing.
+        assert!(certificates.iter().all(|certificate| {
+            check_supplied_certificate(&context, &goal, &requirements, &[], certificate)
+        }));
+        // A node produced for this goal is not evidence for another question.
+        let other = Proposition::Equal(
+            ScalarTerm::value(identity, ScalarType::Boolean),
+            ScalarTerm::boolean(false),
+        );
+        assert!(!certificates.iter().any(|certificate| {
+            check_supplied_certificate(&context, &other, &requirements, &[], certificate)
+        }));
+    }
+
+    #[test]
+    fn an_empty_supply_establishes_nothing() {
+        use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
+        let goal = Proposition::Equal(
+            ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Boolean),
+            ScalarTerm::boolean(true),
+        );
+        let context =
+            PropositionContext::from_value_types([(ValueId::new(1).unwrap(), ScalarType::Boolean)])
+                .unwrap();
+        assert!(prove_certificates(&context, &goal, &[], &[]).is_empty());
+        assert!(!establishes(&context, &goal, &[], &[]));
     }
 
     #[test]

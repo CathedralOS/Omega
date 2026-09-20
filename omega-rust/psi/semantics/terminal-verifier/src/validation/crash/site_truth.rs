@@ -8,6 +8,19 @@ pub(in crate::validation) fn validate_site_guard_truth(
     // This private bridge runs only after complete structural validation. It
     // never consumes producer evidence or treats the claimed guards as facts.
     let sites = crate::verification::reconstruct_validated_crash_site_facts(module)?;
+    // The producer stage runs the bounded searches; consumption below only
+    // re-decides each supplied node through the kernel check.
+    let certificates = entry_requirements::certify_crash_sites(
+        module,
+        sites.iter().map(|site| {
+            (
+                site.machine,
+                site.block,
+                site.edge,
+                site.semantic_axioms.as_slice(),
+            )
+        }),
+    )?;
     for machine in &module.machines {
         if !machine.blocks.iter().any(|block| {
             matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty())
@@ -25,28 +38,35 @@ pub(in crate::validation) fn validate_site_guard_truth(
             for (predicate, guard) in site_guard.iter().enumerate() {
                 let mut paths = sites
                     .iter()
-                    .filter(|site| {
+                    .zip(&certificates)
+                    .filter(|(site, _)| {
                         site.machine == machine.id && site.block == block.id && site.edge == *edge
                     })
                     .peekable();
                 let present = paths.peek().is_some();
                 if !present
-                    || !paths.all(|site| {
-                        entry_requirements::establishes(
-                        &context,
-                        guard.proposition(),
-                        &machine.contract.requires,
-                        &site.semantic_axioms,
-                    )
-                    // An infeasible CFG path cannot reach this terminator.
-                    // Its contradiction must itself have a kernel-checked
-                    // certificate; failed proof search never removes a path.
-                    || entry_requirements::establishes(
-                        &context,
-                        &Proposition::Falsehood,
-                        &machine.contract.requires,
-                        &site.semantic_axioms,
-                    )
+                    || !paths.all(|(site, site_certificates)| {
+                        site_certificates.guard(predicate).iter().any(|certificate| {
+                            entry_requirements::check_supplied_certificate(
+                                &context,
+                                guard.proposition(),
+                                &machine.contract.requires,
+                                &site.semantic_axioms,
+                                certificate,
+                            )
+                        })
+                        // An infeasible CFG path cannot reach this terminator.
+                        // Its contradiction must itself have a kernel-checked
+                        // certificate; missing proof supply never removes a path.
+                        || site_certificates.infeasible().iter().any(|certificate| {
+                            entry_requirements::check_supplied_certificate(
+                                &context,
+                                &Proposition::Falsehood,
+                                &machine.contract.requires,
+                                &site.semantic_axioms,
+                                certificate,
+                            )
+                        })
                     })
                 {
                     return Err(ModuleError::CrashSiteGuardUnproved {
