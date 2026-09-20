@@ -6826,7 +6826,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   manifest check) or owned (tests/epsilon legs). No independent slice exists.
 - **DELTA-EPSILON-CLOSURE-EXECUTION** — mined candidate; verify scope then implement.
 - **DELTA-EVALUATOR-EXHAUSTION-TRIAGE.** Resolved by audit — re-mines the DELTA-COMPILER bullet "for a witnessed evaluator exhaustion during compilation, trace its allocation owner and observation contract first" (TASKS_BOOTSTRAP.md ~P2). That obligation is conditional, and no evaluator exhaustion has been witnessed: every recorded stress refusal terminates in a canonical DCOUT V1 row with its allocation owner already traced — the 512-tree arithmetic probe (`Incomplete` resource 7, syntax ledger, 159.2s), the wide-constructor probe (`Incomplete` resource 7, retained-syntax ledger at field-atom 19,147, 650.7s), and the full-width reconstruction refusal (resource 12, 4,856s) — each documented in `bootstrap/3_delta/implementation/boundary/README.md` with owner attribution and the explicit rule that a Gamma-owned failure is not DCOUT and no general DCOUT heap code may be invented. Whole-producer pair containment is separately settled by the measured worst-shape study (417M pairs vs the 3.42B-pair arena). Re-verified at `28a3cc7fea`: the probes and contract read as recorded. No witnessed instance exists to triage; fabricating one is explicitly disallowed. Sibling stub DELTA-EXHAUSTION-ATTRIBUTION (5995) mines the same bullet.
-- **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; verify scope then implement.
+- **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; scope verified
+  2026-09-20 (z180): re-mines the DELTA-COMPILER checkpoint leg "both measured
+  stress families refuse in existing rows before post-frontend allocation is
+  stressed" (TASKS_BOOTSTRAP.md) — the arithmetic probe ends in resource 7
+  (retained-syntax ledger), the wide-constructor probe in resource 7 at
+  field-atom 19,147, and full-width reconstruction in resource 12 (payload
+  extent), so none reaches a post-frontend allocation boundary. The probe
+  machinery itself is landed at `6d5e447076`
+  (`tests/delta/resource-boundary/pair_study.py`: instrumented Alpha reference
+  counting every `0x50414952` pair-node store across the whole producer,
+  including post-frontend phases) and whole-producer containment is already
+  settled by measurement — 417,063,339 projected pairs, 8.2× under the
+  3,422,453,760-pair arena — so the residual is a stress observation, not
+  containment evidence. Its producing surface (`tests/delta/resource-boundary`
+  family generators and measured rows, the boundary README record) sits under
+  the DELTA-COMPILER live claim (expires 21:48Z); no in-fence slice remains.
+  Host fact: the instrumented route is not seed-host-gated — on linux x86-64
+  at `669925b8b9` a `functions:4` measurement returned exit 0, 736 pairs,
+  83,996,477 steps, a 3,170-byte receipt, in 111.5 seconds.
 - **DELTA-POST-FRONTEND-ALLOCATION-STRESS** — mined candidate; verify scope then implement.
 - **DEPENDENCY-FREE-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
 - **DEPENDENCY-FREE-MEASURABLE-SUBJECT.** Mined candidate — resolved,
