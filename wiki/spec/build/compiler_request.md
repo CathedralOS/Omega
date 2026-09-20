@@ -450,6 +450,8 @@ capacity:
 | 22 | `coverage_expression_forms` | 0 | 4 canonical source | first byte of the refused expression span |
 | 23 | `coverage_transition_forms` | 0 | 4 canonical source | first byte of the refused transition row |
 | 24 | `coverage_empty_subject` | 0 | 0 none | zero |
+| 25 | `coverage_request_semantics` | 0 | 0 none | zero |
+| 26 | `request_staging_bytes` | 65,536 | 1 request | first request byte the entry could not stage |
 
 The request-extent provisions bound the declared subject and invocation
 section lengths; both sit inside the fixed request header and are checked at
@@ -457,7 +459,7 @@ phase 1 after complete framing, before either section is interpreted. The
 parser capacities are private D budgets over its fixed tables, not Omega source
 limits. The tape capacities bound the emitted artifact's payload and
 relocation records; their coordinates are payload-relative byte offsets.
-Codes 15–24 are coverage provisions, not capacities: each names a
+Codes 15–25 are coverage provisions, not capacities: each names a
 valid-Omega construct family the current scalar slice does not implement.
 Their limit is 0 — the slice provisions no capacity for the family — and the
 requested amount is the refused occurrence count (one refused construct), or
@@ -469,7 +471,22 @@ non-call statement kinds, call shapes (receivers, `self`, static arguments),
 expression forms (unsupported operators and literal spellings), and
 transition forms (multi-arm subjectless blocks, non-`Always` subjectless
 guards, guard/subject class mismatches, post-block statements, and mixed
-subjects within a block).
+subjects within a block). `coverage_request_semantics` names the request
+boundary's unimplemented semantic phases — package-key recomputation,
+canonical ordering, graph resolution, snapshot materialization, admission
+verification, and commitment — for a request that survives phases 0, 1, 2,
+and 6 complete and well-formed: the refusal carries no coordinate and no
+requested amount because the provision covers the whole decoded request, not
+one field inside it.
+
+`request_staging_bytes` names the OCREQ request entry's private staging
+capacity: the entry buffers the request stream before interpreting it, and a
+request longer than 65,536 bytes is an `Incomplete` resource refusal anchored
+in request space at the first byte that could not be staged (offset 65,536),
+with `requested` set to the request's full observed length. The bound is an
+entry implementation provision, not a contract limit — the contract's
+`request_subject_bytes` and `request_invocation_bytes` rows still bound the
+declared sections.
 
 Resource names, limits, and coordinate rules in this table are the same for
 both implementations; a private capacity not yet represented here is added by

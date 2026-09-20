@@ -151,8 +151,8 @@ or proof evidence. No Windows profiling result is claimed.
 
 The [customer](main.epsilon) entry is bound at 4,583 bytes, SHA-256
 `61f988109564e8ca58d6590941aa1aba3dfc2f07af101fb082b38ff25623e618`, and packs
-on top of the bound member closure to 562,648 bytes, SHA-256
-`a47e7628d0b2a59f7a83c5b68dd3f367eb8a910e1bf4926c7f66be01489810de`.
+on top of the bound member closure to 562,744 bytes, SHA-256
+`eba237c61a2e430be54541d9befe0a8ceb0d854e3ff90ddcc15d49e8f99cd730`.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not
