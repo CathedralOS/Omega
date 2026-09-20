@@ -198,8 +198,18 @@ every shifted byte is representable, and reinterprets once at the landing.
 `widen_u8_to_i64(byte) << 56` idiom; the **WINDOWS-SET-FILE-TIME-RESPELL**
 leg repaired it at ff782bdf21 — `st_mtime` now assembles in the unsigned
 `u64` carrier like the eight native stat/metadata siblings. Its canary is
-Windows-gated, so native execution there remains unmeasured on this host;
-this row retires the fixture from the pass-canary cluster.
+Windows-gated, so native execution there remains unmeasured on this host,
+but the repair itself is measured here: the fixture sat on an inventory
+roster only, so nothing compiled it, and registering it in
+`CHECKED_ONLY_PASS_CANARIES` takes
+`OMEGA_PASS_CANARY_FILTER=filesystem/windows_set` from "matched no active
+pass canaries" to one passing, while restoring the signed spelling makes
+that gate refuse it with the decision-17 diagnostic. The rooted
+`windows_x86_64` backend roster is not its home: compiling it there refuses
+because the entry's `Main::fs` service field wants a selected fused
+provider for `FilesystemHost`, the same gate under which the registered
+`filesystem/windows_raw_roundtrip_exit` is red on this host today and which
+keeps the `native_*` family off native realization.
 
 `proofs/proof_inductive_climbing_sum` left this set when its accumulator
 was bounded; the other four tests in the command pass, so the roster,
@@ -423,15 +433,26 @@ provider transport is unimplemented; the failure is not host-specific.
 ## compiler `package_compilation_inputs`
 
 `cargo nextest run -p compiler --test package_compilation_inputs
---no-fail-fast` at 63f625f942 plus the fixture repair beside this row
-(2026-09-18, macOS arm64): 151 run, 149 passed, 2 failed, both Psi-side:
+--no-fail-fast` at c94c4af56e (2026-09-20, macOS arm64): 190 run, 177
+passed, 13 failed. Both failures this row previously recorded are closed.
+`cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`
+was fixed at ec36cd564c, bisected: reverting that commit reproduces "state
+`code` requires an exact retained loan origin for its shared receiver"
+exactly. The float-identity test is now
+`module_constants::public_float_identity_preserves_explicit_literal_landings`
+and passes.
 
-- `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`:
-  "state `code` requires an exact retained loan origin for its shared
-  receiver". Not bisected.
-- `module_constants::public_float_identity_requires_literals_with_matching_landings`:
-  "computed constant leaf requires an exact builtin integer or Boolean
-  carrier". Not bisected.
+The 13 live failures are build and packages side, none in Psi, and eight of
+them share one message, "provider selection operand does not resolve to one
+visible product declaration": six in `authority_and_build_files` and two in
+`artifact_identities_and_entries`. Treat those as one provider-selection
+regression rather than eight rows. The remainder are
+`native_package_entrypoint_uses_the_same_reconciled_binding_mode` (a
+`Console` boundary wanting a selected fused provider), two reporting an
+authored call-selection occurrence left unresolved after successful
+checking, one generated-dependency handoff, and
+`one_root_source_cannot_join_both_dependency_scopes`, whose noncanonical
+directory mode is bound to the macOS temp directory. Not bisected.
 
 The three composition-mode admission failures earlier recorded on the
 COMPONENT-SUBSTRATE board item are closed (0e6c25c4dc attributed, fixed at
