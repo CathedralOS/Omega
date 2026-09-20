@@ -65,6 +65,7 @@ fn generated_bundle(
 ) -> PackageGeneratedSourceBundle {
     PackageGeneratedSourceBundle::from_checked(
         package,
+        build_declarations::DependencyPurpose::Product,
         target,
         target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(package),

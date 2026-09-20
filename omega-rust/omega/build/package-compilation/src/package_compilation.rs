@@ -195,8 +195,8 @@ pub struct PackageDependencyClosure {
 /// build. Construction remains compiler-private: carrying this value proves
 /// only that one compiler run produced these bytes, not package admission.
 /// Clones share the immutable bundle, including paths and dependency metadata;
-/// each consumer still validates its own closure, custody, product target, and
-/// build execution profile. Equal product bytes do not establish that the
+/// each consumer still validates its own closure, custody, purpose, effective
+/// target, and build execution profile. Equal product bytes do not establish that the
 /// generator ran under the consumer's admitted build context.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageGeneratedSourceBundle {
@@ -206,6 +206,7 @@ pub struct PackageGeneratedSourceBundle {
 #[derive(Debug, PartialEq, Eq)]
 struct PackageGeneratedSourceBundleContents {
     package: PackageKeyIdentity,
+    purpose: DependencyPurpose,
     target: target::TargetProfile,
     build_execution_profile: Option<target::TargetProfile>,
     dependency_closure: PackageDependencyClosure,
@@ -217,6 +218,7 @@ impl PackageGeneratedSourceBundle {
     #[doc(hidden)]
     pub fn from_checked(
         package: PackageKeyIdentity,
+        purpose: DependencyPurpose,
         target: target::TargetProfile,
         build_execution_profile: Option<target::TargetProfile>,
         dependency_closure: PackageDependencyClosure,
@@ -226,6 +228,7 @@ impl PackageGeneratedSourceBundle {
         Self {
             contents: Arc::new(PackageGeneratedSourceBundleContents {
                 package,
+                purpose,
                 target,
                 build_execution_profile,
                 dependency_closure,
@@ -237,6 +240,13 @@ impl PackageGeneratedSourceBundle {
 
     pub fn package(&self) -> PackageKeyIdentity {
         self.contents.package
+    }
+
+    /// The checked activation that produced the bundle, not the import edge's
+    /// relative scope. Ordinary dependencies of a build helper are build
+    /// instances too, even though the helper imports them through `depend`.
+    pub fn purpose(&self) -> DependencyPurpose {
+        self.contents.purpose
     }
 
     pub fn target(&self) -> target::TargetProfile {
@@ -405,15 +415,29 @@ pub struct PackageCompilationInputs {
     target: PackageCompilationTargetInputs,
 }
 
-/// Exact-target attachments kept independent of the shared source graph.
+/// Checked activation purpose and exact-target attachments, independent of
+/// the shared source graph.
 /// These maps remain private and are revalidated when joined to another source
 /// graph. An empty value represents no attached target-specific inputs.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationTargetInputs {
-    dependency_generated_sources: BTreeMap<PackageKeyIdentity, PackageGeneratedSourceBundle>,
+    purpose: DependencyPurpose,
+    dependency_generated_sources:
+        BTreeMap<(PackageKeyIdentity, DependencyPurpose), PackageGeneratedSourceBundle>,
     accepted_semantic_bindings: BTreeMap<AcceptedSemanticBindingRole, AcceptedSemanticBinding>,
     independent_component_descriptions:
         BTreeMap<PackageKeyIdentity, IndependentComponentDescription>,
+}
+
+impl Default for PackageCompilationTargetInputs {
+    fn default() -> Self {
+        Self {
+            purpose: DependencyPurpose::Product,
+            dependency_generated_sources: BTreeMap::new(),
+            accepted_semantic_bindings: BTreeMap::new(),
+            independent_component_descriptions: BTreeMap::new(),
+        }
+    }
 }
 
 /// Shared target-independent package inputs used
@@ -723,13 +747,17 @@ impl PackageCompilationInputs {
         target: PackageCompilationTargetInputs,
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let PackageCompilationTargetInputs {
+            purpose,
             dependency_generated_sources,
             accepted_semantic_bindings,
             independent_component_descriptions,
         } = target;
         let mut inputs = Self {
             source,
-            target: PackageCompilationTargetInputs::default(),
+            target: PackageCompilationTargetInputs {
+                purpose,
+                ..PackageCompilationTargetInputs::default()
+            },
         };
         inputs = inputs
             .with_accepted_semantic_bindings(accepted_semantic_bindings.into_values().collect())?;
@@ -742,6 +770,57 @@ impl PackageCompilationInputs {
             independent_component_descriptions.into_values().collect(),
         )?;
         Ok(inputs)
+    }
+
+    /// Select this root's checked role without duplicating its acquired source
+    /// graph. Changing roles never relabels retained outputs: reattachment must
+    /// still supply the exact dependency instances the new role requires.
+    pub fn with_compilation_purpose(
+        self,
+        purpose: DependencyPurpose,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        let (source, mut target) = self.into_parts();
+        target.purpose = purpose;
+        Self::from_parts(source, target)
+    }
+
+    pub const fn compilation_purpose(&self) -> DependencyPurpose {
+        self.target.purpose
+    }
+
+    fn instance_purpose(&self, import_scope: DependencyPurpose) -> DependencyPurpose {
+        match import_scope {
+            DependencyPurpose::Product => self.compilation_purpose(),
+            DependencyPurpose::Build => DependencyPurpose::Build,
+        }
+    }
+
+    /// Relative import scopes are distinct from checked activation purposes.
+    /// Product edges inherit their importing activation; only a build edge
+    /// switches to the execution-profile activation. Construct this finite
+    /// roster from the validated graph, never from supplied output bundles.
+    fn dependency_source_instances(&self) -> BTreeSet<(PackageKeyIdentity, DependencyPurpose)> {
+        let mut instances = BTreeSet::new();
+        let mut pending = vec![(self.source.root, DependencyPurpose::Product)];
+        pending.extend(
+            self.build_dependencies()
+                .map(|(_, _, package)| (package, DependencyPurpose::Build)),
+        );
+        while let Some((package, scope)) = pending.pop() {
+            if !instances.insert((package, scope)) {
+                continue;
+            }
+            if let Some(record) = self.source.packages.get(&package) {
+                pending.extend(
+                    record
+                        .dependencies
+                        .values()
+                        .map(|dependency| (*dependency, scope)),
+                );
+            }
+        }
+        instances.remove(&(self.source.root, DependencyPurpose::Product));
+        instances
     }
 
     /// Product-scope edges only. Build-purpose edges are compilation-local
@@ -828,15 +907,22 @@ impl PackageCompilationInputs {
     /// Attach the complete set of fresh compiler-issued generated-source
     /// bundles for this root's dependencies. Empty bundles are retained so an
     /// omitted dependency build cannot be confused with a build that handed
-    /// off no generated source.
+    /// off no generated source. Coverage is per checked purpose, not package:
+    /// identical target profiles or bytes never let one role satisfy another.
     pub fn with_complete_dependency_generated_sources(
         mut self,
         bundles: Vec<PackageGeneratedSourceBundle>,
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let mut errors = Vec::new();
+        let required = self
+            .dependency_source_instances()
+            .into_iter()
+            .map(|(package, scope)| (package, self.instance_purpose(scope)))
+            .collect::<BTreeSet<_>>();
         let mut generated = BTreeMap::new();
         for bundle in bundles {
             let package = bundle.package();
+            let purpose = bundle.purpose();
             if package == self.source.root {
                 errors.push(PackageCompilationInputError::RootGeneratedSourceBundle { package });
                 continue;
@@ -845,24 +931,27 @@ impl PackageCompilationInputs {
                 errors.push(PackageCompilationInputError::ForeignGeneratedSourceBundle { package });
                 continue;
             }
+            if !required.contains(&(package, purpose)) {
+                errors.push(
+                    PackageCompilationInputError::GeneratedSourceBundlePurposeMismatch {
+                        package,
+                        purpose,
+                    },
+                );
+                continue;
+            }
             if bundle.dependency_closure() != &self.dependency_closure_for(package) {
                 errors.push(
                     PackageCompilationInputError::GeneratedSourceBundleClosureMismatch { package },
                 );
             }
-            if generated.insert(package, bundle).is_some() {
+            if generated.insert((package, purpose), bundle).is_some() {
                 errors
                     .push(PackageCompilationInputError::DuplicateGeneratedSourceBundle { package });
             }
         }
-        for package in self
-            .source
-            .packages
-            .keys()
-            .copied()
-            .filter(|package| *package != self.source.root)
-        {
-            if !generated.contains_key(&package) {
+        for (package, purpose) in required {
+            if !generated.contains_key(&(package, purpose)) {
                 errors.push(PackageCompilationInputError::MissingGeneratedSourceBundle { package });
             }
         }
@@ -879,6 +968,22 @@ impl PackageCompilationInputs {
         &self,
     ) -> impl Iterator<Item = &PackageGeneratedSourceBundle> {
         self.target.dependency_generated_sources.values()
+    }
+
+    /// Each retained handoff together with the relative source scope in which
+    /// it is consumed. The same build instance can serve both relative scopes
+    /// inside a build helper, but never serves a product activation.
+    pub fn dependency_generated_source_instances(
+        &self,
+    ) -> impl Iterator<Item = (DependencyPurpose, &PackageGeneratedSourceBundle)> {
+        self.dependency_source_instances()
+            .into_iter()
+            .filter_map(|(package, scope)| {
+                self.target
+                    .dependency_generated_sources
+                    .get(&(package, self.instance_purpose(scope)))
+                    .map(|bundle| (scope, bundle))
+            })
     }
 
     /// Attach the component descriptions published for this root's
@@ -942,14 +1047,19 @@ impl PackageCompilationInputs {
             .target
             .dependency_generated_sources
             .values()
-            .filter(|bundle| Some(bundle.target()) != selected_target)
-            .map(
-                |bundle| PackageCompilationInputError::GeneratedSourceBundleTargetMismatch {
-                    package: bundle.package(),
-                    bundle_target: bundle.target(),
-                    selected_target,
-                },
-            )
+            .filter_map(|bundle| {
+                let expected_target = match bundle.purpose() {
+                    DependencyPurpose::Product => selected_target,
+                    DependencyPurpose::Build => bundle.build_execution_profile(),
+                };
+                (Some(bundle.target()) != expected_target).then_some(
+                    PackageCompilationInputError::GeneratedSourceBundleTargetMismatch {
+                        package: bundle.package(),
+                        bundle_target: bundle.target(),
+                        selected_target: expected_target,
+                    },
+                )
+            })
             .collect::<Vec<_>>();
         if errors.is_empty() {
             Ok(())
@@ -988,9 +1098,14 @@ impl PackageCompilationInputs {
     pub fn generated_source_import_path(
         &self,
         package: PackageKeyIdentity,
+        import_scope: DependencyPurpose,
         relative_candidates: &[PathBuf],
     ) -> Result<Option<PathBuf>, &'static str> {
-        let Some(bundle) = self.target.dependency_generated_sources.get(&package) else {
+        let Some(bundle) = self
+            .target
+            .dependency_generated_sources
+            .get(&(package, self.instance_purpose(import_scope)))
+        else {
             return Ok(None);
         };
         let mut matched = None;
@@ -1295,6 +1410,10 @@ pub enum PackageCompilationInputError {
     GeneratedSourceBundleClosureMismatch {
         package: PackageKeyIdentity,
     },
+    GeneratedSourceBundlePurposeMismatch {
+        package: PackageKeyIdentity,
+        purpose: DependencyPurpose,
+    },
     GeneratedSourceBundleCustodyMismatch {
         package: PackageKeyIdentity,
     },
@@ -1454,6 +1573,12 @@ impl fmt::Display for PackageCompilationInputError {
                 formatter,
                 "generated-source bundle for package {} was produced from a different dependency closure",
                 display_identity(*package)
+            ),
+            Self::GeneratedSourceBundlePurposeMismatch { package, purpose } => write!(
+                formatter,
+                "generated-source bundle for package {} has an unrequested {} activation",
+                display_identity(*package),
+                purpose.name()
             ),
             Self::GeneratedSourceBundleCustodyMismatch { package } => write!(
                 formatter,

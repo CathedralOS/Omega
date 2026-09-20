@@ -65,12 +65,21 @@ impl PendingPackageImport {
         &self,
         packages: &PackageCompilationInputs,
     ) -> Result<ResolvedSourceImport, Vec<Diagnostic>> {
-        let path = self.request.resolve_for_exact_target(packages)?;
+        let path = self
+            .request
+            .resolve_for_exact_target(packages, self.scope)?;
         let direct = source_path_candidates(&self.request.relative_path);
         // Generated paths are virtual; direct-candidate membership comes from
         // the exact bundle, not filesystem existence.
         let generated = packages
-            .generated_source_import_path(self.request.package, &direct)
+            .generated_source_import_path(
+                self.request.package,
+                match self.scope {
+                    DependencyScope::Product => build_declarations::DependencyPurpose::Product,
+                    DependencyScope::Build => build_declarations::DependencyPurpose::Build,
+                },
+                &direct,
+            )
             .map_err(|error| vec![Diagnostic::error(error)])?;
         let requires_module = generated.as_ref() != Some(&path)
             && !direct.iter().any(|candidate| {
@@ -146,13 +155,11 @@ pub(crate) fn retain_module_import_bindings(
             .map(|offset| position + offset)
             .unwrap_or(sources.len());
         let candidates = &sources[position..run_end];
-        // An import binds its target's instance in the importer's own scope.
-        // Sources retained outside the queue — generated bundles — carry a
-        // single instance for every importing scope.
+        // Physical and generated imports bind the exact checked scope. A
+        // missing instance cannot borrow the other scope's declaration.
         let (declaration, declares_module, _) = candidates
             .iter()
             .find(|(_, _, scope)| *scope == importer_scope)
-            .or(candidates.first())
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(
                     "import `{}` no longer resolves to its parsed source frontier",

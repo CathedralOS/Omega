@@ -46,39 +46,31 @@ pub(super) enum TargetEntryDiscovery {
     Dependencies,
 }
 
-/// Re-rooting already gives each dependency its own build activation and keeps
-/// its build-only imports out of consumers. The current review and generated
-/// bundle tables still have one slot per package, however: they cannot retain
-/// two purpose/profile-specific results for the same package. Admit nested
-/// activations only when that slot is unambiguous, before any build executes.
-/// The graph has already rejected cycles over both kinds of dependency edge.
-pub(super) fn validate_nested_build_activations(
+/// Derive checked roles from graph edges before any build executes. Generated
+/// source handoffs distinguish these roles; package acceptance still has one
+/// row per package at one target, so this coordinator must reject graphs that
+/// would collapse distinct instances until that consumer is migrated. This
+/// limit applies even when a helper does not have a build dependency of its own.
+pub(super) fn checked_package_purposes(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     execution_profile: Option<target::TargetProfile>,
-) -> Result<(), CompileResolvedPackageReviewsError> {
+) -> Result<Vec<crate::declarations::DependencyPurpose>, CompileResolvedPackageReviewsError> {
     use crate::declarations::DependencyPurpose;
 
     let graph = target_closure.source_closure().graph();
-    let Some(nested) = graph.packages().iter().find(|package| {
-        package.source().key() != graph.root()
-            && package
-                .dependencies()
-                .iter()
-                .any(|dependency| dependency.purpose() == DependencyPurpose::Build)
-    }) else {
-        return Ok(());
-    };
-    if execution_profile != Some(target_closure.target_profile()) {
-        return Err(
-            CompileResolvedPackageReviewsError::UnsupportedNestedBuildActivation {
-                package: nested.source().key().clone(),
-                reason: "cross-profile nested builds require separate execution-profile review and generated-source occurrences",
-            },
-        );
-    }
     let mut purposes = vec![None; graph.packages().len()];
     let mut pending = vec![(graph.root(), DependencyPurpose::Product)];
     while let Some((package, purpose)) = pending.pop() {
+        if purpose == DependencyPurpose::Build
+            && execution_profile != Some(target_closure.target_profile())
+        {
+            return Err(
+                CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
+                    package: package.clone(),
+                    reason: "cross-profile build activations require separate execution-profile package acceptance rows",
+                },
+            );
+        }
         let Some(position) = graph.package_position(package) else {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: package.clone(),
@@ -87,9 +79,9 @@ pub(super) fn validate_nested_build_activations(
         if let Some(previous) = purposes[position] {
             if previous != purpose {
                 return Err(
-                    CompileResolvedPackageReviewsError::UnsupportedNestedBuildActivation {
+                    CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
                         package: package.clone(),
-                        reason: "dual-purpose nested builds require separate build and product review and generated-source occurrences",
+                        reason: "dual-purpose build activations require separate build and product package acceptance rows",
                     },
                 );
             }
@@ -106,13 +98,22 @@ pub(super) fn validate_nested_build_activations(
             pending.push((dependency.target(), selected_purpose));
         }
     }
-    Ok(())
+    purposes
+        .into_iter()
+        .enumerate()
+        .map(|(position, purpose)| {
+            purpose.ok_or_else(|| CompileResolvedPackageReviewsError::IdentityMismatch {
+                package: graph.packages()[position].source().key().clone(),
+            })
+        })
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compile_dependency_closure(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     execution_profile: Option<target::TargetProfile>,
+    package_purposes: &[crate::declarations::DependencyPurpose],
     build_session_root: &Path,
     filesystem_sponsor: &FilesystemSponsor,
     evaluation_sponsor: &BuildEvaluationSponsor,
@@ -150,12 +151,25 @@ pub(super) fn compile_dependency_closure(
         let custody = closure
             .custody(&key)
             .expect("validated source closure retains custody for every graph package");
-        let inputs = scope.compilation_inputs().map_err(|errors| {
-            CompileResolvedPackageReviewsError::CompilationInputs {
+        let position = closure.graph().package_position(&key).ok_or_else(|| {
+            CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: key.clone(),
-                errors,
             }
         })?;
+        let purpose = package_purposes.get(position).copied().ok_or_else(|| {
+            CompileResolvedPackageReviewsError::IdentityMismatch {
+                package: key.clone(),
+            }
+        })?;
+        let inputs = scope
+            .compilation_inputs()
+            .and_then(|inputs| inputs.with_compilation_purpose(purpose))
+            .map_err(
+                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
+                    package: key.clone(),
+                    errors,
+                },
+            )?;
         let mut semantic_bindings = semantic_bindings_by_consumer
             .get(&key)
             .cloned()

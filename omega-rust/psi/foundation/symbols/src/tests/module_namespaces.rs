@@ -74,6 +74,173 @@ fn data_reference(
 }
 
 #[test]
+fn unmoduled_exact_imports_select_their_checked_instance_independent_of_order() {
+    use source::DependencyScope::{Build, Product};
+    for reversed_sources in [false, true] {
+        for reversed_declarations in [false, true] {
+            let helper_source = if reversed_sources { 1 } else { 2 };
+            let mut sources = SourceMap::default();
+            for source_ordinal in 0..3 {
+                let package_marker = if source_ordinal == 0 { 1 } else { 2 };
+                let root = PathBuf::from(format!("package-{package_marker}"));
+                sources.add_with_metadata(
+                    root.join(if source_ordinal == 0 {
+                        "build.omg"
+                    } else {
+                        "generated.omg"
+                    }),
+                    String::from("Item"),
+                    root,
+                    Some(PackageKeyIdentity::from_digest([package_marker; 32]).unwrap()),
+                    SourceOrigin::User,
+                );
+            }
+            let mut files = sources.files().cloned().collect::<Vec<_>>();
+            for (source_ordinal, file) in files.iter_mut().enumerate() {
+                file.dependency_scope = if source_ordinal == 0 || source_ordinal == helper_source {
+                    Build
+                } else {
+                    Product
+                };
+            }
+            let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+                Some(Arc::new(SourceMap::from_files(files))),
+                vec![SourceScopedTopLevelBinding::module_import(
+                    SourceId(0),
+                    SourceId(helper_source),
+                    "dependency::generated",
+                    1,
+                )],
+            );
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let order = if reversed_declarations {
+                [2, 1]
+            } else {
+                [1, 2]
+            };
+            let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+                root,
+                order.iter().map(|&source_ordinal| {
+                    (
+                        SymbolKind::Data,
+                        SymbolNameRef::OwnedSource {
+                            value: "Item",
+                            source_span: reference(source_ordinal),
+                        },
+                    )
+                }),
+            ))
+            .collect::<Vec<_>>();
+            let symbols = builder.finish();
+            let expected = declarations[order
+                .iter()
+                .position(|&source| source == helper_source)
+                .unwrap()];
+            assert_eq!(data_reference(&symbols, 0, "Item"), Some(expected));
+            assert_eq!(
+                symbols.lookup_signature_free_top_level_from_source_matching(
+                    "Item",
+                    &[SymbolKind::Data],
+                    reference(0),
+                    |_| true,
+                ),
+                crate::SymbolLookup::Unique(expected)
+            );
+        }
+    }
+}
+
+#[test]
+fn unmoduled_exact_imports_preserve_local_precedence() {
+    let (symbols, declarations, _) = namespace_table(
+        [1, 1, 2],
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(2),
+            "dependency::source",
+            1,
+        )],
+    );
+    assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[1]));
+    assert_eq!(
+        symbols.lookup_signature_free_top_level_from_source_matching(
+            "Item",
+            &[SymbolKind::Data],
+            reference(0),
+            |_| true,
+        ),
+        crate::SymbolLookup::Unique(declarations[1])
+    );
+}
+
+#[test]
+fn unmoduled_fallback_retains_same_scope_candidates_for_package_admission() {
+    let (symbols, declarations, _) = namespace_table(
+        [1, 2, 3],
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(0),
+            "local",
+            0,
+        )],
+    );
+    assert_eq!(
+        symbols.lookup_signature_free_top_level_from_source_matching(
+            "Item",
+            &[SymbolKind::Data],
+            reference(0),
+            |candidate| candidate == declarations[2],
+        ),
+        crate::SymbolLookup::Unique(declarations[2]),
+        "unmoduled discovery preserves candidates for the separate package-admission check"
+    );
+}
+
+#[test]
+fn unmoduled_missing_imported_name_does_not_select_another_scope() {
+    let (_, _, sources) = namespace_table([1, 2, 2], Vec::new());
+    let mut files = sources.files().cloned().collect::<Vec<_>>();
+    files[0].dependency_scope = source::DependencyScope::Build;
+    files[1].dependency_scope = source::DependencyScope::Build;
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+        Some(Arc::new(SourceMap::from_files(files))),
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(1),
+            "dependency::generated",
+            1,
+        )],
+    );
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    builder.insert_children(
+        root,
+        ["Local", "Other", "Item"]
+            .iter()
+            .enumerate()
+            .map(|(source_ordinal, name)| {
+                (
+                    SymbolKind::Data,
+                    SymbolNameRef::OwnedSource {
+                        value: name,
+                        source_span: reference(source_ordinal),
+                    },
+                )
+            }),
+    );
+    let symbols = builder.finish();
+    assert_eq!(data_reference(&symbols, 0, "Item"), None);
+    assert_eq!(
+        symbols.lookup_signature_free_top_level_from_source_matching(
+            "Item",
+            &[SymbolKind::Data],
+            reference(0),
+            |_| true,
+        ),
+        crate::SymbolLookup::NotFound
+    );
+}
+
+#[test]
 fn root_namespace_does_not_acquire_unimported_module_leaves() {
     let (mut symbols, declarations, _) = namespace_table([1, 1, 1], Vec::new());
     register_module(&mut symbols, 1, &["alpha"]);

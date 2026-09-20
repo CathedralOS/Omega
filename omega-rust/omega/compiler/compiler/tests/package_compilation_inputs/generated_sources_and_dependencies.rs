@@ -1,4 +1,5 @@
 use super::{TempTree, generated_source, identity};
+use build_declarations::DependencyPurpose;
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, ExplicitTargetSet,
     TargetCompileConfiguration, compile, compile_to_checked,
@@ -8,6 +9,242 @@ use package_compilation::{
     PackageDependencyBinding, PackageGeneratedSourceBundle, PackageSourceBinding,
     PackageSourceConsumptionCommitment, derive_source_consumption_commitment,
 };
+
+#[test]
+fn generated_dependency_handoff_keeps_build_and_product_occurrences_distinct() {
+    let tree = TempTree::new();
+    let producer = tree.package("dual-producer");
+    let consumer = tree.package("dual-consumer");
+    TempTree::write(producer.join("main.omg"), "// Generated API only.\n");
+    TempTree::write(
+        producer.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.package("dual-producer");
+    transition builder.target {
+        TargetProfile::WindowsX86_64 -> product(builder)
+        _ -> helper(builder)
+    }
+    state product(builder: &mut Build) {
+        let generated: BuildPath = builder.output.resolve("generated_api.omg");
+        let descriptor: i32 = builder.output.create(generated, 438);
+        let count: i64 = builder.output.write(descriptor, "pub machine generated_value() -> u64 { 17 }\n");
+        let closed: i32 = builder.output.close(descriptor);
+        builder.output.include_source(generated);
+    }
+    state helper(builder: &mut Build) {
+        let generated: BuildPath = builder.output.resolve("generated_api.omg");
+        let descriptor: i32 = builder.output.create(generated, 438);
+        let count: i64 = builder.output.write(descriptor, "pub machine generated_value() -> bool { true }\n");
+        let closed: i32 = builder.output.close(descriptor);
+        builder.output.include_source(generated);
+    }
+}
+"#,
+    );
+    TempTree::write(
+        consumer.join("build.omg"),
+        r#"use dependency::generated_api;
+machine build(builder: &mut Build) {
+    builder.package("dual-consumer");
+    builder.build_depend_as("dependency", Source::Path { location: "../dual-producer" });
+    builder.depend_as("dependency", Source::Path { location: "../dual-producer" });
+    let generated: BuildPath = builder.output.resolve("consumer_generated.omg");
+    let descriptor: i32 = builder.output.create(generated, 438);
+    transition generated_value() {
+        true -> correct(builder, generated, descriptor)
+        false -> incorrect(builder, generated, descriptor)
+    }
+    state correct(builder: &mut Build, generated: BuildPath, descriptor: i32) {
+        let count: i64 = builder.output.write(descriptor, "pub machine generated_by_helper() -> u64 { 29 }");
+        let closed: i32 = builder.output.close(descriptor);
+        builder.output.include_source(generated);
+    }
+    state incorrect(builder: &mut Build, generated: BuildPath, descriptor: i32) {
+        let count: i64 = builder.output.write(descriptor, "pub machine generated_by_helper() -> u64 { 0 }");
+        let closed: i32 = builder.output.close(descriptor);
+        builder.output.include_source(generated);
+    }
+}
+"#,
+    );
+    TempTree::write(
+        consumer.join("main.omg"),
+        "use dependency::generated_api;\npub machine consume() -> u64 { generated_value() }\n",
+    );
+    let session_root = tree.0.join("dual-build");
+    std::fs::create_dir(&session_root).unwrap();
+    let session_root = std::fs::canonicalize(session_root).unwrap();
+    let sponsor = checked_interpreter::FilesystemSponsor::new(&session_root).unwrap();
+    let mut bundles = Vec::new();
+    for (purpose, target, directory) in [
+        (DependencyPurpose::Build, "linux_x86_64", "helper"),
+        (DependencyPurpose::Product, "windows_x86_64", "product"),
+    ] {
+        let inputs = PackageCompilationInputs::new_package(
+            identity(94),
+            vec![
+                PackageSourceBinding::new(identity(94), "dual-producer", producer.clone())
+                    .with_canonical_source_metadata()
+                    .unwrap(),
+            ],
+            Vec::new(),
+        )
+        .unwrap()
+        .with_compilation_purpose(purpose)
+        .unwrap();
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            build_execution_profile: Some(target::TargetProfile::LinuxX64),
+            build_dir: Some(session_root.join(directory)),
+            filesystem_sponsor: Some(sponsor.clone()),
+            ..CheckedCompileRequest::new(&producer.join("main.omg"), Some(target))
+        })
+        .expect("one acquired producer checks independently for each purpose and target");
+        bundles.push(checked.package_generated_source_bundle().unwrap());
+    }
+    assert_ne!(
+        bundles[0].sources()[0].bytes(),
+        bundles[1].sources()[0].bytes()
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(93),
+        vec![
+            PackageSourceBinding::new(identity(93), "dual-consumer", consumer.clone())
+                .with_canonical_source_metadata()
+                .unwrap(),
+            PackageSourceBinding::new(identity(94), "dual-producer", producer.clone()),
+        ],
+        [DependencyPurpose::Build, DependencyPurpose::Product]
+            .into_iter()
+            .map(|purpose| {
+                PackageDependencyBinding::for_purpose(
+                    identity(93),
+                    "dependency",
+                    identity(94),
+                    purpose,
+                )
+            })
+            .collect(),
+    )
+    .unwrap()
+    .with_complete_dependency_generated_sources(bundles)
+    .unwrap();
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        build_execution_profile: Some(target::TargetProfile::LinuxX64),
+        build_dir: Some(session_root.join("consumer")),
+        filesystem_sponsor: Some(sponsor),
+        ..CheckedCompileRequest::new(&consumer.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect("host helper bool and product u64 resolve from different generated instances");
+    let output = checked.package_generated_source_bundle().unwrap();
+    assert_eq!(output.sources().len(), 1);
+    assert_eq!(
+        output.sources()[0].bytes(),
+        b"pub machine generated_by_helper() -> u64 { 29 }"
+    );
+    assert!(!producer.join("generated_api.omg").exists());
+    checked.verify_current_source_consumption().unwrap();
+}
+
+#[test]
+fn generated_dependency_handoff_requires_both_purposes_even_for_the_same_target() {
+    let tree = TempTree::new();
+    let root = tree.package("purpose-consumer");
+    let dependency = tree.package("purpose-producer");
+    let inputs = PackageCompilationInputs::new_package(
+        identity(95),
+        vec![
+            PackageSourceBinding::new(identity(95), "purpose-consumer", root),
+            PackageSourceBinding::new(identity(96), "purpose-producer", dependency),
+        ],
+        [DependencyPurpose::Product, DependencyPurpose::Build]
+            .into_iter()
+            .map(|purpose| {
+                PackageDependencyBinding::for_purpose(
+                    identity(95),
+                    "dependency",
+                    identity(96),
+                    purpose,
+                )
+            })
+            .collect(),
+    )
+    .unwrap();
+    let bundle = |purpose| {
+        PackageGeneratedSourceBundle::from_checked(
+            identity(96),
+            purpose,
+            target::TargetProfile::LinuxX64,
+            Some(target::TargetProfile::LinuxX64),
+            inputs.dependency_closure_for(identity(96)),
+            PackageSourceConsumptionCommitment::for_test([96; 32]),
+            vec![generated_source(
+                b"generated_api.omg",
+                b"pub machine generated_value() -> u64 { 17 }\n",
+            )],
+        )
+    };
+    for purpose in [DependencyPurpose::Product, DependencyPurpose::Build] {
+        assert!(
+            inputs
+                .clone()
+                .with_complete_dependency_generated_sources(vec![bundle(purpose)])
+                .is_err(),
+            "one purpose cannot satisfy the other occurrence even with equal target and bytes"
+        );
+        assert!(
+            inputs
+                .clone()
+                .with_complete_dependency_generated_sources(vec![bundle(purpose), bundle(purpose)])
+                .is_err(),
+            "duplicate purpose cannot replace a missing occurrence"
+        );
+    }
+    inputs
+        .clone()
+        .with_complete_dependency_generated_sources(vec![
+            bundle(DependencyPurpose::Product),
+            bundle(DependencyPurpose::Build),
+        ])
+        .expect("both exact occurrences satisfy completeness even when bytes and targets match");
+}
+
+#[test]
+fn build_package_target_must_match_its_admitted_execution_profile() {
+    let tree = TempTree::new();
+    let root = tree.package("build-context");
+    TempTree::write(root.join("main.omg"), "// Build helper.\n");
+    TempTree::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"build-context\"); }\n",
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(97),
+        vec![PackageSourceBinding::new(
+            identity(97),
+            "build-context",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .unwrap()
+    .with_compilation_purpose(DependencyPurpose::Build)
+    .unwrap();
+    let diagnostics = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        build_execution_profile: Some(target::TargetProfile::LinuxX64),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("windows_x86_64"))
+    })
+    .err()
+    .expect("a build helper cannot be compiled for a different product profile");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("target to equal the admitted build execution profile")),
+        "{diagnostics:#?}"
+    );
+}
 
 #[test]
 fn generated_dependency_handoff_rejects_a_different_build_execution_profile() {
@@ -230,6 +467,7 @@ pub machine consume_generated_value() -> u64 {
     .expect("generated consumer graph should close");
     let bundle = PackageGeneratedSourceBundle::from_checked(
         identity(2),
+        DependencyPurpose::Product,
         target::TargetProfile::WindowsX64,
         target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(identity(2)),
@@ -317,7 +555,7 @@ pub machine consume_generated_value() -> u64 {
             .expect("package subject")
             .consumed_units()
             .iter()
-            .any(|unit| unit.kind() == ConsumedSourceUnitKind::PackageGenerated),
+            .any(|unit| matches!(unit.kind(), ConsumedSourceUnitKind::PackageGenerated(_))),
         "final checked subject must classify retained generated source custody"
     );
 }
@@ -367,6 +605,7 @@ fn multi_target_generated_source_failure_is_child_local() {
         };
         let bundle = PackageGeneratedSourceBundle::from_checked(
             identity(72),
+            DependencyPurpose::Product,
             profile,
             target::TargetProfile::host_if_supported(),
             base_inputs.dependency_closure_for(identity(72)),

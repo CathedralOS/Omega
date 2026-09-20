@@ -99,9 +99,22 @@ impl Fixture {
         .expect("generated checkpoint source should form a retained output tree");
         let generated = build_output::select_included_sources(&tree, &[b"generated.omg".to_vec()])
             .expect("generated checkpoint source should be selected");
+        let build_dependency = self
+            .inputs
+            .build_dependencies()
+            .any(|(_, _, dependency)| dependency == identity(2));
         let bundle = PackageGeneratedSourceBundle::from_checked(
             identity(2),
-            target,
+            if build_dependency {
+                build_declarations::DependencyPurpose::Build
+            } else {
+                build_declarations::DependencyPurpose::Product
+            },
+            if build_dependency {
+                target::TargetProfile::host_if_supported().expect("profiled test host")
+            } else {
+                target
+            },
             target::TargetProfile::host_if_supported(),
             self.inputs.dependency_closure_for(identity(2)),
             PackageSourceConsumptionCommitment::for_test([3; 32]),

@@ -258,6 +258,7 @@ fn dependency_generated_inputs(
     .expect("closed dependency graph");
     let bundle = PackageGeneratedSourceBundle::from_checked(
         dependency,
+        build_declarations::DependencyPurpose::Product,
         target::TargetProfile::WindowsX64,
         target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(dependency),

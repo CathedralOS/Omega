@@ -10,7 +10,7 @@
 //! selected build-machine identity, every `BuildEvaluationUsage` axis, the
 //! build-observation identity, the target-profile tag, the native-target axes,
 //! and the artifact kind plus artifact identity; the manifest identity is the
-//! SHA-256 of those bytes under `OMEGA-PRODUCTION-COMPILATION-MANIFEST-V9`.
+//! SHA-256 of those bytes under `OMEGA-PRODUCTION-COMPILATION-MANIFEST-V11`.
 //!
 //! Three layers see a substitution differently:
 //!
@@ -20,7 +20,7 @@
 //!   join runs;
 //! - a substitution whose containing bytes and identity are honestly
 //!   recomputed is a different self-consistent record: its manifest identity
-//!   diverges from the production any deployment journal pins, and the
+//!   diverges from the production identity accepted by its consumer, and the
 //!   downstream joins that rebind the changed axis — the artifact/target join
 //!   in `matches_native_artifact` and `require_native_physical_evidence`, the
 //!   proposal target join and artifact join in report custody, the
@@ -1086,7 +1086,7 @@ fn production_compilation_manifest_rejects_every_one_field_substitution() {
         (
             "unit kind",
             ConsumedSourceUnit::for_test(
-                ConsumedSourceUnitKind::PackageGenerated,
+                ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Product),
                 authored.package(),
                 authored.toolchain_namespace().map(str::to_owned),
                 authored.relative_path().to_vec(),

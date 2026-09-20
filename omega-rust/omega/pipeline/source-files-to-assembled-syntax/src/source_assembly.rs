@@ -1,6 +1,6 @@
 use crate::frontend::{
-    build_only_packages, discover_imports, discover_imports_with_packages, extend_source_storage,
-    lex_sources, load_package_generated_source, load_sources, parse_sources,
+    discover_imports, discover_imports_with_packages, extend_source_storage, lex_sources,
+    load_package_generated_source, load_sources, parse_sources,
 };
 use crate::source::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
@@ -249,14 +249,15 @@ fn append_dependency_generated_sources_to_storage(
                 .map(|error| Diagnostic::error(error.to_string()))
                 .collect::<Vec<_>>()
         })?;
-    // A generated bundle joins the checked instance of the context that
-    // produced it: a build-only package's handoff is host-context source,
-    // while a dual-purpose or product package's bundle embodies product-
-    // target decisions and stays product scope — it is never checked a
-    // second time under the other scope.
-    let build_only = build_only_packages(package_inputs);
+    // A virtual path can name different bytes in the two checked scopes.
+    // Route from the source graph to its exact activation bundle, not from a
+    // package-wide 'build-only' classification. The acquisition remains shared.
     let mut entries = Vec::new();
-    for bundle in package_inputs.dependency_generated_source_bundles() {
+    for (purpose, bundle) in package_inputs.dependency_generated_source_instances() {
+        let scope = match purpose {
+            build_declarations::DependencyPurpose::Product => source::DependencyScope::Product,
+            build_declarations::DependencyPurpose::Build => source::DependencyScope::Build,
+        };
         let package_root = package_inputs
             .package_root(bundle.package())
             .expect("validated generated-source bundle retains its package root");
@@ -266,14 +267,15 @@ fn append_dependency_generated_sources_to_storage(
                 generated_source_logical_path(package_root, source),
                 source,
                 bundle.package(),
+                scope,
             ));
         }
     }
     {
         let mut loaded_paths = HashSet::with_capacity(entries.len());
-        for (logical_path, _, _) in &entries {
+        for (logical_path, _, _, scope) in &entries {
             let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
-            if logical_path.exists() || !loaded_paths.insert(logical_path.as_path()) {
+            if logical_path.exists() || !loaded_paths.insert((logical_path.as_path(), *scope)) {
                 return Err(vec![Diagnostic::error(format!(
                     "generated dependency source logical path `{}` collides with another source",
                     logical_path.display(),
@@ -282,22 +284,14 @@ fn append_dependency_generated_sources_to_storage(
         }
     }
 
-    for (logical_path, _, _) in &entries {
+    for (logical_path, _, _, scope) in &entries {
         let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
-        // The single retained instance answers imports from either scope, so
-        // no scope may re-dispatch the virtual path for a physical load.
-        imports.mark_loaded(logical_path, source::DependencyScope::Product);
-        imports.mark_loaded(logical_path, source::DependencyScope::Build);
+        imports.mark_loaded(logical_path, *scope);
     }
 
     let mut retained = Vec::with_capacity(entries.len());
-    for (logical_path, source, package) in entries {
+    for (logical_path, source, package, scope) in entries {
         let logical_path = logical_path?;
-        let scope = if build_only.contains(&package) {
-            source::DependencyScope::Build
-        } else {
-            source::DependencyScope::Product
-        };
         let text = std::str::from_utf8(source.bytes()).map_err(|_| {
             vec![Diagnostic::error(format!(
                 "included generated source `{}` is not UTF-8 Omega source",
