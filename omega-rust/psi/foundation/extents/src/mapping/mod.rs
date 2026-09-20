@@ -101,6 +101,39 @@ impl TranslationReleaseObligations {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PeerWriteRevocationFactId(u64);
+
+impl PeerWriteRevocationFactId {
+    pub fn from_normalized_identity(identity: u64) -> Result<Self, ExtentDiagnostic> {
+        nonzero_identity(identity, "peer-write-revocation-fact")?;
+        Ok(Self(identity))
+    }
+
+    pub const fn normalized_identity(self) -> u64 {
+        self.0
+    }
+}
+
+/// The provider-established facts a shared-custody mapping's revocation
+/// receipt must show before its payload may be read zero-copy: the hostile
+/// peer's write permission was revoked or remapped away and the resulting
+/// cross-core invalidation completed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PeerWriteRevocationObligations(BTreeSet<PeerWriteRevocationFactId>);
+
+impl PeerWriteRevocationObligations {
+    pub fn from_normalized_facts(
+        facts: impl IntoIterator<Item = PeerWriteRevocationFactId>,
+    ) -> Self {
+        Self(facts.into_iter().collect())
+    }
+
+    pub fn facts(&self) -> impl Iterator<Item = PeerWriteRevocationFactId> + '_ {
+        self.0.iter().copied()
+    }
+}
+
 /// Reusable provider-admitted mapping policy.
 ///
 /// Source and destination rights are requirements on existing authority. The
@@ -324,6 +357,9 @@ pub struct MappedExtent<'source> {
     source: MappingSource<'source>,
     destination: DestinationRestoration,
     unmap_obligations: TranslationReleaseObligations,
+    /// Whether a peer-write-revocation receipt completed for a shared-custody
+    /// source. Irrelevant for owned/exclusive sources; gates `stable_loan`.
+    peer_write_revoked: bool,
 }
 
 impl PartialEq for MappedExtent<'_> {
@@ -624,6 +660,29 @@ impl<'source> MappedExtent<'source> {
         self.mapped.loan_mut(offset, length)
     }
 
+    /// Zero-copy validation access to the mapped payload. Under
+    /// `BorrowedShared` source custody the peer holding the other end may be
+    /// hostile: a shared borrow observes its writes with no ordering
+    /// guarantees, so a stable view exists only after a peer-write-revocation
+    /// receipt shows the peer's write permission was revoked or remapped away
+    /// and the cross-core invalidation completed. Consumers that must read
+    /// without that receipt have to copy through [`Self::loan`] and validate
+    /// the copy instead.
+    pub fn stable_loan(
+        &self,
+        offset: u64,
+        length: u64,
+    ) -> Result<ExtentLoan<'_>, ExtentDiagnostic> {
+        if matches!(self.source.mode(), MappingSourceMode::BorrowedShared)
+            && !self.peer_write_revoked
+        {
+            return Err(ExtentDiagnostic(
+                "a shared-custody mapping cannot expose a stable view until a peer-write-revocation receipt completes".into(),
+            ));
+        }
+        self.mapped.loan(offset, length)
+    }
+
     /// The exact release obligations this active mapping's eventual release
     /// receipt must establish. Reading them while the mapping is installed
     /// lets a provider assemble teardown evidence before consuming it.
@@ -631,8 +690,152 @@ impl<'source> MappedExtent<'source> {
         &self.unmap_obligations
     }
 
+    /// Consume this mapping into a pending peer-write revocation. Only shared
+    /// source custody has a hostile writable peer to revoke; owned and
+    /// exclusive sources have no second writer and refuse the transition.
+    pub fn begin_peer_write_revocation(
+        self,
+        obligations: PeerWriteRevocationObligations,
+    ) -> Result<PendingPeerWriteRevocation<'source>, Box<PeerWriteRevocationStartError<'source>>>
+    {
+        if !matches!(self.source.mode(), MappingSourceMode::BorrowedShared) {
+            return Err(Box::new(PeerWriteRevocationStartError {
+                mapping: self,
+                diagnostic: ExtentDiagnostic(
+                    "peer-write revocation applies only to shared source custody".into(),
+                ),
+            }));
+        }
+        Ok(PendingPeerWriteRevocation {
+            mapping: self,
+            obligations,
+        })
+    }
+
     pub fn begin_unmap(self) -> PendingUnmap<'source> {
         PendingUnmap { mapping: self }
+    }
+}
+
+/// Linear pending state between requesting a shared peer's write revocation
+/// and treating the mapping's payload as a stable view. The mapping's access
+/// authority stays live but its shared reads remain unvalidated until an
+/// exact revocation receipt completes the transition.
+#[derive(Debug)]
+pub struct PendingPeerWriteRevocation<'source> {
+    mapping: MappedExtent<'source>,
+    obligations: PeerWriteRevocationObligations,
+}
+
+impl<'source> PendingPeerWriteRevocation<'source> {
+    pub const fn mapping(&self) -> MappingId {
+        self.mapping.identity
+    }
+
+    pub const fn grant(&self) -> MappingGrantId {
+        self.mapping.grant
+    }
+
+    /// The inert evidence a revocation receipt must bind: this exact active
+    /// mapping, not merely its compact grant or mapping identity.
+    pub fn receipt_context(&self) -> MappingReceiptContext {
+        self.mapping.receipt_context()
+    }
+
+    /// The exact revocation facts the completing receipt must establish.
+    /// They carry no authority; a provider holding only this pending carrier
+    /// reads the demanded fact set here.
+    pub const fn revocation_obligations(&self) -> &PeerWriteRevocationObligations {
+        &self.obligations
+    }
+
+    pub fn complete(
+        self,
+        receipt: PeerWriteRevocationReceipt,
+    ) -> Result<MappedExtent<'source>, Box<PeerWriteRevocationError<'source>>> {
+        let diagnostic = if receipt.mapping != self.mapping.evidence {
+            Some("peer-write-revocation receipt does not bind the exact active mapping")
+        } else if !receipt.peer_write_revoked {
+            Some("peer-write-revocation receipt does not establish the revoked write permission")
+        } else if !self.obligations.0.is_subset(&receipt.established_facts) {
+            Some("peer-write-revocation receipt lacks required invalidation facts")
+        } else {
+            None
+        };
+        if let Some(message) = diagnostic {
+            return Err(Box::new(PeerWriteRevocationError {
+                pending: self,
+                receipt,
+                diagnostic: ExtentDiagnostic(message.into()),
+            }));
+        }
+        let mut mapping = self.mapping;
+        mapping.peer_write_revoked = true;
+        Ok(mapping)
+    }
+}
+
+/// Provider receipt asserting that for one exact active shared mapping the
+/// hostile peer's write permission was revoked or remapped away and the
+/// required cross-core invalidation completed. Like every provider receipt
+/// here it binds complete mapping evidence; a receipt naming only a compact
+/// identity cannot claim the transition.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PeerWriteRevocationReceipt {
+    mapping: MappingEvidence,
+    peer_write_revoked: bool,
+    established_facts: BTreeSet<PeerWriteRevocationFactId>,
+}
+
+impl PeerWriteRevocationReceipt {
+    pub fn from_admitted_provider(
+        context: &MappingReceiptContext,
+        peer_write_revoked: bool,
+        established_facts: impl IntoIterator<Item = PeerWriteRevocationFactId>,
+    ) -> Self {
+        Self {
+            mapping: context.0.clone(),
+            peer_write_revoked,
+            established_facts: established_facts.into_iter().collect(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct PeerWriteRevocationStartError<'source> {
+    mapping: MappedExtent<'source>,
+    diagnostic: ExtentDiagnostic,
+}
+
+impl<'source> PeerWriteRevocationStartError<'source> {
+    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_mapping(self) -> MappedExtent<'source> {
+        self.mapping
+    }
+}
+
+#[derive(Debug)]
+pub struct PeerWriteRevocationError<'source> {
+    pending: PendingPeerWriteRevocation<'source>,
+    receipt: PeerWriteRevocationReceipt,
+    diagnostic: ExtentDiagnostic,
+}
+
+impl<'source> PeerWriteRevocationError<'source> {
+    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        PendingPeerWriteRevocation<'source>,
+        PeerWriteRevocationReceipt,
+    ) {
+        (self.pending, self.receipt)
     }
 }
 
@@ -774,6 +977,7 @@ fn map_with_source<'source>(
             source,
             destination: destination_restoration,
             unmap_obligations: grant.unmap_obligations.clone(),
+            peer_write_revoked: false,
         },
         map_obligations: grant.map_obligations.clone(),
     })
