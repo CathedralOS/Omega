@@ -1511,14 +1511,6 @@ Owners include
 
   Remaining work:
 
-  - Close the guarded selected-comparison continuation evidence. On macOS
-    ARM64, `omega inspect-terminal --machine safe --target linux_x86_64
-    tests/omega/pass/operators/crash_routes/main.omg` reaches
-    `InvalidTerminalModule(CallCrashContinuationUncovered { operation:
-    OperationId(1), cause: Trap })`. Preserve the selected requirement and
-    its substituted route through operation-crash publication and verifier
-    continuation coverage; do not erase the crash contract or substitute
-    builtin semantics to make the artifact pass.
   - Give the remaining crash-qualified uses a replayable Terminal carrier. A
     named `Namespace::requirement(...)` use has no emitted-operation join and
     fails closed in the producer, as do a non-scalar or miscounted operand
@@ -1593,8 +1585,8 @@ Owners include
   `selected_ieee_float_fma_occurrences` and
   `selected_integer_comparison_occurrences`, each with its own replay module in
   `lowered-psi-to-terminal-psi/src/boundary_operator_custody/` and its own Omega
-  association (`float_comparisons/`, `float_fma/`); the first bullet adds a
-  third. Named uses and every non-comparison operator still have no join. One
+  association (`float_comparisons/`, `float_fma/`). Named uses and every
+  non-comparison operator still have no join. One
   occurrence row from a checked `operator_use` or `named_use` to its emitted
   operations, operand mapping and provider commitment, with one Psi replay and
   one Omega rejoin, would give those uses a carrier without another roster.

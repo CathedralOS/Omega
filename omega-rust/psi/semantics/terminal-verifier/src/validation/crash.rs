@@ -157,11 +157,22 @@ pub(super) fn validate_call_crash_coverage(
     let forwarded = forwarded_formal_values(caller);
     for continuation in normalized_crash_routes(&substitute_crash_routes(continuations, &forwarded))
     {
+        // Each surviving alternative needs coverage or an independent disproof
+        // under invocation-entry requirements. Keep the original continuation
+        // roster: disproving this use must not rewrite the callee's ceiling.
+        let uncovered = continuation.alternatives.iter().filter(|route| {
+            !published_routes.iter().any(|published| {
+                published.cause == continuation.cause
+                    && (published.alternatives == [CrashRouteGuard::Truth]
+                        || published.alternatives.contains(route))
+            })
+        });
         if !covered(&continuation)
             && !published_routes.iter().any(|published| {
                 published.cause == continuation.cause
                     && entry_requirements::covers(caller, published)
             })
+            && !entry_requirements::refutes(caller, uncovered)
         {
             return Err(ModuleError::CallCrashContinuationUncovered {
                 operation,
