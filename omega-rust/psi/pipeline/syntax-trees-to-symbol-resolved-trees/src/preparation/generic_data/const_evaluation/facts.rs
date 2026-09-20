@@ -1003,12 +1003,10 @@ pub(crate) fn prove_declared_const_domain_constraints(
         // The `bool` carrier is the only other scalar canonical encoding; its
         // domain target check and `self` binding are exactly the integer
         // route's.
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value)) => {
-            (
-                "bool".to_owned(),
-                ConstSelfBinding::Scalar(ConstScalarValue::Boolean(value)),
-            )
-        }
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value)) => (
+            "bool".to_owned(),
+            ConstSelfBinding::Scalar(ConstScalarValue::Boolean(value)),
+        ),
         // A record carrier binds `self` through its scalar-decodable fields:
         // `self.<name>` reads project canonical leaves while whole-aggregate
         // operands and fields without a scalar leaf stay unbound.
