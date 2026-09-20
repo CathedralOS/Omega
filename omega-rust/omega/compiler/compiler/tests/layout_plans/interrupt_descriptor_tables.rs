@@ -31,8 +31,10 @@
 //! `lidt` provider edge — `execute_checked_publication` — mints the
 //! receipt that publishes the table. The authored layout is the only
 //! placement vocabulary on the whole path; what remains on the seam is
-//! spelled in `TASKS.md` — deriver-owned entry/exit stubs and the
-//! package-side relocation of the Rust model's published-root records.
+//! spelled in `TASKS.md` — emitted entry/exit stub bytes against the derived
+//! contract and the package-side relocation of the Rust model's
+//! published-root records. The machine-state evidence column now carries the
+//! deriver stub's member-body envelope, not a test-admitted shape.
 //! The divide-error member is now authored: `cathedral::interrupt_roots`
 //! declares `FatalExceptionRoot` plus its `CriticalStackPolicy` calling
 //! policy, and the last test drives that member's candidate through real
@@ -44,11 +46,16 @@ use calling_conventions::{
     ArrivalContextId, ArrivalContextRealization, BoundaryEntryPlan, CallSignature, CallingPolicy,
     EntryControl, EntryStack, EntryStackEpoch, EntryStackRealization, EntryStackStage,
     MachineRegime, MachineRegister, MachineState, MachineStateSet, Preemption,
-    ProviderExitRealization, RegisterSet, StackDomainRef, StateFootprintEvidence, StatePlan,
-    ValidatedBoundaryEntryPlan, ValueShape, X86_64GateKind, X86_64InstalledInterruptStack,
-    X86_64InstalledTaskStateSegmentRealization, evaluate_ordinary_boundary_entry_plan,
+    ProviderExitRealization, RegisterSet, StackDomainRef, StatePlan,
+    ValidatedBoundaryEntryPlan, ValidatedX86_64DeriverStub, ValueShape, X86_64ArrivalMechanism,
+    X86_64GateKind, X86_64HardwareStackSelection, X86_64InstalledArrivalContext,
+    X86_64InstalledHardwareEntryFacts, X86_64InstalledInterruptStack,
+    X86_64InstalledTaskStateSegmentRealization, X86_64TargetProfileIdentity,
+    derive_x86_64_entry_exit_stub, evaluate_ordinary_boundary_entry_plan,
     validate_boundary_entry_plan, validate_entry_stack_realization,
+    validate_x86_64_installed_hardware_entry_facts,
 };
+use calling_conventions::InstalledEntryFactIdentity;
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, CodePlacementAuthority,
@@ -1403,12 +1410,67 @@ fn stack_demand_input(
         .expect("epoch evidence binding")
 }
 
+/// The deriver-owned entry/exit stub contract for one declared member. The
+/// member's sealed arrival facts join the exact admitted boundary plan —
+/// commitment, stack disposition, and preemption — and the derived stub's
+/// saved footprint is the candidate's machine-state evidence column.
+fn member_deriver_stub(
+    member: &DeclaredMember,
+    boundary: &ValidatedBoundaryEntryPlan,
+    code: &InstalledCode,
+    entry_offset: u64,
+) -> ValidatedX86_64DeriverStub {
+    assert!(code.binds_entry_offset(member.entry, entry_offset));
+    let mechanism = match member.profile.obligation {
+        InterruptTableObligation::FatalException => X86_64ArrivalMechanism::Exception,
+        InterruptTableObligation::AcknowledgedInterrupt => {
+            X86_64ArrivalMechanism::ExternalInterrupt
+        }
+    };
+    let installed = validate_x86_64_installed_hardware_entry_facts(
+        X86_64InstalledHardwareEntryFacts {
+            identity: InstalledEntryFactIdentity {
+                target_profile: X86_64TargetProfileIdentity::LONG_MODE_INTERRUPT_GATES,
+                artifact: code.artifact().normalized_identity(),
+                installed_code: code.identity().normalized_identity(),
+                entry: member.entry.normalized_identity(),
+                entry_offset,
+                boundary_plan_report_fingerprint: boundary.contract_report_fingerprint(),
+                boundary_plan_commitment: boundary.contract_commitment_digest(),
+            },
+            vector: member.profile.vector,
+            gate: member.profile.descriptor.gate,
+            boundary_stack: boundary.plan().state.stack,
+            contexts: vec![X86_64InstalledArrivalContext {
+                context: ArrivalContextId::new(u64::from(member.profile.vector) + 1)
+                    .expect("nonzero arrival context"),
+                mechanism,
+                interrupted_privilege: 3,
+                entry_privilege: member.profile.descriptor.entry_privilege,
+                stack_selection: X86_64HardwareStackSelection::InterruptStackTable {
+                    slot: member
+                        .profile
+                        .descriptor
+                        .interrupt_stack_table_slot
+                        .expect("declared members select an IST stack"),
+                    dedicated_class: member.profile.dedicated_stack_class,
+                },
+                nesting: boundary.plan().state.preemption,
+            }],
+        },
+    )
+    .expect("the member's installed hardware entry facts validate");
+    derive_x86_64_entry_exit_stub(&installed, boundary)
+        .expect("the deriver stub realizes the member's admitted boundary")
+}
+
 /// One member's candidate record: the compiler-ledger's validated root shape,
 // whose entry stub is exactly the sealed entry the writer materializes.
 fn member_candidate(
     member: &DeclaredMember,
     boundary: &ValidatedBoundaryEntryPlan,
     code: &InstalledCode,
+    entry_offset: u64,
 ) -> ExternalRootCandidate {
     let root = member.root;
     let provider = identity(2, RootProviderId::from_normalized_identity);
@@ -1485,10 +1547,10 @@ fn member_candidate(
             validation_receipt: identity(51, FuelValidationReceiptId::from_normalized_identity),
         },
         machine_state: MachineStateResourceColumn {
-            realization: StateFootprintEvidence::new(
-                RegisterSet::new([MachineRegister::X86Rax]),
-                MachineStateSet::new([MachineState::Flags]),
-            ),
+            realization: member_deriver_stub(member, boundary, code, entry_offset)
+                .stub()
+                .member_body_envelope
+                .clone(),
             validation_receipt: identity(52, StateValidationReceiptId::from_normalized_identity),
         },
         component_pins: [ComponentVersionPin {
@@ -1513,7 +1575,12 @@ fn installed_member_roots<'code>(
     let mut shaped = Vec::with_capacity(members.len());
     for member in members.values() {
         let boundary = member_boundary(member.profile.dedicated_stack_class);
-        let candidate = member_candidate(member, &boundary, code);
+        let candidate = member_candidate(
+            member,
+            &boundary,
+            code,
+            entry_address(member.entry, members) - PLACEMENT_BASE,
+        );
         let input = stack_demand_input(
             candidate.identity,
             candidate.provider,
@@ -1933,10 +2000,15 @@ fn authored_fatal_exception_root_installs_through_selected_provider() {
             validation_receipt: identity(51, FuelValidationReceiptId::from_normalized_identity),
         },
         machine_state: MachineStateResourceColumn {
-            realization: StateFootprintEvidence::new(
-                RegisterSet::new([MachineRegister::X86Rax]),
-                MachineStateSet::new([MachineState::Flags]),
-            ),
+            realization: member_deriver_stub(
+                &member,
+                &boundary,
+                &code,
+                entry_address(member.entry, &members) - PLACEMENT_BASE,
+            )
+            .stub()
+            .member_body_envelope
+            .clone(),
             validation_receipt: identity(52, StateValidationReceiptId::from_normalized_identity),
         },
         component_pins: [ComponentVersionPin {
