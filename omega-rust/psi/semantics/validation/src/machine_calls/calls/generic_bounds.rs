@@ -70,10 +70,15 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
 }
 
 /// Whether a top-level `boundary requirement` may be called directly: public,
-/// nongeneric and receiver-free. Such a call executes only through the
-/// selected provider row that selected-dispatch settles after provider
-/// planning, which rejects a called requirement with no selected provider; a
-/// private, generic or receiver-bearing requirement keeps the symbol fence.
+/// nongeneric, and at most an owned `self` receiver. A receiver-free
+/// requirement is called `Owner::name(...)`; an owned-`self` requirement is
+/// called through a member receiver `place.name(...)`. Such a call executes
+/// only through the selected provider row that selected-dispatch settles
+/// after provider planning, which rejects a called requirement with no
+/// selected provider; a private or generic requirement keeps the symbol
+/// fence. A borrowed or qualified `self` receiver (`&self`, `self in
+/// Pending`) keeps it too: receiver custody and obligation transfer are a
+/// separate settlement shape.
 fn is_directly_callable_top_level_requirement(
     program: &TypedTrees,
     callee_machine: &Machine,
@@ -84,10 +89,18 @@ fn is_directly_callable_top_level_requirement(
         && callee_machine.lifetime_parameters.is_empty()
         && program.machine_type_parameters(callee_machine).is_empty()
         && program.machine_states(callee_machine).len() == 1
-        && !program
+        && program
             .state_parameters(callee_state)
             .iter()
-            .any(|parameter| parameter.is_self)
+            .filter(|parameter| parameter.is_self)
+            .all(|parameter| {
+                matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    typed_trees::types::TypeReferenceNode::Named { .. }
+                )
+            })
 }
 
 fn report_bodyless_boundary_symbol_call(

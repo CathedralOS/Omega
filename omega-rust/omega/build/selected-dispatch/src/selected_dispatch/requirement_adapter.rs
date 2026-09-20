@@ -10,7 +10,10 @@
 //! including the `_ = call();` explicit discard) — redirects to the adapter's
 //! entry state, journaled as a source edit, so the interpreter and Terminal
 //! execute the ordinary checked body while the retained row, flow facts and
-//! journal keep the requirement. A requirement satisfied by an external
+//! journal keep the requirement. An owned-`self` requirement settles the same
+//! route through a member call (`token.consume();`): its row forwards the
+//! receiver place, which the rewrite splices in as the adapter's leading
+//! argument. A requirement satisfied by an external
 //! `via` leaf settles no dispatch row and is deliberately not rewritten:
 //! the call stays on the requirement, whose retained boundary seam is the
 //! identity the native foreign-call join executes against.
@@ -23,7 +26,8 @@ use typed_trees::statement::StatementHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct RequirementCallRewrite {
     /// The journaled call site: an expression-table call or a
-    /// statement-table call (`Owner::name(...);`, including `_ = call();`).
+    /// statement-table call (`Owner::name(...);`, including `_ = call();`,
+    /// and member calls `token.consume();` on a `self` requirement).
     site: RequirementCallSite,
     /// The caller state and statement the flow occurrence and its checked
     /// scalar-argument facts are keyed on.
@@ -31,6 +35,10 @@ pub(super) struct RequirementCallRewrite {
     statement_ordinal: u32,
     call_ordinal: u32,
     requirement_state: symbols::SymbolHandle,
+    /// The `self` row forwards the call's receiver place as the adapter's
+    /// leading argument: the rewrite splices the receiver into argument
+    /// position 0 instead of only clearing it.
+    forward_receiver: bool,
     machine: String,
     entry_symbol: symbols::SymbolHandle,
 }
@@ -78,9 +86,9 @@ pub(super) fn plan_selected_requirement_rewrites(
     let mut rewrites = Vec::new();
     let mut diagnostics = Vec::new();
     for (row, requirement) in &rows {
-        if row.forward_receiver || !row.family_tuple.is_empty() {
+        if !row.family_tuple.is_empty() {
             diagnostics.push(Diagnostic::error(format!(
-                "selected top-level boundary requirement `{}` settled a receiver-forwarding or family row; only an exact receiver-free row is executable",
+                "selected top-level boundary requirement `{}` settled a family row; only an exact nongeneric row is executable",
                 requirement.name,
             )));
             continue;
@@ -117,6 +125,23 @@ pub(super) fn plan_selected_requirement_rewrites(
                     };
                     if call.target_symbol != row.requirement || call.receiver_symbol != row.receiver
                     {
+                        continue;
+                    }
+                    // A `self` row rewrites `token.consume()` into
+                    // `Provider::consume(token)`: the receiver place is
+                    // spliced as argument 0. Only a single-place receiver
+                    // path has an exact place symbol on both ends of that
+                    // move; a projected receiver (`self.t.consume()`)
+                    // remains unrewritten and its member symbols are not
+                    // retained per segment.
+                    if row.forward_receiver
+                        && (typed.statement_table.name_path_members(call.receiver).len() != 1
+                            || call.receiver_root_symbol != call.receiver_symbol)
+                    {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "member call on receiver-bearing public boundary requirement `{}` forwards only a single-place receiver",
+                            requirement.name,
+                        )));
                         continue;
                     }
                     let Some(flow_state) = checked
@@ -172,6 +197,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                         statement_ordinal,
                         call_ordinal,
                         requirement_state: row.requirement,
+                        forward_receiver: row.forward_receiver,
                         machine: realization.name.as_str().to_owned(),
                         entry_symbol: row.realization_state,
                     });
@@ -185,11 +211,20 @@ pub(super) fn plan_selected_requirement_rewrites(
             if call.target_symbol != row.requirement {
                 continue;
             }
-            let receiver = match typed.expression_table.expression(call.receiver) {
-                ExpressionNode::Name(path) => path.symbol,
-                _ => symbols::SymbolHandle::invalid(),
-            };
+            let (receiver, projected_receiver) =
+                match typed.expression_table.expression(call.receiver) {
+                    ExpressionNode::Name(path) => (path.symbol, false),
+                    ExpressionNode::Member(member) => (member.member_symbol, true),
+                    _ => (symbols::SymbolHandle::invalid(), false),
+                };
             if receiver != row.receiver {
+                continue;
+            }
+            if row.forward_receiver && projected_receiver {
+                diagnostics.push(Diagnostic::error(format!(
+                    "member call on receiver-bearing public boundary requirement `{}` forwards only a single-place receiver",
+                    requirement.name,
+                )));
                 continue;
             }
             // The flow occurrence is the exact custody coordinate of this
@@ -236,6 +271,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                 statement_ordinal,
                 call_ordinal,
                 requirement_state: row.requirement,
+                forward_receiver: row.forward_receiver,
                 machine: realization.name.as_str().to_owned(),
                 entry_symbol: row.realization_state,
             });
@@ -250,6 +286,10 @@ pub(super) fn plan_selected_requirement_rewrites(
 /// Redirect each journaled direct call to the realization entry, exactly as
 /// the named boundary-operator adapter rewrite does: receiver cleared, target
 /// name and entry symbol replaced, arguments and static bindings retained.
+/// A `self` row first splices the single-place receiver into argument 0,
+/// where the adapter's ordinary leading parameter binds it; the flow
+/// occurrence's receiver fields clear with the call node's, matching the
+/// receiver-free rewrite.
 /// The retained flow occurrence and the checked scalar-argument facts follow
 /// the call into the ordinary-call custody roles, so the rebuilt Unit plans
 /// and Terminal source custody see one coherent ordinary call to the checked
@@ -274,6 +314,26 @@ pub(super) fn apply_selected_requirement_rewrites(
                     unreachable!("planned requirement rewrite ceased to be a call")
                 };
                 debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
+                if rewrite.forward_receiver {
+                    // `recv.name(args)` becomes `Provider::entry(recv, args)`:
+                    // the authored receiver expression is spliced in as
+                    // argument 0, where the adapter's ordinary leading
+                    // parameter binds it; the caller's member-call custody
+                    // claim on the receiver place is preserved.
+                    let mut arguments = vec![call.receiver];
+                    arguments.extend(
+                        checked
+                            .typed
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .copied(),
+                    );
+                    call.arguments = checked
+                        .typed
+                        .expression_table
+                        .insert_expression_handles(arguments);
+                }
                 call.receiver = ExpressionHandle::invalid();
                 call.target = typed_trees::name::Identifier::generated(rewrite.machine.clone());
                 call.target_symbol = rewrite.entry_symbol;
@@ -288,6 +348,63 @@ pub(super) fn apply_selected_requirement_rewrites(
                     unreachable!("planned requirement rewrite ceased to be a statement call")
                 };
                 debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
+                if rewrite.forward_receiver {
+                    // `token.consume();` becomes `Provider::entry(token);`:
+                    // the receiver name path is a single caller place, so it
+                    // is reified as a Name expression and spliced in as
+                    // argument 0. Planning rejected multi-member receivers.
+                    debug_assert_eq!(
+                        checked
+                            .typed
+                            .statement_table
+                            .name_path_members(call.receiver)
+                            .len(),
+                        1
+                    );
+                    debug_assert_eq!(call.receiver_root_symbol, call.receiver_symbol);
+                    let mut members = arena::HandleSpan::empty();
+                    let mut member_symbols = arena::HandleSpan::empty();
+                    for member in checked
+                        .typed
+                        .statement_table
+                        .name_path_members(call.receiver)
+                        .to_vec()
+                    {
+                        checked
+                            .typed
+                            .expression_table
+                            .push_name_path_member(&mut members, member);
+                        checked.typed.expression_table.push_name_path_member_symbol(
+                            &mut member_symbols,
+                            call.receiver_symbol,
+                        );
+                    }
+                    let receiver_expression = checked.typed.expression_table.insert(
+                        ExpressionNode::Name(typed_trees::expression::TableNamePath {
+                            members,
+                            member_symbols,
+                            head_symbol: call.receiver_root_symbol,
+                            symbol: call.receiver_symbol,
+                        }),
+                    );
+                    checked
+                        .typed
+                        .expression_table
+                        .set_source_span(receiver_expression, call.source_span);
+                    let mut arguments = vec![receiver_expression];
+                    arguments.extend(
+                        checked
+                            .typed
+                            .statement_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .copied(),
+                    );
+                    call.arguments = checked
+                        .typed
+                        .statement_table
+                        .insert_expression_handles(arguments);
+                }
                 call.receiver_root_symbol = symbols::SymbolHandle::invalid();
                 call.receiver_symbol = symbols::SymbolHandle::invalid();
                 call.receiver = arena::HandleSpan::empty();

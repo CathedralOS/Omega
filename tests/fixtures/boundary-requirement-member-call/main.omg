@@ -1,0 +1,25 @@
+use omega_language_std::console;
+
+pub data Token [copy] { payload: i32; }
+
+pub boundary requirement Token::consume(self) -> Token;
+
+data TokenProvider {}
+
+machine TokenProvider::consume_impl(token: Token) -> Token
+satisfies Token::consume
+{
+    token
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self)
+reaches Console
+{
+    let value_token: Token = Token { payload: 41 };
+    let statement_token: Token = Token { payload: 1 };
+    let out: Token = value_token.consume();
+    _ = statement_token.consume();
+    self.console.exit_process(out.payload);
+}

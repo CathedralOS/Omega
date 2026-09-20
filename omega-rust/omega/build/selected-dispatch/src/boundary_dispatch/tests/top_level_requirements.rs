@@ -65,6 +65,28 @@ fn entry_symbol(checked: &CheckedTrees, machine_name: &str) -> symbols::SymbolHa
         .symbol
 }
 
+/// The symbol of parameter `parameter_name` on `machine_name`'s entry state.
+fn entry_parameter_symbol(
+    checked: &CheckedTrees,
+    machine_name: &str,
+    parameter_name: &str,
+) -> symbols::SymbolHandle {
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+        .unwrap_or_else(|| panic!("missing machine `{machine_name}`"));
+    checked
+        .typed
+        .machine_states(machine)
+        .iter()
+        .flat_map(|state| checked.typed.state_parameters(state))
+        .find(|parameter| parameter.name.as_str() == parameter_name)
+        .unwrap_or_else(|| panic!("missing parameter `{machine_name}`::{parameter_name}"))
+        .symbol
+}
+
 fn data_symbol(checked: &CheckedTrees, name: &str) -> symbols::SymbolHandle {
     checked
         .typed
@@ -289,8 +311,134 @@ fn a_statement_position_direct_call_redirects_to_the_selected_adapter() {
     assert!(authored.discards_result);
 }
 
+const SELF_REQUIREMENT_SOURCE: &str = r#"
+    pub data Token {}
+    pub boundary requirement Token::consume(self) -> i32;
+
+    data TokenProvider {}
+    machine TokenProvider::consume_impl(token: Token) -> i32
+    satisfies Token::consume
+    {
+        transition { _ -> (41) }
+    }
+
+    data Client {}
+    machine Client::run(&mut self, token: Token) -> i32 {
+        _ = token.consume();
+        transition { _ -> (7) }
+    }
+"#;
+
+/// A public `self` requirement is called through a member receiver
+/// (`token.consume()`). Settlement emits one dispatch row per receiver
+/// place — the row keys on the place's own symbol, not the nominal owner —
+/// and forwards that place as the adapter's leading argument.
 #[test]
-fn a_receiver_bearing_requirement_settles_no_direct_call_row() {
+fn a_self_requirement_settles_a_receiver_place_keyed_forwarding_row() {
+    let (checked, plans) = requirement_fixture(SELF_REQUIREMENT_SOURCE);
+    assert_eq!(plans.len(), 1, "one derived self-requirement plan");
+    let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "Token::consume");
+    let realization = entry_symbol(&checked, "TokenProvider::consume_impl");
+    let token = entry_parameter_symbol(&checked, "Client::run", "token");
+
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("a member call on an owned receiver settles");
+    let rows = &settled.facts.boundary_adapter_dispatch;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    let row = &rows[0];
+    assert_eq!(row.receiver, token);
+    assert_eq!(row.requirement, requirement);
+    assert_eq!(row.realization_state, realization);
+    assert!(row.forward_receiver && row.family_tuple.is_empty());
+}
+
+/// The statement member call `_ = token.consume();` redirects to the adapter
+/// entry with the receiver spliced in as argument 0 — the settled program
+/// reads exactly `TokenProvider::consume_impl(token)` — and the journal
+/// restores the authored requirement call.
+#[test]
+fn a_member_call_on_a_self_requirement_forwards_the_receiver_as_argument_zero() {
+    let (checked, plans) = requirement_fixture(SELF_REQUIREMENT_SOURCE);
+    let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "Token::consume");
+    let realization = entry_symbol(&checked, "TokenProvider::consume_impl");
+    let statement = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .flat_map(|state| {
+            checked
+                .typed
+                .statement_table
+                .iter_statements(state.statement_nodes)
+        })
+        .find_map(|(handle, statement)| match statement {
+            typed_trees::statement::StatementNode::Call(call)
+                if call.target.as_str() == "consume" =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        })
+        .expect("the statement member call");
+
+    let mut settled = Arc::new(checked);
+    let edits = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+        .expect("a member call on a `self` requirement settles");
+    let typed_trees::statement::StatementNode::Call(call) =
+        settled.typed.statement_table.statement(statement)
+    else {
+        panic!("the journaled statement call is still a call");
+    };
+    assert_eq!(call.target_symbol, realization);
+    assert_eq!(call.target.as_str(), "TokenProvider::consume_impl");
+    assert!(
+        call.receiver.is_empty() && !call.receiver_symbol.is_valid(),
+        "the receiver moved into the argument list"
+    );
+    let arguments = settled
+        .typed
+        .statement_table
+        .expression_handles(call.arguments)
+        .to_vec();
+    assert_eq!(arguments.len(), 1, "the receiver is argument 0");
+    let ExpressionNode::Name(name) = settled.typed.expression_table.expression(arguments[0]) else {
+        panic!("the forwarded receiver is a place name")
+    };
+    let token = entry_parameter_symbol(&settled, "Client::run", "token");
+    assert_eq!(name.symbol, token);
+    assert!(
+        settled
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .any(|(_, occurrence)| {
+                !occurrence.authored_expression.is_valid()
+                    && occurrence.target_symbol == realization
+                    && !occurrence.has_receiver
+            })
+    );
+    let source = edits
+        .source_trees(&settled.typed)
+        .expect("restore the journaled source");
+    let typed_trees::statement::StatementNode::Call(authored) =
+        source.statement_table.statement(statement)
+    else {
+        panic!("the restored statement is a call");
+    };
+    assert_eq!(authored.target_symbol, requirement);
+    assert_eq!(authored.target.as_str(), "consume");
+    assert!(authored.receiver_symbol.is_valid());
+    assert!(authored.discards_result);
+}
+
+#[test]
+fn a_borrowed_self_requirement_settles_no_direct_call_row() {
     let source = REQUIREMENT_SOURCE
         .replace(
             "pub boundary requirement CheckedMath::offset_zero(value: i32) -> i32;",
@@ -311,9 +459,11 @@ fn a_receiver_bearing_requirement_settles_no_direct_call_row() {
     match outcome {
         Ok(()) => assert!(settled.facts.boundary_adapter_dispatch.is_empty()),
         Err(diagnostics) => assert!(
-            diagnostics.iter().any(|diagnostic| diagnostic
-                .message
-                .contains("takes a `self` receiver; only a receiver-free requirement settles")),
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(
+                    "takes a borrowed `self` receiver; only an owned `self` receiver settles"
+                )),
             "{diagnostics:?}"
         ),
     }

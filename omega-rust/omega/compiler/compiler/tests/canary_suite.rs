@@ -137,6 +137,8 @@ mod inline_asm;
 mod relational_invariants;
 #[path = "canary_suite/task_runtime.rs"]
 mod task_runtime;
+#[path = "canary_suite/top_level_requirement_member_call.rs"]
+mod top_level_requirement_member_call;
 
 #[path = "canary_suite/abi_runtime_values_and_strings.rs"]
 mod abi_runtime_values_and_strings;
