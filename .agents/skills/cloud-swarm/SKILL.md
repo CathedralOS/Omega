@@ -210,6 +210,13 @@ conflict. When unfenced items run out, do NOT park the pool:
   {name, item, board, session_id, devin_mode, result, item_closed, commits,
   notes, recorded_utc}. Verify `git merge-base --is-ancestor <sha> origin/main`
   for every reported commit before recording `landed`.
+- Drain claim notes with the verdicts: `python3 tools/claims.py notes` lists
+  findings workers attached to their tickets ("already resolved upstream,
+  verified at <sha>"); fold what they justify into the coordinator's next
+  board sweep commit (landed with `--board-update`), then `python3
+  tools/claims.py sweep` marks them consumed. Workers never commit board
+  files — `landing.py` refuses board-only and empty candidates, and a lane
+  whose only diff is `TASKS.md` gets deleted as stale, not merged.
 - A child that reports a main-break it caused or witnessed (build failure on
   `origin/main`) is a coordinator priority item: reproduce, claim, fix, land
   via `tools/landing.py` — do not wait for the offender to return.
