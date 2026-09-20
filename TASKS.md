@@ -9236,7 +9236,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   2026-09-21T02:04Z; claim returned exit 2 (same item). Coordinate on the
   owner's branch; no in-fence work attempted.
 - **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
-- **REWRITE-CATALOG-ADMISSION** — mined candidate; verify scope then implement.
+- **REWRITE-CATALOG-ADMISSION.** Resolved at `9e3edc7be9` — scope
+  verified, re-mines the admission leg of the resolved
+  SELECTED-REWRITE-CATALOG-EXECUTION / EXACT-MACHINE-SIMPLIFICATIONS
+  cluster. Admission for already-cataloged rules is closed:
+  `rewrites/catalog.rs`'s `SELECTED_STAGE_RULE_CATALOG` +
+  `selected_stage_catalog_contains` gate both phase resolvers
+  (`selected_lowering/mod.rs:37`, `allocation_recovery/mod.rs:33`),
+  pinned by `selected_optimization::catalog_route_tests` and the
+  per-phase `catalog_exactly_matches_*` tests — 14/14 green via
+  `cargo nextest run -p selected-instructions-to-selected-instructions
+  --lib -E 'test(~catalog)'` on linux x86-64. The residual the name
+  reaches for — admitting the ~35 `Orphaned` modules in
+  `rewrites/module_catalog.rs` — is indivisible from
+  SELECTED-REWRITE-CATALOG-EXECUTION: each orphan needs an
+  `Optimization` member in `optimization-core`'s vocabulary plus a
+  catalog entry the stage entrance dispatches. No independent slice;
+  folds into that row. Sibling cluster: PIPELINE-REWRITE-CATALOG-WIRING,
+  SELECTED-REWRITE-CATALOG-{DISPOSITION,ROUTE,WIRING,OR-DELETE}.
 - **REWRITE-VALIDATOR-INDEPENDENCE.** Mined candidate — resolved at
   `d8041919ad`: this re-mines the EXACT-MACHINE-SIMPLIFICATIONS bullet
   "separate validation from proposal" (TASKS_OPTIMIZER.md) — each rewrite's
