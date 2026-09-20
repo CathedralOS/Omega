@@ -412,7 +412,15 @@ fn build_permuted_cycle_frame_equation<'program>(
                 // Synthesized wire codecs frame from their borrowed arguments;
                 // the type-name receiver never reaches the ownership floor.
                 let nested_writes = if wire_codecs::is_wire_codec_call(program, call) {
-                    wire_codecs::known_wire_codec_call_written_paths(program, call)
+                    wire_codecs::known_wire_codec_call_written_paths(
+                        program,
+                        machine,
+                        call,
+                        parameters,
+                        &isolated_local_roots,
+                        &local_alias_origins,
+                        &[],
+                    )
                 } else {
                     let argument_origins = arguments
                         .iter()
