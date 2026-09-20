@@ -182,8 +182,11 @@ def parse_pe(reader):
 
     def rva_to_offset(rva):
         for section in sections:
-            span = max(section.span, section.raw_size)
-            if section.address <= rva < section.address + span:
+            # File content exists only across the raw extent; an RVA in the
+            # virtual tail of a section (or in a bss-only section) would alias
+            # the following section's bytes, so it must refuse rather than
+            # read through.
+            if section.address <= rva < section.address + section.raw_size:
                 return section.raw_offset + (rva - section.address)
         raise ContainerError(f"PE32+ RVA {rva:#x} lands in no section")
 
