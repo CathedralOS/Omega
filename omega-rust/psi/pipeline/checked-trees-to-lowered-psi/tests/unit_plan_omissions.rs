@@ -200,8 +200,8 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
-         data Main {{
-             runtime: TaskRuntime;
+         data Main<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
          machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
              let task: Task<Token> = self.runtime.start<Worker::run>(token);
@@ -452,8 +452,8 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
 fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
     let baseline = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
-         data Main {{
-             runtime: TaskRuntime;
+         data Main<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
          machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
              let task: Task<Token> = self.runtime.start<Worker::run>(token);
@@ -757,11 +757,11 @@ fn a_provider_carrying_argument_still_stops_at_provider_attachment_requirements(
     // requirements.
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
-         data Carrier {{
-             runtime: TaskRuntime;
+         data Carrier<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
-         data Main {{
-             runtime: TaskRuntime;
+         data Main<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
          machine Main::probe(&mut self, carrier: Carrier) {{ }}
          machine Main::main(&mut self) {{ }}"
