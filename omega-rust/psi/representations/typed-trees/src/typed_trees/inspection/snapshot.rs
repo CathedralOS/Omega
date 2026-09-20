@@ -78,6 +78,9 @@ pub struct TypedTreesSnapshot {
     pub fused_service_erasures: Vec<FusedServiceErasureSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ranking_expression_custody: Vec<RankingExpressionCustodySnapshot>,
+    /// Deferred const range-endpoint marks, sorted for stable output.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pending_const_range_endpoints: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -232,7 +235,7 @@ pub struct SourceSpanSnapshot {
     pub end: usize,
 }
 
-fn source_span_snapshot(span: &source::SourceSpan) -> SourceSpanSnapshot {
+pub(crate) fn source_span_snapshot(span: &source::SourceSpan) -> SourceSpanSnapshot {
     SourceSpanSnapshot {
         source_id: span.source_id.0,
         start: span.span.start,
@@ -410,6 +413,12 @@ impl TypedTreesSnapshot {
                 data_payload_field_count: program.data_payload_fields.len(),
                 domain_definition_count: program.domain_definitions.len(),
                 proof_fact_count: program.proof_facts.len(),
+                proof_fact_source_span_count: program
+                    .tables
+                    .proof_fact_source_spans
+                    .iter()
+                    .filter(|span| span.is_some())
+                    .count(),
                 proposition_count: program.propositions.len(),
                 proposition_binder_count: program.proposition_binders.len(),
                 mathematical_definition_count: program.mathematical_definitions.len(),
@@ -439,6 +448,7 @@ impl TypedTreesSnapshot {
                 type_constraint_count: program.type_reference_table.constraint_count(),
                 wire_schema_count: program.wire_schemas.len(),
                 wire_member_count: program.wire_members.len(),
+                symbol_count: program.symbols.symbols().len(),
                 service_reach_definition_count: program.service_reaches.definitions().len(),
                 authored_service_reach_row_count: program.authored_service_reach_rows.len(),
                 external_binding_count: program.external_bindings.identities().len(),
@@ -681,6 +691,15 @@ impl TypedTreesSnapshot {
                     rank_range: custody.rank_range.map(|handle| handle.arena_index()),
                 })
                 .collect(),
+            pending_const_range_endpoints: {
+                let mut endpoints: Vec<u32> = program
+                    .pending_const_range_endpoints
+                    .iter()
+                    .map(|handle| handle.arena_index())
+                    .collect();
+                endpoints.sort_unstable();
+                endpoints
+            },
         }
     }
 
@@ -740,6 +759,7 @@ pub struct TypedTableSnapshot {
     pub data_payload_field_count: usize,
     pub domain_definition_count: usize,
     pub proof_fact_count: usize,
+    pub proof_fact_source_span_count: usize,
     pub proposition_count: usize,
     pub proposition_binder_count: usize,
     pub mathematical_definition_count: usize,
@@ -769,6 +789,7 @@ pub struct TypedTableSnapshot {
     pub type_constraint_count: usize,
     pub wire_schema_count: usize,
     pub wire_member_count: usize,
+    pub symbol_count: usize,
     pub service_reach_definition_count: usize,
     pub authored_service_reach_row_count: usize,
     pub external_binding_count: usize,

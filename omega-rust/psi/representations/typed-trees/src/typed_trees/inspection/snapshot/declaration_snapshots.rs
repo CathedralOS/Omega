@@ -16,7 +16,7 @@ use crate::typed_trees::inspection::snapshot::statement_and_expression_snapshots
 };
 use crate::typed_trees::inspection::snapshot::type_snapshots::type_reference_snapshot;
 use crate::typed_trees::inspection::snapshot::{
-    ExpressionSnapshot, StateParameterSnapshot, TypeReferenceSnapshot,
+    ExpressionSnapshot, SourceSpanSnapshot, StateParameterSnapshot, TypeReferenceSnapshot,
 };
 use serde::Serialize;
 
@@ -317,6 +317,8 @@ pub struct DomainEstablishmentRouteSnapshot {
 pub enum ProofFactSnapshot {
     Expression {
         value: ExpressionSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_span: Option<SourceSpanSnapshot>,
     },
     Membership {
         value: ExpressionSnapshot,
@@ -324,12 +326,16 @@ pub enum ProofFactSnapshot {
         domain_symbol: u32,
         #[serde(skip_serializing_if = "Vec::is_empty")]
         domain_arguments: Vec<TypeReferenceSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_span: Option<SourceSpanSnapshot>,
     },
     Proposition {
         proposition_symbol: u32,
         name: String,
         binder_arguments: Vec<Vec<String>>,
         arguments: Vec<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        source_span: Option<SourceSpanSnapshot>,
     },
 }
 
@@ -504,43 +510,63 @@ fn domain_fact_snapshots(
     program: &TypedTrees,
     domain: &DomainDefinition,
 ) -> Vec<ProofFactSnapshot> {
+    fact_snapshots_for_span(program, domain.facts)
+}
+
+/// Render one contiguous proof-fact span, joining each fact's retained source
+/// coordinate back through its arena handle.
+pub(crate) fn fact_snapshots_for_span(
+    program: &TypedTrees,
+    facts: arena::HandleSpan<ProofFact>,
+) -> Vec<ProofFactSnapshot> {
+    let facts_start = facts.start().arena_index();
     program
-        .proof_facts(domain)
+        .proof_facts
+        .span_or_empty(facts)
         .iter()
-        .map(|fact| match fact {
-            ProofFact::Expression(expression) => ProofFactSnapshot::Expression {
-                value: expression_snapshot(program, *expression),
-            },
-            ProofFact::Membership(membership) => ProofFactSnapshot::Membership {
-                value: expression_snapshot(program, membership.value),
-                domain: program
-                    .domain_path_members(membership.domain)
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect(),
-                domain_symbol: membership.domain_symbol.arena_index(),
-                domain_arguments: program
-                    .type_reference_table
-                    .type_reference_handles(membership.domain_arguments)
-                    .iter()
-                    .map(|argument| type_reference_snapshot(program, *argument))
-                    .collect(),
-            },
-            ProofFact::Proposition(application) => ProofFactSnapshot::Proposition {
-                proposition_symbol: application.proposition.arena_index(),
-                name: application.name.to_string(),
-                binder_arguments: application
-                    .binder_arguments
-                    .iter()
-                    .map(|argument| vec![argument.display_name()])
-                    .collect(),
-                arguments: program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                    .iter()
-                    .map(|argument| expression_snapshot(program, *argument))
-                    .collect(),
-            },
+        .enumerate()
+        .map(|(index, fact)| {
+            let source_span = program
+                .proof_fact_source_span(arena::Handle::from_arena_index(facts_start + index as u32))
+                .map(|span| super::source_span_snapshot(&span));
+            match fact {
+                ProofFact::Expression(expression) => ProofFactSnapshot::Expression {
+                    value: expression_snapshot(program, *expression),
+                    source_span,
+                },
+                ProofFact::Membership(membership) => ProofFactSnapshot::Membership {
+                    value: expression_snapshot(program, membership.value),
+                    domain: program
+                        .domain_path_members(membership.domain)
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                    domain_symbol: membership.domain_symbol.arena_index(),
+                    domain_arguments: program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments)
+                        .iter()
+                        .map(|argument| type_reference_snapshot(program, *argument))
+                        .collect(),
+                    source_span,
+                },
+                ProofFact::Proposition(application) => ProofFactSnapshot::Proposition {
+                    proposition_symbol: application.proposition.arena_index(),
+                    name: application.name.to_string(),
+                    binder_arguments: application
+                        .binder_arguments
+                        .iter()
+                        .map(|argument| vec![argument.display_name()])
+                        .collect(),
+                    arguments: program
+                        .expression_table
+                        .expression_handles(application.arguments)
+                        .iter()
+                        .map(|argument| expression_snapshot(program, *argument))
+                        .collect(),
+                    source_span,
+                },
+            }
         })
         .collect()
 }

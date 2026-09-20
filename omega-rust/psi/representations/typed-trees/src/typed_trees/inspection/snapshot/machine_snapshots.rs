@@ -7,8 +7,9 @@ use crate::machine::{Machine, OwnedData};
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::trait_definition::TraitDefinition;
+use crate::typed_trees::inspection::snapshot::declaration_snapshots;
 use crate::typed_trees::inspection::snapshot::statement_and_expression_snapshots::{
-    expression_snapshot, expression_snapshot_option, snapshot_static_argument, statement_snapshot,
+    expression_snapshot_option, snapshot_static_argument, statement_snapshot,
 };
 use crate::typed_trees::inspection::snapshot::type_snapshots::{
     type_reference_snapshot, type_reference_snapshot_option,
@@ -647,46 +648,7 @@ fn contract_fact_snapshots(
     program: &TypedTrees,
     facts: arena::HandleSpan<ProofFact>,
 ) -> Vec<ProofFactSnapshot> {
-    program
-        .proof_facts
-        .span_or_empty(facts)
-        .iter()
-        .map(|fact| match fact {
-            ProofFact::Expression(expression) => ProofFactSnapshot::Expression {
-                value: expression_snapshot(program, *expression),
-            },
-            ProofFact::Membership(membership) => ProofFactSnapshot::Membership {
-                value: expression_snapshot(program, membership.value),
-                domain: program
-                    .domain_path_members(membership.domain)
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect(),
-                domain_symbol: membership.domain_symbol.arena_index(),
-                domain_arguments: program
-                    .type_reference_table
-                    .type_reference_handles(membership.domain_arguments)
-                    .iter()
-                    .map(|argument| type_reference_snapshot(program, *argument))
-                    .collect(),
-            },
-            ProofFact::Proposition(application) => ProofFactSnapshot::Proposition {
-                proposition_symbol: application.proposition.arena_index(),
-                name: application.name.to_string(),
-                binder_arguments: application
-                    .binder_arguments
-                    .iter()
-                    .map(|argument| vec![argument.display_name()])
-                    .collect(),
-                arguments: program
-                    .expression_table
-                    .expression_handles(application.arguments)
-                    .iter()
-                    .map(|argument| expression_snapshot(program, *argument))
-                    .collect(),
-            },
-        })
-        .collect()
+    declaration_snapshots::fact_snapshots_for_span(program, facts)
 }
 
 pub(crate) fn state_parameter_snapshot(
