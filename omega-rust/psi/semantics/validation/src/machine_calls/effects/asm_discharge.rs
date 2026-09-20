@@ -273,6 +273,7 @@ fn statement_asm_intrinsic(
         symbols::BuiltinFunction::AsmWriteCr0 => "write_cr0",
         symbols::BuiltinFunction::AsmWriteCr3 => "write_cr3",
         symbols::BuiltinFunction::AsmWriteCr4 => "write_cr4",
+        symbols::BuiltinFunction::AsmWriteBackInvalidate => "wbinvd",
         _ => return None,
     };
     let language_core::inline_assembly::AsmCatalogEntry::Contract(contract) =

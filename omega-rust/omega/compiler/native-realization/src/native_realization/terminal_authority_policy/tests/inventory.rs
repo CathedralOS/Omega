@@ -49,7 +49,10 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmReadCr4
             | BuiltinFunction::AsmWriteCr0
             | BuiltinFunction::AsmWriteCr3
-            | BuiltinFunction::AsmWriteCr4 => vec![TerminalAuthorityClass::MachineControl],
+            | BuiltinFunction::AsmWriteCr4
+            | BuiltinFunction::AsmWriteBackInvalidate => {
+                vec![TerminalAuthorityClass::MachineControl]
+            }
             BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
                 vec![TerminalAuthorityClass::PortIo]
             }
@@ -141,9 +144,11 @@ fn linux_console_and_numeric_families_have_exact_dispositions() {
             .classes(),
         &[TerminalAuthorityClass::ProcessOutput]
     );
+    // Three hosted coordinates precede the builtin block in the closed
+    // inventory; every row after them must carry an empty authority class.
     for mechanism in closed_policy_mechanisms()
         .into_iter()
-        .skip(2 + BuiltinFunction::COUNT)
+        .skip(3 + BuiltinFunction::COUNT)
     {
         assert!(
             policy
@@ -173,8 +178,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            159, 205, 164, 116, 50, 135, 128, 240, 210, 236, 191, 83, 119, 50, 11, 131, 173, 239,
-            183, 105, 133, 97, 193, 56, 94, 13, 4, 199, 191, 189, 99, 119,
+            7, 14, 105, 204, 115, 199, 65, 201, 127, 94, 211, 80, 215, 42, 47, 61, 218, 107, 27,
+            194, 74, 59, 119, 20, 196, 252, 115, 249, 95, 36, 188, 8,
         ]
     );
 }

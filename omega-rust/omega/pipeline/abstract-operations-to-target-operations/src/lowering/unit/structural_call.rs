@@ -262,6 +262,29 @@ pub(in crate::lowering) fn lower_structural_argument(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
+    // Whole-root domain preconditions bind by exact roster equality: the
+    // callee parameter's declared qualifications must equal the roster the
+    // caller's source place carries — a caller structural parameter's own
+    // declared roster, or a produced structural home's result roster. Every
+    // other source carries no qualifications and satisfies only an
+    // unqualified parameter. Verified discharge happened upstream; lowering
+    // transports the authority without re-proving it.
+    let source_qualifications = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)
+        .map(|parameter| parameter.qualifications.as_slice())
+        .or_else(|| {
+            super::projected_result::source(operations, argument.place)
+                .map(|(home, _)| home.qualifications())
+        })
+        .unwrap_or(&[]);
+    if source_qualifications != callee_parameter.qualifications.as_slice() {
+        return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+            callee,
+            place: argument.place,
+        });
+    }
     if let Some((source, structural_type)) = established_views
         .get(&argument.place)
         .map(|(producer, structural_type)| {

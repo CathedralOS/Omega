@@ -267,6 +267,13 @@ pub(crate) fn discover_imports(
         for (ordinal, root_item) in parsed_source.root_items.iter().enumerate() {
             if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
                 let members = syntax_trees.items.identifier_path_members(use_item.path);
+                if is_bundled_omega_path(members) && local_source_exists(&source_root, members) {
+                    return Err(vec![Diagnostic::error(format!(
+                        "import `{}` in {} collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it",
+                        identifier_path_text(members),
+                        parsed_source.path.display(),
+                    ))]);
+                }
                 let resolved = normalize_path(&resolve_source_path(&source_root, members))?;
                 let prefix = if is_bundled_omega_path(members) { 2 } else { 0 };
                 let owner = if prefix == 2 {
@@ -513,6 +520,17 @@ pub(crate) fn reconciled_package_import(
         ))]);
     };
     if is_bundled_core_path(members) {
+        if let Some(root) = requester
+            .and_then(|requester| packages.package_root(requester))
+            .filter(|root| local_source_exists(root, members))
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "import `{}` in {} collides with a requester-local source below {}; `omega::language::core` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it",
+                identifier_path_text(members),
+                requesting_source.display(),
+                root.display(),
+            ))]);
+        }
         return resolve_reconciled_import(bundled_omega_root(), &members[2..], "toolchain")
             .map(ReconciledPackageImport::Toolchain);
     }

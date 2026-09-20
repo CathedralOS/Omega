@@ -3,7 +3,7 @@
 //! complete value-binder tuples, and the dynamic selection itself generates
 //! every roster tuple's provider specialization.
 
-use super::{check_dynamic_source, sole_direct_dynamic_plan};
+use super::{check_dynamic_source, sole_direct_dynamic_plan, sole_direct_dynamic_unit_plan};
 use crate::tests::{
     Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
     resolve,
@@ -400,5 +400,279 @@ fn boundary_family_demand_rejects_an_open_roster() {
             .iter()
             .any(|diagnostic| { diagnostic.message.contains("names an open roster") }),
         "the rejection must name the open roster, got {errors:#?}"
+    );
+}
+
+/// A `dyn` family call whose result is Unit plans through the same tuple
+/// join: the statement-position call selects one closed roster tuple and the
+/// callable roster carries every tuple's specialization instance.
+const UNIT_FAMILY_CALL_SOURCE: &str = r#"
+    trait Shape {
+        machine code<Width: u32>(&self) where Width == 16 || Width == 32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    machine Item::code<Width: u32>(&self) satisfies Shape::code {
+    }
+
+    Primary: Item satisfies Shape {
+        Shape::code = Item::code;
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine Main::run(&mut self) {
+        self.item.value = 7;
+        let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+        erased.code<16>();
+    }
+"#;
+
+/// A `dyn` family call reached through a forwarded `&dyn` parameter resolves
+/// its tuple in the callee's context: the descriptor transfer carries the
+/// outer selection and the inner call names its exact specialization.
+const FORWARDED_FAMILY_CALL_SOURCE: &str = r#"
+    trait Shape {
+        machine code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
+        transition { _ -> self.value }
+    }
+
+    Primary: Item satisfies Shape {
+        Shape::code = Item::code;
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine forward(erased: &dyn Shape) -> i32 {
+        let value: i32 = erased.code<32>();
+        transition { _ -> value }
+    }
+
+    machine Main::run(&mut self) {
+        self.item.value = 7;
+        let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+        let result: i32 = forward(erased);
+    }
+"#;
+
+/// A `dyn` family call spelling the caller's own generic binder is not a
+/// closed roster tuple at the template: const binders forward through
+/// specialization, so the family surface keeps rejecting them until the
+/// runtime-subject leg exists.
+const GENERIC_CALLER_TUPLE_SOURCE: &str = r#"
+    trait Shape {
+        machine code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    machine Item::code<Width: u32>(&self) -> i32 satisfies Shape::code {
+        transition { _ -> self.value }
+    }
+
+    Primary: Item satisfies Shape {
+        Shape::code = Item::code;
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine Main::run<W: u32>(&mut self) {
+        self.item.value = 7;
+        let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+        let result: i32 = erased.code<W>();
+    }
+"#;
+
+/// A family requirement cannot be realized by a provider that is not itself
+/// generic over the requirement's binders: the conformance row names a
+/// nongeneric machine, which can never cover the declared roster.
+const NONGENERIC_PROVIDER_SOURCE: &str = r#"
+    trait Shape {
+        machine code<Width: u32>(&self) -> i32 where Width == 16 || Width == 32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    machine Item::code(&self) -> i32 satisfies Shape::code {
+        transition { _ -> self.value }
+    }
+
+    Primary: Item satisfies Shape {
+        Shape::code = Item::code;
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine Main::run(&mut self) {
+        self.item.value = 7;
+        let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+        erased.code<16>();
+    }
+"#;
+
+#[test]
+fn dynamic_family_unit_call_selects_its_tuple_and_the_complete_roster() {
+    let checked = check_dynamic_source(UNIT_FAMILY_CALL_SOURCE);
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(dynamic.transfers.is_empty());
+    let plan = sole_direct_dynamic_unit_plan(&checked);
+
+    assert_eq!(
+        plan.family_tuple.as_ref(),
+        ["named(integer-const(16))".to_owned()],
+        "the statement-position call must land on one declared roster tuple"
+    );
+
+    // The callable roster carries one Unit body per roster tuple, each naming
+    // that tuple's own specialization instance rather than the template.
+    let template = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Item::code")
+        .expect("provider template");
+    assert_eq!(
+        plan.realization_callables.len(),
+        2,
+        "one callable per roster tuple"
+    );
+    let mut roster: Vec<&str> = plan
+        .realization_callables
+        .iter()
+        .flat_map(|callable| callable.family_tuple.iter())
+        .map(String::as_str)
+        .collect();
+    roster.sort_unstable();
+    assert_eq!(
+        roster,
+        ["named(integer-const(16))", "named(integer-const(32))"],
+        "the callable roster is the complete declared family"
+    );
+    for callable in &plan.realization_callables {
+        assert_ne!(
+            callable.realization_machine, template.symbol,
+            "every callable names its tuple's specialization instance"
+        );
+        assert!(
+            matches!(
+                callable.body,
+                checked_trees::CheckedDynamicRealizationBodyPlan::Unit
+            ),
+            "a Unit family callable keeps an operation-free body"
+        );
+    }
+}
+
+#[test]
+fn forwarded_family_call_joins_the_parameter_side_tuple() {
+    let checked = check_dynamic_source(FORWARDED_FAMILY_CALL_SOURCE);
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [transfer] = dynamic.transfers.as_slice() else {
+        panic!("one descriptor transfer expected, got {dynamic:#?}")
+    };
+    let [plan] = dynamic.direct_scalar_calls.as_slice() else {
+        panic!("the callee-side family call plans in the callee context")
+    };
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+
+    assert_eq!(
+        transfer.target_trait, plan.target_trait,
+        "the transfer forwards the outer `&dyn` selection"
+    );
+    assert_eq!(
+        plan.family_tuple.as_ref(),
+        &["named(integer-const(32))".to_owned()],
+        "the callee's family call selects its own closed tuple"
+    );
+    let template = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Item::code")
+        .expect("provider template");
+    assert_ne!(
+        plan.realization_machine, template.symbol,
+        "the forwarded call names the tuple's specialization instance"
+    );
+    let instance = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == plan.realization_machine)
+        .expect("the selected specialization is a real machine");
+    let specialization = checked
+        .typed
+        .machine_specializations
+        .iter()
+        .find(|candidate| candidate.instance == instance.symbol)
+        .expect("the instance is a specialization record");
+    assert_eq!(
+        specialization.const_argument_identities.as_slice(),
+        &["named(integer-const(32))".to_owned()],
+        "the joined instance is exactly the call's roster tuple"
+    );
+}
+
+#[test]
+fn dynamic_family_call_rejects_a_generic_caller_tuple() {
+    let tokens = Lexer::new(GENERIC_CALLER_TUPLE_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let Err(errors) = lower_typed_trees(typed) else {
+        panic!("a generic-spelled tuple is not a closed roster tuple")
+    };
+    assert!(
+        errors.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("requires exactly one closed roster tuple")
+        }),
+        "the rejection must keep requiring a closed roster tuple, got {errors:#?}"
+    );
+}
+
+#[test]
+fn dynamic_family_call_rejects_a_nongeneric_provider() {
+    let tokens = Lexer::new(NONGENERIC_PROVIDER_SOURCE)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let Err(errors) = lower_typed_trees(typed) else {
+        panic!("a nongeneric provider cannot cover a finite family")
+    };
+    assert!(
+        errors.iter().any(|diagnostic| {
+            diagnostic.message.contains(
+                "cannot cover the declared finite family: a family provider must be generic over exactly the requirement's 1 const/value binders"
+            )
+        }),
+        "the rejection must name the provider arity contract, got {errors:#?}"
     );
 }

@@ -253,3 +253,22 @@ fn pipeline_directives_enforce_zero_operand_and_clobber_contracts() {
         assert_contract_rejects(name, expected);
     }
 }
+
+// Cache maintenance is pinned at the checked surface for the same reason as
+// the pipeline directives above: asm-only program entries are refused before
+// emission. When artifact production reaches this family, promote the pass
+// fixture to a byte assertion (x86: `0f 09` wbinvd) and an aarch64 refusal.
+#[test]
+fn cache_maintenance_reaches_checked_semantics() {
+    compile_canary_without_output(&pass_canary(fixture_roster::ASM_CACHE_MAINTENANCE_COMPILE))
+        .unwrap_or_else(|diagnostics| {
+            panic!("cache-maintenance canary should reach checked semantics:\n{diagnostics:#?}")
+        });
+}
+
+#[test]
+fn hosted_wbinvd_cannot_claim_machine_owner_authority() {
+    for &(name, expected) in fixture_roster::CACHE_OPERATION_FAIL_CANARIES {
+        assert_contract_rejects(name, expected);
+    }
+}

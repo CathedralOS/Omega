@@ -5,10 +5,10 @@ use crate::tests::{
 };
 pub(super) const EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
     rule_evaluations: 14,
-    candidates: 299,
-    validation_steps: 336,
+    candidates: 194,
+    validation_steps: 310,
     commits: 15,
-    iterations: 179,
+    iterations: 153,
 };
 
 pub(super) fn exact_usage(target: NativeTarget) -> OptimizationWorkUsage {
@@ -16,9 +16,9 @@ pub(super) fn exact_usage(target: NativeTarget) -> OptimizationWorkUsage {
         EXACT_USAGE
     } else {
         OptimizationWorkUsage {
-            candidates: 1064,
-            validation_steps: 1101,
-            iterations: 344,
+            candidates: 839,
+            validation_steps: 1030,
+            iterations: 273,
             ..EXACT_USAGE
         }
     }

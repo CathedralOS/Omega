@@ -19,6 +19,8 @@ every source-to-native consumer realizes it.
 | x86 `serialize` / AArch64 `isb` | Zero operands; instruction-stream serialization — every prior instruction completes and instruction fetch re-synchronizes — not memory ordering; UserChecked, no authority, no clobbers. |
 | x86 `pause` / AArch64 `yield` | Zero operands; scheduler/pipeline hint the core may elide — no semantic or machine-state obligation; UserChecked, no authority, no clobbers. |
 | `lidt`, `iretq` / `sysret` / `sysretq`, `eret` | Deriver-only; `lidt` has the consumer-authorized descriptor contract, not an arbitrary address operand. |
+| x86 `serialize` / `pause`; aarch64 `isb` / `yield` | Zero-operand pipeline directives: instruction-stream serialization and scheduling hints carry no operand, no service reach and no clobber. |
+| x86 `wbinvd` | Zero-operand cache maintenance: serializing, MachineOwner, no modeled operand place. Cache operations needing a memory operand (`invlpg`, `clflush`) stay refused until a modeled memory contract exists. |
 
 The catalog's operand and clobber constants are authoritative for the current
 realized sequence, including scratch loaders/stores. Do not copy their register

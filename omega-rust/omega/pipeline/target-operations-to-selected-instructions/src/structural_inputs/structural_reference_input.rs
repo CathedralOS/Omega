@@ -133,7 +133,10 @@ pub(crate) fn parameter_shape(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ValueShape> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
-    if !parameter.qualifications.is_empty() || !parameter.projected_qualifications.is_empty() {
+    // Whole-root domain qualifications are signature preconditions the caller
+    // or root installation discharges at invocation; they do not change the
+    // parameter's storage shape. Projected qualifications still decline.
+    if !parameter.projected_qualifications.is_empty() {
         return None;
     }
     if parameter.is_self
