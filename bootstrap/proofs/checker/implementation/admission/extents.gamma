@@ -14,8 +14,8 @@
       (let certificate_end Int
         (admission_section_end proposition_end certificate_length)
         (if (eq certificate_end request_length)
-          (if (lt 8388608 request_length)
-            (admission_incomplete 1 8388608 8388608 request_length)
+          (if (lt 136314880 request_length)
+            (admission_incomplete 1 136314880 136314880 request_length)
             (admission_framed theory_end proposition_end certificate_end))
           (admission_rejected 5 certificate_end)))
       (admission_rejected 4 failure))))

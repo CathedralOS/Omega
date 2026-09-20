@@ -20,8 +20,8 @@ import time
 from pathlib import Path
 
 GATE_DIR = Path(__file__).resolve().parent
-sys.path.append(str(GATE_DIR.parent / "derivation-layout"))
 sys.path.append(str(GATE_DIR.parent / "beta-encoding-theory"))
+sys.path.append(str(GATE_DIR.parent / "derivation-layout"))
 
 import full_subject  # noqa: E402
 import gate as theory_gate  # noqa: E402
