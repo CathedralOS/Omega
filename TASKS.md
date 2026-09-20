@@ -6972,6 +6972,35 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   structural_control_cases}.rs` (21 bare spellings) sit inside
   PROOF-CERTIFICATION-BRIDGE's `src/tests` claim (expires ~2026-09-21T00:51Z)
   — same migration applies there when the fence settles.
+  **One member outside the c2l roster, measured 2026-09-20 at `3533f7d0e8`
+  (macOS arm64):** `native-realization`
+  `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`
+  is the same 32f5182254 fallout — its `SINK_SOURCE` still spells
+  `data Main { sink: Sink; }` — but the roster's migration recipe does not
+  reach it, for a reason worth recording. Its entrance
+  `tests/fixtures/checked_source.rs::checked` resolves a **source-free**
+  forest (`ResolutionRequest::new`, `sources: None`), and `Service` is never
+  matched by name: both
+  `syntax-trees-to-symbol-resolved-trees::symbols::type_references::queries::exact_service_carrier_data`
+  and typed-trees `calls::service::is_exact_service_data_symbol` require the
+  declaration to come from a `SourceOrigin::Toolchain` file whose
+  package-relative path is exactly `service.omg` (`SERVICE_CORE_SOURCE`). So
+  no string handed to that helper can spell a routed service call, and
+  `sink: Service<Sink>` alone fails with "unknown generic type `Service`".
+  Walked the whole ladder to confirm where it actually stops: adding a
+  `SourceMap` with `add_with_metadata(PathBuf::from("core/service.omg"),
+  "pub boundary data Service<R>;", PathBuf::from("core"), None,
+  SourceOrigin::Toolchain)` parsed into the same forest via
+  `parse_syntax_trees_into_with_id` gets the carrier recognized; `Sink` must
+  then also be `pub` ("requires a public boundary trait as its stable slot
+  contract"); and the fixture then lands on exactly this row's stop —
+  `` `Main::launch` has no admitted body (local construction stopped at
+  signature) `` — which a source-declared provider satisfying `Sink::emit`
+  does NOT clear, because selection is build-evaluated and that helper runs
+  no build. So this member is fenced behind the same
+  missing-transitive-machine-plan leg as the carrier-semantic three above,
+  and migrating it additionally needs the fixture entrance to carry a
+  toolchain `SourceMap`. Probe reverted; nothing landed for it here.
 - **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.
 - **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; scope
   verified, real residual, fenced. Re-mines the provider-attachment members
