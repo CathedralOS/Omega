@@ -14,7 +14,7 @@ pub data Folder {
 }
 
 pub domain Folder::Writable
-established by Desktop::choose_folder;
+established by Desktop::choose_folder, DesktopProvider::choose_folder;
 
 pub boundary trait Desktop {
     machine choose_folder(prompt: &[u8] in Utf8) -> Folder
@@ -22,6 +22,17 @@ pub boundary trait Desktop {
         result in Folder::Writable
     reaches
         Desktop;
+}
+
+data DesktopProvider {
+}
+
+machine DesktopProvider::choose_folder(prompt: &[u8] in Utf8) -> Folder
+satisfies Desktop::choose_folder
+ensures
+    result in Folder::Writable
+{
+    Folder {}
 }
 
 data Vault {
@@ -52,4 +63,13 @@ data Main {
 
 machine Main::main(&mut self) {
     let staged: Folder = self.backup.stage();
+}
+
+// The capability-flow rows are checked-level facts on this authored chain; the
+// deployable entry stays a plain receiver until nested routed-Service storage
+// provisions transitively under a program entry.
+data Probe {
+}
+
+machine Probe::enter(&mut self) {
 }
