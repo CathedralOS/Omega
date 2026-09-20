@@ -12,9 +12,9 @@ pub use model::{
     NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
     NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
     NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts, NativePhysicalOccurrence,
-    NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
-    NormalizedForeignCallbackRelocations, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
-    PhysicalChildParent, PhysicalRelocationDisposition,
-    ValidatedOptimizedNativePhysicalEvidenceScope,
+    NormalizedForeignCallImportField, NormalizedForeignCallRelocation,
+    NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
+    OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
+    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
 };
 pub(crate) use projection::derive_validated_optimization_scope;

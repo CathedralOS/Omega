@@ -29,8 +29,8 @@ pub use physical::{
     NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
     NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
     NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts, NativePhysicalOccurrence,
-    NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
-    NormalizedForeignCallbackRelocations, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
-    PhysicalChildParent, PhysicalRelocationDisposition,
-    ValidatedOptimizedNativePhysicalEvidenceScope,
+    NormalizedForeignCallImportField, NormalizedForeignCallRelocation,
+    NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
+    OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
+    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
 };

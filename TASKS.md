@@ -2089,25 +2089,31 @@ Owners include
   from the staged source (`derive_normalized_foreign_call_custody`) and
   `NativeArtifact::from_emitted_parts` binds those rows onto the emitted
   image, so independent replay rejoins the artifact's admitted provider
-  execution to the exact call site.
+  execution to the exact call site. Physical derivation has landed: the
+  fragment-publication binding retains the relocation-free object plan and
+  selected plan beside the projected custody, `derive_physical_evidence`
+  merges the retained roster into its call map, and the normalized-foreign
+  child replays the `{caller, operation}` unresolved import field, its
+  declared import symbol, and the selected roster row to emit
+  `UnresolvedNormalizedForeignCallImportField` custody keyed to the call's
+  `{caller, operation}` and four-byte branch field. A substituted plan row,
+  placement, or provider binding rejects inside that rejoin.
   `efb3_flat_record_probe.rs::flat_record_via_call_native_realization_probe`
-  now pins the custody fields and reports physical derivation's remaining
-  frontier (`UnrealizedBoundaryOccurrence`: the fragment route seals the
-  object's effect roster empty, so the derivation cannot yet claim the image
-  custody row for its boundary occurrence).
+  now pins the realized boundary child for the flat-record call.
 
   Remaining work:
 
   - Emit normalized foreign calls: selection, register homes, machine
-    emission, object import plans, and image custody landed at `d5e8ceef51`,
-    `96516e2fff`, and this wave; the remaining stage is physical derivation
-    of the normalized-foreign child (the fragment route seals the object's
-    effect roster empty, so `derive_physical_evidence` must rejoin the image
-    custody instead). `image-emission/src` stays fenced to the
+    emission, object import plans, image custody, and physical derivation
+    landed at `d5e8ceef51`, `96516e2fff`, and this wave. Scalar-argument
+    custody still fails closed — `derive_normalized_foreign_call_custody`
+    rejects a roster row with nonempty `scalar_arguments`, so the projected
+    row and the physical child keep that lane empty until the widening leg
+    lands. `image-emission/src` stays fenced to the
     wave claiming it.
     `compiler/tests/efb3_flat_record_probe.rs` pins the Terminal
-    precondition, the completed image-custody rejoin, and the
-    `UnrealizedBoundaryOccurrence` frontier;
+    precondition, the completed image-custody rejoin, and the realized
+    boundary child;
     **EVALUATED-FOREIGN-BINDINGS** owns locators and import evidence.
   - Widen foreign arguments and results. The scalar lane admits fixed-width
     integers only; add floating-point and other admitted scalar shapes. Borrowed

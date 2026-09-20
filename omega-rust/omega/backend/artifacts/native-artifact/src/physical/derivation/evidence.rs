@@ -133,8 +133,24 @@ pub(crate) fn derive_physical_evidence(
         return Err("native physical evidence found a stale boundary settlement");
     }
 
+    // Fragment publication seals the object's own foreign-call roster empty
+    // and carries the projected custody rows on the validated scope; both
+    // rosters merge here so a boundary occurrence can always rejoin its call
+    // custody regardless of which route retained it.
+    let fragment_publication = match scope {
+        NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
+            optimized.fragment_publication()
+        }
+        _ => None,
+    };
+    let retained_custody = match scope {
+        NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
+            optimized.foreign_call_custody()
+        }
+        _ => &[],
+    };
     let mut foreign_calls = BTreeMap::new();
-    for foreign in object.foreign_calls() {
+    for foreign in object.foreign_calls().iter().chain(retained_custody.iter()) {
         let CallSiteOwner::Operation(operation) = foreign.owner else {
             return Ok(blocked(
                 NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {
@@ -243,6 +259,7 @@ pub(crate) fn derive_physical_evidence(
                     image,
                     final_image_symbol_digest,
                     foreign,
+                    fragment_publication,
                 )?
                 else {
                     return Ok(blocked(
@@ -577,6 +594,7 @@ pub(crate) fn physical_child_identity(
         PhysicalRelocationDisposition::DirectInstructionBytes => 1,
         PhysicalRelocationDisposition::ResolvedInternalCall => 2,
         PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(_) => 3,
+        PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(_) => 4,
     }]);
     if let PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(relocation) = relocation {
         digest.update(relocation.locator_identity());
@@ -609,6 +627,22 @@ pub(crate) fn physical_child_identity(
             }
         }
         digest.update(relocation.final_image_symbol_identity());
+    }
+    if let PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(field) =
+        relocation
+    {
+        digest.update(field.locator_identity());
+        digest.update(field.boundary_plan_identity());
+        digest.update(field.caller().get().to_le_bytes());
+        digest.update(field.operation().get().to_le_bytes());
+        digest.update(field.boundary().get().to_le_bytes());
+        digest.update(field.ordinal().to_le_bytes());
+        digest.update(field.object_symbol().get().to_le_bytes());
+        digest.update(canonical_usize(field.offset()));
+        digest.update(canonical_usize(field.byte_width()));
+        digest.update(field.addend().to_le_bytes());
+        digest.update([relocation_kind_tag(field.kind())]);
+        digest.update(field.final_image_symbol_identity());
     }
     digest.finalize().into()
 }

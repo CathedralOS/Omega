@@ -3,7 +3,7 @@ use machine_code::{
     MachineCodeFunction, MachineCodePlan, SemanticCodeAttribution, SemanticCodeSite,
     UnitAffineCleanupRecord, UnitStackEvidence,
 };
-use semantic_vocabulary::{EdgeId, MachineId};
+use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, MachineId};
 use target::NativeTarget;
 use target_operations::TerminalPsiProvenance;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
@@ -35,9 +35,50 @@ fn construction_rejects_detached_final_plan_and_object_terminal() {
 fn admitted_object_binding_rejects_a_different_valid_object() {
     let original = image_emission::build_object_artifact(&plan(1)).unwrap();
     let different = image_emission::build_object_artifact(&plan(2)).unwrap();
+    let machine = MachineId::new(7).unwrap();
     let binding = FragmentPublicationBinding {
         object: Arc::new(original.clone()),
         foreign_call_custody: Vec::new(),
+        relocation_free_object: Arc::new(
+            object_file::RelocationFreeObjectPlan {
+                identity: optimization_core::RelocationFreeObjectPlanIdentity::from_canonical_bytes(
+                    b"fragment-object",
+                ),
+                source_text_section:
+                    optimization_core::TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(
+                        b"text",
+                    ),
+                psi: terminal(),
+                fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+                selected: selected_instructions::SelectedInstructionPlanIdentity::from_canonical_bytes(
+                    b"selected",
+                ),
+                selections: optimization_core::OptimizationSelectionIdentity::from_bytes([6; 32]),
+                target: NativeTarget::linux_x64(),
+                text_section: object_file::RelocationFreeObjectTextSection {
+                    name: ".text".to_owned(),
+                    alignment: 1,
+                    byte_count: 1,
+                    bytes: vec![0xc3],
+                },
+                symbol_policy: object_file::RelocationFreeObjectSymbolPolicy::PrivateSemanticMachineSymbolsV1,
+                symbols: Vec::new(),
+                semantic_entry: machine,
+                semantic_entry_symbol: object_file::ObjectLocalSymbolId::new(1).unwrap(),
+                normalized_imports: Vec::new(),
+                unresolved_normalized_foreign_calls: Vec::new(),
+                relocation_record_count: 0,
+                relocation_requirements:
+                    object_file::RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+            },
+        ),
+        selected: Arc::new(selected_instructions::SelectedInstructionPlan {
+            psi: terminal(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            target: NativeTarget::linux_x64(),
+            entry: machine,
+            functions: Vec::new().into(),
+        }),
         identity: [7; 32],
     };
     assert!(binding.validate_object(&original).is_ok());
