@@ -1,4 +1,10 @@
-//! Normalize explicit const selections into the existing erased value leaves.
+//! Validate authored static arguments before specialization erases their sites.
+//!
+//! Type arguments retain the lexical owner of their declaration: machine
+//! bodies/signatures and data fields contribute their own type roots and
+//! binders. A nominal data use cannot lend the consumer's scope to its fields.
+//! Const selections normalize into the existing erased value leaves only
+//! after their declared kinds and carriers have been checked.
 
 use super::{CalleeState, Candidate};
 use crate::monomorphization::selection::resolve_callee;
@@ -528,7 +534,7 @@ fn validate_structural_type_arguments(
     }
     fn validate_types(
         program: &TypedTrees,
-        caller: &typed_trees::machine::Machine,
+        caller: validation::StaticTypeArgumentOwner<'_>,
         arguments: &[StaticMachineArgument],
         symbols: &validation::TopLevelSymbols<'_>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -564,6 +570,34 @@ fn validate_structural_type_arguments(
             }
         }
     }
+    fn validate_expressions(
+        program: &TypedTrees,
+        caller: validation::StaticTypeArgumentOwner<'_>,
+        symbols: &validation::TopLevelSymbols<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+        visited_types: &mut Vec<TypeReferenceHandle>,
+        expressions: &mut Vec<ExpressionHandle>,
+        owned: &mut Vec<ExpressionHandle>,
+    ) {
+        let mut expression_position = 0;
+        while let Some(expression) = expressions.get(expression_position).copied() {
+            expression_position += 1;
+            if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
+                validate_types(
+                    program,
+                    caller,
+                    &call.machine_arguments,
+                    symbols,
+                    diagnostics,
+                    visited_types,
+                    expressions,
+                );
+                if !owned.contains(&expression) {
+                    owned.push(expression);
+                }
+            }
+        }
+    }
     let has_types = program.expression_table.iter_expressions().any(|(_, expression)| matches!(expression, ExpressionNode::Call(call) if contains_type(&call.machine_arguments)))
         || program.machines().iter().any(|machine| program.machine_states(machine).iter().any(|state| program.statement_table.statements(state.statement_nodes).iter().any(|statement| matches!(statement, StatementNode::Call(call) if contains_type(&call.machine_arguments)))));
     if !has_types {
@@ -571,6 +605,38 @@ fn validate_structural_type_arguments(
     }
     let symbols = validation::TopLevelSymbols::build(program, diagnostics);
     let mut owned = Vec::new();
+    // Data field types have their own lexical scope, even when a machine later
+    // uses the nominal data type. Discover calls from each declaration's actual
+    // fields (including case payloads), never by borrowing a consumer's binders.
+    for data in program.data_definitions() {
+        let mut expressions = Vec::new();
+        let mut visited_types = Vec::new();
+        for member in program.data_members(data) {
+            let fields = match member {
+                typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+                typed_trees::data::DataMember::Variant(variant) => {
+                    program.data_payload_fields(variant)
+                }
+            };
+            for field in fields {
+                collect_type_expressions(
+                    program,
+                    field.type_reference,
+                    &mut visited_types,
+                    &mut expressions,
+                );
+            }
+        }
+        validate_expressions(
+            program,
+            validation::StaticTypeArgumentOwner::Data(data),
+            &symbols,
+            diagnostics,
+            &mut visited_types,
+            &mut expressions,
+            &mut owned,
+        );
+    }
     for machine in program.machines() {
         let mut expressions = Vec::new();
         let mut visited_types = Vec::new();
@@ -628,7 +694,7 @@ fn validate_structural_type_arguments(
                 if let StatementNode::Call(call) = statement {
                     validate_types(
                         program,
-                        machine,
+                        validation::StaticTypeArgumentOwner::Machine(machine),
                         &call.machine_arguments,
                         &symbols,
                         diagnostics,
@@ -638,24 +704,15 @@ fn validate_structural_type_arguments(
                 }
             }
         }
-        let mut expression_position = 0;
-        while let Some(expression) = expressions.get(expression_position).copied() {
-            expression_position += 1;
-            if let ExpressionNode::Call(call) = program.expression_table.expression(expression) {
-                validate_types(
-                    program,
-                    machine,
-                    &call.machine_arguments,
-                    &symbols,
-                    diagnostics,
-                    &mut visited_types,
-                    &mut expressions,
-                );
-                if !owned.contains(&expression) {
-                    owned.push(expression);
-                }
-            }
-        }
+        validate_expressions(
+            program,
+            validation::StaticTypeArgumentOwner::Machine(machine),
+            &symbols,
+            diagnostics,
+            &mut visited_types,
+            &mut expressions,
+            &mut owned,
+        );
     }
     for (expression, node) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = node

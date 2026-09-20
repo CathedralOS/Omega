@@ -30,10 +30,19 @@ use typed_trees::TypedTrees;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// The declaration whose lexical binders own a static call's type arguments.
+/// A call in a field type belongs to the data declaration, never to a machine
+/// that happens to construct or receive that data.
+#[derive(Debug, Clone, Copy)]
+pub enum StaticTypeArgumentOwner<'program> {
+    Machine(&'program typed_trees::machine::Machine),
+    Data(&'program typed_trees::data::DataDefinition),
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TypeReferenceOwner<'program> {
     StaticMachineArgument {
-        machine: &'program str,
+        owner: StaticTypeArgumentOwner<'program>,
         generic_depth: usize,
     },
     DomainTarget {
@@ -131,10 +140,10 @@ impl TypeReferenceOwner<'_> {
     fn generic_argument(self) -> Self {
         match self {
             Self::StaticMachineArgument {
-                machine,
+                owner,
                 generic_depth,
             } => Self::StaticMachineArgument {
-                machine,
+                owner,
                 generic_depth: generic_depth + 1,
             },
             Self::DomainTarget {
@@ -226,10 +235,18 @@ impl fmt::Display for TypeReferenceOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let generic_depth = match self {
             Self::StaticMachineArgument {
-                machine,
+                owner,
                 generic_depth,
             } => {
-                write!(formatter, "machine `{machine}` static type argument")?;
+                match owner {
+                    StaticTypeArgumentOwner::Machine(machine) => {
+                        write!(formatter, "machine `{}`", machine.name)?;
+                    }
+                    StaticTypeArgumentOwner::Data(data) => {
+                        write!(formatter, "data `{}`", data.name)?;
+                    }
+                }
+                formatter.write_str(" static type argument")?;
                 *generic_depth
             }
             Self::DomainTarget {
@@ -326,22 +343,32 @@ impl fmt::Display for TypeReferenceOwner<'_> {
 /// lifetime obligations belong to the caller's authored argument itself.
 pub fn validate_static_type_argument(
     program: &TypedTrees,
-    caller: &typed_trees::machine::Machine,
+    caller: StaticTypeArgumentOwner<'_>,
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let (type_parameters, lifetime_parameters) = match caller {
+        StaticTypeArgumentOwner::Machine(machine) => (
+            program.machine_type_parameters(machine),
+            machine.lifetime_parameters.as_ref(),
+        ),
+        StaticTypeArgumentOwner::Data(data) => (
+            program.data_type_parameters(data),
+            data.lifetime_parameters.as_ref(),
+        ),
+    };
     validate_type_reference_handle_with_type_parameters(
         program,
         type_reference,
         symbols,
         diagnostics,
         TypeReferenceOwner::StaticMachineArgument {
-            machine: caller.name.as_str(),
+            owner: caller,
             generic_depth: 0,
         },
-        program.machine_type_parameters(caller),
-        &caller.lifetime_parameters,
+        type_parameters,
+        lifetime_parameters,
     );
 }
 

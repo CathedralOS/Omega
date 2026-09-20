@@ -154,6 +154,54 @@ const TYPED_RANGE_SOURCE: &str = r#"
     "#;
 
 #[test]
+fn data_field_computed_bound_drives_capacity_through_native_execution() {
+    assert_endpoint_executes(checked_source(DATA_FIELD_RANGE_SOURCE));
+}
+
+#[test]
+fn data_field_nested_computed_bound_keeps_its_static_obligations() {
+    let source = format!(
+        "machine limit() -> u64 {{ 7 }} {}",
+        DATA_FIELD_RANGE_SOURCE.replace("identity<u64[0..=7]>", "identity<u64[0..=limit()]>")
+    );
+    assert_endpoint_executes(checked_source(&source));
+}
+
+#[test]
+fn data_field_computed_bound_rejects_invalid_arguments_and_field_contents() {
+    for (source, diagnostic) in [
+        (
+            DATA_FIELD_RANGE_SOURCE.replace("identity<u64[0..=7]>", "identity<u64[0..=6]>"),
+            "outside declared range",
+        ),
+        (
+            DATA_FIELD_RANGE_SOURCE.replace("length: 3", "length: 8"),
+            "range",
+        ),
+    ] {
+        let errors = check_source(&source)
+            .map(|_| ())
+            .expect_err("field-bound folding must retain argument and construction obligations");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains(diagnostic)),
+            "{errors:?}"
+        );
+    }
+}
+
+const DATA_FIELD_RANGE_SOURCE: &str = r#"
+        machine identity<T>(value: T) -> T { value }
+        data Buffer { length: u64[0..=identity<u64[0..=7]>(7)]; }
+        machine capacity<const N: u64>(value: u64[0..=N]) -> u64 { N }
+        machine main() -> u64 {
+            let buffer: Buffer = Buffer { length: 3 };
+            capacity(buffer.length)
+        }
+        "#;
+
+#[test]
 fn typed_range_endpoint_rejects_value_beyond_computed_bound() {
     let source = TYPED_RANGE_SOURCE.replace("= 3;", "= 8;");
     let errors = check_source(&source)
