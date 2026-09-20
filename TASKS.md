@@ -3055,15 +3055,25 @@ Owners include
     produced gates — the authored layout, the generic post-handoff writer
     and `DescriptorTableValidation::validate` carry the produced table,
     and `EstablishedInterruptTable::from_consumer` mints the value only
-    on `Accepted`. What remains in `interrupt_table/` is custody
-    plumbing: member admission replaying installed-root records, the
+    on `Accepted`. Member admission is now authored too:
+    `cathedral::interrupt_validation` declares `MemberFacts` (the
+    record-derived arrival facts — interrupt-return exit, dedicated-class
+    arrival, acknowledgement-policy/parameter presence) and
+    `MemberAdmissionVerdict` beside `TableMemberAdmission::admit`, which
+    rules a member under its declared row and returns `Admitted` or
+    `Rejected { vector, reason }`; the compiler test evaluates the machine
+    verbatim and mints `InterruptTableMemberAdmission::from_consumer` only
+    on `Admitted`, so `admit_interrupt_table_member` replays the binding
+    (declared row plus the record's verbatim facts) instead of owning
+    policy. What remains in `interrupt_table/` is custody
+    plumbing: that admission binding, the
     publication carrier/receipt binding the established value to the
-    table, and published-vector dispatch. Remaining on this leg: those
-    member-admission, established-record and publication types
+    table, and published-vector dispatch. Remaining on this leg: the
+    established-record and publication types
     (`EstablishedInterruptTable`, `InterruptTablePublication*`, the
     admitted-member records) still hold declaration-shaped obligations
     the authored verdict now warrants — relocating them needs authored
-    record/machine types for admission and publication so the ledger
+    record/machine types for publication so the ledger
     becomes plumbing only; the ledger itself (installed roots, `lidt`
     contract, checked writer) stays compiler-owned.
   - Timer. The device source, tick record and wake are package code. The
