@@ -9264,7 +9264,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-D-SCALAR-EMISSION-EXTENSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-OPERATION-FRONTIER** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-SEQUENCING** — mined candidate; verify scope then implement.
-- **OMEGA-ENTRY-MANIFEST-BINDINGS** — mined candidate; verify scope then implement.
+- **OMEGA-ENTRY-MANIFEST-BINDINGS.** Mined candidate — resolved as a re-mine
+  of the omega-gate entry-manifest bindings already landed on main
+  (`dd0700d93f1`, "bootstrap: bind the omega gates' gate-local customer
+  entries"). `tools/bootstrap/omega/compiler_env.sh` pins every gate-local
+  customer entry — `OMEGA_PARSER_ENTRY`, `OMEGA_OUTCOME_ENTRY`,
+  `OMEGA_REQUEST_ENTRY` + sealed fixture, `OMEGA_EXECUTABLE_MAIN_ENTRY`,
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY`, and `OMEGA_EXECUTABLE_CONTROLS_ENTRY`
+  through `_H_ENTRY` (eight control entries) — each with a `require_*`
+  identity function that refuses on size/digest drift; every gate's
+  `run.sh` asserts its entry before packing and
+  `tests/bootstrap/omega-identity.sh` mutation-refuses each bound entry
+  plus cross-checks the pins against the omega-* READMEs and gate.py
+  records. Re-verified green at `4deffbdbef4` (one commit past origin tip
+  `25709a68706`, bootstrap-untouched): `sh tests/bootstrap/omega-identity.sh`
+  — canonical manifest + packed closure pass, all bound entries pass, every
+  one-byte mutation/truncation refused, pins agree with all gate records.
+  No unbound residual; sibling stubs naming this surface resolve the same
+  way.
 - **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
   OMEGA-PARSER-GATE-WINDOWS-VALIDATION's Windows x64 leg of the
   omega-parser bootstrap gate. The host-free surface is landed and
