@@ -8982,7 +8982,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-GEOMETRY-WINDOWS-NATIVE** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-WINDOWS-RUN** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-WINDOWS-VALIDATION** — mined candidate; scope verified, re-mine of the resolved sibling row GEOMETRY-WINDOWS-VALIDATION (`8734480a01`, ~line 7016). It names the same acceptance: the Windows leg of the app repo's GEOMETRY-PARITY gate — `python tools/verify.py native --timeout 600 --omega <executable>` on a Windows host against the pinned `samples/apps/squalr` (4b1f7a6) build graph; recorded geometry evidence is macOS ARM64 + Linux x86-64 (`d82697ffca`, `Squalr geometry: PASS`), Windows remains "was not run". Doubly gated: no Windows development host exists in this environment, and `samples/apps/squalr` is wholesale dir-fenced by SQUALR-TARGETS-AND-THROUGHPUT with file-level fences from SQUALR-CLONE-SERIALIZATION. A Linux-side `--target windows_x86_64` emit leg would not satisfy the run-based acceptance. Owning parent: SQUALR-GEOMETRY-PARITY (~line 6064); sibling re-mine SQUALR-WINDOWS-GEOMETRY-VALIDATION (~8256).
-- **SQUALR-PLUGIN-IMPLEMENTATIONS** — mined candidate; verify scope then implement.
+- **SQUALR-PLUGIN-IMPLEMENTATIONS.** Scope verified at a4ffd1aff8 —
+  re-mines the "plugins/*: implementation unported" row of
+  `samples/apps/squalr/README.md`'s port-boundary table. All eight plugin
+  packages under `samples/apps/squalr/plugins/` contain only `build.omg`
+  package declarations (boundaries + internal edges mirrored from upstream
+  `plugins/*/Cargo.toml`); zero `*.omg` implementation sources exist.
+  Implementation order follows the package edges: the leaf plugins
+  (`squalr-plugin-data-types-24bit`, `-instructions-{arm,powerpc,x86}`,
+  `-memory-view-dolphin`, `-binary-symbols`, `-debuggers-native`) carry
+  real ports first; `squalr-plugin-builtins` is the aggregator that
+  depends on all of them plus `squalr-engine-api` — it lands last. This is
+  a multi-session port (each plugin mirrors its upstream crate's behavior
+  per PORTING.md parity rules — no placeholder services); it sits after
+  the scan engine in PORTING.md's executable progression, so earliest
+  legal start is after SUPPLIED-BYTES-SCAN/CLI-COMMANDS settle. The
+  whole `samples/apps/squalr` submodule is additionally wholesale-claimed
+  this wave (SQUALR-TARGETS-AND-THROUGHPUT 21:39Z,
+  SQUALR-CLONE-SERIALIZATION 22:50Z), so every implementable path is
+  fenced at verification time.
 - **SQUALR-PLUGIN-PACKAGES** — mined candidate; verify scope then implement.
 - **SQUALR-SEED-ALIGNMENT-PARSING** — mined candidate; verify scope then implement.
 - **SQUALR-SEED-OPERATOR-PARITY** — mined candidate; verify scope then implement.
