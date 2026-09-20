@@ -101,25 +101,87 @@ fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate
 }
 
 #[test]
-fn external_boundary_requirement_via_leaf_reaches_selected_instruction_stage() {
+fn external_boundary_requirement_via_leaf_realizes_dynamic_elf_custody() {
     // A top-level `boundary requirement` satisfied by an external `via` leaf:
     // the direct call is not redirected — it lowers through the requirement's
     // own retained boundary seam, and the import-settlement join keys on the
     // requirement machine's normalized overload identity. The legalized
-    // normalized foreign call is reached, then the selection stage stops the
-    // artifact: `NormalizedForeignCall` has no construction emission yet, so
-    // the demanded foreign call fails closed as a custody mismatch instead of
-    // silently dropping the boundary.
+    // normalized foreign call now emits a complete dynamic ELF artifact whose
+    // physical child binds the requirement seam's settlement.
     let fixture = Fixture::new_linux_boundary_requirement_named("external-requirement-via-dynamic");
-    let diagnostics = realize_linux_dynamic_outcome(fixture.compile_terminal(), 0x454c_4600_0100)
-        .expect_err("selection emits no normalized foreign call instruction yet")
-        .1;
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("SourceCustodyMismatch")),
-        "selection stage fails closed on the requirement seam foreign call: {diagnostics:#?}",
+    let retained = fixture.compile_terminal();
+    let admission = admit_import(
+        &retained,
+        SameStackContributionAdmissionReceiptId::from_normalized_identity(0x454c_4600_0100)
+            .unwrap(),
     );
+    let retained_artifact = realize_linux_dynamic_outcome(retained, 0x454c_4600_0100)
+        .unwrap_or_else(|(_, diagnostics)| {
+            panic!("requirement-seam leaf program should realize: {diagnostics:#?}")
+        });
+    let native::RequestedNativeArtifact::DynamicElf(candidate) = retained_artifact else {
+        panic!("requirement-seam leaf program must select the dynamic ELF writer route")
+    };
+    candidate
+        .validate()
+        .expect("requirement-seam dynamic candidate replays independently");
+    assert_eq!(candidate.target(), target::NativeTarget::linux_x64());
+    assert_eq!(
+        candidate.object().object().layout.normalized_imports.len(),
+        1
+    );
+    assert_eq!(candidate.image().output().final_image_imports, 1);
+    assert!(candidate.image().output().bytes.starts_with(b"\x7fELF"));
+    assert!(matches!(
+        candidate.physical_evidence_scope(),
+        native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let physical = candidate
+        .physical_evidence()
+        .expect("requirement-seam foreign call retains complete physical evidence");
+    let [boundary_occurrence] = physical.projection().boundary_occurrences() else {
+        panic!("the requirement seam call must survive as exactly one boundary occurrence")
+    };
+    let [boundary_child] = physical.children() else {
+        panic!("the surviving boundary occurrence must bind exactly one physical child")
+    };
+    assert_eq!(
+        boundary_child.occurrence(),
+        native::NativePhysicalOccurrence::Boundary(boundary_occurrence.identity())
+    );
+    assert_eq!(
+        boundary_child.projection(),
+        physical.projection().identity()
+    );
+    let native::PhysicalChildParent::BoundaryTraitSettlement(settlement) = boundary_child.parent()
+    else {
+        panic!("the requirement seam child must retain its settlement parent")
+    };
+    assert_eq!(
+        settlement.requirement_identity(),
+        admission.execution.requirement
+    );
+    assert_eq!(settlement.target(), candidate.target());
+    let [selected_plan] = candidate.selected_provider_plans() else {
+        panic!("one exact selected provider plan expected")
+    };
+    assert_eq!(
+        settlement.selected_plan_digest(),
+        selected_plan.plan_digest()
+    );
+    assert_eq!(
+        *settlement.selected_plan_digest().as_bytes(),
+        admission.same_stack.provider_plan_commitment().as_bytes(),
+        "the settlement parent and opaque same-stack leaf must bind the same selected plan",
+    );
+    let native::BoundaryTraitSettlementRole::AdmittedProvider { .. } = settlement.role() else {
+        panic!("the requirement seam settlement must carry its admitted-provider role")
+    };
+    assert!(matches!(
+        boundary_child.relocation(),
+        native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(_)
+            | native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(_)
+    ));
 }
 
 #[test]

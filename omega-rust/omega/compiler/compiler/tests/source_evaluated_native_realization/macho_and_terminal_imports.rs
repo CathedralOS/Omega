@@ -151,23 +151,27 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     assert_eq!(install_name, INSTALL_NAME);
     assert_eq!(symbol, SYMBOL);
 
-    assert_eq!(
-        artifact.physical_evidence_scope(),
-        native::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
-        "source-reviewed imports require complete unoptimized D32 custody",
+    assert!(
+        matches!(
+            artifact.physical_evidence_scope(),
+            native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        ),
+        "source-reviewed imports require complete D32 custody under the validated projection",
     );
     let physical = artifact
         .physical_evidence()
         .expect("source-evaluated import retains complete D32 evidence");
     assert_eq!(physical.projection().operator_occurrences().len(), 0);
-    assert_eq!(physical.projection().boundary_occurrences().len(), 1);
+    let [boundary_occurrence] = physical.projection().boundary_occurrences() else {
+        panic!("one source boundary occurrence expected")
+    };
     let [child] = physical.children() else {
         panic!("one source boundary call must produce exactly one D41 child")
     };
-    assert!(matches!(
+    assert_eq!(
         child.occurrence(),
-        native::NativePhysicalOccurrence::Boundary(_),
-    ));
+        native::NativePhysicalOccurrence::Boundary(boundary_occurrence.identity()),
+    );
     assert_eq!(child.projection(), physical.projection().identity());
     let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent() else {
         panic!("source-evaluated import must retain its D41 settlement parent")
@@ -298,10 +302,10 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         "Mach-O import lowering must relocate the admitted call to its exact image thunk",
     );
 
-    let native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(relocation) =
+    let native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(field) =
         child.relocation()
     else {
-        panic!("admitted foreign call must retain unresolved import relocation custody")
+        panic!("admitted foreign call must retain unresolved import-field custody")
     };
     let boundary_plan_identity = calling_conventions::validate_boundary_entry_plan(
         realization.boundary_entry_plan.clone(),
@@ -313,17 +317,17 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     .expect("retained zero-argument boundary entry plan revalidates")
     .contract_commitment_digest();
     assert_eq!(
-        *relocation.locator_identity(),
+        *field.locator_identity(),
         realization.locator.identity_digest().as_bytes(),
     );
-    assert_eq!(relocation.boundary_plan_identity(), &boundary_plan_identity);
-    assert_eq!(relocation.object_symbol(), normalized.symbol);
-    assert_eq!(relocation.origin(), object_relocation.origin);
-    assert_eq!(relocation.offset(), object_relocation.offset);
-    assert_eq!(relocation.byte_width(), object_relocation.byte_width);
-    assert_eq!(relocation.addend(), object_relocation.addend);
-    assert_eq!(relocation.kind(), object_relocation.kind);
-    assert_ne!(relocation.final_image_symbol_identity(), &[0; 32]);
+    assert_eq!(field.boundary_plan_identity(), &boundary_plan_identity);
+    assert_eq!(field.caller(), boundary_occurrence.machine());
+    assert_eq!(field.operation(), boundary_occurrence.operation());
+    assert_eq!(field.offset(), object_relocation.offset);
+    assert_eq!(field.byte_width(), object_relocation.byte_width);
+    assert_eq!(field.addend(), object_relocation.addend);
+    assert_eq!(field.kind(), object_relocation.kind);
+    assert_ne!(field.final_image_symbol_identity(), &[0; 32]);
 
     let object_demand =
         image_emission::derive_stack_demand(artifact.object(), artifact.object().entry())
@@ -889,10 +893,10 @@ fn retained_source_evaluated_fixed_u32_import_requires_complete_d32_custody() {
     artifact
         .validate()
         .expect("fixed-scalar native artifact replays");
-    assert_eq!(
+    assert!(matches!(
         artifact.physical_evidence_scope(),
-        native::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
-    );
+        native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
     let physical = artifact
         .physical_evidence()
         .expect("fixed-scalar import retains complete D32 evidence");
@@ -1122,10 +1126,10 @@ fn retained_source_evaluated_fixed_i32_result_requires_complete_d32_custody() {
     });
 
     artifact.validate().expect("fixed-result artifact replays");
-    assert_eq!(
+    assert!(matches!(
         artifact.physical_evidence_scope(),
-        native::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
-    );
+        native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
     let physical = artifact
         .physical_evidence()
         .expect("fixed-result import retains complete D32 evidence");
@@ -1251,13 +1255,13 @@ fn retained_source_evaluated_fixed_i32_result_requires_complete_d32_custody() {
     assert!(child.object_span().offset() <= object_relocation.offset);
     assert!(object_relocation.offset + object_relocation.byte_width <= object_end);
     assert!(child.object_span().byte_count() > object_relocation.byte_width);
-    let native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(relocation) =
+    let native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(field) =
         child.relocation()
     else {
-        panic!("fixed-result child must retain unresolved import custody")
+        panic!("fixed-result child must retain unresolved import-field custody")
     };
-    assert_eq!(relocation.offset(), object_relocation.offset);
-    assert_eq!(relocation.byte_width(), object_relocation.byte_width);
+    assert_eq!(field.offset(), object_relocation.offset);
+    assert_eq!(field.byte_width(), object_relocation.byte_width);
     let [image_foreign_call] = artifact.image().foreign_calls() else {
         panic!("one fixed-result image call expected")
     };
