@@ -60,6 +60,23 @@ machine evaluate(selected: bool) -> u64 {{ helper(selected) }}
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "evaluate")
             .produce_artifact()
             .expect("callee-local storage is not a caller input");
+        let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: artifact.semantic_bytes(),
+                proof_bytes: artifact.proof_bytes(),
+                obligation_ledger_bytes: None,
+            },
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .and_then(|admitted| admitted.try_into_optimization_input())
+        .expect("local case calls lower through the ordinary abstract-operation path");
+        let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(verified.unit())
+            .expect("abstract replay also distinguishes callee locals from boundary inputs");
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
         let entry = module
             .machines
