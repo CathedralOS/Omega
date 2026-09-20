@@ -352,6 +352,12 @@ pub fn declared_constant_array_type(
         .authored_selection_occurrences(value)
     {
         let selection = program.authored_declaration_selections().get(occurrence)?;
+        // Substitution keeps inherited initializer selections as provenance.
+        // Only this authored use supplies the receiving declaration's type;
+        // an inherited alias must not compete via its separately stored type.
+        if selection.source_span() != program.expression_table.source_span(value) {
+            continue;
+        }
         let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
             continue;
         };
@@ -517,7 +523,13 @@ pub(crate) fn validate_constant_projection_destination(
             continue;
         };
         if let Some(declared) =
-            builtin_constant_array_projection_type(program, machine_symbol, value)
+            builtin_constant_array_projection_type(program, machine_symbol, value).or_else(|| {
+                // A field read from a closed record remains its declared
+                // scalar type, not an anonymous literal which can reland into
+                // another width just because this particular payload fits.
+                super::record_projection::closed_scalar_projection(program, value)
+                    .map(|(_, reference)| reference)
+            })
         {
             // Shared array-to-slice lending forgets only the outer extent.
             // Its element identity is still exact; this type comparison grants

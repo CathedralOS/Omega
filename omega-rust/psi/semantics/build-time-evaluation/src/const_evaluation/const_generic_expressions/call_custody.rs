@@ -640,12 +640,37 @@ impl<'program> Collector<'program> {
             } else if let Target::Resolved(selected) = selection.target()
                 && program.symbols.get(selected.selected_symbol()).kind == SymbolKind::Const
             {
-                self.constant(
-                    selected.selected_symbol(),
-                    selection.source_span(),
-                    expression,
-                    context,
-                )?;
+                // A detached recipe can retain both the terminal path segment
+                // and the substitution's full-path selection, even after its
+                // Name became an aggregate literal. Join that segment only to
+                // an attached direct use of the exact same declaration. Other
+                // inherited origins keep their original occurrence identities.
+                let source = table.source_span(expression);
+                let terminal = selection.source_span();
+                let leaf = program
+                    .symbols
+                    .name(selected.selected_symbol())
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or_default();
+                let direct_segment = terminal.source_id == source.source_id
+                    && terminal.span.end == source.span.end
+                    && source.span.end.checked_sub(leaf.len()) == Some(terminal.span.start)
+                    && terminal.span.start >= source.span.start
+                    && table
+                        .authored_selection_occurrences(expression)
+                        .any(|occurrence| {
+                            program
+                                .authored_declaration_selections()
+                                .get(occurrence)
+                                .is_some_and(|other| {
+                                    other.source_span() == source
+                                        && matches!(other.target(), Target::Resolved(other)
+                                    if other.selected_symbol() == selected.selected_symbol())
+                                })
+                        });
+                let reference = if direct_segment { source } else { terminal };
+                self.constant(selected.selected_symbol(), reference, expression, context)?;
             }
         }
         let children = expression_children(program, expression)?;

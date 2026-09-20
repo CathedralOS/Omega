@@ -2,9 +2,9 @@
 //!
 //! An aggregate-producing leaf's checked interpreter result becomes
 //! authored-shape literal syntax again only through the receiving
-//! declaration's own source scope: the constructor spelling re-resolves at the
-//! leaf's source span, so a same-named foreign carrier cannot borrow the
-//! result. Receiving replay re-encodes interpreter results against the
+//! declaration's own source scope: the constructor spelling must re-resolve at
+//! the leaf's source span before emission, so a same-named foreign carrier cannot
+//! borrow the result. Receiving replay re-encodes interpreter results against the
 //! declared carrier with `canonical_value` instead of trusting the
 //! materialized literal, so both sides of the receipt stay independent.
 
@@ -134,6 +134,36 @@ fn nominal_literal(
             "evaluated constructor `{owner_path}` cannot reselect its exact carrier from the constant's source"
         ));
     }
+    // We are returning to pre-normalization syntax, where a closed instance's
+    // synthetic name is not a declaration. Reconstruct the template constructor
+    // from its retained generic origin, never by stripping display text. The
+    // destination and interpreted fields still carry the exact closed tuple;
+    // syntax canonicalization and receiving replay independently check it.
+    let owner_path = if let Some(origin) = definition.generic_instance {
+        let TypeReferenceNode::Generic { base_symbol, .. } =
+            program.type_reference_table.type_reference(origin)
+        else {
+            return Err("evaluated generic constructor lost its template origin".to_owned());
+        };
+        let template_path = program.symbols.display_path(*base_symbol, "::");
+        if !base_symbol.is_valid()
+            || program
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    &template_path,
+                    &[SymbolKind::Data],
+                    reference,
+                )
+                != Some(*base_symbol)
+        {
+            return Err(
+                "evaluated generic constructor cannot reselect its exact template".to_owned(),
+            );
+        }
+        template_path
+    } else {
+        owner_path
+    };
     let members = program.data_members(definition);
     let (constructor, declared) = match value {
         BuildTimeValue::Struct { type_name, fields } => {
@@ -203,7 +233,17 @@ fn nominal_literal(
     }
     let fields = syntax.expressions.insert_struct_fields(literal_fields);
     Ok(ExpressionNode::StructLiteral(TableStructLiteral {
-        constructor_name: Identifier::new(constructor, reference),
+        // Keep the source location but not a fabricated authored token shared
+        // by every generated constructor. Lookup was checked above against the
+        // exact owner; the receiving carrier and initializer receipt still
+        // independently validate the generated value.
+        constructor_name: Identifier::new(
+            constructor,
+            SourceSpan::new(
+                reference.source_id,
+                source::Span::new(reference.span.start, reference.span.start),
+            ),
+        ),
         fields,
     }))
 }

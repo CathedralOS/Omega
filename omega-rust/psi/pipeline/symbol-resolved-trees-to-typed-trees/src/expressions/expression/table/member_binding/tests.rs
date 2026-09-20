@@ -234,3 +234,42 @@ fn module_constructor_projection_keeps_its_declaring_field_owner() {
         .expect("caller's same-spelled data");
     assert_ne!(literal.type_symbol, caller_owner.symbol);
 }
+
+#[test]
+fn array_constructor_projection_needs_the_retained_declaration_type() {
+    let mut program = resolve(
+        "data Cell [copy] { value: u64; }
+         data Other [copy] { value: u64; }
+         const VALUES: [Cell; 2] = [Cell { value: 7 }, Cell { value: 9 }];
+         machine read() -> u64 { VALUES[0].value }",
+    );
+    let member = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, node)| {
+            if let resolved::expression::ExpressionNode::Member(member) = node {
+                Some(member.clone())
+            } else {
+                None
+            }
+        })
+        .expect("array element field");
+    let field =
+        super::declared_receiver_field(&program, &program.tables.bodies.expressions, &member, 0)
+            .expect("retained array element type selects its field")
+            .symbol;
+    let owner = program.symbols.get(field).parent;
+    assert_eq!(program.symbols.name(owner), "Cell");
+    let typed = lower_symbol_resolved_trees(&program).expect("type array element field");
+    assert!(typed.expression_table.expression_entries().any(|(_, node)| {
+        matches!(node, typed_trees::expression::ExpressionNode::Member(member) if member.member_symbol == field)
+    }));
+    program.roots.const_declarations = Default::default();
+    assert!(
+        super::declared_receiver_field(&program, &program.tables.bodies.expressions, &member, 0)
+            .is_none(),
+        "a missing declaration cannot be reconstructed from the first element's spelling"
+    );
+}

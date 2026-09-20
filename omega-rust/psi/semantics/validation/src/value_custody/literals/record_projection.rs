@@ -1,6 +1,8 @@
 //! A closed constructor projection retains its selected value, not storage.
 //! Every sibling must be a literal in its declared carrier: erasing a call,
-//! conversion, cleanup or partial computation would change evaluation. The
+//! conversion, cleanup or partial computation would change evaluation. Field
+//! and fixed-index steps compose over that one closed value; a record nested
+//! inside an array does not need a runtime place just to read its scalar field. The
 //! scalar producer and its source replay share only this typed identity join;
 //! replay still checks the authored occurrence and the retained scalar value.
 
@@ -10,8 +12,12 @@ use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod tests;
+
 /// Select a scalar field through ordinary, fully explicit closed record
-/// constructors. No constant-declaration identity or runtime place is needed.
+/// constructors, optionally nested in constant arrays. An array root retains
+/// its complete declaration type; no runtime place is created.
 pub fn closed_record_scalar_projection(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -55,43 +61,99 @@ pub(crate) fn closed_record_integer_projection(
     })
 }
 
-fn closed_scalar_projection(
+pub(super) fn closed_scalar_projection(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
-    let mut members = Vec::new();
+    let mut projections = Vec::new();
     let mut root = expression;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(root) {
-        if members.len() >= program.expression_table.expression_count()
-            || member.case_variant.is_some()
-            || !member.member_symbol.is_valid()
-        {
+    let mut has_field = false;
+    loop {
+        if projections.len() >= program.expression_table.expression_count() {
             return None;
         }
-        members.push(member);
-        root = member.receiver;
+        let receiver = match program.expression_table.expression(root) {
+            ExpressionNode::Member(member)
+                if member.case_variant.is_none() && member.member_symbol.is_valid() =>
+            {
+                has_field = true;
+                member.receiver
+            }
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            _ => break,
+        };
+        projections.push(root);
+        root = receiver;
     }
-    if members.is_empty() || !closed_record(program, root, &mut Vec::new()) {
+    if projections.is_empty() || !has_field {
+        return None;
+    }
+    let root_type = super::declared_constant_array_type(program, root);
+    let closed = match root_type {
+        Some(reference) => closed_value(program, root, reference, &mut Vec::new()),
+        None => closed_record(program, root, &mut Vec::new()),
+    };
+    if !closed {
         return None;
     }
     let mut selected = root;
-    let mut selected_type = TypeReferenceHandle::invalid();
-    for member in members.into_iter().rev() {
-        let (literal, definition) = record_constructor(program, selected)?;
-        let field = crate::value_custody::places::exact_data_member_field(
-            program,
-            definition,
-            member.member_symbol,
-            member.member.as_str(),
-            None,
-        )?;
-        let actual = program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .find(|actual| actual.field_symbol == field.symbol)?;
-        selected = actual.value;
-        selected_type = field.type_reference;
+    let mut selected_type = root_type.unwrap_or_default();
+    for projection in projections.into_iter().rev() {
+        match program.expression_table.expression(projection) {
+            ExpressionNode::Member(member) => {
+                let (literal, definition) = record_constructor(program, selected)?;
+                let field = crate::value_custody::places::exact_data_member_field(
+                    program,
+                    definition,
+                    member.member_symbol,
+                    member.member.as_str(),
+                    None,
+                )?;
+                let actual = program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .find(|actual| actual.field_symbol == field.symbol)?;
+                selected = actual.value;
+                selected_type = field.type_reference;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: typed_trees::types::FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(selected_type)
+                else {
+                    return None;
+                };
+                let ExpressionNode::ArrayLiteral(elements) =
+                    program.expression_table.expression(selected)
+                else {
+                    return None;
+                };
+                let ExpressionNode::Integer(ordinal) =
+                    program.expression_table.expression(indexed.index)
+                else {
+                    return None;
+                };
+                if ordinal.landing().is_some_and(|landing| {
+                    landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                        || landing.landed_type == numerics::literals::LandedIntegerType::Addr
+                }) || !builtin_index(program, projection, selected_type)
+                {
+                    return None;
+                }
+                let ordinal = usize::try_from(ordinal.value_u64()?).ok()?;
+                if ordinal >= *length {
+                    return None;
+                }
+                selected = *program
+                    .expression_table
+                    .expression_handles(*elements)
+                    .get(ordinal)?;
+                selected_type = *element_type;
+            }
+            _ => return None,
+        }
     }
     program.primitive_type_reference(selected_type)?;
     // Scalar projection consumers currently carry Exact arithmetic. A policy
@@ -103,6 +165,40 @@ fn closed_scalar_projection(
         return None;
     }
     Some((selected, selected_type))
+}
+
+fn builtin_index(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    collection: TypeReferenceHandle,
+) -> bool {
+    let spelling = language_core::OperatorSpelling::Index;
+    let operands = [Some(collection), None];
+    // This value query has no invocation owner. An unresolved occurrence cannot
+    // silently ignore a specialized trait meaning. Decline this query until
+    // invocation-aware planning can retain that exact selected application;
+    // this is not a claim that every such projection already has a native route.
+    typed_trees::operator::resolve_indexed_spelling_for_operands(program, spelling, &operands)
+        .is_empty()
+        && program
+            .machine_specializations
+            .iter()
+            .all(|specialization| {
+                typed_trees::operator::selected_trait_operator_meanings(
+                    program,
+                    specialization.instance,
+                    spelling,
+                    &operands,
+                )
+                .is_empty()
+            })
+        && typed_trees::operator::has_builtin_spelled_expression_meaning(
+            program,
+            symbols::SymbolHandle::invalid(),
+            expression,
+            spelling,
+            &operands,
+        )
 }
 
 fn record_constructor(
@@ -187,19 +283,48 @@ fn closed_record(
         {
             return false;
         }
-        if let ExpressionNode::StructLiteral(nested) =
-            program.expression_table.expression(actual.value)
-        {
-            matches!(program.type_reference_table.type_reference(field.type_reference),
-                TypeReferenceNode::Named { symbol, .. } if *symbol == nested.type_symbol)
-                && closed_record(program, actual.value, active)
-        } else {
-            // Reuse the scalar/array literal carrier check, including exact
-            // integer landing and every unselected array element.
-            super::closed_literal_array_elements(program, actual.value, field.type_reference)
-                .is_some()
-        }
+        closed_value(program, actual.value, field.type_reference, active)
     });
     active.pop();
     valid
+}
+
+fn closed_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    active: &mut Vec<ExpressionHandle>,
+) -> bool {
+    if active.contains(&expression) || !program.expression_table.expression_is_valid(expression) {
+        return false;
+    }
+    match (
+        program.expression_table.expression(expression),
+        program.type_reference_table.type_reference(reference),
+    ) {
+        (ExpressionNode::StructLiteral(literal), TypeReferenceNode::Named { symbol, .. }) => {
+            *symbol == literal.type_symbol && closed_record(program, expression, active)
+        }
+        (
+            ExpressionNode::ArrayLiteral(elements),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: typed_trees::types::FixedArrayLength::Literal(length),
+            },
+        ) => {
+            let actuals = program.expression_table.expression_handles(*elements);
+            if actuals.len() != *length || actuals.len() != elements.count() as usize {
+                return false;
+            }
+            active.push(expression);
+            let valid = actuals
+                .iter()
+                .all(|actual| closed_value(program, *actual, *element_type, active));
+            active.pop();
+            valid
+        }
+        // Scalar leaf checks retain exact landings. Every sibling is visited,
+        // not only the field/element the consumer eventually selects.
+        _ => super::closed_literal_array_elements(program, expression, reference).is_some(),
+    }
 }

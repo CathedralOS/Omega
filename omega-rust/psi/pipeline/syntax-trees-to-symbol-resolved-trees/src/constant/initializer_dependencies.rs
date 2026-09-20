@@ -158,6 +158,14 @@ impl Collector<'_> {
         if !table.expression_is_valid(expression) {
             return Err("constant initializer dependency has a stale expression".to_owned());
         }
+        let direct_constant = super::selected_expression_constant(program, expression);
+        let terminal_segment = match table.expression(expression) {
+            ExpressionNode::Name(path) => table
+                .name_path_members(path.members)
+                .last()
+                .map(|member| member.source_span()),
+            _ => None,
+        };
         for occurrence in table.authored_selection_occurrences(expression) {
             let selection = self
                 .program
@@ -181,7 +189,17 @@ impl Collector<'_> {
                 .symbols
                 .symbol_source_span(declaration.symbol)
                 .ok_or("constant dependency lost its declaration source")?;
-            let dependency = (selection.source_span(), source);
+            // The authored ledger records individual path segments, while
+            // substitution and initializer receipts name the whole use. Join
+            // only this Name's exact terminal selection to its full path;
+            // inherited origins and separate uses must remain distinct.
+            let reference = direct_constant
+                .filter(|(_, selected_symbol)| {
+                    *selected_symbol == selected.selected_symbol()
+                        && terminal_segment == Some(selection.source_span())
+                })
+                .map_or(selection.source_span(), |(reference, _)| reference);
+            let dependency = (reference, source);
             if !self.dependencies.constants.contains(&dependency) {
                 self.dependencies.constants.push(dependency);
             }
@@ -416,6 +434,37 @@ mod tests {
             })
             .expect("source-aware preparation");
         (syntax, preparation)
+    }
+
+    #[test]
+    fn qualified_constant_dependencies_keep_distinct_full_path_uses() {
+        let text = "data Settings [copy] { value: u64; }
+            const Settings::BASE: u64 = 7;
+            const TOTAL: u64 = Settings::BASE + Settings::BASE;";
+        let (syntax, preparation) = prepare(text);
+        let definition = syntax
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Const(definition)
+                    if definition.name.as_str() == "TOTAL" =>
+                {
+                    Some(definition)
+                }
+                _ => None,
+            })
+            .expect("total");
+        let dependencies = preparation
+            .initializer_dependencies(&syntax, definition)
+            .expect("qualified uses");
+        assert_eq!(dependencies.constants.len(), 2);
+        assert_ne!(dependencies.constants[0].0, dependencies.constants[1].0);
+        assert_eq!(dependencies.constants[0].1, dependencies.constants[1].1);
+        for (reference, _) in dependencies.constants {
+            assert_eq!(
+                &text[reference.span.start..reference.span.end],
+                "Settings::BASE"
+            );
+        }
     }
 
     #[test]

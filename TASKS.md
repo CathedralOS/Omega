@@ -3315,13 +3315,16 @@ Owners include
   selected aggregate home cannot stand for an unevaluated value.
 
   Acceptance: `compiler --test module_machine_indices` (`nominal::`,
-  `value_dispatch::`, source-free `machine_initializers::`),
+  `value_dispatch::`, `constant_attachments::`, source-free `machine_initializers::`),
   `terminal-psi-to-abstract-operations --test scalar_array_construction` and
   `omega-native-differential-test --test scalar_array_results` exercise exact
   source selection through independent artifacts and matching-host execution.
   `omega-native-differential-test --test scalar_case_results floating_constants`
   additionally checks exact floating helper results through source-free
   publication and matching-host execution, including signed zero.
+  Its `generic_constants::nested_generic_record_tables_execute_after_source_removal`
+  control preserves mixed field/index projections over closed record tables;
+  this does not establish dynamic indexing or runtime aggregate storage.
   Preserve the `qualified_declarations`, `qualified_constants`,
   `match_constant_indices`, `nominal_constant_bodies` and
   `module_array_constant_indices` customers. Under

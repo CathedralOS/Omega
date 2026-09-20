@@ -322,7 +322,130 @@ fn generic_constant_array_elements_keep_their_declared_constructor_owner() {
         root.join("main.omg"),
         "data Box<T [copy]> [copy] { value: T; }
          const VALUES: [Box<u64>; 2] = [Box { value: 7 }, Box { value: 9 }];
-         machine read() -> u64 { 7 }",
+         machine read() -> u64 { VALUES[0].value }",
     );
-    compile(&root, super::root_inputs(&root));
+    assert_source_free_result(compile(&root, super::root_inputs(&root)));
+}
+
+#[test]
+fn foreign_generic_record_tables_compose_field_and_index_projection() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("settings.omg"),
+        "module settings;
+         pub data Cell<T [copy]> [copy] { value: T; }
+         pub data Row<T [copy]> [copy] { cells: [Cell<T>; 2]; }
+         pub const TABLE: [Row<u64>; 2] = [
+             Row { cells: [Cell { value: 91 }, Cell { value: 93 }] },
+             Row { cells: [Cell { value: 7 }, Cell { value: 95 }] }
+         ];",
+    );
+    for (declaration, table) in [
+        ("", "settings::TABLE"),
+        (
+            "const COPIED: [settings::Row<u64>; 2] = settings::TABLE;",
+            "COPIED",
+        ),
+        (
+            "const COPIED: [settings::Row<u64>; 2] = settings::TABLE;
+             const SECOND: [settings::Row<u64>; 2] = COPIED;",
+            "SECOND",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "use library::settings;
+         data Cell<T [copy]> [copy] {{ wrong: T; }}
+         data Row<T [copy]> [copy] {{ wrong: Cell<T>; }}
+         {declaration}
+         machine read() -> u64 {{ {table}[1].cells[0].value }}"
+            ),
+        );
+        let checked = compile(&root, package_inputs(&root, &library));
+        assert!(!selections(&checked, "settings::TABLE", identity(2)).is_empty());
+        assert_source_free_result(checked);
+    }
+}
+
+#[test]
+fn unmoduled_same_leaf_records_keep_collision_rejection() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("types.omg"),
+        "data Cell [copy] { value: bool; } pub const PRESENT: u64 = 1;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::types;
+         data Cell [copy] { value: u64; }
+         machine make() -> Cell { Cell { value: 7 } }
+         const SELECTED: Cell = make();
+         machine read() -> u64 { SELECTED.value }",
+    );
+    let error = rejection(&root, package_inputs(&root, &library));
+    assert!(error.contains("duplicate data `Cell`"), "{error}");
+}
+
+#[test]
+fn copied_record_tables_preserve_unused_generic_arguments() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings;
+         pub data Cell<const TAG: u64> [copy] { value: u64; }
+         pub const TABLE: [Cell<1>; 1] = [Cell { value: 7 }];",
+    );
+    for argument in [1, 2] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "use settings;
+                 data Cell<const TAG: u64> [copy] {{ value: u64; }}
+                 const COPIED: [settings::Cell<{argument}>; 1] = settings::TABLE;
+                 machine read() -> u64 {{ COPIED[0].value }}"
+            ),
+        );
+        if argument == 1 {
+            assert_source_free_result(compile(&root, super::root_inputs(&root)));
+        } else {
+            let error = rejection(&root, super::root_inputs(&root));
+            assert!(error.contains("Cell"), "{error}");
+        }
+    }
+}
+
+#[test]
+fn record_table_projections_preserve_bounds_types_and_nonaddressability() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (carrier, expression) in [
+        ("u64", "VALUES[2].value"),
+        ("u64", "VALUES[-1].value"),
+        ("bool", "VALUES[0].value"),
+        ("u8", "VALUES[0].value"),
+        ("&u64", "&VALUES[0].value"),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "data Cell<T [copy]> [copy] {{ value: T; }}
+             const VALUES: [Cell<u64>; 2] = [Cell {{ value: 7 }}, Cell {{ value: 9 }}];
+             machine read() -> {carrier} {{ {expression} }}"
+            ),
+        );
+        assert!(
+            compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(super::root_inputs(&root)),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            })
+            .is_err(),
+            "{expression} must not produce {carrier}"
+        );
+    }
 }

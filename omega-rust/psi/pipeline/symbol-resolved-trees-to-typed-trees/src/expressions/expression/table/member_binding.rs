@@ -5,6 +5,7 @@
 use super::lowerer::ExpressionTableLowerer;
 use crate::expressions::call_results::peel;
 use crate::lowerer::{exact_field_symbol, exact_top_level_data_symbol};
+use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -72,6 +73,37 @@ fn declared_type<'program>(
     }
     match expressions.expression(expression) {
         ExpressionNode::Name(path) => declared_symbol_type(program, path.symbol),
+        ExpressionNode::ArrayLiteral(_) => {
+            // Substitution copied the initializer, not its declaration's name.
+            // The retained selection still supplies the complete element type,
+            // including empty dimensions and closed generic arguments. Do not
+            // infer that type from whichever element happens to be selected.
+            let mut declared = None;
+            for occurrence in expressions.authored_selection_occurrences(expression) {
+                let selection = program.authored_declaration_selections().get(occurrence)?;
+                if selection.source_span() != expressions.source_span(expression) {
+                    continue;
+                }
+                let AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target()
+                else {
+                    continue;
+                };
+                let Some(constant) = program
+                    .const_declarations
+                    .iter()
+                    .find(|constant| constant.symbol == selected.selected_symbol())
+                else {
+                    continue;
+                };
+                if !matches!(constant.declared_type, TypeReference::FixedArray(_))
+                    || declared.is_some_and(|previous| previous != &constant.declared_type)
+                {
+                    return None;
+                }
+                declared = Some(&constant.declared_type);
+            }
+            declared
+        }
         ExpressionNode::Borrow(borrow) => {
             declared_type(program, expressions, borrow.target, depth + 1)
         }

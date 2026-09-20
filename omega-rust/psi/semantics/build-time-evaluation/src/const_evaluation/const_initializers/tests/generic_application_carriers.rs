@@ -16,6 +16,45 @@ fn evaluate_files(
 }
 
 #[test]
+fn copied_nested_generic_table_retains_transitive_origins() {
+    let evaluated = evaluate_files(&[
+        (
+            "settings.omg",
+            "module settings;
+            pub data Cell<T [copy]> [copy] { value: T; }
+            pub data Row<T [copy]> [copy] { cells: [Cell<T>; 1]; }
+            pub const TABLE: [Row<u64>; 1] = [Row { cells: [Cell { value: 7 }] }];",
+        ),
+        (
+            "main.omg",
+            "use settings;
+            const COPIED: [settings::Row<u64>; 1] = settings::TABLE;
+            const SECOND: [settings::Row<u64>; 1] = COPIED;",
+        ),
+    ])
+    .expect("transitive table copy");
+    let copied = constant(&evaluated, "COPIED")
+        .normalization
+        .as_ref()
+        .unwrap();
+    let second = constant(&evaluated, "SECOND")
+        .normalization
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        copied.canonical_result_encoding,
+        second.canonical_result_encoding
+    );
+    assert!(
+        copied
+            .selections
+            .iter()
+            .all(|origin| second.selections.contains(origin))
+    );
+    assert_eq!(second.selections.len(), copied.selections.len() + 1);
+}
+
+#[test]
 fn generic_dest_struct_literal_with_computed_leaves() {
     let declarations = "data Box<T> [copy] { value: T; }";
     let evaluated = evaluate(&format!(
