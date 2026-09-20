@@ -10285,7 +10285,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
   WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
 - **WINDOWS-PEAK-MEMORY-MEASUREMENT** — mined candidate; verify scope then implement.
-- **WINDOWS-SET-FILE-TIME-CARRIER** — mined candidate; scope verified, landed.
+- **WINDOWS-SET-FILE-TIME-CARRIER.** Mined candidate — resolved: scope verified, landed.
   The stub re-mines the unsigned-carrier clause of
   WINDOWS-SET-FILE-TIME-RESPELL (merged with
   FILESYSTEM-WINDOWS-FILETIME-RESPELL), which landed at `ff782bdf21` —
