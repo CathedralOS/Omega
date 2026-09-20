@@ -4,8 +4,8 @@ use omega::language::core::service;
 
 // ENT2c: two four-member HFAs consume v0-v7, so the following Pair is passed
 // by value in the normalized outgoing stack area.
-data Pair { first: f64; second: f64; }
-data Quad { a: f64; b: f64; c: f64; d: f64; }
+pub data Pair { first: f64; second: f64; }
+pub data Quad { a: f64; b: f64; c: f64; d: f64; }
 
 pub boundary trait HfaStackImport {
     machine call(first: Quad, second: Quad, trailing: Pair) -> i64;

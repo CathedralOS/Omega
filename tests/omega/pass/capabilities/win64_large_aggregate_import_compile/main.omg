@@ -4,7 +4,7 @@
 use omega::language::core::external_binding;
 use omega::language::core::service;
 
-data Triple {
+pub data Triple {
     first: u64;
     second: u64;
     third: u64;

@@ -5,7 +5,7 @@ use omega::language::core::service;
 // ENT2c: a flat f64 record returned by value is one AAPCS64 HFA result. The
 // compiler test verifies that d0/d1 are spilled into one aggregate result
 // place rather than forcing the plan through a scalar result register.
-data Pair {
+pub data Pair {
     first: f64;
     second: f64;
 }

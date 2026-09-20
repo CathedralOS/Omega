@@ -7,7 +7,7 @@
 use omega::language::core::external_binding;
 use omega::language::core::service;
 
-data Pair {
+pub data Pair {
     first: u64;
     second: u64;
 }
