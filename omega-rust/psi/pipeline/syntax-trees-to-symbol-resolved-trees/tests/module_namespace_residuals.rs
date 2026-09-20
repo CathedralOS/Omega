@@ -899,6 +899,66 @@ fn constrained_array_const_discharges_element_domain_facts() {
 }
 
 #[test]
+fn constrained_variant_const_discharges_case_payload_domain_facts() {
+    // A variant constant binds `self` through its selected case's
+    // scalar-decodable payload fields, so `self.volume > 0` evaluates
+    // against the canonical `Say` payload leaf and the declaration
+    // publishes compatibility identity.
+    let program = lower_multi(&[(
+        "mine.omg",
+        "module mine; data Command { case None; case Say(volume: u64); } domain Command::Audible requires self.volume > 0; const C: Command in Command::Audible = Command::Say { volume: 1 };",
+    )])
+    .expect("case payload fact discharges the constrained const");
+    assert_eq!(const_named(&program, "C"), "mine::C");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::C")
+        .expect("mine::C");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "a discharged variant constrained const publishes compatibility identity"
+    );
+
+    // A refuting payload value rejects with the precise refutation
+    // diagnostic, not the generic fence.
+    let error = lower_multi(&[(
+        "mine.omg",
+        "module mine; data Command { case None; case Say(volume: u64); } domain Command::Audible requires self.volume > 0; const C: Command in Command::Audible = Command::Say { volume: 0 };",
+    )])
+    .expect_err("a refuted case payload fact rejects");
+    assert!(error.contains("is false"), "unexpected diagnostic: {error}");
+
+    for (tag, sources) in [
+        // A case without the queried payload field binds no projection, so
+        // the fact stays fenced for checked downstream evidence.
+        (
+            "different case's payload field",
+            "module mine; data Command { case None; case Say(volume: u64); } domain Command::Audible requires self.volume > 0; const C: Command in Command::Audible = Command::None;",
+        ),
+        // A payload field without a scalar leaf cannot bind `self`'s
+        // projection; `self.v[0]` does not project through the field
+        // binding.
+        (
+            "non-scalar payload field",
+            "module mine; data Signal { case Pair(v: [u8; 2]); } domain Signal::Deep requires self.v[0] > 0; const S: Signal in Signal::Deep = Signal::Pair { v: [1, 2] };",
+        ),
+        // A whole-aggregate `self` operand has no scalar identity to compare.
+        (
+            "whole-aggregate self operand",
+            "module mine; data Command { case None; case Say(volume: u64); } domain Command::Any requires self == self; const C: Command in Command::Any = Command::Say { volume: 1 };",
+        ),
+    ] {
+        let error = lower_multi(&[("mine.omg", sources)]).expect_err("{tag} must stay fenced");
+        assert!(
+            error
+                .contains("constrained const declarations require declaration-site proof checking"),
+            "{tag}: unexpected diagnostic: {error}"
+        );
+    }
+}
+
+#[test]
 fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
     for (tag, sources) in [
         // `Pos` exists only inside the unimported sibling `units`; the
