@@ -7258,7 +7258,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-SEED-REGION-OPERATIONS** — mined candidate; verify scope then implement.
 - **SQUALR-SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
 - **SQUALR-WINDOWS-GEOMETRY-VALIDATION** — mined candidate; verify scope then implement.
-- **STAGE-ANCESTRY-DIRECT-READS** — mined candidate; verify scope then implement.
+- **STAGE-ANCESTRY-DIRECT-READS.** Resolved — re-mine of the settled
+  selected-instructions ancestry surface, already closed under sibling
+  SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL: `83766d57bf` moved custody reads
+  in `selected-instructions-to-selected-instructions` to the retained
+  `optimized_target_owner` handle, the staged types expose
+  `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`
+  /`ranges`/`legality` directly, and `tests/ancestry_contract.rs` pins the
+  contract — zero `.optimized_target()` data reads and no unsanctioned
+  `selected_stage()` walks (witnessed green on linux x86-64). Remaining
+  `live_range_stage`/`liveness_stage`/`source_legality_stage`/`source_
+  segment_home_stage`/`transformation_stage` hops are the contract's named
+  custody-validator inputs, not data reads. Same-surface sibling stubs:
+  RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION, SELECTED-
+  OPTIMIZATION-ANCESTRY-ELIMINATION/-READS, SELECTED-REWRITE-ANCESTRY-
+  REMOVAL, STAGED-ANCESTRY-ELIMINATION.
 - **STAGE-CRATE-OWNERSHIP-AUDIT** — mined candidate; verify scope then implement.
 - **STAGE-ENTRANCE-ORPHAN-AUDIT** — mined candidate; verify scope then implement.
 - **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
