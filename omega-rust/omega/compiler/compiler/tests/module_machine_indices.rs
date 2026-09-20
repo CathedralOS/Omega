@@ -285,7 +285,7 @@ fn machine_index_evaluation_preserves_declared_carriers_and_intermediate_overflo
             "u8",
             "255",
             "(SIZE + 1) - 1",
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
     ] {
         Sources::write(

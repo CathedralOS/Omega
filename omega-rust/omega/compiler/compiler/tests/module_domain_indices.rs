@@ -119,7 +119,7 @@ fn domain_index_carriers_and_each_exact_operation_are_checked() {
         let expected = if expression == "SIZE + 1u16" {
             "incompatible landed integer carriers"
         } else {
-            "Exact integer constant operation"
+            "integer constant operation"
         };
         assert!(
             diagnostics
