@@ -30,7 +30,6 @@ pub enum ObjectError {
         current: MachineId,
     },
     EmptyFunction(MachineId),
-    TooManyPrivateFunctions,
     InvalidPrivateFunctionIdentity,
     EmptyPrivateFunctionSymbol,
     PrivateFunctionSymbolCollision,

@@ -14,19 +14,24 @@ pub(crate) fn validate_private_functions<'plan>(
     target: NativeTarget,
     private_functions: &'plan [CompilerPrivateMachineCodeFunction],
 ) -> Result<Vec<ValidatedPrivateFunction<'plan>>, ObjectError> {
-    if private_functions.len() > 1 {
-        return Err(ObjectError::TooManyPrivateFunctions);
-    }
+    // A registrar materializes one private function per placement; the roster
+    // is unbounded but every member must carry a distinct callback-thunk
+    // identity and a distinct private symbol.
+    let mut identities = std::collections::HashSet::new();
+    let mut symbols = std::collections::BTreeSet::new();
     let mut validated = Vec::with_capacity(private_functions.len());
     for private in private_functions {
         let Some(_placement_index) = private.identity.callback_thunk_placement_index() else {
             return Err(ObjectError::InvalidPrivateFunctionIdentity);
         };
-        if !private.identity.is_valid() {
+        if !private.identity.is_valid() || !identities.insert(private.identity) {
             return Err(ObjectError::InvalidPrivateFunctionIdentity);
         }
         if private.private_symbol.is_empty() {
             return Err(ObjectError::EmptyPrivateFunctionSymbol);
+        }
+        if !symbols.insert(private.private_symbol.as_ref()) {
+            return Err(ObjectError::PrivateFunctionSymbolCollision);
         }
         if private.function.scalar_abi.is_none() {
             return Err(ObjectError::InvalidPrivateFunctionAbi);

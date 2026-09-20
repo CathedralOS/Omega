@@ -95,6 +95,7 @@ fn source_ordered_calls_reach_executable_publication() {
                 OptimizedFragmentPublicationRequest {
                     hosted_receiver: None,
                     boundary_application_coverage: None,
+                    private_functions: &[],
                 },
             )
             .unwrap();
@@ -186,6 +187,7 @@ fn terminal_scalar_returning_calls_reach_coordinated_native_artifact() {
                 OptimizedFragmentPublicationRequest {
                     hosted_receiver: None,
                     boundary_application_coverage: None,
+                    private_functions: &[],
                 },
             )
             .unwrap();

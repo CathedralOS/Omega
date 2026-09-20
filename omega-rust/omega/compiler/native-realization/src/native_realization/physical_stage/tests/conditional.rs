@@ -228,6 +228,7 @@ fn publish(
         OptimizedFragmentPublicationRequest {
             hosted_receiver: None,
             boundary_application_coverage: None,
+            private_functions: &[],
         },
     )
     .unwrap_or_else(|error| panic!("{target:?} {selections:?}: publication {error:?}"));

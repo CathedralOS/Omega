@@ -55,7 +55,9 @@ pub use object_artifact::{
 
 pub use function_fragments::{
     FunctionFragmentObjectArtifactError, build_function_fragment_object_artifact,
+    build_function_fragment_object_artifact_with_private_functions,
     validate_function_fragment_object_artifact,
+    validate_function_fragment_object_artifact_with_private_functions,
 };
 
 pub use dynamic_elf::{

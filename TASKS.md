@@ -2392,27 +2392,42 @@ Owners include
   `BoundaryCall`, and one canonical thunk artifact per placement
   (`compiler/tests/callback_terminal_custody.rs`,
   `reachable_private_callback_registrar_binds_its_terminal_occurrence`). No
-  native product exists for any callback yet: the `emit_realization_object`
-  callback rejection arm is gone and the direct-parameter witness
-  `direct_callback_relocation_resolves_to_its_private_function` now reaches
-  selection, where `construction::build_plan` rejects the materialized
-  registrar row with `Selection(SourceCustodyMismatch)` — the common
-  instruction pipeline still carries no callback ABI transport.
+  private channel exists but no native product for a callback does:
+  callback thunks now lower to machine code inside realization and reach the
+  emitted object as private functions, and the direct-parameter witness
+  `direct_callback_relocation_resolves_to_its_private_function` still stops
+  where `construction::build_plan` rejects the materialized registrar row
+  with `Selection(SourceCustodyMismatch)` — the common instruction pipeline
+  still carries no callback ABI transport.
 
   Remaining work:
 
-  - Lower each thunk's Terminal artifact to machine code inside the same
-    realization. `produce_callback_thunk_artifact`
-    (`checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs`)
-    stops at `finalize_terminal_artifact`; `NativeCallbackThunkSettlement`
-    carries an artifact, a lowering receipt and an entry plan, never bytes.
-  - Give retained realization a private-function channel.
-    `build_object_artifact_with_private_functions`
-    (`image-emission/src/object_artifact/construction.rs`) has no non-test
-    caller. `emit_optimized_fragments` builds its object through
-    `build_function_fragment_object_artifact`, which has no such channel, and
-    `validate_private_functions` admits at most one private function where
-    the fixture needs two.
+  - Landed: each thunk's Terminal artifact lowers to machine code inside the
+    same realization. `callback_thunks::lower_callback_thunks`
+    (`native-realization/src/native_realization/callback_thunks.rs`)
+    re-derives each settlement's artifact through the sealed verified input,
+    the request's abstract optimization, target lowering, the verified
+    physical pipeline and the fragment-emission ladder, then binds the single
+    emitted span into a `CompilerPrivateMachineCodeFunction` (identity = the
+    settlement's `MachineFunctionIdentity::callback_thunk`, private symbol =
+    the settlement's pinned name, `source_psi` = the thunk's Terminal
+    identity). Foreign source identities, multi-function thunks and
+    call/import-bearing thunk bodies reject inside realization before the
+    program's target-stage wall.
+  - Landed: retained realization has a private-function channel.
+    `build_function_fragment_object_artifact_with_private_functions`
+    (`image-emission/src/function_fragments/production.rs`) emits validated
+    private functions between the program text and the import tail;
+    `validate_private_functions` (`object_artifact/private_functions.rs`)
+    admits any number of rows and dedupes identities and symbols instead of
+    rejecting a second one; `emit_optimized_fragments`' projection
+    (`optimized_fragment_projection.rs`) carries the realized roster. The
+    fragment validator joins each retained carrier to its symbol row,
+    function-symbol binding and exact text span, and the image-time replay
+    of the retained container now accepts the carrier roster on its own
+    evidence. `callback_custody` covers a two-slot registrar materializing
+    both thunks into one object, plus foreign-identity, duplicate-symbol and
+    substituted-roster rejections.
   - Give the common instruction pipeline callback ABI transport. Selection's
     `construction::build_plan`
     (`target-operations-to-selected-instructions/src/selection/construction/`)

@@ -10,6 +10,10 @@ pub(super) struct OptimizedFragmentPublicationRequest<'request> {
     pub(super) hosted_receiver: Option<&'request crate::ValidatedNativeProgramEntrySettlement>,
     pub(super) boundary_application_coverage:
         Option<&'request boundary_applications::TerminalBoundaryApplicationCoverage>,
+    /// The materialized compiler-private callback functions, in placement
+    /// order. Each record carries real emitted bytes produced by the shared
+    /// physical pipeline inside this same realization.
+    pub(super) private_functions: &'request [machine_code::CompilerPrivateMachineCodeFunction],
 }
 
 pub(super) fn emit_optimized_fragments(
@@ -31,14 +35,17 @@ pub(super) fn emit_optimized_fragments(
     let plan = optimized.shared_program();
     let validation = optimized.validation();
     let source = std::sync::Arc::new(stage_fragment_object(emission)?);
-    let mut object =
+    let mut object = if request.private_functions.is_empty() {
         image_emission::build_function_fragment_object_artifact(std::sync::Arc::clone(&source))
-            .map_err(|error| {
-                super::realization_diagnostics::realization_error(
-                    "fragment object publication",
-                    error,
-                )
-            })?;
+    } else {
+        image_emission::build_function_fragment_object_artifact_with_private_functions(
+            source.clone(),
+            request.private_functions,
+        )
+    }
+    .map_err(|error| {
+        super::realization_diagnostics::realization_error("fragment object publication", error)
+    })?;
     // The publication receipt retains the complete immutable object, including
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.

@@ -11,14 +11,21 @@ mod source;
 mod structural;
 mod validation;
 
-pub use production::build_function_fragment_object_artifact;
-pub use validation::validate_function_fragment_object_artifact;
+pub use production::{
+    build_function_fragment_object_artifact,
+    build_function_fragment_object_artifact_with_private_functions,
+};
+pub use validation::{
+    validate_function_fragment_object_artifact,
+    validate_function_fragment_object_artifact_with_private_functions,
+};
 
 #[derive(Debug)]
 pub enum FunctionFragmentObjectArtifactError {
     Source(object_file::RelocationFreeObjectContainerError),
     Unsupported(&'static str),
     Mismatch(&'static str),
+    PrivateFunctions(crate::ObjectError),
     Overflow,
 }
 
@@ -27,6 +34,9 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
         match self {
             Self::Source(error) => write!(formatter, "shared object replay: {error}"),
             Self::Unsupported(reason) | Self::Mismatch(reason) => formatter.write_str(reason),
+            Self::PrivateFunctions(error) => {
+                write!(formatter, "compiler-private function custody: {error}")
+            }
             Self::Overflow => {
                 formatter.write_str("shared object coordinate exceeds supported size")
             }

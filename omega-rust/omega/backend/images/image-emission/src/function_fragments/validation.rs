@@ -13,9 +13,40 @@ pub fn validate_function_fragment_object_artifact(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     artifact: &ObjectArtifact,
 ) -> Result<(), Error> {
+    validate(source, artifact, None)
+}
+
+/// Replay the same admission with an expected compiler-private roster: each
+/// materialized record must bind one private symbol row, one function-symbol
+/// join row, and one carrier whose bytes follow the program text in order.
+pub fn validate_function_fragment_object_artifact_with_private_functions(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    artifact: &ObjectArtifact,
+    private_functions: &[machine_code::CompilerPrivateMachineCodeFunction],
+) -> Result<(), Error> {
+    validate(source, artifact, Some(private_functions))
+}
+
+fn validate(
+    source: &StagedOptimizedRelocationFreeObjectContainer,
+    artifact: &ObjectArtifact,
+    private_functions: Option<&[machine_code::CompilerPrivateMachineCodeFunction]>,
+) -> Result<(), Error> {
     source::admit(source)?;
     let text = source.source().text_section();
     let layout = &artifact.object.layout;
+    // The text section covers the program text plus every retained private
+    // carrier's own byte span; the roster replay below independently checks
+    // each span against the materialized record.
+    let expected_text_len =
+        artifact
+            .private_functions
+            .iter()
+            .try_fold(text.bytes.len(), |total, carrier| {
+                total
+                    .checked_add(carrier.function.byte_count)
+                    .ok_or(Error::Overflow)
+            })?;
     let requires_graph_storage_replay =
         text.functions
             .iter()
@@ -28,7 +59,8 @@ pub fn validate_function_fragment_object_artifact(
         || artifact.target != text.target
         || artifact.entry != text.semantic_entry
         || artifact.object.target != text.target
-        || artifact.text_bytes != text.bytes
+        || artifact.text_bytes.len() != expected_text_len
+        || !artifact.text_bytes.starts_with(&text.bytes)
         || artifact.relocations.target != text.target
         || artifact.x86_feature_profile.is_some()
         || artifact.x86_scalar_fma_provider.is_some()
@@ -36,11 +68,15 @@ pub fn validate_function_fragment_object_artifact(
         || !artifact.dynamic_conformance_tables.is_empty()
         || !artifact.forwarded_dynamic_descriptor_adapters.is_empty()
         || !artifact.forwarded_dynamic_descriptor_tables.is_empty()
-        || !artifact.private_functions.is_empty()
+        || artifact.private_functions.len()
+            != private_functions.map_or(artifact.private_functions.len(), |roster| roster.len())
         || !artifact.port_effects.is_empty()
-        || !layout.function_symbols.is_empty()
+        || layout.function_symbols.len() != artifact.private_functions.len()
         || layout.sections.len() != 1
-        || layout.symbols.len() != text.functions.len() + layout.normalized_imports.len()
+        || layout.symbols.len()
+            != text.functions.len()
+                + artifact.private_functions.len()
+                + layout.normalized_imports.len()
         || artifact.functions.len() != text.functions.len()
     {
         return Err(Error::Mismatch(
@@ -53,7 +89,7 @@ pub fn validate_function_fragment_object_artifact(
         .next()
         .ok_or(Error::Mismatch("object has no text section"))?;
     if section.kind != SectionKind::Text
-        || section.size != text.bytes.len()
+        || section.size != artifact.text_bytes.len()
         || section.alignment != host(text.section_alignment)?
     {
         return Err(Error::Mismatch("shared object text geometry changed"));
@@ -167,6 +203,57 @@ pub fn validate_function_fragment_object_artifact(
         return Err(Error::Mismatch(
             "shared object retains a foreign semantic attribution",
         ));
+    }
+    // Private carriers join by position: their symbol rows sit between the
+    // program symbols and the import tail. The carrier/symbol/region join is
+    // self-evident on the object; when the materialized roster is supplied
+    // each row must additionally equal the record that produced it.
+    let mut private_symbols = layout.symbols.iter().skip(text.functions.len());
+    let mut private_offset = text.bytes.len();
+    for ((index, carrier), (_, function_symbol)) in artifact
+        .private_functions
+        .iter()
+        .enumerate()
+        .zip(layout.function_symbols.iter())
+    {
+        let length = carrier.function.byte_count;
+        let Some((symbol_handle, symbol)) = private_symbols.next() else {
+            return Err(Error::Mismatch("object lacks a private function symbol"));
+        };
+        if carrier.function.symbol != symbol_handle
+            || carrier.function.text_offset != private_offset
+            || function_symbol.identity != carrier.identity
+            || function_symbol.symbol != symbol_handle
+            || symbol.section != SymbolSection::Section(SectionKind::Text)
+            || symbol.offset != private_offset
+            || symbol.size != length
+            || symbol.kind != SymbolKind::Function
+            || symbol.name.is_empty()
+            || !symbol.import_library.is_empty()
+            || artifact
+                .text_bytes
+                .get(private_offset..private_offset + length)
+                .is_none()
+        {
+            return Err(Error::Mismatch(
+                "private function carrier is inconsistent with the emitted object",
+            ));
+        }
+        if let Some(private) = private_functions.and_then(|roster| roster.get(index))
+            && (carrier.identity != private.identity
+                || carrier.source_psi != private.source_psi
+                || carrier.function.machine != private.function.machine
+                || carrier.function.scalar_abi != private.function.scalar_abi
+                || length != private.function.bytes.len()
+                || symbol.name != private.private_symbol.as_ref()
+                || artifact.text_bytes[private_offset..private_offset + length]
+                    != private.function.bytes[..])
+        {
+            return Err(Error::Mismatch(
+                "private function carrier differs from the materialized record",
+            ));
+        }
+        private_offset = private_offset.checked_add(length).ok_or(Error::Overflow)?;
     }
     super::structural::validate_settlements(source, &artifact.boundary_settlements)?;
     super::imports::validate(source, artifact)?;

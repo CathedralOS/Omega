@@ -1,5 +1,6 @@
 use super::{
-    Error, attribution, host, source, validation::validate_function_fragment_object_artifact,
+    Error, attribution, host, source,
+    validation::validate_function_fragment_object_artifact_with_private_functions,
 };
 use crate::{
     ObjectArtifact, ObjectCodeAttribution, ObjectFunction, ObjectScalarCallStack,
@@ -14,16 +15,23 @@ use std::sync::Arc;
 pub fn build_function_fragment_object_artifact(
     replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
 ) -> Result<ObjectArtifact, Error> {
+    build_function_fragment_object_artifact_with_private_functions(replay, &[])
+}
+
+/// Project admitted current fragments plus the materialized compiler-private
+/// callback functions into one object. Private bytes append after the program
+/// text under their private symbols; the program's fragment order and the
+/// import tail are unchanged.
+pub fn build_function_fragment_object_artifact_with_private_functions(
+    replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
+    private_functions: &[machine_code::CompilerPrivateMachineCodeFunction],
+) -> Result<ObjectArtifact, Error> {
     let source = replay.as_ref();
     source::admit(source)?;
     let text = source.source().text_section();
     let fragments = source::fragments(source);
     let mut object = ObjectPlan::with_capacity(text.target, 1, text.functions.len());
-    object.layout.sections.insert(SectionPlan {
-        kind: SectionKind::Text,
-        size: text.bytes.len(),
-        alignment: host(text.section_alignment)?,
-    });
+    let mut text_bytes = text.bytes.clone();
     let mut functions = Vec::new();
     let mut semantic_code_attribution = Vec::new();
     let mut requires_graph_storage_replay = false;
@@ -174,6 +182,23 @@ pub fn build_function_fragment_object_artifact(
             });
         }
     }
+    // Private callback thunks append after the program text, ahead of the
+    // import tail, so the symbol order is program, private, import.
+    let validated_private =
+        crate::object_artifact::validate_private_functions(text.target, private_functions)
+            .map_err(Error::PrivateFunctions)?;
+    let private_carriers = crate::object_artifact::emit_private_functions(
+        validated_private,
+        &mut object,
+        &mut text_bytes,
+    )
+    .map_err(Error::PrivateFunctions)?;
+    // The text section is sized last: it covers program and private bytes.
+    object.layout.sections.insert(SectionPlan {
+        kind: SectionKind::Text,
+        size: text_bytes.len(),
+        alignment: host(text.section_alignment)?,
+    });
     // Stack sizing happens before image emission. Keep the admitted external
     // contributions on the ordinary object, not in a later image-only append.
     let foreign_calls = crate::derive_normalized_foreign_call_custody(source)
@@ -190,18 +215,22 @@ pub fn build_function_fragment_object_artifact(
         entry: text.semantic_entry,
         object,
         relocations,
-        text_bytes: text.bytes.clone(),
+        text_bytes,
         data_bytes: Vec::new(),
         dynamic_conformance_tables: Vec::new(),
         forwarded_dynamic_descriptor_adapters: Vec::new(),
         forwarded_dynamic_descriptor_tables: Vec::new(),
         functions,
-        private_functions: Vec::new(),
+        private_functions: private_carriers,
         semantic_code_attribution,
         port_effects: Vec::new(),
         boundary_settlements: super::structural::settlements(source)?,
         foreign_calls,
     };
-    validate_function_fragment_object_artifact(source, &artifact)?;
+    validate_function_fragment_object_artifact_with_private_functions(
+        source,
+        &artifact,
+        private_functions,
+    )?;
     Ok(artifact)
 }

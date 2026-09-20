@@ -99,7 +99,12 @@ pub(super) fn validate(
         return Err(Error::Mismatch("fragment import relocation roster changed"));
     }
     let mut imports = layout.normalized_imports.iter();
-    let mut symbols = layout.symbols.iter().skip(artifact.functions.len());
+    // Import symbols trail the program functions and the compiler-private
+    // callback functions; skip both rosters to find the import tail.
+    let mut symbols = layout
+        .symbols
+        .iter()
+        .skip(artifact.functions.len() + artifact.private_functions.len());
     for (call_index, call) in calls.iter().enumerate() {
         if calls[..call_index]
             .iter()

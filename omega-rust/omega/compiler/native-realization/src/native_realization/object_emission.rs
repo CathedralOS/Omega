@@ -1,5 +1,6 @@
 //! One abstract-to-object sequence, independent of optimization selection.
 
+use crate::native_realization::callback_thunks::lower_callback_thunks;
 use crate::native_realization::optimization_stage::lower_realization_optimization_stage;
 use crate::native_realization::optimized_fragment_projection::{
     OptimizedFragmentPublicationRequest, emit_optimized_fragments,
@@ -36,6 +37,10 @@ pub(crate) fn emit_realization_object(
         ));
     }
     let abstract_stage = lower_realization_optimization_stage(input, request)?;
+    // Thunks are independent canonical artifacts: materialize them once the
+    // request-level callback/selection custody check has passed, before the
+    // shared instruction pipeline runs the program plan.
+    let private_functions = lower_callback_thunks(request)?;
     let target_stage = lower_realization_target_stage(
         abstract_stage,
         provider_installation,
@@ -48,6 +53,7 @@ pub(crate) fn emit_realization_object(
         OptimizedFragmentPublicationRequest {
             boundary_application_coverage,
             hosted_receiver,
+            private_functions: &private_functions,
         },
     )?;
     Ok(EmittedRealizationObject {
