@@ -6504,7 +6504,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
   stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
-- **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
+- **ALPHA-SEED-WINDOWS-X64-EXECUTION.** Mined candidate; scope verified
+  at `6a3ba61f74`, resolved — host-gated owner row: this stub is the named
+  owner of the Windows x64 leg of the audited Alpha seed-execution surface
+  (resolved sibling ALPHA-WINDOWS-SEED-EXECUTION at `a51cb805cc` cites it
+  verbatim as the owner, alongside ALPHA-WINDOWS-CONFORMANCE-HOST whose
+  remaining acceptance is exactly the seed-executing legs of
+  `tests/bootstrap/alpha-beta-edge.sh` and `tests/alpha/reference/
+  diamond-py.sh` on a Windows x64 host). The committed seed
+  `bootstrap/0_alpha/alpha_x64_windows.exe` (PE32+ x86-64, hole offset
+  5120) is already bound, selected, and structurally validated host-free —
+  `tools/bootstrap/alpha/seed_env.sh` pins its size/SHA-256/hole and sets
+  `ALPHA_SEED_EXECUTABLE=1` under `MINGW*-x86_64|MSYS*-x86_64`. Nothing
+  executable remains on a Linux host: `require_seed_execution_host`
+  refuses linux_x86_64 by landed design ("requires macOS arm64 or Windows
+  x64"), so the only residual is running the seed on Windows x64 itself —
+  not producible here. Implementing surfaces live-fenced this wave:
+  `tools/bootstrap/alpha/seed_env.sh` + `tests/alpha` +
+  `tests/bootstrap/alpha-beta-edge.sh` + `tests/beta` under
+  BOOTSTRAP-SEED-EXECUTION-HOSTS (03:55Z), the native-validation draft
+  under ALPHA-SEED-CONTAINER-NATIVE-VALIDATION (05:57Z). Sibling stubs on
+  the same leg: ALPHA-WINDOWS-CONFORMANCE, ALPHA-WINDOWS-SEED-EXECUTION.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
