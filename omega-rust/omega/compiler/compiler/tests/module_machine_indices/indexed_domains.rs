@@ -1951,3 +1951,35 @@ fn computed_boolean_domain_indices_do_not_publish_placeholder_membership() {
         );
     }
 }
+
+#[test]
+fn leaf_domain_reference_prefers_the_references_own_package() {
+    // `use` makes a dependency package's unmoduled same-leaf domain visible,
+    // but the leaf spelling still selects the referencing package's own
+    // capacity-specialized family: the dependency's `Utf8` is a separate
+    // semantic theory and must not contest the local pool.
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("calling.omg"),
+        "pub domain [u8; 256]::Utf8 requires valid_utf8(self);",
+    );
+    let view = root.join("view");
+    std::fs::create_dir(&view).unwrap();
+    Sources::write(
+        root.join("main.omg"),
+        "domain [u8; 8]::Utf8 requires valid_utf8(self);
+         domain [u8; 16]::Utf8 requires valid_utf8(self);
+         domain [u8; 128]::Utf8 requires valid_utf8(self);
+         use view::game_view;
+         machine main() -> i32 { 0 }",
+    );
+    Sources::write(
+        view.join("game_view.omg"),
+        "use library::calling;
+         machine render(line: [u8; 128] in Utf8) -> [u8; 128]
+         ensures result in Utf8 { line }",
+    );
+    compile(&root, package_inputs(&root, &library));
+}
