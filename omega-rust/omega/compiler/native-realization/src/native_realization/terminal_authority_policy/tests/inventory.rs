@@ -49,7 +49,25 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmReadCr4
             | BuiltinFunction::AsmWriteCr0
             | BuiltinFunction::AsmWriteCr3
-            | BuiltinFunction::AsmWriteCr4 => vec![TerminalAuthorityClass::MachineControl],
+            | BuiltinFunction::AsmWriteCr4
+            | BuiltinFunction::AsmReadSctlrEl1
+            | BuiltinFunction::AsmReadTcrEl1
+            | BuiltinFunction::AsmReadTtbr0El1
+            | BuiltinFunction::AsmReadTtbr1El1
+            | BuiltinFunction::AsmReadMairEl1
+            | BuiltinFunction::AsmReadVbarEl1
+            | BuiltinFunction::AsmReadTpidrEl1
+            | BuiltinFunction::AsmReadEsrEl1
+            | BuiltinFunction::AsmReadFarEl1
+            | BuiltinFunction::AsmWriteSctlrEl1
+            | BuiltinFunction::AsmWriteTcrEl1
+            | BuiltinFunction::AsmWriteTtbr0El1
+            | BuiltinFunction::AsmWriteTtbr1El1
+            | BuiltinFunction::AsmWriteMairEl1
+            | BuiltinFunction::AsmWriteVbarEl1
+            | BuiltinFunction::AsmWriteTpidrEl1 => {
+                vec![TerminalAuthorityClass::MachineControl]
+            }
             BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
                 vec![TerminalAuthorityClass::PortIo]
             }
@@ -143,7 +161,7 @@ fn linux_console_and_numeric_families_have_exact_dispositions() {
     );
     for mechanism in closed_policy_mechanisms()
         .into_iter()
-        .skip(2 + BuiltinFunction::COUNT)
+        .skip(3 + BuiltinFunction::COUNT)
     {
         assert!(
             policy
@@ -173,8 +191,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            159, 205, 164, 116, 50, 135, 128, 240, 210, 236, 191, 83, 119, 50, 11, 131, 173, 239,
-            183, 105, 133, 97, 193, 56, 94, 13, 4, 199, 191, 189, 99, 119,
+            87, 93, 216, 66, 41, 42, 97, 78, 207, 204, 157, 224, 162, 42, 215, 127, 125, 89, 198,
+            231, 240, 204, 125, 64, 21, 16, 46, 3, 219, 107, 38, 186,
         ]
     );
 }

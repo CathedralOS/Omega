@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.application("asm-read-sctlr-el1-requires-u64-destination");
+    builder.freestanding = true;
+}

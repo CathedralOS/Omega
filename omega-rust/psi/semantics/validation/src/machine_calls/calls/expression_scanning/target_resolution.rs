@@ -164,6 +164,8 @@ pub(super) fn report_unresolved_value_call(
             "min" | "max" | "sqrt" | "asm#port_in" | "asm#pushfq" | "asm#rdmsr"
         ) || language_core::inline_assembly::AsmControlRegister::from_read_intrinsic_name(target)
             .is_some()
+            || language_core::inline_assembly::AsmSystemRegister::from_read_intrinsic_name(target)
+                .is_some()
         {
             return;
         }

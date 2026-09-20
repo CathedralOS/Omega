@@ -1242,6 +1242,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_wrmsr_requires_u64_value",
     "inline_asm/asm_read_cr3_requires_u64_destination",
     "inline_asm/asm_write_cr3_requires_u64_value",
+    "inline_asm/asm_read_sctlr_el1_requires_u64_destination",
+    "inline_asm/asm_write_sctlr_el1_requires_u64_value",
+    "inline_asm/asm_write_esr_el1_unavailable",
     "inline_asm/asm_port_out_wrong_port_type",
     "inline_asm/asm_port_out_wrong_value_type",
     "inline_asm/asm_port_in_wrong_destination_type",
@@ -4916,6 +4919,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_popfq_requires_machine_authority",
     "inline_asm/asm_wrmsr_requires_machine_authority",
     "inline_asm/asm_write_cr3_requires_machine_authority",
+    "inline_asm/asm_write_sctlr_el1_requires_machine_authority",
     "ports/asm_port_in_unsettled",
 ];
 

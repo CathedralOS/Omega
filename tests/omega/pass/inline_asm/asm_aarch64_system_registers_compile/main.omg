@@ -1,0 +1,31 @@
+// COMPILE CANARY (aarch64 freestanding): EL1 system-register access uses the
+// structured `read_<sysreg>`/`write_<sysreg>` spellings with exact-u64 value
+// flow and exposes the realized scratch clobbers. The check surface is
+// targetless like the pipeline-directive family; target applicability stays
+// catalog metadata until a dedicated asm operation lowers.
+use omega::language::core::assembly;
+
+data Main {
+    value: u64;
+}
+
+machine Main::main(&mut self) reaches MachineControl {
+    asm where clobbers x9, x10, x11, x15 {
+        read_sctlr_el1 self.value;
+        write_sctlr_el1 self.value;
+        read_tcr_el1 self.value;
+        write_tcr_el1 self.value;
+        read_ttbr0_el1 self.value;
+        write_ttbr0_el1 self.value;
+        read_ttbr1_el1 self.value;
+        write_ttbr1_el1 self.value;
+        read_mair_el1 self.value;
+        write_mair_el1 self.value;
+        read_vbar_el1 self.value;
+        write_vbar_el1 self.value;
+        read_tpidr_el1 self.value;
+        write_tpidr_el1 self.value;
+        read_esr_el1 self.value;
+        read_far_el1 self.value
+    }
+}
