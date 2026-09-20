@@ -70,6 +70,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         module: "tests",
     },
     TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/equality_transport/tests.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/equality_transport.rs",
+        module: "tests",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction/bound_tests.rs",
         parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction.rs",
         module: "bound_tests",
@@ -324,7 +329,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation.rs",
-        sha256: Some("815389e3b43f0bbb11c9d9005f439a8640795bd31e19c05cdf072b2bc121d792"),
+        sha256: Some("96f1aa525b8046aa0d0230813c23d31b3390766021e18378d6c0f85c32266159"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -335,6 +340,16 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/binary_numerals.rs",
         sha256: Some("2086cd2677ebaddae90d2ce4d06b1a350e505af5cd7829bef0d23a8e85a1aa37"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/booleans.rs",
+        sha256: Some("6c359795f5c0aaf6434ea030e5ba46e6fc7dfc481e140224ae4a6cd87846ce57"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/equality_transport.rs",
+        sha256: Some("37e53aa7e3a342ffbbc2d23696826422e6ed32896b52bc5c101b169c42fc05be"),
         inventory_machinery: false,
     },
     ImplementationSite {

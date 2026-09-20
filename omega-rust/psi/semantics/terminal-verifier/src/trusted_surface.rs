@@ -21,7 +21,9 @@
 //!   content digest pins the implementing code. Changing an implementation
 //!   changes its digest and fails coverage until the entry's justification is
 //!   revalidated; a stable enum tag is not enough.
-//! - `soundness`: `Proved`, `ExplicitlyTrusted`, or `Unfinished`. A `Proved`
+//! - `soundness`: `Proved`, `ExplicitlyTrusted`, or `Unfinished`. An
+//!   `ExplicitlyTrusted` row's named root is an *accepting* root: its
+//!   `accepts` policy must cover the entry's family. A `Proved`
 //!   entry names checked evidence and its assumptions — currently a total
 //!   certifying procedure whose every emitted fact the certificate checker
 //!   re-decides before it may join a roster — while its dependencies keep the
@@ -314,6 +316,10 @@ pub enum LedgerFailure {
     TrustedEntryMissingRoot {
         entry: &'static str,
     },
+    TrustRootOutOfScope {
+        entry: &'static str,
+        root: &'static str,
+    },
     UnfinishedEntryMissingGap {
         entry: &'static str,
     },
@@ -408,6 +414,10 @@ impl std::fmt::Display for LedgerFailure {
             Self::TrustedEntryMissingRoot { entry } => write!(
                 formatter,
                 "ledger entry `{entry}` is ExplicitlyTrusted but names no registered trust root"
+            ),
+            Self::TrustRootOutOfScope { entry, root } => write!(
+                formatter,
+                "ledger entry `{entry}` is ExplicitlyTrusted under `{root}` whose accepting policy does not cover the entry's family; the root cannot accept this claim"
             ),
             Self::UnfinishedEntryMissingGap { entry } => write!(
                 formatter,
@@ -515,23 +525,7 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
                 field: "conclusion",
             });
         }
-        match entry.soundness {
-            SoundnessStatus::Proved { evidence } => {
-                if evidence.trim().is_empty() {
-                    failures.push(LedgerFailure::ProvedEntryMissingEvidence { entry: entry.id });
-                }
-            }
-            SoundnessStatus::ExplicitlyTrusted { root, rationale } => {
-                if !root_index.contains_key(root) || rationale.trim().is_empty() {
-                    failures.push(LedgerFailure::TrustedEntryMissingRoot { entry: entry.id });
-                }
-            }
-            SoundnessStatus::Unfinished { gap } => {
-                if gap.trim().is_empty() {
-                    failures.push(LedgerFailure::UnfinishedEntryMissingGap { entry: entry.id });
-                }
-            }
-        }
+        check_soundness_status(entry, &root_index, &mut failures);
         for &site in entry.implementation {
             if !site_paths.contains(site) {
                 failures.push(LedgerFailure::UnknownImplementationSite {
@@ -727,6 +721,43 @@ fn collect_unclaimed_sources(
                         path: repo_relative.to_string(),
                     });
                 }
+            }
+        }
+    }
+}
+
+/// Soundness-status well-formedness for one entry: each status carries its
+/// required parts, and an `ExplicitlyTrusted` row's named root must be both
+/// registered and in scope — the spec asks for an identified *accepting*
+/// root, so a root whose policy does not cover the entry's family cannot
+/// terminate the claim.
+fn check_soundness_status(
+    entry: &TrustedSurfaceEntry,
+    roots: &BTreeMap<&'static str, &'static TrustRoot>,
+    failures: &mut Vec<LedgerFailure>,
+) {
+    match entry.soundness {
+        SoundnessStatus::Proved { evidence } => {
+            if evidence.trim().is_empty() {
+                failures.push(LedgerFailure::ProvedEntryMissingEvidence { entry: entry.id });
+            }
+        }
+        SoundnessStatus::ExplicitlyTrusted { root, rationale } => {
+            if !roots.contains_key(root) || rationale.trim().is_empty() {
+                failures.push(LedgerFailure::TrustedEntryMissingRoot { entry: entry.id });
+            }
+            if let Some(target) = roots.get(root)
+                && !target.accepts.contains(&entry.family)
+            {
+                failures.push(LedgerFailure::TrustRootOutOfScope {
+                    entry: entry.id,
+                    root,
+                });
+            }
+        }
+        SoundnessStatus::Unfinished { gap } => {
+            if gap.trim().is_empty() {
+                failures.push(LedgerFailure::UnfinishedEntryMissingGap { entry: entry.id });
             }
         }
     }
@@ -947,6 +978,19 @@ mod tests {
         rationale: "fixture root whose policy accepts no dependency",
         accepts: &[],
     };
+    static OUT_OF_SCOPE_TRUSTED: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:out-of-scope-trusted",
+        family: LedgerFamily::CheckerRule,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &[],
+        implementation: &[],
+        soundness: SoundnessStatus::ExplicitlyTrusted {
+            root: "root:verification-contract",
+            rationale: "justification",
+        },
+    };
 
     fn fixture() -> (
         Vec<&'static TrustedSurfaceEntry>,
@@ -1031,6 +1075,25 @@ mod tests {
             failure,
             LedgerFailure::UnreachableDependency {
                 entry: "test:duplicate-dependent",
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn an_explicitly_trusted_row_must_be_accepted_by_its_root() {
+        let (_, _, roots) = fixture();
+        let mut failures = Vec::new();
+        check_soundness_status(&OUT_OF_SCOPE_TRUSTED, &roots, &mut failures);
+        assert!(failures.contains(&LedgerFailure::TrustRootOutOfScope {
+            entry: "test:out-of-scope-trusted",
+            root: "root:verification-contract",
+        }));
+        check_soundness_status(&TRUSTED_DEPENDENT, &roots, &mut failures);
+        assert!(!failures.iter().any(|failure| matches!(
+            failure,
+            LedgerFailure::TrustRootOutOfScope {
+                entry: "test:trusted-dependent",
                 ..
             }
         )));
