@@ -1440,26 +1440,19 @@ Owners include
   `terminal-verifier/src/validation/crash/operation_contracts.rs` and produced
   by `checked-trees-to-lowered-psi/src/retention/operation_crash_contracts.rs`.
   That producer reaches an emitted operation only through the selected IEEE
-  and selected integer comparison occurrence rosters, and no source customer
-  replays yet. `omega inspect-terminal` on `operators/crash_routes` (its canary
-  rows are check-only and never lower) rejects `safe`/`may_crash` at `selected
-  comparison has no complete provider plan evidence` and `wrapper` at `direct
-  scalar call crash continuation lacks a checked scalar term`. On the product
-  route, `selected-dispatch`'s `validate_selected_operator_terminal_custody`
-  still refuses every checked program with a crash-qualified operator use.
+  and selected integer comparison occurrence rosters. General call and control
+  routes still need the emitted-operation joins below.
 
   Remaining work:
 
-  - Supply provider evidence for the integer boundary comparison on the Omega
-    side: a selected ProviderPlan or an explicit builtin-realization commitment
-    for `Comparison::equal(i32, i32)`. The fixture's `boundary machine ==` has
-    none, so the checked use carries an empty `provider_plan_commitment` and
-    `expression_preparation/source_custody/comparisons.rs` refuses to emit it.
-    Then add an Omega consumer that rejoins
-    `selected_integer_comparison_occurrences` the way
-    `float_comparisons::associate` does, and lift the nonempty-roster refusal
-    in `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs`. Do
-    not realize a selected comparison as the builtin one.
+  - Close the guarded selected-comparison continuation evidence. On macOS
+    ARM64, `omega inspect-terminal --machine safe --target linux_x86_64
+    tests/omega/pass/operators/crash_routes/main.omg` reaches
+    `InvalidTerminalModule(CallCrashContinuationUncovered { operation:
+    OperationId(1), cause: Trap })`. Preserve the selected requirement and
+    its substituted route through operation-crash publication and verifier
+    continuation coverage; do not erase the crash contract or substitute
+    builtin semantics to make the artifact pass.
   - Give the remaining crash-qualified uses a replayable Terminal carrier. A
     named `Namespace::requirement(...)` use has no emitted-operation join and
     fails closed in the producer, as do a non-scalar or miscounted operand
