@@ -4153,9 +4153,16 @@ Owners include
   whole-extent field domains that runtime-indexed subjects and slice views
   narrow from (5292e6ec8c, which left only the four index rows), and the
   sample's declared `u64 [0..=16]`/`[0..=15]` bounds let the single shared
-  statement transfer discharge those (4c09f582f1). The probe now reports
-  no diagnostics on macOS ARM64; rerun it before relying on that
-  observation.
+  statement transfer discharge those (4c09f582f1). The probe reports
+  no diagnostics on macOS ARM64 and, after two same-day upstream
+  regressions were repaired, again on linux_x86_64 at 8421784e74:
+  package-keyed domain semantic identity (3248d8c82c) pooled a package's
+  own `[u8;8]::Utf8` against std's `[u8;256]::Utf8` as ambiguous until
+  domain references learned the documented own-package tier
+  (f900cba191), and operand-order move replay (6662a37929) exposed that
+  `expression_result_type_reference` never classified `UInt`/`Int`
+  carriers as integer, breaking `calls = calls + 1` restores
+  (3bf8be9383).
 
   Remaining work:
 
@@ -4163,8 +4170,9 @@ Owners include
     rows: a callee's `self` entry assumption is ZII-gated, so its return
     cannot guarantee non-ZII rows, and a caller's non-ZII receiver facts
     survive a method call only through frame precision. Widening needs a
-    contract decision, not a flow change; none is recorded in
-    `OWNER_QUESTIONS.md` yet, and the clean probe does not exercise it.
+    contract decision, not a flow change; the question is recorded in
+    `OWNER_QUESTIONS.md` as `mutable-self-receiver-declared-field-rows`
+    (8421784e74), and the clean probe does not exercise it.
   - `RoomLookup` still passes an uninitialized readable `&mut Room`
     out-parameter where write-only `&write Room` is the intended spelling;
     `&write` admission still rejects constrained records. That spelling is
