@@ -2761,10 +2761,12 @@ Owners include
 
   `external-roots/src/interrupts/` holds Rust ledgers for entry admission,
   nesting, epoch stages and settlement (`interrupt_entries.rs`) and for table
-  member admission, a derived gate-offset writer plan, written-table
-  validation, publication through the `lidt` edge and published-vector
-  dispatch (`interrupt_table.rs`). `core/interrupt.omg` declares the mask and
-  acknowledgement obligations, and the instruction catalog in
+  member admission, publication through the `lidt` edge and published-vector
+  dispatch (`interrupt_table.rs`); table staging, the writer and the
+  produced-image verdict are the authored layout plus the generic
+  post-handoff writer and the consumer's validator. `core/interrupt.omg`
+  declares the mask and acknowledgement obligations, and the instruction
+  catalog in
   `language-core/src/inline_assembly/` holds the deriver-only `lidt` contract.
   Every caller of those ledgers is a test inside `external-roots`. No authored
   program installs an exception or timer root, no backend stage emits a
@@ -2881,15 +2883,22 @@ Owners include
     and member plans now take all their semantic constants (vector, stack
     class, obligation, descriptor) from the authored declaration; only the
     sealed entry-stub and external-root identities remain fixture
-    vocabulary. The flag below names the ledger code this replaces.
-    Remaining on this leg: the compiler-owned `interrupt_table/` model's
+    vocabulary. The compiler-side model has been retired: the ledger no
+    longer derives a bespoke writer, stages the table image, or decodes
+    produced gates — the authored layout, the generic post-handoff writer
+    and `DescriptorTableValidation::validate` carry the produced table,
+    and `EstablishedInterruptTable::from_consumer` mints the value only
+    on `Accepted`. What remains in `interrupt_table/` is custody
+    plumbing: member admission replaying installed-root records, the
+    publication carrier/receipt binding the established value to the
+    table, and published-vector dispatch. Remaining on this leg: those
     member-admission, established-record and publication types
     (`EstablishedInterruptTable`, `InterruptTablePublication*`, the
-    admitted-member records) still hold the obligation the authored
-    verdict now warrants — relocating them needs authored record/machine
-    types for admission and publication so the ledger becomes plumbing;
-    the ledger itself (installed roots, `lidt` contract, checked writer)
-    stays compiler-owned.
+    admitted-member records) still hold declaration-shaped obligations
+    the authored verdict now warrants — relocating them needs authored
+    record/machine types for admission and publication so the ledger
+    becomes plumbing only; the ledger itself (installed roots, `lidt`
+    contract, checked writer) stays compiler-owned.
   - Timer. The device source, tick record and wake are package code. The
     acknowledgement settles through `InterruptAcknowledgement::complete`, whose
     LAPIC/x2APIC reach waits on `BOUNDED-INSTALLATION-REACH-ROWS`.
@@ -2906,20 +2915,22 @@ Owners include
   the table still names reject. Rust ledger tests and emitted but uninstalled
   stubs are not the witness.
 
-  Flag: `external-roots/src/interrupts/interrupt_table/` is a compiler-owned
-  Rust model of the x86-64 IDT. `InterruptTableGateDescriptor` carries selector,
-  gate kind, privilege and IST slot; `InterruptTableProfile` requires one
-  distinct dedicated stack class per vector;
-  `descriptor_table_staged_image` builds the table bytes; and
-  `validate_written_descriptor_table` decodes each gate, requires an IST slot
-  and mints `EstablishedInterruptTable`. Hardware materialization assigns that
-  validator and established value to the consumer package ("these policies are
-  not compiler-owned types"), and interrupt obligations says Omega does not
-  choose exception coverage or IST policy. No code outside the crate's tests
-  calls it. The general mechanism is a source-authored table layout, the
-  generic writer and a Cathedral validator; the compiler keeps root records,
-  the IST-to-stack-class join that stack selection derives, and the `lidt`
-  contract.
+  Flag: `external-roots/src/interrupts/interrupt_table/` carried a
+  compiler-owned Rust model of the x86-64 IDT — its bespoke writer plan,
+  staged image and `validate_written_descriptor_table` gate decoder are
+  retired in favor of the authored layout plus `DescriptorTableValidation`
+  verdict. What stays flagged: `InterruptTableGateDescriptor` still carries
+  selector, gate kind, privilege and IST slot as Rust fields, and
+  `InterruptTableProfile` still requires one distinct dedicated stack class
+  per vector — declaration vocabulary the authored
+  `TableMemberDeclaration`/`IstBinding` rows now supply, pending authored
+  admission and publication record types. Hardware materialization assigns
+  the validator and established value to the consumer package ("these
+  policies are not compiler-owned types"), and interrupt obligations says
+  Omega does not choose exception coverage or IST policy. The general
+  mechanism is a source-authored table layout, the generic writer and a
+  Cathedral validator; the compiler keeps root records, the IST-to-stack-
+  class join that stack selection derives, and the `lidt` contract.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
