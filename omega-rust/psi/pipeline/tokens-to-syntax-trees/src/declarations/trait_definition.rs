@@ -27,8 +27,33 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     )?;
     input = next;
     let type_parameters = generic_parameters.type_parameters;
-    let (parents, next) = parse_trait_parents(syntax_trees, input)?;
+    // A transparent refinement heads with `= Base` in place of a `:` parent
+    // list: it names a structural bound over an existing base conformance,
+    // never a new conformance target.
+    let (refines, next) = if input.at_punctuation(PunctuationKind::Equal) {
+        let after_equal = input.take_punctuation(PunctuationKind::Equal, "=")?;
+        let (base, rest) = parse_type_reference_handle(syntax_trees, after_equal)?;
+        (Some(base), rest)
+    } else {
+        (None, input)
+    };
     input = next;
+    let (parents, next) = if refines.is_some() {
+        if input.at_punctuation(PunctuationKind::Colon) {
+            return Err(input.error_here(
+                "a transparent refinement declares its base with `= Base`; the `:` parent list belongs to ordinary traits",
+            ));
+        }
+        (HandleSpan::empty(), input)
+    } else {
+        parse_trait_parents(syntax_trees, input)?
+    };
+    input = next;
+    if refines.is_some() && input.at_contextual("where") {
+        return Err(input.error_here(
+            "a transparent refinement takes no `where` clauses; bounds on its parameters belong to the base trait",
+        ));
+    }
     let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
     input = next;
     let mut conformance_bounds = generic_parameters.conformance_bounds;
@@ -46,6 +71,43 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     let mut required_trait_count = 0u32;
     let mut machine_start = Handle::invalid();
     let mut machine_count = 0u32;
+    let mut refinement_clauses = Vec::new();
+
+    if refines.is_some() {
+        while !input.at_punctuation(PunctuationKind::RightBrace) {
+            if input.at_contextual("requires") {
+                return Err(input.error_here(
+                    "a refinement narrows its base contract; it cannot add `requires` requirements",
+                ));
+            }
+            if input.at_contextual("invariant") {
+                return Err(input.error_here(
+                    "the `invariant` clause is retired: a refinement narrows operational axes only",
+                ));
+            }
+            input = input.take_keyword(KeywordKind::Machine, "machine")?;
+            let ((), next) =
+                parse_refinement_clause(syntax_trees, input, refines, &mut refinement_clauses)?;
+            input = next;
+        }
+        input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+        return Ok((
+            TraitDefinition {
+                is_boundary,
+                is_public: false,
+                name,
+                lifetime_parameters: generic_parameters.lifetime_parameters,
+                type_parameters,
+                conformance_bounds,
+                parents,
+                requires: HandleSpan::empty(),
+                machines: HandleSpan::empty(),
+                refines,
+                refinement_clauses,
+            },
+            input,
+        ));
+    }
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_contextual("invariant") {
@@ -182,9 +244,216 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             parents,
             requires,
             machines,
+            refines,
+            refinement_clauses,
         },
         input,
     ))
+}
+
+/// One `machine *` or `machine Base::requirement` narrowing clause of a
+/// transparent refinement. A clause names an existing base requirement and
+/// carries only the operational axes the spec narrows: `reaches`, `suspends`,
+/// `blocks`, `terminates`. Parameters, results, generic arguments, bodies,
+/// contract clauses, and installation-bound reach rows all belong to the base
+/// declaration, not the bound.
+fn parse_refinement_clause<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    mut input: Input<'tokens, 'source>,
+    refines: Option<syntax_trees::types::TypeReferenceHandle>,
+    clauses: &mut Vec<syntax_trees::item::TraitRefinementClause>,
+) -> ParseResult<'tokens, 'source, ()> {
+    let requirement = if input.at_punctuation(PunctuationKind::Asterisk) {
+        input = input.take_punctuation(PunctuationKind::Asterisk, "*")?;
+        None
+    } else {
+        let mut segments = Vec::new();
+        let (member, rest) = input.take_identifier()?;
+        segments.push(member);
+        input = rest;
+        while input.at_punctuation(PunctuationKind::ColonColon) {
+            input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
+            let (member, rest) = input.take_identifier()?;
+            segments.push(member);
+            input = rest;
+        }
+        let qualifier = &segments[..segments.len() - 1];
+        if !qualifier.is_empty() {
+            let base_name =
+                refines.and_then(
+                    |base| match syntax_trees.type_references.type_reference(base) {
+                        syntax_trees::types::TypeReferenceNode::Named(name) => Some(name.clone()),
+                        syntax_trees::types::TypeReferenceNode::Generic { base_name, .. } => {
+                            Some(base_name.clone())
+                        }
+                        _ => None,
+                    },
+                );
+            let qualifies_base = qualifier
+                .iter()
+                .all(|segment| Some(segment.clone()) == base_name || segment.as_str() == "Self");
+            if !qualifies_base || qualifier.len() > 1 {
+                return Err(input.error_here(
+                    "a refinement clause qualifies its requirement with the base trait name or `Self`",
+                ));
+            }
+        }
+        Some(segments.last().expect("nonempty segments").clone())
+    };
+    if input.at_punctuation(PunctuationKind::LeftParen)
+        || input.at_punctuation(PunctuationKind::Arrow)
+        || input.at_punctuation(PunctuationKind::Less)
+    {
+        return Err(input.error_here(
+            "a refinement clause names an existing base requirement; it declares no parameters, generics, or result",
+        ));
+    }
+    let mut signature = StateSignature {
+        name: requirement
+            .clone()
+            .unwrap_or_else(|| Identifier::generated("*")),
+        spelling: None,
+        lifetime_parameters: Vec::new(),
+        type_parameters: HandleSpan::empty(),
+        is_default: false,
+        parameters: HandleSpan::empty(),
+        native_callback_parameters: Vec::new(),
+        return_type: Handle::invalid(),
+        service_reach_is_installation_bound: false,
+        service_reach_keyword_source_spans: Vec::new(),
+        service_reaches: HandleSpan::empty(),
+        invokes: HandleSpan::empty(),
+        suspends_keyword_source_spans: Vec::new(),
+        blocks_keyword_source_spans: Vec::new(),
+        suspends: false,
+        blocks: false,
+        contracts: HandleSpan::empty(),
+        default_body: HandleSpan::empty(),
+        terminates_guarantee: false,
+        where_facts: HandleSpan::empty(),
+    };
+    let mut authored_suspends = false;
+    let mut authored_blocks = false;
+    let mut authored_terminates = false;
+    let mut authored_reaches = false;
+    loop {
+        if input.at_contextual("reaches") {
+            if authored_reaches {
+                return Err(input.error_here("duplicate `reaches` clause on a refinement member"));
+            }
+            authored_reaches = true;
+            signature
+                .service_reach_keyword_source_spans
+                .push(input.current_source_span());
+            input = input.take_contextual("reaches")?;
+            if input.at_punctuation(PunctuationKind::LessEqual) {
+                return Err(input.error_here(
+                    "`reaches <= Bound` is an installation row; a refinement narrows the authored reach set",
+                ));
+            }
+            let mut reach_start = Handle::invalid();
+            let mut reach_count = 0u32;
+            while !input.at_punctuation(PunctuationKind::Semicolon) {
+                let (row, rest) = input.take_identifier()?;
+                let handle = syntax_trees.items.append_identifier_path_member(row);
+                if reach_count == 0 {
+                    reach_start = handle;
+                }
+                reach_count = reach_count
+                    .checked_add(1)
+                    .expect("refinement reach row count overflow");
+                input = rest;
+                if input.at_punctuation(PunctuationKind::Plus) {
+                    input = input.take_punctuation(PunctuationKind::Plus, "+")?;
+                }
+            }
+            signature.service_reaches = if reach_count == 0 {
+                HandleSpan::empty()
+            } else {
+                HandleSpan::from_parts(reach_start, reach_count)
+            };
+            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            continue;
+        }
+        if input.at_contextual("suspends") {
+            if authored_suspends {
+                return Err(input.error_here("duplicate `suspends` clause on a refinement member"));
+            }
+            authored_suspends = true;
+            signature
+                .suspends_keyword_source_spans
+                .push(input.current_source_span());
+            input = input.take_contextual("suspends")?;
+            if input.at_punctuation(PunctuationKind::Semicolon) {
+                signature.suspends = true;
+            } else {
+                let (value, rest) = parse_refinement_axis_bool(input)?;
+                signature.suspends = value;
+                if !rest.at_punctuation(PunctuationKind::Semicolon) {
+                    return Err(rest.error_here(
+                        "a `suspends` refinement clause reads `suspends;`, `suspends true;`, or `suspends false;`",
+                    ));
+                }
+                input = rest;
+            }
+            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            continue;
+        }
+        if input.at_contextual("blocks") {
+            if authored_blocks {
+                return Err(input.error_here("duplicate `blocks` clause on a refinement member"));
+            }
+            authored_blocks = true;
+            signature
+                .blocks_keyword_source_spans
+                .push(input.current_source_span());
+            input = input.take_contextual("blocks")?;
+            if input.at_punctuation(PunctuationKind::Semicolon) {
+                signature.blocks = true;
+            } else {
+                let (value, rest) = parse_refinement_axis_bool(input)?;
+                signature.blocks = value;
+                if !rest.at_punctuation(PunctuationKind::Semicolon) {
+                    return Err(rest.error_here(
+                        "a `blocks` refinement clause reads `blocks;`, `blocks true;`, or `blocks false;`",
+                    ));
+                }
+                input = rest;
+            }
+            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            continue;
+        }
+        if input.at_contextual("terminates") {
+            if authored_terminates {
+                return Err(
+                    input.error_here("duplicate `terminates` clause on a refinement member")
+                );
+            }
+            authored_terminates = true;
+            signature.terminates_guarantee = true;
+            input = input.take_contextual("terminates")?;
+            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            continue;
+        }
+        break;
+    }
+    clauses.push(syntax_trees::item::TraitRefinementClause {
+        requirement,
+        signature,
+    });
+    Ok(((), input))
+}
+
+fn parse_refinement_axis_bool<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, bool> {
+    if input.at_keyword(KeywordKind::True) {
+        return Ok((true, input.take_keyword(KeywordKind::True, "true")?));
+    }
+    if input.at_keyword(KeywordKind::False) {
+        return Ok((false, input.take_keyword(KeywordKind::False, "false")?));
+    }
+    Err(input.error_here("expected `true` or `false`"))
 }
 
 fn parse_proposition_parameter_contracts<'tokens, 'source>(

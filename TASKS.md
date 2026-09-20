@@ -8450,7 +8450,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `CompilerBuiltinExecution`, privileged port effects are implemented, and
   general calls remain blocked on FRAME-LAYOUT. Row consumed — the item stays
   on the optimizer board.
-- **TRANSPARENT-TRAIT-REFINEMENTS** — mined candidate; verify scope then implement.
+- **TRANSPARENT-TRAIT-REFINEMENTS.** — in progress (branch
+  `zergling/z137-transparent-trait-refinements`); parser through typed trees
+  land on that branch: `trait Local = Base { machine * reaches; suspends
+  false; blocks false; terminates; machine Base::req ...; }` declares a
+  transparent refinement — a structural bound over existing base conformance,
+  never a conformance target (`satisfies Local` and `C: T satisfies Local`
+  conformance positions reject; bound carriers `L satisfies Local` are the
+  legal consumer). Clause axes narrow-only: named requirements must name a
+  base machine, duplicate names reject, `suspends`/`blocks` may only be
+  turned off, and a non-empty clause `reaches` over an empty base row is
+  widening. Remaining frontier for the next slice: per-clause `reaches`
+  subset checking against the base row's normalized names (clause reach
+  names are retained on `TraitRefinementClause.service_reaches`, pending a
+  clause-location variant of the reach-row table), `_` reach wildcards, and
+  the evidence-binder fit check that consumes the refinement bound.
 - **TRUSTED-SURFACE-DIGEST-RE-RECORDING** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-RERECORD** — mined candidate; verify scope then implement.

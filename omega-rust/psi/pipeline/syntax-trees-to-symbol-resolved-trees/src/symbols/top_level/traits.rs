@@ -1,3 +1,5 @@
+use diagnostics::Diagnostic;
+use std::collections::HashSet;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
@@ -18,7 +20,22 @@ pub(super) fn assign_trait_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
     root_children: &mut impl Iterator<Item = SymbolHandle>,
-) {
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    // A transparent refinement (`trait R = Base`) is a structural bound over
+    // an existing base conformance, never a nominal conformance target: no
+    // `satisfies R`, no `requires R`, no `:` parent. Evidence binders
+    // (`B: L satisfies R`) are the legal consumer.
+    let refinement_symbols: HashSet<SymbolHandle> = program
+        .roots
+        .traits
+        .iter()
+        .filter(|definition| definition.refines.is_some())
+        .filter_map(|definition| {
+            let symbol = top_level_symbol_for_source(symbols, SymbolKind::Trait, &definition.name);
+            symbol.is_valid().then_some(symbol)
+        })
+        .collect();
     let trait_proposition_slots = program
         .roots
         .traits
@@ -98,6 +115,27 @@ pub(super) fn assign_trait_symbols(
         let local_type_parameters = data_type_parameters
             .span_or_empty(trait_definition.type_parameters)
             .to_vec();
+
+        let trait_name = trait_definition.name.clone();
+        if let Some(base) = &mut trait_definition.refines {
+            base.symbol =
+                top_level_symbol_for_source(symbols, SymbolKind::Trait, &base.name);
+            if refinement_symbols.contains(&base.symbol) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "transparent refinement `{}` refines `{}`, which is itself a refinement; refine the nominal base directly",
+                    trait_name.as_str(),
+                    base.name.as_str(),
+                )));
+            }
+            assign_type_reference_argument_symbols_with_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &local_type_parameters,
+                trait_symbol,
+                base.arguments,
+            );
+        }
 
         for bound in &mut trait_definition.conformance_bounds {
             if bound.binder_name.is_some() {
@@ -210,6 +248,12 @@ pub(super) fn assign_trait_symbols(
         for requirement in trait_requirements.span_mut_or_empty(trait_definition.requires) {
             requirement.symbol =
                 top_level_symbol_for_source(symbols, SymbolKind::Trait, &requirement.name);
+            if refinement_symbols.contains(&requirement.symbol) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "trait requirement `{}` is a transparent refinement — refinements bound evidence, they are not conformance targets",
+                    requirement.name.as_str(),
+                )));
+            }
             assign_type_reference_argument_symbols_with_constraints(
                 symbols,
                 child_type_references,
@@ -260,4 +304,5 @@ pub(super) fn assign_trait_symbols(
             );
         }
     });
+    diagnostics
 }

@@ -20,6 +20,18 @@ pub(crate) fn lower_conformance(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
         )?;
     }
+    if symbol_resolved_trees
+        .roots
+        .traits
+        .iter()
+        .find(|definition| definition.symbol == conformance.trait_symbol)
+        .is_some_and(|definition| definition.refines.is_some())
+    {
+        return Err(Diagnostic::error(format!(
+            "conformance target `{}` is a transparent refinement — a refinement bounds existing conformance evidence, it is not implemented directly",
+            conformance.trait_name.as_str(),
+        )));
+    }
     crate::type_reference::retain_type_reference_selection(
         symbol_resolved_trees,
         &mut lowerer.typed_trees,

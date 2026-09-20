@@ -4584,6 +4584,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/equatable_string_not_equals_exit",
     "traits/equatable_string_equality_guard_exit",
     "traits/equatable_sum_payload_equality_exit",
+    "traits/transparent_refinement_declaration",
     "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/runtime_local_string_field_copy_through_mut_exit",
@@ -4808,6 +4809,10 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "float/exclusive_float_range_endpoint_rejected",
     "traits/trait_invariant_clause_retired",
     "traits/trait_contract_undeclared_self_member",
+    "traits/transparent_refinement_satisfies_rejected",
+    "traits/transparent_refinement_unknown_requirement",
+    "traits/transparent_refinement_widening_axis",
+    "traits/transparent_refinement_conformance_target",
     "tasks/task_runtime_provider_contract_narrowing",
     "tasks/task_runtime_selected_provider_missing",
     "data/fixed_array_too_large",
