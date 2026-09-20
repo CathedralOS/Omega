@@ -6268,7 +6268,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Residual (host-gated, same as the other evaluator gates): the
   `run.sh --mutations` verdict leg asserting the checker's actual
   rejections runs only on evaluator-seed hosts (macOS arm64, Windows x64).
-- **BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; verify scope then implement.
+- **BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; scope verified, folds into the owned cluster. Re-mines the certificate-production surface already verified on sibling row BETA-ENCODING-SELECTED-CHAIN-PRODUCTION (annotated immediately below, listing this stub by name among its re-mine names): "native container acceptance" is the same ACCEPTANCE.md acceptance — running `tests/gamma/beta-encoding-check` on a native evaluator-seed host under the exact profile — not an independent work item. Production stays upstream-blocked per PROFILE.md (the selected checker cannot admit the request; the coupled provisions wait on the Alpha extent-supply leg, admission settled by owner decision `beta-encoding-certificate-admission`), and the host legs require macOS arm64 or Windows x64, unavailable on Linux x86-64 by landed design. Every implementing surface is under live claims this wave (`tests/gamma/beta-encoding-check` + `bootstrap/proofs/beta_encoding/ACCEPTANCE.md` by GAMMA-CERT-FULL-CHECK, exp 00:00Z; the container/manifest trees by CHAIN-MANIFEST and ALPHA-SEED-CONTAINER-NATIVE-VALIDATION). No independent slice exists.
 - **BETA-ENCODING-SELECTED-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
   Verified scope: re-mines BETA-ENCODING-CERTIFICATE-PRODUCTION's surface —
   "production through the selected chain" is ACCEPTANCE.md's phrase for the
