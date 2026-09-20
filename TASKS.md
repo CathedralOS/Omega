@@ -8013,6 +8013,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `owned_record_return_source`, `unit_plan_omissions`) — see
   `wiki/drafts/known_baseline_failures.md`; several sit under live
   sibling claims, so partition by claim fence before picking up.
+  Re-verified at `c267df86acb` (linux x86-64): `cargo nextest run -p
+  checked-trees-to-lowered-psi --no-fail-fast` now reads 2187 legs — 2130
+  passed, 55 FAIL, plus the same
+  `mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+  blowup killed by SIGTERM at ~900s (still PROOF-SEARCH-MEASUREMENT's).
+  Members stay inside the recorded families — 32 bare `Service<R>`
+  fixture spellings at `src/tests.rs:83` (ENTRY-CONTENT-ROOTS), missing
+  checked transitive machine plans in `provider_attachment_source` (×6),
+  `unit_state_graph` (×9) and `unit_plan_omissions` (×3), scalar-return
+  custody in `owned_record_return_source` (×4) plus
+  `guarded_scalar_returns_source` (×1) — 3 fewer than the 6ef64f6dd6
+  reading; member-level re-attribution belongs to the sibling
+  attribution claims holding `wiki/drafts/known_baseline_failures.md`
+  (LOWERED-UNIT-FAILURE-ATTRIBUTION ~01:17Z, BASELINE-CANARY-PASS-
+  CLUSTER ~23:41Z, CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION ~01:42Z), so
+  this update stays on the board line and leaves the doc to them.
 - **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
 - **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.** Verified scope
