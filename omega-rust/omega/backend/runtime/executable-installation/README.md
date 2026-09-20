@@ -22,9 +22,13 @@ Follow the subordinate protocols as needed:
 - [Replacement quarantine](src/executable_installation/replacement_quarantine.rs)
   retains incompletely drained installed realizations.
 - [Owned-image provider](src/executable_installation/owned_image_provider.rs)
-  performs the contracted install and patch operations over resident image
-  buffers it owns — real byte writes, ordering fence, read-back, and a custody
-  write-suspension flag honestly reported as `ConventionOnly` enforcement.
+  performs the contracted install, patch, and entry-sealing operations over
+  resident image buffers it owns — real byte writes, ordering fence,
+  read-back, and a custody write-suspension flag honestly reported as
+  `ConventionOnly` enforcement. Its call path consumes a sealed
+  `InstalledEntryReference` and hands the caller the exact resident entry
+  content under seal; the physical control transfer stays with the consuming
+  platform executor.
 
 Keep exact bytes, relocation/proof payload, placement lineage, final-byte
 snapshot, footprint, audience, and provider receipts behind report identities.

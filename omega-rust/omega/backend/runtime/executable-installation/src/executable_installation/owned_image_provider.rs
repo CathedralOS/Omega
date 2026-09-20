@@ -8,9 +8,13 @@
 //! back, and suspends its own write authority before reporting the
 //! write-to-execute transition; `patch` splices each demanded declared entry
 //! site with its bound admitted fragment, re-suspending write authority over
-//! the patched image afterward. Receipts are minted only for steps actually
-//! performed, and a demand for facts outside this provider's performed set is
-//! refused before any mutation.
+//! the patched image afterward; `seal_entry` performs the entry-sealing work
+//! `InstalledCode::seal_entry_reference` contracts for, and `call` is the
+//! provider's call path — the only route that turns a sealed
+//! `InstalledEntryReference` into the resident entry content a physical call
+//! enters. Receipts are minted only for steps actually performed, and a
+//! demand for facts outside this provider's performed set is refused before
+//! any mutation.
 //!
 //! Honest boundaries: an owned buffer cannot be hardware-protected, so this
 //! provider reports `WxEnforcement::ConventionOnly` — write authority is the
@@ -20,7 +24,14 @@
 //! stored bytes, never on an unperformed platform cache operation. Patching
 //! splices position-independent fragments only: a fragment carrying
 //! relocations needs a target resolver this operation does not have, so it
-//! refuses rather than patching unresolved bytes. Retirement, quiescence, and
+//! refuses rather than patching unresolved bytes. `seal_entry` replays the
+//! exact committed content of the demanded entry extent — installed bytes,
+//! or the fragment committed at a patched site — so a drifted or substituted
+//! entry cannot seal. `call` hands the caller's executor the resident entry
+//! bytes under seal, not a runnable address: the physical control transfer
+//! remains the consuming platform executor's obligation, and holding the
+//! returned `ResidentEntryCall` keeps the image borrowed so no `patch` or
+//! `release` can run while a call is in flight. Retirement, quiescence, and
 //! quarantine remain separate provider obligations; `release` merely drops
 //! resident storage once the caller holds that evidence.
 
@@ -29,9 +40,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::executable_installation::code_placement::ValidatedPlacementEvidence;
 use crate::executable_installation::installation::InstalledCodeEvidence;
 use crate::executable_installation::{
-    ArtifactContentDigest, InstallAuthority, InstallationDiagnostic, InstallationFactDigest,
-    InstallationReceipt, InstalledCode, InstalledCodeId, ReplacementAuthority,
-    ReplacementFactDigest, ReplacementReceipt, ValidatedPlacement, WxEnforcement,
+    Artifact, ArtifactContentDigest, EntryContractDigest, EntryReferenceAuthority,
+    EntryReferenceFactDigest, EntryReferenceReceipt, InstallAuthority, InstallationDiagnostic,
+    InstallationFactDigest, InstallationReceipt, InstalledCode, InstalledCodeId,
+    InstalledEntryReference, ReplacementAuthority, ReplacementFactDigest, ReplacementReceipt,
+    ValidatedPlacement, WxEnforcement,
 };
 use layout_plans::EntryStubId;
 use target::Architecture;
@@ -69,14 +82,91 @@ pub const OWNED_IMAGE_PATCH_WRITE_RESUSPENDED: &[u8] =
 pub const OWNED_IMAGE_PATCH_FETCH_VISIBILITY: &[u8] =
     b"omega.owned-image-provider.patch.fetch-visibility.readback.v1";
 
+/// Canonical fact bytes: the demanded entry is a declared entry of the
+/// installed artifact whose resident image this provider holds.
+pub const OWNED_IMAGE_SEAL_DECLARED_ENTRY: &[u8] =
+    b"omega.owned-image-provider.seal-entry.declared-entry.v1";
+/// Canonical fact bytes: the resident entry extent read back equal to the
+/// exact committed content — the installed bytes, or the fragment committed
+/// at a patched site — the provider's requirement-compatibility step.
+pub const OWNED_IMAGE_SEAL_COMMITTED_CONTENT: &[u8] =
+    b"omega.owned-image-provider.seal-entry.committed-content-readback.v1";
+/// Canonical fact bytes: the provider's `SeqCst` fence and read-back over the
+/// entry extent are its instruction-fetch visibility step for the seal.
+pub const OWNED_IMAGE_SEAL_FETCH_VISIBILITY: &[u8] =
+    b"omega.owned-image-provider.seal-entry.fetch-visibility-readback.v1";
+
 /// One installed realization's resident image under this provider's custody.
 /// `write_suspended` is the provider's convention-enforced write authority:
 /// mutation happens only inside a provider operation that deliberately
-/// resumes it.
+/// resumes it. `patched_sites` retains the exact bytes each patch committed
+/// at a declared entry, so `seal_entry` replays committed content rather
+/// than the superseded pre-patch bytes.
 #[derive(Debug)]
 struct OwnedImage {
     bytes: Vec<u8>,
     write_suspended: bool,
+    patched_sites: BTreeMap<EntryStubId, Vec<u8>>,
+}
+
+/// The bounded extent one declared entry occupies inside a resident image:
+/// its code offset up to the next declared entry, or the image end. The
+/// extent is the only region a patch may write at that site and the only
+/// region a seal or call may name, so all three operations share it.
+fn declared_entry_extent(
+    artifact: &Artifact,
+    image_length: u64,
+    entry: EntryStubId,
+) -> Option<(u64, u64)> {
+    let declared = artifact.entry(entry)?;
+    let end = artifact
+        .entries()
+        .iter()
+        .map(|candidate| candidate.code_offset)
+        .filter(|offset| *offset > declared.code_offset)
+        .min()
+        .unwrap_or(image_length);
+    Some((declared.code_offset, end))
+}
+
+/// The call edge a sealed [`InstalledEntryReference`] unlocks: the exact
+/// resident extent a physical call enters, bound to the installed
+/// occurrence, entry, and contract the reference seals. Holding the value
+/// keeps the provider's image borrowed, so no `patch`, `release`, or
+/// `install` can run against this provider while a call is in flight — the
+/// caller drops it when its executor returns. This provider hands over
+/// resident bytes, not a runnable address: an owned buffer carries no
+/// hardware execute authority, so the physical control transfer remains the
+/// consuming executor's obligation.
+#[derive(Debug)]
+pub struct ResidentEntryCall<'provider> {
+    installed_code: InstalledCodeId,
+    entry: EntryStubId,
+    contract: EntryContractDigest,
+    code: &'provider [u8],
+}
+
+impl ResidentEntryCall<'_> {
+    /// The installed realization the sealed call targets.
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    /// The declared entry the sealed call enters.
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
+    /// The contract identity the sealed reference satisfies.
+    pub const fn contract(&self) -> EntryContractDigest {
+        self.contract
+    }
+
+    /// The resident bytes the sealed call enters: exactly the committed
+    /// content of the entry's declared extent.
+    pub const fn code(&self) -> &[u8] {
+        self.code
+    }
 }
 
 /// A provider that installs into and patches resident image buffers it owns.
@@ -128,6 +218,18 @@ impl OwnedImageProvider {
         ]
         .into_iter()
         .map(ReplacementFactDigest::from_canonical_bytes)
+        .collect()
+    }
+
+    /// The entry-sealing facts this provider can truthfully establish.
+    pub fn seal_facts() -> BTreeSet<EntryReferenceFactDigest> {
+        [
+            OWNED_IMAGE_SEAL_DECLARED_ENTRY,
+            OWNED_IMAGE_SEAL_COMMITTED_CONTENT,
+            OWNED_IMAGE_SEAL_FETCH_VISIBILITY,
+        ]
+        .into_iter()
+        .map(EntryReferenceFactDigest::from_canonical_bytes)
         .collect()
     }
 
@@ -195,6 +297,7 @@ impl OwnedImageProvider {
         let mut image = OwnedImage {
             bytes,
             write_suspended: false,
+            patched_sites: BTreeMap::new(),
         };
         if image.bytes.as_slice() != source {
             return Err(InstallationDiagnostic(
@@ -262,18 +365,16 @@ impl OwnedImageProvider {
 
         // Validate every demanded site before mutating anything: each site
         // must be a declared entry of the superseded artifact, and the bound
-        // fragment must be position-independent and fit the site's extent —
-        // the bytes from that entry's offset up to the next declared entry,
-        // or the image end.
-        let mut splices: Vec<(EntryStubId, u64, &[u8], ArtifactContentDigest)> =
+        // fragment must be position-independent and fit the site's extent.
+        let mut splices: Vec<(EntryStubId, u64, u64, &[u8], ArtifactContentDigest)> =
             Vec::with_capacity(authority.sites.len());
         for (site, fragment) in &authority.sites {
-            let Some(entry) = artifact.entry(*site) else {
+            let Some((start, end)) = declared_entry_extent(artifact, image_length, *site) else {
                 return Err(InstallationDiagnostic(format!(
                     "patch site {site:?} is not a declared entry of the superseded artifact"
                 )));
             };
-            if entry.code_offset > image_length {
+            if start > image_length {
                 return Err(InstallationDiagnostic(format!(
                     "patch site {site:?} lies outside the resident image"
                 )));
@@ -294,14 +395,7 @@ impl OwnedImageProvider {
                 )));
             }
             let code = fragment_artifact.code();
-            let site_end = artifact
-                .entries()
-                .iter()
-                .map(|candidate| candidate.code_offset)
-                .filter(|offset| *offset > entry.code_offset)
-                .min()
-                .unwrap_or(image_length);
-            let extent = site_end - entry.code_offset;
+            let extent = end - start;
             if code.len() as u64 > extent {
                 return Err(InstallationDiagnostic(format!(
                     "patch fragment {:?} ({} bytes) does not fit the {extent}-byte extent of declared site {site:?}",
@@ -309,7 +403,7 @@ impl OwnedImageProvider {
                     code.len()
                 )));
             }
-            splices.push((*site, entry.code_offset, code, fragment_artifact.content()));
+            splices.push((*site, start, end, code, fragment_artifact.content()));
         }
 
         // Resume write authority, stage the patched image, order the stores,
@@ -320,13 +414,13 @@ impl OwnedImageProvider {
             .expect("superseded image residency was checked above");
         image.write_suspended = false;
         let mut staged = image.bytes.clone();
-        for (_, offset, code, _) in &splices {
+        for (_, offset, _, code, _) in &splices {
             let offset = usize::try_from(*offset)
                 .expect("declared entry offsets are bounded by artifact byte length");
             staged[offset..offset + code.len()].copy_from_slice(code);
         }
         std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
-        for (site, offset, code, _) in &splices {
+        for (site, offset, _, code, _) in &splices {
             let offset = usize::try_from(*offset)
                 .expect("declared entry offsets are bounded by artifact byte length");
             if staged[offset..offset + code.len()] != **code {
@@ -337,6 +431,18 @@ impl OwnedImageProvider {
             }
         }
         image.bytes = staged;
+        // Retain the exact committed content of each patched extent so a
+        // later seal replays what the patch committed, not the superseded
+        // bytes the artifact was installed with.
+        for (site, start, end, _, _) in &splices {
+            let start = usize::try_from(*start)
+                .expect("declared entry offsets are bounded by artifact byte length");
+            let end =
+                usize::try_from(*end).expect("entry extents are bounded by artifact byte length");
+            image
+                .patched_sites
+                .insert(*site, image.bytes[start..end].to_vec());
+        }
         image.write_suspended = true;
 
         Ok(ReplacementReceipt::from_provider(
@@ -344,11 +450,133 @@ impl OwnedImageProvider {
             successor,
             splices
                 .into_iter()
-                .map(|(site, _, _, content)| (site, content)),
+                .map(|(site, _, _, _, content)| (site, content)),
             true,
             true,
             established,
         ))
+    }
+
+    /// Perform the contracted entry-sealing operation over the resident
+    /// image: confirm the demanded entry is a declared entry of the installed
+    /// artifact, order the read-back, and replay the entry extent against the
+    /// exact committed content — the installed bytes, or the fragment
+    /// committed at a patched site. The minted receipt reports requirement
+    /// compatibility and instruction-fetch visibility only after that
+    /// comparison succeeds; a drifted or substituted extent refuses before
+    /// any receipt leaves the provider. A demand for facts outside this
+    /// provider's performed set refuses first.
+    pub fn seal_entry(
+        &self,
+        installed: &InstalledCode,
+        authority: &EntryReferenceAuthority,
+    ) -> Result<EntryReferenceReceipt, InstallationDiagnostic> {
+        let established = Self::seal_facts();
+        if !authority.required_facts.is_subset(&established) {
+            return Err(InstallationDiagnostic(
+                "owned-image provider cannot establish the demanded entry-sealing facts".into(),
+            ));
+        }
+        if authority.installed != InstalledCodeEvidence::from_installed(installed) {
+            return Err(InstallationDiagnostic(
+                "entry-sealing authority is not scoped to the handed installed code".into(),
+            ));
+        }
+        let image = self.images.get(&installed.identity()).ok_or_else(|| {
+            InstallationDiagnostic(
+                "provider holds no resident image for the installed realization".into(),
+            )
+        })?;
+        if !image.write_suspended {
+            return Err(InstallationDiagnostic(
+                "cannot seal an entry while the provider holds write authority over the image"
+                    .into(),
+            ));
+        }
+        let artifact = &installed.validated.frozen.artifact.artifact;
+        let Some((start, end)) =
+            declared_entry_extent(artifact, image.bytes.len() as u64, authority.entry)
+        else {
+            return Err(InstallationDiagnostic(format!(
+                "entry {:?} is not a declared entry of the installed artifact",
+                authority.entry
+            )));
+        };
+        let start = usize::try_from(start)
+            .expect("declared entry offsets are bounded by artifact byte length");
+        let end = usize::try_from(end).expect("entry extents are bounded by artifact byte length");
+        let expected: &[u8] = image
+            .patched_sites
+            .get(&authority.entry)
+            .map(Vec::as_slice)
+            .unwrap_or(&installed.validated.frozen.materialized.bytes()[start..end]);
+        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
+        if image.bytes[start..end] != *expected {
+            return Err(InstallationDiagnostic(format!(
+                "resident extent of entry {:?} does not replay the bytes committed at install or patch",
+                authority.entry
+            )));
+        }
+        Ok(EntryReferenceReceipt::from_provider(
+            installed,
+            authority.entry,
+            authority.contract,
+            true,
+            true,
+        )
+        .with_established_facts(established))
+    }
+
+    /// The provider's call path over one sealed [`InstalledEntryReference`]:
+    /// the reference must seal the handed installed occurrence, the
+    /// realization must be resident here, and the sealed entry must occupy a
+    /// declared extent — then the caller receives a [`ResidentEntryCall`]
+    /// carrying exactly the resident bytes the call enters. While the caller
+    /// holds it, the image borrow keeps `patch`, `release`, and `install`
+    /// from running against this provider, so an in-flight call is itself the
+    /// quiescence witness a later retirement asks about.
+    pub fn call<'provider>(
+        &'provider self,
+        installed: &InstalledCode,
+        reference: &InstalledEntryReference<'_>,
+    ) -> Result<ResidentEntryCall<'provider>, InstallationDiagnostic> {
+        if reference.installed_context() != installed.receipt_context() {
+            return Err(InstallationDiagnostic(
+                "the sealed reference does not seal the handed installed code".into(),
+            ));
+        }
+        let image = self
+            .images
+            .get(&reference.installed_code())
+            .ok_or_else(|| {
+                InstallationDiagnostic(
+                    "provider holds no resident image for the sealed realization".into(),
+                )
+            })?;
+        if !image.write_suspended {
+            return Err(InstallationDiagnostic(
+                "cannot invoke an entry while the provider holds write authority over the image"
+                    .into(),
+            ));
+        }
+        let artifact = &installed.validated.frozen.artifact.artifact;
+        let Some((start, end)) =
+            declared_entry_extent(artifact, image.bytes.len() as u64, reference.entry())
+        else {
+            return Err(InstallationDiagnostic(format!(
+                "the sealed entry {:?} is not a declared entry of the installed artifact",
+                reference.entry()
+            )));
+        };
+        let start = usize::try_from(start)
+            .expect("declared entry offsets are bounded by artifact byte length");
+        let end = usize::try_from(end).expect("entry extents are bounded by artifact byte length");
+        Ok(ResidentEntryCall {
+            installed_code: reference.installed_code(),
+            entry: reference.entry(),
+            contract: reference.contract(),
+            code: &image.bytes[start..end],
+        })
     }
 
     fn next_installed_identity(&mut self) -> InstalledCodeId {
