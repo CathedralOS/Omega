@@ -6687,7 +6687,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **DERIVATION-STORE-SEMANTIC-INDEX** — mined candidate; verify scope then implement.
 - **DIFFERENTIAL-FRONTEND-DROP-EXPECTATIONS** — mined candidate; verify scope then implement.
 - **DIFFERENTIAL-STAGED-LOCAL-SEQUENCE** — mined candidate; scope verified, resolved — the native-differential staged-local-sequence leg is green on main: `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash` plus its six `checked_source_staged_local_*` siblings all pass on linux x86-64 at 4dbdaa9bc3 (`cargo nextest run -p omega-native-differential-test --test terminal_psi_source -E 'test(~staged_local)'`, 7/7). The `wiki/drafts/known_baseline_failures.md:447` entry recording `UnsupportedControlFlow(MachineId(1))` (expectation from `2694d433d3`, never bisected) is stale — the underlying lowering moved since; the doc row's refresh belongs to the known-failures doc lane. Owning parent: STAGED-LOCAL-SEQUENCE-LOWERING (TASKS.md:5774).
-- **DIVISION-CANARY-ENTRY-BINDING** — mined candidate; verify scope then implement.
+- **DIVISION-CANARY-ENTRY-BINDING.** Scope verified at ea025447fe — re-mines
+  the surface CANARY-EXACT-ENTRY-SELECTION already owns ("exact entry
+  selection for division/value canaries and entry binding"). The missing
+  `build.omg` ProgramEntry binds the name gestures at were already
+  repaired under BASELINE-CANARY-PASS-CLUSTER (e5912f303a added binds for
+  all four hosted targets to `operators/runtime_integer_division_value`);
+  a fresh audit of `tests/omega/pass` shows every rostered
+  native-execution division canary now carries binds
+  (runtime_{unsigned,signed,i64}_division*, runtime_*modulo*,
+  runtime_*divide*, const_fold_unsigned_divide_arg_exit,
+  saturating/wrapping_signed_divide_min_by_neg_one,
+  calls/runtime_cross_callee_division_exit). The pass-corpus fixtures
+  lacking `build.omg` are compile-only (`bounded_guarded_remainder`,
+  `runtime_contained_range_write`, `runtime_call_enum_*` etc. compile
+  green — witnessed via filtered `pass_canaries_compile`) or use a
+  bespoke entry (`saturating_divide_native` compiles through
+  `compile_exact_macos_entry`, no roots binds needed). Remaining
+  entry-selection correctness is CANARY-EXACT-ENTRY-SELECTION's live
+  claim (owner 'Devin / canary-exact-entry-selection', expires
+  2026-09-20T21:52Z).
 - **DIVISION-VALUE-ENTRY-SELECTION** — mined candidate; verify scope then implement.
 - **DOMAIN-REFINEMENT-CHAINS** — mined candidate; verify scope then implement.
 - **DUPLICATE-NAMED-MACHINE-OVERLOAD** — mined candidate; verify scope then implement.
