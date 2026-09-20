@@ -4127,6 +4127,16 @@ Owners include
     may justify published routes; later writes and current body facts may
     not. Ranked-loop crash guards require independently checked all-path
     invariants, never first-pass facts ignoring backedges.
+    Concrete subslice customer: `compiler --test bounded_slice_selectors`
+    retains two inferred endpoint calls over distinct array extents. At
+    `fce78a5bcc` plus the binder-carrier repair on macOS ARM64
+    (`RUST_MIN_STACK=67108864`), source checking
+    and the corresponding `checked-interpreter --test suite borrowed_subslices`
+    execution pass, but Terminal production rejects the missing checked scalar
+    control plan in `checked-trees-to-lowered-psi/src/machine_lowering`.
+    Scalar bounded helpers independently replay and execute natively; that does
+    not close slice transport. Replace the explicit unfinished assertion with
+    source-free Terminal and native execution when the ordinary join exists.
   - Finish [exact anonymous division/landing](wiki/language_guide/chapter_5_expressions_evaluation.md#exact-anonymous-division-and-landing)
     across generic/evidence-adapted and boundary calls,
     aggregate/parameter/constant destinations, numeric policies, floats and

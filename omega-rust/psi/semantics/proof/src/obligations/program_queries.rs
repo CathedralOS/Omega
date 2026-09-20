@@ -291,6 +291,22 @@ fn type_reference_for_symbol(
         .find(|parameter| parameter.symbol == symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
+            // Value binders keep their declared carrier before specialization.
+            // Its bounds are premises for the generic body, not facts inferred
+            // from whichever concrete applications happen to be present.
+            program
+                .machine_type_parameters(machine)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+                .and_then(|parameter| match parameter.kind {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                })
+        })
+        .or_else(|| {
             program
                 .statement_table
                 .statements(state.statement_nodes)
