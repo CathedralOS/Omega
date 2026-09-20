@@ -9371,16 +9371,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
   OMEGA-PARSER-GATE-WINDOWS-VALIDATION's Windows x64 leg of the
   omega-parser bootstrap gate. The host-free surface is landed and
-  re-verified green on Linux x86-64 at `9b75533b9c7` (this session):
+  re-verified green on Linux x86-64 at `9b75533b9c7`:
   `sh tests/bootstrap/omega-parser/run.sh --identity` binds every
   identity plus the DCREQ request framing, customer assembly, and
   expected fixture (622933-byte receipt request; customer is now
-  566377 bytes, SHA-256 `ed3cd51c…` — upstream assembly moved since the
-  `8a37f826865` stamp recorded 563736 / `1ce55f17…`, and the gate's
-  bound records moved with it). The only remaining leg is Windows x64
-  seed execution — `sh tests/bootstrap/omega-parser/run.sh` on a
-  MINGW/MSYS x64 host; no audited seed executes on this Linux box, so
-  the row is a host leg, not a code slice.
+  566377 bytes, SHA-256 `ed3cd51c…`). The Windows x64 leg is de-risked to
+  a literal host run: under wine-10 on Linux the stamped PE seed ran both
+  gate legs byte-exactly — the pinned 721,484-byte Epsilon receipt
+  (SHA-256 `71a016f5…`) and all twelve customer invocations returning
+  `000000000041` with status 0 — and the wrapper's `cygpath`/`python3`
+  shim was exercised under a simulated Windows interpreter. The full
+  gate also completed green on Linux x86-64 (receipt 262 s, customer
+  6,551 s, `alpha_x64_linux` seed). Note the PE commits a 128 GiB
+  `VirtualAlloc` extent at startup — a Windows host needs commit
+  headroom (RAM plus pagefile) above that. Residual: literal
+  `sh tests/bootstrap/omega-parser/run.sh` under Git Bash + native
+  `python3` on real Windows x64 hardware.
 - **OMEGA-PARSER-GATE-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS-VALIDATION.** Windows x64 validation leg of the
   omega-parser bootstrap gate (sibling alias of OMEGA-PARSER-GATE-WINDOWS /
