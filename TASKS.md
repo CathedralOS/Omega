@@ -6471,7 +6471,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **DEPENDENT-VALUES-CHECKER-COVERAGE** — mined candidate; verify scope then implement.
 - **DERIVATION-STORE-SEMANTIC-INDEX** — mined candidate; verify scope then implement.
 - **DIFFERENTIAL-FRONTEND-DROP-EXPECTATIONS** — mined candidate; verify scope then implement.
-- **DIFFERENTIAL-STAGED-LOCAL-SEQUENCE** — mined candidate; verify scope then implement.
+- **DIFFERENTIAL-STAGED-LOCAL-SEQUENCE** — mined candidate; scope verified, resolved — the native-differential staged-local-sequence leg is green on main: `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash` plus its six `checked_source_staged_local_*` siblings all pass on linux x86-64 at 4dbdaa9bc3 (`cargo nextest run -p omega-native-differential-test --test terminal_psi_source -E 'test(~staged_local)'`, 7/7). The `wiki/drafts/known_baseline_failures.md:447` entry recording `UnsupportedControlFlow(MachineId(1))` (expectation from `2694d433d3`, never bisected) is stale — the underlying lowering moved since; the doc row's refresh belongs to the known-failures doc lane. Owning parent: STAGED-LOCAL-SEQUENCE-LOWERING (TASKS.md:5774).
 - **DIVISION-CANARY-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **DIVISION-VALUE-ENTRY-SELECTION** — mined candidate; verify scope then implement.
 - **DOMAIN-REFINEMENT-CHAINS** — mined candidate; verify scope then implement.
