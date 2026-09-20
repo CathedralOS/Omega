@@ -855,6 +855,52 @@ fn machine_call_results_form_boolean_subjects() {
     );
 }
 
+/// A `data` literal body denotes an opaque constant at the data's
+/// carrier, the same bounded denotation machine calls already take.
+#[test]
+fn struct_literals_intern_at_the_data_carrier() {
+    let source = "data Point { x: u64; y: u64; }\n\
+                  let origin(p: u64): Point = Point { x: p, y: p };";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("struct literal checks");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `Point` carrier, `Point { x: p, y: p }`, `origin`.
+    assert_eq!(declarations.len(), 4);
+    assert_eq!(signature.authored(), &[3]);
+    assert!(declarations[2].is_assumption());
+    assert_eq!(
+        signature.term(declarations[2].ty),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+}
+
+/// A `match` body denotes an opaque constant at the carrier its arms
+/// agree on; disagreeing arms still refuse rather than pick one.
+#[test]
+fn matches_intern_at_the_common_arm_carrier() {
+    let source = "data Point { x: u64; y: u64; }\n\
+                  let pick(b: bool, p: Point, q: Point): Point = match b { true -> p, _ -> q };";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("match checks");
+
+    let declarations = signature.signature().declarations();
+    // `bool`, `Point` carrier, `match b { .. }`, `pick`.
+    assert_eq!(declarations.len(), 4);
+    assert_eq!(signature.authored(), &[3]);
+    assert!(declarations[2].is_assumption());
+    assert_eq!(
+        signature.term(declarations[2].ty),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+}
+
 #[test]
 fn negated_equality_refuses() {
     let diagnostics = refuse("let different(x: u64, y: u64): core::Strict<0> = x != y;");
