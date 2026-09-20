@@ -10423,7 +10423,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ENTRANCE-AUDIT, ORPHAN-STAGE-OUTPUT-AUDIT, STAGE-ANCESTRY-DIRECT-READS,
   STAGE-CRATE-OWNERSHIP-AUDIT as re-mines of this same sweep.
 - **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
-- **STAGED-LOCAL-CRASH-LOWERING** — mined candidate; verify scope then implement.
+- **STAGED-LOCAL-CRASH-LOWERING.** Mined candidate — resolved:
+  re-mines the explicit-crash leg of the resolved
+  STAGED-LOCAL-SEQUENCE-LOWERING row, identical to sibling verdict
+  STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION (this section). Re-verified
+  at `9ff8673b310` (linux x86-64): `cargo nextest run -p
+  omega-native-differential-test --test terminal_psi_source -E
+  'test(~staged_local)'` — 7/7 pass, including
+  `checked_source_staged_local_sequences_before_an_explicit_crash`.
+  The stale `wiki/drafts/known_baseline_failures.md` entry
+  (`UnsupportedControlFlow(MachineId(1))`, expectation from
+  `2694d433d3`) belongs to the known-failures doc lane.
 - **STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION.** Resolved — re-mines the explicit-crash leg of the resolved STAGED-LOCAL-SEQUENCE-LOWERING row (:5798). The lowering attribution is recorded there: staged short-circuit binding ordering lives in `checked-trees-to-lowered-psi/src/returns/structural_scalar_return.rs` + `scalar_graph_module/short_circuit_staging.rs`; the crash-adjacent leg is `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`, green. Re-verified at `a4ffd1aff8`: `cargo nextest run -p omega-native-differential-test --test terminal_psi_source -E 'test(~staged_local)'` — 7/7 pass on linux x86-64 (crash sequence, short-circuit guard/return/jump-tuple, jump-argument carry, arm-local edge arguments). The stale `wiki/drafts/known_baseline_failures.md:447` entry (`UnsupportedControlFlow(MachineId(1))`, expectation from `2694d433d3`) belongs to the known-failures doc lane, not this stub. Sibling re-mine of the same row: STAGED-LOCAL-CRASH-LOWERING (:8969); DIFFERENTIAL-STAGED-LOCAL-SEQUENCE (:6916) already records the same verdict.
 - **STALE-CUSTODY-GATE-EXPECTATIONS** — scope verified at `10d93dd448d`:
   the custody-gate expectation slice left by TERMINAL-SOURCE-CUSTODY-GATE-ORDER
