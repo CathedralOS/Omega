@@ -274,6 +274,10 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                 let Some(known) = scalar_values.get(source_value).copied() else {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 };
+                // Keep entry/block coordinates as ordinary SSA sources. In
+                // particular, a ranked backedge supplies a new runtime value;
+                // an immediate or synthetic operation-defined home cannot
+                // stand in for that parameter's identity.
                 let source = known.into_target_source(*source_value);
                 let placed_byte_size = match placement.locations.as_slice() {
                     [
@@ -293,10 +297,12 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                     _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
                 };
                 if known.scalar_type() != *integer_type
+                    || source.source_value() != *source_value
                     || placement.shape != *shape
                     || shape.byte_size != placed_byte_size
                     || match source {
-                        TargetUnitScalarArgumentSource::Parameter { .. } => true,
+                        TargetUnitScalarArgumentSource::Parameter { .. }
+                        | TargetUnitScalarArgumentSource::BlockParameter(_) => false,
                         TargetUnitScalarArgumentSource::IntegerImmediate {
                             scalar_type,
                             value,
@@ -305,7 +311,6 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                         TargetUnitScalarArgumentSource::BooleanImmediate { .. }
                         | TargetUnitScalarArgumentSource::IeeeFloatImmediate { .. } => true,
                         TargetUnitScalarArgumentSource::Home(home) => home.shape != *shape,
-                        TargetUnitScalarArgumentSource::BlockParameter(_) => true,
                     }
                 {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));

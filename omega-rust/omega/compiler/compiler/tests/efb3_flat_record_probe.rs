@@ -737,9 +737,9 @@ fn returning_foreign_call_restores_floating_controls_before_the_next_call() {
     execute_mixed_arguments_probe(true);
 }
 
-/// One static boundary occurrence executes four times. The foreign oracle
-/// checks the argument and total call count; a valid image or one successful
-/// call alone does not establish ranked execution.
+/// An incoming parameter crosses one boundary call, then a ranked block value
+/// crosses another four times. The oracle checks every value and their order;
+/// a valid image or one successful call does not establish changing transport.
 #[test]
 fn ranked_foreign_call_executes_every_iteration() {
     let probe = Probe::new();
@@ -747,7 +747,8 @@ fn ranked_foreign_call_executes_every_iteration() {
         &probe.main,
         r#"use omega::language::core::external_binding;
 boundary trait Trace {
-    machine record(remaining: u64);
+    machine record(value: u64, first: u64, second: u64, third: u64,
+        fourth: u64, fifth: u64, sixth: u64, seventh: u64, repeated: u64);
 }
 macos_arm64 machine record_binding() -> Binding<31, 6, 0> {
     Binding::DllImport {
@@ -757,17 +758,25 @@ macos_arm64 machine record_binding() -> Binding<31, 6, 0> {
         },
     }
 }
-machine record_leaf(remaining: u64) satisfies Trace::record via record_binding();
+machine record_leaf(value: u64, first: u64, second: u64, third: u64,
+    fourth: u64, fifth: u64, sixth: u64, seventh: u64, repeated: u64)
+    satisfies Trace::record via record_binding();
 data Main { }
 machine Main::spin(&mut self, remaining: u64) terminates by remaining; reaches Trace {
-    Trace::record(7);
+    Trace::record(remaining, 1, 2, 3, 4, 5, 6, 7, remaining);
     transition remaining == 0 {
         true -> done()
         _ -> self.spin(remaining - 1)
     }
     state done(&mut self) { }
 }
-machine Main::main(&mut self) { self.spin(3); }
+machine Main::record_once(&mut self, value: u64) reaches Trace {
+    Trace::record(value, 1, 2, 3, 4, 5, 6, 7, value);
+}
+machine Main::main(&mut self) {
+    self.record_once(9);
+    self.spin(3);
+}
 "#,
     )
     .unwrap();
@@ -790,9 +799,13 @@ machine Main::main(&mut self) { self.spin(3); }
     let [ranked_machine] = ranked_machines.as_slice() else {
         panic!("the program must retain one ranked machine")
     };
-    let [call] = artifact.image().foreign_calls() else {
-        panic!("four dynamic calls must retain one static foreign-call occurrence")
-    };
+    assert_eq!(artifact.image().foreign_calls().len(), 2);
+    let call = artifact
+        .image()
+        .foreign_calls()
+        .iter()
+        .find(|call| call.machine == ranked_machine.id)
+        .expect("four dynamic ranked calls must retain their static foreign-call occurrence");
     assert_eq!(call.machine, ranked_machine.id);
     let evidence = artifact
         .physical_evidence()
@@ -803,8 +816,9 @@ machine Main::main(&mut self) { self.spin(3); }
         .iter()
         .filter(|child| {
             matches!(
-                child.occurrence(),
-                native_artifact::NativePhysicalOccurrence::Boundary(_)
+                child.relocation(),
+                native_artifact::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(field)
+                    if field.caller() == ranked_machine.id
             )
         })
         .collect::<Vec<_>>();
@@ -820,18 +834,60 @@ machine Main::main(&mut self) { self.spin(3); }
     assert_eq!(field.caller(), ranked_machine.id);
     assert_eq!(Some(field.operation()), call.owner.operation());
     assert_eq!(field.offset(), call.text_offset);
+    let object = artifact.object();
+    let source = object.fragment_source_for_test().unwrap();
+    for foreign in object.foreign_calls() {
+        assert_eq!(foreign.scalar_arguments.len(), 9);
+        for argument in [&foreign.scalar_arguments[0], &foreign.scalar_arguments[8]] {
+            assert!(matches!(
+                argument.source,
+                machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall { .. }
+            ));
+        }
+        assert!(matches!(
+            foreign.scalar_arguments[8].placement.locations.as_slice(),
+            [calling_conventions::ValueLocation::Stack { .. }]
+        ));
+    }
+    for mutation in 0..4 {
+        let mut changed = object.clone();
+        let argument = &mut changed.foreign_calls_mut_for_test()[0].scalar_arguments[0];
+        let machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
+            source_value,
+            scalar_type,
+            instruction,
+        } = &mut argument.source
+        else {
+            panic!("parameter source must retain selected SSA call custody")
+        };
+        match mutation {
+            0 => *source_value = semantic_vocabulary::ValueId::new(u64::MAX).unwrap(),
+            1 => *scalar_type = semantic_vocabulary::ScalarType::Boolean,
+            2 => instruction.0 += 1,
+            _ => argument.code_offset += 4,
+        }
+        assert!(
+            image_emission::validate_function_fragment_object_artifact(source, &changed).is_err(),
+            "parameter custody mutation {mutation} must reject"
+        );
+    }
     let provider_source = r#"
 #include <stdint.h>
 #include <stdio.h>
 static unsigned calls = 0;
-void shift(uint64_t value) {
-    if (calls >= 4 || value != 7) {
+static const uint64_t expected[] = {9, 3, 2, 1, 0};
+void shift(uint64_t value, uint64_t first, uint64_t second, uint64_t third,
+           uint64_t fourth, uint64_t fifth, uint64_t sixth, uint64_t seventh,
+           uint64_t repeated) {
+    if (calls >= 5 || value != expected[calls] || repeated != value ||
+        first != 1 || second != 2 || third != 3 || fourth != 4 ||
+        fifth != 5 || sixth != 6 || seventh != 7) {
         puts("ranked foreign arguments: FAIL");
         fflush(stdout);
         return;
     }
     calls += 1;
-    if (calls == 4) {
+    if (calls == 5) {
         puts("ranked foreign arguments: PASS");
         fflush(stdout);
     }

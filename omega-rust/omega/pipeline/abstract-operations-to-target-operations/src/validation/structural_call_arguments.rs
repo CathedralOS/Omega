@@ -1319,9 +1319,9 @@ impl Replay<'_> {
         // `Home` sources cite the exact retained result home of the producing
         // operation — replayed on that row's own source operation — while an
         // `IntegerImmediate` must equal the source `IntegerConstant` op it
-        // names. Parameters, block values, and boolean or float immediates
-        // are inadmissible on this lane, so every other `source` kind is a
-        // substitution.
+        // names. Incoming and block parameters use the same independently
+        // reconstructed source coordinates as hosted integer boundaries;
+        // neither the argument row nor its matching width establishes identity.
         let mut retained_scalar_homes = BTreeMap::new();
         for operation in self
             .target
@@ -1375,6 +1375,14 @@ impl Replay<'_> {
                 _ => return Err(psi_operation),
             };
             let source_invalid = match &actual.source {
+                TargetUnitScalarArgumentSource::Parameter { .. }
+                | TargetUnitScalarArgumentSource::BlockParameter(_) => {
+                    let ScalarType::Integer(integer) = declaration.scalar_parameters[index] else {
+                        return Err(psi_operation);
+                    };
+                    self.integer_argument_source(psi_operation, *value, integer, &actual.source)
+                        .is_err()
+                }
                 TargetUnitScalarArgumentSource::IntegerImmediate {
                     defining_operation,
                     source_value,
@@ -1712,7 +1720,7 @@ impl Replay<'_> {
                 {
                     return Err(psi_operation);
                 }
-                self.hosted_scalar_source(psi_operation, source_value, i32_type, &row.source)
+                self.integer_argument_source(psi_operation, source_value, i32_type, &row.source)
             }
             BoundaryRealization::HostedReadByte(_) => {
                 // The hosted byte read writes one `[empty, byte]` sum result:
@@ -1777,12 +1785,12 @@ impl Replay<'_> {
         }
     }
 
-    /// One hosted scalar lane argument replays the producer's known-integer
+    /// A hosted or foreign integer argument replays the producer's known-integer
     /// source: an incoming parameter, a non-entry block parameter, an
     /// `IntegerConstant` the source body already defined, or the durable home
     /// one earlier integer result left behind. Every other `source` kind is
     /// a substitution.
-    fn hosted_scalar_source(
+    fn integer_argument_source(
         &self,
         psi_operation: OperationId,
         source_value: ValueId,

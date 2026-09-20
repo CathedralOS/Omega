@@ -1714,6 +1714,24 @@ fn fragment_scalar_argument_custody_rejoin(
             .count();
         let span_rejoins = match (argument.source, physical.source) {
             (
+                source @ (target_operations::TargetUnitScalarArgumentSource::Parameter { .. }
+                | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)),
+                machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
+                    source_value,
+                    scalar_type,
+                    instruction: selected_call,
+                },
+            ) => {
+                // Retained selected/physical replay validates the SSA source's
+                // entry or edge transport. Rejoin its exact call coordinate,
+                // value and type here; equal-width values are not substitutes.
+                source_value == source.source_value()
+                    && scalar_type == source.scalar_type()
+                    && selected_call == record.instruction
+                    && fragment_instruction_span(fragment, selected_call)
+                        == Some((physical.code_offset as u64, physical.byte_count as u64))
+            }
+            (
                 target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                     defining_operation,
                     source_value,

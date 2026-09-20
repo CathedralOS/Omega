@@ -4490,31 +4490,15 @@ Owners include
   still reject.
 
 - **EVALUATED-FOREIGN-BINDINGS.** Carry the typed compile-time locator values
-  for PE, versioned ELF, and Darwin/Mach-O through the remaining ranked-control
-  and port-bearing native paths, preserving the normalized locator, evaluated
+  for PE, versioned ELF, and Darwin/Mach-O through the remaining port-bearing
+  native paths, preserving the normalized locator, evaluated
   plan, target applicability and admitted provider custody under
   [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
 
-  Remaining work:
+  Port-bearing artifacts need a `port_effects` production writer connected
+  to native physical evidence and independent replay.
 
-  - Carry changing ranked values into foreign arguments. In
-    `compiler/tests/efb3_flat_record_probe.rs`, change the native
-    `ranked_foreign_call_executes_every_iteration` fixture's `Trace::record(7)`
-    to `Trace::record(remaining)` and make the C oracle expect `3, 2, 1, 0`.
-    At `f9f10fb9716` on macOS ARM64 this rejects with target lowering's
-    `BoundaryRealizationMismatch`, before legalization. The normalized foreign
-    scalar-argument route in `abstract-operations-to-target-operations`'s
-    `src/lowering/unit/boundary_call/normalized_foreign.rs` rejects parameter and
-    block-parameter sources. Reuse ordinary argument materialization and
-    independent source replay; do not replace the changing value with a literal.
-    Run `cargo nextest run -p compiler --test efb3_flat_record_probe
-    ranked_foreign_call_executes_every_iteration --no-fail-fast --no-tests fail`.
-  - Port-bearing artifacts need a `port_effects` production writer connected
-    to native physical evidence and independent replay.
-
-  Acceptance: a ranked caller passes its changing value to the admitted foreign
-  provider on a matching host, and port-bearing artifacts retain their exact
-  effects.
+  Acceptance: port-bearing artifacts retain their exact effects.
   Independent native replay rejects missing, duplicate, substituted or
   role-swapped children. Raw foreign bytes remain locator data, never Omega
   symbol names or ambient lookup authority.

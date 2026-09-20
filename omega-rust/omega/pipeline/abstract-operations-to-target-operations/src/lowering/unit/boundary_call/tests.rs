@@ -9,6 +9,7 @@ use super::{
     lower_normalized_foreign_structural_arguments,
 };
 use calling_conventions::MachineRegister;
+use semantic_vocabulary::BlockId;
 
 fn declaration(
     boundary: BoundaryMachineId,
@@ -197,6 +198,285 @@ fn interleaved_native_callback_preserves_semantic_sources_at_physical_ordinals_z
         )
         .is_err()
     );
+}
+
+#[test]
+fn normalized_foreign_parameters_and_block_parameters_retain_order_identity_and_destinations() {
+    let boundary = BoundaryMachineId::new(301).unwrap();
+    let narrow = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+    let wide = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let block = BlockId::new(302).unwrap();
+
+    for (target, register_count, first_stack_offset, first_register) in [
+        (NativeTarget::windows_x64(), 4, 32, MachineRegister::X86Rcx),
+        (NativeTarget::linux_x64(), 6, 0, MachineRegister::X86Rdi),
+        (
+            NativeTarget::linux_arm64(),
+            8,
+            0,
+            MachineRegister::Aarch64X(0),
+        ),
+        (
+            NativeTarget::macos_arm64(),
+            8,
+            0,
+            MachineRegister::Aarch64X(0),
+        ),
+    ] {
+        // Reverse the incoming order and repeat a source across the register/stack
+        // boundary. Neither map order nor the incoming parameter ordinal is the
+        // outgoing native argument position.
+        let source_ordinals = [9_u32, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9];
+        let source_values =
+            source_ordinals.map(|ordinal| ValueId::new(400 + u64::from(ordinal)).unwrap());
+        let scalar_types =
+            source_ordinals.map(|ordinal| if ordinal % 2 == 0 { narrow } else { wide });
+        let declaration = declaration(
+            boundary,
+            scalar_types
+                .iter()
+                .copied()
+                .map(ScalarType::Integer)
+                .collect(),
+        );
+        let plan = entry_plan(target, &scalar_types);
+        let mut parameters = BTreeMap::new();
+        let mut block_parameters = BTreeMap::new();
+        for ((source_value, scalar_type), parameter_index) in source_values
+            .into_iter()
+            .zip(scalar_types)
+            .zip(source_ordinals)
+        {
+            parameters.insert(
+                source_value,
+                KnownUnitInteger::Parameter {
+                    parameter_index,
+                    scalar_type,
+                },
+            );
+            block_parameters.insert(
+                source_value,
+                KnownUnitInteger::BlockParameter {
+                    block,
+                    value: source_value,
+                    scalar_type,
+                },
+            );
+        }
+
+        for (is_block_parameter, scalar_values) in [(false, &parameters), (true, &block_parameters)]
+        {
+            let arguments = lower_normalized_foreign_scalar_arguments(
+                boundary,
+                &declaration,
+                &source_values,
+                &plan,
+                scalar_values,
+            )
+            .expect("incoming scalar sources retain the evaluated foreign destinations");
+            assert_eq!(arguments.len(), source_values.len());
+            for (argument_index, argument) in arguments.iter().enumerate() {
+                let source_value = source_values[argument_index];
+                let scalar_type = ScalarType::Integer(scalar_types[argument_index]);
+                let expected_source = if !is_block_parameter {
+                    TargetUnitScalarArgumentSource::Parameter {
+                        parameter_index: source_ordinals[argument_index],
+                        source_value,
+                        scalar_type,
+                    }
+                } else {
+                    TargetUnitScalarArgumentSource::BlockParameter(
+                        target_operations::TargetScalarBlockValue {
+                            block,
+                            value: source_value,
+                            scalar_type,
+                        },
+                    )
+                };
+                assert_eq!(
+                    argument.source, expected_source,
+                    "source at {argument_index} on {target:?}"
+                );
+                assert_eq!(argument.source_value(), source_value);
+                assert_eq!(argument.scalar_type(), scalar_type);
+                assert_eq!(
+                    argument.parameter_index,
+                    u32::try_from(argument_index).unwrap()
+                );
+                assert_eq!(argument.placement, plan.call.parameters[argument_index]);
+                if argument_index < register_count {
+                    assert!(matches!(
+                        argument.placement.locations.as_slice(),
+                        [ValueLocation::Register { .. }]
+                    ));
+                } else {
+                    let expected_offset = first_stack_offset
+                        + 8 * u32::try_from(argument_index - register_count).unwrap();
+                    assert!(
+                        matches!(
+                            argument.placement.locations.as_slice(),
+                            [ValueLocation::Stack { stack_byte_offset, value_byte_offset: 0, byte_size, .. }]
+                                if *stack_byte_offset == expected_offset
+                                    && *byte_size == scalar_types[argument_index].bits().div_ceil(8)
+                        ),
+                        "stack argument {argument_index} on {target:?}"
+                    );
+                }
+            }
+            assert!(matches!(
+                arguments[0].placement.locations.as_slice(),
+                [ValueLocation::Register { register, .. }] if *register == first_register
+            ));
+        }
+    }
+}
+
+#[test]
+fn normalized_foreign_parameters_and_block_parameters_reject_wrong_types_and_absent_sources() {
+    let boundary = BoundaryMachineId::new(501).unwrap();
+    let source = ValueId::new(502).unwrap();
+    let block = BlockId::new(503).unwrap();
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let declaration = declaration(boundary, vec![ScalarType::Integer(integer)]);
+    for target in [
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let plan = entry_plan(target, &[integer]);
+        for known in [
+            KnownUnitInteger::Parameter {
+                parameter_index: 3,
+                scalar_type: integer,
+            },
+            KnownUnitInteger::BlockParameter {
+                block,
+                value: source,
+                scalar_type: integer,
+            },
+        ] {
+            let scalar_values = BTreeMap::from([(source, known)]);
+            assert!(
+                lower_normalized_foreign_scalar_arguments(
+                    boundary,
+                    &declaration,
+                    &[source],
+                    &plan,
+                    &scalar_values,
+                )
+                .is_ok(),
+                "valid source {known:?} on {target:?}"
+            );
+
+            // Equal-width signedness drift must reject even though its physical
+            // placement is unchanged. A width mismatch must reject as well.
+            for wrong_type in [
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+            ] {
+                let mut wrong_known = known;
+                match &mut wrong_known {
+                    KnownUnitInteger::Parameter { scalar_type, .. }
+                    | KnownUnitInteger::BlockParameter { scalar_type, .. } => {
+                        *scalar_type = wrong_type
+                    }
+                    _ => unreachable!("fixture contains only parameter sources"),
+                }
+                assert_eq!(
+                    lower_normalized_foreign_scalar_arguments(
+                        boundary,
+                        &declaration,
+                        &[source],
+                        &plan,
+                        &BTreeMap::from([(source, wrong_known)]),
+                    ),
+                    Err(LoweringError::BoundaryRealizationMismatch(boundary)),
+                    "wrong source type on {target:?}"
+                );
+            }
+            let absent = ValueId::new(504).unwrap();
+            assert_eq!(
+                lower_normalized_foreign_scalar_arguments(
+                    boundary,
+                    &declaration,
+                    &[absent],
+                    &plan,
+                    &scalar_values,
+                ),
+                Err(LoweringError::BoundaryRealizationMismatch(boundary)),
+                "absent source on {target:?}"
+            );
+        }
+    }
+}
+
+fn assert_normalized_foreign_source_identity_is_checked(known: KnownUnitInteger) {
+    let boundary = BoundaryMachineId::new(601).unwrap();
+    let source = ValueId::new(602).unwrap();
+    let substituted = ValueId::new(603).unwrap();
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let declaration = declaration(boundary, vec![ScalarType::Integer(integer)]);
+    let mut wrong_known = known;
+    match &mut wrong_known {
+        KnownUnitInteger::BlockParameter { value, .. } => *value = substituted,
+        KnownUnitInteger::Home(home) => home.source_value = substituted,
+        _ => unreachable!("fixture contains an embedded source identity"),
+    }
+    for target in [
+        NativeTarget::windows_x64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let plan = entry_plan(target, &[integer]);
+        let lowered = lower_normalized_foreign_scalar_arguments(
+            boundary,
+            &declaration,
+            &[source],
+            &plan,
+            &BTreeMap::from([(source, known)]),
+        )
+        .expect("matching embedded source identity");
+        assert_eq!(lowered[0].source_value(), source);
+        assert_eq!(lowered[0].scalar_type(), ScalarType::Integer(integer));
+        assert_eq!(lowered[0].placement, plan.call.parameters[0]);
+
+        // Keep the lookup key, type, and destination intact; only the carried
+        // source identity changes. Lowering cannot publish that substitution.
+        assert_eq!(
+            lower_normalized_foreign_scalar_arguments(
+                boundary,
+                &declaration,
+                &[source],
+                &plan,
+                &BTreeMap::from([(source, wrong_known)]),
+            ),
+            Err(LoweringError::BoundaryRealizationMismatch(boundary)),
+            "substituted source {wrong_known:?} on {target:?}"
+        );
+    }
+}
+
+#[test]
+fn normalized_foreign_block_parameter_rejects_mismatched_source_identity() {
+    assert_normalized_foreign_source_identity_is_checked(KnownUnitInteger::BlockParameter {
+        block: BlockId::new(604).unwrap(),
+        value: ValueId::new(602).unwrap(),
+        scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+    });
+}
+
+#[test]
+fn normalized_foreign_home_rejects_mismatched_source_identity() {
+    assert_normalized_foreign_source_identity_is_checked(KnownUnitInteger::Home(
+        TargetUnitScalarHomeRequirement {
+            defining_operation: OperationId::new(605).unwrap(),
+            source_value: ValueId::new(602).unwrap(),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+            shape: ValueShape::integer(4, 4),
+        },
+    ));
 }
 
 #[test]
