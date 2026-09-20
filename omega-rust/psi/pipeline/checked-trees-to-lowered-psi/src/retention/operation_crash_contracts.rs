@@ -470,3 +470,137 @@ fn scalar_value_type(machine: &TerminalMachine, value: ValueId) -> Option<Scalar
         )
         .find_map(|(id, scalar_type)| (id == value).then_some(scalar_type))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A crash-qualified positional `==` use beside an ordinary machine call:
+    /// the checked site's honest join lands on the emitted `IntegerEqual`,
+    /// while the call carries its own `crash_continuations`. Corrupting the
+    /// recorded occurrence join must fail closed in both directions below.
+    const CALL_BESIDE_COMPARISON_SOURCE: &str = r#"
+        boundary operator == Meaning::equal(left: u16, right: u16) -> bool crashes Trap;
+        machine other(value: u16) -> u16 { value }
+        machine choose(left: u16, right: u16) -> bool { other(left) == right }
+    "#;
+
+    fn checked(source: &str) -> CheckedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type");
+        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check");
+        // This unit boundary tests source-to-Terminal custody. Omega
+        // separately rejoins these opaque commitments to actual selected
+        // ProviderPlans.
+        let handles = checked
+            .facts
+            .operators
+            .uses
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for handle in handles {
+            let selected = checked.facts.operators.uses.get_mut(handle);
+            selected.provider_plan_report_fingerprint = 7;
+            selected.provider_plan_commitment =
+                checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]);
+        }
+        checked
+    }
+
+    /// Re-run the retention pass on the already-lowered module after the test
+    /// rewrites the emission's own occurrence joins.
+    fn retain_again(checked: &CheckedTrees, lowered: &mut LoweredPsi) -> LoweringError {
+        lowered.semantic_module.operation_crash_contracts.clear();
+        let source_machines = checked
+            .facts
+            .flow
+            .terminal_machines
+            .machines
+            .iter()
+            .map(|selection| selection.machine)
+            .collect::<Vec<_>>();
+        retain_operation_crash_contracts(checked, &source_machines, lowered)
+            .expect_err("the rewritten occurrence join must fail closed")
+    }
+
+    #[test]
+    fn crash_contract_rejects_a_call_operation_carrier() {
+        let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
+        let mut lowered = crate::lower_machine(&checked, "choose")
+            .expect("a crash-qualified comparison beside a call lowers");
+        assert_eq!(
+            lowered.semantic_module.operation_crash_contracts.len(),
+            1,
+            "the honest join installs one operation crash contract"
+        );
+        let (call_machine, call_operation) = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| block.operations.iter().map(|op| (machine.id, op)))
+            })
+            .find_map(|(machine, operation)| {
+                matches!(
+                    operation.kind,
+                    OperationKind::Call { .. }
+                        | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallStructuralWithScalarArguments { .. }
+                        | OperationKind::CallStructural { .. }
+                        | OperationKind::CallDynamicScalar { .. }
+                        | OperationKind::CallDynamicParameterScalar { .. }
+                        | OperationKind::CallDynamicUnit { .. }
+                        | OperationKind::CallDynamicParameterUnit { .. }
+                        | OperationKind::BoundaryCall { .. }
+                )
+                .then_some((machine, operation.id))
+            })
+            .expect("choose emits one call operation beside the comparison");
+        let [occurrence] = lowered
+            .selected_integer_comparison_occurrences
+            .as_mut_slice()
+        else {
+            panic!("the selected comparison emits one occurrence row")
+        };
+        occurrence.terminal_machine = call_machine;
+        occurrence.terminal_operation = call_operation;
+        let error = retain_again(&checked, &mut lowered);
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message) if message.contains("call operation")
+            ),
+            "a call operation must not carry a positional crash row: {error:?}"
+        );
+    }
+
+    #[test]
+    fn crash_contract_rejects_a_site_with_no_emitted_join() {
+        let checked = checked(CALL_BESIDE_COMPARISON_SOURCE);
+        let mut lowered = crate::lower_machine(&checked, "choose")
+            .expect("a crash-qualified comparison beside a call lowers");
+        lowered.selected_integer_comparison_occurrences.clear();
+        let error = retain_again(&checked, &mut lowered);
+        assert!(
+            matches!(
+                error,
+                LoweringError::Unsupported(message)
+                    if message.contains("no emitted Terminal operation")
+            ),
+            "a crash-qualified use without an emitted join must fail closed: {error:?}"
+        );
+    }
+}
