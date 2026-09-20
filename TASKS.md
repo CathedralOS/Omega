@@ -2677,13 +2677,27 @@ Owners include
     `mutable_self_mixed_field_index_path_can_supply_shared_receiver`,
     `dynamic_indexed_element_still_cannot_supply_shared_receiver`). Explicit
     shared indexed arguments and dynamic `Index` segments still stop in
-    `execution/unit/calls`. Terminal's owned-root array and
+    `execution/unit/calls`, and the stop points are now pinned per shape
+    (`receiver_access::explicit_shared_indexed_argument_still_omits_caller_in_call_operation`,
+    `local_indexed_receiver_still_omits_in_call_statement_shape`,
+    `dynamic_indexed_parameter_receiver_stops_at_receiver_reconciliation`,
+    `literal_indexed_parameter_receiver_can_supply_shared_receiver`):
+    explicit `&` arguments carrying any index segment (literal or dynamic)
+    stop the caller in the call-operation phase — a reference `self` is not
+    a structural parameter under the non-retained builders, so the argument
+    cannot name its source — local-rooted indexed receivers stop earlier at
+    call-statement shape, and parameter-rooted dynamic `Index` reaches
+    receiver reconciliation before dropping. Terminal's owned-root array and
     construction-local restrictions remain separate; do not infer their
     availability merely from a parameter declaration.
   - Record matching-host runtime results for both Linux targets and Windows.
     `terminal_psi_indexed_receivers::owned_subloans` publishes objects, images
     and installation records for all four hosted targets; its published text
-    has run only on macOS ARM64. Cross-emission is not runtime coverage.
+    has run on macOS ARM64 and, as of this wave, linux-x86_64 — the full
+    `terminal_psi_indexed_receivers` harness (79 tests) passed on that host
+    with every emitted byte sequence linked and executed through the host C
+    driver. linux-aarch64 and Windows remain unrecorded (QEMU/Windows hosts
+    unavailable in that session). Cross-emission is not runtime coverage.
     Preserve the broader `terminal_psi_indexed_receivers` and
     `primitive_store_return` controls.
 
