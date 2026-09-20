@@ -9129,7 +9129,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MATH-PROOFS-DECLARATION-SELECTION, PROOF-SUBJECT-CALL-SELECTION,
   PROOF-SUBJECT-CHECKED-CALL-SELECTION, CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.
 - **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
-- **MATHEMATICAL-PREDICATE-PARAMETERS** — mined candidate; verify scope then implement.
+- **MATHEMATICAL-PREDICATE-PARAMETERS.** Mined candidate — scope verified
+  at `bbcff399ed`, re-mine of TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS's
+  adjudicated surface (chapter 14's recorded gap: a trait requirement
+  expressing an arbitrary nondecidable validity condition routes through a
+  [mathematical predicate parameter](wiki/spec/proofs/mathematical_bindings.md),
+  "checking that general route remains implementation work"). That route is
+  PROOF-CONTRACT-MIGRATION's connected implementation — contract proof
+  semantics and core mathematical traits elaborating to PROOF-KERNEL-CORE's
+  term model — and every implementing surface is live-fenced at
+  verification time: PROOF-CONTRACT-MIGRATION itself (Jarod/zergling-86,
+  exp ~07:14Z) holds `t2c/src/proof/proof_output_calls.rs` and
+  `tests/omega/pass/proofs`, and the bindings leg MATH-FOUNDATION-BINDINGS
+  (exp ~00:09Z) holds `proof/mathematical_signature{,.rs}` and
+  `proof/mathematical_declarations{,.rs}`. The "static constructor
+  matching" leg that MODULE-CONSTANT-COMPUTED-CARRIER's row attributes to
+  this item is the same contract-migration surface (predicate parameters
+  are how trait requirements declare such conditions). No independent
+  slice exists. Sibling re-mines verified same-way:
+  MATHEMATICAL-FOUNDATIONS-REAL, MATH-PROOFS-CALL-SELECTION-OCCURRENCE,
+  MATH-PROOFS-DECLARATION-SELECTION.
 - **MODULE-CONSTANT-COMPUTED-CARRIER.** Mined candidate; scope verified,
   resolved — the computed/structured-carrier leg named by the retired
   MODULE-CONSTANT-BUILTIN-CARRIER row is landed. `build-time-evaluation/src/
