@@ -6709,6 +6709,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **INTEGER-COMPARISON-OCCURRENCE-RETENTION** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-STD-COVERAGE** — mined candidate; verify scope then implement.
 - **INTEL-MACOS-HOST-PROFILE** — mined candidate; verify scope then implement.
+  Verified scope: named alias of **MACOS-X64-HOST-PROFILE** (TASKS.md:5962)
+  — "Intel gap" is that row's own parenthetical. `TargetProfile::MacosX64`
+  already catalogues the host through checked admission (which refuses on
+  the missing `targets/macos_x86_64` provider package); the enumerated legs
+  are the `ProgramEntryPhysicalContractPackage::MacosX64` entry contract +
+  `targets/macos_x86_64/` source library, the x86-64 Mach-O writer
+  (`image_output.rs` refuses `(MachO, X86_64)`), the
+  `native_hosted_target()` cfg arm in `canary_suite.rs`, and a real
+  x86_64-apple-darwin host run. Every implementing surface is under that
+  item's live claims this wave (image-macho/image_output.rs +
+  macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
+  installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
+  all Devin / swarm-w9-macos-x64-host-profile).
 - **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
 - **INTRINSIC-PHYSICAL-SPAN-ARMS** — mined candidate; verify scope then implement.
 - **KNOWN-BASELINE-FAILURES-DOC-REFRESH** — mined candidate; verify scope then implement.
