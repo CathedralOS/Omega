@@ -2,7 +2,7 @@
 
 Board row `TASKS.md:8185` already reads "Resolved — covered by owned
 sibling rows." Verified live: the stub re-mines the
-[RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
+[RC-NATIVE-MATRIX](rust_compiler_completion.md#release-matrix)
 "matching host" requirement — each hosted target's products executed and
 independently validated on its own host.
 
