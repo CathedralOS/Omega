@@ -17210,6 +17210,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TASKS_OPTIMIZER.md.
 ||||||| parent of 2adba9e9ba22 (board: TV-OPERATOR-APPLICATIONS-REPLAY — scope verified, real frontier fenced)
 - **TV-OPERATOR-APPLICATIONS-REPLAY** — mined candidate; verify scope then implement.
+||||||| parent of 6ff2a9378beb (board: TV-PRIVILEGED-PORT-EFFECTS — add frontier annotation row)
+- **TV-PRIVILEGED-PORT-EFFECTS.** Mined candidate; scope verified at
+  `cce9b4a9e49` — the translation-validation lane named on the
+  ASM-ADMISSION-ROUTE row (:8852). The validating half is partially
+  landed: terminal-Psi carries `Operation::PortWrite`
+  (operations.rs:464), the terminal verifier handles it
+  (root_service_reach:111, unranked_cycles:376, arithmetic_operands:338,
+  custody_operations:192), the interpreter executes it to
+  `TerminalEffect::PortWrite` (call_operations.rs:529-540), abstract
+  lowering + effect classification are wired (catalog_admission tests,
+  effect_summaries.rs:236), and native-artifact already runs an
+  artifact-level TV check: `physical/derivation/provider_custody.rs:118+`
+  requires every metadata port effect to rejoin exactly one Terminal
+  `PortWrite` with unchanged service/port/value, stay in function
+  provenance, and keep the x86 immediate port-write width. What is
+  missing is the producing route: `PortWrite` reaches selected
+  instructions only in a test fixture (scalar_call_unit.rs:385) — no
+  `TargetUnitOperation::PortWrite` selection, register-home transport, or
+  machine-emission `out` encoding exists in production code, and
+  `PortRead` (`in`) has no terminal-Psi operation at all. Those legs are
+  the ASM-ADMISSION-ROUTE row's recorded remaining work; validating
+  emitted port effects before they are emitted produces nothing — no
+  independent TV slice exists until the selection leg lands.
 - **TV-OPERATOR-APPLICATIONS-REPLAY.** Mined candidate; scope verified at
   `a51cb805cc1` — real frontier, fenced this wave. Names the occurrence
   replay residual recorded on resolved sibling TV-INTRINSIC-SPAN-ARMS:
