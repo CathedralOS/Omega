@@ -13,8 +13,8 @@ use language_semantics::content::{
     ContentStructuralPlace,
 };
 use language_semantics::{
-    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-    QualificationEvidenceOrigin,
+    DomainEstablishmentRoute, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, QualificationEvidenceOrigin,
 };
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -149,7 +149,7 @@ pub(super) fn check_call_result_qualifications(
                     (Some(_), None) => true,
                     (None, _) => false,
                 }
-                && facts.proof.contract_facts.iter().any(|(_, contract)| {
+                && (facts.proof.contract_facts.iter().any(|(_, contract)| {
                     let checked_trees::ContractProofFactOwner::StateSignature {
                         owner_symbol,
                         state_symbol,
@@ -192,7 +192,7 @@ pub(super) fn check_call_result_qualifications(
                         )
                         .is_some()
                     })
-                })
+                }) || result_type_issuance_route(program, call.target_symbol, domain))
             {
                 return Some(());
             }
@@ -350,6 +350,48 @@ fn replay_equation(
         output_identities.push(identity);
     }
     includes_required
+}
+
+/// The other authorized issuance spelling: a boundary requirement carries
+/// its grant on the constrained result type (`-> T in D`) instead of an
+/// `ensures` clause. When the domain's `established by` route names that
+/// exact requirement, the signature's own declared constraint is the
+/// issuance witness — the bare-result and freshness gates above still
+/// apply, so transferred custody cannot mint supply here either.
+fn result_type_issuance_route(
+    program: &TypedTrees,
+    target_symbol: SymbolHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+) -> bool {
+    let Some(owner) = program.traits().iter().find(|owner| {
+        owner.is_boundary
+            && program
+                .trait_machine_signatures(owner)
+                .iter()
+                .any(|signature| signature.symbol == target_symbol)
+    }) else {
+        return false;
+    };
+    let Some(signature) = program
+        .trait_machine_signatures(owner)
+        .iter()
+        .find(|signature| signature.symbol == target_symbol)
+    else {
+        return false;
+    };
+    domain.establishment_routes.iter().any(|route| {
+        matches!(
+            route,
+            DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait,
+                requirement,
+            } if *boundary_trait == owner.symbol && *requirement == signature.symbol
+        )
+    }) && crate::facts::qualification_evidence::unwrapped_type_references_match(
+        program,
+        signature.return_type,
+        domain.target_type,
+    )
 }
 
 fn projection_places<'term>(

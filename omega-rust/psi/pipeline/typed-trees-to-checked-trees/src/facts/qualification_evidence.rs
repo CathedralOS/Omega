@@ -334,7 +334,7 @@ fn carry_permission_from_path(
     language_semantics::CarryPermission::from_name(&name)
 }
 
-fn unwrapped_type_references_match(
+pub(crate) fn unwrapped_type_references_match(
     program: &TypedTrees,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
