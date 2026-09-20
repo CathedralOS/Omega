@@ -13,7 +13,9 @@
 //! used by a given binary are expected dead code there.
 #![allow(dead_code)]
 
+use std::borrow::Borrow;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use component_description::test_support::{bare_module, describe_module, module_subject};
 use component_description::{
@@ -29,7 +31,9 @@ use terminal_psi::{
     ProviderCandidateConformance, ProviderRefinement, ProviderSignature, ServiceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, Terminator,
 };
-use topology_plan::topology_installation::{OperationSchema, OperationSchemas, PayloadSchema};
+use topology_plan::topology_installation::{
+    AdmittedArtifact, OperationSchema, OperationSchemas, PayloadSchema,
+};
 use topology_plan::*;
 
 pub fn identity(byte: u8) -> Identity {
@@ -186,14 +190,33 @@ pub fn admit_with(
 
 /// The component subject every admission binds, in order — the roster
 /// owner intent names.
-pub fn subjects_of(components: &[AdmittedComponent]) -> Vec<Identity> {
+pub fn subjects_of(components: &[impl Borrow<AdmittedComponent>]) -> Vec<Identity> {
     components.iter().map(subject_of).collect()
 }
 
 /// The plan-level identity of one admission's subject — what a request
 /// roster member must name to bind it.
-pub fn subject_of(admission: &AdmittedComponent) -> Identity {
-    component_subject_identity(&admission.component.subject())
+pub fn subject_of(admission: &impl Borrow<AdmittedComponent>) -> Identity {
+    component_subject_identity(&admission.borrow().component.subject())
+}
+
+/// The admitted executable roster matching `components` in canonical order:
+/// each artifact's component subject and admission profile derive from the
+/// admission itself, so a row can only ever carry a subject and profile
+/// `verify_component` admitted — the artifact identity stays the
+/// caller-asserted executable admission record.
+pub fn artifact_roster(
+    components: &[Arc<AdmittedComponent>],
+    artifact_at: impl Fn(usize) -> Identity,
+) -> Vec<AdmittedArtifact> {
+    components
+        .iter()
+        .enumerate()
+        .map(|(index, admission)| AdmittedArtifact {
+            artifact: artifact_at(index),
+            admission: Arc::clone(admission),
+        })
+        .collect()
 }
 
 /// The port a test component writes: one physical mechanism assumption the
@@ -265,12 +288,14 @@ pub fn billing_module() -> TerminalModule {
     )
 }
 
-/// The three payment components' admissions, in roster order.
-pub fn payment_components() -> Vec<AdmittedComponent> {
+/// The three payment components' admissions, in roster order — shared
+/// evidence, since one admission backs both the plan roster and the
+/// installer's artifact roster.
+pub fn payment_components() -> Vec<Arc<AdmittedComponent>> {
     vec![
-        admit(&api_module()),
-        admit(&authorization_module()),
-        admit(&billing_module()),
+        Arc::new(admit(&api_module())),
+        Arc::new(admit(&authorization_module())),
+        Arc::new(admit(&billing_module())),
     ]
 }
 
