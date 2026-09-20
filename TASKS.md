@@ -5901,7 +5901,30 @@ Proof/evidence:
 - **PROOF-RULE-CLASSICALITY-AUDIT.** Audit proof rules for classical/constructive boundary (matching-logic lane). Landed: `wiki/spec/proofs/classicality.md` audits every certificate rule — all are constructive or constructive-by-decidable-domain, `SemanticAxiom` is the only trusted admission, and the proposition grammar cannot express a classical principle. `AcceptedProofRule::foundation` (`proof-admission/src/classicality.rs`) enforces the classification by exhaustive match with tests pinning the boundary. Remaining: classify the obligation-side lemma library in `psi/semantics/proof` and the verifier's semantic-axiom reconstruction inventory.
 - **MATCHING-LOGIC-BOUNDED-SLICE.** Bounded matching-logic slice.
 - **MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT.** External proof import for matching logic. Source docs `wiki/drafts/matching_logic.md` and `wiki/drafts/matching_logic_sort_encoding.md` are exploratory research notes that authorize no implementation: a checked source proof with a trusted translation still carries a translation admission, an imported statement alone is a foreign-theorem admission, and no independently checked translation exists. Any route first needs the doc's bounded comparison (MATCHING-LOGIC-BOUNDED-SLICE), then a concrete design — a kernel replacement additionally requires its own proposal and an end-to-end proved bridge — and imported rules must respect the constructive/classical boundary `AcceptedProofRule::foundation` enforces (`proof-admission/src/classicality.rs`). The merged interchange territory belongs to PROOF-INTERCHANGE-IMPORT (sort encoding, induction certificate, arithmetic import).
-- **DERIVATION-RECHECK-CACHE.** Derivation recheck cache.
+- **DERIVATION-RECHECK-CACHE.** Resolved — the implementable slice already
+  landed through the sibling rows. The lookup substrate is
+  `proof/src/derivation_store.rs` (PROOF-DERIVATION-STORE-INDEX, landed
+  `68ce33d9de`: canonical `ProofObligationKey` index, generational
+  `DerivationId` handles, explicit `DerivationStoreFull` refusal,
+  key-granularity invalidate) and the recheck consultation is wired into
+  `check_proof_plan` via `check_proof_plan_with_derivation_cache` /
+  `checker::derivation_cache` (PROOF-SEARCH-DERIVATION-CACHE's landed
+  annotation names this row's wiring slice): each bounded certificate route
+  consults retained candidates under the obligation's semantic key,
+  re-decides them through the admission kernel, and `DerivationCacheReport`
+  tallies consultations/reused/rejected/retained/refused. Re-verified on
+  Linux x86-64 at `28a3cc7fea`: `cargo nextest run -p proof --lib` —
+  81/81 PASS including the four recheck-consultation tests
+  (`recheck_misses_an_obligation_with_no_retained_candidates`,
+  `kernel_rejected_candidates_are_passed_over_not_accepted`,
+  `retained_certificate_re_decides_for_a_semantically_identical_obligation`,
+  `capacity_refusal_is_explicit_and_keeps_the_verdict_path`). The remaining
+  leg — caller adoption of a long-lived persistent cache — is the
+  reuse-policy decision `wiki/drafts/proof_search_cache.md` keeps open: an
+  exploratory draft that selects no persistence scheme until measured
+  hit-rate/invalidation evidence exists (needs a workload corpus with
+  repeated obligations; `OMEGA_PROOF_MEASUREMENTS` supplies the other
+  axes). Not an implementation item.
 
 Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`):
 
