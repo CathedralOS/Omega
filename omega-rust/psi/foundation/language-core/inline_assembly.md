@@ -9,6 +9,7 @@ every source-to-native consumer realizes it.
 | Catalog family | Current structured operands and distinctions |
 | --- | --- |
 | `jmp`, `hlt` | State-target transition or halt; no local post-state. |
+| `mov` / `movq` | Structured data move between a writable Omega place and a readable value; lowers to an ordinary checked assignment, so the copy's provenance, permission and exact-type obligations are the assignment's. Bracketed `[address]` operands keep refusing as unmodeled memory access; authorized memory data moves through a typed view index. |
 | x86 `in` / `out` | Exact `u16` port at DX and `u8` value/destination at AL; only catalog-permitted fitting literals. |
 | x86 `lfence` / `sfence` / `mfence` | Zero operands, load/store/full ordering; no service reach or general-register clobbers. |
 | x86 `cli` / `sti` | MachineOwner requirement; immediate IF clear versus interrupt recognition after STI's following instruction. |
@@ -21,7 +22,9 @@ The catalog's operand and clobber constants are authoritative for the current
 realized sequence, including scratch loaders/stores. Do not copy their register
 lists or encoded bytes into a language rule. General return/call/indirect-branch
 spellings currently refuse as hidden exits; recognized unmodeled loads/stores
-refuse for missing memory contracts. Unknown mnemonics remain distinct failures.
+refuse for missing memory contracts. Register-only `mov`/`movq` is the decoded
+exception: it carries no memory-addressing operand, so its contract is the
+ordinary assignment's. Unknown mnemonics remain distinct failures.
 Target gates do not silently substitute another ISA's instruction.
 
 [Parsing](../../pipeline/tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs) lowers

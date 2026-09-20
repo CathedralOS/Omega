@@ -221,6 +221,9 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("inline_asm/asm_flags_compile", "linux_x86_64"),
     ("inline_asm/asm_msr_compile", "linux_x86_64"),
     ("inline_asm/asm_control_registers_compile", "linux_x86_64"),
+    // Register moves desugar to a target-neutral checked assignment, so the
+    // contract accepts them on a non-x86 target too.
+    ("inline_asm/asm_register_move_compile", "linux_arm64"),
     (
         "inline_asm/asm_multi_instruction_block_compile",
         "uefi_x86_64",
@@ -1226,6 +1229,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_where_contract",
     "inline_asm/asm_label_loop",
     "inline_asm/asm_structured_ldr_str",
+    "inline_asm/asm_mov_bracket_memory",
     "inline_asm/asm_deriver_only_exit",
     "inline_asm/asm_lidt_deriver_only",
     "inline_asm/asm_hidden_return",
