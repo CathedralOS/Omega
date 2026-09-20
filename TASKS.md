@@ -6980,7 +6980,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GEOMETRY-REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **GEOMETRY-WINDOWS-LEG** — mined candidate; verify scope then implement.
 - **GEOMETRY-WINDOWS-REVALIDATION** — mined candidate; verify scope then implement.
-- **GEOMETRY-WINDOWS-VALIDATION** — mined candidate; verify scope then implement.
+- **GEOMETRY-WINDOWS-VALIDATION.** Mined candidate; scope verified at
+  `8734480a01`: names the Windows leg of the app repo's GEOMETRY-PARITY
+  acceptance ("Validate the geometry application on Windows"; the 12-check
+  geometry evidence to date is macOS ARM64 only — "Windows was not run").
+  Acceptance is `python tools/verify.py native --timeout 600 --omega
+  <executable>` on a Windows host against the nested build.omg graph.
+  Blocked two ways: no Windows development host exists in this
+  environment, and every touch point in `samples/apps/squalr` sits under
+  live claims (dir-fenced by Jarod's SQUALR-TARGETS-AND-THROUGHPUT;
+  file-fences from Zergling-61's SQUALR-CLONE-SERIALIZATION). A
+  Linux-side emit leg under `--target windows_x86_64` would not satisfy
+  the run-based acceptance and still needs the fenced app tree. Owning
+  parent: SQUALR-GEOMETRY-PARITY (TASKS.md:~6020); coordinate there on a
+  Windows host before working it.
 - **GLOB-SELF-IMPORTS-REPAIR** — mined candidate; scope verified, slice landed. The name resolves to `tests/architecture/glob_self_imports.rs`: a per-crate ratchet over files carrying `use super::*;`/`use crate::*;`, whose ceiling table is already empty — so every surviving glob self-import fails `glob_self_imports_never_grow_per_crate`. Repair means removing the glob, not raising ceilings. Residual at `33eb8d92ff`: twelve files across eleven crates (new glob files keep landing, so the residual regrows while the ratchet is red). This slice converted four files to explicit `use super::{names}`/`use super::Name` imports — `component-description`'s `component_description/tests.rs`, `omega`'s `execution/mod.rs`, `machine-emission`'s `startup_trampoline.rs`, and `selected-instructions-to-selected-instructions`' `address_fold/tests.rs` `independence_tests` module — plus corrected the gate's stale "more than two thousand" preamble (crate suites green: 23/23, 4/4, 50/50, 41/41 filtered). Remaining files sit under sibling claims: BUILD-PACKAGES-GATE holds `sources/acquisition` traversal.rs, MACOS-X64-HOST-PROFILE/validators-leg holds image-emission `final_image_validation.rs`, MATCH-SELECTIVE-LOWERING holds validation `result_type.rs`, PROOF-RULE-CLASSICALITY-AUDIT holds proof-admission `classicality.rs`, and RC-REPOSITORY-BASELINE-GREEN glob legs hold optimization-unit-semantics `replay.rs`, checked-trees-to-lowered-psi `operation_crash_contracts.rs`, proof `measurement.rs`, and both terminal-verifier files. The gate stays red until those legs land; the ratchet then guards zero.
 - **GRAPH-COST-EVIDENCE-CORPUS** — mined candidate; scope verified, authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg of GRAPH-COST-MODEL-STUDY (a versioned workload corpus is the missing evidence for the `predicted_cost_delta` comparison). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records; the comparison protocol is scoped in `wiki/drafts/graph_cost_model_study.md`. Sibling stubs on the same gated surface: OPTIMIZATION-WORKLOAD-CORPUS, WORKLOAD-CORPUS.
 - **GRAPH-FEATURE-PROJECTION-SCHEMA** — mined candidate; verify scope then implement.
