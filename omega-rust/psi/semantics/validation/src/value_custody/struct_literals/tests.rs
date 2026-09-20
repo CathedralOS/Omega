@@ -439,3 +439,71 @@ fn retained_case_names_in_value_positions_keep_construction_obligations() {
         );
     }
 }
+
+#[test]
+fn case_constraint_cannot_name_a_sibling_cases_payload() {
+    // CASE-CONSTRAINTS scope rule (ch12 "another case's payload is not in
+    // scope"): `x` belongs to case `A`, so case `B`'s `where` fact cannot
+    // consult it. Previously the literal fold read the unbound name as the
+    // ZII zero, which let a satisfiable fact (`x >= 0`) prove vacuously.
+    let diagnostics = construction_diagnostics(
+        "data Pair { case A(x: u64); case B(y: u64) where x >= 0; }
+         data Main { p: Pair; }
+         machine Main::main(&mut self) { self.p = Pair::B { y: 1 }; }",
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("not in scope")),
+        "the sibling payload name must reject as out of scope: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn case_constraint_cannot_name_an_undeclared_field() {
+    // A leaf bound to nothing at all must not read the ZII zero either --
+    // `nosuch >= 0` used to prove vacuously as `0 >= 0`.
+    let diagnostics = construction_diagnostics(
+        "data Pair { case B(y: u64) where nosuch >= 0; }
+         data Main { p: Pair; }
+         machine Main::main(&mut self) { self.p = Pair::B { y: 1 }; }",
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("not in scope")),
+        "an undeclared leaf name must reject as out of scope: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn case_constraint_omitted_declared_payload_field_reads_the_zii_zero() {
+    // Omitted DECLARED fields still read the ZII zero: `hi` is `Range`'s own
+    // payload binding, so omitting it folds `lo <= hi` as `0 <= 0`.
+    let diagnostics = construction_diagnostics(
+        "data Interval { case Range(lo: u64, hi: u64) where lo <= hi; }
+         data Main { i: Interval; }
+         machine Main::main(&mut self) { self.i = Interval::Range { lo: 0 }; }",
+    );
+    assert!(
+        diagnostics.is_empty(),
+        "an omitted declared payload field still reads the ZII zero: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn default_domain_cannot_read_a_case_payload_name() {
+    // A type-wide fact is indexed over common fields only: `hi` is case
+    // `Range`'s payload, so the default domain cannot consult it. Authored
+    // field VALUES are unaffected -- the rejection is for names a fact could
+    // never have bound.
+    let diagnostics = construction_diagnostics(
+        "data Interval where hi >= 0, { case Range(lo: u64, hi: u64); }
+         data Main { i: Interval; }
+         machine Main::main(&mut self) { self.i = Interval::Range { lo: 1 }; }",
+    );
+    assert!(
+        !diagnostics.is_empty(),
+        "a type-wide fact naming an omitted case payload must not prove vacuously"
+    );
+}

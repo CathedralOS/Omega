@@ -561,6 +561,7 @@ fn validate_literal_field_names(
                 machine,
                 state,
                 literal,
+                data_definition,
                 case_name.as_str(),
                 variant,
                 diagnostics,
