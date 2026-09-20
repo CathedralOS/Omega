@@ -61,36 +61,23 @@ pub(crate) fn summarize_state_written_paths(
     inference: &mut FrameInference,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
 ) -> Option<Vec<String>> {
-    if let Some((_, paths)) = complete_state_summaries
-        .iter()
-        .find(|(symbol, _)| *symbol == state.symbol)
-    {
-        return Some(paths.clone());
-    }
-    // A state that reaches a named cycle cannot reuse a depth-first prefix as
-    // its summary: the walk truncates back-edges against whichever ancestors
-    // happen to be active, so the result belongs to that recursion stack
-    // alone. Solve the permuted-cycle equations for the honest transitive
-    // frame instead. When they decline (a cycle rebinds a write-capable
-    // parameter, or a nested call needs this stack's evidence) the DFS prefix
-    // still answers this query but must not be retained for other contexts.
-    if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
-        if let Some(writes) = summarize_state_written_paths_with_permuted_cycles(
-            program,
-            machine,
-            state,
-            symbols,
-            inference,
-            complete_state_summaries,
-        ) {
-            // A solved fixpoint contains no truncation against this recursion
-            // stack: a nested call blocked by an active state fails the whole
-            // solve instead of producing a partial frame, so a successful
-            // result is safe to retain for later queries.
-            complete_state_summaries.push((state.symbol, writes.clone()));
-            return Some(writes);
+    summarize_complete_state_written_paths(
+        program,
+        machine,
+        state,
+        symbols,
+        inference,
+        complete_state_summaries,
+    )
+    .or_else(|| {
+        if named_state_transition_subgraph_is_acyclic(program, machine, state) {
+            return None;
         }
-        return walk_state_write_prefix(
+        // A named backedge can close this walk in the active state's exact
+        // namespace. That contextual prefix is not a reusable callee summary:
+        // a call can re-enter a machine whose named state is already active,
+        // and truncating there would omit the rest of that invocation's writes.
+        walk_state_write_prefix(
             program,
             machine,
             state,
@@ -99,7 +86,39 @@ pub(crate) fn summarize_state_written_paths(
             complete_state_summaries,
             None,
         )
-        .map(|prefix| prefix.written);
+        .map(|prefix| prefix.written)
+    })
+}
+
+/// Only context-independent summaries may cross an ordinary call boundary or
+/// enter the shared memo. In particular, a cyclic callee must solve its whole
+/// transition graph; a stack-truncated prefix cannot become complete merely
+/// because its immediate caller has an acyclic transition graph.
+pub(crate) fn summarize_complete_state_written_paths(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+) -> Option<Vec<String>> {
+    if let Some((_, paths)) = complete_state_summaries
+        .iter()
+        .find(|(symbol, _)| *symbol == state.symbol)
+    {
+        return Some(paths.clone());
+    }
+    if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
+        let writes = summarize_state_written_paths_with_permuted_cycles(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            complete_state_summaries,
+        )?;
+        complete_state_summaries.push((state.symbol, writes.clone()));
+        return Some(writes);
     }
     let prefix = walk_state_write_prefix(
         program,
@@ -108,7 +127,7 @@ pub(crate) fn summarize_state_written_paths(
         symbols,
         inference,
         complete_state_summaries,
-        None,
+        Some(StateWriteQuery::Complete),
     )?;
     complete_state_summaries.push((state.symbol, prefix.written.clone()));
     Some(prefix.written)
@@ -126,6 +145,8 @@ pub(crate) struct StateWritePrefix {
 }
 
 pub(crate) enum StateWriteQuery<'statement> {
+    /// A reusable whole-state frame, never an ancestor-truncated prefix.
+    Complete,
     Before(&'statement StatementNode),
     ReferenceBefore(&'statement StatementNode),
     ReferenceResult,
@@ -879,6 +900,7 @@ fn walk_state_write_prefix_inner(
                         inference,
                         complete_state_summaries,
                         &locals,
+                        matches!(query, Some(StateWriteQuery::Complete)),
                     )?
                     .iter()
                     .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
@@ -998,13 +1020,16 @@ fn walk_state_write_prefix_inner(
         }
     }
 
-    (query.is_none() || matches!(query, Some(StateWriteQuery::ReferenceResult))).then_some(
-        StateWritePrefix {
-            written,
-            aliases: local_alias_origins,
-            divergent: divergent_alias_origins,
-            stored,
-            assignment: None,
-        },
-    )
+    (query.is_none()
+        || matches!(
+            query,
+            Some(StateWriteQuery::Complete | StateWriteQuery::ReferenceResult)
+        ))
+    .then_some(StateWritePrefix {
+        written,
+        aliases: local_alias_origins,
+        divergent: divergent_alias_origins,
+        stored,
+        assignment: None,
+    })
 }

@@ -3876,10 +3876,6 @@ Owners include
     the source-to-checked example: choose either mutable input, write through
     the returned alias inside a value expression, then prove a disjoint index
     bound; the overlapping-index variant must reject.
-  - `permuted_cycle_frames.rs` hands statement calls a fresh summary memo
-    while the prefix walk shares `complete_state_summaries`. Unifying them
-    changes the solve-versus-walk route for a cyclic state calling a cached
-    callee that calls back; settle that route before sharing the memo.
 
   Flag: precision is added one source shape at a time. `write_frames/` is 51
   files and about 17,000 lines, its checked-stage tests are 23 `write_frame_*`

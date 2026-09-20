@@ -1,5 +1,6 @@
 use crate::CallFrameResolver;
 use crate::machine_calls::calls::write_frames::CYCLE_EQUATIONS;
+use crate::machine_calls::calls::write_frames::PREFIX_WALKS;
 use crate::machine_calls::calls::write_frames::transition_topology::reachable_cycle_edges_can_permute_write_parameters;
 use typed_trees::TypedTrees;
 
@@ -13,6 +14,86 @@ fn typed(source: &str) -> TypedTrees {
     )
     .expect("symbols");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("types")
+}
+
+#[test]
+fn cycle_statement_calls_reuse_complete_callee_frames() {
+    let program = typed(
+        r#"
+        data Output { count: u64; untouched: u64; }
+        machine write(output: &mut Output) { output.count = 1; }
+        machine swap(left: &mut Output, right: &mut Output) {
+            transition { _ -> cycle(left, right) }
+            state cycle(left: &mut Output, right: &mut Output) {
+                write(left);
+                write(right);
+                transition { _ -> cycle(right, left) }
+            }
+        }
+        "#,
+    );
+    let helper = &program.machines()[0];
+    let cycle_machine = &program.machines()[1];
+    let cycle = &program.machine_states(cycle_machine)[1];
+    let resolver = CallFrameResolver::new(&program).expect("resolver");
+    let helper_frames = resolver.inferred_machine_state_write_frames(helper);
+    assert_eq!(
+        helper_frames[0].complete_paths(),
+        Some(["$P0.count".to_owned()].as_slice())
+    );
+    PREFIX_WALKS.with(|walks| walks.set(0));
+    let frame = resolver.inferred_state_write_frame(cycle_machine, cycle);
+    let walks = PREFIX_WALKS.with(|walks| walks.get());
+    assert_eq!(
+        frame.complete_paths(),
+        Some(["$P0.count".to_owned(), "$P1.count".to_owned()].as_slice()),
+        "permuted roots retain exact fields without invalidating untouched storage"
+    );
+    assert_eq!(
+        walks, 0,
+        "the already complete helper needs no further walk"
+    );
+}
+
+#[test]
+fn callback_through_named_transition_never_caches_a_truncated_call_frame() {
+    for backedge in ["", "transition { _ -> cycle(output) }"] {
+        let program = typed(
+            &r#"
+        data Output { count: u64; }
+        data Carrier { output: &mut Output; }
+        machine outer(output: &mut Output) {
+            transition { _ -> cycle(output) }
+            state cycle(output: &mut Output) {
+                callback(Carrier { output: output });
+                output.count = 1;
+                BACKEDGE
+            }
+        }
+        machine callback(carrier: Carrier) { outer(carrier.output); }
+        "#
+            .replace("BACKEDGE", backedge),
+        );
+        let outer = &program.machines()[0];
+        let callback = &program.machines()[1];
+        let callback_entry = &program.machine_states(callback)[0];
+        let cycle = &program.machine_states(outer)[1];
+        for warm_cycle in [false, true] {
+            let resolver = CallFrameResolver::new(&program).expect("resolver");
+            if warm_cycle {
+                resolver.inferred_state_write_frame(outer, cycle);
+            }
+            let frame = resolver.inferred_state_write_frame(callback, callback_entry);
+            if let Some(paths) = frame.complete_paths() {
+                assert!(
+                    paths.iter().any(|path| path == "$P0"
+                        || path == "$P0.output"
+                        || path == "$P0.output.count"),
+                    "a complete callback frame must cover the transitive write, warm_cycle={warm_cycle}, backedge={backedge}: {frame:?}"
+                );
+            }
+        }
+    }
 }
 
 /// A named cycle whose edges carry an exclusive reference into one state and
