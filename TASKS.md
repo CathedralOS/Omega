@@ -1540,6 +1540,18 @@ Owners include
   owned by the native semantic and certification owners rather than
   `compilation-report`, which owns the envelope and the sidecar.
 
+  Wave-9 recheck at `c267df86ac` (linux x86-64): the claimed
+  `compilation-report` surface is green — `cargo nextest run -p
+  compilation-report` 63/63 pass, covering the placed-image evidence legs
+  (extent/inventory replay, thunk closed-form binding on both targets,
+  entry-boundary custody, loadable-role containment), the envelope claim
+  fields (artifact commitment, semantic/checker profiles, guarantees,
+  premises, assumptions, possessed dependencies, resource limits), the
+  product-kind routing, and every named refusal (tampered pair, relabeled
+  profile, byte-drifted extents, malformed section, Psi companion beside
+  native bytes). No unclaimed slice remains inside the envelope: every
+  remaining leg below is the native semantic checker's, not this crate's.
+
   - Instruction rows decoded from the published text and checked against the
     closed semantics of the declared target.
   - Entries and incoming edges over those decoded rows — the custody half
