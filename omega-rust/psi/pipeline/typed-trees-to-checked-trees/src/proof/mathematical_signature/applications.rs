@@ -5,7 +5,7 @@
 use super::{
     Budget, CarrierHead, Context, DEFAULT_CONVERSION_STEPS, Elaborator, Identifier, Level,
     LevelArgument, Signature, SymbolHandle, Term, TermHandle, TypeParameter, TypeParameterKind,
-    infer_sort,
+    TypeReferenceNode, infer_sort,
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::StaticMachineArgument;
@@ -50,40 +50,78 @@ impl Elaborator<'_> {
             .program
             .data_type_parameters
             .span_or_empty(definition.binders);
-        if arguments.len() != binders.len() {
+        let level_binders = binders
+            .iter()
+            .filter(|binder| self.binder_is_level(binder))
+            .collect::<Vec<_>>();
+        let omit_levels = arguments.len() != binders.len()
+            && arguments.len() == binders.len() - level_binders.len();
+        if arguments.len() != binders.len() && !omit_levels {
             return Err(self.refuse(format!(
-                "mathematical declaration `{}` requires {} explicit generic arguments, got {}",
+                "mathematical declaration `{}` requires {} explicit generic arguments or {} with universe arguments omitted, got {}",
                 definition.name,
                 binders.len(),
+                binders.len() - level_binders.len(),
                 arguments.len()
             )));
         }
-        let mut levels = Vec::new();
+        let mut authored_levels = vec![None; level_binders.len()];
         let mut terms = Vec::new();
         let mut generalized = Vec::new();
-        for (binder, argument) in binders.iter().zip(arguments) {
-            let is_level = match binder.kind {
-                TypeParameterKind::Const { type_reference }
-                | TypeParameterKind::Value { type_reference } => {
-                    matches!(self.carrier_head(type_reference), CarrierHead::Level)
+        let mut constraints = Vec::new();
+        let mut arguments = arguments.iter();
+        let mut level_position = 0;
+        for binder in binders {
+            if self.binder_is_level(binder) {
+                if !omit_levels {
+                    authored_levels[level_position] =
+                        Some(self.static_level(arguments.next().expect("checked generic arity"))?);
                 }
-                _ => false,
-            };
-            if is_level {
-                levels.push(self.static_level(argument)?);
+                level_position += 1;
                 continue;
             }
-            let term = self.static_term(argument)?;
+            let term = self.static_term(arguments.next().expect("checked generic arity"))?;
             if self.binder_claims_generalized_level(binder) {
                 generalized.push((term, binder.name.clone()));
+            } else if omit_levels
+                && let Some(symbol) = self.binder_authored_level(binder)
+                && let Some(position) = level_binders
+                    .iter()
+                    .position(|level| level.symbol == symbol)
+            {
+                constraints.push((position, term, &binder.name));
             }
             terms.push(term);
         }
-        if !generalized.is_empty() {
-            let context = self.instantiation_context();
-            let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+        // Elaborate every supplied term before snapshotting the caller context:
+        // a later type argument can intern a carrier in the signature prefix.
+        let context = (!constraints.is_empty() || !generalized.is_empty())
+            .then(|| self.instantiation_context());
+        let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+        if let Some(context) = &context {
+            for (position, term, name) in constraints {
+                if authored_levels[position].is_none() {
+                    // One exact constraint selects the instantiation. Retaining
+                    // every application lets the kernel check the rest by
+                    // conversion, without syntactic equality or cumulativity.
+                    authored_levels[position] =
+                        Some(self.infer_argument_level(term, name, context, &mut budget)?);
+                }
+            }
+        }
+        let mut levels = Vec::with_capacity(authored_levels.len() + generalized.len());
+        for (binder, level) in level_binders.iter().zip(authored_levels) {
+            let Some(level) = level else {
+                return Err(self.refuse(format!(
+                    "cannot infer the universe argument of mathematical binder `{}`; supply explicit level arguments",
+                    binder.name
+                )));
+            };
+            levels.push(level);
+        }
+        if let Some(context) = &context {
             for (term, name) in generalized {
-                levels.push(self.infer_argument_level(term, &name, &context, &mut budget)?);
+                levels.push(self.infer_argument_level(term, &name, context, &mut budget)?);
             }
         }
         let level_arity = self.declarations[position as usize].level_arity;
@@ -102,6 +140,35 @@ impl Elaborator<'_> {
             function = self.arena.insert(Term::Apply { function, argument });
         }
         Ok(function)
+    }
+
+    fn binder_is_level(&self, binder: &TypeParameter) -> bool {
+        match binder.kind {
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => {
+                matches!(self.carrier_head(type_reference), CarrierHead::Level)
+            }
+            _ => false,
+        }
+    }
+
+    /// Only a supplied type at the callee's exact authored level constrains
+    /// that level. Caller names and positions cannot identify callee binders.
+    fn binder_authored_level(&self, binder: &TypeParameter) -> Option<SymbolHandle> {
+        let type_reference = match binder.kind {
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => type_reference,
+            _ => return None,
+        };
+        let CarrierHead::Type(LevelArgument::Authored(reference)) =
+            self.carrier_head(type_reference)
+        else {
+            return None;
+        };
+        match self.program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => Some(*symbol),
+            _ => None,
+        }
     }
 
     fn static_level(&mut self, argument: &StaticMachineArgument) -> Result<Level, Vec<Diagnostic>> {
@@ -193,7 +260,7 @@ impl Elaborator<'_> {
         context
     }
 
-    /// The universe argument a generalized binder's parameter takes: the
+    /// The universe argument a type binder's parameter takes: the
     /// supplied type argument's own inferred sort. `infer_sort` computes
     /// the level at which the argument is a type, which is exactly the
     /// level the binder's `Sort::Type` domain instantiates to — and the
@@ -209,7 +276,7 @@ impl Elaborator<'_> {
         match infer_sort(&mut self.arena, context, argument, budget) {
             Ok(sort) => Ok(sort.level()),
             Err(error) => Err(self.refuse(format!(
-                "cannot infer the generalized universe argument of mathematical binder `{binder_name}`: {error:?}"
+                "cannot infer the universe argument of mathematical binder `{binder_name}`: {error:?}"
             ))),
         }
     }
