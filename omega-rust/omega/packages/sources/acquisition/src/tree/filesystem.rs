@@ -2,10 +2,13 @@
 //!
 //! A captured file must retain its identity, length and change indicators across
 //! the bounded copy. These host observations only guard capture; they never enter
-//! canonical source identity. Per-file checks supplement the later tree recheck,
-//! not an atomic-tree snapshot or isolation from a process with the same authority.
+//! canonical source identity. Per-file checks and the per-directory close recheck
+//! supplement the later tree recheck, not an atomic-tree snapshot or isolation
+//! from a process with the same authority: a subtree mutated after its own close
+//! is only caught by the ancestors' entry-identity comparison, so whole-tree
+//! coherence still relies on the resolver's live-tree comparison.
 
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -170,7 +173,29 @@ fn read_opened_file_bounded(
     Ok(bytes)
 }
 
+/// One directory member observed during traversal: the listing name and the
+/// no-follow metadata recorded when the entry was first inspected. Both come
+/// from `Dir::entries`/`Dir::symlink_metadata`, never `DirEntry::metadata`.
+pub(crate) struct CapturedEntryObservation {
+    pub(crate) name: OsString,
+    pub(crate) metadata: cap_std::fs::Metadata,
+}
+
 fn require_unchanged_source_file(
+    initial: &cap_std::fs::Metadata,
+    observed: &cap_std::fs::Metadata,
+    display_path: &Path,
+) -> Result<(), SourceResolveError> {
+    require_unchanged_entry(initial, observed, display_path)
+}
+
+/// The directory-close counterpart of the per-file drift check: the member's
+/// type joins the compared indicators so a same-name replacement of a
+/// different kind cannot pass, and directories and links are covered as well
+/// as files. Change-time comparison only exists where the platform exposes a
+/// kernel-managed ctime; elsewhere a same-inode in-place edit that restores
+/// length, permissions and modification time is outside this guard's reach.
+pub(crate) fn require_unchanged_entry(
     initial: &cap_std::fs::Metadata,
     observed: &cap_std::fs::Metadata,
     display_path: &Path,
@@ -197,7 +222,7 @@ fn require_unchanged_source_file(
     #[cfg(not(unix))]
     let same_change_time = true;
 
-    if !observed.is_file()
+    if initial.file_type() != observed.file_type()
         || !same_identity
         || initial.len() != observed.len()
         || initial.permissions() != observed.permissions()
