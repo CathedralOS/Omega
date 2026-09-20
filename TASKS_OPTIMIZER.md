@@ -860,16 +860,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   artifact as the second input for the fixed-point leg. No rule counts as
   covered while an axis is recorded as absent.
 
-  Flag: coverage is maintained by hand. Under `rewrites/`, 45 test modules
-  each define their own `budget()`, 44 their own `instruction()` fixture, and
-  37 rewrite modules their own measured-boundary test, about 119,000 test
-  lines in total; this entry tracked the result as prose. No check fails when
-  a rule lacks an axis. `tests/architecture/optimizer_rollout` already
-  derives the rule set from `Optimization::ALL` and the stage catalogs and
-  reconciles names, phase, applicability and rollback. The general mechanism
-  is a checked per-rule axis table in that gate, or one shared matrix harness
-  parameterised by a rule fixture, so that a missing axis fails the
-  repository gate.
+  Flag: the checked per-rule axis table landed at
+  `tests/architecture/optimizer_rollout/coverage.rs`: the gate derives the
+  rule set from `Optimization::ALL` and the stage catalogs, reconciles names,
+  phase, applicability and rollback, and fails when a row lacks an axis
+  without a closed absent-reason. The rewrite-side corpus is still
+  hand-maintained: under `rewrites/`, 48 test files define their own
+  `budget()`, 55 their own `instruction()` fixture, and 41 modules their own
+  measured-boundary test, about 128,000 test lines in total. The shared
+  matrix harness parameterised by a rule fixture remains open; it must keep
+  leg rows resolving against real files so a missing axis still fails the
+  gate.
 
 - **BENCHMARKS.** Publish versioned compile-time, peak-memory, code-size, and
   runtime benchmarks keyed by exact rule selection and target. The format
