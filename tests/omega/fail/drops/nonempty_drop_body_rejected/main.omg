@@ -1,11 +1,20 @@
-// A NON-EMPTY `drop` body is a CLEAN ERROR until drop lowering lands
-// (SETTLED, Zach chat 2026-07-07): drop bodies are not executed, so the
-// cleanup would be a SILENT NO-OP (unlock/close/flush that never runs).
-// Empty drop bodies -- the declared teardown-obligation shape -- stay valid
-// (the five drops/ pass canaries).
+// A `drop` body outside the executable cleanup slice is a CLEAN ERROR
+// (SETTLED, Zach chat 2026-07-07): the admitted slice is only a
+// source-ordered list of zero-argument calls to mutually distinct empty
+// helpers attached to member-less marker types. This fixture pins two
+// distinct refusal arms: an ordinary statement (`self.handle = 0`) and a
+// repeated helper call (violating mutual distinctness) — each shape
+// produces the same fence diagnostic.
 data Guard { handle: i32; }
 machine Guard::drop(&mut self) {
     self.handle = 0;
+}
+data Latch { }
+machine Latch::unlock() {
+}
+machine Latch::drop(&mut self) {
+    Latch::unlock();
+    Latch::unlock();
 }
 data Main { }
 machine Main::main(&mut self) {
