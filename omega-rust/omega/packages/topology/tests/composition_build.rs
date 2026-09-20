@@ -207,3 +207,27 @@ fn the_package_composes_and_a_source_free_consumer_verifies() {
 
     let _ = std::fs::remove_dir_all(&workspace);
 }
+
+/// Rewrites the committed `root/inputs/*.bin` when an upstream canonical
+/// encoding moves them deliberately; run with
+/// `TOPOLOGY_REGENERATE_INPUTS=1` (same convention as
+/// `codec.rs::regenerate_golden`).
+#[test]
+fn regenerate_package_inputs() {
+    if std::env::var("TOPOLOGY_REGENERATE_INPUTS").is_err() {
+        return;
+    }
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../..")
+        .join("tests/fixtures/packages/build-scope-topology")
+        .canonicalize()
+        .expect("committed fixture exists");
+    let (request, components, bindings) = build_scope_inputs();
+    for (name, bytes) in [
+        ("request.bin", request.as_slice()),
+        ("components.bin", components.as_slice()),
+        ("bindings.bin", bindings.as_slice()),
+    ] {
+        std::fs::write(fixture.join("root/inputs").join(name), bytes).unwrap();
+    }
+}
