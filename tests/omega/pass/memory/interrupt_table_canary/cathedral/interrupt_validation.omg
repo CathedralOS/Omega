@@ -323,3 +323,78 @@ terminates by fuel;
         TableVerdict::Rejected { vector: row as u8, reason: reason }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Member admission. `DescriptorTableValidation` warrants the produced table
+// image; this machine warrants each member's INSTALLED ROOT against its
+// declared row before the compiler's table ledger retains the member's root
+// handle. The compiler decodes the root record's arrival facts verbatim --
+// whether the entry exits through interrupt return, the dedicated critical
+// stack class its arrivals land on (0 when the arrival context selects no
+// dedicated class), and whether the record carries an acknowledgement
+// contract -- and hands them here beside the authored declaration. The
+// ledger never re-decides these policy checks: it replays that the
+// `Admitted` verdict binds exactly this row and these facts, which is what
+// makes member admission plumbing instead of a second compiler-side model.
+//
+// `Rejected` reasons: 1 = the member does not exit through interrupt
+// return, 2 = arrivals do not land on the declared dedicated critical
+// stack class, 3 = the acknowledgement contract does not match the
+// declared obligation.
+
+// The installed root record's arrival facts, decoded verbatim. The
+// compiler owns extracting them; this package owns what they may be.
+pub data MemberFacts {
+    entry_interrupt_return: bool;
+    stack_dedicated_class: u16;
+    acknowledgement_policy: bool;
+    acknowledgement_parameter: bool;
+}
+
+pub data MemberAdmissionVerdict {
+    case Admitted;
+    case Rejected(vector: u8, reason: u8);
+}
+
+pub data TableMemberAdmission {
+}
+
+pub machine TableMemberAdmission::admit(
+    member: TableMemberDeclaration,
+    facts: MemberFacts
+) -> MemberAdmissionVerdict {
+    transition {
+        facts.entry_interrupt_return == false -> reject(member.vector, 1)
+        _ -> stack(member, facts)
+    }
+
+    state stack(
+        member: TableMemberDeclaration,
+        facts: MemberFacts
+    ) -> MemberAdmissionVerdict {
+        transition {
+            facts.stack_dedicated_class == member.dedicated_stack_class
+                -> obligation(member, facts)
+            _ -> reject(member.vector, 2)
+        }
+    }
+
+    state obligation(
+        member: TableMemberDeclaration,
+        facts: MemberFacts
+    ) -> MemberAdmissionVerdict {
+        transition {
+            member.fatal_exception && facts.acknowledgement_policy == false
+                && facts.acknowledgement_parameter == false
+                -> MemberAdmissionVerdict::Admitted
+            member.fatal_exception == false && facts.acknowledgement_policy
+                && facts.acknowledgement_parameter
+                -> MemberAdmissionVerdict::Admitted
+            _ -> reject(member.vector, 3)
+        }
+    }
+
+    state reject(vector: u8, reason: u8) -> MemberAdmissionVerdict {
+        MemberAdmissionVerdict::Rejected { vector: vector, reason: reason }
+    }
+}

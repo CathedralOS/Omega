@@ -51,15 +51,26 @@
 //! can mint entry obligations only for an arrival whose gate actually
 //! reached hardware.
 //!
+//! Member admission replays the consumer's authored verdict: the package's
+//! `TableMemberAdmission` machine owns the policy a member's installed root
+//! must satisfy for its declared row — interrupt-return exit, arrival on
+//! the declared dedicated critical stack class, and the declared
+//! obligation's acknowledgement shape — and this ledger keeps only the
+//! custody plumbing: the verdict binds the exact declared row and the
+//! record's verbatim arrival facts, the root is live and the vector free.
+//!
 //! This file owns the ledger and its phases. `gate_descriptors.rs` carries
 //! gate descriptors, member plans and profiles, `established_tables.rs`
 //! established tables and members, `publications.rs` publications,
-//! receipts, refusals, scopes and executed publications and
-//! `descriptor_operands.rs` descriptor operands and table state.
+//! receipts, refusals, scopes and executed publications,
+//! `descriptor_operands.rs` descriptor operands and table state, and
+//! `member_admissions.rs` the authored member-admission verdicts and the
+//! arrival facts they bind.
 
 mod descriptor_operands;
 mod established_tables;
 mod gate_descriptors;
+mod member_admissions;
 mod publications;
 #[cfg(test)]
 mod tests;
@@ -75,6 +86,7 @@ pub use gate_descriptors::{
     InterruptTableGateDescriptor, InterruptTableMemberPlan, InterruptTableObligation,
     InterruptTableProfile, X86_64_GATE_DESCRIPTOR_BYTES, X86_64_IST_SLOT_LIMIT,
 };
+pub use member_admissions::{InterruptTableMemberAdmission, InterruptTableMemberFacts};
 pub use publications::{
     ExecutedInterruptTablePublication, InterruptTableProviderError, InterruptTablePublication,
     InterruptTablePublicationAuthority, InterruptTablePublicationOutcome,
@@ -84,7 +96,6 @@ pub use publications::{
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use calling_conventions::{EntryControl, EntryStack};
 use executable_installation::{ArtifactId, InstalledCodeId};
 
 use crate::interrupts::interrupt_entries::{
@@ -160,14 +171,19 @@ impl<'code> InterruptTableLedger<'code> {
 
     /// Admit one declared vector's installed root into the table.
     ///
-    /// The root must be live in `ledger`, match the declared dedicated stack
-    /// class and obligation, and exit through interrupt return. On rejection
-    /// the linear root handle comes back so the caller retains its custody.
+    /// The consumer's authored member-admission verdict — not this ledger —
+    /// decides the declaration's semantics: `admission` is minted only for
+    /// an `Admitted` verdict binding the declared member row to the record's
+    /// verbatim arrival facts, and admission replays that binding here. The
+    /// root must be live in `ledger` and the vector declared and free. On
+    /// rejection the linear root handle comes back so the caller retains
+    /// its custody.
     pub fn admit_interrupt_table_member(
         &mut self,
         ledger: &InstalledRootLedger,
         vector: u8,
         root: InstalledExternalRoot<'code>,
+        admission: InterruptTableMemberAdmission,
     ) -> Result<&InterruptTableMember<'code>, Box<InterruptTableAdmissionError<'code>>> {
         let reject = |diagnostic: &str, root: InstalledExternalRoot<'code>| {
             Err(Box::new(InterruptTableAdmissionError {
@@ -218,35 +234,16 @@ impl<'code> InterruptTableLedger<'code> {
                 root,
             );
         }
-        if record.boundary.call.entry_control != EntryControl::InterruptReturn {
+        // The authored verdict is the semantic warrant: it bound this
+        // vector's declared member row beside the arrival facts it
+        // accepted, and both must replay exactly against the retained
+        // record — a verdict minted for a different row or member shape is
+        // a foreign admission, not evidence for this member.
+        if *admission.declaration() != *plan
+            || admission.facts() != InterruptTableMemberFacts::from_record(record)
+        {
             return reject(
-                "interrupt-table member does not exit through interrupt return",
-                root,
-            );
-        }
-        let arrives_on_declared_class = match record.boundary.state.stack {
-            EntryStack::Dedicated { class } => class == plan.dedicated_stack_class,
-            EntryStack::Interrupted | EntryStack::ProviderSelected => false,
-        };
-        if !arrives_on_declared_class {
-            return reject(
-                "interrupt-table member does not arrive on its declared dedicated critical stack class",
-                root,
-            );
-        }
-        let obligation_matches = match plan.obligation {
-            InterruptTableObligation::FatalException => {
-                record.acknowledgement_policy.is_none()
-                    && record.acknowledgement_parameter_index.is_none()
-            }
-            InterruptTableObligation::AcknowledgedInterrupt => {
-                record.acknowledgement_policy.is_some()
-                    && record.acknowledgement_parameter_index.is_some()
-            }
-        };
-        if !obligation_matches {
-            return reject(
-                "interrupt-table member's acknowledgement contract does not honor its declared obligation",
+                "the authored member-admission verdict does not bind this vector's declared row and recorded arrival facts",
                 root,
             );
         }

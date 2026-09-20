@@ -9,7 +9,8 @@ use crate::interrupts::interrupt_table::{
     ArtifactId, EstablishedInterruptTable, INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES,
     InstalledCodeId, InstalledExternalRoot, InstalledRootLedger, InterruptTableDescriptorOperand,
     InterruptTableEstablishedMember, InterruptTableGateDescriptor, InterruptTableLedger,
-    InterruptTableMemberPlan, InterruptTableObligation, InterruptTableProfile,
+    InterruptTableMemberAdmission, InterruptTableMemberFacts, InterruptTableMemberPlan,
+    InterruptTableObligation, InterruptTableProfile,
     InterruptTablePublicationAuthority, InterruptTablePublicationAuthorityId,
     InterruptTablePublicationId, InterruptTablePublicationReceiptId,
     InterruptTablePublicationScope,
@@ -89,6 +90,42 @@ fn timer_member(vector: u8, stack_class: u16, ist: u8) -> InterruptTableMemberPl
         obligation: InterruptTableObligation::AcknowledgedInterrupt,
         descriptor: gate_descriptor(X86_64GateKind::Interrupt, Some(ist)),
     }
+}
+
+/// The member-arrival facts one declared row expects verbatim from the
+/// installed record: interrupt-return exit, arrival on the declared
+/// dedicated class, and the declared obligation's acknowledgement shape.
+/// Minting the record for facts the fixture's record does not carry is how
+/// a binding rejection is driven.
+fn declared_member_facts(
+    stack_class: u16,
+    acknowledged: bool,
+) -> InterruptTableMemberFacts {
+    InterruptTableMemberFacts {
+        entry_interrupt_return: true,
+        stack_dedicated_class: stack_class,
+        acknowledgement_policy: acknowledged,
+        acknowledgement_parameter: acknowledged,
+    }
+}
+
+/// The admission record the consumer's authored verdict mints for one
+/// declared member. Unit fixtures mint it directly; the authored
+/// `TableMemberAdmission::admit` machine is the semantic warrant upstream.
+fn member_admission(
+    plan: InterruptTableMemberPlan,
+    facts: InterruptTableMemberFacts,
+) -> InterruptTableMemberAdmission {
+    InterruptTableMemberAdmission::from_consumer(plan, facts)
+}
+
+/// The verdict the declared member's fixture row satisfies: facts derived
+/// straight from the fixture so the binding replays cleanly.
+fn fixture_member_admission(
+    plan: InterruptTableMemberPlan,
+    fixture: &crate::tests::InterruptTableMemberFixture,
+) -> InterruptTableMemberAdmission {
+    member_admission(plan, declared_member_facts(fixture.stack_class, fixture.acknowledged))
 }
 
 /// The declared board-item table: every fatal exception entry on its own
@@ -268,9 +305,21 @@ fn admitted_table() -> AdmittedTable<'static> {
     let handles = install_members(&mut ledger, code, &members);
     let profile = table_profile(0x600);
     let mut table = InterruptTableLedger::new(profile.clone(), &ledger);
-    for (vector, handle) in member_vectors().into_iter().zip(handles) {
+    for ((vector, fixture), handle) in member_vectors()
+        .into_iter()
+        .zip(&members)
+        .zip(handles)
+    {
         table
-            .admit_interrupt_table_member(&ledger, vector, handle)
+            .admit_interrupt_table_member(
+                &ledger,
+                vector,
+                handle,
+                fixture_member_admission(
+                    *profile.member(vector).expect("declared member"),
+                    fixture,
+                ),
+            )
             .expect("admitted interrupt-table member");
     }
     AdmittedTable {
