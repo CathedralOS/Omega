@@ -214,8 +214,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   external-root admission, the compiler's object-artifact, object-container,
   realization, text-section, callable-entry and fragment-emission custody, the
   production compilation manifest, the post-allocation machine staged plan,
-  build and package records, the Terminal codec sections, and every
-  `Staged*CustodyReceipt` family in `omega-rust/omega/pipeline/` — selection,
+  build and package records, the Terminal codec sections including the
+  reconstruction trust graph bound into the obligation ledger and artifact
+  manifest, and every `Staged*CustodyReceipt` family in
+  `omega-rust/omega/pipeline/` — selection,
   liveness, live ranges, allocation legality, selected reanalysis,
   fixed-precolored segment homes, fixed-view copies, the literal-fold
   sequence, the selected-lowering run, baseline/post-copy/post-literal-fold/
