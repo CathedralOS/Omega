@@ -5050,12 +5050,17 @@ Owners include
 
   Remaining work:
 
-  - Admit a request. That needs a production caller of
-    `install_non_executable_quotient_correspondences`
-    (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs`;
-    only its tests call it) and quotient handling in
-    `typed-trees-to-checked-trees`, which exits every value path whose call
-    carries `quotient_operation`.
+  - Admit a request. `install_non_executable_quotient_correspondences`
+    (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs`) is
+    no longer test-only: `terminal-production`'s `lower_and_optimize` extracts
+    the all-or-nothing batch from the checked typed trees and installs it on
+    the lowered module before optimization, so the published artifact route
+    already carries the rows. The batch is still always empty because every
+    retained request rejects upstream; admission still needs quotient
+    handling in `typed-trees-to-checked-trees`, which exits every value path
+    whose call carries `quotient_operation`, and a validation leg that stands
+    `reject_quotient_operation_requests` down for the shapes the extractor
+    accepts.
   - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
     language-semantics, codec, verifier and review rows belong to
     **PROOF-CONTRACT-MIGRATION**.

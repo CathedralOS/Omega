@@ -4,24 +4,21 @@
 //! and bounded transport-backed direct-`lift` batch into semantic-module
 //! identity. It does not emit or authorize an executable quotient operation.
 
-#[cfg(test)]
 use terminal_psi::{TerminalModule, retain_non_executable_quotient_correspondence};
-#[cfg(test)]
 use validation::NonExecutableQuotientCorrespondenceBatch;
 
-#[cfg(test)]
 use crate::lowering_error::LoweringError;
 
 /// Install a complete proof-only quotient-correspondence batch derived by
 /// semantic validation.
 ///
-/// This entry point is separate from executable quotient admission and is a
-/// test-only route: producer tests exercise the source-free carrier while
-/// ordinary checked validation continues to reject quotient operations, and
-/// checked admission code can un-gate it when it exists. The opaque batch can
-/// only be constructed by the all-or-nothing semantic extractor; raw
-/// typed-tree vocabulary does not cross into this Terminal producer.
-#[cfg(test)]
+/// This entry point is separate from executable quotient admission: Terminal
+/// production calls it on the published lowering route, where retained rows
+/// become module identity the codec carries and the decoder rederives, while
+/// ordinary checked validation continues to reject quotient operations before
+/// a checked tree exists. The opaque batch can only be constructed by the
+/// all-or-nothing semantic extractor; raw typed-tree vocabulary does not cross
+/// into this Terminal producer.
 pub fn install_non_executable_quotient_correspondences(
     batch: NonExecutableQuotientCorrespondenceBatch,
     module: &mut TerminalModule,
