@@ -718,7 +718,10 @@ fn placed_view_establishment_binds_each_row_and_rejects_exclusive_overlap() {
     let (main, inputs) = write_cross_package_program(
         "placed-view-multi-row",
         r#"
-data Inspector {}
+data Inspector {
+    left: Registers;
+    right: Registers;
+}
 machine Inspector::inspect(
     &mut self,
     first: &mut Placed<UartPlacement, Registers>,
@@ -752,11 +755,22 @@ machine Inspector::inspect(
         )
         .expect("multi-row artifact replays at native admission")
     };
+    // The lent backing must be module-visible custody: its declared carrier
+    // is the entry attachment's declared type and every path resolves inside
+    // it. An undeclared carrier, an unresolvable range, or a qualification the
+    // module never declares is a substituted supply, not a provider loan.
+    let declared_carrier = |module: &terminal_psi::TerminalModule| {
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.identity.contains("Inspector"))
+            .map(|declaration| declaration.id)
+            .expect("the entry attachment carrier is a declared structural type")
+    };
     let referent = |identity: u64, path: Vec<terminal_psi::StructuralPathSegment>| {
         terminal_interpreter::TerminalStructuralValue {
             opaque_identity: identity,
-            structural_type: semantic_vocabulary::StructuralTypeId::new(1)
-                .expect("nonzero structural type"),
+            structural_type: declared_carrier(&lowered.semantic_module),
             qualifications: Vec::new(),
             path,
         }
@@ -828,7 +842,7 @@ machine Inspector::inspect(
             establishment_for(
                 1,
                 referent(0x5a17, vec![terminal_psi::StructuralPathSegment::Field(
-                    "status".to_owned()
+                    "left".to_owned()
                 )])
             )
         ]),
@@ -847,7 +861,7 @@ machine Inspector::inspect(
                     referent(
                         0x5a17,
                         vec![terminal_psi::StructuralPathSegment::Field(
-                            "status".to_owned()
+                            "left".to_owned()
                         )]
                     )
                 ),
@@ -856,7 +870,7 @@ machine Inspector::inspect(
                     referent(
                         0x5a17,
                         vec![terminal_psi::StructuralPathSegment::Field(
-                            "counter".to_owned()
+                            "right".to_owned()
                         )]
                     )
                 )
@@ -895,7 +909,12 @@ machine Inspector::inspect(
     let shared_establishment_for =
         |row: usize| terminal_interpreter::TerminalPlacedViewEstablishment {
             input: shared_lowered.semantic_module.placed_view_inputs[row].clone(),
-            referent: referent(0x5a17, Vec::new()),
+            referent: terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 0x5a17,
+                structural_type: declared_carrier(&shared_lowered.semantic_module),
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            },
         };
     assert!(
         terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
@@ -1003,12 +1022,22 @@ machine Inspector::inspect(
     // The referent carrier stays opaque — Psi never interprets its type,
     // layout, or address — so the provider's structural runtime value is the
     // whole supply, and the entry machine completes with the input bound.
+    // The referent's declared carrier is the entry attachment's own declared
+    // structural type: the establishment route joins the supply against the
+    // artifact's structural catalogs, so the backing must be a type the module
+    // itself carries.
+    let declared_carrier = lowered
+        .semantic_module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.identity.contains("Inspector"))
+        .map(|declaration| declaration.id)
+        .expect("the entry attachment carrier is a declared structural type");
     let establishments = [terminal_interpreter::TerminalPlacedViewEstablishment {
         input: lowered.semantic_module.placed_view_inputs[0].clone(),
         referent: terminal_interpreter::TerminalStructuralValue {
             opaque_identity: 0x5a17,
-            structural_type: semantic_vocabulary::StructuralTypeId::new(1)
-                .expect("nonzero structural type"),
+            structural_type: declared_carrier,
             qualifications: Vec::new(),
             path: Vec::new(),
         },
@@ -1174,6 +1203,38 @@ machine Inspector::inspect(
         readmit_native()
             .try_into_native_input_with_placed_view_establishments(&[noncanonical_supply]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentQualificationsNonCanonical)
+    ));
+
+    // The referent axes rejoin the module's own catalogs before access: a
+    // carrier type the artifact never declares is substituted backing, a
+    // path that cannot resolve inside the declared shape graph is a stale
+    // range, and a qualification naming an undeclared domain is a forged
+    // qualified backing. `Inspector` is an empty record, so `status` is not
+    // a resolvable field of its declared shape.
+    let mut undeclared_backing = establishments[0].clone();
+    undeclared_backing.referent.structural_type =
+        semantic_vocabulary::StructuralTypeId::new(0x5a17).expect("nonzero structural type");
+    assert!(matches!(
+        readmit_native()
+            .try_into_native_input_with_placed_view_establishments(&[undeclared_backing]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentBackingUndeclared(_))
+    ));
+    let mut stale_range = establishments[0].clone();
+    stale_range.referent.path = vec![terminal_psi::StructuralPathSegment::Field(
+        "status".to_owned(),
+    )];
+    assert!(matches!(
+        readmit_native()
+            .try_into_native_input_with_placed_view_establishments(&[stale_range]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentRangeUnresolved)
+    ));
+    let mut forged_qualification = establishments[0].clone();
+    forged_qualification.referent.qualifications =
+        vec![semantic_vocabulary::StructuralDomainId::new(1).expect("nonzero domain")];
+    assert!(matches!(
+        readmit_native()
+            .try_into_native_input_with_placed_view_establishments(&[forged_qualification]),
+        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentQualificationUndeclared(_))
     ));
 
     let native_input = native.into_optimization_artifact();

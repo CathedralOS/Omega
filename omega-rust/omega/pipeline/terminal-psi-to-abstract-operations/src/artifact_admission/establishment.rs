@@ -17,12 +17,24 @@
 //! range, rights, or occurrence answers no row here and rejects before
 //! access. A row left without a supply still fails custody, and an
 //! exclusive-borrow referent may not overlap another established referent.
+//!
+//! The loan's referent is module-visible custody, not a bare host carrier:
+//! its declared structural type must be a type the artifact declares, its
+//! path must resolve through that declared shape graph to a real place, and
+//! every domain qualification it asserts must be a domain the artifact
+//! declares over that carrier. A supply whose backing, range, or
+//! qualifications cannot rejoin the module's own catalogs is a stale or
+//! substituted establishment and rejects before access.
 
 pub use terminal_interpreter::TerminalPlacedViewEstablishment;
 
 use super::ArtifactLoweringError;
+use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
-use terminal_psi::{StructuralAccess, TerminalModule};
+use terminal_psi::{
+    StructuralAccess, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalModule,
+};
 
 const fn exclusive(access: StructuralAccess) -> bool {
     matches!(
@@ -37,6 +49,71 @@ fn referent_overlaps(
 ) -> bool {
     left.opaque_identity == right.opaque_identity
         && (left.path.starts_with(&right.path) || right.path.starts_with(&left.path))
+}
+
+/// One module-declared structural carrier, joined by exact id. The artifact's
+/// catalog is the only authority this boundary can name a backing with: a
+/// referent declaring a type the module never carries cannot be the qualified
+/// backing the roster row sealed.
+fn declared_structural_type(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+) -> Option<&StructuralTypeDeclaration> {
+    let mut matching = module
+        .structural_types
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let declaration = matching.next()?;
+    matching.next().is_none().then_some(declaration)
+}
+
+/// Resolve the lent place's path inside its declared carrier. Every segment
+/// must name a real declared step — a relevant record or mixed-shape field, an
+/// in-range fixed index, or a reference crossing — and a leaf field may end
+/// the path only when its canonical shape is itself declared. A stale or
+/// substituted range fails to resolve rather than binding an invented place.
+fn resolve_referent_place(
+    module: &TerminalModule,
+    referent: &terminal_interpreter::TerminalStructuralValue,
+) -> Option<StructuralTypeId> {
+    let mut structural_type = referent.structural_type;
+    for segment in &referent.path {
+        let declaration = declared_structural_type(module, structural_type)?;
+        structural_type = match (segment, &declaration.shape) {
+            (
+                StructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+            ) => {
+                let mut matching = fields
+                    .iter()
+                    .filter(|field| field.identity == *identity && !field.relevance.is_erased());
+                let field = matching.next()?;
+                if matching.next().is_some() {
+                    return None;
+                }
+                match &field.field_type {
+                    StructuralFieldType::Structural(next) => *next,
+                    leaf => {
+                        let shape = leaf.canonical_leaf_shape()?;
+                        module
+                            .structural_types
+                            .iter()
+                            .find(|declaration| declaration.shape == shape)?
+                            .id
+                    }
+                }
+            }
+            (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
+                *referent
+            }
+            _ => return None,
+        };
+    }
+    Some(structural_type)
 }
 
 /// Join each direct-entry placed-view roster row to one supplied provider
@@ -84,13 +161,46 @@ pub(super) fn establish_native_placed_view_inputs(
                 position: establishment.input.position,
             });
         }
-        if establishment
-            .referent
+        let referent = &establishment.referent;
+        if referent
             .qualifications
             .windows(2)
             .any(|pair| pair[0] >= pair[1])
         {
             return Err(ArtifactLoweringError::PlacedViewEstablishmentQualificationsNonCanonical);
+        }
+        // The supply is a provider loan of module-visible custody, not a bare
+        // host carrier: its declared type must be a type the artifact itself
+        // declares, its path must resolve through that declared shape graph to
+        // a real place, and every domain it asserts must be a domain the
+        // artifact declares over that carrier. A supply whose backing, range,
+        // or qualifications cannot rejoin the module's own catalogs is a
+        // stale or substituted establishment, not the provider's exact loan.
+        if declared_structural_type(module, referent.structural_type).is_none() {
+            return Err(
+                ArtifactLoweringError::PlacedViewEstablishmentBackingUndeclared(
+                    referent.structural_type,
+                ),
+            );
+        }
+        if resolve_referent_place(module, referent).is_none() {
+            return Err(ArtifactLoweringError::PlacedViewEstablishmentRangeUnresolved);
+        }
+        for domain in &referent.qualifications {
+            let Some(declaration) = module
+                .structural_domains
+                .iter()
+                .find(|declaration| declaration.id == *domain)
+            else {
+                return Err(
+                    ArtifactLoweringError::PlacedViewEstablishmentQualificationUndeclared(*domain),
+                );
+            };
+            if declaration.carrier != referent.structural_type {
+                return Err(
+                    ArtifactLoweringError::PlacedViewEstablishmentQualificationCarrier(*domain),
+                );
+            }
         }
     }
     let mut bound: Vec<(

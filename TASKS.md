@@ -1122,7 +1122,15 @@ Owners include
   bound set inside `VerifiedNativeArtifactInput`, while
   `try_into_native_input` and `prepare_native_realization_input` keep
   rejecting nonempty rosters because no provider establishment reaches the
-  image entry shim yet.
+  image entry shim yet. The referent half of each supply now also rejoins the
+  module's own catalogs: the declared structural type must be a declared
+  carrier, the path must resolve through that shape graph to a real place,
+  and every domain qualification must be a domain the artifact declares over
+  that carrier — a supply whose backing, range, or qualifications fails the
+  rejoin is a stale or substituted establishment and rejects before access.
+  The interpreter's `establish_placed_view_inputs` does not yet apply these
+  referent-axis joins; the next leg must mirror them there so both authorities
+  judge one loan identically.
   `placed_view_establishment_binds_each_row_and_rejects_exclusive_overlap`
   exercises the whole join on a multi-row roster: supplies bind each declared
   row in roster order regardless of supply order, a partially answered roster

@@ -26,6 +26,19 @@ pub enum ArtifactLoweringError {
     /// Referent domain qualifications must be strictly ordered and
     /// deduplicated, the same canonical form structural arguments carry.
     PlacedViewEstablishmentQualificationsNonCanonical,
+    /// The referent names a structural carrier the module never declares, so
+    /// the supply cannot be the qualified backing the row seals.
+    PlacedViewEstablishmentBackingUndeclared(semantic_vocabulary::StructuralTypeId),
+    /// The referent's path does not resolve through the declared shape
+    /// graph; a stale or substituted range cannot be the lent place.
+    PlacedViewEstablishmentRangeUnresolved,
+    /// A supplied qualification is not a structural domain the module
+    /// declares.
+    PlacedViewEstablishmentQualificationUndeclared(semantic_vocabulary::StructuralDomainId),
+    /// A declared domain accepts only its exact carrier: a qualification
+    /// asserting a domain whose carrier is not the referent's declared type
+    /// is a substituted qualified backing.
+    PlacedViewEstablishmentQualificationCarrier(semantic_vocabulary::StructuralDomainId),
     /// An exclusive-borrow referent may not overlap another established
     /// referent's place.
     PlacedViewEstablishmentAliasing(u64),
