@@ -1371,6 +1371,85 @@ identities certify.
 | 1 | Psi |
 | 2 | Native |
 
+## Mathematical certificate
+
+A mathematical certificate is `PSICORE\0` + `u16` format marker 3 + `u32`
+level arity + the counted node table + the counted declaration signature +
+the counted context + two `u32` root handles. It is the self-contained
+judgment a receiver replays in the kernel: declaration statements and bodies,
+context bindings, and the claimed `term : expected` pair all name rows in one
+shared term table.
+
+<!-- certificate-framing -->
+| # | Framing field | Bytes |
+| --- | --- | --- |
+| 1 | level arity | `u32` level parameter count of the judgment |
+| 2 | term table | `u32` node count + concatenated node bytes |
+| 3 | declaration signature | counted rows: `u32` level arity + `u32` statement handle + `u8` body presence (1 + `u32` body handle, or 0) |
+| 4 | context | counted `u32` binding handles |
+| 5 | judgment roots | `u32` term handle + `u32` expected-type handle |
+
+Every `u32` field in a node row is a handle into earlier rows: the table is a
+postorder DAG whose nodes are keyed by their own wire bytes, so two encoders
+of the same judgment emit the same table and producer-local aliases collapse
+onto one entry. Signature statements and bodies enter the table first, in
+signature order, then the context, then the judgment roots. A `Dummy` term
+reachable from any root rejects the certificate. Decoding bounds term nesting
+and level nesting at 256 each, requires every child index to precede its
+parent, rejects trailing bytes, and requires the decoded certificate to
+re-encode byte-for-byte — unreachable nodes and alternate tables cannot alias
+one certificate.
+
+<!-- certificate-term-tags -->
+| Tag | Term | Fields after the tag |
+| --- | --- | --- |
+| 1 | Variable | `u32` de Bruijn index |
+| 2 | Sort | sort row |
+| 3 | Pi | domain + codomain |
+| 4 | Lambda | domain + body |
+| 5 | Apply | function + argument |
+| 6 | Sigma | domain + codomain |
+| 7 | Pair | first + second |
+| 8 | Fst | pair |
+| 9 | Snd | pair |
+| 10 | Two | — |
+| 11 | TwoZero | — |
+| 12 | TwoOne | — |
+| 13 | CaseTwo | motive + zero branch + one branch + scrutinee |
+| 14 | Id | ty + left + right |
+| 15 | Refl | ty + value |
+| 16 | IdElim | motive + base + endpoint + proof |
+| 17 | W | carrier + children |
+| 18 | Sup | carrier + children + label + function |
+| 19 | IndW | motive + step + tree |
+| 20 | Constant | `u32` declaration index + counted level arguments |
+| 21 | Empty | — |
+| 22 | EmptyElim | ty + scrutinee |
+| 23 | Squash | ty |
+| 24 | SquashIntro | ty + value |
+| 25 | SquashElim | proposition + function + scrutinee |
+| 26 | Box | ty |
+| 27 | BoxIntro | ty + value |
+| 28 | BoxElim | motive + body + scrutinee |
+
+Unadorned names in the field column are `u32` handles into earlier table
+rows. A sort row is one `u8` tag plus its level; a level is a small tree,
+written inline with no sharing table.
+
+<!-- certificate-sort-tags -->
+| Tag | Sort | Fields after the tag |
+| --- | --- | --- |
+| 1 | Type | level |
+| 2 | Strict | level |
+
+<!-- certificate-level-tags -->
+| Tag | Level | Fields after the tag |
+| --- | --- | --- |
+| 1 | Constant | `u32` value |
+| 2 | Parameter | `u32` index |
+| 3 | Successor | level |
+| 4 | Maximum | level + level |
+
 ## Section identities
 
 | Section | Identity and role |
@@ -1399,6 +1478,7 @@ table. The installation record `PSIINST\0` is emitted outside this codec.
 | PCC proof sidecar | `PCCPROOF` | 1 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 1 | no |
+| mathematical certificate | `PSICORE\0` | 3 | no |
 
 The reconstructed manifest binds each present component under its own hash domain.
 Absent differs from present-but-empty. Replacing valid nonsemantic evidence
