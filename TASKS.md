@@ -7265,7 +7265,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-PCC-REPLAY-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY-HOSTILE-EVIDENCE** — mined candidate; verify scope then implement.
-- **RC-PLATFORM-RUN-RECORDS** — mined candidate; verify scope then implement.
+- **RC-PLATFORM-RUN-RECORDS** — scope verified 2026-09-20: re-mines the
+  "required platform runs" contract in
+  [rust_compiler_completion.md](wiki/drafts/rust_compiler_completion.md#required-platform-runs)
+  — the four runner rows that must be recorded on matching hosts before the
+  release matrix closes. Recorded state: linux_x86_64 witnessed natively
+  (rc_native_matrix_linux_x86_64.md, red but real), linux_arm64 recorded
+  cross-compile-only (native legs need a linux/arm64 host), windows_x86_64
+  is a named-open procedure doc, macos_arm64 has no record at all. Every
+  producible slice on a Linux x86-64 host is already under live claims at
+  verification time: the record substrate (`tools/release` +
+  `tools/release/records/`) is fenced to RC-RELEASE-RECORD-SUBSTRATE, the
+  record documents to RC-RELEASE-RECORD-RUN / RUST-COMPILER-RELEASE-RECORD /
+  RC-RELEASE-CLOSURE-RUN / RC-RELEASE-RECORD-AND-CLOSURE / RC-RELEASE-RECORD,
+  the contract doc to PLATFORM-RUN-LINUX-X86-64, the macOS row to
+  RC-NATIVE-MATRIX-MACOS-ARM64 (+Codex legs), the Windows row to
+  RC-WINDOWS-X64-NATIVE-ROW, and matrix-running to RC-MATRIX-RUNNER. No
+  independent unfenced slice exists here. Sibling re-mines:
+  RC-PLATFORM-RUNNER-COVERAGE, HOSTED-PLATFORM-RUN-MATRIX.
 - **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-ENVELOPE.** Resolved — re-mines the release-matrix gate
