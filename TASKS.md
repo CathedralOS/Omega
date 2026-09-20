@@ -3623,12 +3623,13 @@ Owners include
     conservatively; they need checked evidence
     (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`, shared
     with **CRASH-CONTRACT**), not successful interpretation or provider-body
-    inspection. Authored preconditions also need propagation through argument
-    conversions: at `87581fd1dc` on macOS ARM64, a `forward(value: u8)` with
-    `requires value != 0` still cannot call `divide(value as u64)` when
-    `divide` requires its argument to be nonzero. The ordinary call checker in
-    `typed-trees-to-checked-trees/src/checks/contracts/` rejects before concrete
-    initializer admission; this is not a blanket ban on authored `requires`.
+    inspection. Beyond total fixed-integer widening, argument conversions and
+    undirected signed disequality still need live premise transport through the
+    ordinary call checker in `typed-trees-to-checked-trees/src/checks/contracts/`.
+    Keep `machine_initializers::widened_helper_preconditions_reach_native_execution_after_source_removal`
+    and `widened_runtime_call_preconditions_execute_after_source_removal` as the
+    source-free interpreter/native widening controls; conversion checking must
+    not reinterpret wrapping operand computations or resurrect invalidated facts.
     Preserve `module_machine_indices::machine_initializers::widened_constant_helper_executes_natively_after_source_removal`,
     `indexed_constant_helper_discharge_reaches_source_free_execution`, and
     `constant_helper_preconditions_reach_native_execution_after_source_removal`,

@@ -16,8 +16,8 @@ use super::super::super::integer_evidence::{integer_carrier_bound, projected_fac
 use super::super::wrapping;
 
 /// One checked `left </<= right` bound with its proof. Legs are built from
-/// citations only; a leg's proof is what the kernel replays, so a derived leg
-/// can never invent a bound the original citation did not carry.
+/// citations or checked carrier bounds; a leg's proof is what the kernel
+/// replays, so a derived leg cannot invent an unsupported bound.
 struct OrderLeg {
     left: ScalarTerm,
     right: ScalarTerm,
@@ -141,6 +141,16 @@ fn derived_legs(
             let Some(proof) = integer_carrier_bound(context, &bound) else {
                 continue;
             };
+            // Carrier bounds constrain the root itself as well as derived
+            // values. Without this leg, a retained `unsigned < 0` case cannot
+            // close: the definition walk below deliberately skips root == target.
+            if let Proposition::LessOrEqual(left, right) = &bound
+                && !legs
+                    .iter()
+                    .any(|leg| leg.left == *left && leg.right == *right && !leg.strict)
+            {
+                legs.push(leg(left.clone(), right.clone(), false, proof.clone()));
+            }
             roots.push(wrapping::RootedBound {
                 proposition: bound,
                 proof,
