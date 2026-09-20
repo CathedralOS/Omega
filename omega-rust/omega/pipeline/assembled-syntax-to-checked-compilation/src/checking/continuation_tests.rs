@@ -254,7 +254,7 @@ fn prepared_source_checkpoint_preserves_standalone_child_identity_and_siblings()
     let main = fixture.main.clone();
     let (windows, linux, windows_again) =
         crate::checking::compile_thread::run_on_compile_thread(move || {
-            let prepared = PreparedCheckedSource::prepare(&main, None)
+            let prepared = PreparedCheckedSource::prepare(&main, None, false)
                 .expect("prepare checked source checkpoint");
             let windows = prepared
                 .clone()

@@ -276,6 +276,7 @@ impl PreparedCheckedSource {
         package_sources: Option<
             std::sync::Arc<package_compilation::PackageCompilationSourceInputs>,
         >,
+        collect_timings: bool,
     ) -> Result<Self, Vec<Diagnostic>> {
         // Source discovery accepts no target attachments. Adapt the shared graph
         // to the frontend's package-routing view without consulting a child.
@@ -288,7 +289,11 @@ impl PreparedCheckedSource {
                     .map(|error| Diagnostic::error(error.to_string()))
                     .collect::<Vec<_>>()
             })?;
-        let mut shared_timings = CompileTimings::default();
+        let mut shared_timings = if collect_timings {
+            CompileTimings::enabled()
+        } else {
+            CompileTimings::default()
+        };
         let source_checkpoint = ImmutableSourceParseCheckpoint::prepare(
             root_path,
             package_inputs.as_ref(),
@@ -459,6 +464,7 @@ fn compile_checked_worker(
                 .package_inputs
                 .as_ref()
                 .map(PackageCompilationInputs::source_inputs),
+            false,
         )?,
     };
     let retained_source = retain_source.then(|| prepared.clone());
