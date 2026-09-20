@@ -7972,7 +7972,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
 - **REPLACEMENT-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
 - **REPOSITORY-BASELINE-GATE** — mined candidate; verify scope then implement.
-- **REPRESENTATION-OWNERSHIP** — mined candidate; verify scope then implement.
+- **REPRESENTATION-OWNERSHIP** — mined candidate; scope verified, coverage recorded — the stub re-mines the same-named real item on the optimizer board (`TASKS_OPTIMIZER.md`), which owns the `omega-rust/{omega,psi}/representations/` ownership finish. Both stage-ancestry legs are landed there: staged types expose `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`/`ranges`/`legality` directly with per-crate pins (`selected_stages_read_current_data_not_producer_ancestry`, `register_home_stages_read_current_data_not_producer_ancestry`; resolved sibling RO-STAGE-ANCESTRY-ELIMINATION re-verified 2/2 green at 39e156c73a), and `representations/optimization-unit` settled at 11eaa140cb. The only residual on that item is the durable-codec relocation (`post_allocation_manifest/codec`, `rewrites/allocation_recovery/fixed_view_copy/codec`, `optimized_semantic_wrapper_object/codec`), shared with DURABLE-CODEC-RELOCATION — the board's own row, not this stub's slice. Row stays a pointer to the optimizer item; no leg remains here.
 - **REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE** — mined candidate; verify scope then implement.
 - **RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
 - **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH** — mined candidate; verify scope then implement.
