@@ -12,6 +12,9 @@ use layout_plans::{
 };
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    GenericDataRequest, normalize_generic_data,
+};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
@@ -384,4 +387,133 @@ fn recursive_resource_bounds_reject_before_typed_derivation() {
         "{}",
         diagnostic.0
     );
+}
+
+#[test]
+fn recursive_record_path_carries_a_closed_generic_instance_interior() {
+    // `Log<const N>`'s authored `events: [Event; N]` is a non-literal length;
+    // the synthesized `Log<2>` instance reaches the recursion as one closed
+    // record whose substituted members are already literal. The retained
+    // report names the instance by its exact synthesized identity.
+    let tokens = Lexer::new("data Event [copy] { case Idle; case Hit(code: u64); } data Log<const N: u64> [copy] { events: [Event; N]; } data Root [copy] { log: Log<2>; }").tokenize().unwrap();
+    let syntax = parse_syntax_trees(&tokens).unwrap();
+    let syntax =
+        normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let fingerprint = |name| {
+        normalized_schema_report_fingerprint(&typed, unique_data_by_name(&typed, name).unwrap())
+    };
+    let record = |name, fields: &[(&str, u64)], size: u64, align: u64| LayoutPlanReport {
+        schema_report_fingerprint: fingerprint(name),
+        entries: fields
+            .iter()
+            .map(|&(field, offset)| LayoutFieldEntryReport {
+                field: field.into(),
+                member_identity: None,
+                placement: LayoutPlacementReport::At { offset },
+            })
+            .collect(),
+        offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
+        size: Some(size),
+        align,
+    };
+    let event = ConventionalSumLayoutReport {
+        schema_report_fingerprint: fingerprint("Event"),
+        tag_offset: 0,
+        tag_size: 4,
+        tag_align: 4,
+        common_fields: Vec::new(),
+        cases: vec![
+            ConventionalSumCaseLayoutReport {
+                case: "Idle".into(),
+                member_identity: None,
+                ordinal: 0,
+                payload_fields: vec![],
+            },
+            ConventionalSumCaseLayoutReport {
+                case: "Hit".into(),
+                member_identity: None,
+                ordinal: 1,
+                payload_fields: vec![ConventionalSumPayloadFieldLayoutReport {
+                    field: "code".into(),
+                    member_identity: None,
+                    offset: 8,
+                    size: 8,
+                    align: 8,
+                }],
+            },
+        ],
+        size: 16,
+        align: 8,
+    };
+    // `log` is the outer level's one sum-reaching child — a field hop into
+    // the `Log<2>` record report, whose own `events` child is the packed
+    // index hop carrying the substituted literal count and element stride.
+    let report = ConventionalRecursiveRecordSumPathsLayoutReport {
+        outer_layout: record("Root", &[("log", 0)], 32, 8),
+        children: vec![ConventionalRecordSumChildLayoutReport {
+            field: "log".into(),
+            member_identity: None,
+            hop: ConventionalRecordSumChildHop::Field,
+            interior: ConventionalRecordSumChildInterior::Record(
+                ConventionalRecursiveRecordSumPathsLayoutReport {
+                    outer_layout: record("Log<2>", &[("events", 0)], 32, 8),
+                    children: vec![ConventionalRecordSumChildLayoutReport {
+                        field: "events".into(),
+                        member_identity: None,
+                        hop: ConventionalRecordSumChildHop::Index {
+                            element_count: 2,
+                            element_stride: 16,
+                        },
+                        interior: ConventionalRecordSumChildInterior::Sum(event),
+                    }],
+                },
+            ),
+        }],
+    };
+    let value = BuildTimeValue::Struct {
+        type_name: "Root".into(),
+        fields: vec![(
+            "log".into(),
+            BuildTimeValue::Struct {
+                type_name: "Log<2>".into(),
+                fields: vec![(
+                    "events".into(),
+                    BuildTimeValue::Array(vec![
+                        BuildTimeValue::Case {
+                            variant: "Hit".into(),
+                            payload: vec![("code".into(), BuildTimeValue::Int(3))],
+                        },
+                        BuildTimeValue::Case {
+                            variant: "Idle".into(),
+                            payload: Vec::new(),
+                        },
+                    ]),
+                )],
+            },
+        )],
+    };
+    let custody = validate_const_materializable_record_with_recursive_nested_sums(
+        &typed,
+        "Root",
+        &report,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("a closed instance interior materializes under the recursive owner");
+    assert_eq!(
+        custody.bytes(),
+        &[
+            1, 0, 0, 0, 0, 0, 0, 0, // events[0] tag = Hit
+            3, 0, 0, 0, 0, 0, 0, 0, // events[0].code = 3
+            0, 0, 0, 0, 0, 0, 0, 0, // events[1] tag = Idle
+            0, 0, 0, 0, 0, 0, 0, 0,
+        ]
+    );
+    let mut destination = [0xa5; 32];
+    custody
+        .apply(&typed, &mut destination)
+        .expect("the recursive writer replays the instance bytes");
+    assert_eq!(destination.as_slice(), custody.bytes());
 }

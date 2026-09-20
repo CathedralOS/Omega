@@ -20,6 +20,9 @@ use checked_trees::{CheckFacts, CheckedTrees};
 use layout_plans::{ByteOrder, normalized_conventional_sum_layout_report_fingerprint};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    GenericDataRequest, normalize_generic_data,
+};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -29,6 +32,19 @@ mod recursive;
 fn checked(source: &str) -> CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    CheckedTrees::with_roots(typed, CheckFacts::default())
+}
+
+/// The same check path with generic instance synthesis enabled: authored
+/// `T<args>` spellings materialize their closed instance declarations before
+/// resolution, exactly as the connected pipeline does.
+fn checked_generic(source: &str) -> CheckedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let syntax =
+        normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     CheckedTrees::with_roots(typed, CheckFacts::default())
@@ -1624,6 +1640,111 @@ fn mixed_sum_array_elements_project_with_common_fields_beside_the_overlay() {
             // element 0: tag 0 (Ready), sequence 9, pad, value 0x1122 LE
             0, 0, 0, 0, 9, 0, 0x22, 0x11, // element 1: tag 1 (Waiting), sequence 7
             1, 0, 0, 0, 7, 0, 0, 0,
+        ]
+    );
+}
+
+#[test]
+fn closed_generic_instance_sum_array_projects_its_substituted_literal_length() {
+    // `Log<const N>` declares `events` with a non-literal length; the
+    // synthesized `Log<2>` instance arrives with `Literal(2)` members and a
+    // retained closed application origin, so the same compact sum-array row
+    // carries it. The open template itself stays fenced.
+    let checked = checked_generic(
+        r#"
+        data Event [copy] { case Idle; case Hit(code: u64); }
+        data Log<const N: u64> [copy] { events: [Event; N]; }
+        data Root [copy] { log: Log<2>; }
+        "#,
+    );
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let template = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Log")
+        .expect("the open template");
+    let error = project_conventional_record_with_sum_array_materialization_layout(
+        &checked,
+        &plan,
+        template.symbol,
+    )
+    .expect_err("the open generic template has no substituted literal length");
+    assert!(
+        format!("{error}").contains("closed non-generic `[copy]` record"),
+        "{error}"
+    );
+
+    let instance = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Log<2>")
+        .expect("the synthesized closed instance");
+    let (outer, row) = project_conventional_record_with_sum_array_materialization_layout(
+        &checked,
+        &plan,
+        instance.symbol,
+    )
+    .expect("a closed instance's substituted literal length projects the same row");
+    assert_eq!(outer.size, Some(32));
+    assert_eq!(outer.align, 8);
+    assert_eq!(outer.offsets.as_deref(), Some(&[0][..]));
+    assert_eq!(row.field, "events");
+    assert_eq!(row.element_count, 2);
+    assert_eq!(row.element_stride, 16);
+    assert_eq!(row.element_layout.size, 16);
+    assert!(row.element_layout.common_fields.is_empty());
+    assert_eq!(
+        row.element_layout
+            .cases
+            .iter()
+            .map(|case| case.case.as_str())
+            .collect::<Vec<_>>(),
+        ["Idle", "Hit"]
+    );
+    assert_eq!(
+        row.element_layout.cases[1]
+            .payload_fields
+            .iter()
+            .map(|field| (field.field.as_str(), field.offset, field.size))
+            .collect::<Vec<_>>(),
+        [("code", 8, 8)]
+    );
+
+    // The instance schema materializes under its own exact closed identity:
+    // the value spells the synthesized nominal name and the substituted
+    // element count.
+    let value = BuildTimeValue::Struct {
+        type_name: "Log<2>".into(),
+        fields: vec![(
+            "events".into(),
+            BuildTimeValue::Array(vec![
+                BuildTimeValue::Case {
+                    variant: "Hit".into(),
+                    payload: vec![("code".into(), BuildTimeValue::Int(0x1122_3344_5566_7788))],
+                },
+                BuildTimeValue::Case {
+                    variant: "Idle".into(),
+                    payload: Vec::new(),
+                },
+            ]),
+        )],
+    };
+    let materialized = validate_const_materializable_record_with_conventional_sum_array(
+        &checked,
+        "Log<2>",
+        &outer,
+        &row,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("the closed instance's compact row materializes each element");
+    assert_eq!(
+        materialized.bytes(),
+        &[
+            // element 0: tag 1 (Hit), pad, code 0x1122334455667788 LE
+            1, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,
+            // element 1: tag 0 (Idle)
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ]
     );
 }

@@ -17,8 +17,8 @@ use layout_plans::{
     LayoutPlanReport,
 };
 use symbols::SymbolHandle;
-use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
-use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+use typed_trees::data::{DataDefinition, DataMember, DataShapeKind, TypeParameterKind};
+use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::{DataShape, ENUM_TAG_BYTES, LayoutPlan, TypeLayoutDescriptor};
 
@@ -1441,7 +1441,271 @@ fn validate_closed_copy_record(
             definition.name
         )));
     }
+    // A synthesized closed generic instance is itself one closed record: its
+    // members — including `const N` array lengths — were substituted at
+    // synthesis, so an authored non-literal length arrives here already
+    // literal. Only the retained application origin needs the
+    // closed-argument judgment.
+    if let Some(application) = definition.generic_instance {
+        require_closed_generic_application(program, definition, application, role)?;
+    }
     Ok(())
+}
+
+/// The retained structural origin of a synthesized generic instance. Only a
+/// CLOSED application names one exact closed record identity for
+/// materialization: the base must resolve to the open generic template,
+/// lifetime arguments must already be erased, and each argument must satisfy
+/// its parameter kind — a closed const literal for `const`/`value`
+/// parameters, a closed type for `type` parameters. This mirrors the
+/// const-evaluable admission judgment so the interpreter and
+/// materialization rungs agree on which substituted shapes are closed.
+fn require_closed_generic_application(
+    program: &CheckedTrees,
+    definition: &DataDefinition,
+    application: TypeReferenceHandle,
+    role: &str,
+) -> Result<(), Diagnostic> {
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = program.type_reference_table.type_reference(application)
+    else {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` has a generic origin that is not a resolved generic application",
+            definition.name
+        )));
+    };
+    if !lifetime_arguments.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` has non-erased lifetime arguments",
+            definition.name
+        )));
+    }
+    if !base_symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "{role} `{base_name}` lacks an exact nominal base identity"
+        )));
+    }
+    let mut bases = program
+        .data_definitions()
+        .iter()
+        .filter(|candidate| candidate.symbol == *base_symbol);
+    let base = bases.next().ok_or_else(|| {
+        Diagnostic::error(format!(
+            "{role} `{base_name}` has an unknown base data type"
+        ))
+    })?;
+    if bases.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "{role} `{base_name}` has an ambiguous nominal base identity"
+        )));
+    }
+    if !consistent_nominal_spelling(base_name.as_str(), base.name.as_str())
+        || base.generic_instance.is_some()
+    {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` has base `{base_name}` that is not the open generic template",
+            definition.name
+        )));
+    }
+    let parameters = program.data_type_parameters(base);
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    if arguments.len() != parameters.len() {
+        return Err(Diagnostic::error(format!(
+            "{role} `{}` supplies {} argument(s) for {} base parameter(s)",
+            definition.name,
+            arguments.len(),
+            parameters.len()
+        )));
+    }
+    let mut active_data = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+        require_closed_generic_argument(
+            program,
+            &parameter.kind,
+            *argument,
+            &format!("{role} parameter `{}`", parameter.name),
+            &mut active_data,
+        )?;
+    }
+    Ok(())
+}
+
+/// One generic argument judged against its parameter kind. `const`/`value`
+/// parameters admit only a compile-known resolved integer literal; `type`
+/// parameters admit only a closed checked-boundary type; machine parameters
+/// admit nothing at this boundary.
+fn require_closed_generic_argument(
+    program: &CheckedTrees,
+    kind: &TypeParameterKind,
+    argument: TypeReferenceHandle,
+    role: &str,
+    active_data: &mut Vec<SymbolHandle>,
+) -> Result<(), Diagnostic> {
+    match kind {
+        TypeParameterKind::Type => {
+            require_closed_generic_type(program, argument, role, active_data)
+        }
+        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+            match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::Named { symbol, name }
+                    if !symbol.is_valid()
+                        && !name.as_str().is_empty()
+                        && name.as_str().chars().all(|c| c.is_ascii_digit()) =>
+                {
+                    Ok(())
+                }
+                _ => Err(Diagnostic::error(format!(
+                    "{role} has a non-literal const argument and is not a closed const application"
+                ))),
+            }
+        }
+        TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => {
+            Err(Diagnostic::error(format!(
+                "{role} is not a data parameter; only closed const atoms and closed types can cross the materialization boundary"
+            )))
+        }
+    }
+}
+
+/// Type-level closedness for a generic argument in `type` position: a
+/// primitive, unit, a literal-length fixed array of closed elements, a
+/// constrained closed base, or a closed nominal aggregate (itself possibly
+/// a closed generic instance). References, slices, open generics,
+/// proof-static expressions, dynamic traits, and interior-mutable types are
+/// not closed.
+fn require_closed_generic_type(
+    program: &CheckedTrees,
+    type_reference: TypeReferenceHandle,
+    role: &str,
+    active_data: &mut Vec<SymbolHandle>,
+) -> Result<(), Diagnostic> {
+    if !type_reference.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "{role} has an invalid argument type"
+        )));
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Unit => Ok(()),
+        TypeReferenceNode::Named { symbol, name } => {
+            if name.as_str().starts_with("Atomic") {
+                return Err(Diagnostic::error(format!(
+                    "{role} has interior-mutable type `{name}`, which is not copy eligible"
+                )));
+            }
+            if PrimitiveType::from_name(name.as_str()).is_some() {
+                return Ok(());
+            }
+            if !symbol.is_valid() {
+                return Err(Diagnostic::error(format!(
+                    "{role} names `{name}` without an exact nominal type identity"
+                )));
+            }
+            let mut definitions = program
+                .data_definitions()
+                .iter()
+                .filter(|candidate| candidate.symbol == *symbol);
+            let definition = definitions.next().ok_or_else(|| {
+                Diagnostic::error(format!("{role} names unknown data type `{name}`"))
+            })?;
+            if definitions.next().is_some() {
+                return Err(Diagnostic::error(format!(
+                    "{role} has an ambiguous nominal type identity for `{name}`"
+                )));
+            }
+            if !consistent_nominal_spelling(name.as_str(), definition.name.as_str()) {
+                return Err(Diagnostic::error(format!(
+                    "{role} has inconsistent nominal type spelling `{name}` for `{}`",
+                    definition.name
+                )));
+            }
+            if definition.supply_mode != DataSupplyMode::CheckedShape
+                || !definition.lifetime_parameters.is_empty()
+                || !definition.type_parameters.is_empty()
+                || definition.quotient.is_some()
+            {
+                return Err(Diagnostic::error(format!(
+                    "{role} reaches open or opaque data `{name}` through a generic argument"
+                )));
+            }
+            if let Some(nested) = definition.generic_instance {
+                require_closed_generic_application(program, definition, nested, role)?;
+            }
+            if active_data.contains(symbol) {
+                return Err(Diagnostic::error(format!(
+                    "{role} reaches recursive data `{name}` through a generic argument"
+                )));
+            }
+            active_data.push(*symbol);
+            let result = (|| {
+                for member in program.data_members(definition) {
+                    match member {
+                        DataMember::Field(field) => require_closed_generic_type(
+                            program,
+                            field.type_reference,
+                            &format!("{role}.{}", field.name),
+                            active_data,
+                        )?,
+                        DataMember::Variant(variant) => {
+                            for field in program.data_payload_fields(variant) {
+                                require_closed_generic_type(
+                                    program,
+                                    field.type_reference,
+                                    &format!("{role}::{}.{}", variant.name, field.name),
+                                    active_data,
+                                )?;
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            })();
+            active_data.pop();
+            result
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            let FixedArrayLength::Literal(_) = length else {
+                return Err(Diagnostic::error(format!(
+                    "{role} has a non-literal array length and is not a closed const type"
+                )));
+            };
+            require_closed_generic_type(program, *element_type, &format!("{role}[]"), active_data)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            require_closed_generic_type(program, *base_type, role, active_data)
+        }
+        TypeReferenceNode::Reference { .. } => {
+            Err(Diagnostic::error(format!("{role} has reference type")))
+        }
+        TypeReferenceNode::Slice { .. } => Err(Diagnostic::error(format!("{role} has slice type"))),
+        TypeReferenceNode::Generic { .. } => Err(Diagnostic::error(format!(
+            "{role} has an open or generic aggregate type and is not a closed const type"
+        ))),
+        TypeReferenceNode::ConstExpression(_) => Err(Diagnostic::error(format!(
+            "{role} has a proof-static expression type, not a runtime const value type"
+        ))),
+        TypeReferenceNode::DynamicTrait { .. } => Err(Diagnostic::error(format!(
+            "{role} has a dynamic trait type"
+        ))),
+    }
+}
+
+/// The `Named` reference records the use-site spelling while its symbol
+/// carries the resolved identity: a module-owner qualified spelling of the
+/// selected declaration is the same nominal type.
+fn consistent_nominal_spelling(recorded: &str, declared: &str) -> bool {
+    recorded == declared
+        || recorded
+            .strip_suffix(declared)
+            .is_some_and(|prefix| prefix.ends_with("::"))
 }
 
 fn relevant_record_fields<'a>(

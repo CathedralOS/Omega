@@ -21,7 +21,7 @@ use typed_trees::machine::Machine;
 use crate::BuildTimeValue;
 
 mod closure_validation;
-mod const_evaluable;
+pub(crate) mod const_evaluable;
 mod selection_authority;
 #[cfg(test)]
 mod structural_equations_tests;

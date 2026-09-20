@@ -21,13 +21,25 @@ pub(crate) fn validate_outer_record_owner(
         || data.supply_mode != DataSupplyMode::CheckedShape
         || !data.type_parameters.is_empty()
         || !data.lifetime_parameters.is_empty()
-        || data.generic_instance.is_some()
         || data.quotient.is_some()
     {
         return Err(MaterializationDiagnostic(format!(
             "ConstMaterializable nested-sum record `{}` is generic, opaque, quotient, or lacks one exact closed checked-shape identity",
             data.name
         )));
+    }
+    // A synthesized closed generic instance is itself one exact closed
+    // checked-shape identity: its members — including `const N` array
+    // lengths — were substituted at synthesis. Only the retained
+    // application origin needs the closed-argument judgment.
+    if let Some(application) = data.generic_instance {
+        crate::machine_execution::admission::const_evaluable::require_closed_generic_application(
+            typed,
+            data,
+            application,
+            "nested-sum record",
+        )
+        .map_err(MaterializationDiagnostic)?;
     }
     if data.properties.multiplicity != Multiplicity::Unrestricted {
         return Err(MaterializationDiagnostic(format!(
