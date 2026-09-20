@@ -1745,7 +1745,10 @@ Owners include
   and prefix applications now parse
   (`tokens-to-syntax-trees/src/declarations/let_definition.rs`), resolve, and
   type into the typed-tree mirror
-  (`typed-trees/src/typed_trees/evidence/mathematical.rs`), and elaborate to
+  (`typed-trees/src/typed_trees/evidence/mathematical.rs`) — arrow- and
+  application-typed telescope parameters, curried applications, bindered
+  `boundary let`s and call bodies are all pinned by shape-retention tests
+  (`lowerer/tests/mathematical_declarations.rs`) — and elaborate to
   `CheckedMathematicalDeclaration` records in
   `typed-trees-to-checked-trees/src/proof/mathematical_declarations.rs`:
   binder carriers classify `core::Level`/`core::Type` by authored name,
