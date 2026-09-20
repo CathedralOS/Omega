@@ -1,7 +1,7 @@
 //! Member-admission verdicts the consumer's authored declaration mints.
 
-use crate::interrupts::interrupt_table::InterruptTableMemberPlan;
 use crate::InstalledRootRecord;
+use crate::interrupts::interrupt_table::InterruptTableMemberPlan;
 use calling_conventions::{EntryControl, EntryStack};
 
 /// The member-arrival facts an installed root's retained record carries,

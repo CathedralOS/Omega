@@ -3,9 +3,7 @@
 //! requirement slot, the erased call plan, and the table offset; replay
 //! re-derives each from the roster and target ABI.
 
-use crate::{
-    legalize_target_operations, select_instructions, validate_legalized_operations,
-};
+use crate::{legalize_target_operations, select_instructions, validate_legalized_operations};
 use abstract_operations::{AbstractOperation, AbstractParameterDynamicDispatch, AbstractResult};
 use legalized_operations::{LegalizedScalarInstructionKind, LegalizedScalarTerminator};
 use semantic_vocabulary::{
@@ -312,11 +310,13 @@ fn parameter_dynamic_call_selection_still_rejects_the_new_kind() {
         register_environment::baseline_target_register_environment(NativeTarget::linux_x64())
             .unwrap();
     let constraints = crate::selection_constraints(&legal, &environment);
-    assert!(select_instructions(
-        &legal,
-        &constraints,
-        environment.physical(),
-        environment.constraints(),
-    )
-    .is_err());
+    assert!(
+        select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .is_err()
+    );
 }
