@@ -7280,7 +7280,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
-- **RC-PCC-REPLAY-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY-CLOSURE.** Resolved — re-mines the release-matrix leg
+  `RC-PCC-REPLAY` (wiki/drafts/rust_compiler_completion.md), already landed
+  on `origin/main`: requested artifact/`.proof` pairs publish and round-trip
+  (`native_pcc_publishes_the_bounded_native_pair`,
+  `psi_pcc_publishes_the_psi_pair_during_native_compilation`,
+  `both_requests_publish_both_pairs`), `verify_published_proof_pair` routes on
+  the declared product kind and replays the Psi leg's bounded terminal
+  verification or the native leg's placed-image evidence against the exact
+  bytes, and publication self-checks a requested pair pre-install. Hostile or
+  substituted evidence rejects before any PCC-required interpretation:
+  `stale_or_substituted_bytes_and_wrong_policy_reject`,
+  `a_tampered_native_pair_rejects_from_bytes`,
+  `a_stale_companion_never_certifies_republished_bytes`,
+  `standalone_pair_checking_rejects_wrong_bytes_premises_policy_and_assumptions`,
+  `arbitrary_native_bytes_with_recomputed_custody_never_complete`, plus the
+  pcc.rs unit legs (forged inventory extents, relabeled semantic profile,
+  malformed section). Ordinary output still checks without publishing PCC:
+  `no_pcc_requests_publish_ordinary_output_only`,
+  `republishing_without_native_pcc_removes_the_stale_sidecar`,
+  `republishing_without_pcc_removes_stale_companions`. Honest remainder: the
+  native evidence's behavioral legs (instruction rows, edges, premise
+  availability, lowering correspondence) stay `Incomplete` until standalone
+  native semantics checking exists — the row's own bound. Witness:
+  `cargo nextest run -p compiler --test pcc_publication` 22/22 green on
+  linux-x86_64 at `0977a4249e`. Sibling re-mines of the same landed leg:
+  RC-PCC-REPLAY, RC-PCC-REPLAY-GATE, RC-PCC-REPLAY-HOSTILE-EVIDENCE.
 - **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY-HOSTILE-EVIDENCE** — mined candidate; verify scope then implement.
 - **RC-PLATFORM-RUN-RECORDS** — scope verified 2026-09-20: re-mines the
