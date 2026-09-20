@@ -12,7 +12,10 @@
 //! unit definitions such as the target condition state — the unit-effect
 //! surface carries the remaining implicit-unit traffic the rewrite may touch
 //! (implicit uses, clobbers, and operand unit bindings on the rewritten row,
-//! on the admitted consumer, and on the eliminated producer), the
+//! on the admitted consumer, and on the eliminated producer), declared as a
+//! composition of the independent `consumer_fixed_view` and
+//! `consumer_early_clobber` admission axes rather than one variant per
+//! combination, the
 //! machine-effect surface carries the non-unit dimensions — memory, trap,
 //! stack, control flow, barrier, call, and cleanup — that each form's
 //! [`MachineEffectDeclaration`] must satisfy, declared as a composition of
@@ -110,28 +113,71 @@ pub enum PairResultDisposition {
     ImplicitUnits,
 }
 
-/// The implicit-unit traffic the pair's rewrite may carry.
+/// The implicit-unit traffic the pair's rewrite may carry, composed from
+/// independent axes rather than one variant per combination.
 ///
 /// `PairResultDisposition` owns the result channel — which units the
 /// rewritten instruction *defines* as its output. This declaration covers
 /// the rest of the unit surface: implicit unit uses and clobbers on the
 /// rewritten constraint row, and the operand unit bindings (`fixed_view`,
-/// `tied_to`, `early_clobber`) on either side of the rewrite. The producer
-/// admits rows and consumers through the declaration; the validator
-/// re-derives the same requirements from its own matching so a descriptor
-/// mistake cannot self-certify.
+/// `tied_to`, `early_clobber`) on either side of the rewrite. Its two axes
+/// are independent: `consumer_fixed_view` names whether the admitted
+/// consumer's operands may carry `fixed_view` pins, and
+/// `consumer_early_clobber` names whether they may carry `early_clobber`
+/// marks — each binding is admitted on its own because the rewrite
+/// rebuilds the consumer's operand list from the undecorated rewritten
+/// row, so every pin and mark the folded form needed dies with its
+/// operand. `tied_to` has no axis: no composition admits it, since a tie
+/// would silently lose the shared-home requirement a surviving operand
+/// might have observed. A new consumer-binding relationship is a row in
+/// this product, not a new variant: admission is the conjunction of the
+/// per-axis gates below. The producer admits rows and consumers through
+/// the declaration; the validator re-derives the same requirements from
+/// its own matching so a descriptor mistake cannot self-certify.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairUnitEffects {
-    /// The rewritten row declares no implicit unit uses and no clobbers, and
-    /// no operand on either side of the rewrite carries a unit binding. The
-    /// admitted consumer's operands must already be undecorated because the
-    /// rewrite rebuilds them from the row — a binding there would be
-    /// silently dropped. A rule whose rewritten form implicitly reads or
-    /// clobbers a unit — a flag-consuming arithmetic form, a
-    /// scratch-clobbering realization — declares a new variant instead of
-    /// weakening this one.
-    Isolated,
-    /// The rewritten row stays as under [`Isolated`](Self::Isolated), but
+pub struct PairUnitEffects {
+    /// Whether `fixed_view` pins may appear on the admitted consumer's
+    /// operands.
+    pub consumer_fixed_view: PairConsumerBindingAdmission,
+    /// Whether `early_clobber` marks may appear on the admitted consumer's
+    /// operands.
+    pub consumer_early_clobber: PairConsumerBindingAdmission,
+}
+
+/// Whether one operand unit binding kind may appear on the admitted
+/// consumer's operand list — the axis `PairUnitEffects`'s
+/// `consumer_fixed_view` and `consumer_early_clobber` fields each carry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairConsumerBindingAdmission {
+    /// The binding may not appear on any admitted-consumer operand: the
+    /// rewrite rebuilds the operand list from the constraint row, so a
+    /// binding there would be silently dropped.
+    Rejected,
+    /// The binding may appear on the admitted consumer's operands: the
+    /// rewrite rebuilds the operand list from the undecorated rewritten
+    /// row, so the pin or hazard mark the folded form needed is
+    /// deliberately discarded with it — a surviving operand's register
+    /// keeps its other uses' own constraints and gains strictly more
+    /// allocation freedom, and a dropped operand's binding dies with the
+    /// operand.
+    DroppedWithOperandList,
+}
+
+impl PairUnitEffects {
+    /// The rewritten row declares no implicit unit uses and no clobbers,
+    /// and no operand on either side of the rewrite carries a unit
+    /// binding. The admitted consumer's operands must already be
+    /// undecorated because the rewrite rebuilds them from the row — a
+    /// binding there would be silently dropped. A rule whose rewritten
+    /// form implicitly reads or clobbers a unit — a flag-consuming
+    /// arithmetic form, a scratch-clobbering realization — declares a new
+    /// axis composition instead of weakening this one.
+    pub const ISOLATED: Self = Self {
+        consumer_fixed_view: PairConsumerBindingAdmission::Rejected,
+        consumer_early_clobber: PairConsumerBindingAdmission::Rejected,
+    };
+
+    /// The rewritten row stays as under [`ISOLATED`](Self::ISOLATED), but
     /// the admitted consumer's operands may carry `fixed_view` bindings —
     /// the register pins a pinned-operand form such as the x86-64 `div`
     /// realization requires. The rewrite rebuilds the operand list from
@@ -141,8 +187,12 @@ pub enum PairUnitEffects {
     /// allocation freedom, and a dropped operand's pin dies with the
     /// operand. `tied_to` and `early_clobber` still reject — neither has a
     /// carried meaning once the operand list is rebuilt.
-    BoundConsumerOperands,
-    /// The rewritten row stays as under [`Isolated`](Self::Isolated), but
+    pub const BOUND_CONSUMER_OPERANDS: Self = Self {
+        consumer_fixed_view: PairConsumerBindingAdmission::DroppedWithOperandList,
+        ..Self::ISOLATED
+    };
+
+    /// The rewritten row stays as under [`ISOLATED`](Self::ISOLATED), but
     /// the admitted consumer's operands may carry `early_clobber` marks as
     /// well as `fixed_view` pins — the write-before-read hazard a
     /// pinned-scratch realization such as the x86-64 `idiv` remainder form
@@ -154,79 +204,64 @@ pub enum PairUnitEffects {
     /// and gains strictly more allocation freedom. `tied_to` still rejects
     /// — a tie would silently lose the shared-home requirement a surviving
     /// operand might have observed.
-    BoundEarlyClobberConsumerOperands,
-}
+    pub const BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS: Self = Self {
+        consumer_early_clobber: PairConsumerBindingAdmission::DroppedWithOperandList,
+        ..Self::BOUND_CONSUMER_OPERANDS
+    };
 
-impl PairUnitEffects {
     /// Whether the constraint row's instruction-level unit traffic
     /// satisfies the declaration. Implicit *definitions* are the result
-    /// channel and stay under `PairResultDisposition`.
+    /// channel and stay under `PairResultDisposition`. The requirement is
+    /// the same under every axis composition: the rewritten row never
+    /// carries unit traffic of its own.
     pub fn admits_row_units(self, row: &RegisterInstructionConstraint) -> bool {
-        match self {
-            Self::Isolated
-            | Self::BoundConsumerOperands
-            | Self::BoundEarlyClobberConsumerOperands => {
-                row.implicit_uses.is_empty() && row.clobbers.is_empty()
-            }
-        }
+        row.implicit_uses.is_empty() && row.clobbers.is_empty()
     }
 
-    /// Whether one constraint-row operand carries no unit binding.
+    /// Whether one constraint-row operand carries no unit binding. The
+    /// requirement is the same under every axis composition: the rewritten
+    /// row's operands are rebuilt undecorated.
     pub fn admits_operand(self, operand: &RegisterOperandConstraint) -> bool {
-        match self {
-            Self::Isolated
-            | Self::BoundConsumerOperands
-            | Self::BoundEarlyClobberConsumerOperands => {
-                operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
-            }
-        }
+        operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
     }
 
     /// Whether the admitted consumer's operand unit bindings survive the
-    /// wholesale rebuild from the constraint row. Under
-    /// [`Isolated`](Self::Isolated) no operand may carry a binding; under
-    /// [`BoundConsumerOperands`](Self::BoundConsumerOperands) a `fixed_view`
-    /// pin is admitted because the rewrite deliberately drops it with the
-    /// pinned form; under
-    /// [`BoundEarlyClobberConsumerOperands`](Self::BoundEarlyClobberConsumerOperands)
-    /// an `early_clobber` mark is admitted for the same reason — the
-    /// hazard it names exists only inside the dropped operand list.
+    /// wholesale rebuild from the constraint row: `tied_to` rejects under
+    /// every composition, and each other binding kind is admitted only
+    /// under its own axis — a `fixed_view` pin under
+    /// [`DroppedWithOperandList`](PairConsumerBindingAdmission::DroppedWithOperandList)
+    /// on `consumer_fixed_view` because the rewrite deliberately drops it
+    /// with the pinned form, an `early_clobber` mark under the
+    /// `consumer_early_clobber` axis for the same reason — the hazard it
+    /// names exists only inside the dropped operand list.
     pub fn admits_consumer(self, consumer: &SelectedInstruction) -> bool {
-        match self {
-            Self::Isolated => consumer.operands.iter().all(|operand| {
-                operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
-            }),
-            Self::BoundConsumerOperands => consumer
-                .operands
-                .iter()
-                .all(|operand| operand.tied_to.is_none() && !operand.early_clobber),
-            Self::BoundEarlyClobberConsumerOperands => consumer
-                .operands
-                .iter()
-                .all(|operand| operand.tied_to.is_none()),
-        }
+        let admits_fixed_view = matches!(
+            self.consumer_fixed_view,
+            PairConsumerBindingAdmission::DroppedWithOperandList
+        );
+        let admits_early_clobber = matches!(
+            self.consumer_early_clobber,
+            PairConsumerBindingAdmission::DroppedWithOperandList
+        );
+        consumer.operands.iter().all(|operand| {
+            operand.tied_to.is_none()
+                && (admits_fixed_view || operand.fixed_view.is_none())
+                && (admits_early_clobber || !operand.early_clobber)
+        })
     }
 
     /// Whether the eliminated producer's instruction record carries no unit
     /// traffic — implicit uses, definitions, clobbers, or operand bindings —
     /// that removing the instruction would silently drop. The requirement is
-    /// the same under every variant: the eliminated instruction never
-    /// survives in any form.
+    /// the same under every axis composition: the eliminated instruction
+    /// never survives in any form.
     pub fn admits_producer(self, producer: &SelectedInstruction) -> bool {
-        match self {
-            Self::Isolated
-            | Self::BoundConsumerOperands
-            | Self::BoundEarlyClobberConsumerOperands => {
-                producer.implicit_uses.is_empty()
-                    && producer.implicit_defs.is_empty()
-                    && producer.clobbers.is_empty()
-                    && producer.operands.iter().all(|operand| {
-                        operand.fixed_view.is_none()
-                            && operand.tied_to.is_none()
-                            && !operand.early_clobber
-                    })
-            }
-        }
+        producer.implicit_uses.is_empty()
+            && producer.implicit_defs.is_empty()
+            && producer.clobbers.is_empty()
+            && producer.operands.iter().all(|operand| {
+                operand.fixed_view.is_none() && operand.tied_to.is_none() && !operand.early_clobber
+            })
     }
 }
 
@@ -1289,7 +1324,7 @@ impl SelectedInstructionPairRule {
         operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
-        unit_effects: PairUnitEffects::Isolated,
+        unit_effects: PairUnitEffects::ISOLATED,
         machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding the left operand of `ExactAddI64`:
@@ -1308,7 +1343,7 @@ impl SelectedInstructionPairRule {
         operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
-        unit_effects: PairUnitEffects::Isolated,
+        unit_effects: PairUnitEffects::ISOLATED,
         machine_effects: PairMachineEffects::ISOLATED,
     };
     pub const COMPARE_IMMEDIATE_U12: Self = Self {
@@ -1318,7 +1353,7 @@ impl SelectedInstructionPairRule {
         operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ImplicitUnits,
-        unit_effects: PairUnitEffects::Isolated,
+        unit_effects: PairUnitEffects::ISOLATED,
         machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding the operand-0 `Use` — the
@@ -1354,7 +1389,7 @@ impl SelectedInstructionPairRule {
         // target immediate bound applies to the source literal itself.
         immediate_bound: PairImmediateBound::Encoding(u64::MAX),
         result: PairResultDisposition::ScalarRegister,
-        unit_effects: PairUnitEffects::Isolated,
+        unit_effects: PairUnitEffects::ISOLATED,
         machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding `ZeroExtendU8`: the result is the
@@ -1433,7 +1468,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Encoding(4095),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::Isolated,
+            unit_effects: PairUnitEffects::ISOLATED,
             machine_effects: PairMachineEffects::indexed_pointer_read_fold(1),
         };
         assert!(
@@ -1466,7 +1501,7 @@ impl SelectedInstructionPairRule {
         operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
-        unit_effects: PairUnitEffects::Isolated,
+        unit_effects: PairUnitEffects::ISOLATED,
         machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding the operand-0 backing operand of
@@ -1492,7 +1527,7 @@ impl SelectedInstructionPairRule {
     /// [`FaultDischargedByLiteral`](PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL),
     /// its operands may carry the register pins the pinned-operand form
     /// requires under
-    /// [`BoundConsumerOperands`](PairUnitEffects::BoundConsumerOperands),
+    /// [`BOUND_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_CONSUMER_OPERANDS),
     /// and every `Use` operand past the operand-2 `Def` result — the
     /// zeroed high-half scratch a realization like x86-64 `div` reads — is
     /// dropped under
@@ -1509,7 +1544,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES,
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL,
         };
         assert!(
@@ -1538,7 +1573,7 @@ impl SelectedInstructionPairRule {
     /// so the descriptor never claims the literal did the obligation's
     /// work. The operands may carry the register pins the pinned-operand
     /// realization requires under
-    /// [`BoundConsumerOperands`](PairUnitEffects::BoundConsumerOperands),
+    /// [`BOUND_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_CONSUMER_OPERANDS),
     /// the operand-1 divisor `Use` is dropped with the form because the
     /// constant result never reads it, and every `Use` operand past the
     /// operand-2 `Def` result — the zeroed high-half input an x86-64
@@ -1561,7 +1596,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION,
         };
         assert!(
@@ -1586,7 +1621,7 @@ impl SelectedInstructionPairRule {
     /// [`FaultDischargedByLiteral`](PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL),
     /// its operands may carry the register pins and early-clobber marks a
     /// pinned-scratch realization requires under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS),
     /// and every operand past the operand-2 `Def` result — the dead
     /// quotient scratch an x86-64 `idiv` realization writes — is a `Def`
     /// the fold drops under
@@ -1604,7 +1639,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL,
         };
         assert!(
@@ -1635,7 +1670,7 @@ impl SelectedInstructionPairRule {
     /// it — so the encoded fault cannot fire on this instruction. The
     /// operands may carry the register pins and early-clobber marks a
     /// pinned-scratch realization requires under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS),
     /// the operand-0 dividend `Use` is dropped with the form because the
     /// constant result never reads it, and every operand past the
     /// operand-2 `Def` result — the dead quotient scratch an x86-64
@@ -1656,7 +1691,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(u64::MAX),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL,
         };
         assert!(
@@ -1686,7 +1721,7 @@ impl SelectedInstructionPairRule {
     /// so the descriptor never claims the literal did the obligation's
     /// work. The operands may carry the register pins and early-clobber
     /// marks a pinned-scratch realization requires under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS),
     /// the operand-1 divisor `Use` is dropped with the form because the
     /// constant result never reads it, and every operand past the
     /// operand-2 `Def` result — the dead quotient scratch an x86-64
@@ -1706,7 +1741,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION,
         };
         assert!(
@@ -1728,7 +1763,7 @@ impl SelectedInstructionPairRule {
     /// with the folded form — and neither side pins or binds an operand,
     /// so the ordinary
     /// [`Isolated`](PairMachineEffects::ISOLATED) and
-    /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
+    /// [`Isolated`](PairUnitEffects::ISOLATED) surfaces apply. The
     /// operand-0 `Use` is dropped because the constant result never reads
     /// it, under the
     /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT)
@@ -1742,7 +1777,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::Isolated,
+            unit_effects: PairUnitEffects::ISOLATED,
             machine_effects: PairMachineEffects::ISOLATED,
         };
         assert!(
@@ -1784,7 +1819,7 @@ impl SelectedInstructionPairRule {
     /// dies with the folded form — and neither side pins or binds an
     /// operand, so the ordinary
     /// [`Isolated`](PairMachineEffects::ISOLATED) and
-    /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
+    /// [`Isolated`](PairUnitEffects::ISOLATED) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
     /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand.
@@ -1796,7 +1831,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::Isolated,
+            unit_effects: PairUnitEffects::ISOLATED,
             machine_effects: PairMachineEffects::ISOLATED,
         };
         assert!(
@@ -1837,7 +1872,7 @@ impl SelectedInstructionPairRule {
     /// there is no flag clobber to retire — and neither side pins or
     /// binds an operand, so the ordinary
     /// [`Isolated`](PairMachineEffects::ISOLATED) and
-    /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
+    /// [`Isolated`](PairUnitEffects::ISOLATED) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
     /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand.
@@ -1849,7 +1884,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::Isolated,
+            unit_effects: PairUnitEffects::ISOLATED,
             machine_effects: PairMachineEffects::ISOLATED,
         };
         assert!(
@@ -1889,7 +1924,7 @@ impl SelectedInstructionPairRule {
     /// where one is declared, dies with the folded form — and neither
     /// side pins or binds an operand, so the ordinary
     /// [`Isolated`](PairMachineEffects::ISOLATED) and
-    /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
+    /// [`Isolated`](PairUnitEffects::ISOLATED) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
     /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand. The
@@ -1905,7 +1940,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(u64::MAX),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::Isolated,
+            unit_effects: PairUnitEffects::ISOLATED,
             machine_effects: PairMachineEffects::ISOLATED,
         };
         assert!(
@@ -1954,7 +1989,7 @@ impl SelectedInstructionPairRule {
     /// mark the x86-64 saturating realization declares on its result —
     /// the hazard it names exists only inside the dropped operand list —
     /// under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS).
     /// The operand-0 `Use` survives under the ordinary
     /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand. The u64
@@ -1969,7 +2004,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
@@ -2011,7 +2046,7 @@ impl SelectedInstructionPairRule {
     /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// only while dead in the function — both targets mark the dropped
     /// result and scratch `early_clobber`, admitted under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS),
     /// and the x86-64 row's `rflags` clobber retires unconditionally.
     const fn saturating_add_zero_clamped(carrier: SaturatingCarrier) -> Self {
         let rule = Self {
@@ -2021,7 +2056,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
@@ -2100,7 +2135,7 @@ impl SelectedInstructionPairRule {
     /// `early_clobber` marks the saturating realizations declare on their
     /// `Def` outputs — the hazard they name exists only inside the
     /// dropped operand list — under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS).
     /// The family shares its consumer kind and operand positions with the
     /// zero-identity fold: the literal's value names which family a
     /// `SaturatingAdd` fold belongs to, and the grammars stay disjoint on
@@ -2113,7 +2148,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(carrier.maximum_bits()),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
@@ -2189,7 +2224,7 @@ impl SelectedInstructionPairRule {
     /// mark the x86-64 saturating realization declares on its result —
     /// the hazard it names exists only inside the dropped operand list —
     /// under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS).
     /// The operand-0 `Use` survives under the ordinary
     /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand.
@@ -2201,7 +2236,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
@@ -2228,7 +2263,7 @@ impl SelectedInstructionPairRule {
     /// [`DeadConsumerUnitDefs`](PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS)
     /// only while dead in the function — both targets mark the dropped
     /// result and scratch `early_clobber`, admitted under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands),
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS),
     /// and the x86-64 row's `rflags` clobber retires unconditionally.
     const fn saturating_subtract_zero_clamped(carrier: SaturatingCarrier) -> Self {
         let rule = Self {
@@ -2238,7 +2273,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
@@ -2293,7 +2328,7 @@ impl SelectedInstructionPairRule {
     /// `early_clobber` mark the x86-64 saturating realization declares on
     /// its result — the hazard it names exists only inside the dropped
     /// operand list — under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS).
     /// The family shares its consumer kind with the right-zero identity
     /// fold; the grammars stay disjoint on the folded literal's operand
     /// position.
@@ -2305,7 +2340,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
@@ -2363,7 +2398,7 @@ impl SelectedInstructionPairRule {
     /// `early_clobber` mark the x86-64 saturating realization declares on
     /// its result — the hazard it names exists only inside the dropped
     /// operand list — under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS).
     /// The family shares its consumer kind and operand position with the
     /// right-zero identity fold: the folded literal's value names which
     /// `SaturatingSubtract` subtrahend family a fold belongs to.
@@ -2375,7 +2410,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(carrier.maximum_bits()),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::DEAD_CONSUMER_UNIT_DEFS,
         };
         assert!(
@@ -2430,7 +2465,7 @@ impl SelectedInstructionPairRule {
     /// consumer's operands may carry the register pins the x86-64 `div`
     /// realization requires and the `early_clobber` marks the clamped
     /// aarch64 signed rows declare on their `Def` outputs under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS).
     /// The operand-0 `Use` survives into the rewritten row; every operand
     /// past the operand-2 `Def` result drops under
     /// [`BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS`](PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS) —
@@ -2453,7 +2488,7 @@ impl SelectedInstructionPairRule {
             operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS,
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_LITERAL_DEAD_UNIT_DEFS,
         };
         assert!(
@@ -2504,7 +2539,7 @@ impl SelectedInstructionPairRule {
     /// the x86-64 `div`/`idiv` realizations require and the
     /// `early_clobber` marks the clamped aarch64 signed rows declare on
     /// their `Def` outputs under
-    /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
+    /// [`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS`](PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS).
     /// The operand-1 divisor `Use` is dropped with the form because the
     /// constant result never reads it; every operand past the operand-2
     /// `Def` result drops under
@@ -2532,7 +2567,7 @@ impl SelectedInstructionPairRule {
                 PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
-            unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
+            unit_effects: PairUnitEffects::BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS,
             machine_effects: PairMachineEffects::FAULT_DISCHARGED_BY_OBLIGATION_DEAD_UNIT_DEFS,
         };
         assert!(

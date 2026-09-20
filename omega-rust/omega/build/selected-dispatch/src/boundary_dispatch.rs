@@ -9,7 +9,7 @@
 //! adapter calls; `tests.rs` holds the dispatch tests.
 
 mod adapter_rows;
-mod boundary_fields;
+pub(crate) mod boundary_fields;
 mod signature_families;
 #[cfg(test)]
 mod tests;
@@ -303,7 +303,7 @@ fn plan_selected_boundary_adapter_dispatch(
     }
 
     // A by-value `self` requirement is called through a member receiver
-    // (`token.consume()` or the one-hop projection `holder.token.consume()`),
+    // (`token.consume()` or a projected place like `holder.inner.token.consume()`),
     // whose retained receiver symbol is the receiver PLACE leaf -- a per-site
     // parameter, `self` binding, local, or projected field member -- not the
     // nominal owner. Register the receiver place of each member call that

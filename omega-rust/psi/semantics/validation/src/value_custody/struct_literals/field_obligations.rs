@@ -9,6 +9,26 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// Whether every declared member of `data_definition` is concrete at
+/// construction. `Value` binders lower to implicit leading fields of their
+/// carrier type, so an all-value-parametered data type constructs and reads
+/// like a plain record; type, `const`, and machine parameters defer member
+/// types to instantiation.
+pub(crate) fn construction_members_are_concrete(
+    program: &TypedTrees,
+    data_definition: &DataDefinition,
+) -> bool {
+    program
+        .data_type_parameters(data_definition)
+        .iter()
+        .all(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Value { .. }
+            )
+        })
+}
+
 fn validate_anonymous_element_landing(
     program: &TypedTrees,
     machine: &Machine,
@@ -66,7 +86,7 @@ pub(super) fn enforce_construction_field_obligations(
     else {
         return;
     };
-    if data_definition.type_parameters.count() > 0 {
+    if !construction_members_are_concrete(program, data_definition) {
         return;
     }
 
@@ -520,7 +540,7 @@ pub(crate) fn selected_construction_field_type(
         .iter()
         .filter(|definition| definition.symbol == literal.type_symbol);
     let definition = definitions.next()?;
-    if definitions.next().is_some() || !definition.type_parameters.is_empty() {
+    if definitions.next().is_some() || !construction_members_are_concrete(program, definition) {
         return None;
     }
     let case = if let Some(case_symbol) = literal.case_symbol.filter(|symbol| symbol.is_valid()) {

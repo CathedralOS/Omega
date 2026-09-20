@@ -27,7 +27,10 @@
 //! Their type, integer and Boolean const positions recursively recover binders, or build
 //! an omitted type once those binders are known. `type_structure` owns this
 //! traversal: nominal heads join by selected declaration, never layout or leaf
-//! spelling. Closed leaves still use `closed_argument_identity`.
+//! spelling. Declared domains join the same traversal by declaration and
+//! carrier — the `u64::AtMost<N>` head and the `u64 in AtMost<N>` constraint
+//! name one application whose indices are the family's declared binders.
+//! Closed leaves still use `closed_argument_identity`.
 //! Borrow and singleton-array operands gain type role only opposite a declared
 //! type binder. They materialize into that same type tree; ordinary value-borrow
 //! equalities remain value facts, never parser guesses about identifier spelling.

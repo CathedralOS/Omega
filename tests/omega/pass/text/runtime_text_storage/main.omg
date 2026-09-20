@@ -10,7 +10,7 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write("> ");
-    self.echo_line();
+    block self.echo_line();
     self.console.exit_process(0);
 }
 

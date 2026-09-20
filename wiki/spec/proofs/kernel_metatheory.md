@@ -383,7 +383,14 @@ normalizing a source equality can reverse its endpoints. An open sum whose
 correlated difference has collapsed to its numeral `n` cannot match the
 applicative `add (sub e r) r` cancellation, so the chain substitutes the
 checked numeral-operation equation `add n r = e` — an exact interned
-assumption, once per evaluated operand triple — in its place. No
+assumption, once per evaluated operand triple — in its place.
+Correlated subtraction lower and upper bounds reuse the same machinery
+with two fixed `add`/`sub` adjunctions — `add a c ≤ b → a ≤ sub b c` and
+`b ≤ add a c → sub b c ≤ a`: after a value root substitutes through its
+cited definition, a closed sum's numeral `n` substitutes the checked
+equation `add e r = n` in reverse to reach the applicative premise the
+adjunction expects, and a landed endpoint substitutes through its cited
+literal equality as in the addition chain. No
 arithmetic law becomes definitional conversion. Other open operations
 remain opaque. These fixed laws are assumptions, not an arithmetic consistency
 result. Recursive evaluator preflights may revisit prefixes;

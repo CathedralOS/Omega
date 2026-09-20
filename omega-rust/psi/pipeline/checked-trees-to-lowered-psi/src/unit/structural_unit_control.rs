@@ -32,22 +32,6 @@ pub(crate) fn lower_structural_unit_control_machine(
             .terminal_structural_unit_controls
             .structural_types,
     )?;
-    if plan
-        .states
-        .iter()
-        .filter(|state| {
-            matches!(
-                state.terminator,
-                CheckedStructuralUnitControlTerminatorPlan::Conditional { .. }
-            )
-        })
-        .count()
-        > 2
-    {
-        return unsupported(
-            "structural Unit control supports at most two checked conditional states",
-        );
-    }
     for state in &plan.states {
         if state.structural_parameters.is_empty() {
             return unsupported("structural Unit state has no structural parameters");
@@ -180,21 +164,10 @@ pub(crate) fn lower_structural_unit_control_machine(
                     "structural Unit jump targets an unknown checked state",
                 ))?;
             predecessor_counts[target_index] += 1;
-            if predecessor_counts[target_index] > 2 {
-                return unsupported("structural Unit join supports exactly two incoming frontiers");
-            }
         }
     }
     if predecessor_counts[0] != 0 {
         return unsupported("structural Unit control entry has an incoming edge");
-    }
-    if predecessor_counts
-        .iter()
-        .filter(|count| **count == 2)
-        .count()
-        > 1
-    {
-        return unsupported("structural Unit control supports at most one join state");
     }
 
     let mut bindings = vec![None; plan.states.len()];
