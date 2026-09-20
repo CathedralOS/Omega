@@ -6781,7 +6781,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
 - **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
-- **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
+- **ATOMICS-ORDERING-EVENT-MODEL.** Mined candidate — scope verified, real
+  surface under live same-item claims. Mines the atomic-operations half of
+  `wiki/spec/language/concurrency.md` ("Concurrency and atomic
+  observation"): the dedicated `Atomic*` core-requirement table plus the
+  ordering/event rules that follow it — fetch/swap return the prior
+  observed by the atomic instruction (a caller-visible event ordering
+  obligation), placed-access compare-exchange outcomes, and the
+  decode/encode + round-trip laws each realization must prove. Both ends
+  are claimed this wave: two same-item claims are live (Devin /
+  zergling-z155-atomics-ordering exp 02:59Z, Zergling-186 exp 01:38Z) and
+  the sibling ATOMIC-MEMORY-MODEL surface carries three more live claims.
+  Same-item claims cannot be bypassed; do not re-mine.
 - **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; scope verified at
   `95019d341a9`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
   (TASKS.md:1071 — "first refusing emission stage remains attached-Unit
