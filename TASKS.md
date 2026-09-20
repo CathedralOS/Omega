@@ -8139,7 +8139,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `verify.py` requires Python >=3.11 (`tomllib`); on 3.10 hosts run with
   a `tomli`-backed `tomllib` shim on `PYTHONPATH`.
 - **GEOMETRY-PARITY** — mined candidate; verify scope then implement.
-- **GEOMETRY-REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
+- **GEOMETRY-REGION-ALIGNMENT-EXPANSION.** Resolved — mined duplicate of
+  the resolved GEOMETRY-ALIGNMENT-REGIONS row (this file, ~line 7920):
+  the "region alignment/expansion" parity gap of the squalr port's
+  GEOMETRY-PARITY. The gap is already ported at Squalr-Omega
+  `52bcf254c983a9ae9bf6e0c3661cafd656ca056b` (that repo's `main`):
+  `squalr-engine-api`'s `NormalizedRegion` gained `set_alignment`
+  (forward-distance add to the next multiple, wrapped add at the address
+  edge, end address retained) and `expand` (saturating base subtract and
+  size add around the released doubling multiply), and `squalr-tests`
+  exercises `expand` natively for growth plus low/high saturation.
+  Verified the pin at `7176821bc6`: parent pins
+  `samples/apps/squalr` at `251699c4669d`, which has `52bcf254c9` as an
+  ancestor — the landing is inside the current pin. The residual is not
+  geometry work: `set_alignment` is source-checked but not exercised —
+  a `&mut self` machine taking a data parameter loses the entry
+  attachment identity, a compiler entry-mechanics gap the app board
+  tracks as "the set_alignment call-site gate" under GEOMETRY-PARITY.
+  Sibling aliases resolved same-way: SQUALR-REGION-ALIGNMENT-EXPANSION,
+  SQUALR-SEED-PARITY.
 - **GEOMETRY-WINDOWS-LEG.** Mined candidate — resolved at `9beef2b045`:
   re-mines the same Windows leg of the app repo's GEOMETRY-PARITY acceptance
   that sibling row GEOMETRY-WINDOWS-VALIDATION (~this file, line 7842)
