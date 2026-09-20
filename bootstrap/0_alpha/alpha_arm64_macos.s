@@ -50,7 +50,7 @@ _main:
     // is unchanged.  A refusal (carry set, errno in x0) is a startup trap
     // before any tape byte is copied.
     movz x0, #0
-    movz x1, #0x2000, lsl #32
+    movz x1, #0x20, lsl #32
     movz x2, #3                  // PROT_READ|PROT_WRITE
     movz x3, #0x1002             // MAP_PRIVATE|MAP_ANON
     movn x4, #0                  // fd -1
@@ -59,7 +59,7 @@ _main:
     svc  #0x80
     b.cs Lbounds
     mov  x20, x0
-    movz x23, #0x2000, lsl #32   // fixed semantic extent, preserved by host calls
+    movz x23, #0x20, lsl #32     // fixed semantic extent, preserved by host calls
     adrp x9, _tape@PAGE
     add  x9, x9, _tape@PAGEOFF
     ldr  w10, [x9]

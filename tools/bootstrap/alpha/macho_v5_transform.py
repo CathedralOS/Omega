@@ -7,6 +7,12 @@ after it shifts by one insertion delta), __bss loses the 1.75 GiB mem zerofill,
 and every dependent field (section sizes, segment spans, symtab, linkedit item
 offsets, function starts, dysymtab, indirect symbols) is recomputed. Verified
 by capstone disassembly against the .s source.
+
+Note: the committed alpha_arm64_macos was forged with `movz` immediates of
+0x2000 (extent 0x200000000000, 32 TiB); the corrected source specifies
+0x20<<32 = 0x2000000000 (128 GiB, SEMANTICS.md section 8), which this script
+now emits. The container awaits re-forge + re-signature on a macOS arm64 host
+and repinning of its ALPHA_SEED_ARM64_MACOS_* identity constants.
 """
 import struct, sys
 from capstone import Cs, CS_ARCH_ARM64, CS_MODE_ARM
@@ -30,7 +36,7 @@ def nop():
 
 NEW = []          # init sequence replacing [0x4a8,0x4b0)
 NEW += [movz(0, 0, 0)]            # x0 = NULL
-NEW += [movz(1, 0x2000, 32)]      # x1 = MEMSIZE 0x2000000000
+NEW += [movz(1, 0x20, 32)]        # x1 = MEMSIZE 0x2000000000
 NEW += [movz(2, 3, 0)]            # x2 = PROT_READ|PROT_WRITE
 NEW += [movz(3, 0x1002, 0)]       # x3 = MAP_PRIVATE|MAP_ANON
 NEW += [movn(4, 0)]               # x4 = -1
@@ -51,7 +57,7 @@ bcs_addr = ins_vma + 8 * 4        # svc is instr 8, b.cs is instr 9 at +0x20
 NEW[8] = b_cond(fail_vma, bcs_addr, 2)   # cond 2 = CS/HS
 
 init = b''.join(struct.pack('<I', w) for w in NEW)
-movz23 = struct.pack('<I', movz(23, 0x2000, 32))  # replaces word at 0x4b0
+movz23 = struct.pack('<I', movz(23, 0x20, 32))    # replaces word at 0x4b0
 
 # --- new __text ---
 old_text = old[TEXT_OFF:TEXT_OFF + TEXT_SIZE]
@@ -61,7 +67,7 @@ assert len(new_text) == TEXT_SIZE + DELTA, hex(len(new_text))
 
 # verify all new encodings decode as intended
 md = Cs(CS_ARCH_ARM64, CS_MODE_ARM)
-want = ['mov x0, #0', 'mov x1, #0x200000000000', 'mov x2, #3', 'mov x3, #0x1002',
+want = ['mov x0, #0', 'mov x1, #0x2000000000', 'mov x2, #3', 'mov x3, #0x1002',
         'mov x4, #-1', 'mov x5, #0', 'mov x16, #0xc5', 'svc #0x80', None, 'mov x20, x0']
 got = ['%s %s' % (i.mnemonic, i.op_str) for i in md.disasm(init, ins_vma)]
 for i, (g, w) in enumerate(zip(got, want)):
