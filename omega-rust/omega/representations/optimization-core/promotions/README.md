@@ -21,9 +21,10 @@ each completed evidence field must carry at least one — unverifiable prose
 does not count as evidence. Bare identifiers (`Optimization::ALL`, target
 names, flags) stay prose and are not resolved.
 
-The title, `Exact rule`, `Approved status`, and `Rollback` lines are
-single-valued: each may appear only with its one expected value, never with a
-contradictory duplicate.
+Every schema label is single-occurrence: the title, `Exact rule`,
+`Approved status`, `Owner approval`, each evidence field, and `Rollback`
+appear exactly once — a second line under the same label is rejected even when
+it repeats the same value, and never with a contradictory value.
 
 ```text
 # <ExactRuleName> Promotion
