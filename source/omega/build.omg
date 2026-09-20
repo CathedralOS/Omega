@@ -3,7 +3,7 @@
 
 machine build(builder: &mut Build) {
     builder.application("omega-compiler");
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
