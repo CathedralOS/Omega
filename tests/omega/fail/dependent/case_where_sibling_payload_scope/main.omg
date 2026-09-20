@@ -1,0 +1,12 @@
+// CASE-CONSTRAINTS scope rule (ch12): "another case's payload is not in
+// scope". `x` is case `A`'s payload binding, so case `B`'s `where` fact
+// cannot consult it -- the literal fold must not read an out-of-scope name
+// as the ZII zero and vacuously prove `x >= 0`.
+data Pair {
+    case A(x: u64);
+    case B(y: u64) where x >= 0;
+}
+data Main { pair: Pair; }
+machine Main::main(&mut self) {
+    self.pair = Pair::B { y: 1 };
+}
