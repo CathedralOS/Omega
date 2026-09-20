@@ -2,7 +2,13 @@ use super::{Diagnostic, compile_canary_without_output, fail_canary, pass_canary}
 #[path = "../fixture_rosters/relational_invariants.rs"]
 pub(super) mod fixture_roster;
 
-const INDEX_REJECTION: &str = "cannot prove index `self.i` is within length 8";
+// Both fail groups reject at the index-bounds proof, but the message follows
+// the carrier's dynamic extent rather than the fixed storage capacity:
+// `reassigned_index` reports the live logical length ("within length 1") while
+// the slice-length twins report the unknown `.len` ("within unknown slice
+// length of `self.items`"). Each fixture pins its exact wording through its
+// expected.txt; this shared prefix asserts the rejection is the index proof.
+const INDEX_REJECTION: &str = "cannot prove index `self.i` is within";
 
 fn render(diagnostics: &[Diagnostic]) -> String {
     diagnostics
