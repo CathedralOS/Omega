@@ -299,6 +299,41 @@ fn equatable_string_equality_guard_exit_canary_runs() {
 }
 
 #[test]
+fn equatable_qualified_field_reference_exit_canary_runs() {
+    // Equatable conformance on a record whose field type is referenced by a
+    // module-qualified spelling (`leaf::region::Region`): synthesized
+    // structural equality must join the resolved type symbol to its declared
+    // name, so the field's conformance is found and `Filter == Filter`
+    // expands over the nested record. Qualified `==` operands in a machine
+    // body take the same route (exit 70).
+    let canary = pass_canary(fixture_roster::EQUATABLE_QUALIFIED_FIELD_REFERENCE_EXIT);
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-equatable-qualified-field-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("equatable qualified-field canary should compile");
+
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("equatable qualified-field canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("equatable qualified-field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected synthesized structural `==`/`!=` over a module-qualified field type to agree (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn runtime_deep_nested_field_exit_canary_runs() {
     // A 5-level nested field chain (self.l1.l2.l3.l4.v) written and read back; offsets must compose
     // through every level. v + w = 30 + 40 = 70 (a sibling `tag` decoy discriminates the offsets).

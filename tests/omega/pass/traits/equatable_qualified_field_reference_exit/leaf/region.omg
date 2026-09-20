@@ -1,0 +1,16 @@
+module region;
+
+// Consumers reference this type as `leaf::region::Region` -- an authored
+// module-qualified spelling whose base name is not the declared name.
+pub data Region {
+    base_address: u64;
+    region_size: u64;
+}
+
+// `Region satisfies Equatable;` synthesizes structural equality for the
+// record, so `==`/`!=` on Region values compare both fields.
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+
+RegionEquatable: Region satisfies Equatable;

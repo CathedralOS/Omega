@@ -2753,6 +2753,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "traits/equatable_string_field_equality_exit",
     "traits/equatable_string_not_equals_exit",
     "traits/equatable_string_equality_guard_exit",
+    "traits/equatable_qualified_field_reference_exit",
     "data/runtime_whole_struct_mutation_copy_exit",
     "operators/compound_assignment_exit",
     "operators/unary_negation_exit",
@@ -4606,6 +4607,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "traits/equatable_string_not_equals_exit",
     "traits/equatable_string_equality_guard_exit",
     "traits/equatable_sum_payload_equality_exit",
+    "traits/equatable_qualified_field_reference_exit",
     "traits/transparent_refinement_declaration",
     "termination/runtime_shrinking_slice_recursion_exit",
     // --- Language-guide chapter coverage (Ch1-22) ---
