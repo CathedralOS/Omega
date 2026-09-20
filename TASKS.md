@@ -6244,7 +6244,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   condition: SUPPLIED-BYTES-SCAN lands its engine-api/scanning port, then
   this row ports the command model on top.
 - **SQUALR-ALIGNMENT-STRING-PARSING.** Alignment string parsing.
-- **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity.
+- **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity. Scope
+  verified at `10d93dd448`, fenced — the residual the app board lists under
+  GEOMETRY-PARITY ("clone/serialization", samples/apps/squalr/TASKS.md):
+  upstream Squalr `568aa7589b68` derives `Clone`/`Serialize`/`Deserialize`
+  across its structures and snapshot types (region filters, normalized
+  regions, scan results) so scans can be cloned for successive filtering and
+  snapshots serialized to project files; the port carries only three
+  structures modules so far
+  (`squalr-engine-api/src/structures/{scanning/filters/snapshot_region_filter,
+  memory/normalized_region, memory/memory_alignment}.omg`) with no
+  clone/serialization leg ported yet. The implementing surface
+  `samples/apps/squalr` is dir-fenced by SQUALR-TARGETS-AND-THROUGHPUT
+  (~21:39Z) and GEOMETRY-ALIGNMENT-REGIONS (~01:18Z); sibling stub
+  SQUALR-CLONE-SERIALIZATION (below, ~7395) re-mines the same residual.
+  Claim evidence (z181): claim returned exit 2 on the fenced app dir.
 - **SQUALR-GEOMETRY-PARITY.** Geometry parity gaps + debug assertions.
   Re-witnessed `ac4e4eee9b` (z194, Linux x86-64): `Squalr geometry: PASS`,
   native exit 0 through `tools/verify.py native` on the scratch-copied app
