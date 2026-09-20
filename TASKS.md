@@ -7631,7 +7631,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   **TV-OPERATOR-APPLICATIONS-REPLAY** per those rows. Sibling stubs naming
   the same surface: DYNAMIC-CALL-PHYSICAL-EVIDENCE,
   DYNAMIC-DISPATCH-ROW-MAPS.
-- **DYNAMIC-CALL-PHYSICAL-EVIDENCE** — mined candidate; verify scope then implement.
+- **DYNAMIC-CALL-PHYSICAL-EVIDENCE.** Resolved — sibling re-mine of the
+  landed **DYNAMIC-CALL-OCCURRENCE-SPANS** row (this file): every
+  surviving `CallDynamic*` produces a coverage occurrence joining the
+  emitted call instruction's span, dispatch-parent identity, and role at
+  `95019d341a9` — `native-artifact/src/physical/operator_applications.rs`
+  `derive_dynamic_call_span` covers direct, stored, forwarded-parameter
+  and forwarded-descriptor calls with single-record rejoin, non-empty/
+  non-relocated span, and exact-relocation checks. The physical evidence
+  this stub names is that occurrence record; witness re-verified green at
+  `637941fae7` (`dynamic_call_occurrence_binds_its_dispatch_role_and_
+  parent_identity`). Occurrence-replay residual for the remaining
+  families stays on **TV-OPERATOR-APPLICATIONS-REPLAY** per that row.
+  Sibling stub naming the same surface: DYNAMIC-DISPATCH-ROW-MAPS.
 - **DYNAMIC-DISPATCH-ROW-MAPS** — mined candidate; verify scope then implement.
 - **DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **EDGE-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — sibling alias of the
