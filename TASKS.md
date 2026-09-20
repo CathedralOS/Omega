@@ -6419,7 +6419,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOF-DERIVED-LOAN-COMPATIBILITY** — mined candidate; verify scope then implement.
 - **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC** — mined candidate; verify scope then implement.
 - **PROOF-INTERCHANGE-INDUCTION-CERTIFICATE** — mined candidate; verify scope then implement.
-- **PROOF-INTERCHANGE-SORT-ENCODING** — mined candidate; verify scope then implement.
 - **PROOF-OBLIGATION-SEMANTIC-IDENTITY** — mined candidate; verify scope then implement.
 - **PROOF-OBLIGATION-SEMANTIC-KEY** — mined candidate; verify scope then implement.
 - **PROOF-QUANTIFIER-AUTOMATION** — mined candidate; verify scope then implement.
