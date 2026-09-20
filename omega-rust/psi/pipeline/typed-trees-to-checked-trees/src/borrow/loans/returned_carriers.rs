@@ -252,6 +252,7 @@ pub(super) fn argument_loans(
             source_owner_symbol: SymbolHandle::invalid(),
             lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
             kind: field.kind.clone(),
+            call_result: false,
         });
     }
 

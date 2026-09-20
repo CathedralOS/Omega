@@ -507,7 +507,8 @@ fn derived_loan_lifecycle_cannot_be_moved_to_erase_a_call_comparison() {
         machine identity(value: &mut i32) -> &mut i32 { value }
         machine observe(value: &i32) {}
         machine Main::main(&mut self) {
-            let held: &mut i32 = identity(&mut self.left);
+            let source: &mut i32 = &mut self.left;
+            let held: &mut i32 = identity(source);
             observe(&self.right);
             held = 1;
         }
