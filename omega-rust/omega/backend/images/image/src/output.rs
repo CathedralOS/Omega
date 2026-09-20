@@ -36,6 +36,10 @@ pub struct ExecutableImageOutput {
     pub final_text_bytes: Vec<u8>,
     /// Exact relocated initialized-data bytes before container padding/signing.
     pub final_data_bytes: Vec<u8>,
+    /// Exact writer-owned import-data bytes outside `.data` — the PE `.rdata`
+    /// import table whose IAT slots the thunks load through. Empty when the
+    /// target emits none.
+    pub final_import_data_bytes: Vec<u8>,
     pub file_name: String,
     pub format: String,
     pub text_bytes: usize,
@@ -48,6 +52,10 @@ pub struct ExecutableImageOutput {
     /// Placed initialized-data custody: compiler data plus any writer-owned
     /// binding slots. The complete final data must classify or be refused.
     pub data_regions: crate::PlacedDataRegionInventory,
+    /// Placed custody over `final_import_data_bytes` — the bound pointer
+    /// slots a closed thunk form decodes to. The canonical empty inventory
+    /// when the target emits no import-data extent.
+    pub import_data_regions: crate::PlacedDataRegionInventory,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +64,9 @@ pub struct EmittedImageOutput {
     pub final_image_layout: crate::FinalImageLayout,
     pub final_text_bytes: Vec<u8>,
     pub final_data_bytes: Vec<u8>,
+    /// Exact writer-owned import-data bytes outside `.data`, as on
+    /// [`ExecutableImageOutput`]. Empty when the target emits none.
+    pub final_import_data_bytes: Vec<u8>,
     /// Compact reporting coordinate. Exact callback-placement rows are replayed
     /// before image emission; this value does not recreate that authority.
     pub callback_placement_identity_report_fingerprint: u64,
@@ -72,6 +83,9 @@ pub struct EmittedImageOutput {
     pub final_image_relocations: usize,
     pub executable_regions: crate::PlacedExecutableRegionInventory,
     pub data_regions: crate::PlacedDataRegionInventory,
+    /// Placed custody over `final_import_data_bytes`, as on
+    /// [`ExecutableImageOutput`].
+    pub import_data_regions: crate::PlacedDataRegionInventory,
     pub compiler_text_validation: Option<CompilerTextValidationEvidence>,
     pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
     pub compiler_entry_region_binding: Option<CompilerEntryRegionBindingEvidence>,
@@ -472,6 +486,7 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         final_image_layout: output.final_image_layout,
         final_text_bytes: output.final_text_bytes,
         final_data_bytes: output.final_data_bytes,
+        final_import_data_bytes: output.final_import_data_bytes,
         callback_placement_identity_report_fingerprint: 0,
         file_name: output.file_name,
         format: output.format,
@@ -486,6 +501,7 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
         final_image_relocations: output.relocations,
         executable_regions: output.executable_regions,
         data_regions: output.data_regions,
+        import_data_regions: output.import_data_regions,
         compiler_text_validation: None,
         compiler_function_validation: None,
         compiler_entry_region_binding: None,

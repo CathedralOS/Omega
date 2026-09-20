@@ -133,9 +133,11 @@ pub fn build_native_proof_sidecar(
 /// violations. A recognized placed-image section is then replayed against the
 /// exact artifact bytes — a section that lies about those bytes rejects by
 /// name — while an absent or unrecognized section stays `Incomplete`. Even a
-/// fully replayed section only establishes exact byte coverage of both
-/// declared extents plus the closed realization of its import thunks (and on
-/// aarch64 Mach-O the binding slots their decoded pointers load): the
+/// fully replayed section only establishes exact byte coverage of all
+/// declared extents plus the closed realization of its import thunks — and
+/// the binding slots their decoded pointers load, committed in the
+/// initialized-data inventory on aarch64 Mach-O and in the `.rdata`
+/// import-data inventory on x86-64 Coff: the
 /// behavioral remainder (instruction rows inside compiler regions, entries,
 /// incoming edges, premise availability, lowering correspondence) stays
 /// `Incomplete` until standalone native semantics and preservation checking
@@ -389,6 +391,8 @@ mod tests {
             placed_inventory(&text),
             0,
             empty_data_inventory(),
+            0,
+            empty_data_inventory(),
         );
         let native = sidecar_with_profile(
             PccProductKind::Native,
@@ -412,6 +416,8 @@ mod tests {
             target::NativeTarget::host(),
             text_file_offset - 1,
             placed_inventory(&text),
+            0,
+            empty_data_inventory(),
             0,
             empty_data_inventory(),
         );
@@ -447,7 +453,7 @@ mod tests {
         let malformed = sidecar(
             PccProductKind::Native,
             &executable,
-            b"NPLCIMG1\x02\x00garbage".to_vec(),
+            b"NPLCIMG1\x03\x00garbage".to_vec(),
         );
         let malformed_policy = offered_policy(&malformed);
         assert!(matches!(

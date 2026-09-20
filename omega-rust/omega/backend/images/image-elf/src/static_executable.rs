@@ -6,8 +6,9 @@
 
 use diagnostics::Diagnostic;
 use image::{
-    ExecutableImageOutput, FinalImage, FinalImageLayout, apply_aarch64_relocations,
-    apply_x86_64_relocations, place_data_regions, place_executable_regions,
+    ExecutableImageOutput, FinalImage, FinalImageLayout, PlacedDataRegionInventory,
+    apply_aarch64_relocations, apply_x86_64_relocations, place_data_regions,
+    place_executable_regions,
 };
 
 mod headers;
@@ -107,6 +108,7 @@ fn emit_elf_executable(
         final_image_layout: layout,
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
+        final_import_data_bytes: Vec::new(),
         bytes,
         file_name: "omega-program".to_owned(),
         format: format.to_owned(),
@@ -118,6 +120,7 @@ fn emit_elf_executable(
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
         data_regions,
+        import_data_regions: PlacedDataRegionInventory::empty(),
     })
 }
 

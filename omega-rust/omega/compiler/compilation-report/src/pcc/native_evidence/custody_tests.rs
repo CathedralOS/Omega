@@ -2,14 +2,17 @@
 //! `.proof` sidecar carries.
 //!
 //! The section's representable fields are the declared target tuple, the
-//! declared executable-text and initialized-data file offsets, and every field
-//! of both sealed inventories: for [`image::PlacedExecutableRegionInventory`]
-//! the text address, byte count, digest and report fingerprint, the inventory
-//! seal digest and fingerprint, each region row's origin, section offset,
-//! address, byte count, byte digest, byte report fingerprint, symbol, and
-//! optional footprint with its register and machine-state sets, and each gap
-//! row's five fields; for [`image::PlacedDataRegionInventory`] the same scalar
-//! and row shape minus footprints.
+//! declared executable-text, initialized-data and import-data file offsets,
+//! and every field of the three sealed inventories: for
+//! [`image::PlacedExecutableRegionInventory`] the text address, byte count,
+//! digest and report fingerprint, the inventory seal digest and fingerprint,
+//! each region row's origin, section offset, address, byte count, byte
+//! digest, byte report fingerprint, symbol, and optional footprint with its
+//! register and machine-state sets, and each gap row's five fields; for each
+//! [`image::PlacedDataRegionInventory`] the same scalar and row shape minus
+//! footprints. An import-data row that is not an `ImportBindingSlot`, or a
+//! populated import-data inventory on a target that emits no separate
+//! import-data extent, is unrepresentable.
 //!
 //! Each representable field substitutes independently — at the record level,
 //! or at the wire level for the opaque scalar and digest fields — and the
@@ -157,6 +160,8 @@ fn honest_pair() -> (NativePlacedImageEvidence, Vec<u8>) {
         placed_inventory(&text),
         DATA_FILE_OFFSET,
         placed_data_inventory(&data),
+        0,
+        image::PlacedDataRegionInventory::empty(),
     );
     (evidence, executable)
 }
@@ -299,6 +304,17 @@ struct SectionSpans {
     data_regions: Vec<DataRegionSpan>,
     data_gap_count: Range<usize>,
     data_gaps: Vec<GapSpan>,
+    import_data_file_offset: Range<usize>,
+    import_data_address: Range<usize>,
+    import_data_byte_count: Range<usize>,
+    import_data_digest: Range<usize>,
+    import_data_report_fingerprint: Range<usize>,
+    import_data_inventory_digest: Range<usize>,
+    import_data_inventory_report_fingerprint: Range<usize>,
+    import_data_region_count: Range<usize>,
+    import_data_regions: Vec<DataRegionSpan>,
+    import_data_gap_count: Range<usize>,
+    import_data_gaps: Vec<GapSpan>,
     end: usize,
 }
 
@@ -425,6 +441,58 @@ fn section_spans(encoded: &[u8]) -> SectionSpans {
             byte_report_fingerprint,
         });
     }
+    let import_data_file_offset = cursor.take(8);
+    let import_data_address = cursor.take(8);
+    let import_data_byte_count = cursor.take(8);
+    let import_data_digest = cursor.take(32);
+    let import_data_report_fingerprint = cursor.take(8);
+    let import_data_inventory_digest = cursor.take(32);
+    let import_data_inventory_report_fingerprint = cursor.take(8);
+    let (import_data_region_count, import_data_region_len) = cursor.u64();
+    let mut import_data_regions = Vec::with_capacity(
+        usize::try_from(import_data_region_len).expect("import-data region count"),
+    );
+    for _ in 0..import_data_region_len {
+        let start = cursor.offset;
+        let origin = cursor.take(1);
+        let section_offset = cursor.take(8);
+        let address = cursor.take(8);
+        let byte_count = cursor.take(8);
+        let byte_digest = cursor.take(32);
+        let byte_report_fingerprint = cursor.take(8);
+        let (symbol_len, symbol_bytes) = cursor.u64();
+        let symbol = cursor.take(usize::try_from(symbol_bytes).expect("symbol length"));
+        import_data_regions.push(DataRegionSpan {
+            whole: start..cursor.offset,
+            origin,
+            section_offset,
+            address,
+            byte_count,
+            byte_digest,
+            byte_report_fingerprint,
+            symbol_len,
+            symbol,
+        });
+    }
+    let (import_data_gap_count, import_data_gap_len) = cursor.u64();
+    let mut import_data_gaps =
+        Vec::with_capacity(usize::try_from(import_data_gap_len).expect("import-data gap count"));
+    for _ in 0..import_data_gap_len {
+        let start = cursor.offset;
+        let section_offset = cursor.take(8);
+        let address = cursor.take(8);
+        let byte_count = cursor.take(8);
+        let byte_digest = cursor.take(32);
+        let byte_report_fingerprint = cursor.take(8);
+        import_data_gaps.push(GapSpan {
+            whole: start..cursor.offset,
+            section_offset,
+            address,
+            byte_count,
+            byte_digest,
+            byte_report_fingerprint,
+        });
+    }
     SectionSpans {
         magic,
         version,
@@ -454,6 +522,17 @@ fn section_spans(encoded: &[u8]) -> SectionSpans {
         data_regions,
         data_gap_count,
         data_gaps,
+        import_data_file_offset,
+        import_data_address,
+        import_data_byte_count,
+        import_data_digest,
+        import_data_report_fingerprint,
+        import_data_inventory_digest,
+        import_data_inventory_report_fingerprint,
+        import_data_region_count,
+        import_data_regions,
+        import_data_gap_count,
+        import_data_gaps,
         end: cursor.offset,
     }
 }
@@ -496,6 +575,8 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
     assert_eq!(spans.gaps.len(), 2);
     assert_eq!(spans.data_regions.len(), 1);
     assert_eq!(spans.data_gaps.len(), 1);
+    assert!(spans.import_data_regions.is_empty());
+    assert!(spans.import_data_gaps.is_empty());
     assert_eq!(
         NativePlacedImageEvidence::from_bytes(&encoded),
         Ok(honest.clone()),
@@ -1180,6 +1261,78 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
         "native executable inventory",
     );
 
+    // --- the import-data extent ---
+
+    // The import-data inventory is the canonical empty one here, so its
+    // representable substitutions split two ways: a field that makes the
+    // inventory non-empty-shaped (its base address, byte count, or row
+    // rosters) or that points its extent somewhere decodes as an
+    // unrepresentable claim — a non-empty `.rdata` custody inventory exists
+    // only under x86-64 Coff, and an empty one carries no extent — while a
+    // digest or fingerprint substitution stays canonical and fails the
+    // replayed seal over the empty extent instead.
+    malformed(
+        "a shifted declared import-data extent",
+        splice(
+            &encoded,
+            &spans.import_data_file_offset,
+            &4u64.to_le_bytes(),
+        ),
+    );
+
+    let mut wire = encoded.clone();
+    wire[spans.import_data_address.start] ^= 0xff;
+    malformed("a substituted import-data base address", wire);
+
+    let mut wire = encoded.clone();
+    wire[spans.import_data_byte_count.start] ^= 1;
+    malformed("a substituted import-data byte count", wire);
+
+    let mut wire = encoded.clone();
+    wire[spans.import_data_digest.start] ^= 0xff;
+    rejects_wire_at_replay(
+        "a substituted import-data digest",
+        wire,
+        "native executable inventory",
+    );
+
+    let mut wire = encoded.clone();
+    wire[spans.import_data_report_fingerprint.start] ^= 1;
+    rejects_wire_at_replay(
+        "a substituted import-data fingerprint",
+        wire,
+        "native executable inventory",
+    );
+
+    let mut wire = encoded.clone();
+    wire[spans.import_data_inventory_digest.start] ^= 0xff;
+    rejects_wire_at_replay(
+        "a substituted import-data inventory seal digest",
+        wire,
+        "native executable inventory",
+    );
+
+    let mut wire = encoded.clone();
+    wire[spans.import_data_inventory_report_fingerprint.start] ^= 1;
+    rejects_wire_at_replay(
+        "a substituted import-data inventory seal fingerprint",
+        wire,
+        "native executable inventory",
+    );
+
+    malformed(
+        "a padded import-data region roster",
+        splice(
+            &encoded,
+            &spans.import_data_region_count,
+            &2u64.to_le_bytes(),
+        ),
+    );
+    malformed(
+        "a padded import-data gap roster",
+        splice(&encoded, &spans.import_data_gap_count, &2u64.to_le_bytes()),
+    );
+
     // --- the containing commitment honestly recomputed ---
 
     // Recomputing the artifact commitment over substituted container bytes
@@ -1507,16 +1660,51 @@ fn native_placed_image_evidence_rejects_every_one_field_substitution() {
     malformed("a trailing byte", wire);
 }
 
-/// A (x86_64, Coff) fixture carrying one real import thunk: twelve compiler
-/// bytes and the emitted `jmp [rip+disp32]` over them, with the closed-form
-/// footprint that realization attaches — plus the honest empty data
-/// inventory, since PE thunk targets live in `.rdata` custody that this
-/// section does not yet carry.
+/// The absolute address the Coff fixture's thunk displacement decodes to —
+/// the thunk sits at address 12 (the default text base is zero), so its six
+/// bytes end at 18 and `COFF_SLOT_ADDRESS - 18` is the displacement. The slot
+/// stays within a signed `disp32` of the thunk, as a real `.rdata` base does.
+const COFF_SLOT_ADDRESS: u64 = 0x2200;
+
+/// A (x86_64, Coff) fixture carrying one real import thunk and the
+/// `.rdata` custody it binds: twelve compiler bytes and the emitted
+/// `jmp [rip+disp32]` over them, with the closed-form footprint that
+/// realization attaches, plus the import-data extent holding the thunk's
+/// `ImportBindingSlot` at the absolute address the displacement decodes to —
+/// writer-owned data, so the placed inventory is built over the extent
+/// itself rather than over `image.memory.data` (which stays empty here).
 fn windows_thunk_pair() -> (NativePlacedImageEvidence, Vec<u8>) {
+    // One `ImportBindingSlot` row plus the unclassified gap that stands in
+    // for the descriptors, lookup tables and name bytes a real `.rdata`
+    // table carries around the slots.
+    let import_data: [u8; 16] = std::array::from_fn(|index| (index * 13 + 7) as u8);
+    windows_thunk_pair_over(
+        &import_data,
+        vec![FinalDataRegion {
+            origin: FinalDataRegionOrigin::ImportBindingSlot,
+            section_offset: 8,
+            byte_count: 8,
+            symbol: "host_call".into(),
+        }],
+        COFF_SLOT_ADDRESS - 8,
+    )
+}
+
+/// Build the Coff fixture over an arbitrary import-data extent. The thunk
+/// still decodes to [`COFF_SLOT_ADDRESS`], so the caller chooses the placed
+/// slot rows and base address that make the thunk↔slot pairing honest or
+/// not; every seal stays honest either way.
+fn windows_thunk_pair_over(
+    import_data: &[u8],
+    import_slots: Vec<FinalDataRegion>,
+    import_data_address: u64,
+) -> (NativePlacedImageEvidence, Vec<u8>) {
     let target = target::NativeTarget::windows_x64();
     let (extent, footprint) = super::import_thunk_form(target).expect("Coff realizes a thunk");
     let mut text = vec![0xabu8; 12];
-    text.extend_from_slice(&[0xff, 0x25, 0x78, 0x56, 0x34, 0x12]);
+    let displacement = (COFF_SLOT_ADDRESS - 18) as i32;
+    text.extend_from_slice(&[0xff, 0x25]);
+    text.extend_from_slice(&displacement.to_le_bytes());
     assert_eq!(text.len() - 12, extent);
     let mut image = FinalImage::with_capacity(
         target,
@@ -1550,8 +1738,25 @@ fn windows_thunk_pair() -> (NativePlacedImageEvidence, Vec<u8>) {
         image::place_executable_regions(&image, layout).expect("the thunk fixture places");
     let data_inventory =
         image::place_data_regions(&image, layout).expect("the empty data inventory places");
+    let import_data_inventory = if import_data.is_empty() {
+        image::PlacedDataRegionInventory::empty()
+    } else {
+        image::place_data_extent(
+            import_data,
+            import_slots,
+            import_data_address,
+            "import data",
+        )
+        .expect("the slot fixture places")
+    };
+    let import_data_file_offset = if import_data.is_empty() {
+        0
+    } else {
+        TEXT_FILE_OFFSET + text.len() as u64
+    };
     let mut executable = vec![0xffu8; TEXT_FILE_OFFSET as usize];
     executable.extend_from_slice(&text);
+    executable.extend_from_slice(import_data);
     executable.extend_from_slice(&[0x00u8; 32]);
     let evidence = NativePlacedImageEvidence::from_parts(
         target,
@@ -1559,6 +1764,8 @@ fn windows_thunk_pair() -> (NativePlacedImageEvidence, Vec<u8>) {
         executable_inventory,
         0,
         data_inventory,
+        import_data_file_offset,
+        import_data_inventory,
     );
     (evidence, executable)
 }
@@ -1630,6 +1837,8 @@ fn macos_thunk_pair() -> (NativePlacedImageEvidence, Vec<u8>) {
         executable_inventory,
         TEXT_FILE_OFFSET + text.len() as u64,
         data_inventory,
+        0,
+        image::PlacedDataRegionInventory::empty(),
     );
     (evidence, executable)
 }
@@ -1756,6 +1965,8 @@ fn import_thunk_claims_bind_to_the_declared_targets_closed_form() {
                 image::place_executable_regions(&image, layout).expect("the fixture places"),
                 0,
                 image::place_data_regions(&image, layout).expect("the fixture places"),
+                0,
+                image::PlacedDataRegionInventory::empty(),
             ),
             executable,
         )
@@ -1837,6 +2048,8 @@ fn import_thunk_claims_bind_to_the_declared_targets_closed_form() {
                 image::place_executable_regions(&image, layout).expect("the fixture places"),
                 TEXT_FILE_OFFSET + text.len() as u64,
                 image::place_data_regions(&image, layout).expect("the fixture places"),
+                0,
+                image::PlacedDataRegionInventory::empty(),
             ),
             executable,
         )
@@ -1921,6 +2134,8 @@ fn import_thunk_claims_bind_to_the_declared_targets_closed_form() {
                 image::place_executable_regions(&image, layout).expect("the fixture places"),
                 TEXT_FILE_OFFSET + text.len() as u64,
                 image::place_data_regions(&image, layout).expect("the fixture places"),
+                0,
+                image::PlacedDataRegionInventory::empty(),
             ),
             executable,
         )
@@ -2000,6 +2215,8 @@ fn import_thunk_claims_bind_to_the_declared_targets_closed_form() {
                 image::place_executable_regions(&image, layout).expect("the fixture places"),
                 TEXT_FILE_OFFSET + text.len() as u64,
                 image::place_data_regions(&image, layout).expect("the fixture places"),
+                0,
+                image::PlacedDataRegionInventory::empty(),
             ),
             executable,
         )
@@ -2017,5 +2234,139 @@ fn import_thunk_claims_bind_to_the_declared_targets_closed_form() {
         )),
         "native executable inventory",
         "a thunk whose slot is not claimed as a binding slot must reject"
+    );
+}
+
+/// The Coff pairing leg, exercised under honest seals: a thunk whose decoded
+/// `jmp [rip+disp32]` names no committed `ImportBindingSlot`, a committed
+/// slot no thunk loads, and a slot at the bound address under a different
+/// symbol all reject at the pairing join — nothing about the inventories is
+/// dishonest, only the thunk↔slot correspondence fails.
+#[test]
+fn coff_thunks_pair_bidirectionally_with_the_rdata_slots() {
+    let subject = |name: &'static str, pair: &(NativePlacedImageEvidence, Vec<u8>)| {
+        let sidecar = native_sidecar_with_profile(
+            &pair.1,
+            native_semantic_profile_identity(target::NativeTarget::windows_x64()),
+            pair.0.to_bytes(),
+        );
+        assert_eq!(
+            rejecting_subject(verify_native_proof_sidecar(
+                &pair.1,
+                &sidecar.to_bytes(),
+                &offered_policy(&sidecar)
+            )),
+            "native executable inventory",
+            "{name} must reject at replay"
+        );
+    };
+
+    // The slot seals honestly but at a base the thunk's displacement does
+    // not name — the decoded operand finds zero binding slots there.
+    let shifted: [u8; 16] = std::array::from_fn(|index| (index * 13 + 7) as u8);
+    subject(
+        "a thunk whose displacement names no committed slot",
+        &windows_thunk_pair_over(
+            &shifted,
+            vec![FinalDataRegion {
+                origin: FinalDataRegionOrigin::ImportBindingSlot,
+                section_offset: 8,
+                byte_count: 8,
+                symbol: "host_call".into(),
+            }],
+            COFF_SLOT_ADDRESS - 8 + 0x1000,
+        ),
+    );
+
+    // A committed slot no thunk's displacement reaches is orphaned custody:
+    // the bidirectional join refuses it even while the honest slot pairs.
+    let extra: [u8; 24] = std::array::from_fn(|index| (index * 13 + 7) as u8);
+    subject(
+        "a committed slot no thunk loads",
+        &windows_thunk_pair_over(
+            &extra,
+            vec![
+                FinalDataRegion {
+                    origin: FinalDataRegionOrigin::ImportBindingSlot,
+                    section_offset: 8,
+                    byte_count: 8,
+                    symbol: "host_call".into(),
+                },
+                FinalDataRegion {
+                    origin: FinalDataRegionOrigin::ImportBindingSlot,
+                    section_offset: 16,
+                    byte_count: 8,
+                    symbol: "other_import".into(),
+                },
+            ],
+            COFF_SLOT_ADDRESS - 8,
+        ),
+    );
+
+    // The bound address is committed under another symbol — an address match
+    // alone does not pair a thunk with a slot.
+    let renamed: [u8; 16] = std::array::from_fn(|index| (index * 13 + 7) as u8);
+    subject(
+        "a slot at the bound address under another symbol",
+        &windows_thunk_pair_over(
+            &renamed,
+            vec![FinalDataRegion {
+                origin: FinalDataRegionOrigin::ImportBindingSlot,
+                section_offset: 8,
+                byte_count: 8,
+                symbol: "other_import".into(),
+            }],
+            COFF_SLOT_ADDRESS - 8,
+        ),
+    );
+}
+
+/// The import-data leg's closed decode rules: every row in the import-data
+/// inventory is an `ImportBindingSlot`, a populated inventory exists only
+/// under (x86_64, Coff), and an empty inventory declares file offset 0.
+#[test]
+fn import_data_inventory_decodes_only_binding_slots_on_coff() {
+    let (evidence, executable) = windows_thunk_pair();
+    // The honest Coff section round-trips byte-identically and replays.
+    let decoded = NativePlacedImageEvidence::from_bytes(&evidence.to_bytes()).expect("decodes");
+    assert_eq!(decoded, evidence);
+    decoded
+        .replay_against(&executable)
+        .expect("an honest Coff thunk↔slot pairing replays");
+
+    let malformed = |name: &'static str, evidence: &NativePlacedImageEvidence| {
+        assert!(
+            matches!(
+                NativePlacedImageEvidence::from_bytes(&evidence.to_bytes()),
+                Err(NativeEvidenceError::Malformed(_))
+            ),
+            "{name} must reject as malformed evidence"
+        );
+    };
+
+    // A populated import-data inventory under a target that emits no such
+    // extent is a claim no realization path produces. Built over the Linux
+    // fixture so no thunk row fires an earlier decode rule.
+    let (mut foreign, _) = honest_pair();
+    foreign.import_data_inventory = evidence.import_data_inventory.clone();
+    foreign.import_data_file_offset = 64;
+    malformed("a populated import-data inventory on Elf", &foreign);
+
+    // A non-slot row inside the import-data inventory.
+    let mut wrong_origin = evidence.clone();
+    wrong_origin.import_data_inventory.regions[0].origin = FinalDataRegionOrigin::CompilerData;
+    malformed(
+        "a compiler-data row inside the import-data inventory",
+        &wrong_origin,
+    );
+
+    // An empty inventory claiming a nonzero extent offset is never the
+    // canonical encoding.
+    let mut bad_offset = evidence.clone();
+    bad_offset.import_data_inventory = image::PlacedDataRegionInventory::empty();
+    bad_offset.import_data_file_offset = 64;
+    malformed(
+        "an empty import-data inventory at a nonzero offset",
+        &bad_offset,
     );
 }

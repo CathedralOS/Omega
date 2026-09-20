@@ -479,6 +479,7 @@ dependencies = [
  "function-identity",
  "image",
  "image-macho",
+ "image-pe",
  "lowered-psi",
  "lowered-psi-to-terminal-psi",
  "native-artifact",

@@ -147,6 +147,7 @@ fn emitted_output(
         final_image_layout: layout(),
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
+        final_import_data_bytes: Vec::new(),
         file_name: "omega-program".into(),
         format: "elf".into(),
         text_bytes: image.memory.text.len(),
@@ -157,6 +158,7 @@ fn emitted_output(
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
         data_regions,
+        import_data_regions: image::PlacedDataRegionInventory::empty(),
     });
     (output, encoded, relocations, entry)
 }

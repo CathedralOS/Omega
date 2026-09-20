@@ -1268,7 +1268,14 @@ Owners include
   the thunk opcodes from the committed bytes — on Mach-O additionally
   requiring the decoded pointer load to pair exactly one committed
   `ImportBindingSlot`, which is the first leg verifying what bytes do rather
-  than only where they sit. That still establishes custody and thunk
+  than only where they sit. Section version 3 adds the writer-owned
+  `.rdata` extent — emitted as `final_import_data_bytes` beside the flat
+  executable with its own `PlacedDataRegionInventory` of
+  `ImportBindingSlot` rows over the IAT — and replays each Coff thunk's
+  decoded `disp32` binding against exactly one placed slot whose address,
+  symbol, byte count and section-relative offset match, and vice versa
+  (`image-pe::validate_pe_x86_64_import_binding_pairing`). That still
+  establishes custody and thunk
   realization only, which is why the sidecar offers
   `omega.native-placed-image-coverage.v1` rather than a behavioral guarantee,
   and why every native pair still ends
@@ -1282,8 +1289,7 @@ Owners include
 
   - Instruction rows decoded from the published text and checked against the
     closed semantics of the declared target.
-  - Entries and incoming edges over those same bytes, plus the PE thunk's
-    `.rdata` slot pairing (the IAT's custody is not in the data inventory).
+  - Entries and incoming edges over those same bytes.
   - Premise availability and lowering correspondence: either transform the
     Terminal obligations the Psi product carries into native rows, or prove the
     native obligations directly. Hashes of producer validation reports and an
