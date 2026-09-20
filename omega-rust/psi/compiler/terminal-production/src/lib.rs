@@ -5,6 +5,7 @@
 //! This coordinator sequences lowering, selected optimization and publication.
 //! Checked-source receipts stay beside the portable artifact, not inside it.
 
+mod checked_ledger;
 mod terminal_production;
 pub use terminal_production::{
     CallbackCustodyTerminalArtifactProductionError, ProducedProgramEntryTerminalArtifact,
