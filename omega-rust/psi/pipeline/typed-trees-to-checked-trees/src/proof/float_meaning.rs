@@ -5,11 +5,8 @@
 //! Semantic applications ride the same projection table: each application
 //! owns one canonical proof value whose projection source stays transitional
 //! until lowering rejoins it to the Terminal `SemanticApplication` carrier.
-//! Validation's `float_semantic_application` recognition is deliberately
-//! crate-private, so the sealed-contract replay here re-derives it from the
-//! public typed-tree facts the sealed row admits — the same hermetic
-//! identity, sealed-source custody, and signature shape the lookalike gate
-//! enforces upstream.
+//! Validation and checked binding share exact sealed contract and format
+//! recognition. Binding records identity; it does not itself prove equality.
 
 use checked_trees::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
@@ -23,18 +20,16 @@ use checked_trees::{
     CheckedProofValueId, ContractProofFactKind, ProofFacts,
 };
 use diagnostics::Diagnostic;
-use numerics::float_projection::{FLOAT_PROJECTION_CORE_SOURCE, FloatProjectionOperation};
-use numerics::float_semantics_catalog::{
-    FLOAT_FORMAT_CORE_SOURCE, FLOAT_SEMANTICS_NAMESPACE, FloatSemanticContractIdentity,
-    FloatSemanticOperation, FloatSemanticValueKind, IntegerCarrier,
-};
+use numerics::float_projection::FloatProjectionOperation;
+use numerics::float_semantics_catalog::{FloatSemanticContractIdentity, FloatSemanticValueKind};
 use semantic_vocabulary::IeeeFloatFormat;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::{resolve_named_call, resolve_named_expression_call};
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::PrimitiveType;
 use validation::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
+    exact_toolchain_float_format_const, exact_toolchain_float_semantic_contract,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1071,301 +1066,6 @@ fn instantiate_transported_ensures(
     Ok(())
 }
 
-/// Whether `symbol` was declared in the sealed toolchain `relative_source`.
-/// Mirrors validation's sealed-custody check: sealed declarations admit their
-/// catalog row only from the exact core file.
-fn declared_in_sealed_toolchain_source(
-    program: &TypedTrees,
-    symbol: symbols::SymbolHandle,
-    relative_source: &str,
-) -> bool {
-    let Some(span) = program.symbols.symbol_source_span(symbol) else {
-        return false;
-    };
-    let Some(source) = program.symbols.source_file(span) else {
-        return false;
-    };
-    source.origin == source::SourceOrigin::Toolchain
-        && source
-            .path
-            .strip_prefix(&source.package_root)
-            .ok()
-            .is_some_and(|relative| relative == std::path::Path::new(relative_source))
-}
-
-/// Whether `symbol` is the exact `toolchain::FloatSemantics::<name>` owner
-/// declared in the sealed projection source.
-fn sealed_float_semantics_owner(
-    program: &TypedTrees,
-    symbol: symbols::SymbolHandle,
-    name: &str,
-) -> bool {
-    let expected = format!("toolchain::{FLOAT_SEMANTICS_NAMESPACE}::{name}");
-    program
-        .normalized_hermetic_symbol_identity(symbol)
-        .ok()
-        .as_deref()
-        == Some(expected.as_str())
-        && declared_in_sealed_toolchain_source(program, symbol, FLOAT_PROJECTION_CORE_SOURCE)
-}
-
-/// Whether the type reference names the toolchain-owned data `name` declared
-/// in the sealed `relative_source`, by exact hermetic identity and custody.
-fn sealed_toolchain_data_type(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    name: &str,
-    relative_source: &str,
-) -> bool {
-    let TypeReferenceNode::Named {
-        symbol,
-        name: spelled,
-    } = program.type_reference_table.type_reference(type_reference)
-    else {
-        return false;
-    };
-    spelled.as_str() == name
-        && program
-            .normalized_hermetic_symbol_identity(*symbol)
-            .ok()
-            .as_deref()
-            == Some(format!("toolchain::{name}").as_str())
-        && declared_in_sealed_toolchain_source(program, *symbol, relative_source)
-        && program
-            .data_definitions()
-            .iter()
-            .any(|data| data.symbol == *symbol && data.name.as_str() == name)
-}
-
-/// Classify one typed position of a sealed semantic declaration by exact
-/// toolchain identity — never by spelling, so a lookalike type named
-/// `FloatMeaning` outside sealed custody binds no catalog row.
-fn semantic_value_kind(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<FloatSemanticValueKind> {
-    if let Some(primitive) = program.primitive_type_reference(type_reference) {
-        return Some(match primitive {
-            PrimitiveType::Bool => FloatSemanticValueKind::Bool,
-            PrimitiveType::I8 => FloatSemanticValueKind::Integer(IntegerCarrier::I8),
-            PrimitiveType::I16 => FloatSemanticValueKind::Integer(IntegerCarrier::I16),
-            PrimitiveType::I32 => FloatSemanticValueKind::Integer(IntegerCarrier::I32),
-            PrimitiveType::I64 => FloatSemanticValueKind::Integer(IntegerCarrier::I64),
-            PrimitiveType::U8 => FloatSemanticValueKind::Integer(IntegerCarrier::U8),
-            PrimitiveType::U16 => FloatSemanticValueKind::Integer(IntegerCarrier::U16),
-            PrimitiveType::U32 => FloatSemanticValueKind::Integer(IntegerCarrier::U32),
-            PrimitiveType::U64 => FloatSemanticValueKind::Integer(IntegerCarrier::U64),
-            PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Addr => return None,
-        });
-    }
-    if sealed_toolchain_data_type(
-        program,
-        type_reference,
-        "FloatMeaning",
-        numerics::float_projection::FLOAT_MEANING_CORE_SOURCE,
-    ) {
-        return Some(FloatSemanticValueKind::Meaning);
-    }
-    if sealed_toolchain_data_type(
-        program,
-        type_reference,
-        "FloatFormat",
-        FLOAT_FORMAT_CORE_SOURCE,
-    ) {
-        return Some(FloatSemanticValueKind::Format);
-    }
-    if sealed_toolchain_data_type(
-        program,
-        type_reference,
-        "FloatClass",
-        FLOAT_PROJECTION_CORE_SOURCE,
-    ) {
-        return Some(FloatSemanticValueKind::Class);
-    }
-    None
-}
-
-/// Recognize one complete sealed float-semantics declaration and return the
-/// catalog row it selects with the row's contract identity — the same closed
-/// replay validation runs: toolchain/file custody, the public ordinary
-/// tokenless shape, and the exact toolchain identity of every parameter and
-/// result type bind as one row.
-fn sealed_float_semantic_contract(
-    program: &TypedTrees,
-    operator: &typed_trees::operator::OperatorDefinition,
-) -> Option<(
-    &'static FloatSemanticOperation,
-    FloatSemanticContractIdentity,
-)> {
-    let [namespace, name] = program.operator_path_members(operator.name) else {
-        return None;
-    };
-    if !FloatSemanticOperation::namespace_matches(namespace.as_str())
-        || !sealed_float_semantics_owner(program, operator.symbol, name.as_str())
-    {
-        return None;
-    }
-    if !operator.is_public
-        || operator.is_boundary
-        || operator.spelling.is_some()
-        || !operator.lifetime_parameters.is_empty()
-        || !program.operator_type_parameters(operator).is_empty()
-        || !program.operator_contracts(operator).is_empty()
-    {
-        return None;
-    }
-    let mut parameters = Vec::new();
-    for parameter in program.operator_parameters(operator) {
-        if parameter.is_const || parameter.is_mutable || parameter.is_self {
-            return None;
-        }
-        parameters.push(semantic_value_kind(program, parameter.type_reference)?);
-    }
-    let result = semantic_value_kind(program, operator.return_type)?;
-    let row = FloatSemanticOperation::from_source_identity(
-        namespace.as_str(),
-        name.as_str(),
-        &parameters,
-        result,
-    )?;
-    Some((row, row.contract_identity()))
-}
-
-/// The sealed IEEE format a `FloatFormat::BINARY*` const names, by exact
-/// hermetic identity and sealed-source custody.
-///
-/// Const substitution erases the authored const path before the typed trees:
-/// the operand arrives either as a surviving `Name` or — the common case — as
-/// the const's own `StructLiteral` value inlined at the use. A literal is
-/// matched by resolving its `type_symbol` to the sealed `toolchain::FloatFormat`
-/// record, then comparing every field value against the sealed const's
-/// `canonical_value_encoding` leaf-by-leaf, so `BINARY32`/`BINARY64` stay
-/// distinguishable even though they share one record type.
-fn sealed_float_format_const(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<IeeeFloatFormat> {
-    const FORMAT_CONST_IDENTITY: [(IeeeFloatFormat, &str); 2] = [
-        (
-            IeeeFloatFormat::Binary32,
-            "toolchain::FloatFormat::BINARY32",
-        ),
-        (
-            IeeeFloatFormat::Binary64,
-            "toolchain::FloatFormat::BINARY64",
-        ),
-    ];
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => {
-            if !path.symbol.is_valid()
-                || !declared_in_sealed_toolchain_source(
-                    program,
-                    path.symbol,
-                    FLOAT_FORMAT_CORE_SOURCE,
-                )
-            {
-                return None;
-            }
-            match program
-                .normalized_hermetic_symbol_identity(path.symbol)
-                .ok()?
-                .as_str()
-            {
-                "toolchain::FloatFormat::BINARY32" => Some(IeeeFloatFormat::Binary32),
-                "toolchain::FloatFormat::BINARY64" => Some(IeeeFloatFormat::Binary64),
-                _ => None,
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            if !literal.type_symbol.is_valid()
-                || program
-                    .normalized_hermetic_symbol_identity(literal.type_symbol)
-                    .ok()
-                    .as_deref()
-                    != Some("toolchain::FloatFormat")
-                || !declared_in_sealed_toolchain_source(
-                    program,
-                    literal.type_symbol,
-                    FLOAT_FORMAT_CORE_SOURCE,
-                )
-            {
-                return None;
-            }
-            FORMAT_CONST_IDENTITY
-                .iter()
-                .find(|(_, identity)| {
-                    program.const_declarations().iter().any(|declaration| {
-                        program
-                            .normalized_hermetic_symbol_identity(declaration.symbol)
-                            .ok()
-                            .as_deref()
-                            == Some(*identity)
-                            && declared_in_sealed_toolchain_source(
-                                program,
-                                declaration.symbol,
-                                FLOAT_FORMAT_CORE_SOURCE,
-                            )
-                            && declaration
-                                .canonical_value_encoding
-                                .as_deref()
-                                .and_then(|encoding| {
-                                    language_semantics::const_value::CanonicalConstValue::new(
-                                        "", encoding, "",
-                                    )
-                                    .decode_encoding()
-                                })
-                                .is_some_and(|decoded| {
-                                    struct_literal_matches_decoded_const(
-                                        program, expression, &decoded,
-                                    )
-                                })
-                    })
-                })
-                .map(|(format, _)| *format)
-        }
-        _ => None,
-    }
-}
-
-/// Whether one expression equals a decoded canonical const value
-/// leaf-by-leaf — field names and scalar values only. The record's toolchain
-/// custody is the caller's symbol decision; the encoded `type_name` strings
-/// are encoded claims, not resolved type authority.
-fn struct_literal_matches_decoded_const(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    expected: &language_semantics::const_value::DecodedCanonicalConstValue,
-) -> bool {
-    use language_semantics::const_value::DecodedCanonicalConstValue as Decoded;
-    match (program.expression_table.expression(expression), expected) {
-        (ExpressionNode::Integer(literal), Decoded::Integer { value, .. }) => {
-            literal
-                .value_i64()
-                .map(i128::from)
-                .or_else(|| literal.value_u64().map(i128::from))
-                == Some(*value)
-        }
-        (ExpressionNode::Boolean(observed), Decoded::Boolean(expected)) => observed == expected,
-        (ExpressionNode::StructLiteral(literal), Decoded::Record { fields, .. }) => {
-            let observed = program.expression_table.struct_fields(literal.fields);
-            observed.len() == fields.len()
-                && fields.iter().all(|(name, expected_field)| {
-                    observed
-                        .iter()
-                        .find(|field| field.name.as_str() == name.as_str())
-                        .is_some_and(|field| {
-                            struct_literal_matches_decoded_const(
-                                program,
-                                field.value,
-                                expected_field,
-                            )
-                        })
-                })
-        }
-        _ => false,
-    }
-}
-
 fn ieee_format_primitive(format: IeeeFloatFormat) -> PrimitiveType {
     match format {
         IeeeFloatFormat::Binary32 => PrimitiveType::F32,
@@ -1500,7 +1200,7 @@ fn bind_semantic_application_call(
     let Some(operator) = resolve_named_expression_call(program, call) else {
         return Ok(None);
     };
-    let Some((row, contract)) = sealed_float_semantic_contract(program, operator) else {
+    let Some((row, contract)) = exact_toolchain_float_semantic_contract(program, operator) else {
         return Ok(None);
     };
     if row.result != FloatSemanticValueKind::Meaning {
@@ -1518,7 +1218,7 @@ fn bind_semantic_application_call(
     for (kind, argument) in row.parameters.iter().zip(arguments.iter()) {
         match kind {
             FloatSemanticValueKind::Format => {
-                let Some(format) = sealed_float_format_const(program, *argument) else {
+                let Some(format) = exact_toolchain_float_format_const(program, *argument) else {
                     return Ok(None);
                 };
                 declared_format = Some(format);

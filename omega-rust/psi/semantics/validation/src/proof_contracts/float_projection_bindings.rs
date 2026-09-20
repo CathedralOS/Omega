@@ -6,9 +6,11 @@
 
 /// The sibling closed catalog: `FloatSemantics::<name>` semantic definitions,
 /// validated by the same custody rule. Its row/contract query
-/// (`semantic_operations::exact_toolchain_float_semantic_contract`) is the
-/// hook a provider binding will consume once discharge attaches to a row.
+/// (`semantic_operations::exact_toolchain_float_semantic_contract`) is shared
+/// by closed source evaluation and checked application binding. Neither source
+/// query replaces the artifact verifier's independent catalog reconstruction.
 pub(crate) mod semantic_operations;
+pub(crate) mod semantic_values;
 
 use diagnostics::Diagnostic;
 use numerics::float_projection::{FloatProjectionContractIdentity, FloatProjectionOperation};

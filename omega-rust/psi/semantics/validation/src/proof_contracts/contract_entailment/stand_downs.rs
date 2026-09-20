@@ -102,27 +102,39 @@ pub(crate) fn fact_mentions_proof_only_data(
                     .find_map(|field| recurse(field.value))
             })
         }
-        ExpressionNode::Call(call) => program
-            .machines()
-            .iter()
-            .find(|target| {
-                target.attached_data.is_none() && target.name.as_str() == call.target.as_str()
-            })
-            .and_then(|target| {
-                let entry = program.machine_states(target).first()?;
-                if !entry.return_type.is_valid() {
-                    return None;
-                }
-                classification.proof_only_mention(program, entry.return_type)
-            })
-            .or_else(|| recurse(call.receiver))
-            .or_else(|| {
-                program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .find_map(|argument| recurse(*argument))
-            }),
+        ExpressionNode::Call(call) => {
+            typed_trees::operator::resolve_named_expression_call(program, call)
+                // A selected operator can return proof-only data without owning
+                // a source machine body. Classify its actual return type before
+                // searching ordinary machine calls or their operands.
+                .and_then(|operator| {
+                    classification.proof_only_mention(program, operator.return_type)
+                })
+                .or_else(|| {
+                    program
+                        .machines()
+                        .iter()
+                        .find(|target| {
+                            target.attached_data.is_none()
+                                && target.name.as_str() == call.target.as_str()
+                        })
+                        .and_then(|target| {
+                            let entry = program.machine_states(target).first()?;
+                            if !entry.return_type.is_valid() {
+                                return None;
+                            }
+                            classification.proof_only_mention(program, entry.return_type)
+                        })
+                })
+                .or_else(|| recurse(call.receiver))
+                .or_else(|| {
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .find_map(|argument| recurse(*argument))
+                })
+        }
         ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),
         ExpressionNode::Unary(unary) => recurse(unary.operand),
         ExpressionNode::Cast(cast) => recurse(cast.value),

@@ -130,6 +130,8 @@ pub use machine_calls::result_overloads::resolve_named_result_overloads;
 pub use proof_contracts::default_domains::{
     OpenInvariantCrashSite, build_open_invariant_crash_sites,
 };
+pub use proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract;
+pub use proof_contracts::float_projection_bindings::semantic_values::exact_toolchain_float_format_const;
 pub use proof_contracts::float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
     is_exact_toolchain_float_meaning_type,

@@ -34,7 +34,7 @@ pub struct ValidatedFloatMeaningEqualityProposition {
     pub right: ExpressionHandle,
 }
 
-fn exact_projection_operation(
+pub(crate) fn exact_projection_operation(
     program: &TypedTrees,
     call: &TableCallExpression,
 ) -> Option<(

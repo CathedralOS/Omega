@@ -35,12 +35,22 @@ rules; a machine route is not blanket trust or a new capacity origin.
 
 ## Source proof automation
 
-[contract_entailment.rs](src/contract_entailment.rs) handles a bounded contract
+[contract_entailment.rs](src/proof_contracts/contract_entailment.rs) handles a bounded contract
 fragment: canonical integer polynomials, substitutions from equalities,
 difference-bound closure, congruence, correlated intervals, signed remainder
 bounds, and accumulator-style self induction. Each recursive hypothesis needs
 strict descent at its exact edge. This is trusted source automation, not yet
 the source-to-kernel certificate bridge.
+
+Closed `FloatMeaning` equalities use the exact sealed float catalog through
+[semantic_values.rs](src/proof_contracts/float_projection_bindings/semantic_values.rs).
+The source judgment composes nested meaning-valued applications over literal
+projections, keeps IEEE format identity, distinguishes signed zeros, and uses
+payload-erased NaN equality. It checks the selected equality operation using
+the bound declarations' result types; proof-only calls have no runtime place
+type. Unknown operands and exhausted work budgets provide no fact. Format and
+contract recognition are shared with checked application binding; portable
+contract-obligation retention and certificate production remain separate work.
 
 The [proof pass corpus](../../../../tests/omega/pass/proofs) and
 [false twins](../../../../tests/omega/fail/proofs) test this fragment;

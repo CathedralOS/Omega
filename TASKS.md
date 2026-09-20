@@ -4527,14 +4527,12 @@ Owners include
 
   This is an implementation gap under the existing FloatMeaning and contract
   import rules, not a language-design blocker.
-  `validation/src/proof_contracts/float_projection_invocations.rs` records
-  equality only between projection invocations, so projection-to-
-  `FloatSemantics::*` application contracts lack the required obligation.
-  The source customer must first pass real contract checking, not only the
-  checked binder's fixtures that bypass exit proofs. At `d4b2444dda` on macOS
-  AArch64, `compile_to_checked` rejects this true literal obligation at
-  `validation/src/proof_contracts/contract_entailment.rs` as an unjudged
-  proof-only `Nat` claim (the real core `FloatMeaning` contains `Rat`/`Nat`):
+  The source customer below now passes `compile_to_checked` with the real
+  core; changing `3.0f32` to `4.0f32` is disproved. The source checker uses
+  `validation/src/proof_contracts/float_projection_bindings/semantic_values.rs`
+  for closed meaning-valued applications, sharing exact catalog and format
+  recognition with the checked binder. Unknown operands remain unproved;
+  selected authored equality cannot acquire builtin meaning semantics.
 
   ```omega
   use omega::language::core::float_operations;
@@ -4545,15 +4543,22 @@ Owners include
   { 7 }
   ```
 
-  Carry this source through checked kernel discharge and the missing
-  `checked-trees-to-lowered-psi` application emission to source-free proof
-  verification; changing the expected result to `4.0f32` must reject.
-  Do not bypass structural entailment or treat well-formed equality metadata
-  as proof. The artifact consumer regression is
-  `cargo nextest run -p compiler --test float_semantic_applications`:
-  symbolic inputs must not suppress validation of later operands, including
-  on decode. Its explicitly constructed application metadata does not
-  establish the missing source acceptance. Reuse
+  Next retain this authored equality as a typed contract proposition with its
+  exact owner/use-site obligation, emit the application through
+  `checked-trees-to-lowered-psi`, and discharge that obligation through the
+  ordinary `CertificateDerived` production and independent replay route.
+  The checked equality side table and Terminal mathematical-value rows alone
+  do not join `TerminalMachine.contract.ensures` to a proved obligation.
+  Do not erase the claim to `Truth`/`Empty` or treat well-formed metadata as
+  proof. Acceptance remains this same source reaching source-free verification
+  with its contract intact, plus rejection of the false twin.
+  Resume on macOS AArch64 with `RUST_MIN_STACK=67108864 cargo nextest run -p
+  compiler --test float_semantic_applications --no-fail-fast --no-tests fail`.
+  On the source-check implementation based on `0917f9983c`, all five tests pass:
+  real-core contracts (including nested f64, NaN and signed-zero controls),
+  false contracts, authored equality, unknown inputs, and the source-free
+  artifact operand-validation regression. The latter constructs application
+  metadata explicitly and does not establish end-to-end proof production. Reuse
   `float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract`
   and the signature-selected `numerics::FloatSemanticOperation::kernel_discharge`;
   catalog identity alone is insufficient. An application can produce the
