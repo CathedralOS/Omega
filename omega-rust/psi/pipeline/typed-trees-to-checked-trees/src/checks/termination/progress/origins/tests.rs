@@ -1060,3 +1060,103 @@ fn call_result_argument_derives_the_exact_entry_subject() {
         Some(fixture.subject("replacement", &[("Context", "scheduler")]))
     );
 }
+
+/// An argument demanded through a reference leaf inside an indexed carrier —
+/// `boxes[0].view.scheduler` where `boxes` owns `&Context` elements — names
+/// the same storage as the referent it aliases. The premise surface cannot
+/// spell the index selector, so the demand resolves the leaf to the referent
+/// the element's store supplied: the demanded subject is `context.scheduler`.
+/// A dynamic index cannot pick an element, and the demand stays unproven
+/// rather than demanding the carrier's own entry value.
+#[test]
+fn indexed_carrier_argument_demands_the_leaf_referent() {
+    for (argument, expected) in [
+        ("boxes[0].view.scheduler", ("context", &[("Context", "scheduler")][..])),
+        (
+            "boxes[1].view.scheduler",
+            (
+                "holder",
+                &[("Holder", "view"), ("Context", "scheduler")][..],
+            ),
+        ),
+    ] {
+        let fixture = Fixture::with_machines(
+            "let boxes: [RefBox; 2] = [RefBox { view: &context }, RefBox { view: &holder.view }];",
+            argument,
+            &[],
+            "data RefBox { view: &Context; }",
+        );
+        let call = fixture
+            .flow
+            .control
+            .calls
+            .span_or_empty(fixture.state.calls)
+            .last()
+            .expect("demand call row");
+        let parameters =
+            crate::semantic_calls::call_target_parameters(&fixture.program, call.target_symbol)
+                .expect("observe_scheduler parameters");
+        let [parameter] = parameters else {
+            unreachable!("observe_scheduler value parameter")
+        };
+        let machine = fixture
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == fixture.state.machine_symbol)
+            .expect("fixture machine");
+        assert_eq!(
+            crate::checks::termination::progress::machine_summaries::call_argument_subject_with_parameters(
+                &fixture.program,
+                machine,
+                &fixture.state,
+                call,
+                parameters,
+                parameter.symbol,
+                None,
+            ),
+            Some(fixture.subject(expected.0, expected.1))
+        );
+    }
+}
+
+#[test]
+fn dynamic_index_carrier_argument_stays_unproven() {
+    let fixture = Fixture::with_machines(
+        "let boxes: [RefBox; 2] = [RefBox { view: &context }, RefBox { view: &holder.view }]; let i: u64 = 0;",
+        "boxes[i].view.scheduler",
+        &[],
+        "data RefBox { view: &Context; }",
+    );
+    let call = fixture
+        .flow
+        .control
+        .calls
+        .span_or_empty(fixture.state.calls)
+        .last()
+        .expect("demand call row");
+    let parameters =
+        crate::semantic_calls::call_target_parameters(&fixture.program, call.target_symbol)
+            .expect("observe_scheduler parameters");
+    let [parameter] = parameters else {
+        unreachable!("observe_scheduler value parameter")
+    };
+    let machine = fixture
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == fixture.state.machine_symbol)
+        .expect("fixture machine");
+    assert_eq!(
+        crate::checks::termination::progress::machine_summaries::call_argument_subject_with_parameters(
+            &fixture.program,
+            machine,
+            &fixture.state,
+            call,
+            parameters,
+            parameter.symbol,
+            None,
+        ),
+        None
+    );
+}
