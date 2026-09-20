@@ -4,11 +4,11 @@ use symbol_resolved_trees::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionLateBinding, SymbolResolvedTrees,
 };
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_owned;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use symbols::SymbolHandle;
 
 #[test]
-fn owned_typing_and_checked_wrapping_preserve_authored_selection_occurrences() {
+fn typing_and_checked_wrapping_preserve_authored_selection_occurrences() {
     let mut resolved = SymbolResolvedTrees::default();
     let resolved_id = resolved
         .record_resolved_authored_declaration_selection(
@@ -28,7 +28,7 @@ fn owned_typing_and_checked_wrapping_preserve_authored_selection_occurrences() {
         .expect("ledger capacity");
     let expected = resolved.authored_declaration_selections().clone();
 
-    let typed = lower_symbol_resolved_trees_owned(resolved).expect("empty roots type");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("empty roots type");
 
     assert_eq!(typed.authored_declaration_selections(), &expected);
     assert_eq!(
