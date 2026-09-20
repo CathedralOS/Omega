@@ -967,6 +967,21 @@ Owners include
   their separate descriptor dependency; do not expand into Independent service
   installation merely to migrate Fused carriers.
 
+  Frontier (w9 z57 leg, origin/main 72125c7156, ~15:15Z): claim exited 2 —
+  a live same-item claim (linw2-entry-content-roots, expires 18:39Z) and
+  bullet-3's fence is triple-covered: `program-entry-plan` by
+  UEFI-OS-HANDOFF (20:00Z) and BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS
+  (22:09Z); `external-roots/src/program_local` — the
+  `ProgramLocalRootInstallationLedger` the bullet names — by
+  EPOCH-RESOURCE-SNAPSHOTS (22:31Z) and
+  FOREIGN-RETAINED-ARGUMENT-BACKING (21:42Z). Bullet-1's named blocker
+  `checked-trees-to-lowered-psi/src/unit` is also still fenced
+  (UEFI-OS-HANDOFF 20:00Z wholesale `src/unit`, WRITE-ONLY-BORROW
+  `attached_unit*` 20:07Z) independently of the TR3-TR8 note.
+  `terminal-production/.../receiver_eligibility.rs` and
+  `image-emission/src/hosted_receiver.rs` themselves were UNCLAIMED — a
+  retry whose leg touches only those two files can claim them alone.
+
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Execute the source-authored two-surface UEFI
   bootstrap under [source-owned firmware adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
   Keep physical firmware arrival distinct from the semantic program continuation;
