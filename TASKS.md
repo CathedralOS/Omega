@@ -4242,7 +4242,10 @@ Owners include
   bindings declared from literal-indexed carrier leaves resolved through the
   binding's own provenance replay, `&` bindings declared from constructed
   literal leaves — a record-literal member selection or a literal-indexed
-  array element — replayed through the same provenance walk, helper-returned
+  array element — replayed through the same provenance walk, demanded call
+  operands spelled through a reference leaf inside an indexed carrier rebased
+  to the referent the element's literal store supplied before the premise
+  surface drops the index selector it cannot carry, helper-returned
   reference leaves resolved through caller slot stores including callee-local
   binding transfers and nested helper calls, and nested call-result
   arguments; partition replay follows reference and generic-application leaves
@@ -4250,8 +4253,7 @@ Owners include
   Remaining work:
 
   - Complete owned value loads through references — additional
-    reference-boundary loads, and carriers demanded through index
-    projections directly rather than through a binding's provenance.
+    reference-boundary loads.
   - Mutable demanded paths, helper bodies that may write the demanded
     projection, write-tainted nested calls, generic or dispatched callees,
     ambiguous or dynamic projections — including a member selection whose
