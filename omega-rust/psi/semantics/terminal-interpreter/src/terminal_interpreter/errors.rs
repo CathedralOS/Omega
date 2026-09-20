@@ -39,6 +39,8 @@ pub enum TerminalInterpretError {
     /// An established referent overlaps another placed-view establishment's
     /// referent or a structural argument under exclusive access.
     PlacedViewInputEstablishmentAliasing(u64),
+    /// Runtime backing does not rejoin the verified artifact's declarations.
+    PlacedViewReferent(terminal_semantics::PlacedViewReferentError),
     ArgumentCount {
         expected: usize,
         actual: usize,

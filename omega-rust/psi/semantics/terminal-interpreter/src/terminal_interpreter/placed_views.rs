@@ -109,14 +109,22 @@ pub(super) fn establish_placed_view_inputs(
                 },
             );
         }
-        if establishment
-            .referent
-            .qualifications
-            .windows(2)
-            .any(|pair| pair[0] >= pair[1])
-        {
-            return Err(TerminalInterpretError::StructuralQualificationsNonCanonical);
-        }
+        let referent = &establishment.referent;
+        // Artifact verification cannot validate freshly supplied runtime backing.
+        // Rejoin it before creating any invocation-scoped occurrence, using the
+        // same declaration relation as native input admission.
+        terminal_semantics::validate_placed_view_referent(
+            module,
+            referent.structural_type,
+            &referent.path,
+            &referent.qualifications,
+        )
+        .map_err(|error| match error {
+            terminal_semantics::PlacedViewReferentError::QualificationsNonCanonical => {
+                TerminalInterpretError::StructuralQualificationsNonCanonical
+            }
+            error => TerminalInterpretError::PlacedViewReferent(error),
+        })?;
     }
     let mut occurrences: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence> = BTreeMap::new();
     for row in entry_rows {

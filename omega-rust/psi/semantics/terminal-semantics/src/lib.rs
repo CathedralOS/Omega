@@ -14,6 +14,7 @@
 //! primitive places, scalar arrays and structural effects.
 
 mod call_composition;
+mod placed_view_referent;
 mod primitive_place;
 mod proof_bearing_scalar;
 mod record_field;
@@ -34,6 +35,7 @@ pub use call_composition::{
     mutable_fixed_byte_array_extent, shared_boundary_buffer_capacity,
     validate_call_composition_semantic_rows,
 };
+pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
 pub use primitive_place::{fixed_array_place_shape, primitive_place_type};
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,

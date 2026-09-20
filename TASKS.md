@@ -1152,9 +1152,13 @@ Owners include
   and every domain qualification must be a domain the artifact declares over
   that carrier — a supply whose backing, range, or qualifications fails the
   rejoin is a stale or substituted establishment and rejects before access.
-  The interpreter's `establish_placed_view_inputs` does not yet apply these
-  referent-axis joins; the next leg must mirror them there so both authorities
-  judge one loan identically.
+  Both execution boundaries apply the same declaration-consistency relation in
+  `terminal-semantics/src/placed_view_referent.rs` before binding the loan.
+  The source-to-artifact regression rejects undeclared backing, invalid paths
+  and forged qualifications at interpretation as well as native admission;
+  interpreter controls retain valid nested paths, exact domain carriers,
+  alias rejection and retirement. This checks fresh runtime inputs against
+  the artifact; it does not supply provider authority or realize field access.
   `placed_view_establishment_binds_each_row_and_rejects_exclusive_overlap`
   exercises the whole join on a multi-row roster: supplies bind each declared
   row in roster order regardless of supply order, a partially answered roster
