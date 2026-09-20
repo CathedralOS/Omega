@@ -7818,8 +7818,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   declared `*FieldForTest` vocabulary at all are the remaining coverage
   axis the `custody_mutation_matrix` architecture ratchet guards. No
   unclaimed implementing slice existed under this stub.
-- **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT** — mined candidate; verify scope then implement.
-  Verified scope at `0e8bb1bdad`: re-mines the OMEGA-D clause
+- **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT.** Mined candidate;
+  verified scope at `0e8bb1bdad`; re-verified `27deadf412`: re-mines the OMEGA-D clause
   (`TASKS_BOOTSTRAP.md`, "Its diagnostic scalar entry adapter is not
   package/Build admission or the final ProgramEntry contract. Replace that
   adapter through the real request and target route, preserving actual
