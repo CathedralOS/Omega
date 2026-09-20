@@ -1,8 +1,8 @@
 # Beta-encoding certificate check
 
 Run `sh tests/gamma/beta-encoding-check/run.sh` from the repository root, on
-macOS arm64 or Windows x64 Git Bash; other hosts report unsupported. An absent
-Python skips rather than fails.
+macOS arm64, Linux x86-64, or Windows x64 Git Bash; other hosts report
+unsupported. An absent Python skips rather than fails.
 
 The gate checks the complete certificate for the owner proposition
 
@@ -36,3 +36,15 @@ not a checker verdict. This gate observes the checker's verdict on one
 independently produced certificate — artifact admission, the full-subject
 mutations, and the retained-rule audit remain separate legs of
 GAMMA-DERIVATION-CHECKER.
+
+First native run (Linux x86-64, ab8ac294f3): the host-side production
+reproduced the recorded request byte-exactly — 135,485,028 bytes,
+`sha256=7c0e3bf230a2675a170ea77dc6962ef6aa7c03ce15248b27475c7c6a3e592908`,
+3,182,974 proof rows in 37.3 s — and the checker returned
+`Incomplete`/`request_bytes` (`coordinate=limit=8388608`,
+`requested=135485028`). The running checker still carries the 8,388,608-byte
+request bound; the selected profile's `request_bytes` provision of
+136,314,880 ([REQUEST.md](../../../bootstrap/proofs/checker/REQUEST.md))
+reaches the checker source in the fenced `bootstrap/proofs/checker` /
+`tests/gamma/derivation-*` leg, so the complete check cannot yet observe a
+`Checked` verdict on this host.

@@ -134,13 +134,32 @@ pub(super) fn validate_successors(
                             .find(|source| source.place == place)
                             .map(|source| (source.access, source.multiplicity))
                     });
+                let argument_type = source_type.and_then(|root| {
+                    if binding.argument.path.is_empty() {
+                        Some(root)
+                    } else {
+                        structural_types.subtree(root, &binding.argument.path)
+                    }
+                });
+                // A projected owned argument moves a plain subtree across the
+                // edge. No loan leaf may overlap the moved boundary — loan
+                // custody has no projected carrier on an edge.
+                let moved_loan_leaf = live.references.keys().any(|(carrier, leaf_path)| {
+                    *carrier == place
+                        && !binding.argument.path.is_empty()
+                        && (leaf_path.starts_with(&binding.argument.path)
+                            || binding.argument.path.starts_with(leaf_path))
+                });
                 if binding.parameter != parameter.place
                     || (parameter.access == terminal_psi::StructuralAccess::Owned
                         && source_owned_contract
                             != Some((parameter.access, parameter.multiplicity)))
-                    || source_type != Some(parameter.structural_type)
-                    || !binding.argument.path.is_empty()
+                    || argument_type != Some(parameter.structural_type)
                     || binding.argument.access != parameter.access
+                    || moved_loan_leaf
+                    || (!binding.argument.path.is_empty()
+                        && (parameter.access != terminal_psi::StructuralAccess::Owned
+                            || references::is_suspended_root(live, place)))
                     || !matches!(
                         parameter.access,
                         terminal_psi::StructuralAccess::SharedBorrow

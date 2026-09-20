@@ -5,7 +5,9 @@ use std::ops::Deref;
 
 use abstract_operations::StructuralTypeCatalog;
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::{
+    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 pub(crate) struct StructuralTypeLookup<'a> {
     declarations: BTreeMap<StructuralTypeId, &'a StructuralTypeDeclaration>,
@@ -37,6 +39,49 @@ impl<'a> StructuralTypeLookup<'a> {
 
     pub(super) fn catalog(&self) -> &StructuralTypeCatalog {
         &self.catalog
+    }
+
+    /// Resolve a verified projection path to its structural type. Field
+    /// segments admit named structural children and the canonical standalone
+    /// declaration of a plain leaf field; fixed-index segments stay inside
+    /// declared array bounds. Every other segment or missing declaration
+    /// fails closed.
+    pub(super) fn subtree(
+        &self,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<StructuralTypeId> {
+        let mut current = root;
+        self.get(&current)?;
+        for segment in path {
+            let declaration = self.get(&current)?;
+            current = match (segment, &declaration.shape) {
+                (
+                    StructuralPathSegment::Field(identity),
+                    StructuralTypeShape::Record { fields },
+                ) => {
+                    let field = fields.iter().find(|field| {
+                        field.identity == *identity && !field.relevance.is_erased()
+                    })?;
+                    match &field.field_type {
+                        StructuralFieldType::Structural(child) => *child,
+                        leaf => {
+                            let shape = leaf.canonical_leaf_shape()?;
+                            *self
+                                .iter()
+                                .find(|(_, declaration)| declaration.shape == shape)
+                                .map(|(id, _)| id)?
+                        }
+                    }
+                }
+                (
+                    StructuralPathSegment::FixedIndex(index),
+                    StructuralTypeShape::FixedArray { element, length },
+                ) if index < length => *element,
+                _ => return None,
+            };
+        }
+        Some(current)
     }
 }
 

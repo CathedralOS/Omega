@@ -37,6 +37,11 @@ pub struct SelectedProviderPlanFacts {
     execution_scope: crate::ExecutionScope,
     opaque_executable_admissions: Vec<crate::ValidatedOpaqueExecutableAdmission>,
     installation_reach_resolutions: Vec<InstallationReachResolution>,
+    /// Compact identities of the members settled by the toolchain itself
+    /// (canonical-host mints). Report surfaces use this to label their
+    /// provenance honestly instead of reporting them as ungranted
+    /// dev-active packages.
+    toolchain_settled_identities: BTreeSet<u64>,
 }
 
 impl Default for SelectedProviderPlanFacts {
@@ -47,6 +52,7 @@ impl Default for SelectedProviderPlanFacts {
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
+            toolchain_settled_identities: BTreeSet::new(),
         }
     }
 }
@@ -57,24 +63,7 @@ impl SelectedProviderPlanFacts {
     /// boundary; every plan here already carries its package-qualified slot,
     /// provider, requirement, and realization provenance.
     pub fn from_selected_plans(mut plans: Vec<ProviderPlan>) -> Result<Self, String> {
-        plans.sort_by(|left, right| {
-            left.name
-                .cmp(&right.name)
-                .then_with(|| {
-                    left.origin_package_identity
-                        .cmp(&right.origin_package_identity)
-                })
-                .then_with(|| {
-                    left.provider_type_package_identity
-                        .cmp(&right.provider_type_package_identity)
-                })
-                .then_with(|| {
-                    left.schema
-                        .trait_package_identity
-                        .cmp(&right.schema.trait_package_identity)
-                })
-                .then_with(|| left.report_fingerprint().cmp(&right.report_fingerprint()))
-        });
+        plans.sort_by(selected_plan_order);
 
         let mut identities = BTreeSet::new();
         let mut boundary_slots = BTreeSet::new();
@@ -127,7 +116,75 @@ impl SelectedProviderPlanFacts {
             execution_scope: crate::ExecutionScope::CallerAddressSpace,
             opaque_executable_admissions: Vec::new(),
             installation_reach_resolutions: Vec::new(),
+            toolchain_settled_identities: BTreeSet::new(),
         })
+    }
+
+    /// Join one toolchain-settled canonical-host plan into this selected
+    /// closure.
+    ///
+    /// Provider settlement mints these plans for boundary services whose
+    /// canonical host is toolchain-owned (the accepted `FilesystemHost`
+    /// binding): no package may author `satisfies` conformances or
+    /// `select_provider` rows for that slot, so the toolchain retains the
+    /// per-target realization rows itself. The minted plan carries the exact
+    /// checked service schema and selected target, but it deliberately covers
+    /// only the leaves the toolchain can bind honestly on that target, so the
+    /// full-coverage check inside [`Self::from_selected_plans`] does not
+    /// apply. Demand-completeness still belongs to closure review: a demanded
+    /// leaf with no minted row resolves to zero selected rows and rejects
+    /// there, never here. Uniqueness, nonzero identity, and boundary-slot
+    /// invariants are unchanged.
+    pub fn with_toolchain_settled_plan(mut self, plan: ProviderPlan) -> Result<Self, String> {
+        let errors = plan.validate_candidate_against_schema();
+        if !errors.is_empty() {
+            return Err(format!(
+                "toolchain-settled provider plan `{}` is malformed: {}",
+                plan.name,
+                errors.join("; ")
+            ));
+        }
+        let identity = plan.report_fingerprint();
+        if identity == 0 {
+            return Err(format!(
+                "toolchain-settled provider plan `{}` produced the reserved zero identity",
+                plan.name
+            ));
+        }
+        if self
+            .plans
+            .iter()
+            .any(|existing| existing.report_fingerprint() == identity)
+        {
+            return Err(format!(
+                "toolchain-settled provider plan `{}` collides with a selected plan at identity {identity:#018x}",
+                plan.name
+            ));
+        }
+        if self.plans.iter().any(|existing| {
+            existing.schema.trait_package_identity == plan.schema.trait_package_identity
+                && existing.schema.trait_name == plan.schema.trait_name
+        }) {
+            return Err(format!(
+                "boundary slot `{}` has more than one selected provider plan",
+                plan.schema.trait_name
+            ));
+        }
+        self.plans.push(plan);
+        self.plans.sort_by(selected_plan_order);
+        self.toolchain_settled_identities.insert(identity);
+        self.report_fingerprint = selected_plans_report_fingerprint(&self.plans);
+        Ok(self)
+    }
+
+    /// Whether this exact selected member was settled by the toolchain
+    /// rather than authored conformance selection. Exact structural
+    /// membership is required so a fingerprint-shaped substitute cannot
+    /// claim toolchain provenance.
+    pub fn is_toolchain_settled(&self, plan: &ProviderPlan) -> bool {
+        self.toolchain_settled_identities
+            .contains(&plan.report_fingerprint())
+            && self.plans.iter().any(|member| member == plan)
     }
 
     /// Compatibility constructor for focused tests and legacy callers. New
@@ -540,6 +597,25 @@ pub struct InstallationReachResolution {
     pub provider_plan_report_identity: u64,
     pub upper_bound: Vec<String>,
     pub resolved_row: Vec<String>,
+}
+
+fn selected_plan_order(left: &ProviderPlan, right: &ProviderPlan) -> std::cmp::Ordering {
+    left.name
+        .cmp(&right.name)
+        .then_with(|| {
+            left.origin_package_identity
+                .cmp(&right.origin_package_identity)
+        })
+        .then_with(|| {
+            left.provider_type_package_identity
+                .cmp(&right.provider_type_package_identity)
+        })
+        .then_with(|| {
+            left.schema
+                .trait_package_identity
+                .cmp(&right.schema.trait_package_identity)
+        })
+        .then_with(|| left.report_fingerprint().cmp(&right.report_fingerprint()))
 }
 
 fn selected_plans_report_fingerprint(plans: &[ProviderPlan]) -> u64 {
