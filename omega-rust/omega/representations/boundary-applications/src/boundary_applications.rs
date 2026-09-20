@@ -11,6 +11,7 @@
 
 pub mod coverage;
 pub mod demands;
+pub mod opaque_applications;
 pub mod realization;
 
 pub use coverage::{BoundaryApplicationCoverageIdentity, OperatorApplicationCoverageRef};
@@ -18,6 +19,9 @@ pub use demands::{
     BoundaryApplication, BoundaryApplicationArgument, BoundaryNominalIdentity,
     BoundaryOperatorRequirement, BoundaryTypeIdentity, TerminalBoundaryApplicationDemand,
     TerminalBoundaryApplicationDemands,
+};
+pub use opaque_applications::{
+    BoundaryOpaqueRepresentationApplication, BoundaryOpaqueRepresentationApplications,
 };
 pub use realization::{
     BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
@@ -35,6 +39,11 @@ pub struct TerminalBoundaryApplicationCoverage {
     demands: TerminalBoundaryApplicationDemands,
     realizations: TerminalBoundaryApplicationRealizations,
     references: Vec<OperatorApplicationCoverageRef>,
+    /// Strong selected-application custody for every by-value opaque boundary
+    /// edge in the same retained signatures. The canonical commitment set is
+    /// part of this coverage's identity and replay, so producer and consumer
+    /// artifacts compare the exact application at each edge.
+    opaque_applications: opaque_applications::BoundaryOpaqueRepresentationApplications,
 }
 
 impl TerminalBoundaryApplicationCoverage {
@@ -47,7 +56,20 @@ impl TerminalBoundaryApplicationCoverage {
             demands,
             realizations,
             references,
+            opaque_applications:
+                opaque_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         })
+    }
+
+    /// Retain the checked compilation's canonical by-value opaque-application
+    /// custody beside this coverage. The custody is canonicalized at its own
+    /// construction; it is evidence, not a demand or realization row.
+    pub fn with_opaque_applications(
+        mut self,
+        applications: opaque_applications::BoundaryOpaqueRepresentationApplications,
+    ) -> Self {
+        self.opaque_applications = applications;
+        self
     }
 
     pub fn validate_for_terminal(
@@ -74,12 +96,22 @@ impl TerminalBoundaryApplicationCoverage {
         &self.references
     }
 
+    /// Canonical selected-application custody for by-value opaque boundary
+    /// edges. An artifact carrying no opaque edges retains the canonical empty
+    /// set; absence of coverage entirely is owned by the artifact's `Option`.
+    pub const fn opaque_applications(
+        &self,
+    ) -> &opaque_applications::BoundaryOpaqueRepresentationApplications {
+        &self.opaque_applications
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         TerminalBoundaryApplicationDemands,
         TerminalBoundaryApplicationRealizations,
+        opaque_applications::BoundaryOpaqueRepresentationApplications,
     ) {
-        (self.demands, self.realizations)
+        (self.demands, self.realizations, self.opaque_applications)
     }
 }

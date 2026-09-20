@@ -13,8 +13,15 @@ pub(crate) fn project_terminal_boundary_application_coverage(
     let demands = project_terminal_boundary_application_demands(checked, artifact, checked_scope)?;
     let realizations =
         project_terminal_boundary_application_realizations(checked, checked_scope, &demands)?;
+    // Selected opaque applications belong to the same boundary-edge custody:
+    // the checked compilation's canonical commitment set is bound into the
+    // coverage so downstream artifacts compare it at each actual edge.
+    let opaque_applications = checked
+        .boundary_opaque_applications()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
         .map_err(|message| vec![Diagnostic::error(message)])
+        .map(|coverage| coverage.with_opaque_applications(opaque_applications))
 }
 
 fn project_terminal_boundary_application_realizations(

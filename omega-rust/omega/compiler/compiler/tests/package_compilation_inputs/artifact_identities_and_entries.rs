@@ -527,6 +527,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 checked_program_entry: proposal.checked_program_entry().clone(),
                 selected_provider_plans: proposal.selected_provider_plans().clone(),
                 external_binding_rows: proposal.external_binding_rows().to_vec(),
+                boundary_opaque_applications: proposal.boundary_opaque_applications().clone(),
                 package_terminal_authority_permissions: vec![
                     retained_permission.clone(),
                     retained_permission.clone()
@@ -599,6 +600,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
                 checked_program_entry: proposal.checked_program_entry().clone(),
                 selected_provider_plans: proposal.selected_provider_plans().clone(),
                 external_binding_rows: proposal.external_binding_rows().to_vec(),
+                boundary_opaque_applications: proposal.boundary_opaque_applications().clone(),
                 package_terminal_authority_permissions: permissions,
                 compiler_builtins: proposal.compiler_builtins().to_vec(),
                 callback_occurrences: proposal.callback_occurrences().to_vec(),

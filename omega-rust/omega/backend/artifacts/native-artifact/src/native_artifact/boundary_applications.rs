@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 
 use crate::NativePhysicalEvidenceScope;
 
-const CUSTODY_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.d29-custody.sha256.v1\0";
+const CUSTODY_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.d29-custody.sha256.v2\0";
 
 pub(super) fn validate_boundary_application_coverage(
     module: &terminal_psi::TerminalModule,
@@ -50,7 +50,20 @@ pub(crate) fn boundary_application_coverage_identity(
         digest.update(reference.terminal_operation().get().to_le_bytes());
         digest.update(reference.coverage().as_bytes());
     }
+    let applications = coverage.opaque_applications();
+    digest.update(canonical_usize(applications.rows().len()));
+    for application in applications.rows() {
+        hash_bytes(&mut digest, application.requirement_identity.as_bytes());
+        digest.update(application.shape_root.to_le_bytes());
+        digest.update(application.application_report_fingerprint.to_le_bytes());
+        digest.update(application.selected_application_commitment);
+    }
     Some(digest.finalize().into())
+}
+
+fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
+    digest.update(canonical_usize(bytes.len()));
+    digest.update(bytes);
 }
 
 fn canonical_usize(value: usize) -> [u8; 8] {

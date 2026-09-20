@@ -981,6 +981,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
                 checked_program_entry: proposal.checked_program_entry().clone(),
                 selected_provider_plans: proposal.selected_provider_plans().clone(),
                 external_binding_rows: proposal.external_binding_rows().to_vec(),
+                boundary_opaque_applications: proposal.boundary_opaque_applications().clone(),
                 package_terminal_authority_permissions: proposal
                     .package_terminal_authority_permissions()
                     .to_vec(),

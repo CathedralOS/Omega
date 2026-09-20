@@ -1237,3 +1237,113 @@ machine Main::main(&mut self) { }
         "the parent's resolved row is its concrete reach plus the substituted nested row",
     );
 }
+
+/// By-value opaque custody must bind the strong selected-application
+/// commitment into the retained Terminal product so independently compiled
+/// producer and consumer artifacts compare the same application at the same
+/// edge — equal size, alignment, or a compact fingerprint never establish
+/// agreement.
+#[test]
+fn opaque_by_value_custody_binds_the_selected_application_commitment() {
+    let build = INTERRUPT_REPRESENTATION_BUILD.replacen(
+        "builder.application(\"interrupt-entry\");",
+        "builder.application(\"interrupt-entry\");\n    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);",
+        1,
+    );
+    // The checked-level fixture keeps its policy type private; publication of
+    // a retained artifact requires the public interface to stay public.
+    let publishable_policy =
+        INTERRUPT_POLICY.replace("data X86InterruptPolicy", "pub data X86InterruptPolicy");
+    let main_path = write_project("interrupt-opaque-custody", &publishable_policy, &build);
+    let retained = compiler::compile(
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: main_path.clone(),
+            build_dir: None,
+            target_name: Some("windows_x86_64".into()),
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("interrupt policy must publish a retained terminal artifact")
+    .into_retained_terminal_artifact()
+    .expect("retained terminal artifact");
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &main_path,
+        Some("windows_x86_64"),
+    ))
+    .expect("interrupt policy should compile");
+    let expected = checked
+        .boundary_opaque_applications()
+        .expect("checked boundary-edge custody");
+    assert!(
+        !expected.is_empty(),
+        "the interrupt policy carries a by-value opaque boundary edge"
+    );
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("native proposal");
+    let applications = proposal.boundary_opaque_applications();
+    assert_eq!(
+        applications, &expected,
+        "the retained artifact must carry the exact selected-application custody"
+    );
+    let row = applications
+        .rows()
+        .iter()
+        .find(|row| row.requirement_identity.contains("InterruptEntry::enter"))
+        .expect("the interrupt entry edge retains its application custody");
+    assert_eq!(
+        row.selected_application_commitment,
+        retained_interrupt_representation(&checked).selected_application_commitment(),
+        "the custody row carries the strong commitment, not a layout fingerprint"
+    );
+
+    let inputs = |applications: boundary_applications::BoundaryOpaqueRepresentationApplications| {
+        compilation_report::TerminalNativeRealizationInputs {
+            target_profile: proposal.target_profile(),
+            native_target: proposal.native_target(),
+            subsystem: proposal.subsystem(),
+            application_intent: proposal.application_intent(),
+            application_identifier: proposal.application_identifier().cloned(),
+            application_name: proposal.application_name().map(str::to_owned),
+            post_terminal_optimizations: proposal.post_terminal_optimizations().clone(),
+            program_entry: proposal.program_entry().clone(),
+            checked_program_entry: proposal.checked_program_entry().clone(),
+            selected_provider_plans: proposal.selected_provider_plans().clone(),
+            external_binding_rows: proposal.external_binding_rows().to_vec(),
+            boundary_opaque_applications: applications,
+            package_terminal_authority_permissions: proposal
+                .package_terminal_authority_permissions()
+                .to_vec(),
+            compiler_builtins: proposal.compiler_builtins().to_vec(),
+            callback_occurrences: proposal.callback_occurrences().to_vec(),
+            ieee_float_fma_occurrences: proposal.ieee_float_fma_occurrences().to_vec(),
+            ieee_float_comparison_occurrences: proposal
+                .ieee_float_comparison_occurrences()
+                .to_vec(),
+            integer_comparison_occurrences: proposal.integer_comparison_occurrences().to_vec(),
+            boundary_application_demands: proposal.boundary_application_demands().clone(),
+            boundary_application_realizations: proposal.boundary_application_realizations().clone(),
+            checked_boundary_operator_scope: proposal.checked_boundary_operator_scope().clone(),
+            behavior_exclusions: proposal.behavior_exclusions().clone(),
+        }
+    };
+    // A different commitment at the same edge is a different application: the
+    // exchanged custody must disagree so the two artifacts cannot agree there.
+    let mut substituted = row.clone();
+    substituted.selected_application_commitment[0] ^= 0x5a;
+    let substituted =
+        boundary_applications::BoundaryOpaqueRepresentationApplications::new(vec![substituted])
+            .expect("canonical custody");
+    let substituted_proposal = compilation_report::TerminalNativeRealizationProposal::new(
+        retained.artifact(),
+        inputs(substituted.clone()),
+    )
+    .expect("a structurally valid drifted custody still validates");
+    assert_ne!(
+        substituted_proposal.boundary_opaque_applications(),
+        applications,
+        "producer and consumer compare the commitment itself, never its layout"
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
