@@ -6382,7 +6382,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
 - **CHAIN-GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST** — mined candidate; verify scope then implement.
-- **CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
+- **CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING** — mined candidate; scope verified, already landed. Re-mines CHAIN-MANIFEST's struck-through bullet "D's OCREQ request entry, still framed per gate rather than bound" (TASKS_BOOTSTRAP.md P5): bound on main at `tools/bootstrap/omega/compiler_env.sh` — `OMEGA_REQUEST_ENTRY_SIZE=4115` / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…` plus the sealed-request fixture `OMEGA_REQUEST_FIXTURE_SIZE=132` / `ab2e980a…`, and `OMEGA_EXECUTABLE_OCREQ_ENTRY_*` (19,253 bytes) — recorded in `tests/bootstrap/omega-request/README.md`, served through the selected chain by the omega-request gate (macOS arm64/Windows x64), and refused by `tests/bootstrap/omega-identity.sh`. Provisions 25-26 (`coverage_request_semantics`, `request_staging_bytes`) already sit in `bootstrap/5_omega/outcome.epsilon` and `wiki/spec/build/compiler_request.md`. No unbound residual remains on this row; the executable-chain legs stay host-gated per the frontier.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIXES** — mined candidate; verify scope then implement.
