@@ -7028,7 +7028,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   edit lands without the harness side. Sibling re-mines of the same OMEGA-D
   clause for coordinator retirement: D-OCREQ-ENTRY-BINDING and
   D-REQUEST-ADMISSION-ROUTE.
-- **D-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
+- **D-OCREQ-ENTRY-BINDING.** Mined candidate — resolved: the
+  CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS row names this stub verbatim
+  as a sibling re-mine of the OMEGA-D `frame_ocreq`/`compile(source, entry)`
+  adapter-retirement clause, and the bound entry state it asks for is
+  already on main — re-verified at `867443a8fd`:
+  `tools/bootstrap/omega/compiler_env.sh` pins `OMEGA_REQUEST_ENTRY_SIZE=4115`
+  / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…` and the executable-side
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19253` /
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256=9573d734…`, recorded in
+  `tests/bootstrap/omega-request/README.md` as D's canonical OCREQ request
+  boundary (same bound surface the resolved sibling
+  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING cites). The one unlanded residual —
+  retiring the trampoline adapter — is a coordinated edit inside
+  `tests/bootstrap/omega-executable/` (nine control members call
+  `compile(source, entry)`; `controls_g.epsilon` pins the trampoline bytes),
+  live-fenced to OMEGA-D (`bootstrap/5_omega` +
+  `tests/bootstrap/omega-executable` + `wiki/spec/build/compiler_request.md`,
+  expires 22:27Z) with `tests/bootstrap/omega-request` under
+  OMEGA-D-REQUEST-TABLES (01:55Z). No unfenced slice remains; sibling
+  re-mines of the same bound surface: CHAIN-MANIFEST-OCREQ-BINDING,
+  CHAIN-OCREQ-ENTRY-BINDING, OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING.
 - **D-REQUEST-ADMISSION-ROUTE.** Resolved — the request admission route is
   the sealed OCREQ V1 boundary implemented and bound on `origin/main`:
   `tests/bootstrap/omega-request/main.epsilon` is D's canonical program
