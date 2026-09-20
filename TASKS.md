@@ -6064,6 +6064,28 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 - **BASELINE-CANARY-PASS-CLUSTER.** Four unrepaired pass-canary failures in the canary suite section; triage and repair or retire each with attribution. w9 leg (this wave): `calls/statement_call_recursive_argument_compile` repaired — fixture's `Nat`/`add` collided with `core/nat.omg` exports (added 2026-09-17); renamed to `Peano`/`peano_add`, and the `read_line`/`extent_shape` diagnostics proved collision collateral. `operators/runtime_integer_division_value` repaired — added the missing `build.omg` entry binds and re-scoped operands to `u64` (the realized `ExactIntegerDivide` carrier); signed `i32` exact division remains attributed to the unsigned-quotient/arithmetic-policy lane (t2s fenced by CORPUS-RED-FAMILY this wave). `atomics/atomic_field_declared` GREEN on Linux at 4607987316 — its recorded failure is the macOS hosted-receiver bridge owned by ENTRY-CONTENT-ROOTS; retired here as host-bound. `filesystem/windows_set_file_time_exit` — owned by WINDOWS-SET-FILE-TIME-RESPELL (in flight); doc already names the unsigned-carrier re-spelling. Doc rows in `wiki/drafts/known_baseline_failures.md` were fenced to another wave member; update pending.
 - **BASELINE-PACKAGE-COMPILATION-INPUTS.** Two unrepaired failures under `package_compilation_inputs`.
 - **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Three unrepaired failures in the `terminal_psi_source` native-differential lane.
+- **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** (new-scope) Unrepaired
+  failure in `external-roots`:
+  `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`
+  expects the ranked fixture's five segment ceilings to bind as
+  `[1, 3, 3, 3, 1]` and observes `[1, 25769803776, 25769803776, 25769803776, 1]`
+  (macOS AArch64, `cargo nextest run -p external-roots` 248 run / 247 passed
+  at origin/main d4a908ec95 plus the 0e7dbf60de build repair). 25769803776
+  is 6·2^32: `7591b2607c` ("terminal-fixed-fuel: bound segments through
+  ranked cyclic components", whose body records its local tests as still
+  pending) now charges a `TerminalRankedScc::Natural` component as
+  rank-max-plus-one member visits, and the fixture's rank carrier is `u32`,
+  so the component bound is taken over the carrier range rather than the
+  countdown the external-roots binding expects. The failure was
+  unobservable while `external-roots` did not build (20bd592af1 removed the
+  journal types 2d8c5136cc consumed); the fuel crate's own suite is green
+  (`cargo nextest run -p terminal-fixed-fuel` 60/60). Owner: the
+  terminal-fixed-fuel ranked-segment lane (**PSIIR** resource-analysis leg)
+  decides whether a ranked component's segment ceiling is the carrier-wide
+  bound or the verified countdown; the external-roots expectation follows
+  that decision. Repair is one of the two files
+  (`terminal-fixed-fuel/src/fuel_certification/{outcome_bounds,segment_partition}.rs`
+  or `external-roots/src/stack_and_fuel/fixed_fuel/tests.rs`), not both.
 - **BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP.** Unrepaired failure in the `pipeline_ownership` native-differential lane. Current red state is a
   compile-broken test target at `62c502f9f6` (linux x86-64,
   `cargo nextest run -p omega-native-differential-test --test
