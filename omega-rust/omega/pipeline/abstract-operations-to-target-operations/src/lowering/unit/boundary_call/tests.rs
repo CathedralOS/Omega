@@ -1180,6 +1180,169 @@ fn borrowed_flat_record_arguments_preserve_source_custody_and_plan_positions() {
 }
 
 #[test]
+fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_transport() {
+    let boundary = BoundaryMachineId::new(231).unwrap();
+    let machine = MachineId::new(232).unwrap();
+    let caller_place = PlaceId::new(233).unwrap();
+    let quad = StructuralTypeId::new(241).unwrap();
+    let f32_scalar = ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32);
+    let mut next_field = 242_u64;
+    let mut field = |identity: &str| {
+        let declaration = terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(next_field).unwrap(),
+            identity: identity.to_owned(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: terminal_psi::StructuralFieldType::Scalar(f32_scalar),
+        };
+        next_field += 1;
+        declaration
+    };
+    let catalog = abstract_operations::StructuralTypeCatalog::from(vec![
+        terminal_psi::StructuralTypeDeclaration {
+            id: quad,
+            identity: "Quad".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![field("a"), field("b"), field("c"), field("d")],
+            },
+        },
+    ]);
+    let structural_types = StructuralTypeLookup::new(&catalog);
+    let source = TargetStructuralParameter {
+        place: caller_place,
+        structural_type: quad,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::Owned,
+        projected_qualifications: Vec::new(),
+        shape: ValueShape::integer(16, 4),
+        placement: ValuePlacement {
+            shape: ValueShape::integer(16, 4),
+            locations: vec![ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 16,
+                alignment: 4,
+            }],
+        },
+    };
+    let parameters_by_place = BTreeMap::from([(caller_place, &source)]);
+    let mut declaration = declaration(boundary, Vec::new());
+    declaration.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+    declaration.structural_parameters = vec![structural_formal(
+        0,
+        quad,
+        terminal_psi::StructuralAccess::Owned,
+    )];
+    let arguments = vec![terminal_psi::StructuralArgument {
+        place: caller_place,
+        path: Vec::new(),
+        access: terminal_psi::StructuralAccess::Owned,
+    }];
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let abi_shape = ValueShape::homogeneous_float_aggregate(4, 4);
+        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![abi_shape],
+                result: None,
+            },
+        )
+        .expect("owned aggregate entry plan")
+        .plan()
+        .clone();
+        let lowered = lower_normalized_foreign_structural_arguments(
+            boundary,
+            machine,
+            target,
+            &declaration,
+            &arguments,
+            &plan,
+            &structural_types,
+            &parameters_by_place,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+            None,
+        )
+        .expect("owned aggregate argument lowers");
+        let [argument] = lowered.as_slice() else {
+            panic!("expected exactly one structural argument")
+        };
+        assert_eq!(argument.place, caller_place);
+        assert_eq!(argument.access, terminal_psi::StructuralAccess::Owned);
+        assert!(argument.path.is_empty());
+        assert_eq!(argument.root_structural_type, quad);
+        assert_eq!(argument.structural_type, quad);
+        assert_eq!(argument.shape, ValueShape::integer(16, 4));
+        assert_eq!(argument.source_byte_offset, 0);
+        assert_eq!(argument.fixed_array_length, None);
+        assert_eq!(argument.element_stride, None);
+        assert_eq!(
+            argument.source,
+            target_operations::TargetStructuralArgumentSource::Placement(source.placement.clone())
+        );
+        assert_eq!(argument.destination, plan.call.parameters[0]);
+    }
+
+    // A field projection, a borrowed-class destination, and a size-mismatched
+    // plan each fail closed for an owned formal.
+    let mut projected = arguments[0].clone();
+    projected.path = vec![terminal_psi::StructuralPathSegment::Field("a".into())];
+    let point_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+        &CallSignature {
+            parameters: vec![ValueShape::integer(8, 4)],
+            result: None,
+        },
+    )
+    .expect("size-mismatched entry plan")
+    .plan()
+    .clone();
+    let borrowed_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+        &CallSignature {
+            parameters: vec![ValueShape::borrowed_reference(16, 4)],
+            result: None,
+        },
+    )
+    .expect("borrowed-class entry plan")
+    .plan()
+    .clone();
+    let x64 = NativeTarget::linux_x64();
+    let aggregate_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(x64),
+        &CallSignature {
+            parameters: vec![ValueShape::homogeneous_float_aggregate(4, 4)],
+            result: None,
+        },
+    )
+    .expect("aggregate entry plan")
+    .plan()
+    .clone();
+    for (argument, plan) in [
+        (projected, &aggregate_plan),
+        (arguments[0].clone(), &point_plan),
+        (arguments[0].clone(), &borrowed_plan),
+    ] {
+        assert!(
+            lower_normalized_foreign_structural_arguments(
+                boundary,
+                machine,
+                x64,
+                &declaration,
+                std::slice::from_ref(&argument),
+                plan,
+                &structural_types,
+                &parameters_by_place,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                None,
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn normalized_foreign_structural_mutations_fail_closed() {
     let boundary = BoundaryMachineId::new(221).unwrap();
     let machine = MachineId::new(222).unwrap();
