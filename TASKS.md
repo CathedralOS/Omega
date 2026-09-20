@@ -5050,12 +5050,34 @@ Owners include
 
   Remaining work:
 
-  - Admit a request. That needs a production caller of
-    `install_non_executable_quotient_correspondences`
-    (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs`;
-    only its tests call it) and quotient handling in
-    `typed-trees-to-checked-trees`, which exits every value path whose call
-    carries `quotient_operation`.
+  - Admit a request. The Terminal side is wired:
+    `retain_checked_quotient_correspondences`
+    (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs`,
+    called from `lower_terminal_selection`) runs the extractor on
+    `CheckedTrees::typed` whenever a call carries `quotient_operation`,
+    installs the complete admitted batch, and refuses any other shape as
+    `LoweringError::UnadmittedQuotientRequest`; a nonempty table then stops
+    at the execution gate (`ModuleError::NonExecutableQuotientCorrespondence`)
+    as the spec requires. Nothing reaches it yet because
+    `reject_quotient_operation_requests`
+    (`validation/src/proof_contracts/quotients/formation_collection.rs`, via
+    `validate_quotients`) still rejects every request before checked trees
+    exist, and `typed-trees-to-checked-trees` exits every value path whose
+    call carries `quotient_operation`: `build_checked_value_computation_plans`
+    (`values/scalar/computations.rs`), `nested_structural_call_sites` /
+    `nested_structural_call_return_type` (`values/scalar/call_arguments.rs`),
+    `capture_call` (`flow/transfers/scalar_values/calls.rs`),
+    `collection_view_source_place` (`flow/transfers/projected.rs`),
+    `append_builtin_collection_view` (`flow/ownership/moves/observations.rs`),
+    `call_result_sources` (`flow/reference_places/result_candidates.rs`),
+    `structural_operands::collect` (`execution/unit/control`),
+    `build_payloadless_guarded_call_return_machine`
+    (`execution/unit/returns/guarded_call_returns.rs`), `call_result_place`
+    (`checks/termination/progress/origins.rs`) and
+    `retain_call_expression_machines` (`product_pruning/dependencies.rs`).
+    Next: let validation admit the extractor's batch instead of rejecting
+    it, then give the admitted request a checked value plan (a proof-only
+    result binding of the representative call) through those exits.
   - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
     language-semantics, codec, verifier and review rows belong to
     **PROOF-CONTRACT-MIGRATION**.
