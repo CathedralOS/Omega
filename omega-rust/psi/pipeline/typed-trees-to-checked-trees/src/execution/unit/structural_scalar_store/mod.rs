@@ -280,6 +280,21 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             stores.push(store);
             continue;
         }
+        trace.phase("scalar field store sequence: whole record store");
+        if let Some(record_stores) = build_whole_record_store_sequence(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            scalar_parameters,
+            statement_index,
+            assignment,
+            trace,
+        ) {
+            stores.extend(record_stores);
+            continue;
+        }
         // An assignment whose source is this statement's own call has no
         // authored scalar expression to store. Its call operation is sequenced
         // with the other calls, and the store consuming that result is
@@ -327,6 +342,197 @@ pub(super) fn build_structural_call_result_field_store(
         Some(call_result),
         trace,
     )
+}
+
+/// A whole-record assignment through an exclusive borrow decomposes into the
+/// same ordered per-field stores the equivalent field sequence would author:
+/// the rooted record literal supplies each scalar field's exact `RecordField`
+/// computation coordinate, and the write frame's complete root path is the
+/// custody proof a field sequence earns one store at a time.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn build_whole_record_store_sequence(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    trace: &LocalConstructionTrace,
+) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    trace.phase("structural field store: whole record destination");
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        usize::try_from(statement_index).ok()?,
+        assignment.target,
+    )?;
+    if !place.segments.is_empty() {
+        return None;
+    }
+    let source_parameters = program.state_parameters(state);
+    let mut destinations = structural_parameters.iter().filter_map(|destination| {
+        let parameter = source_parameters.get(destination.position as usize)?;
+        (place.root == facts::PlaceRoot::Symbol(parameter.symbol))
+            .then_some((destination, parameter))
+    });
+    let (destination, parameter) = destinations.next()?;
+    if destinations.next().is_some()
+        || destination.multiplicity == Multiplicity::Linear
+        || !matches!(
+            destination.access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+        )
+        || !destination.qualifications.is_empty()
+        || parameter.is_self != destination.is_self
+        || parameter.is_const
+        || !parameter.is_mutable
+    {
+        return None;
+    }
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    let expected_access = match access {
+        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+        language_semantics::ReferenceAccess::Shared => return None,
+    };
+    if destination.access != expected_access {
+        return None;
+    }
+    let owner = if destination.is_self {
+        program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == machine.attached_data_symbol)?
+    } else {
+        crate::facts::field_domain::data_definition_for_field_type(program, *referee)?
+    };
+    if !plain_record(owner, program) {
+        return None;
+    }
+    trace.phase("structural field store: whole record literal");
+    let value_root = facts.values.structural_values.root_for_expression(
+        state.symbol,
+        statement_index,
+        assignment.value,
+    )?;
+    if value_root.machine != machine.symbol {
+        return None;
+    }
+    let checked_trees::CheckedStructuralValueKind::Record {
+        data_symbol,
+        fields,
+    } = facts
+        .values
+        .structural_values
+        .nodes
+        .get(value_root.root)
+        .kind
+        .clone()
+    else {
+        return None;
+    };
+    if data_symbol != owner.symbol {
+        return None;
+    }
+    let fields = facts
+        .values
+        .structural_values
+        .record_fields
+        .span(fields)?
+        .to_vec();
+    // The frame must name the exact whole-root write: the decomposed stores
+    // together cover it, so no narrower per-field path is required.
+    let mutation_root = if destination.is_self {
+        "self".to_owned()
+    } else {
+        format!("$P{}", destination.position)
+    };
+    let frame = &facts
+        .mutation
+        .for_machine(machine.symbol)?
+        .state_write_frames
+        .iter()
+        .find(|frame| frame.state == state.symbol)?
+        .frame;
+    if !matches!(frame.complete_paths(), Some([path]) if path == &mutation_root) {
+        return None;
+    }
+    if crate::execution::terminal_unit::abi_parameter_count(source_parameters)
+        != scalar_parameters.len() + structural_parameters.len()
+    {
+        return None;
+    }
+    let mut stores = Vec::with_capacity(fields.len());
+    for (ordinal, field) in fields.iter().enumerate() {
+        let checked_trees::CheckedStructuralRecordFieldValue::Scalar(root) = field.value else {
+            return None;
+        };
+        let declaration = exact_relevant_field(program, owner, field.field)?;
+        if !crate::facts::field_domain::domain_constraint_symbols(
+            program,
+            declaration.type_reference,
+        )
+        .is_empty()
+        {
+            return None;
+        }
+        let primitive_type = program.primitive_type_reference(declaration.type_reference)?;
+        if !matches!(
+            primitive_type,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+        ) && (!primitive_type.accepts_integer_literal() || primitive_type == PrimitiveType::Addr)
+        {
+            return None;
+        }
+        let field_ordinal = u32::try_from(ordinal).ok()?;
+        // The literal field's computation must exist at this statement's own
+        // `RecordField` coordinate; a root borrowed from another role would
+        // let the store consume a computation the assignment never authored.
+        facts
+            .values
+            .scalar_computations
+            .roots
+            .iter()
+            .map(|(_, root)| root)
+            .find(|row| {
+                row.machine == machine.symbol
+                    && row.state == state.symbol
+                    && row.statement_ordinal == statement_index
+                    && row.root == root
+                    && matches!(row.role,
+                        CheckedScalarExpressionRole::RecordField { expression, field_ordinal: ordinal }
+                            if expression == assignment.value && ordinal == field_ordinal)
+            })?;
+        let node = facts.values.scalar_computations.nodes.get(root);
+        if node.authored_root != field.expression || node.primitive_type != primitive_type {
+            return None;
+        }
+        stores.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+            CheckedStructuralScalarFieldStorePlan {
+                statement_index,
+                destination:
+                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                        position: destination.position,
+                    },
+                carrier_path: Vec::new(),
+                field_identity: terminal_field_identity(program, declaration.symbol)?,
+                primitive_type,
+                value: checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root),
+            },
+        ));
+    }
+    // A fieldless literal writes nothing the coverage checks can name; the
+    // authored assignment must still own at least one store.
+    (!stores.is_empty()).then_some(stores)
 }
 
 /// Test convenience: the traced builder without a trace.

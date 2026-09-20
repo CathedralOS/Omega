@@ -541,8 +541,20 @@ pub(in crate::legalization) fn call_argument(
     if super::primitive_locals::scalar(&plan.structural_types, destination.structural_type)
         .is_some()
     {
+        // A projected scalar leaf borrows a subtree of its source's storage;
+        // the destination shape stays scalar while the projection lives on the
+        // source side, so reconstruct it against the home carrying the root.
         if !argument.path.is_empty() {
-            return Err(invalid);
+            return borrowed_arguments::reconstruct(
+                argument,
+                position,
+                call_operation,
+                caller,
+                callee,
+                call,
+                native,
+                plan,
+            );
         }
         return super::structural_call::primitive_argument(
             argument,

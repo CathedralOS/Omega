@@ -465,10 +465,17 @@ pub(in crate::execution::terminal_unit) fn build(
         let mut call_result_store = None;
         let result = match statement {
             StatementNode::Assignment(assignment) => {
-                if let Some(store) = stores
+                // One authored assignment can decompose into several stores —
+                // a whole-record replacement emits one field store per member —
+                // so drain every store rooted at this statement, in order.
+                let mut consumed = false;
+                while let Some(store) = stores
                     .next_if(|store| store_statement_index(store) == Some(statement_index))
                 {
                     operations.push(store);
+                    consumed = true;
+                }
+                if consumed {
                     continue;
                 }
                 // The store sequence deliberately left this assignment to the

@@ -345,6 +345,36 @@ pub(crate) fn build_checked_value_computation_plans(
                     }
                 }
                 if let StatementNode::Assignment(assignment) = statement {
+                    // A whole-record assignment value is the same structural
+                    // constructor a `let` initializer roots: each scalar field
+                    // initializer keeps its own `RecordField` computation
+                    // coordinate for the decomposed store route to consume.
+                    if let Some(expected) = crate::flow::expression_type_reference_in_state(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        assignment.target,
+                    )
+                    .and_then(|reference| validation::unwrapped_type_reference(program, reference))
+                        && structural_values::is_record_value(program, assignment.value, expected)
+                        && let Some(root) = builder.structural_value(
+                            assignment.value,
+                            expected,
+                            &mut structural_values,
+                            pure,
+                        )
+                    {
+                        structural_values
+                            .roots
+                            .append(checked_trees::CheckedStructuralValueRoot {
+                                machine: machine.symbol,
+                                state: state.symbol,
+                                statement_ordinal,
+                                expression: assignment.value,
+                                type_reference: expected,
+                                root,
+                            });
+                    }
                     if matches!(
                         program.expression_table.expression(assignment.target),
                         ExpressionNode::Member(_)

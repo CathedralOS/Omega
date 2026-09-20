@@ -41,6 +41,17 @@ machine enter(value: u64) -> u64 {
     slot
 }";
 
+/// An owned record local lends one field `&write` to a call; the binding's
+/// aggregate custody stays whole and the stored leaf reads back after
+/// return.
+const LOCAL_RECORD_FIELD_WRITE_ONLY: &str = "data Pair [copy] { left: u64; right: u64; }
+machine stamp(left: &write u64, value: u64) { left = value; }
+machine enter(value: u64) -> u64 {
+    let mut pair: Pair = Pair { left: 1, right: 2 };
+    stamp(&write pair.left, value);
+    pair.left
+}";
+
 /// A write-only parameter re-forwards to a deeper call with explicit `&write`
 /// attenuation; the original caller referent is still what gets written.
 const WRITE_ONLY_REFORWARD: &str = "machine inner(out: &write u64, value: u64) { out = value; }
@@ -112,6 +123,7 @@ fn borrowed_arguments_preserve_optimizer_contracts() {
         (MIXED_ACCESS_FIELDS, "forward"),
         (LOCAL_ROOT_WRITE_ONLY, "enter"),
         (LOCAL_ROOT_MUTABLE, "enter"),
+        (LOCAL_RECORD_FIELD_WRITE_ONLY, "enter"),
         (WRITE_ONLY_REFORWARD, "forward"),
         (MUTABLE_FORWARD, "forward"),
         (ATTACHED_WRITE_ONLY_ARGUMENT, "forward"),
@@ -269,6 +281,46 @@ fn local_root_arguments_return_the_restored_local() {
                 let _ = (bytes, entry_offset);
                 eprintln!("SKIP: local-root execution requires a supported host");
             }
+        }
+    }
+}
+
+#[test]
+fn local_record_field_argument_returns_the_stored_field() {
+    for target in hosted_targets() {
+        let (bytes, entry_offset) = published_for(LOCAL_RECORD_FIELD_WRITE_ONLY, "enter", target);
+        if target != NativeTarget::host() {
+            continue;
+        }
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        native_function::assert_c_text(
+            &bytes,
+            entry_offset,
+            r#"
+            #include <stdint.h>
+            extern uint64_t omega_entry(uint64_t value);
+            int main(void) {
+                if (omega_entry(41ull) != 41ull) return 1;
+                return omega_entry(77ull) == 77ull ? 0 : 1;
+            }
+        "#,
+        );
+        #[cfg(not(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        )))]
+        {
+            let _ = (bytes, entry_offset);
+            eprintln!("SKIP: record-field argument execution requires a supported host");
         }
     }
 }

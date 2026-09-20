@@ -74,6 +74,25 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
+    // A borrowed projection rooted at a local aggregate result rejoins the
+    // producing home through the same call-argument reconstruction used for
+    // aggregate destinations; the routes below only know entrance parameters,
+    // block parameters, and primitive locals.
+    if !semantic.path.is_empty()
+        && super::structural_case::source_result(caller, semantic.place).is_ok()
+    {
+        return super::aggregate_results::call_argument(
+            semantic,
+            position,
+            call_operation,
+            caller,
+            called,
+            call,
+            native,
+            plan,
+            custody,
+        );
+    }
     if super::primitive_locals::producer(caller, semantic.place).is_some()
         || matches!(
             semantic.access,
