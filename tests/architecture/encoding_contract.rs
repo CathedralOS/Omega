@@ -10,7 +10,7 @@
 //! text-shaped: it reads the variant name and tag literal out of each encoder's
 //! `match`, the way a reader would, rather than depending on codec internals.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -291,6 +291,290 @@ fn assert_table_matches(marker: &str, code: BTreeMap<u8, String>) {
             );
         }
     }
+}
+
+/// Byte range `(start, end)` of the contents of the balanced `{ ... }` block
+/// whose opening brace sits at byte offset `open` in `text`.
+fn block_span(text: &str, open: usize) -> Option<(usize, usize)> {
+    let bytes = text.as_bytes();
+    let mut depth = 0usize;
+    for (offset, byte) in bytes.iter().enumerate().skip(open) {
+        match byte {
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((open + 1, offset));
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Offset of `needle` at brace depth zero, where it is not nested inside
+/// parens/brackets/braces of `text`.
+fn depth_zero_find(text: &str, needle: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, c) in text.char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            _ if depth == 0 && text[index..].starts_with(needle) => return Some(index),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// `const NAME: u8 = N;` values defined in one wire file, so decoders that
+/// name their tags (`operation_tags::INTEGER_CONSTANT`) resolve correctly.
+fn u8_consts(path: &str) -> BTreeMap<String, u8> {
+    let source = strip_line_comments(&read_workspace_file(path));
+    let mut consts = BTreeMap::new();
+    for segment in source.split("const ") {
+        let Some((name, rest)) = segment.split_once(':') else {
+            continue;
+        };
+        let name = name.trim();
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            continue;
+        }
+        let Some((ty, value)) = rest.split_once('=') else {
+            continue;
+        };
+        if ty.trim() != "u8" {
+            continue;
+        }
+        let Some((literal, _)) = value.split_once(';') else {
+            continue;
+        };
+        if let Ok(tag) = literal.trim().parse::<u8>() {
+            consts.insert(name.to_string(), tag);
+        }
+    }
+    consts
+}
+
+/// Source file backing `mod <module>;` used from wire file `path` (`mod m;`
+/// inside `f.rs` resolves to `f/m.rs`, falling back to the sibling `m.rs`).
+fn module_file(path: &str, module: &str) -> String {
+    let stem = path.strip_suffix(".rs").unwrap_or(path);
+    let dir = path.rsplit_once('/').map_or("", |(dir, _)| dir);
+    for candidate in [format!("{stem}/{module}.rs"), format!("{dir}/{module}.rs")] {
+        if workspace_root().join(&candidate).is_file() {
+            return candidate;
+        }
+    }
+    panic!("{path} resolves no module file for `{module}`");
+}
+
+/// One pattern piece to the tag it matches: a literal, a `module::CONST`, a
+/// `Self::CONST`, or a bare `CONST` from the wire file itself.
+fn tag_value(piece: &str, path: &str) -> Option<u8> {
+    if let Ok(tag) = piece.parse::<u8>() {
+        return Some(tag);
+    }
+    let (consts, name) = if let Some((scope, name)) = piece.rsplit_once("::") {
+        if scope == "Self" || scope == "self" {
+            (u8_consts(path), name)
+        } else {
+            (u8_consts(&module_file(path, scope)), name)
+        }
+    } else {
+        (u8_consts(path), piece)
+    };
+    consts.get(name).copied()
+}
+
+/// Tags matched by one arm-head piece, handling `binding @ pattern`,
+/// top-level `|` alternatives (including parenthesized groups), `a..=b`
+/// ranges, literals, and named constants.
+fn collect_pattern_tags(piece: &str, path: &str, accepted: &mut BTreeSet<u8>) {
+    let mut piece = piece.trim();
+    while piece.starts_with('(') && piece.ends_with(')') {
+        let mut depth = 0usize;
+        let mut wraps = true;
+        for (index, c) in piece.char_indices() {
+            match c {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => {
+                    depth -= 1;
+                    if depth == 0 && index != piece.len() - 1 {
+                        wraps = false;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if !wraps {
+            break;
+        }
+        piece = piece[1..piece.len() - 1].trim();
+    }
+    if let Some(at) = depth_zero_find(piece, " @ ") {
+        collect_pattern_tags(&piece[at + " @ ".len()..], path, accepted);
+        return;
+    }
+    let mut depth = 0usize;
+    let mut parts = Vec::new();
+    let mut start = 0;
+    for (index, c) in piece.char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            '|' if depth == 0 => {
+                parts.push(&piece[start..index]);
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&piece[start..]);
+    if parts.len() > 1 {
+        for part in parts {
+            collect_pattern_tags(part, path, accepted);
+        }
+        return;
+    }
+    if let Some((low, high)) = piece.split_once("..=") {
+        let low = tag_value(low.trim(), path).expect("range lower tag");
+        let high = tag_value(high.trim(), path).expect("range upper tag");
+        accepted.extend(low..=high);
+        return;
+    }
+    match tag_value(piece, path) {
+        Some(tag) => {
+            accepted.insert(tag);
+        }
+        None => {
+            // `_` and lowercase bindings are fallthrough arms. An uppercase
+            // piece that resolves to nothing is a contract hole — panic rather
+            // than silently drop it.
+            if piece != "_" && piece.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+                panic!("unresolvable tag pattern `{piece}` in {path}");
+            }
+        }
+    }
+}
+
+/// Integer tags in one already-isolated arm head `<pattern>`. A guard
+/// (`pattern if cond`) keeps only the pattern; `=>` inside the arm body is
+/// never part of `head`.
+fn collect_arm_tags(head: &str, path: &str, accepted: &mut BTreeSet<u8>) {
+    let mut pattern = head;
+    if let Some(at) = depth_zero_find(pattern, " if ") {
+        pattern = &pattern[..at];
+    }
+    collect_pattern_tags(pattern, path, accepted);
+}
+
+/// The tag set the decoder accepts for `<label>`: the integer arm heads of the
+/// `match` whose arms produce `InvalidTag("<label>")`. Only that match's
+/// top-level arms count — a `match` nested inside an arm body decodes a
+/// different table and reports its own label. A function may contain several
+/// matches for one label (per-field decoders); their accepted sets union.
+fn decode_tag_set(path: &str, function: &str, label: &str) -> BTreeSet<u8> {
+    let source = strip_line_comments(&read_workspace_file(path));
+    let body = function_body(&source, function);
+    let quoted = format!("\"{label}\"");
+    let mut accepted = BTreeSet::new();
+    let mut found = false;
+    for (at, _) in body.match_indices("InvalidTag(") {
+        let after = at + "InvalidTag(".len();
+        if !body[after..].trim_start().starts_with(&quoted) {
+            continue;
+        }
+        found = true;
+        let position = at;
+        // The match that owns the fallthrough arm producing this label is the
+        // smallest match-scrutinee block containing the occurrence.
+        let mut best: Option<(usize, usize)> = None;
+        let mut scan = 0usize;
+        while let Some(relative) = body[scan..].find("match ") {
+            let at = scan + relative;
+            let Some(open) = body[at..].find('{').map(|open| at + open) else {
+                break;
+            };
+            let Some((start, end)) = block_span(body, open) else {
+                break;
+            };
+            if start <= position && position <= end {
+                let smaller = best.map_or(true, |(_, old_end)| end < old_end);
+                if smaller {
+                    best = Some((start, end));
+                }
+            }
+            scan = at + "match ".len();
+        }
+        let (start, end) = best.unwrap_or_else(|| {
+            panic!("{function} produces InvalidTag(\"{label}\") outside a match block")
+        });
+        // Arms end at a depth-0 `,`, or — for block-style bodies that omit the
+        // trailing comma (`PATTERN => { ... }`) — at the `}` that closes the
+        // body. Each depth-0 `=>` found while scanning for the next arm marks
+        // that arm's head.
+        let content = &body[start..end];
+        let mut arms: Vec<(usize, usize, usize)> = Vec::new();
+        let mut depth = 0usize;
+        let mut arm_start = 0usize;
+        let mut head_end = 0usize;
+        let mut in_body = false;
+        let bytes = content.as_bytes();
+        let mut index = 0usize;
+        while index < bytes.len() {
+            match bytes[index] {
+                b'{' | b'[' | b'(' => depth += 1,
+                b'}' | b']' | b')' => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 && in_body && bytes[index] == b'}' {
+                        arms.push((arm_start, head_end, index));
+                        in_body = false;
+                        arm_start = index + 1;
+                    }
+                }
+                b'=' if depth == 0 && !in_body && bytes.get(index + 1) == Some(&b'>') => {
+                    head_end = index;
+                    in_body = true;
+                    index += 1;
+                }
+                b',' if depth == 0 && in_body => {
+                    arms.push((arm_start, head_end, index));
+                    in_body = false;
+                    arm_start = index + 1;
+                }
+                _ => {}
+            }
+            index += 1;
+        }
+        if in_body {
+            arms.push((arm_start, head_end, bytes.len()));
+        }
+        for (arm_start, head_end, arm_end) in arms {
+            let head = content[arm_start..head_end]
+                .trim_start_matches(|c: char| c == ',' || c.is_whitespace());
+            if head.is_empty() {
+                continue;
+            }
+            // `N => Ok(None)` decodes the absent-marker byte the spec prose
+            // assigns outside the tag table, not a table row.
+            let mut arm_body = content[head_end + 2..arm_end].trim();
+            if arm_body.starts_with('{') && arm_body.ends_with('}') {
+                arm_body = arm_body[1..arm_body.len() - 1].trim();
+            }
+            if arm_body == "Ok(None)" {
+                continue;
+            }
+            collect_arm_tags(head, path, &mut accepted);
+        }
+    }
+    assert!(
+        found,
+        "{function} in {path} never produces InvalidTag(\"{label}\")"
+    );
+    accepted
 }
 
 #[test]
@@ -1895,4 +2179,557 @@ fn certificate_level_table_matches_codec() {
         "<!-- certificate-level-tags -->",
         code_tags(CERTIFICATE_WIRE, "encode_level", "Level"),
     );
+}
+
+// The encoder pins above only cover the producing direction. Decoders must
+// also refuse every tag the spec leaves unassigned, so each table marker is
+// paired with the decode function and the `InvalidTag` label its fallthrough
+// arm reports. `(marker, wire file under `sections/`, decode fn, label)`.
+const CODEC_SECTIONS: &str = "omega-rust/psi/semantics/terminal-codec/src/sections";
+
+const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
+    (
+        "operation-tags",
+        "semantic_module/block_wire.rs",
+        "decode_operation",
+        "OperationKind",
+    ),
+    (
+        "terminator-tags",
+        "semantic_module/block_wire/terminator_wire.rs",
+        "decode_terminator",
+        "Terminator",
+    ),
+    (
+        "scalar-term-tags",
+        "semantic_module/scalar_term_wire.rs",
+        "decode_scalar_term",
+        "ScalarTerm",
+    ),
+    (
+        "scalar-term-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_scalar_term",
+        "ScalarTerm",
+    ),
+    (
+        "integer-math-term-tags",
+        "semantic_module/integer_math_term_wire.rs",
+        "decode_integer_math_term",
+        "IntegerMathTerm",
+    ),
+    (
+        "integer-math-term-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_integer_math_term",
+        "IntegerMathTerm",
+    ),
+    (
+        "content-term-tags",
+        "semantic_module/content_wire.rs",
+        "decode_content_term",
+        "ContentTerm",
+    ),
+    (
+        "content-term-tags",
+        "proof_bundle/proposition_codec.rs",
+        "decode_content_term",
+        "ContentTerm",
+    ),
+    (
+        "content-algebra-kind-tags",
+        "semantic_module/content_wire.rs",
+        "decode_content_algebra",
+        "ContentAlgebraKind",
+    ),
+    (
+        "content-algebra-kind-tags",
+        "proof_bundle/proposition_codec.rs",
+        "decode_content_algebra",
+        "ContentAlgebraKind",
+    ),
+    (
+        "content-place-version-tags",
+        "semantic_module/content_wire.rs",
+        "decode_content_structural_place",
+        "ContentPlaceVersion",
+    ),
+    (
+        "content-place-version-tags",
+        "proof_bundle/proposition_codec.rs",
+        "decode_content_term",
+        "ContentPlaceVersion",
+    ),
+    (
+        "content-place-segment-tags",
+        "semantic_module/content_wire.rs",
+        "decode_content_structural_place",
+        "ContentPlaceSegment",
+    ),
+    (
+        "content-place-segment-tags",
+        "proof_bundle/proposition_codec.rs",
+        "decode_content_term",
+        "ContentPlaceSegment",
+    ),
+    (
+        "proposition-tags",
+        "semantic_module/proposition_wire.rs",
+        "decode_proposition",
+        "Proposition",
+    ),
+    (
+        "proposition-tags",
+        "proof_bundle/proposition_codec.rs",
+        "decode_proposition",
+        "Proposition",
+    ),
+    (
+        "proof-rule-tags",
+        "proof_bundle/proof_node_codec.rs",
+        "decode_proof_node",
+        "ProofRule",
+    ),
+    (
+        "machine-result-tags",
+        "semantic_module/machine_wire.rs",
+        "decode_machine",
+        "TerminalMachineResult",
+    ),
+    (
+        "ranked-scc-tags",
+        "semantic_module/machine_wire.rs",
+        "decode_ranked_scc",
+        "TerminalRankedScc",
+    ),
+    (
+        "rank-comparison-tags",
+        "semantic_module/machine_wire.rs",
+        "decode_ranked_scc",
+        "TerminalNaturalRankComparison",
+    ),
+    (
+        "place-kind-tags",
+        "semantic_module/structural_place_wire.rs",
+        "decode_structural_place_kind",
+        "StructuralPlaceKind",
+    ),
+    (
+        "structural-path-segment-tags",
+        "semantic_module/structural_place_wire.rs",
+        "decode_structural_path",
+        "StructuralPathSegment",
+    ),
+    (
+        "structural-type-shape-tags",
+        "semantic_module/structural_type_wire.rs",
+        "decode_structural_type",
+        "StructuralTypeShape",
+    ),
+    (
+        "byte-sequence-carrier-tags",
+        "semantic_module/structural_type_wire.rs",
+        "decode_structural_type",
+        "ByteSequenceCarrier",
+    ),
+    (
+        "byte-sequence-carrier-tags",
+        "semantic_module/structural_field_wire.rs",
+        "decode_byte_sequence_carrier",
+        "ByteSequenceCarrier",
+    ),
+    (
+        "binding-relevance-tags",
+        "semantic_module/structural_field_wire.rs",
+        "decode_structural_field",
+        "BindingRelevance",
+    ),
+    (
+        "structural-field-type-tags",
+        "semantic_module/structural_field_wire.rs",
+        "decode_structural_field",
+        "StructuralFieldType",
+    ),
+    (
+        "canonical-path-segment-tags",
+        "semantic_module/structural_field_wire.rs",
+        "decode_canonical_structural_field",
+        "CanonicalStructuralPathSegment",
+    ),
+    (
+        "canonical-path-segment-tags",
+        "proof_bundle/proposition_codec.rs",
+        "decode_canonical_structural_field",
+        "CanonicalStructuralPathSegment",
+    ),
+    (
+        "structural-access-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_structural_access",
+        "StructuralAccess",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_structural_parameters",
+        "StructuralMultiplicity",
+    ),
+    (
+        "content-projection-expression-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_content_projection_expression",
+        "ContentProjectionExpression",
+    ),
+    (
+        "boundary-parameter-kind-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_boundary_machine",
+        "BoundaryParameterKind",
+    ),
+    (
+        "boundary-result-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_boundary_machine",
+        "BoundaryMachineResult",
+    ),
+    (
+        "boundary-content-guarantee-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_boundary_machine",
+        "BoundaryContentGuarantee",
+    ),
+    (
+        "retained-borrow-root-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_place",
+        "RetainedBorrowPlaceRoot",
+    ),
+    (
+        "retained-borrow-segment-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_place",
+        "ContentPlaceSegment",
+    ),
+    (
+        "crash-cause-tags",
+        "semantic_module/contract_wire.rs",
+        "decode_crash_route_bucket",
+        "CrashCause",
+    ),
+    (
+        "crash-route-guard-tags",
+        "semantic_module/contract_wire.rs",
+        "decode_crash_route_bucket",
+        "CrashRouteGuard",
+    ),
+    (
+        "proposition-binder-kind-tags",
+        "semantic_module/proof_declaration_wire.rs",
+        "decode_proposition_declaration",
+        "PropositionBinderKind",
+    ),
+    (
+        "proposition-evidence-tags",
+        "semantic_module/proof_declaration_wire.rs",
+        "decode_proposition_declaration",
+        "PropositionEvidence",
+    ),
+    (
+        "binder-argument-kind-tags",
+        "semantic_module/proof_declaration_wire.rs",
+        "decode_proposition_application",
+        "PropositionBinderArgumentKind",
+    ),
+    (
+        "evidence-lane-kind-tags",
+        "semantic_module/module_wire/evidence_wire.rs",
+        "decode_evidence_contract_lane",
+        "EvidenceContractLaneKind",
+    ),
+    (
+        "borrow-boundary-tags",
+        "semantic_module/module_wire/borrow_wire.rs",
+        "decode_borrow_boundary",
+        "TerminalBorrowBoundarySource",
+    ),
+    (
+        "borrow-owner-segment-tags",
+        "semantic_module/module_wire/borrow_wire.rs",
+        "decode_owner_path",
+        "TerminalBorrowOwnerSegment",
+    ),
+    (
+        "borrow-place-segment-tags",
+        "semantic_module/module_wire/borrow_wire.rs",
+        "decode_place_segments",
+        "TerminalBorrowPlaceSegment",
+    ),
+    (
+        "restoration-class-tags",
+        "semantic_module/module_wire/borrow_wire.rs",
+        "decode_reborrow_restored_call_use",
+        "TerminalReborrowRestorationClass",
+    ),
+    (
+        "suspension-target-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_suspension_call_target",
+        "TerminalSuspensionCallTarget",
+    ),
+    (
+        "carry-suspension-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_carry_policy",
+        "CarrySuspension",
+    ),
+    (
+        "carry-cpu-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_carry_policy",
+        "CarryCpu",
+    ),
+    (
+        "carry-host-thread-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_carry_policy",
+        "CarryHostThread",
+    ),
+    (
+        "carry-address-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_carry_policy",
+        "CarryAddress",
+    ),
+    (
+        "suspension-place-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_suspension_call_plan",
+        "TerminalSuspensionPlace",
+    ),
+    (
+        "suspension-value-type-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_suspension_call_plan",
+        "TerminalSuspensionValueType",
+    ),
+    (
+        "suspension-storage-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_suspension_call_plan",
+        "TerminalSuspensionStorage",
+    ),
+    (
+        "ranking-relation-tags",
+        "semantic_module/module_wire/recursive_component_wire.rs",
+        "decode_proof_recursive_component",
+        "TerminalProofRankingRelation",
+    ),
+    (
+        "recursive-call-site-tags",
+        "semantic_module/module_wire/recursive_component_wire.rs",
+        "decode_proof_recursive_component",
+        "TerminalProofRecursiveCallSite",
+    ),
+    (
+        "recursive-transition-lane-tags",
+        "semantic_module/module_wire/recursive_component_wire.rs",
+        "decode_proof_recursive_component",
+        "TerminalProofRecursiveTransitionLane",
+    ),
+    (
+        "conformance-parameter-kind-tags",
+        "semantic_module/module_wire/closed_conformance_wire.rs",
+        "decode_closed_conformance_application",
+        "ClosedConformanceParameterKind",
+    ),
+    (
+        "callable-result-tags",
+        "semantic_module/module_wire/closed_conformance_wire.rs",
+        "decode_closed_conformance_application",
+        "ClosedConformanceCallableResult",
+    ),
+    (
+        "callable-result-tags",
+        "semantic_module/dynamic_dispatch_wire.rs",
+        "decode_dynamic_descriptor_parameters",
+        "ClosedConformanceCallableResult",
+    ),
+    (
+        "descriptor-source-tags",
+        "semantic_module/dynamic_dispatch_wire.rs",
+        "decode_dynamic_descriptor_arguments",
+        "TerminalDynamicDescriptorSource",
+    ),
+    (
+        "float-value-type-tags",
+        "semantic_module/module_wire/float_meaning_wire.rs",
+        "decode_float_meaning_projection",
+        "ProofOnlyValueType",
+    ),
+    (
+        "float-meaning-source-tags",
+        "semantic_module/module_wire/float_meaning_wire.rs",
+        "decode_float_meaning_projection",
+        "FloatMeaningSource",
+    ),
+    (
+        "ieee-format-tags",
+        "semantic_module/module_wire/float_meaning_wire.rs",
+        "decode_ieee_format",
+        "IeeeFloatFormat",
+    ),
+    (
+        "ieee-format-tags",
+        "semantic_module/structural_field_wire.rs",
+        "decode_ieee_float_format",
+        "IeeeFloatFormat",
+    ),
+    (
+        "float-operand-tags",
+        "semantic_module/module_wire/float_meaning_wire.rs",
+        "decode_float_meaning_projection",
+        "FloatSemanticApplicationOperand",
+    ),
+    (
+        "float-projection-operation-tags",
+        "semantic_module/module_wire/float_meaning_wire.rs",
+        "decode_float_meaning_projection",
+        "FloatMeaningProjectionOperation",
+    ),
+    (
+        "quotient-operation-kind-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_quotient_correspondence",
+        "QuotientCorrespondenceOperationKind",
+    ),
+    (
+        "quotient-positional-relation-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_quotient_correspondence",
+        "QuotientPositionalRelation",
+    ),
+    (
+        "quotient-theorem-role-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_theorem_evidence",
+        "QuotientTheoremRole",
+    ),
+    (
+        "quotient-theorem-correspondence-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_theorem_evidence",
+        "QuotientTheoremCorrespondence",
+    ),
+    (
+        "quotient-purity-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_purity",
+        "QuotientPurityCertificate",
+    ),
+    (
+        "quotient-termination-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_termination",
+        "QuotientTerminationCertificate",
+    ),
+    (
+        "quotient-crash-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_theorem_evidence",
+        "QuotientCrashCertificate",
+    ),
+    (
+        "quotient-parameter-role-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_congruence",
+        "QuotientTheoremParameterRole",
+    ),
+    (
+        "quotient-application-side-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_transport_fact",
+        "QuotientTheoremApplicationSide",
+    ),
+    (
+        "quotient-contract-owner-tags",
+        "semantic_module/quotient_correspondence_wire.rs",
+        "decode_coordinate",
+        "QuotientContractOwner",
+    ),
+    (
+        "ledger-owner-tags",
+        "obligation_ledger.rs",
+        "decode_owner",
+        "TerminalObligationOwner",
+    ),
+    (
+        "obligation-class-tags",
+        "obligation_ledger.rs",
+        "decode_obligation_class",
+        "ObligationClass",
+    ),
+    (
+        "admission-kind-tags",
+        "obligation_ledger.rs",
+        "decode_obligation_class",
+        "AdmissionKind",
+    ),
+    (
+        "admission-kind-tags",
+        "proof_bundle/evidence_codec.rs",
+        "decode_admission_kind",
+        "AdmissionKind",
+    ),
+    (
+        "reach-parameter-tags",
+        "semantic_module/reach_application_wire.rs",
+        "decode",
+        "ClosedReachParameter",
+    ),
+    (
+        "reach-argument-tags",
+        "semantic_module/reach_application_wire.rs",
+        "decode",
+        "ClosedReachArgument",
+    ),
+    (
+        "debug-source-origin-tags",
+        "debug_map.rs",
+        "decode_debug_map",
+        "DebugSourceOrigin",
+    ),
+    (
+        "debug-subject-tags",
+        "debug_map.rs",
+        "decode_subject",
+        "DebugSubject",
+    ),
+    (
+        "pcc-product-kind-tags",
+        "proof_sidecar.rs",
+        "decode",
+        "pcc product kind",
+    ),
+];
+
+#[test]
+fn decode_tag_spaces_match_contract() {
+    for &(marker, relative, function, label) in DECODE_TAG_PINS {
+        let spec = spec_table(&format!("<!-- {marker} -->"));
+        let assigned: BTreeSet<u8> = spec
+            .iter()
+            .filter(|(_, name)| name.as_str() != "—")
+            .map(|(tag, _)| *tag)
+            .collect();
+        assert!(
+            !assigned.is_empty(),
+            "spec table {marker} has no assigned tags"
+        );
+        let path = format!("{CODEC_SECTIONS}/{relative}");
+        let accepted = decode_tag_set(&path, function, label);
+        assert_eq!(
+            assigned, accepted,
+            "spec table {marker} and decoder {function} accept different tags"
+        );
+    }
 }
