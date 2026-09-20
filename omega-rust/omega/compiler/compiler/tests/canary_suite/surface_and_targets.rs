@@ -1,5 +1,5 @@
 use super::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, Path, compile,
+    CanaryCompileProduct, CanaryCompileSpec, Command, Path, check_canary, compile,
     compile_canary_without_output_for_target, compile_rooted_canary_for_target,
     compile_single_file_hosted_main, fail_canary, fs, pass_canary, repo_root, sample_project,
 };
@@ -1022,4 +1022,35 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
     );
     // Intentionally NOT removing build_dir: leave the fresh, verified artifact in
     // samples/cli/games/dungeon_crawler_cli/build/ so running the in-repo exe matches HEAD.
+}
+
+#[test]
+fn duplicate_overload_and_visibility_admissions_reject() {
+    // Duplicate-admission pins: identical free-machine overloads, the same
+    // machine name arriving through two sibling-module `use`s, a local data
+    // declaration colliding with an imported name, and the original
+    // recursive-argument collision shape. Each fixture pins its expected.txt
+    // fragment through checked semantics.
+    for name in [
+        fixture_roster::DUPLICATE_NAMED_MACHINE_OVERLOAD_REJECTED,
+        fixture_roster::DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED,
+        fixture_roster::IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED,
+        fixture_roster::RECURSIVE_ARGUMENT_IMPORTED_NAME_COLLISION_REJECTED,
+    ] {
+        let canary = fail_canary(name);
+        let diagnostics = check_canary(&canary)
+            .expect_err("duplicate admission canaries must reject at checked semantics");
+        let combined = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let expected = fs::read_to_string(canary.join("expected.txt"))
+            .expect("duplicate-admission canaries carry expected.txt");
+        assert!(
+            combined.contains(expected.trim()),
+            "{name} missing expected fragment {:?}:\n{combined}",
+            expected.trim()
+        );
+    }
 }

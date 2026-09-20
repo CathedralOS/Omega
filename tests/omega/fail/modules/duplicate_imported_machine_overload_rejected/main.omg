@@ -1,0 +1,11 @@
+// Two imported modules each publish `seed()`; the duplicate `use` pair
+// makes the name a competing duplicate overload rather than a repeated
+// selection of one exact declaration.
+use geo_a::seed;
+use geo_b::seed;
+
+data Main {}
+
+machine Main::main(&mut self) {
+    seed();
+}

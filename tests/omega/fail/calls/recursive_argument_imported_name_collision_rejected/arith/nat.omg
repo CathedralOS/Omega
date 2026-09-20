@@ -1,0 +1,13 @@
+pub data Nat {
+    case Zero;
+    case Succ(prev: Nat);
+}
+
+pub machine add(a: Nat, b: Nat) -> Nat
+terminates by a;
+{
+    transition a {
+        Nat::Zero -> (b)
+        Nat::Succ { prev } -> Nat::Succ { prev: add(prev, b) }
+    }
+}
