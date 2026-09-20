@@ -1547,7 +1547,13 @@ fn fold(
 /// proposal below is handed to `validate_address_fold` directly, so every
 /// rejection comes from the validator's own diff + legality audit.
 mod independence_tests {
-    use super::*;
+    use super::{
+        ADDRESS, AddressFoldError, CONSUMER, IntegerSign, IntegerType, NativeTarget, OUTPUT,
+        POINTER, ROOT, SPARE, ScalarType, SelectedInstruction, SelectedInstructionId,
+        SelectedInstructionKind, SelectedInstructionPlan, ValidatedAddressFold, ValueId,
+        VirtualRegisterOrigin, baseline_target_register_environment, budget, instruction, keys,
+        kind_with_offset, load_fixture, mutated, register, validate_address_fold,
+    };
 
     /// Forge a folded consumer in place inside a source fixture's plan.
     fn forged(
