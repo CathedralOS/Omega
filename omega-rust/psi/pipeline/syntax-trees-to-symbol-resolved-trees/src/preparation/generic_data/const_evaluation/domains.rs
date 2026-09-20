@@ -62,16 +62,19 @@ pub(in crate::preparation::generic_data) fn domain_index_parameters<'syntax>(
     syntax: &'syntax SyntaxTrees,
     definition: &syntax_trees::item::DomainDefinition,
 ) -> Option<&'syntax [syntax_trees::item::TypeParameter]> {
-    let TypeReferenceNode::Named(target) = syntax
+    // A non-Named target (for example a fixed-array carrier) can never name a
+    // leading type parameter, so the whole telescope is index parameters.
+    let target_name = match syntax
         .type_references
         .type_reference(definition.target_type)
-    else {
-        return None;
+    {
+        TypeReferenceNode::Named(target) => Some(target.as_str()),
+        _ => None,
     };
     let parameters = syntax.items.type_parameters(definition.type_parameters);
     let generic_carrier = parameters.first().is_some_and(|parameter| {
         matches!(parameter.kind, TypeParameterKind::Type)
-            && target.as_str() == parameter.name.as_str()
+            && target_name == Some(parameter.name.as_str())
     });
     Some(if generic_carrier {
         &parameters[1..]
