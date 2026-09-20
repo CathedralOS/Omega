@@ -1,0 +1,7 @@
+// `pause` is a zero-operand scheduling hint: a trailing operand is not parsed
+// as a second instruction and refuses at the instruction separator.
+data Main { slot: u32; }
+
+machine Main::main(&mut self) {
+    asm { pause self.slot }
+}
