@@ -6708,7 +6708,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   claim (owner 'Devin / canary-exact-entry-selection', expires
   2026-09-20T21:52Z).
 - **DIVISION-VALUE-ENTRY-SELECTION** — mined candidate; verify scope then implement.
-- **DOMAIN-REFINEMENT-CHAINS** — mined candidate; verify scope then implement.
 - **DUPLICATE-NAMED-MACHINE-OVERLOAD** — mined candidate; verify scope then implement.
 - **DUPLICATE-OVERLOAD-RESOLUTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.

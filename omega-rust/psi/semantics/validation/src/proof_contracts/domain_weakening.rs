@@ -12,12 +12,12 @@
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone)]
 enum DomainAtom {
@@ -484,6 +484,23 @@ fn append_declared_atom(
                 label: label.unwrap_or_else(|| domain.name.to_string()),
             },
         );
+        // A `self in Parent` requirement — the proposition a refinement-chain
+        // declaration implies, and any authored self-membership — makes the
+        // parent an atom the member carries, the way an alias's constituents
+        // are.
+        stack.push(symbol);
+        for membership in typed_trees::domain::self_membership_facts(program, domain) {
+            append_declared_atom(
+                program,
+                membership.domain_symbol,
+                membership.semantic_domain,
+                !membership.domain_arguments.is_empty(),
+                None,
+                atoms,
+                stack,
+            );
+        }
+        stack.pop();
     }
 }
 

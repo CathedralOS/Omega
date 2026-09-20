@@ -1,0 +1,1 @@
+a domain refinement chain cannot be an alias

@@ -182,7 +182,12 @@ fn recorded_element_extent(
     }
 }
 
-pub(in crate::checks::contracts) fn prove_domain_at_place(
+/// Whether a carried membership fact on `subject` (a declared constraint or
+/// established contract evidence) already implies `domain`. This is the
+/// evidence arm of [`prove_domain_at_place`]: routed provenance and prior
+/// `ensures`/`in`-constrained declarations answer membership questions that
+/// predicate discharge cannot reach.
+fn carried_domain_membership_at_place(
     program: &TypedTrees,
     semantic: &FactPlan,
     contexts: &[FactContextHandle],
@@ -218,7 +223,18 @@ pub(in crate::checks::contracts) fn prove_domain_at_place(
                             )
                     })
             })
-    }) || prove_domain_by_extent_enumeration(program, semantic, contexts, subject, domain)
+    })
+}
+
+pub(in crate::checks::contracts) fn prove_domain_at_place(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    subject: &CanonicalPlace,
+    domain: SymbolHandle,
+) -> bool {
+    carried_domain_membership_at_place(program, semantic, contexts, subject, domain)
+        || prove_domain_by_extent_enumeration(program, semantic, contexts, subject, domain)
         || AssignedValues {
             program,
             semantic,
@@ -345,7 +361,15 @@ impl AssignedValues<'_> {
             }
             ProofFact::Membership(membership) => self
                 .relative_subject(subject, membership.value, type_symbol)
-                .is_some_and(|nested| self.domain(&nested, membership.domain_symbol, active)),
+                .is_some_and(|nested| {
+                    carried_domain_membership_at_place(
+                        self.program,
+                        self.semantic,
+                        self.contexts,
+                        &nested,
+                        membership.domain_symbol,
+                    ) || self.domain(&nested, membership.domain_symbol, active)
+                }),
             ProofFact::Proposition(_) => false,
         });
         active.pop();
