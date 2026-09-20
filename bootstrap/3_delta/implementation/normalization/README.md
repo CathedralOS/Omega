@@ -384,14 +384,20 @@ this is not another evaluator, runtime representation, or application profile.
 
 ## Remaining resources
 
-Body-height normalization does not establish complete Gamma-profile admission.
-Generated helpers are ordinary declarations. The evaluator's function table
-fits every source admitted by its request extent; payload preflight therefore
-also bounds generated function storage. Calls
-outside tail position can add live contexts to its separate 256-context limit,
-and plan construction, captures, and execution consume finite immutable storage.
-The transform does not introduce a new language refusal, increase a selected
-profile bound, or manufacture compiler-owned resource evidence.
+Generated helpers are ordinary declarations, so the emitted program's
+admission bounds are the same bounds the rest of the receipt already carries:
+the 16,777,212-byte payload extent places the whole source under the
+evaluator's request extent and, at least eight bytes per completed
+declaration, under its 2,097,152-row function table; this transform enforces
+the 255-list body bound; and the
+[static environment audit](#static-validation-environment-bound) holds every
+generated body under the 68,608-binding allowance, below the evaluator's
+131,072-row validation environment. Calls
+outside tail position can add live contexts to the separate 256-context limit,
+and plan construction, captures, and execution consume finite immutable
+storage; those are resources of the generated program's own run, not compiler
+outcomes. The transform does not introduce a new language refusal, increase a
+selected profile bound, or manufacture compiler-owned resource evidence.
 
 Exact body heights, capture behavior, evaluation and trap order, existing
 receipts, and actual Epsilon reconstruction remain validation obligations.
@@ -400,5 +406,5 @@ compares production-plan observations with authored expectations, then compiles
 and executes the generated Gamma. The separate
 [lowering-plan gate](../../../../tests/delta/lowering-plan/README.md)
 retains its pre-normalization measurements.
-Compiler-owned resource/internal DCOUT publication and the complete Delta edge
-remain open even when every generated body satisfies the nesting bound.
+The complete Delta edge remains open even when every generated body satisfies
+the nesting bound.

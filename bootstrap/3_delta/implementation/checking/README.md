@@ -131,7 +131,12 @@ These envelopes are deliberately coarse: every pair is now charged to an
 admitted-source occurrence, but the constants do not establish that the total
 stays below the pair arena for maximum-size sources. Branch-level rebuilds no
 longer multiply by sibling count, so the former `1150*N` name-rebuild product
-is now `34*N`; what remains for a whole-producer pair bound is the residual
-name-event envelope together with the capture aggregate, now closed at
+is now `34*N`; the remaining whole-producer terms are this residual
+name-event envelope and the capture aggregate, now closed at
 `sum(T) <= 32*N + 512*N*N` by the
 [normalization audit](../normalization/README.md#capture-allocation-ownership).
+The envelope exceeding the arena from `N = 238` is settled by measurement: the
+[worst-shape
+study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+projects 417,063,339 pairs at admitted extents, 8.2× under the
+3,422,453,760-pair arena.
