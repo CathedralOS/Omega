@@ -11,7 +11,9 @@
 //! This file owns the five lifecycle entry points. `authority_digests.rs`
 //! derives the domain-separated authority digests, `artifacts.rs` carries
 //! artifacts and their admission, `code_placement.rs` placement claims,
-//! materialization and final validation, `installation.rs` installed code
+//! materialization and final validation, `entry_references.rs` the
+//! control-flow-integrity gate that seals one admitted entry into a
+//! requirement-compatible reference, `installation.rs` installed code
 //! and its registry, `retirement.rs` retirement receipts, `replacement.rs` the
 //! patch-then-drain replacement join, `uninstall.rs` the drain-or-quarantine
 //! join; `container.rs`, `container_bytes.rs`,
@@ -23,6 +25,7 @@ mod authority_digests;
 mod code_placement;
 mod container;
 mod container_bytes;
+mod entry_references;
 mod installation;
 mod materializer;
 mod post_handoff_writer;
@@ -40,13 +43,14 @@ pub use artifacts::{
 };
 pub use authority_digests::{
     AdmissionReceiptId, ArtifactAuthorityCommitments, ArtifactContentDigest, ArtifactId,
-    CodePlacementId, DeclaredFootprintDigest, DestinationPreparationReceiptId, EntrySetId,
-    FinalBytesDigest, FinalValidationId, ImportedContractSetDigest, InstallationFactDigest,
-    InstallationScopeDigest, InstallationScopeId, InstalledCodeId, MachineContractSetId,
-    MachineFootprintId, MachineRegimeDigest, MappingQuarantineId,
-    NonAuthoritativeContainerFingerprint64, NonAuthoritativeInformationalFingerprint64,
-    NonAuthoritativeWriterContextFingerprint64, PlacementPlanId, ProofPayloadDigest,
-    RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
+    CodePlacementId, DeclaredFootprintDigest, DestinationPreparationReceiptId, EntryContractDigest,
+    EntryReferenceFactDigest, EntrySetId, FinalBytesDigest, FinalValidationId,
+    ImportedContractSetDigest, InstallationFactDigest, InstallationScopeDigest,
+    InstallationScopeId, InstalledCodeId, MachineContractSetId, MachineFootprintId,
+    MachineRegimeDigest, MappingQuarantineId, NonAuthoritativeContainerFingerprint64,
+    NonAuthoritativeInformationalFingerprint64, NonAuthoritativeWriterContextFingerprint64,
+    PlacementPlanId, ProofPayloadDigest, RelocationSetId, ReplacementFactDigest,
+    RetirementFactDigest,
 };
 pub use code_placement::{
     CodePlacement, CodePlacementAuthority, FinalValidationCertificate, FrozenPlacement,
@@ -55,6 +59,9 @@ pub use code_placement::{
 };
 pub use container::*;
 pub use container_bytes::*;
+pub use entry_references::{
+    EntryReferenceAuthority, EntryReferenceError, EntryReferenceReceipt, InstalledEntryReference,
+};
 pub use installation::{
     InstallAuthority, InstallationDiagnostic, InstallationError, InstallationReceipt,
     InstallationRegistryAuthority, InstalledCode, InstalledCodeContext, WxEnforcement,

@@ -4945,11 +4945,19 @@ Owners include
     used. Still open: no provider performs the write-to-execute transition,
     the target cache and ordering work, or instruction-fetch visibility, so
     `InstallationReceipt` still only records what a provider would report.
-  - Physical invocation, and the entry references it hands out. `InstalledCode`
-    exposes identity, geometry and `selected_entry_target` reporting; the
+  - Physical invocation, and the entry references it hands out.
+    `entry_references.rs` owns the
     [control-flow integrity](wiki/spec/build/executable_installation.md#control-flow-integrity)
-    gate that turns a selection into a sealed requirement-compatible entry
-    reference is unbuilt, so nothing calls installed code.
+    gate: `InstalledCode::seal_entry_reference` turns an admitted-entry
+    selection into a sealed `InstalledEntryReference` retaining the
+    satisfier — the exact installed occurrence and its declared entry — and
+    the demanded `EntryContractDigest`, gated on provider-established
+    requirement compatibility, instruction-fetch visibility over the entry,
+    and demanded `EntryReferenceFactDigest` completion facts. The reference
+    borrows `InstalledCode`, so the realization cannot retire while an entry
+    remains possible. Still open: no caller invokes installed code through
+    one — the provider write-to-execute operation and physical invocation
+    remain ahead.
   - The uninstall and replacement joins over that custody, per
     [visibility and retirement](wiki/spec/build/executable_installation.md#visibility-and-retirement):
     visibility before entry, quiescence before retirement, and live-site
@@ -4997,6 +5005,22 @@ Owners include
   completion facts; an established patch drains the superseded custody through
   `uninstall_installed` toward retirement or quarantine, and every failed
   transition returns all inputs.
+
+  Flag resolved 2026-09-20 on `devin/w9-wire-install-2` (crate tests 79/79
+  pass via `cargo nextest run -p executable-installation`, Linux x86-64):
+  the control-flow-integrity gate exists — `seal_entry_reference` replays an
+  `EntryReferenceAuthority` scoped to the exact installed occurrence,
+  requires the demanded entry to be a declared entry of the installed
+  artifact, and requires the receipt to establish requirement compatibility,
+  instruction-fetch visibility, and the demanded
+  `EntryReferenceFactDigest` completion facts; any refusal returns the
+  authority and receipt. `EntryContractDigest` and
+  `EntryReferenceFactDigest` are domain-separated provider vocabulary
+  (`omega.entry-contract.sha256.v1`, `omega.entry-reference-fact.sha256.v1`).
+  Next acceptance: a provider operation that performs the
+  write-to-execute/cache-order/fetch-visibility work, a call path consuming
+  a sealed entry reference, and an Omega-source route that names an admitted
+  artifact.
 
 ## Omega-written compiler (after Rust completion)
 
