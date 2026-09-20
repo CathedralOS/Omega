@@ -48,6 +48,9 @@ pub struct BuildMachineFilesystemScope {
     canonical_source_metadata_required: bool,
     build_dir: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
+    // Ordinary snapshot compilation owns fresh scratch, not the publication
+    // directory. Cloned admission state shares its lifetime through capture.
+    output_scratch: Option<std::sync::Arc<preparation::BuildOutputScratch>>,
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     root_role: Option<package_compilation::BuildDeclarationKind>,
     build_execution_profile: Option<target::TargetProfile>,
@@ -97,6 +100,7 @@ impl BuildMachineFilesystemScope {
             canonical_source_metadata_required: false,
             build_dir,
             sponsor,
+            output_scratch: None,
             root_package_identity: None,
             root_role: None,
             build_execution_profile: None,
@@ -120,6 +124,7 @@ impl BuildMachineFilesystemScope {
             canonical_source_metadata_required: true,
             build_dir,
             sponsor,
+            output_scratch: None,
             root_package_identity: None,
             root_role: None,
             build_execution_profile: None,

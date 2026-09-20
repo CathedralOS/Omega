@@ -571,6 +571,24 @@ impl CheckedCompilation {
         self.execution.build_observation_summary.as_ref()
     }
 
+    pub fn build_observation_identity(&self) -> Option<build_evaluation::BuildObservationIdentity> {
+        self.build_observation_summary()
+            .map(build_evaluation::BuildObservationSummary::identity)
+    }
+
+    /// Select the completed-file product from this checked execution. Compiler
+    /// and package production share this projection; neither interprets the
+    /// settlement roster or stages the build again.
+    pub fn completed_build_outputs(
+        &self,
+    ) -> Result<Option<compilation_report::RetainedBuildOutputs>, Vec<Diagnostic>> {
+        self.build_observation_summary()
+            .map(compilation_report::RetainedBuildOutputs::from_observation)
+            .transpose()
+            .map(Option::flatten)
+            .map_err(|message| vec![Diagnostic::error(message)])
+    }
+
     /// The normalized restricted build-host requests this compilation's
     /// admitted build activation asked of the host before it executed
     /// (wiki/spec/packages/acceptance.md#restricted-build-acceptance). This

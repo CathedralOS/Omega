@@ -1,11 +1,14 @@
 //! The compiler's outbound custody record: what a compilation produced, and
 //! the digest chain tying bytes on disk back to the artifact they came from.
 //!
-//! A `CompileReport` is one of five products - `CheckOnly`, `TerminalArtifact`,
-//! `RetainedNativeArtifact`, `NativeExecutable`, `ObjectContainer` - and each
-//! kind fixes which payload slots may be occupied.
+//! A `CompileReport` records a check-only, Terminal, native, object-container,
+//! or build-file product. Each kind fixes which payload slots may be occupied.
 //! `has_consistent_executable_publication_custody` checks that cardinality and
 //! validates the retained artifact or flat executable receipt.
+//! Completed build files are the primary payload for `BuildArtifacts` and may
+//! accompany a compiled program. `build_outputs.rs` selects them from sealed
+//! staging, binds them to the checked observation, and publishes their exact
+//! manifest and bytes without retaining scratch or rerunning the build.
 //!
 //! Six SHA-256 domains carry the chain, each prefix NUL-terminated so no
 //! prefix can be a prefix of another, and each carrying a `.v1` suffix that
@@ -93,6 +96,7 @@
 // domains through the same four-line newtype.
 #[macro_use]
 mod executable_publication;
+mod build_outputs;
 mod compile_report;
 mod optimization_rollback;
 mod package;
@@ -100,6 +104,7 @@ mod pcc;
 mod production_manifest;
 mod terminal_product;
 
+pub use build_outputs::RetainedBuildOutputs;
 pub use compile_report::{CompileOutputKind, CompileReport};
 pub use executable_publication::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,

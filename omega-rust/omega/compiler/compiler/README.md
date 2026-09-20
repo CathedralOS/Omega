@@ -27,9 +27,14 @@ and executes its own caller-declared inventory and required-output roster;
 parsing reuse does not merge those inputs or suppress a sibling's failure.
 An omitted request retains automatic capture of canonical package inputs.
 Standalone scoped inventories must include consumed source files and do not
-expose undeclared siblings. The request supplies no output sponsor and does not
-implement committed companion-artifact publication; required outputs still
-need independently sealed staging custody. See
+expose undeclared siblings. Without a caller-supplied sponsor, captured builds
+use fresh private output staging, released after retained bytes are captured.
+Artifact-only builds return completed files without requiring a program entry;
+executable builds retain the same file carrier for companions. Publication writes
+only completed files under `completed/<set-identity>/files/`, with `manifest.bin`
+binding the exact build observation, logical paths, lengths and byte digests.
+Existing sets are checked against retained bytes, not trusted by directory name.
+Scratch never publishes, and a failed compilation returns no successful set. See
 [scoped build inputs](../../../../wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem).
 The [checked entrance](src/pipeline/checked_entry.rs) shows the lifecycle:
 [admit and execute the build, then continue generated source](src/pipeline/checked_entry/build_continuation.rs),

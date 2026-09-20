@@ -15,6 +15,7 @@ test-support = []
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
 build-evaluation = { path = "../../build/build-evaluation" }
+build-output = { path = "../../build/build-output" }
 boundary-applications = { path = "../../representations/boundary-applications" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 calling-conventions = { path = "../../representations/calling-conventions" }

@@ -48,6 +48,41 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                 let admission =
                     admit_checked_compilation(&checked, target.accepted_trust_admissions())?;
                 let trust_settlement = admission.into_settlement();
+                let build_observation = checked.build_observation_identity();
+
+                // Build products are settled once, then carried alongside the
+                // requested compiler product. A check-only stop publishes none.
+                let build_outputs =
+                    if request.shared.requested_product != RequestedCompileProduct::Check {
+                        checked.completed_build_outputs()?
+                    } else {
+                        None
+                    };
+                if checked.application_artifact_only()
+                    && request.shared.requested_product != RequestedCompileProduct::Check
+                {
+                    if !target.configuration.optimization_rollback.is_empty() {
+                        return Err(vec![Diagnostic::error(
+                            "artifact-only builds execute no product optimization stages to roll back",
+                        )]);
+                    }
+                    if checked.pcc_requests().any() {
+                        return Err(vec![Diagnostic::error(
+                            "artifact-only builds cannot publish Psi or native proof products",
+                        )]);
+                    }
+                    let outputs = build_outputs.ok_or_else(|| {
+                        vec![Diagnostic::error("artifact-only build completed no files")]
+                    })?;
+                    return CompileReport::from_build_outputs(
+                        target.options.root_path,
+                        checked.source_file_count(),
+                        outputs,
+                        checked.production_subject()?,
+                    )
+                    .map(|report| report.with_trust_admission_settlement(trust_settlement))
+                    .map_err(|message| vec![Diagnostic::error(message)]);
+                }
 
                 let report = match request.shared.requested_product {
                     RequestedCompileProduct::Check => {
@@ -80,6 +115,13 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
                             prepare_native_product(target.into_native_product_request(), checked)?;
                         native_inputs.realize(terminal)?
                     }
+                };
+                let report = if request.shared.requested_product != RequestedCompileProduct::Check {
+                    report
+                        .with_build_outputs(build_outputs, build_observation)
+                        .map_err(|message| vec![Diagnostic::error(message)])?
+                } else {
+                    report
                 };
                 Ok(report.with_trust_admission_settlement(trust_settlement))
             };

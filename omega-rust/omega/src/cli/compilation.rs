@@ -72,4 +72,14 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
     } else {
         println!("{}", outcome.report.summary());
     }
+    if let Some(directory) = outcome
+        .report
+        .build_outputs()
+        .and_then(|outputs| outputs.published_directory())
+    {
+        println!(
+            "published completed build outputs to {}",
+            directory.display()
+        );
+    }
 }

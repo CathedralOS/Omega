@@ -4,6 +4,8 @@
 
 use crate::capture::{StagedOutputEntry, StagedOutputEntryKind};
 use crate::materialization::materialize_retained_tree;
+use crate::materialization::validate_retained_tree;
+use crate::materialization::verify_materialized_tree;
 use diagnostics::Diagnostic;
 use sha2::Digest;
 use sha2::Sha256;
@@ -125,10 +127,23 @@ impl BuildStagedOutputTree {
         materialize_retained_tree(self, destination.as_ref())
     }
 
+    /// Verify an existing concrete directory against this retained commitment
+    /// without writing or deleting anything. Missing or extra entries, changed
+    /// bytes, kinds, modes, or link spellings reject. Success describes the
+    /// observed materialization; it does not prevent later host mutation.
+    pub fn verify_materialized_at(
+        &self,
+        destination: &Path,
+    ) -> Result<BuildStagedOutputTreeCommitment, BuildStagedOutputMaterializationError> {
+        validate_retained_tree(self)?;
+        verify_materialized_tree(destination, self)?;
+        Ok(self.commitment)
+    }
+
     /// Directly enumerate the retained sealed entries in canonical
-    /// unsigned-byte order. This is the artifact-only discovery surface: every
-    /// completed output is reachable here without a live host or a second
-    /// manifest.
+    /// unsigned-byte order. A staging tree includes scratch and generated
+    /// sources; product owners must select the completed-output roster before
+    /// publishing files.
     pub fn entries(&self) -> impl ExactSizeIterator<Item = BuildStagedOutputEntry<'_>> {
         self.entries.iter().map(|entry| {
             let kind = match &entry.kind {
@@ -158,6 +173,88 @@ impl BuildStagedOutputTree {
     pub fn sealed_entry(&self, relative_path: &[u8]) -> Option<BuildStagedOutputEntry<'_>> {
         self.entries()
             .find(|entry| entry.relative_path == relative_path)
+    }
+
+    /// Retain exactly the requested ordinary files and their ancestor directories.
+    ///
+    /// Paths match exactly without normalization or link traversal. Missing,
+    /// duplicate, directory, symbolic-link, and executable file requests reject;
+    /// executable admission belongs to a separate product operation. The result
+    /// shares immutable file bytes with this tree and has its own canonical
+    /// commitment, independent of request order. An empty roster selects nothing.
+    pub fn select_files(&self, relative_paths: &[&[u8]]) -> Result<Self, Vec<Diagnostic>> {
+        if relative_paths.len() > self.entries.len() {
+            return Err(diagnostics(
+                "build output file selection exceeds the retained entry count",
+            ));
+        }
+        let mut selected = vec![false; self.entries.len()];
+        for relative_path in relative_paths {
+            let entry_index = self
+                .entries
+                .binary_search_by(|entry| entry.relative_path.as_slice().cmp(relative_path))
+                .map_err(|_| {
+                    diagnostics(format!(
+                        "selected build output `{}` is absent from the retained tree",
+                        String::from_utf8_lossy(relative_path)
+                    ))
+                })?;
+            if selected[entry_index] {
+                return Err(diagnostics(format!(
+                    "selected build output `{}` is requested more than once",
+                    String::from_utf8_lossy(relative_path)
+                )));
+            }
+            match &self.entries[entry_index].kind {
+                RetainedStagedOutputEntryKind::File {
+                    executable: false, ..
+                } => {}
+                _ => {
+                    return Err(diagnostics(format!(
+                        "selected build output `{}` must be a non-executable regular file",
+                        String::from_utf8_lossy(relative_path)
+                    )));
+                }
+            }
+            selected[entry_index] = true;
+        }
+        for relative_path in relative_paths {
+            for (separator, byte) in relative_path.iter().enumerate() {
+                if *byte != b'/' {
+                    continue;
+                }
+                let parent = &relative_path[..separator];
+                let parent_index = self
+                    .entries
+                    .binary_search_by(|entry| entry.relative_path.as_slice().cmp(parent))
+                    .map_err(|_| {
+                        diagnostics("selected build output has a missing ancestor directory")
+                    })?;
+                if !matches!(
+                    self.entries[parent_index].kind,
+                    RetainedStagedOutputEntryKind::Directory
+                ) {
+                    return Err(diagnostics(
+                        "selected build output has a non-directory ancestor",
+                    ));
+                }
+                selected[parent_index] = true;
+            }
+        }
+        let entries: Vec<_> = self
+            .entries
+            .iter()
+            .zip(selected)
+            .filter(|(_, is_selected)| *is_selected)
+            .map(|(entry, _)| entry.clone())
+            .collect();
+        let commitment = commitment_for_retained_entries(&entries).ok_or_else(|| {
+            diagnostics("selected build output exceeds the staged-output unique-content ceiling")
+        })?;
+        Ok(Self {
+            commitment,
+            entries,
+        })
     }
 }
 

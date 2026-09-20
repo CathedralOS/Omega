@@ -1,5 +1,7 @@
 //! One-field mutation matrix over the retained staged-output tree.
 
+mod file_selection;
+
 use super::{
     BuildStagedOutputTree, BuildStagedOutputTreeCommitment, RetainedStagedOutputEntry,
     RetainedStagedOutputEntryKind, commitment_for_retained_entries, empty, select_included_sources,

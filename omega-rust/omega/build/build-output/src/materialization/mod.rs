@@ -191,7 +191,7 @@ fn validate_empty_destination(
     }
 }
 
-fn verify_materialized_tree(
+pub(crate) fn verify_materialized_tree(
     root: &Path,
     expected_tree: &BuildStagedOutputTree,
 ) -> Result<(), BuildStagedOutputMaterializationError> {

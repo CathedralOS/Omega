@@ -106,15 +106,16 @@ pub struct AcceptedNativeRealizationRequest<'request> {
     pub imports: &'request [compiler::SourceEvaluatedImportSettlement<'request>],
 }
 
-/// Consume accepted package custody into one unpublished retained-native report.
+/// Consume accepted package custody into one unpublished product report.
 ///
-/// Both input forms join the complete Terminal production subject to fresh
+/// Both input forms join the complete package production subject to fresh
 /// accepted evidence before extracting its artifact or projecting permissions.
 /// Reviewed input consumes the exact checked root without rerunning its build or
 /// source discovery. The resulting native manifest retains the same production
 /// subject and applicable rollback receipt. Terminal input also retains its
 /// existing trust settlement; reviewed input leaves that outcome to its caller.
-/// Artifact-only consumers explicitly extract their custody from this report.
+/// Artifact-only builds join the same accepted subject without requiring a
+/// Terminal entry; completed files accompany native products otherwise.
 pub fn realize_accepted_native_report(
     input: AcceptedNativeInput<'_>,
     request: AcceptedNativeRealizationRequest<'_>,
@@ -127,7 +128,7 @@ pub fn realize_accepted_native_report(
         imports,
     } = request;
     // Keep the reviewed input's source/review custody alive through realization.
-    let (report, optimization_selections, rollback_receipt, trust_settlement, _reviews) =
+    let (mut report, optimization_selections, rollback_receipt, trust_settlement, _reviews) =
         match input {
             AcceptedNativeInput::Terminal {
                 report,
@@ -154,11 +155,40 @@ pub fn realize_accepted_native_report(
                     .map_or(build_selected, |receipt| receipt.effective().clone());
                 let post_terminal_optimizations = effective_optimizations.project_post_terminal();
                 let (reviews, root_path, checked_root) = candidate.into_production_parts();
+                let build_observation = checked_root.build_observation_identity();
+                let build_outputs = checked_root.completed_build_outputs()?;
+                if checked_root.application_artifact_only() {
+                    if !optimization_rollback.is_empty() {
+                        return Err(diagnostics(
+                            "artifact-only builds execute no product optimization stages to roll back",
+                        ));
+                    }
+                    if checked_root.pcc_requests().any() {
+                        return Err(diagnostics(
+                            "artifact-only builds cannot publish Psi or native proof products",
+                        ));
+                    }
+                    let subject = checked_root.production_subject()?.ok_or_else(|| {
+                        diagnostics("accepted build outputs require package production custody")
+                    })?;
+                    validate_accepted_package_production_subject(&subject, evidence)?;
+                    let outputs = build_outputs
+                        .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
+                    return compiler::CompileReport::from_build_outputs(
+                        root_path,
+                        checked_root.source_file_count(),
+                        outputs,
+                        Some(subject),
+                    )
+                    .map_err(diagnostics);
+                }
                 let report = compiler::retained_terminal_report_from_checked_package(
                     root_path,
                     checked_root,
                     profile.clone(),
-                )?;
+                )?
+                .with_build_outputs(build_outputs, build_observation)
+                .map_err(diagnostics)?;
                 (
                     report,
                     post_terminal_optimizations.selections().clone(),
@@ -169,6 +199,8 @@ pub fn realize_accepted_native_report(
             }
         };
     validate_accepted_terminal_production_subject(&report, evidence)?;
+    let build_observation = report.build_observation_identity();
+    let build_outputs = report.take_build_outputs();
     let root_path = report.root_path().to_path_buf();
     let source_file_count = report.source_file_count;
     let pcc_requests = report.pcc_requests();
@@ -231,6 +263,7 @@ pub fn realize_accepted_native_report(
     )
     .map(|report| report.with_trust_admission_settlement(trust_settlement))
     .map(|report| report.with_pcc_context(pcc_requests, pcc_admission_profile))
+    .and_then(|report| report.with_build_outputs(build_outputs, build_observation))
     .and_then(|report| {
         report.with_application_metadata(
             application_name,
@@ -263,7 +296,6 @@ fn validate_accepted_terminal_production_subject(
     }
 
     let subject = manifest.subject();
-    let package_subject = subject.package();
     let retained_proposal = report
         .terminal_native_realization_proposal()
         .ok_or_else(|| {
@@ -276,6 +308,14 @@ fn validate_accepted_terminal_production_subject(
             "retained Terminal proposal target differs from package production custody",
         ));
     }
+    validate_accepted_package_production_subject(subject, evidence)
+}
+
+fn validate_accepted_package_production_subject(
+    subject: &compiler::ProductionCompilationSubject,
+    evidence: &AcceptedOrdinaryClosureEvidence,
+) -> Result<(), Vec<Diagnostic>> {
+    let package_subject = subject.package();
     let accepted_root = evidence
         .packages()
         .iter()
@@ -283,11 +323,7 @@ fn validate_accepted_terminal_production_subject(
             package.package().identity() == package_subject.root()
                 && package.generated_sources().purpose().is_product()
         })
-        .ok_or_else(|| {
-            diagnostics(
-                "accepted Terminal realization package root is absent from accepted evidence",
-            )
-        })?;
+        .ok_or_else(|| diagnostics("package production root is absent from accepted evidence"))?;
     if evidence
         .acceptance()
         .obligations()
@@ -300,30 +336,30 @@ fn validate_accepted_terminal_production_subject(
         != package_subject.root()
     {
         return Err(diagnostics(
-            "retained Terminal production root differs from accepted package evidence",
+            "retained package production root differs from accepted package evidence",
         ));
     }
     if accepted_root.generated_sources().target() != subject.target_profile() {
         return Err(diagnostics(
-            "retained Terminal production target differs from accepted package evidence",
+            "retained package production target differs from accepted package evidence",
         ));
     }
     if accepted_root.generated_sources().dependency_closure()
         != package_subject.dependency_closure()
     {
         return Err(diagnostics(
-            "retained Terminal production dependency closure differs from accepted package evidence",
+            "retained package production dependency closure differs from accepted package evidence",
         ));
     }
     if accepted_root.source_consumption() != package_subject.source_consumption_commitment() {
         return Err(diagnostics(
-            "retained Terminal production source consumption differs from accepted package evidence",
+            "retained package production source consumption differs from accepted package evidence",
         ));
     }
     if accepted_root.selected_build_machine_identity() != subject.selected_build_machine_identity()
     {
         return Err(diagnostics(
-            "retained Terminal production build machine differs from accepted package evidence",
+            "retained package production build machine differs from accepted package evidence",
         ));
     }
     if !accepted_root
@@ -333,7 +369,7 @@ fn validate_accepted_terminal_production_subject(
         })
     {
         return Err(diagnostics(
-            "retained Terminal production invocation usage differs from accepted package evidence",
+            "retained package production invocation usage differs from accepted package evidence",
         ));
     }
     if accepted_root
@@ -342,7 +378,7 @@ fn validate_accepted_terminal_production_subject(
         != Some(subject.build_observation_identity())
     {
         return Err(diagnostics(
-            "retained Terminal production build observation differs from accepted package evidence",
+            "retained package production build observation differs from accepted package evidence",
         ));
     }
     Ok(())
