@@ -5781,7 +5781,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
-- **ALPHA-WINDOWS-SEED-EXECUTION** — mined candidate; verify scope then implement.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-MEMORY-AND-CONTROL** — mined candidate; verify scope then implement.
