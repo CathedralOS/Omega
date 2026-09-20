@@ -14,11 +14,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "impl LegalizedScalarCall",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/mod.rs",
+        path: "omega-rust/omega/representations/register-homes/src/register_homes/recovery/fixed_view_copy/codec/mod.rs",
         coordination_marker: "impl FixedViewCopyPlan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/selected/mod.rs",
+        path: "omega-rust/omega/representations/register-homes/src/register_homes/recovery/fixed_view_copy/codec/selected/mod.rs",
         coordination_marker: "fn decode_selected_plan",
     },
     RequiredCoordinationEntrance {
