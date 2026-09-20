@@ -2459,6 +2459,19 @@ impl<'a> Elaboration<'a> {
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
                 let (definition, variable) = self.cited_axiom(*definition_axiom)?;
+                if let Some(evidence) = self.denotation.exact_add_definition_bound_evidence(
+                    &left_bound.conclusion,
+                    left,
+                    &right_bound.conclusion,
+                    right,
+                    &definition,
+                    variable,
+                    &proof.conclusion,
+                )? {
+                    self.rules
+                        .insert(AcceptedProofRule::IntegerExactAddDefinitionBound);
+                    return Ok(evidence);
+                }
                 self.rule_instance(
                     AcceptedProofRule::IntegerExactAddDefinitionBound,
                     vec![

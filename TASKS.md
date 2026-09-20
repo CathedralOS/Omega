@@ -2097,7 +2097,15 @@ Owners include
     use two fixed `add`/`sub` adjunction laws; a value root substitutes
     through its cited definition, a closed sum's numeral substitutes the
     checked `add e r = n` equation in reverse, and a landed endpoint
-    substitutes through its cited literal equality. An already admitted
+    substitutes through its cited literal equality. Exact-add definition
+    bounds cite a semantic `out = l + r` equality beside the two operand
+    bounds: a fixed two-sided monotonicity law combines the operand
+    evidence into a bound on the applicative sum, the cited definition
+    transports it onto `out`, and a checked `add lb rb = k` numeral
+    equation lands the conclusion's literal; each operand's endpoint
+    re-shapes its evidence — an oriented `≤` stands, an `Equal`
+    transports through `eq_le`, a literal addend uses `refl` — while a
+    `Truth` carrier endpoint keeps the instance fallback. An already admitted
     open expression stays opaque
     if composing a child would introduce a resource refusal. The remaining
     fixed-integer scalar operations — multiply, divide, remainder, bitwise,
@@ -2109,7 +2117,8 @@ Owners include
     `s == t` derives its nonzero divisor through identity elimination in
     `compiler/tests/kernel_equality_transport.rs` instead of an admitted
     rule instance. Still to do:
-    other bound-witness forms, nested
+    the cast-bound, correlated-forbidden-root and correlated-multiply bound
+    witnesses and `Truth` carrier endpoints, nested
     canonical identity reversal, and Boolean identities requiring case analysis
     rather than structural correspondence. The uninterpreted operations
     carry no arithmetic laws; unsupported arithmetic derivations, including
@@ -2154,7 +2163,8 @@ Owners include
   transitivity on the denoted crossing, and interns closed mathematical
   terms by exact evaluated value. Subtraction order, the correlated
   unsigned subtraction lower bound, correlated addition bounds with
-  open right addends and correlated subtraction bounds use fixed
+  open right addends, correlated subtraction bounds and exact-add
+  definition bounds use fixed
   arithmetic laws. Remaining bound-witness forms,
   nested canonical identity reversal, Boolean identities needing case
   analysis, and construction-budget fallback still

@@ -9,16 +9,26 @@
 //! chain; once the correlated difference has collapsed to its numeral `n`
 //! the applicative `add (sub e r) r` cancellation cannot match `add n r`,
 //! so the chain substitutes the checked numeral-operation equation
-//! `add n r = e` — an exact interned assumption — in its place. A
-//! conclusion outside the fixed literal range retains the existing
-//! explicit instance fallback rather than claiming that arithmetic laws
-//! are definitional.
+//! `add n r = e` — an exact interned assumption — in its place.
+//!
+//! The exact-add definition bound cites a semantic `out = l + r` equation
+//! beside the two operand bounds: two-sided monotonicity combines the
+//! operand evidence into a bound on `add l r`, the cited definition
+//! transports that bound onto `out`, and a checked `add lb rb = k`
+//! numeral equation lands the conclusion's literal endpoint. Each
+//! operand's evidence re-shapes to the required direction — an oriented
+//! `≤` stands, an `Equal` transports through `eq_le`, a literal addend is
+//! its own endpoint through `refl` — while a `Truth` carrier endpoint has
+//! no interned bound law and keeps the explicit instance fallback, like
+//! any conclusion outside the fixed literal range.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use numerics::bignum::BigInt;
-use semantic_vocabulary::{IntegerCarrier, IntegerMathTerm, IntegerValue, Proposition, ScalarTerm};
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
+};
 
 use super::super::scheme_dsl::{self, apps, id, pi, scheme_at, v};
 use super::binary_numerals;
@@ -32,6 +42,8 @@ mod tests;
 enum Law {
     Monotone,
     CancelSubtract,
+    /// `a ≤ b → c ≤ d → add a c ≤ add b d` — two-sided monotonicity.
+    MonotoneBoth,
 }
 
 #[derive(Default)]
@@ -111,6 +123,35 @@ impl Denotation {
                                     "_",
                                     le(v("a"), v("b")),
                                     le(add(v("a"), v("c")), add(v("b"), v("c"))),
+                                ),
+                            ),
+                        ),
+                    )
+                }
+                Law::MonotoneBoth => {
+                    let relation = self.integer_less_or_equal()?;
+                    let le = |left, right| apps(constant(relation), [left, right]);
+                    pi(
+                        "a",
+                        carrier(),
+                        pi(
+                            "b",
+                            carrier(),
+                            pi(
+                                "c",
+                                carrier(),
+                                pi(
+                                    "d",
+                                    carrier(),
+                                    pi(
+                                        "_",
+                                        le(v("a"), v("b")),
+                                        pi(
+                                            "_",
+                                            le(v("c"), v("d")),
+                                            le(add(v("a"), v("c")), add(v("b"), v("d"))),
+                                        ),
+                                    ),
                                 ),
                             ),
                         ),
@@ -425,6 +466,298 @@ impl Denotation {
             .map(Some)
         } else {
             Ok(Some(order))
+        }
+    }
+
+    /// Denote the checked exact-add definition bound: `lb ∧ rb` over the
+    /// add's two operands plus the cited `output = l + r` definition prove
+    /// `k ≤ output` or `output ≤ k`, where `k` is the checked sum of the
+    /// two endpoint literals. Two-sided monotonicity combines the operand
+    /// bounds; the cited definition equality — bridged by the checked
+    /// `add l r = n` numeral equation when the definition's sum is closed —
+    /// moves the bound onto `output`, and a second interned equation
+    /// `add lb rb = k` lands the literal. Each operand's endpoint re-shapes
+    /// its own evidence: an oriented `≤` stands, an `Equal` transports
+    /// through `eq_le`, and a literal operand uses `refl`. `Truth` over a
+    /// non-literal operand has only its carrier bound, which this does not
+    /// intern — `None` keeps the instance fallback.
+    pub(super) fn exact_add_definition_bound_evidence(
+        &mut self,
+        left_bound: &Proposition,
+        left_evidence: TermHandle,
+        right_bound: &Proposition,
+        right_evidence: TermHandle,
+        definition: &Proposition,
+        definition_evidence: TermHandle,
+        conclusion: &Proposition,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Proposition::LessOrEqual(conclusion_left, conclusion_right) = conclusion else {
+            return Ok(None);
+        };
+        let (literal, output, lower) = if conclusion_left.integer_value().is_some() {
+            (conclusion_left, conclusion_right, true)
+        } else if conclusion_right.integer_value().is_some() {
+            (conclusion_right, conclusion_left, false)
+        } else {
+            return Ok(None);
+        };
+        let (defined_output, expression) = match definition {
+            Proposition::Equal(first, second) => match (first, second) {
+                (output @ ScalarTerm::Value { .. }, ScalarTerm::ExactIntegerAdd { .. }) => {
+                    (output, second)
+                }
+                (ScalarTerm::ExactIntegerAdd { .. }, output @ ScalarTerm::Value { .. }) => {
+                    (output, first)
+                }
+                _ => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        let ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return Ok(None);
+        };
+        if scalar_type.carrier() != IntegerCarrier::Fixed
+            || defined_output != output
+            || output.scalar_type() != ScalarType::Integer(*scalar_type)
+        {
+            return Ok(None);
+        }
+        let Some((left_endpoint, left_order)) =
+            self.add_bound_endpoint(left, left_bound, left_evidence, lower, scalar_type)?
+        else {
+            return Ok(None);
+        };
+        let Some((right_endpoint, right_order)) =
+            self.add_bound_endpoint(right, right_bound, right_evidence, lower, scalar_type)?
+        else {
+            return Ok(None);
+        };
+        let left_endpoint_term = self.fixed_scalar_term(&left_endpoint)?;
+        let right_endpoint_term = self.fixed_scalar_term(&right_endpoint)?;
+        let left_term = self.fixed_scalar_term(left)?;
+        let right_term = self.fixed_scalar_term(right)?;
+        let bound_sum = self.add_terms(left_endpoint_term, right_endpoint_term)?;
+        let operand_sum = self.add_terms(left_term, right_term)?;
+        // `add lb rb ≤ add l r` (lower) or `add l r ≤ add lb rb` (upper).
+        let order = if lower {
+            self.add_law_application(
+                Law::MonotoneBoth,
+                &[
+                    left_endpoint_term,
+                    left_term,
+                    right_endpoint_term,
+                    right_term,
+                    left_order,
+                    right_order,
+                ],
+            )?
+        } else {
+            self.add_law_application(
+                Law::MonotoneBoth,
+                &[
+                    left_term,
+                    left_endpoint_term,
+                    right_term,
+                    right_endpoint_term,
+                    left_order,
+                    right_order,
+                ],
+            )?
+        };
+        // `Id Int (add l' r') output'` — directly the cited definition when
+        // the expression stays applicative, or the numeral-operation
+        // equation `add l r = n` composed with the definition when the
+        // closed sum denotes to its numeral `n`.
+        let output_term = self.fixed_scalar_term(output)?;
+        let expression_term = self.fixed_scalar_term(expression)?;
+        let denoted = self.denote(definition)?;
+        let Some((_, from, to)) = self.identity_parts(denoted) else {
+            return Ok(None);
+        };
+        let sum_equality = if self.arena.structurally_equal(expression_term, operand_sum) {
+            let Some(equality) =
+                self.directed_equality(from, to, operand_sum, output_term, definition_evidence)
+            else {
+                return Ok(None);
+            };
+            equality
+        } else {
+            let (Some((_, left_value)), Some((_, right_value)), Some((_, sum_value))) = (
+                left.integer_value(),
+                right.integer_value(),
+                expression.integer_value(),
+            ) else {
+                return Ok(None);
+            };
+            let Some(bridge) = self.numeral_sum(
+                left_value,
+                right_value,
+                sum_value,
+                left_term,
+                right_term,
+                expression_term,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(forward) =
+                self.directed_equality(from, to, expression_term, output_term, definition_evidence)
+            else {
+                return Ok(None);
+            };
+            let integer = self.integer_constant()?;
+            self.transitivity(
+                integer,
+                operand_sum,
+                expression_term,
+                output_term,
+                bridge,
+                forward,
+            )
+        };
+        // `add lb' rb' ≤ output'` (lower) or `output' ≤ add lb' rb'` (upper).
+        let order = if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[bound_sum, operand_sum, output_term, sum_equality, order],
+            )?
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[operand_sum, output_term, bound_sum, sum_equality, order],
+            )?
+        };
+        // The bound side is an `add` over two endpoint numerals; the
+        // checked equation `add lb rb = k` lands the conclusion's literal.
+        let (Some((_, left_value)), Some((_, right_value)), Some((_, bound_value))) = (
+            left_endpoint.integer_value(),
+            right_endpoint.integer_value(),
+            literal.integer_value(),
+        ) else {
+            return Ok(None);
+        };
+        let literal_term = self.fixed_scalar_term(literal)?;
+        let Some(equality) = self.numeral_sum(
+            left_value,
+            right_value,
+            bound_value,
+            left_endpoint_term,
+            right_endpoint_term,
+            literal_term,
+        )?
+        else {
+            return Ok(None);
+        };
+        if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[bound_sum, literal_term, output_term, equality, order],
+            )
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[output_term, bound_sum, literal_term, equality, order],
+            )
+        }
+        .map(Some)
+    }
+
+    /// One addend's bound endpoint: the checked literal it is bounded by,
+    /// with the evidence re-shaped to `IntLe endpoint' operand'` (lower)
+    /// or `IntLe operand' endpoint'` (upper). A literal operand bounded by
+    /// `Truth` is its own endpoint through `refl`; `Equal` evidence
+    /// transports through `eq_le`; an oriented `≤` stands in its own
+    /// direction and refuses the other. `Truth` over a non-literal
+    /// operand has only its carrier bound — not interned here.
+    fn add_bound_endpoint(
+        &mut self,
+        operand: &ScalarTerm,
+        proposition: &Proposition,
+        evidence: TermHandle,
+        lower: bool,
+        integer_type: &IntegerType,
+    ) -> Result<Option<(ScalarTerm, TermHandle)>, BoundedDenotationError> {
+        if operand.integer_value().is_some() {
+            if proposition != &Proposition::Truth {
+                return Ok(None);
+            }
+            let term = self.fixed_scalar_term(operand)?;
+            let integer = self.integer_constant()?;
+            let reflexive = self.arena.insert(Term::Refl {
+                ty: integer,
+                value: term,
+            });
+            let equality = self.integer_law_application(
+                IntegerLaw::EqualityToLessOrEqual,
+                &[term, term, reflexive],
+            )?;
+            return Ok(Some((operand.clone(), equality)));
+        }
+        match proposition {
+            Proposition::Truth => Ok(None),
+            Proposition::Equal(first, second) => {
+                let literal = if first == operand {
+                    second
+                } else if second == operand {
+                    first
+                } else {
+                    return Ok(None);
+                };
+                let Some((actual, _)) = literal.integer_value() else {
+                    return Ok(None);
+                };
+                if actual != *integer_type {
+                    return Ok(None);
+                }
+                let operand_term = self.fixed_scalar_term(operand)?;
+                let literal_term = self.fixed_scalar_term(literal)?;
+                let denoted = self.denote(proposition)?;
+                let Some((_, denoted_from, denoted_to)) = self.identity_parts(denoted) else {
+                    return Ok(None);
+                };
+                let (want_from, want_to) = if lower {
+                    (literal_term, operand_term)
+                } else {
+                    (operand_term, literal_term)
+                };
+                let Some(equality) =
+                    self.directed_equality(denoted_from, denoted_to, want_from, want_to, evidence)
+                else {
+                    return Ok(None);
+                };
+                // `Id a b → IntLe a b` — the denoted endpoints already
+                // match the requested orientation.
+                self.integer_law_application(
+                    IntegerLaw::EqualityToLessOrEqual,
+                    &[want_from, want_to, equality],
+                )
+                .map(|order| Some((literal.clone(), order)))
+            }
+            Proposition::LessOrEqual(first, second) => {
+                if first == second {
+                    return Ok(None);
+                }
+                let bound = if second == operand && lower {
+                    first
+                } else if first == operand && !lower {
+                    second
+                } else {
+                    return Ok(None);
+                };
+                let Some((actual, _)) = bound.integer_value() else {
+                    return Ok(None);
+                };
+                if actual != *integer_type {
+                    return Ok(None);
+                }
+                Ok(Some((bound.clone(), evidence)))
+            }
+            _ => Ok(None),
         }
     }
 

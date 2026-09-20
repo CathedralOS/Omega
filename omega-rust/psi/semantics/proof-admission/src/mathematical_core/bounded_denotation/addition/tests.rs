@@ -712,3 +712,377 @@ fn open_sum_over_signed_closed_difference_uses_the_numeral_equation() {
         )]
     );
 }
+
+/// The `IntegerExactAddDefinitionBound` fixture: two operand bounds plus a
+/// cited `out = l + r` definition prove `k ≤ out` or `out ≤ k`. Returns the
+/// elaboration's denotation state for assertions after the shared checker
+/// and kernel have both accepted.
+fn exact_add_definition_fixture(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    axioms: &[Proposition],
+    proof: &ProofNode,
+) -> (crate::BoundedDenotation, super::super::Denotation) {
+    let denoted = verify_bounded_certificate(
+        context,
+        goal,
+        assumptions,
+        axioms,
+        proof,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(context, goal, assumptions, axioms, &parameters).unwrap();
+    elaboration.node(proof).unwrap();
+    (denoted, elaboration.denotation)
+}
+
+fn exact_add_definition_proof(
+    left_premise: &Proposition,
+    right_premise: &Proposition,
+    definition_axiom: usize,
+    goal: &Proposition,
+) -> ProofNode {
+    ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerExactAddDefinitionBound {
+            left_bound: Box::new(ProofNode {
+                conclusion: left_premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            right_bound: Box::new(ProofNode {
+                conclusion: right_premise.clone(),
+                rule: ProofRule::Assumption { index: 1 },
+            }),
+            definition_axiom,
+        },
+    }
+}
+
+fn check_exact_add_definition_bound(integer: IntegerType, lower: bool, reversed: bool) {
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
+    )
+    .unwrap();
+    let (left_endpoint, right_endpoint, bound) = match (integer.sign(), lower) {
+        (IntegerSign::Signed, true) => (
+            IntegerValue::Signed(-5),
+            IntegerValue::Signed(-3),
+            IntegerValue::Signed(-8),
+        ),
+        (IntegerSign::Signed, false) => (
+            IntegerValue::Signed(7),
+            IntegerValue::Signed(9),
+            IntegerValue::Signed(16),
+        ),
+        (IntegerSign::Unsigned, true) => (
+            IntegerValue::Unsigned(2),
+            IntegerValue::Unsigned(3),
+            IntegerValue::Unsigned(5),
+        ),
+        (IntegerSign::Unsigned, false) => (
+            IntegerValue::Unsigned(100),
+            IntegerValue::Unsigned(50),
+            IntegerValue::Unsigned(150),
+        ),
+    };
+    let literal = |value| ScalarTerm::integer(integer, value).unwrap();
+    let output = value(3);
+    let expression = ScalarTerm::exact_integer_add(integer, value(1), value(2)).unwrap();
+    let (left_premise, right_premise) = if lower {
+        (
+            Proposition::LessOrEqual(literal(left_endpoint), value(1)),
+            Proposition::LessOrEqual(literal(right_endpoint), value(2)),
+        )
+    } else {
+        (
+            Proposition::LessOrEqual(value(1), literal(left_endpoint)),
+            Proposition::LessOrEqual(value(2), literal(right_endpoint)),
+        )
+    };
+    let definition = if reversed {
+        Proposition::Equal(expression.clone(), output.clone())
+    } else {
+        Proposition::Equal(output.clone(), expression.clone())
+    };
+    let goal = if lower {
+        Proposition::LessOrEqual(literal(bound), output.clone())
+    } else {
+        Proposition::LessOrEqual(output.clone(), literal(bound))
+    };
+    let proof = exact_add_definition_proof(&left_premise, &right_premise, 0, &goal);
+    let assumptions = [left_premise.clone(), right_premise.clone()];
+    let axioms = [definition.clone()];
+    let (denoted, denotation) =
+        exact_add_definition_fixture(&context, &goal, &assumptions, &axioms, &proof);
+    assert!(denoted.certificate.signature.len() < 400);
+    assert!(
+        denotation.rule_axioms.is_empty(),
+        "exact-add definition bounds derive from the fixed monotone law"
+    );
+    assert!(denotation.decisions.is_empty());
+    assert_eq!(denotation.addition.laws.len(), 1);
+    assert_eq!(
+        denotation.addition.numeral_sums.keys().collect::<Vec<_>>(),
+        [&(left_endpoint, right_endpoint, bound)]
+    );
+}
+
+#[test]
+fn exact_add_definition_bounds_use_the_two_sided_monotone_law() {
+    for (sign, width) in [
+        (IntegerSign::Unsigned, 8),
+        (IntegerSign::Unsigned, 64),
+        (IntegerSign::Signed, 32),
+        (IntegerSign::Signed, 128),
+    ] {
+        for lower in [true, false] {
+            for reversed in [false, true] {
+                check_exact_add_definition_bound(
+                    IntegerType::new(sign, width).unwrap(),
+                    lower,
+                    reversed,
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn exact_add_definition_bound_transports_operand_equalities() {
+    // `x = 4 ∧ 3 ≤ y` with `out = x + y` proves `7 ≤ out`: the equality
+    // endpoint re-shapes to `IntLe` through `eq_le` in either citation
+    // orientation. The upper symmetric shape `x = 4 ∧ y ≤ 9` proves
+    // `out ≤ 13`.
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let literal =
+        |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
+    )
+    .unwrap();
+    let output = value(3);
+    let expression = ScalarTerm::exact_integer_add(integer, value(1), value(2)).unwrap();
+    for reversed_equality in [false, true] {
+        for lower in [true, false] {
+            let (left_premise, right_premise, bound) = if lower {
+                let equality = if reversed_equality {
+                    Proposition::Equal(literal(4), value(1))
+                } else {
+                    Proposition::Equal(value(1), literal(4))
+                };
+                (
+                    equality,
+                    Proposition::LessOrEqual(literal(3), value(2)),
+                    literal(7),
+                )
+            } else {
+                let equality = if reversed_equality {
+                    Proposition::Equal(literal(4), value(1))
+                } else {
+                    Proposition::Equal(value(1), literal(4))
+                };
+                (
+                    equality,
+                    Proposition::LessOrEqual(value(2), literal(9)),
+                    literal(13),
+                )
+            };
+            let definition = Proposition::Equal(output.clone(), expression.clone());
+            let goal = if lower {
+                Proposition::LessOrEqual(bound.clone(), output.clone())
+            } else {
+                Proposition::LessOrEqual(output.clone(), bound.clone())
+            };
+            let proof = exact_add_definition_proof(&left_premise, &right_premise, 0, &goal);
+            let assumptions = [left_premise, right_premise];
+            let axioms = [definition];
+            let (_, denotation) =
+                exact_add_definition_fixture(&context, &goal, &assumptions, &axioms, &proof);
+            assert!(denotation.rule_axioms.is_empty());
+            assert_eq!(denotation.addition.laws.len(), 1);
+        }
+    }
+}
+
+#[test]
+fn exact_add_definition_bound_closed_addend_uses_refl() {
+    // `Truth` over the literal addend `2` (its own endpoint through `refl`)
+    // plus `y ≤ 9` proves `out ≤ 11` for `out = 2 + y`.
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let literal =
+        |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
+    )
+    .unwrap();
+    let output = value(3);
+    let expression = ScalarTerm::exact_integer_add(integer, literal(2), value(2)).unwrap();
+    let right_premise = Proposition::LessOrEqual(value(2), literal(9));
+    let definition = Proposition::Equal(output.clone(), expression.clone());
+    let goal = Proposition::LessOrEqual(output.clone(), literal(11));
+    let proof = exact_add_definition_proof(&Proposition::Truth, &right_premise, 0, &goal);
+    let assumptions = [Proposition::Truth, right_premise];
+    let axioms = [definition];
+    let (_, denotation) =
+        exact_add_definition_fixture(&context, &goal, &assumptions, &axioms, &proof);
+    assert!(denotation.rule_axioms.is_empty());
+    assert_eq!(denotation.addition.laws.len(), 1);
+    assert_eq!(
+        denotation.addition.numeral_sums.keys().collect::<Vec<_>>(),
+        [&(
+            IntegerValue::Unsigned(2),
+            IntegerValue::Unsigned(9),
+            IntegerValue::Unsigned(11)
+        )]
+    );
+}
+
+#[test]
+fn exact_add_definition_bound_carrier_endpoint_keeps_instance_fallback() {
+    // `Truth` over an open addend contributes only its carrier endpoint;
+    // no interned carrier-bound law exists, so the checked instance axiom
+    // still names this shape — `127 + (-5) = 122` over i8.
+    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let literal =
+        |magnitude| ScalarTerm::integer(integer, IntegerValue::Signed(magnitude)).unwrap();
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
+    )
+    .unwrap();
+    let output = value(3);
+    let expression = ScalarTerm::exact_integer_add(integer, value(1), value(2)).unwrap();
+    let right_premise = Proposition::LessOrEqual(value(2), literal(-5));
+    let definition = Proposition::Equal(output.clone(), expression.clone());
+    let goal = Proposition::LessOrEqual(output.clone(), literal(122));
+    let proof = exact_add_definition_proof(&Proposition::Truth, &right_premise, 0, &goal);
+    let assumptions = [Proposition::Truth, right_premise];
+    let axioms = [definition];
+    let (_, denotation) =
+        exact_add_definition_fixture(&context, &goal, &assumptions, &axioms, &proof);
+    assert_eq!(
+        denotation.rule_axioms.len(),
+        1,
+        "carrier endpoints keep the checked instance axiom"
+    );
+}
+
+#[test]
+fn exact_add_definition_bound_rejects_mismatched_certificates() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let literal =
+        |magnitude| ScalarTerm::integer(integer, IntegerValue::Unsigned(magnitude)).unwrap();
+    let context = PropositionContext::from_value_types(
+        (1..=4).map(|index| (ValueId::new(index).unwrap(), scalar)),
+    )
+    .unwrap();
+    let output = value(3);
+    let expression = ScalarTerm::exact_integer_add(integer, value(1), value(2)).unwrap();
+    let left_premise = Proposition::LessOrEqual(literal(2), value(1));
+    let right_premise = Proposition::LessOrEqual(literal(3), value(2));
+    let definition = Proposition::Equal(output.clone(), expression.clone());
+    let goal = Proposition::LessOrEqual(literal(5), output.clone());
+    let proof = exact_add_definition_proof(&left_premise, &right_premise, 0, &goal);
+    let assumptions = [left_premise, right_premise];
+    let axioms = [definition];
+    // A wrong bound literal, a wrong output, a bound on the wrong operand,
+    // and a definition naming a different addend all fail the shared
+    // relation check before denotation.
+    for wrong_goal in [
+        Proposition::LessOrEqual(literal(6), output.clone()),
+        Proposition::LessOrEqual(literal(5), value(4)),
+        Proposition::LessOrEqual(literal(5), expression.clone()),
+    ] {
+        let mut invalid = proof.clone();
+        invalid.conclusion = wrong_goal.clone();
+        assert!(
+            verify_bounded_certificate(
+                &context,
+                &wrong_goal,
+                &assumptions,
+                &axioms,
+                &invalid,
+                &mut Budget::default()
+            )
+            .is_err()
+        );
+    }
+    for wrong_premise in [
+        Proposition::LessOrEqual(literal(2), value(2)),
+        Proposition::LessOrEqual(literal(3), value(1)),
+        Proposition::LessOrEqual(value(1), literal(2)),
+        Proposition::Equal(value(1), value(2)),
+    ] {
+        let mut invalid = proof.clone();
+        let ProofRule::IntegerExactAddDefinitionBound { left_bound, .. } = &mut invalid.rule else {
+            unreachable!()
+        };
+        left_bound.conclusion = wrong_premise.clone();
+        let wrong_assumptions = [wrong_premise, assumptions[1].clone()];
+        assert!(
+            verify_bounded_certificate(
+                &context,
+                &goal,
+                &wrong_assumptions,
+                &axioms,
+                &invalid,
+                &mut Budget::default()
+            )
+            .is_err()
+        );
+    }
+    // A definition citing a different output or different addends.
+    for wrong_axiom in [
+        Proposition::Equal(value(4), expression.clone()),
+        Proposition::Equal(
+            output.clone(),
+            ScalarTerm::exact_integer_add(integer, value(1), value(1)).unwrap(),
+        ),
+        Proposition::LessOrEqual(output.clone(), expression.clone()),
+    ] {
+        assert!(
+            verify_bounded_certificate(
+                &context,
+                &goal,
+                &assumptions,
+                std::slice::from_ref(&wrong_axiom),
+                &proof,
+                &mut Budget::default()
+            )
+            .is_err()
+        );
+    }
+    // An out-of-roster citation.
+    let mut invalid = proof.clone();
+    let ProofRule::IntegerExactAddDefinitionBound {
+        definition_axiom, ..
+    } = &mut invalid.rule
+    else {
+        unreachable!()
+    };
+    *definition_axiom = 7;
+    assert!(
+        verify_bounded_certificate(
+            &context,
+            &goal,
+            &assumptions,
+            &axioms,
+            &invalid,
+            &mut Budget::default()
+        )
+        .is_err()
+    );
+}

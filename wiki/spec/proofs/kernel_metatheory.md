@@ -396,6 +396,19 @@ remain opaque. These fixed laws are assumptions, not an arithmetic consistency
 result. Recursive evaluator preflights may revisit prefixes;
 shallow term storage does not establish linear checking cost.
 
+The exact-add definition bound cites a semantic `out = l + r` equality
+beside the two operand bounds. A fixed two-sided monotonicity law
+`a ≤ b → c ≤ d → add a c ≤ add b d` combines the operand evidence into a
+bound on the applicative sum, the cited definition transports that bound
+onto `out`, and a checked numeral-operation equation `add lb rb = k`
+lands the conclusion's literal endpoint. Each operand's endpoint re-shapes
+its evidence to the required direction: an oriented `≤` stands, an
+operand-to-literal `Equal` transports through `eq_le` in either citation
+orientation, and a literal addend is its own endpoint through `refl`.
+A `Truth` bound over an open addend contributes only its carrier endpoint;
+no carrier-bound law is interned, so that shape — like a bound literal the
+carrier cannot represent — keeps the explicit instance fallback below.
+
 Remaining families, including other bound and correlated-root
 witnesses, transport through opaque operations, reversed identities nested
 inside connectives and further Boolean normalization, denote
