@@ -109,6 +109,24 @@ pub(super) fn validate_structural_argument(
                             result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
                     }
                     StructuralPlaceKind::OperationResult { .. }
+                        if ordinary_call
+                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                            && argument.path.is_empty()
+                            && argument.access == StructuralAccess::Owned
+                            && linear_call_result(caller, argument.place).is_some() =>
+                    {
+                        // A completed linear call result carries its claim
+                        // frontier on the result itself. Admitting the place
+                        // admits no claim: the call's transfer roster still
+                        // resolves each occurrence through the caller's claim
+                        // table — a result-minted binding or an entry claim —
+                        // against the callee's entry roster.
+                        let (_, result) = linear_call_result(caller, argument.place)
+                            .expect("guard established a linear call result");
+                        Some((result.structural_type, result.multiplicity, StructuralAccess::Owned,
+                            result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
+                    }
+                    StructuralPlaceKind::OperationResult { .. }
                         if !matches!(source_policy, StructuralArgumentSourcePolicy::OnlyParameters
                             | StructuralArgumentSourcePolicy::ParametersOrLinearCallResults)
                             && source_policy != StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals

@@ -152,49 +152,55 @@ pub(super) fn validate_argument_claims(
             operation,
             argument_index: argument_index as u32,
         };
-        let (OperationKind::CallStructural {
-            callee: producer_callee,
-            returned_claim_transfers,
-            ..
-        }
-        | OperationKind::CallStructuralWithScalarArguments {
-            callee: producer_callee,
-            returned_claim_transfers,
-            ..
-        }) = &producer.kind
-        else {
-            return Err(mismatch());
-        };
-        let source = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == *producer_callee)
-            .ok_or_else(mismatch)?;
-        let source_result = source.result.structural().ok_or_else(mismatch)?;
-        for claim in &result.claims {
-            let mut returned = returned_claim_transfers
-                .iter()
-                .filter(|transfer| transfer.caller_claim == claim.claim);
-            let transfer = returned.next().ok_or_else(mismatch)?;
-            if returned.next().is_some() {
-                return Err(mismatch());
+        // A boundary result's claims are caller-local minted bindings, not a
+        // callee namespace: no returned-claim roster exists to rebase content
+        // identities through, so only an in-module producer contributes
+        // content claims below.
+        let producer_source = match &producer.kind {
+            OperationKind::CallStructural {
+                callee: producer_callee,
+                returned_claim_transfers,
+                ..
             }
-            let Some(binding) = source
-                .content_entry_claims
+            | OperationKind::CallStructuralWithScalarArguments {
+                callee: producer_callee,
+                returned_claim_transfers,
+                ..
+            } => Some((producer_callee, returned_claim_transfers)),
+            OperationKind::BoundaryCall { .. } => None,
+            _ => return Err(mismatch()),
+        };
+        if let Some((producer_callee, returned_claim_transfers)) = producer_source {
+            let source = module
+                .machines
                 .iter()
-                .find(|binding| binding.claim == transfer.callee_claim)
-            else {
-                continue;
-            };
-            // A returned permission identity alone does not establish a
-            // content theorem. Rebase only the producer callee's exact
-            // validated identity guarantee at its successful result.
-            let mut identities = source
-                .content_identity_reshuffles
-                .iter()
-                .filter(|identity| identity.claim == transfer.callee_claim);
-            let identity = identities.next().ok_or_else(mismatch)?;
-            if identities.next().is_some() || identity.input != binding.input
+                .find(|machine| machine.id == *producer_callee)
+                .ok_or_else(mismatch)?;
+            let source_result = source.result.structural().ok_or_else(mismatch)?;
+            for claim in &result.claims {
+                let mut returned = returned_claim_transfers
+                    .iter()
+                    .filter(|transfer| transfer.caller_claim == claim.claim);
+                let transfer = returned.next().ok_or_else(mismatch)?;
+                if returned.next().is_some() {
+                    return Err(mismatch());
+                }
+                let Some(binding) = source
+                    .content_entry_claims
+                    .iter()
+                    .find(|binding| binding.claim == transfer.callee_claim)
+                else {
+                    continue;
+                };
+                // A returned permission identity alone does not establish a
+                // content theorem. Rebase only the producer callee's exact
+                // validated identity guarantee at its successful result.
+                let mut identities = source
+                    .content_identity_reshuffles
+                    .iter()
+                    .filter(|identity| identity.claim == transfer.callee_claim);
+                let identity = identities.next().ok_or_else(mismatch)?;
+                if identities.next().is_some() || identity.input != binding.input
                 || identity.projections != binding.projections
                 || identity.output.root != source_result.place
                 || identity.output.version != semantic_vocabulary::ContentPlaceVersion::Current
@@ -206,7 +212,8 @@ pub(super) fn validate_argument_claims(
             {
                 return Err(mismatch());
             }
-            caller_content.push((&identity.output.segments, &identity.projections));
+                caller_content.push((&identity.output.segments, &identity.projections));
+            }
         }
     }
     let mut callee_content = callee

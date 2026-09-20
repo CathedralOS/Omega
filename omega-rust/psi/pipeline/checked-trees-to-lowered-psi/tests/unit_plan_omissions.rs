@@ -150,9 +150,12 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // transfer-shape validation: `settle`'s `self` formal admits the move only
 // when the result's single carried claim is the minted statement-established
 // binding the formal's whole-value entry claim names, and the emitted call
-// records the consume as a transfer of that exact claim. The remaining
-// frontier is module validation: the ordinary-call argument source policy
-// still admits only affine claim-free operation results.
+// records the consume as a transfer of that exact claim. Module validation
+// now admits the claim-carrying result place as a structural argument —
+// `Main::probe` verifies completely, transfer and all — and the remaining
+// frontier is the specialized `Task::settle` itself: its minted linear
+// `self` entry claim still has no retirement pathway in an empty Unit body
+// that consumes the receiver by dropping it.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -192,7 +195,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 "#;
 
 #[test]
-fn a_routed_task_start_call_plans_and_owned_settle_stops_at_lowered_custody() {
+fn a_routed_task_start_call_plans_and_owned_settle_stops_at_settle_claim_retirement() {
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main {{
@@ -391,27 +394,30 @@ fn a_routed_task_start_call_plans_and_owned_settle_stops_at_lowered_custody() {
             .is_none(),
         "Main::probe plans once its specialized settle callee is admitted"
     );
-    // The named frontier moves one edge deeper: `settle` now emits with its
-    // completed-result custody joined — transfer-shape validation admits the
-    // move only because `task`'s result carries the exact whole-value claim
-    // `settle`'s `self` entry claim names, minted statement-established, and
-    // the emitted `CallUnit` records that consume as a claim transfer naming
-    // the minted caller binding. Emission then stops inside module
-    // validation: the ordinary-call source policy still classifies every
-    // operation-result argument place as affine and claim-free, so the
-    // claim-carrying boundary result place has no argument source to join.
+    // The named frontier moves one machine deeper: `settle` now emits with
+    // its completed-result custody joined — transfer-shape validation admits
+    // the move only because `task`'s result carries the exact whole-value
+    // claim `settle`'s `self` entry claim names, minted statement-established,
+    // and the emitted `CallUnit` records that consume as a claim transfer
+    // naming the minted caller binding. The ordinary-call source policy now
+    // classifies that claim-carrying completed result place as a valid
+    // structural argument, so `Main::probe` verifies completely and the stop
+    // lands inside the specialized `Task::settle`: its empty body retires no
+    // claim, and nothing yet discharges a whole-value linear `self` entry
+    // claim at a `ReturnUnit` — claims still retire only through call
+    // transfers, boundary completion receipts, or structural returns.
     let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("the settled self argument has no ordinary-call source yet");
+        .expect_err("the settle body cannot yet retire its linear self claim");
     assert!(
         matches!(
             error,
             checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::UnknownStructuralArgument {
-                    operation,
-                    argument_index: 0,
-                    place,
+                terminal_verifier::ModuleError::LiveLinearClaimAtUnitReturn {
+                    machine,
+                    block,
+                    claim,
                 }
-            ) if operation.get() == 2 && place.get() == 5
+            ) if machine.get() == 2 && block.get() == 2 && claim.get() == 1
         ),
         "unexpected error: {error:?}"
     );

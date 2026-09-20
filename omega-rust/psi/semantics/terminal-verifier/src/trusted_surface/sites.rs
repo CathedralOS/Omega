@@ -999,7 +999,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/claim_transfers/argument_claims.rs",
-        sha256: Some("fe405226ca470408d835a01003b0257bc194819ed7bb341502241af56bfed0ce"),
+        sha256: Some("68ea1329212ff72afd68b2667ed447c15c307167053aac2daa828e52b23f4bb8"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1034,7 +1034,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/structural_arguments/argument_checks.rs",
-        sha256: Some("44ebfeb5b5b5997a3fe621d9eb9b0b4f2ea5bdfdfe5fcd41ec716a9b7704c266"),
+        sha256: Some("15e93314aa4cab8ce1604f94ae1d0892dec739431be7f9e3971d72481f991705"),
         inventory_machinery: false,
     },
     ImplementationSite {
