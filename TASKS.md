@@ -2892,16 +2892,33 @@ Owners include
     occurrence, failure returns that capacity with no root, and unregister
     consumes the registration. Use ordinary linear custody; add no
     registration-specific checker rule. One grammar seam still blocks the
-    full program: a routed domain cannot authorize a case payload
-    (`Registered(registration: Registration in Live)` fails `cannot prove
-    requires contract`), so the observed-rejection sum cannot yet be written.
-    The installed-provider interpreter path also still gates boundary
+    full program: a routed domain cannot authorize a case payload. Verified
+    sharper at `797e99ead7a`: the payload's own declaration and construction
+    now check — `case Registered(registration: Registration in Live)` accepts
+    a `Registration in Live` value supplied by an authorized route (post-
+    `556a3a0d5d45`, which admitted claimed linear results on boundary calls).
+    What still rejects is putting the sum on the establishing requirement
+    itself: `Registrar::register(...) -> Outcome` fails
+    `requirement_authorizes_domain_subject` ("does not name the domain on its
+    exact result or an exact non-self external-root parameter") because
+    `type_reference_domain_symbols` never looks inside a `Named` type's
+    declared members — and past that gate, result qualification is flat
+    (`StructuralOperationResult.qualifications`/`projected_qualifications`
+    derive only from the result type-reference expression, not member
+    payloads), so the routed membership would need a payload-path schema and
+    verifier evidence. Whether a returned sum's payload counts as "the exact
+    result subject" (authority.md) is the open spec question. The
+    installed-provider interpreter path also still gates boundary
     results to claim-free affine shapes (`supported_result` in
     terminal-interpreter `call_operations.rs`); the uninstalled effect path
     admits the claimed linear result.
-  - Omega: join that boundary outcome to the ledger, so root admission, lease
-    acquisition, quiescence and lease release follow the program's operations
-    and not a Rust caller's sequence.
+  - Omega: join that boundary outcome to the ledger — landed for the whole
+    interpreted lifetime: `interpreted_register_and_unregister_drive_the_
+    registration_ledger` in `component-publication/src/tests.rs` drives root
+    admission, provider registration, lease acquisition and lowering off the
+    program's own `register` effect, and quiescence plus lease release off
+    its `unregister` effect, on a real
+    `RunnableComponentCallbackRegistrationRuntime`.
   - **CALLBACK-PRIVATE-MATERIALIZATION** must supply a native callback entry
     before any foreign invocation can be witnessed.
 
