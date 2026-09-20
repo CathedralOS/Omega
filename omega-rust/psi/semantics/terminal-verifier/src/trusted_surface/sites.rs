@@ -268,6 +268,11 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/classicality.rs",
+        sha256: Some("6315f5f7c83851c9d0b11260dcd0a631eabc59ccd9a600904a555d78792289b0"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/integer_rules.rs",
         sha256: Some("e954c7d0db149b1929d898e706bb7fa150499bd04bf2b37b36ad9bbd80e913d6"),
         inventory_machinery: false,
@@ -319,7 +324,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/lib.rs",
-        sha256: Some("da17575482db2750ac6ea68d86a04eae0887e7e0bf14e79bd75f5944294b7dbd"),
+        sha256: Some("bb67b1d0f2fc4ef00dba0ef37686a3f25663a4d84d4a2772fdec2acbde66c0b3"),
         inventory_machinery: false,
     },
     ImplementationSite {
