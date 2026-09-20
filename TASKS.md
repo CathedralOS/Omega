@@ -2993,14 +2993,24 @@ Owners include
     publication. `SAMPLE-CORPUS`' `dutch_flag` native command still stops at the
     missing transitive `Main::main` plan; preserve its exit-70 oracle and
     explicit copyable swap values.
-  - Result types. Selected-operator and semantic-domain result types need full
-    instantiated identity; input predicates are not arithmetic result facts.
-    Indexed predicate/theorem and package membership applications need exact
-    static arguments. Qualified callable-entry signatures, predicate/routed
-    membership and erasure require real transport rather than payload-only
-    projection. **OPERATOR-MACHINE-SUPPLY** owns declared operator execution;
-    **CRASH-CONTRACT** owns crash-qualified equality; numeric landing is in
-    **STATE-LOCAL-VALUE-FRONTIER**.
+  - Result types. Selected-operator and named operator `-> T` results now
+    instantiate to the exact operand reference the first bare-`T` parameter
+    position bound, at every expression owner (state, parameter telescope,
+    domain predicate); composite returns (`Pair<T>`), dependent predicates
+    (`-> u64 [0..=left]`), unbound result parameters and ambiguous selections
+    remain unresolved rather than fabricating identity. A bound owned result
+    (`T` := `Payload`) now enters the same branch-custody join as a declared
+    `-> Payload`: both `match` arms are judged instead of the generic arm
+    slipping through untyped — `result_type::tests` and the checker's
+    `value_dispatch::semantic_results` pin admitted scalar joins and the
+    bound/unbound owned split. Still needed: instantiated shells for composite
+    and constrained results, and exact static arguments for indexed
+    predicate/theorem and package membership applications. Qualified
+    callable-entry signatures, predicate/routed membership and erasure require
+    real transport rather than payload-only projection; input predicates are
+    not arithmetic result facts. **OPERATOR-MACHINE-SUPPLY** owns declared
+    operator execution; **CRASH-CONTRACT** owns crash-qualified equality;
+    numeric landing is in **STATE-LOCAL-VALUE-FRONTIER**.
 
   Acceptance: `checked-trees-to-lowered-psi --test suite` (`value_dispatch::`),
   `omega-native-differential-test --test scalar_case_results`, corresponding
