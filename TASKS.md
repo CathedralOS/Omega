@@ -9086,13 +9086,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   stage entrance, with destination-point derivation plus the
   hazard/dead-path/commutation audits applied once — PoC (pair-rule
   widening / composable-pair descriptor rows) is one owned slice of
-  that partition, not an independent slice. Implementing surfaces sit
-  under live sibling claims at verification time (`rewrites/mod.rs` +
-  `module_catalog.rs` under ORPHAN-REWRITE-MODULES-CATALOG until
-  02:26Z; pair descriptors under COMPOSABLE-PAIR-DESCRIPTORS until
-  23:57Z). Re-verified at `797e99ead7`: the `Orphaned` route rows are
-  still present in `module_catalog.rs` and both claims remain live.
-  Sibling cluster rows:
+  that partition, not an independent slice. Re-verified at
+  `9b75533b9c7` (this session): the `Orphaned` route rows are still
+  present in `module_catalog.rs`; the pair-rule/descriptor surface
+  (`selected_lowering/catalog.rs`, `literal_fold/`) remains fenced by
+  the live COMPOSABLE-PAIR-DESCRIPTORS claim (until 23:57Z), and
+  item-level sibling claims on the cluster are live
+  (SELECTED-REWRITE-CATALOG-DISPOSITION, PIPELINE-REWRITE-ORPHANS,
+  REWRITE-VALIDATOR-INDEPENDENCE). The earlier
+  ORPHAN-REWRITE-MODULES-CATALOG claim on `rewrites/mod.rs` +
+  `module_catalog.rs` has drained. Sibling cluster rows:
   SELECTED-REWRITE-CATALOG-{DISPOSITION,EXECUTION,OR-DELETE,ROUTE,WIRING},
   SELECTED-REWRITES-CATALOG-OR-DELETE (delete leg landed),
   PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
