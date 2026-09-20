@@ -1,8 +1,15 @@
 // FAIL CANARY. `walk` binds a machine call in its ranked body
 // (`let seen: u32 = self.level(remaining);`). `preserves_rank` walks only
-// assignment and call statements; a root binding reaches the match's
-// catch-all, so no statement in the cycle preserves the entry-relative rank
-// and the range proof never forms.
+// assignment and call statements; a `let` is `StatementNode::LocalData`,
+// which reaches the match's catch-all, so no statement in the cycle preserves
+// the entry-relative rank and the range proof never forms.
+//
+// An earlier version of this comment named `RootBinding` as the arm a `let`
+// reaches. That was wrong: `RootBinding` is the provider root-binding
+// statement (`receiver`/`slot`/`implementation`), while a `let` carries
+// `initial_value` on `TableLocalData`. Both fall to the same catch-all, so
+// the behavior pinned here never changed -- but anyone grepping `RootBinding`
+// for the `let` path would land in the wrong code.
 //
 // This is `pass/termination/rank_range_prefix_call` with one variable moved.
 // There the prefix statement is the call `self.audit(remaining)`, admitted
