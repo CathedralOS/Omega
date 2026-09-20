@@ -5974,7 +5974,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **DYNAMIC-DISPATCH-ROW-MAPS** — mined candidate; verify scope then implement.
 - **DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **EDGE-CLEANUP-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
-- **EDGE-CLEANUP-ERROR-PRECEDENCE** — mined candidate; verify scope then implement.
+- **EDGE-CLEANUP-ERROR-PRECEDENCE.** Resolved — alias of the terminal-verifier cleanup-order row already repaired on `origin/main`: edge validation consumes owned successor sources before the residual and trivial discard rosters (`validation/frontier/block_parameters.rs` documents the order; `terminators.rs` runs it), and `d96a0fda39` repinned `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to expect `EdgeAffineDiscardsInvalid` — the more precise diagnostic for discard evidence naming an already-transferred place. The test plus all 26 `structural_scalar_fields::owned_reads` tests pass at `ff596a06e6` on linux x86-64 (`cargo nextest run -p terminal-verifier`). Sibling aliases of the same row (EDGE-CLEANUP-DIAGNOSTIC-ORDER, FRONTIER-EDGE-*, OWNED-SUCCESSOR-*, STRUCTURAL-SUCCESSOR-DISCARD-ORDERING, VERIFIER-EDGE-CLEANUP-PHASE-ORDER, SUCCESSOR-DISCARD-ORDER) remain separate stubs.
 - **EFI-MATRIX-PROMOTION** — mined candidate; verify scope then implement.
 - **ENCODER-CANDIDATE-CONTINUATION** — mined candidate; verify scope then implement.
 - **ENCODER-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
