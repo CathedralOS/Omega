@@ -53,7 +53,12 @@
 //!   expression's own structure, the same rule the bounded denotation
 //!   applies to open terms it does not name (`MathTermKey::Open`,
 //!   `scalar_integer_terms`): `x * y` and `x * y` share one constant,
-//!   `x * y` and `x * z` do not.
+//!   `x * y` and `x * z` do not. Machine calls follow the same rule:
+//!   the callee carries no kernel declaration, so `next(x)` interns
+//!   opaquely at the machine's declared result carrier, while calls
+//!   hauling machine, evidence, quotient or operational payload still
+//!   refuse. Member calls keep refusing — resolution leaves their
+//!   `target_symbol` unbound inside `let` bodies.
 //! - Explicit generic applications follow the callee's ordered telescope:
 //!   level binders instantiate `Constant.levels`, while the remaining binders
 //!   form ordinary `Apply` terms before the ordinary argument prefix. A binder
@@ -734,6 +739,33 @@ impl<'a> Elaborator<'a> {
                 }
             }
             ExpressionNode::Call(call) => {
+                let target_symbol = call.target_symbol;
+                if target_symbol.is_valid()
+                    && !self.authored_index.contains_key(&target_symbol)
+                    && !self
+                        .scope
+                        .iter()
+                        .any(|entry| entry.symbol == Some(target_symbol))
+                {
+                    if call.static_machine_parameter.is_valid()
+                        || call.static_requirement_dispatch.is_some()
+                        || !call.evidence_arguments.is_empty()
+                        || call.quotient_operation.is_some()
+                        || call.private_layout_operation.is_some()
+                        || call.operational_acknowledgement.acknowledges_suspend
+                        || call.operational_acknowledgement.acknowledges_block
+                    {
+                        return Err(self.refuse(format!(
+                            "call `{}` carries machine, evidence, quotient or operational payload the kernel cannot express",
+                            call.target
+                        )));
+                    }
+                    // A machine callee has no kernel declaration; the
+                    // call interns as an opaque constant at the machine's
+                    // declared result carrier (the structural key already
+                    // carries the receiver when one exists).
+                    return self.open_term(handle);
+                }
                 if call.receiver.is_valid() {
                     return Err(self.refuse(format!(
                         "member call `{}` has no mathematical denotation yet",
@@ -753,7 +785,6 @@ impl<'a> Elaborator<'a> {
                         call.target
                     )));
                 }
-                let target_symbol = call.target_symbol;
                 let target = call.target.clone();
                 let static_arguments = call.machine_arguments.clone();
                 let mut function =
@@ -1306,17 +1337,29 @@ impl<'a> Elaborator<'a> {
     }
 
     /// The carrier an earlier authored declaration's result inhabits —
-    /// the innermost codomain of its `Pi` spine.
+    /// the innermost codomain of its `Pi` spine — or the authored
+    /// return type of a `machine` declaration, which carries no kernel
+    /// declaration and lets its calls intern as opaque constants.
     fn declaration_result_carrier(&self, symbol: SymbolHandle) -> Option<ScalarCarrier> {
-        let position = *self.authored_positions.get(&symbol)?;
-        let mut ty = self.declarations[position as usize].ty;
-        while let Term::Pi { codomain, .. } = self.arena.get(ty) {
-            ty = codomain;
+        if let Some(&position) = self.authored_positions.get(&symbol) {
+            let mut ty = self.declarations[position as usize].ty;
+            while let Term::Pi { codomain, .. } = self.arena.get(ty) {
+                ty = codomain;
+            }
+            return match self.arena.get(ty) {
+                Term::Constant { declaration, .. } => Some(self.carrier_class_at(declaration)),
+                _ => None,
+            };
         }
-        match self.arena.get(ty) {
-            Term::Constant { declaration, .. } => Some(self.carrier_class_at(declaration)),
-            _ => None,
-        }
+        // `target_symbol` names the callee's entry `State`, not the
+        // machine itself.
+        let state = self
+            .program
+            .machines()
+            .iter()
+            .flat_map(|machine| self.program.machine_states(machine))
+            .find(|state| state.symbol == symbol)?;
+        self.scalar_carrier_of_type_reference(state.return_type)
     }
 
     /// The scalar carrier a type reference names, when it is one —
