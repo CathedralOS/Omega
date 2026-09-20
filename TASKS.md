@@ -8518,7 +8518,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   belongs to its live CTTL-FAILURE-ATTRIBUTION claim or the
   KNOWN-BASELINE-FAILURES-REFRESH items.
 - **TERMINATION-RANK-RANGE-FIELDS** — mined candidate; verify scope then implement.
-- **TEST-CYCLE-SELECTION-REMEASUREMENT** — mined candidate; verify scope then implement.
+- **TEST-CYCLE-SELECTION-REMEASUREMENT.** Mined candidate; scope verified at
+  `5b839c31ab`: refresh or retire the temporary
+  [test-cycle measurement draft](wiki/drafts/test_cycle_measurements.md) —
+  its own removal clause asks for "a controlled replacement measurement" of
+  scheduling/selection costs. All recorded samples are Windows AMD64
+  (2026-09-05/-15) and one macOS ARM64 experiment at older revisions; no
+  Linux host data exists. Slice: on the current revision, run controlled
+  `tools/test_affected.py --base` selections (selection cost + selected-test
+  counts), one scoped selected run, and a full `nextest --workspace --lib`
+  contrast run on this Linux host, then record them in the draft (or evaluate
+  its removal). Currently unworkable — the deliverable file
+  `wiki/drafts/test_cycle_measurements.md` is file-fenced by Zergling-190's
+  PACKAGE-REVIEW-ROUTE-COST-ATTRIBUTION (expires ~2026-09-20T23:49Z) and the
+  selector contract doc `tools/testing.md` by RC-MATRIX-RUNNER (~00:54Z).
+  Measurement runs are host-bound and reproducible; coordinate publication
+  after those claims settle.
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS** — scope verified 2026-09-20:
   re-mines [chapter 14](wiki/language_guide/chapter_14_traits.md)'s recorded
   gap that a trait requirement expressing an arbitrary nondecidable validity
