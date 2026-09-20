@@ -9036,7 +9036,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION, SELECTED-
   OPTIMIZATION-ANCESTRY-ELIMINATION/-READS, SELECTED-REWRITE-ANCESTRY-
   REMOVAL, STAGED-ANCESTRY-ELIMINATION.
-- **STAGE-CRATE-OWNERSHIP-AUDIT** — mined candidate; verify scope then implement.
+- **STAGE-CRATE-OWNERSHIP-AUDIT** — mined candidate; scope verified, covered — the stage-crate ownership audit is the sweep already executed on the adjacent STAGE-ENTRANCE-ORPHAN-AUDIT row (audit at `280c4a83b6`, the residual leg of PIPELINE-OWNER-CONSOLIDATION): every `omega-rust/{psi,omega}/pipeline/*` crate's `pub fn` cross-referenced against callers outside its crate and tests, findings enumerated (the ~40 `rewrites/` entrances, 18 `unsequenced_spill_stages/`, `optimized_semantic_wrapper_{encoding,object}` entrances, plus the four named stage-entrance families). That row explicitly retires this stub as a re-mine of the same sweep; remediation of the named entrances belongs to the sibling rows it routes to (POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*, POC-WRAPPER-OBJECT-PLACEMENT). No independent slice exists here.
 - **STAGE-ENTRANCE-ORPHAN-AUDIT** — mined candidate.
   Audit executed at `280c4a83b6` (the residual leg of
   PIPELINE-OWNER-CONSOLIDATION: "a public stage entrance that no
