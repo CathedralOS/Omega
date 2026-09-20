@@ -7877,7 +7877,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   selected") — no residual here beyond the draft's explicit gate.
 - **OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
-- **OCREQ-REQUEST-ENTRY-BINDING** — mined candidate; verify scope then implement.
+- **OCREQ-REQUEST-ENTRY-BINDING.** Mined candidate; scope verified at
+  163670cf6d — re-mines the bound OCREQ request-entry surface (sibling
+  resolutions: CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING,
+  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING). Binding exists on main:
+  `tools/bootstrap/omega/compiler_env.sh` carries
+  `OMEGA_REQUEST_ENTRY_SIZE=4115`/`SHA256=0d612813…`, the sealed-request
+  fixture `OMEGA_REQUEST_FIXTURE_*=132`/`ab2e980a…`, and
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_*`=19253/`9573d734…`; the omega-request
+  gate (`tests/bootstrap/omega-request/`) drives the sealed request through
+  the Gamma→Delta→Epsilon→D chain. Witnessed this host (linux x86-64):
+  `sh tests/bootstrap/omega-request/run.sh --identity` PASSes at
+  163670cf6d — all bound identities verified and both byte streams
+  assembled (622,933-byte receipt request, 563,268-byte customer, 45-byte
+  expected observation). The executing half is seed-host-gated by the
+  gate's own `require_seed_execution_host` call — Linux x86-64 is now an
+  admitted audited host (d3776b9890), so that leg is a duration-bounded
+  full-chain interpretation, not a code change. Sibling stubs on the same
+  surface: OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING,
+  CHAIN-MANIFEST-OCREQ-BINDING, CHAIN-OCREQ-ENTRY-BINDING,
+  D-OCREQ-ENTRY-BINDING.
 - **OMEGA-C.** Verified `8a37f82686`: the canonical item is
   `TASKS_BOOTSTRAP.md` P4's OMEGA-C — "the sole self-host edge": compile
   the exact Omega-written closure rooted at `source/omega/{build.omg,
