@@ -676,6 +676,7 @@ pub fn coercion_edge_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),
@@ -757,6 +758,7 @@ pub fn coercion_region_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),
@@ -922,6 +924,7 @@ pub fn dead_machine_coercion_fixture() -> LoweredPsi {
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "d1".to_string(),
             carrier: i32_type(),
+            establishment_routes: Vec::new(),
         }],
         sets: vec![terminal_psi::ScalarQualificationSet {
             id: semantic_vocabulary::ScalarQualificationSetId::new(1),
