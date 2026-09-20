@@ -517,7 +517,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // machine-effect relationship: a dividend literal of exactly zero folds
     // `WrappingRemainderI64` into a `MaterializeI64` of the constant zero —
     // a remainder of a zero dividend is always zero — under
-    // `FaultDischargedByObligation`: the folded literal does not discharge
+    // `DischargedByObligation`: the folded literal does not discharge
     // the remainder's encoded architectural fault; the nonzero-divisor
     // obligation the kind carries does. The family shares the divisor-one
     // family's consumer kind and rewritten form; the folded literal's
@@ -606,7 +606,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // trap-carrying machine-effect relationship: a dividend literal of
     // exactly zero folds `ExactDivideU64` into a `MaterializeI64` of the
     // constant zero — an unsigned divide of a zero dividend is always
-    // zero — under `FaultDischargedByObligation`: the folded literal does
+    // zero — under `DischargedByObligation`: the folded literal does
     // not discharge the divide's encoded architectural fault; the
     // nonzero-divisor obligation the kind carries does. The family shares
     // the divisor-one family's consumer kind; the folded literal's
@@ -986,7 +986,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // and `0 +| x` are both `x`, already inside the carrier's bounds.
     // This is the first family whose consumer carries an implicit unit
     // definition the rewrite retires — aarch64's `nzcv` — so it declares
-    // `DeadConsumerUnitDefs`, whose record-level half proves every
+    // `RetiredWhenDead`, whose record-level half proves every
     // defined unit dead in the function, and it admits the consumer's
     // `early_clobber` operand marks under
     // `BoundEarlyClobberConsumerOperands`, which the x86-64 rows' result
@@ -1100,7 +1100,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // `0 -| x` is `-x` clamped, not `x` — so the family declares no
     // left-literal pair at either operand grammar. The unit and effect
     // surfaces are the saturating family's own: the consumer's implicit
-    // unit definitions retire under `DeadConsumerUnitDefs` — aarch64's
+    // unit definitions retire under `RetiredWhenDead` — aarch64's
     // `nzcv` must stay dead across the whole function — while its
     // `early_clobber` operand marks drop with the replaced operand list
     // under `BoundEarlyClobberConsumerOperands`. The carrier's signedness
@@ -1216,7 +1216,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // is `1 / x` clamped, not `x` — so the family declares no
     // left-literal pair. This is the first family whose consumer both may
     // architecturally fault and retires implicit unit definitions, so it
-    // declares `FaultDischargedByLiteralDeadUnitDefs`: the divisor
+    // declares the `DischargedByLiteral`/`RetiredWhenDead` composition: the divisor
     // literal of one discharges the encoded `MayArchitecturalFaultV1`
     // x86-64's `div`/`idiv` carry, while every unit the consumer record
     // defines — aarch64's signed rows' `nzcv` — must stay dead across the
@@ -1336,7 +1336,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // reaches no saturation edge. The folded dividend is not what
     // discharges the consumer's encoded fault surface — a zero dividend
     // over an unproven divisor would still fault — so the family
-    // declares `FaultDischargedByObligationDeadUnitDefs`: the
+    // declares the `DischargedByObligation`/`RetiredWhenDead` composition: the
     // divide-by-zero case retires under the nonzero-divisor obligation
     // the kind carries as its accepted fact, and every unit the consumer
     // record defines — aarch64's signed rows' `nzcv` — must stay dead
@@ -1450,7 +1450,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // unsigned three-operand row. The operand-1 subtrahend `Use` drops
     // because the constant result never reads it. The unit and effect
     // surfaces are the saturating family's own: the consumer's implicit
-    // unit definitions retire under `DeadConsumerUnitDefs` — aarch64's
+    // unit definitions retire under `RetiredWhenDead` — aarch64's
     // `nzcv` must stay dead across the whole function — while its
     // `early_clobber` operand marks drop with the replaced operand list
     // under `BoundEarlyClobberConsumerOperands`. The family shares its
@@ -1561,7 +1561,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // binds the clamped row whose bound scratch `Def` drops under the
     // grammar's occurrence-free custody. The unit and effect surfaces are
     // the saturating family's own: the consumer's implicit unit
-    // definitions retire under `DeadConsumerUnitDefs` — aarch64's `nzcv`
+    // definitions retire under `RetiredWhenDead` — aarch64's `nzcv`
     // must stay dead across the whole function — while its
     // `early_clobber` operand marks drop with the replaced operand list
     // under `BoundEarlyClobberConsumerOperands`. The family shares its
@@ -1682,7 +1682,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // always zero, including the `i64::MIN` dividend the kind's semantics
     // defines to produce zero rather than trap — discharging the
     // remainder's encoded architectural fault under
-    // `FaultDischargedByLiteral` like the divisor-one fold, admitting the
+    // `DischargedByLiteral` like the divisor-one fold, admitting the
     // register pins and early-clobber scratch marks a pinned-scratch
     // realization requires, and dropping the consumer's dividend `Use`
     // and dead scratch `Def` operands under the same constant-result
@@ -1776,7 +1776,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // because subtraction does not commute. The operand-0 minuend `Use`
     // drops because the constant result never reads it. The unit and
     // effect surfaces are the saturating family's own: the consumer's
-    // implicit unit definitions retire under `DeadConsumerUnitDefs` —
+    // implicit unit definitions retire under `RetiredWhenDead` —
     // aarch64's `nzcv` must stay dead across the whole function — while
     // its `early_clobber` operand marks drop with the replaced operand
     // list under `BoundEarlyClobberConsumerOperands`. The family shares
@@ -2352,7 +2352,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         }
 
         // The operand-swapped compare pair admits its own triple on both
-        // targets under `OperandSwappedUnitDefs`: an isolated producer,
+        // targets under `OperandSwapped`: an isolated producer,
         // the flag-publishing compare whose definitions the rewritten
         // form keeps, and the compare-immediate declaration covering
         // them. The declaration-level surface is the isolated one — the
@@ -2648,7 +2648,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         }
 
         // The saturating-add-zero pairs admit their own triples on both
-        // targets under `DeadConsumerUnitDefs`: an isolated producer, each
+        // targets under `RetiredWhenDead`: an isolated producer, each
         // carrier's saturating add — defining `nzcv` on aarch64,
         // clobbering `rflags` on x86-64 — and the isolated copy. The
         // declaration-level requirement is the shared
@@ -2706,7 +2706,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         }
 
         // The saturating-subtract-zero pairs admit their own triples on
-        // both targets under `DeadConsumerUnitDefs`: an isolated producer,
+        // both targets under `RetiredWhenDead`: an isolated producer,
         // each carrier's saturating subtract — defining `nzcv` on
         // aarch64, clobbering `rflags` on x86-64 — and the isolated copy.
         // The declaration-level requirement is the shared
@@ -2764,7 +2764,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         }
 
         // The saturating-divide-one pairs admit their own triples on both
-        // targets under `FaultDischargedByLiteralDeadUnitDefs`: an
+        // targets under the `DischargedByLiteral`/`RetiredWhenDead` composition: an
         // isolated producer, each carrier's saturating divide — encoding
         // `MayArchitecturalFaultV1` on x86-64 and `NeverV1` on aarch64,
         // defining `nzcv` on aarch64's signed rows, clobbering
@@ -2823,7 +2823,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         }
 
         // The saturating-divide-zero pairs admit their own triples on
-        // both targets under `FaultDischargedByObligationDeadUnitDefs`:
+        // both targets under the `DischargedByObligation`/`RetiredWhenDead` composition:
         // an isolated producer, each carrier's saturating divide —
         // encoding `MayArchitecturalFaultV1` on x86-64 and `NeverV1` on
         // aarch64, defining `nzcv` on aarch64's signed rows, clobbering
@@ -2883,7 +2883,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         }
 
         // The saturating-subtract zero-minuend pairs admit their own
-        // triples on both targets under `DeadConsumerUnitDefs`: an
+        // triples on both targets under `RetiredWhenDead`: an
         // isolated producer, each unsigned carrier's saturating subtract —
         // defining `nzcv` on aarch64, clobbering `rflags` on x86-64 — and
         // the isolated materialization. The declaration-level requirement
@@ -2941,7 +2941,7 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         }
 
         // The saturating-add upper-bound pairs admit their own triples on
-        // both targets under `DeadConsumerUnitDefs`: an isolated producer,
+        // both targets under `RetiredWhenDead`: an isolated producer,
         // each unsigned carrier's saturating add — defining `nzcv` on
         // aarch64, clobbering `rflags` on x86-64 — and the isolated
         // materialization. The declaration-level requirement is the shared

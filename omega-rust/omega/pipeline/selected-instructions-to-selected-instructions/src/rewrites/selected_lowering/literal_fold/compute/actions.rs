@@ -533,7 +533,7 @@ pub(super) fn derive_action(
         });
     }
     // The obligation-discharged surface also needs the obligation's
-    // instruction-level custody: under `FaultDischargedByObligation` the
+    // instruction-level custody: under `DischargedByObligation` the
     // folded literal does not itself make the encoded fault unreachable,
     // so the fold is admitted only when the obligation the consumer kind
     // names is retained in the instruction's recorded proof custody.
@@ -547,7 +547,7 @@ pub(super) fn derive_action(
         });
     }
     // The dead-unit-defs surface also needs its record-level half: under
-    // `DeadConsumerUnitDefs` the rewrite retires every implicit unit the
+    // `RetiredWhenDead` the rewrite retires every implicit unit the
     // consumer defines, admitted only while no instruction or terminator
     // in the function implicitly uses such a unit — a reader would
     // observe a stale unit once the defining instruction disappears. The
@@ -563,7 +563,7 @@ pub(super) fn derive_action(
         });
     }
     // The operand-swapped unit-defs surface also needs its record-level
-    // half: under `OperandSwappedUnitDefs` the rewrite keeps the
+    // half: under `OperandSwapped` the rewrite keeps the
     // consumer's implicit definitions but reverses the comparison's
     // operand order — the equality predicate is preserved and every
     // ordering predicate inverts — so the fold is admitted only while
