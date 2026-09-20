@@ -113,7 +113,7 @@ echo "member: a one-byte theory member change is refused during packing"
 
 for needle in \
   "$DERIVATION_CHECKER_MANIFEST_SHA256" "$DERIVATION_CHECKER_PACKED_SHA256" \
-  "62,349"
+  "62,355"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/bootstrap/proofs/checker/README.md" ||
     fail "bootstrap/proofs/checker/README.md lacks bound record $needle"
