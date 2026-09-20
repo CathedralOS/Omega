@@ -6,7 +6,7 @@ use crate::checker::assignment_stability::{
     collect_read_place_paths, expression_contains_call, member_paths_may_alias, written_place_path,
 };
 use crate::checker::certificate::{
-    CertificateVerdict, bounded_integer_value_verdict, guarded_transition_integer_verdict,
+    CertificateVerdict, bounded_integer_value_verdict, guarded_transition_integer_verdict_measured,
     state_return_integer_verdict,
 };
 use crate::checker::dependent_bounds::{
@@ -33,6 +33,7 @@ use crate::checker::integer_ranges::{
     integer_range_for_call_argument, integer_range_for_initializer, integer_range_from_constraints,
     type_constraints,
 };
+use crate::checker::measurement::ProofPlanMeasurements;
 use crate::checker::named_constraints::{
     check_assignment_named_constraints, check_call_named_constraints,
     check_initializer_named_constraints, check_return_named_constraints,
@@ -53,6 +54,7 @@ pub(crate) fn check_bounded_assignment(
     obligation: &BoundedAssignmentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    measurements: &mut ProofPlanMeasurements,
 ) {
     // Chapter 11 invariant windows: an intermediate store need not itself
     // satisfy the place's constraints when a later store repairs the EXACT
@@ -78,6 +80,7 @@ pub(crate) fn check_bounded_assignment(
             &target_range,
             seed,
             false,
+            measurements,
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -245,6 +248,7 @@ pub(crate) fn check_bounded_initializer(
     obligation: &BoundedInitializerObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    measurements: &mut ProofPlanMeasurements,
 ) {
     check_initializer_named_constraints(proof_plan, obligation, diagnostics);
 
@@ -261,6 +265,7 @@ pub(crate) fn check_bounded_initializer(
             &target_range,
             seed,
             false,
+            measurements,
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -322,6 +327,7 @@ pub(crate) fn check_bounded_state_return(
     context: &AssignmentRangeContext<'_>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    measurements: &mut ProofPlanMeasurements,
 ) {
     check_return_named_constraints(proof_plan, obligation, diagnostics);
 
@@ -331,7 +337,13 @@ pub(crate) fn check_bounded_state_return(
         // The certificate route covers the declared-or-literal legs the
         // arrival machinery would reach anyway; arrival bounds, contract
         // refinement and malformed obligations stay uncovered.
-        match state_return_integer_verdict(proof_plan, obligation, &target_range, seed) {
+        match state_return_integer_verdict(
+            proof_plan,
+            obligation,
+            &target_range,
+            seed,
+            measurements,
+        ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
                 diagnostics.push(cannot_prove_bounded_return_integer(
@@ -392,6 +404,7 @@ pub(crate) fn check_bounded_call_argument(
     obligation: &BoundedCallArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    measurements: &mut ProofPlanMeasurements,
 ) {
     check_call_named_constraints(proof_plan, obligation, diagnostics);
 
@@ -408,6 +421,7 @@ pub(crate) fn check_bounded_call_argument(
             &target_range,
             seed,
             true,
+            measurements,
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -532,6 +546,7 @@ pub(crate) fn check_bounded_transition_argument(
     obligation: &BoundedTransitionArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
+    measurements: &mut ProofPlanMeasurements,
 ) {
     check_transition_named_constraints(proof_plan, obligation, diagnostics);
 
@@ -550,6 +565,7 @@ pub(crate) fn check_bounded_transition_argument(
             &target_range,
             seed,
             true,
+            measurements,
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -563,11 +579,12 @@ pub(crate) fn check_bounded_transition_argument(
                 // The guard-narrowed leg cites the arm's guard and refuted
                 // exit guards as explicit premises on the argument's atom;
                 // shapes it cannot certify keep the trusted narrowing below.
-                match guarded_transition_integer_verdict(
+                match guarded_transition_integer_verdict_measured(
                     proof_plan,
                     obligation,
                     &target_range,
                     seed,
+                    measurements,
                 ) {
                     CertificateVerdict::Certified => {}
                     CertificateVerdict::Rejected => {
