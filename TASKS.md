@@ -8774,7 +8774,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   INTEGER-COMPARISON-OCCURRENCE-{PRODUCER,RETENTION,STD-COVERAGE},
   COMPARISON-OCCURRENCE-PRODUCER-COVERAGE,
   BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE.
-- **INTEGER-COMPARISON-OCCURRENCE-RETENTION** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-RETENTION.** Resolved — member of the
+  INTEGER-COMPARISON-OCCURRENCE-* re-mine family under
+  BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES. The retention leg is the
+  landed gate itself: `compilation-report`'s `terminal_product::integer_comparisons`
+  (repaired `76dc49a99e`, "distinguish selected comparison custody from builtin
+  operations") requires a Terminal proposal to retain every selected integer
+  comparison occurrence exactly once, counted against the artifact-bound
+  checked scope — builtin comparisons and generated guards no longer need a
+  provider row, and explicit `BooleanNot` consumers no longer turn selected
+  equality into selected inequality. Re-witnessed green on linux x86-64 at
+  `d1299d3992`: `cargo nextest run -p compiler --test
+  integer_comparison_publication` →
+  `selected_comparison_publication_preserves_complete_custody_among_builtins`
+  PASS (20.8s). The surviving residual — provider coverage for genuinely
+  selected occurrences — is what that pin already exercises. Siblings:
+  INTEGER-COMPARISON-OCCURRENCE-{PRODUCER,PRODUCER-COVERAGE,STD-COVERAGE},
+  COMPARISON-OCCURRENCE-PRODUCER-COVERAGE, BENCHMARK-STD-COMPARISON-
+  OCCURRENCE-GATE.
 - **INTEGER-COMPARISON-OCCURRENCE-STD-COVERAGE.** Resolved — member of the
   INTEGER-COMPARISON-OCCURRENCE-* re-mine family named under
   BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES. The "std coverage" leg
