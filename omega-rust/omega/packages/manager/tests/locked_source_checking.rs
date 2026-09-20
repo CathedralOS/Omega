@@ -23,6 +23,8 @@ use target::TargetProfile;
 mod generated;
 #[path = "locked_source_checking/ordinary.rs"]
 mod ordinary;
+#[path = "locked_source_checking/restricted_build_grants.rs"]
+mod restricted_build_grants;
 #[path = "locked_source_recovery/support.rs"]
 mod support;
 use support::*;

@@ -67,7 +67,7 @@ machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
         ))
         .expect("declare only the selected root sources"),
     );
-    let checked = compile_resolved_package_candidate_for_check(
+    let (checked, _reviews) = compile_resolved_package_candidate_for_check(
         &closure.for_exact_target(TARGET),
         &project.0.join("checked"),
         &entry,

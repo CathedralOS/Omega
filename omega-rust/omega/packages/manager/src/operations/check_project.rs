@@ -3,6 +3,7 @@
 use super::PreparedLocalProject;
 use crate::review::{
     CompileResolvedPackageReviewsError, compile_resolved_package_candidate_for_check,
+    ungranted_restricted_build_requests,
 };
 use compiler::{CompileOptions, CompileOutputKind, CompileReport, TrustAdmission};
 use diagnostics::Diagnostic;
@@ -61,6 +62,8 @@ pub enum CheckPreparedLocalProjectError {
     /// compiler's `RequestedCompileProduct::Check` arm applies the same
     /// admission fence.
     ProofProduct(Vec<Diagnostic>),
+    GrantJoin(crate::lock::PackageLockError),
+    UngrantedRestrictedBuild(Vec<crate::review::UngrantedRestrictedBuildRequest>),
     Report(&'static str),
 }
 
@@ -76,6 +79,22 @@ impl fmt::Display for CheckPreparedLocalProjectError {
                     formatter,
                     "cannot satisfy the requested proof product: {diagnostics:?}"
                 )
+            }
+            Self::GrantJoin(error) => {
+                write!(
+                    formatter,
+                    "cannot project fresh package policy for the restricted build grant join: {error}"
+                )
+            }
+            Self::UngrantedRestrictedBuild(ungranted) => {
+                writeln!(
+                    formatter,
+                    "fresh check compile projects restricted build authority the accepted lock policy does not grant:"
+                )?;
+                for gap in ungranted {
+                    writeln!(formatter, "  {gap}")?;
+                }
+                Ok(())
             }
             Self::Report(message) => formatter.write_str(message),
         }
@@ -101,6 +120,7 @@ pub fn check_prepared_local_project_for_inspection(
         &entry_path,
         None,
     )
+    .map(|(checked, _reviews)| checked)
 }
 
 /// Run scoped candidate checking and report its final checked root. Generated
@@ -117,14 +137,27 @@ pub fn check_prepared_local_project(
         accepted_trust_admissions,
         build_snapshot,
     } = request;
-    let (entry_path, source_closure, _) = prepared.into_review_parts();
-    let checked = compile_resolved_package_candidate_for_check(
+    let (entry_path, source_closure, accepted_target) = prepared.into_review_parts();
+    let (checked, reviews) = compile_resolved_package_candidate_for_check(
         &source_closure.for_exact_target(target_profile),
         &build_dir,
         &entry_path,
         build_snapshot.as_ref(),
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;
+    // Checked reporting consumes the compile's generated sources, so it is
+    // an executor of the accepted policy, not an observational review: a
+    // projected restricted build request the accepted rows do not grant
+    // rejects here.
+    if let Some(accepted) = accepted_target.as_ref() {
+        let ungranted = ungranted_restricted_build_requests(accepted, &reviews)
+            .map_err(CheckPreparedLocalProjectError::GrantJoin)?;
+        if !ungranted.is_empty() {
+            return Err(CheckPreparedLocalProjectError::UngrantedRestrictedBuild(
+                ungranted,
+            ));
+        }
+    }
     let options = CompileOptions {
         root_path: entry_path,
         build_dir: Some(build_dir),
