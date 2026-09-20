@@ -8555,6 +8555,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   gate are product decisions, not implementable slices here. Sibling
   re-mine: RULE-PROMOTION-EVIDENCE-COMPLETION.
 - **RULE-PROMOTION-EVIDENCE-COMPLETION** — mined candidate; scope verified, covered — sibling stub RULE-PROMOTION-EVIDENCE's landed annotation already scopes this surface verbatim: WORKSPACE-ROLLOUT's exact-rule promotion territory (six staged records in `optimization-core/promotions/` each need the promotion contract's full evidence set before `Approved status` completes, gated by `exact_rule_rollout_is_complete_and_promotion_gated`). The `Rollback evidence` rejoin legs sit under PROMOTION-ROLLBACK-REJOIN-LEGS's live claim; `Measurement evidence` waits on the BENCHMARKS native-realization failure; owner approval and the `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast` gate are product decisions. No independent slice exists here.
+- **PROMOTION-ROLLBACK-REJOIN-LEGS.** Resolved at `cdee121ee9` (linux
+  x86-64 witnessed) — the `Rollback evidence` rejoin legs the
+  RULE-PROMOTION-EVIDENCE rows reference are all landed and green: each of
+  the six staged records in `optimization-core/promotions/` cites its
+  per-rule `*_rollback_rejoins_exact_ordinary_path_on_every_target` leg in
+  `compiler/tests/no_selection_golden/rollback.rs` plus the two overlay
+  pins (`native_rollback_rejects_products_that_do_not_enter_native_`
+  `realization`, `empty_rollback_request_leaves_no_release_receipt`), and
+  every cited leg passes — `cargo nextest run -p compiler --test
+  no_selection_golden -E 'test(~rollback)'` 8/8 at the named rev. The
+  "live claim" note above is stale — no PROMOTION-ROLLBACK-REJOIN-LEGS
+  claim exists on the coordination ref; this row exists so the reference
+  resolves. Remaining promotion evidence axes stay owned by
+  RULE-PROMOTION-EVIDENCE (measurement waits on the BENCHMARKS
+  native-realization failure; owner approval is a product decision).
 - **RUNTIME-CAPABLE-BINDERS** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Scope verified at `e12b9e8e06` —
   this names the contract half of the runtime-sized activation storage
