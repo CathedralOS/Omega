@@ -86,7 +86,31 @@ pub(super) fn append_move_events_for_expression(
             statement_index,
             expression,
         ) {
-            append_move_event_for_place(program, sink, place, source, expression);
+            // A stable-observable value read through borrowed storage can be a
+            // detached copy rather than a custody transfer: an indexed element
+            // read across a purely shared chain observes its element, and a
+            // `Service<R>`/boundary-trait receiver call marshals a caller-owned
+            // ABI copy of a stable borrowed argument. Every other reach keeps
+            // the real move so the borrowed-window and shared-loan rejections
+            // stand.
+            if observations::detached_borrowed_copy_admitted(
+                program,
+                state_symbol,
+                statement_index,
+                &place,
+                source,
+            ) {
+                observations::append(
+                    program,
+                    sink,
+                    state_symbol,
+                    statement_index,
+                    expression,
+                    source,
+                );
+            } else {
+                append_move_event_for_place(program, sink, place, source, expression);
+            }
         }
         return;
     }
