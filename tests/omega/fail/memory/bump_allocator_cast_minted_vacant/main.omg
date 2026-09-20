@@ -1,0 +1,38 @@
+// `Vacant` is the same shape of hole as `Resident`: a bodyless, route-free
+// domain on the linear `Extent` carrier. Minting it with `as` fabricates a
+// "no live resident" claim a merge could then fold into a tail — custody
+// state nobody established. The canary's merge surfaces all demand `Vacant`,
+// so the mint is refused at the restating write.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Split {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+
+boundary trait ExtentPartition {
+    machine merge(parts: Split) -> Extent
+    ensures
+        result in Granted & Vacant,
+        separate(
+            Granted::content(old(&parts.taken)),
+            Granted::content(old(&parts.rest)),
+        )
+        == Granted::content(&result);
+}
+
+machine exercise(
+    partition: &ExtentPartition,
+    extent: Extent,
+    tail: Extent in Granted & Vacant
+) -> Extent
+reaches ExtentPartition
+{
+    let forged: Extent in Vacant = extent as Extent in Vacant;
+    forged as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
