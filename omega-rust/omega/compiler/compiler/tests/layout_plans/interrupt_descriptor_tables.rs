@@ -86,16 +86,15 @@ use external_roots::{
     InterruptTableDescriptorOperand, InterruptTableEstablishedMember,
     InterruptTableEstablishmentId, InterruptTableGateDescriptor, InterruptTableLedger,
     InterruptTableMemberAdmission, InterruptTableMemberFacts, InterruptTableMemberPlan,
-    InterruptTableObligation,
-    InterruptTableProfile, InterruptTableProfileId, InterruptTablePublicationAuthority,
-    InterruptTablePublicationAuthorityId, InterruptTablePublicationId,
-    InterruptTablePublicationOutcome, InterruptTablePublicationReceiptId,
-    InterruptTablePublicationScope, LogicalFuelResourceColumn, MachineStateResourceColumn,
-    NestingRelationId, OpaqueProviderExitAssurance, ProviderExecution, ProviderExecutionId,
-    ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId, ProviderStackSummary,
-    ResolvedRootServiceReach, RootAdmission, RootAdmissionId, RootEffectId, RootProviderId,
-    RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackNestingRelation, StackResourceColumn,
-    StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
+    InterruptTableObligation, InterruptTableProfile, InterruptTableProfileId,
+    InterruptTablePublicationAuthority, InterruptTablePublicationAuthorityId,
+    InterruptTablePublicationId, InterruptTablePublicationOutcome,
+    InterruptTablePublicationReceiptId, InterruptTablePublicationScope, LogicalFuelResourceColumn,
+    MachineStateResourceColumn, NestingRelationId, OpaqueProviderExitAssurance, ProviderExecution,
+    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId, ProviderPlanId,
+    ProviderStackSummary, ResolvedRootServiceReach, RootAdmission, RootAdmissionId, RootEffectId,
+    RootProviderId, RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackNestingRelation,
+    StackResourceColumn, StackValidationReceiptId, StateValidationReceiptId, TrustReceiptId,
     admit_opaque_arrival_context_set, bind_opaque_adapter_stack_realization,
     compose_bound_entry_stack_epochs, compose_fixed_fuel, validate_external_root,
 };
@@ -284,9 +283,7 @@ fn member_row(membership: &AuthoredMembership, vector: u8) -> &BuildTimeValue {
     membership
         .member_rows
         .iter()
-        .find(|row| {
-            int_field(record_fields(row, "declared member"), "vector") == i64::from(vector)
-        })
+        .find(|row| int_field(record_fields(row, "declared member"), "vector") == i64::from(vector))
         .expect("the authored membership declares this member's row")
 }
 
@@ -334,9 +331,7 @@ fn authored_member_verdict(
             vec![member_row.clone(), member_facts_value(typed, facts)],
         ),
     )
-    .unwrap_or_else(|reason| {
-        panic!("the authored member admission does not evaluate: {reason}")
-    })
+    .unwrap_or_else(|reason| panic!("the authored member admission does not evaluate: {reason}"))
     .into_value()
 }
 
