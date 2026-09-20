@@ -8971,7 +8971,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux_arm64 cross-emit only; macos_arm64 unrecorded (no runner); and
   windows_x86_64 open with the runner procedure recorded. Re-run per row
   when the Service<R> fixture migrations and host runners land.
-- **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-ARM64.** Mined candidate; scope verified — the
+  row is `wiki/drafts/rc_native_matrix_linux_arm64.md`, re-witnessed on this
+  x86-64 host at `c267df86ac` (13 pass / 73 fail across 86 cross-compile
+  legs, still red; the two source-evaluated hosted-receiver legs repaired
+  since `e76d715c8e` and a new exact-arithmetic proof-obligation family
+  surfaced in the aarch64 cohort). Per the row contract the residual is a
+  host leg: real AArch64 execution legs (`run.sh` status pins, exit-code
+  evidence) need a linux/arm64 host — none is available to this wave.
 - **RC-NATIVE-MATRIX-LINUX-X64.** Mined candidate — resolved as an alias
   of RC-NATIVE-MATRIX-LINUX-X86-64: `x64` and `x86_64` name the same
   host leg, and that row is already recorded at
