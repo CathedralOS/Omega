@@ -399,14 +399,30 @@ spine), the selected limit, and the exact requested cumulative bytes. Allocation
 granularity can leave unusable tail bytes without changing the limit. Earlier
 request, byte, and lexical failures retain precedence, and a reached syntax
 refusal stops before any later parse or grammar judgment.
-Stack-safe compiler traversal does not guarantee generated Gamma admission
-throughout that depth. The selected evaluator separately bounds each generated
-body at 255 nested expression lists; normalization handles that nesting bound,
-but generated helper count, non-tail runtime contexts, and immutable storage
-remain separately bounded. Full generated-profile admission and other
-compiler-owned resource/internal DCOUT outcomes remain open; underlying
-evaluator failures do not substitute for those
-outcomes. These frontend judgments do not close the Delta edge or establish
-full compiler resource conformance. The former concatenative-Gamma
-implementation is retired; its selected
+The emitted program's admission under the selected evaluator profile is
+closed. The complete receipt is at most 16,777,212 bytes, inside the
+137,363,456-byte request extent. Every completed declaration consumes at
+least eight receipt bytes (its parenthesis, `def`, `Int`, and close), so a
+generated program carries at most 2,097,151 declarations and fits the
+evaluator's 2,097,152-row function census without a compiler-owned refusal.
+Normalization bounds every generated body at 255 nested expression lists, and
+generated lexical scopes stay inside the 68,608-binding normalization
+allowance, below the evaluator's 131,072-row environment; fixed runtime and
+adapter members are ordinary authored Gamma validated the same way. The
+emitted program's own runtime resources (nested call contexts, temporary
+values, immutable pairs, and buffered output) belong to that program's
+execution: a generated application can still exhaust its evaluator or
+diverge, and that failure is never a compiler DCOUT case. The producer's
+execution storage is bounded by the
+[execution-storage audit](implementation/boundary/execution_storage.md), and
+its cumulative pair allocation is settled by the
+[measured worst-shape
+study](../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment),
+which projects 417,063,339 pairs at admitted extents, below the selected
+3,422,453,760-pair arena, so an admitted compile does not end in a raw Gamma
+heap failure. The compiler-owned DCOUT outcomes are exactly the resource and
+internal tables above; an underlying evaluator failure is never substituted
+for one of them. These judgments do not close the Delta edge or establish
+complete Delta conformance. The former concatenative-Gamma implementation is
+retired; its selected
 conformance replacements do not by themselves close this edge.

@@ -268,7 +268,11 @@ does not make extraction or capture decisions and does not alter those budgets.
 
 Plan and continuation pairs consume the selected evaluator's finite immutable
 arena. The traversal bound above covers serialization's own frames; earlier
-phases' cumulative allocation remains separately owned. Stack-safe compiler
-traversal, complete-before-write planning, and exact
-receipt preservation do not close compiler-owned resource/internal outcomes,
-generated-profile admission, or the full Delta bootstrap edge.
+phases' cumulative allocation remains separately owned and is settled by the
+[measured worst-shape
+study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment).
+The compiler-owned resource/internal outcomes are the enumerated DCOUT tables,
+and generated-program admission bounds are discharged by the payload extent
+and normalization audits. Stack-safe compiler traversal, complete-before-write
+planning, and exact receipt preservation still do not close the full Delta
+bootstrap edge.

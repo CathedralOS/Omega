@@ -240,12 +240,18 @@ publishes typed roots to body checking. Reusing an identical resolved row adds
 no shortcut around an annotation or a compiler-owned provision.
 
 Authored functions, fixed runtime helpers, adapters, and extracted normalization
-helpers all occupy Gamma function rows. Its selected table now fits every
-framed source, so complete payload admission also bounds those rows. This does
-not change Delta's separate authored-row provision or establish every other
-generated-program admission condition.
-Other compiler-owned resource/internal outcomes remain open; a physical
-evaluator failure is not a substitute for this exact compiler-owned refusal.
+helpers all occupy Gamma function rows. Each completed declaration consumes at
+least eight receipt bytes — its parenthesis, `def`, `Int`, and close — so the
+16,777,212-byte payload extent keeps the emitted census at or below 2,097,151
+declarations, inside the evaluator's 2,097,152-row table without a
+compiler-owned refusal. This does not change Delta's separate authored-row
+provision; the remaining generated-program admission bounds are the 255-list
+body bound and the 68,608-binding environment allowance that the
+[normalization
+audit](../normalization/README.md#static-validation-environment-bound)
+discharges, and the request extent the payload preflight already enforces.
+A physical evaluator failure is not a substitute for any compiler-owned
+refusal.
 
 ## Active local-row provision
 
@@ -423,10 +429,14 @@ instead of copying up to 63 sibling rows, so that product no longer multiplies
 departed levels by row count. The capture merge term is logarithmic in batch
 count per collection, and its aggregate over nested helper captures is closed
 by the emission audit's injective `(origin, ancestor cut)` charge at
-`sum(T) <= 32*N + 512*N*N`. What remains open is whether the per-occurrence
-products — now dominated by the closed capture aggregate and the residual
-`34*N` name-event envelope — stay below the pair arena for every admitted
-shape.
+`sum(T) <= 32*N + 512*N*N`. Whether the per-occurrence products stay below
+the pair arena for every admitted shape is settled by measurement rather than
+by this envelope, which exceeds the arena from `N = 238`: the
+[measured worst-shape
+study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+projects 417,063,339 pairs at full admitted extents — 8.2× under the
+3,422,453,760-pair arena — so an admitted source does not end in a raw Gamma
+heap failure.
 
 ### Arithmetic allocation probe
 
@@ -525,16 +535,24 @@ profile removes profile 2, not the request-failure identities.
 
 Canonical frontend rejection and the owned source-byte, syntax-arena, global-row,
 active-environment, parse-depth, and payload-byte refusals
-are not full DCOUT or Delta-edge closure. Other resource/internal outcomes do
-not yet carry compiler-owned evidence. Lowering constructs a complete expanded
+are not full DCOUT or Delta-edge closure. The remaining resource/internal rows
+are dispositioned rather than open: the local-slot, label, and fixup rows have
+no producer-side request and acquire no invented refusal, internal code 3's
+label/fixup contradiction has no producer in this representation, and internal
+codes 1 and 2 have canonical producers exercised by the
+[internal-boundary gate](../../../../tests/delta/internal-boundary/README.md).
+Lowering constructs a complete expanded
 Gamma plan before publication, and records the height of every generated
 expression. A separate normalizer extracts over-height fragments under the
 selected evaluator's 255-list body budget before serialization. It introduces
 no new refusal code or profile limit. Generated function storage fits by the
 request bound, and transformed bodies fit the height and static-environment
-bounds; non-tail calls and immutable allocation retain their separate context
-and storage bounds. Complete compiler execution/refusal conformance throughout
-Delta's admitted profile remains open. Those empty-output evaluator
+bounds; a generated program's non-tail contexts and immutable allocation
+remain resources of that program's execution, not a compiler outcome. The
+producer's own execution storage is bounded by the
+[execution-storage audit](execution_storage.md) and its cumulative pair
+allocation by the measured worst-shape study cited above, so no admitted
+compile ends in a raw Gamma heap failure. Those empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by
 its adapter. Successful compiler output remains the exact unwrapped Gamma

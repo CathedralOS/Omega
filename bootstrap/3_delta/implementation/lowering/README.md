@@ -173,8 +173,11 @@ owner handles body nesting without changing Delta lowering rules.
 Allocated plan and continuation pairs consume the evaluator's finite immutable
 arena; the [traversal-and-rebuild accounting](#traversal-and-rebuild-pairs)
 above charges each one to a retained-source occurrence and bounds the produced
-plan size `G` without establishing whole-producer arena containment.
-Resource/internal DCOUT closure and full generated-profile admission
-remain open. Body-height normalization does not by itself bound helper count,
-live runtime contexts, or cumulative storage. Exact checking and execution
+plan size `G`. Whole-producer arena containment is settled by the measured
+worst-shape study rather than by these envelopes, and generated-program
+admission bounds — function census via the payload's eight-bytes-per-declaration
+charge, body list depth, and static environments — are discharged by the
+[normalization audit](../normalization/README.md#remaining-resources). A
+generated program's live runtime contexts and cumulative storage remain its
+own execution's resources, not compiler outcomes. Exact checking and execution
 receipts remain explicit regression obligations.

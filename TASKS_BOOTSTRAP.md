@@ -189,10 +189,15 @@ prerequisite to every lower-rung milestone.
   optimization needs measured customer or conformance pressure, not a
   standing mandate to improve general transformation costs.
 
-  The open part is compiler-execution resource containment. The contract
-  leaves full generated-profile admission and the other compiler-owned
-  resource/internal DCOUT outcomes open, and says evaluator failures do not
-  substitute for them. The
+  Compiler-execution resource containment is closed. Generated-profile
+  admission is argued end to end: the 16,777,212-byte receipt extent bounds
+  the request and, at no less than eight bytes per completed declaration, the
+  function census (at most 2,097,151 of 2,097,152 rows); normalization
+  carries the 255-list body bound and the 68,608-binding generated
+  environment bound. The compiler-owned resource/internal DCOUT outcomes are
+  the contract's enumerated tables — zero-use resources acquire no invented
+  refusals and internal code 3 has no producer in this representation — and
+  evaluator failures never substitute for them. The
   [execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
   bounds the compiler's call contexts, lexical rows, and temporary values, and
   every producer phase now has a closed per-occurrence pair charge. Cumulative
