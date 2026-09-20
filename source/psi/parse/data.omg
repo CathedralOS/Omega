@@ -41,6 +41,7 @@ machine Parser::parse_data(
         self.data_first_member = self.output.data_member_count;
         self.data_first_field = self.output.field_count;
         self.data_first_case = self.output.case_count;
+        self.data_first_generic = self.output.generic_parameter_count;
         self.data_multiplicity = DataMultiplicity::Affine;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
@@ -129,6 +130,7 @@ machine Parser::parse_data(
         end: u64 in Trapping
     ) {
         transition punctuation {
+            PunctuationKind::Less -> generic_list_start(input)
             PunctuationKind::LeftBracket -> data_property_start(input)
             PunctuationKind::LeftBrace -> data_body_start(input)
             _ -> expected_data_body(start, end)
@@ -136,6 +138,7 @@ machine Parser::parse_data(
     }
 
     state data_property_start(&mut self, input: &TokenStream) {
+        self.data_property_generic = false;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
         transition self.cursor < input.token_count {
@@ -161,13 +164,40 @@ machine Parser::parse_data(
         }
     }
 
+    // The property chain is shared between a data item's own multiplicity
+    // and a generic parameter's bounds; `data_property_generic` selects the
+    // scratch the bounds write into.
     state retain_copy_property(&mut self, input: &TokenStream) {
+        transition self.data_property_generic {
+            true -> retain_generic_copy_property(input)
+            _ -> retain_data_copy_property(input)
+        }
+    }
+
+    state retain_data_copy_property(&mut self, input: &TokenStream) {
         self.data_multiplicity = DataMultiplicity::Unrestricted;
         transition { _ -> retain_multiplicity_property(input) }
     }
 
+    state retain_generic_copy_property(&mut self, input: &TokenStream) {
+        self.generic_bounds = DataMultiplicity::Unrestricted;
+        transition { _ -> retain_multiplicity_property(input) }
+    }
+
     state retain_linear_property(&mut self, input: &TokenStream) {
+        transition self.data_property_generic {
+            true -> retain_generic_linear_property(input)
+            _ -> retain_data_linear_property(input)
+        }
+    }
+
+    state retain_data_linear_property(&mut self, input: &TokenStream) {
         self.data_multiplicity = DataMultiplicity::Linear;
+        transition { _ -> retain_multiplicity_property(input) }
+    }
+
+    state retain_generic_linear_property(&mut self, input: &TokenStream) {
+        self.generic_bounds = DataMultiplicity::Linear;
         transition { _ -> retain_multiplicity_property(input) }
     }
 
@@ -216,10 +246,12 @@ machine Parser::parse_data(
         transition token {
             Token::Punctuation { punctuation: PunctuationKind::RightBracket } -> after_data_property(input)
             Token::Keyword { keyword: KeywordKind::Copy } -> second_copy_property(
+                input,
                 token.start,
                 token.end
             )
             Token::Keyword { keyword: KeywordKind::Linear } -> second_linear_property(
+                input,
                 token.start,
                 token.end
             )
@@ -232,6 +264,18 @@ machine Parser::parse_data(
 
     state second_copy_property(
         &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.data_property_generic {
+            true -> second_generic_copy_property(start, end)
+            _ -> second_data_copy_property(start, end)
+        }
+    }
+
+    state second_data_copy_property(
+        &mut self,
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
@@ -241,7 +285,30 @@ machine Parser::parse_data(
         }
     }
 
+    state second_generic_copy_property(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.generic_bounds {
+            DataMultiplicity::Unrestricted -> duplicate_data_multiplicity(start, end)
+            _ -> conflicting_data_multiplicity(start, end)
+        }
+    }
+
     state second_linear_property(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.data_property_generic {
+            true -> second_generic_linear_property(start, end)
+            _ -> second_data_linear_property(start, end)
+        }
+    }
+
+    state second_data_linear_property(
         &mut self,
         start: u64 in Trapping,
         end: u64 in Trapping
@@ -252,12 +319,38 @@ machine Parser::parse_data(
         }
     }
 
+    state second_generic_linear_property(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.generic_bounds {
+            DataMultiplicity::Linear -> duplicate_data_multiplicity(start, end)
+            _ -> conflicting_data_multiplicity(start, end)
+        }
+    }
+
     state after_data_property(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
+        transition self.data_property_generic {
+            true -> generic_bounds_after(input, token.end)
+            _ -> data_property_after(input)
+        }
+    }
+
+    state data_property_after(&mut self, input: &TokenStream) {
         transition self.cursor < input.token_count {
             true -> data_body(input)
             _ -> expected_data_body_at_end()
+        }
+    }
+
+    state generic_bounds_after(&mut self, input: &TokenStream, param_end: u64 in Trapping) {
+        transition self.cursor < input.token_count {
+            true -> generic_bounds_done(input, param_end)
+            _ -> expected_generic_end_at_end()
         }
     }
 
@@ -581,6 +674,7 @@ machine Parser::parse_data(
         self.payload_type_name_end = end;
         self.type_qualified = false;
         self.type_qualifier_payload = true;
+        self.type_qualifier_generic = false;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
         transition self.cursor < input.token_count {
@@ -999,6 +1093,7 @@ machine Parser::parse_data(
         self.type_name_end = end;
         self.type_qualified = false;
         self.type_qualifier_payload = false;
+        self.type_qualifier_generic = false;
         self.cursor = self.cursor + 1;
         self.skip_trivia(input);
         transition self.cursor < input.token_count {
@@ -1098,6 +1193,18 @@ machine Parser::parse_data(
         start: u64 in Trapping,
         end: u64 in Trapping
     ) {
+        transition self.type_qualifier_generic {
+            true -> expected_generic_end(start, end)
+            _ -> type_qualifier_reject_member(input, start, end)
+        }
+    }
+
+    state type_qualifier_reject_member(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
         transition self.type_qualifier_payload {
             true -> expected_payload_separator_or_end(start, end)
             _ -> expected_field_end(start, end)
@@ -1164,6 +1271,13 @@ machine Parser::parse_data(
     }
 
     state type_qualified_end(&mut self, input: &TokenStream) {
+        transition self.type_qualifier_generic {
+            true -> generic_type_end(input)
+            _ -> type_qualified_end_member(input)
+        }
+    }
+
+    state type_qualified_end_member(&mut self, input: &TokenStream) {
         transition self.type_qualifier_payload {
             true -> payload_field_end(input)
             _ -> field_end(input)
@@ -1171,6 +1285,13 @@ machine Parser::parse_data(
     }
 
     state type_qualified_end_at_end(&mut self, input: &TokenStream) {
+        transition self.type_qualifier_generic {
+            true -> expected_generic_end_at_end()
+            _ -> type_qualified_end_at_end_member(input)
+        }
+    }
+
+    state type_qualified_end_at_end_member(&mut self, input: &TokenStream) {
         transition self.type_qualifier_payload {
             true -> expected_payload_separator_or_end_at_end()
             _ -> expected_field_end_at_end()
@@ -1319,6 +1440,899 @@ machine Parser::parse_data(
         }
     }
 
+    // Generic parameter lists on `data` declarations: `<'a, T, const N: Ty,
+    // u: Ty, machine M>`. This mirrors the Rust grammar's DataDeclaration
+    // mode — lifetimes must precede runtime binders, `const`/`machine`
+    // introduce typed and static binders, `name: Ty` is a runtime value
+    // binder, and type, const, and value parameters take optional
+    // `[property]` bounds through the shared data-property chain.
+    state generic_list_start(&mut self, input: &TokenStream) {
+        self.generic_saw_runtime = false;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> generic_parameter(input)
+            _ -> expected_generic_parameter_at_end()
+        }
+    }
+
+    state generic_parameter(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> generic_parameter_capacity(input) }
+    }
+
+    state generic_parameter_capacity(&mut self, input: &TokenStream) {
+        transition self.output.generic_parameter_count < 256 {
+            true -> generic_parameter_loaded(input)
+            _ -> generic_parameter_full(input)
+        }
+    }
+
+    state generic_parameter_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation } -> generic_parameter_punctuation(
+                input,
+                punctuation,
+                token.start,
+                token.end
+            )
+            Token::Identifier -> generic_parameter_word(
+                input,
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword } -> generic_parameter_keyword(
+                input,
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_generic_parameter(token.start, token.end)
+        }
+    }
+
+    state generic_parameter_punctuation(
+        &mut self,
+        input: &TokenStream,
+        punctuation: PunctuationKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition punctuation {
+            PunctuationKind::Apostrophe -> generic_lifetime_tick(input, start, end)
+            _ -> expected_generic_parameter(start, end)
+        }
+    }
+
+    state generic_parameter_keyword(
+        &mut self,
+        input: &TokenStream,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::Machine -> generic_machine_word(input, start)
+            _ -> expected_generic_parameter(start, end)
+        }
+    }
+
+    // A `'name` lifetime binder. Real grammar keeps lifetime parameters ahead
+    // of every runtime binder, so a tick after one is rejected.
+    state generic_lifetime_tick(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.generic_saw_runtime {
+            true -> generic_lifetime_ordering(start, end)
+            _ -> generic_lifetime_name_start(input, start)
+        }
+    }
+
+    state generic_lifetime_name_start(&mut self, input: &TokenStream, param_start: u64 in Trapping) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> generic_lifetime_name(input, param_start)
+            _ -> expected_generic_name_at_end()
+        }
+    }
+
+    state generic_lifetime_name(&mut self, input: &TokenStream, param_start: u64 in Trapping) {
+        self.load_current(input);
+        transition { _ -> generic_lifetime_name_loaded(input, param_start) }
+    }
+
+    state generic_lifetime_name_loaded(&mut self, input: &TokenStream, param_start: u64 in Trapping) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> retain_generic_name(
+                input,
+                GenericParameterKind::Lifetime,
+                param_start,
+                token.start,
+                token.end,
+                token.decoded_start,
+                token.decoded_length
+            )
+            _ -> expected_generic_name(token.start, token.end)
+        }
+    }
+
+    // `machine M` is a static machine binder. Brackets after it are rejected by
+    // the generic separator just as the real grammar rejects them (a machine
+    // parameter takes its contract in a `where` clause, not property brackets).
+    state generic_machine_word(&mut self, input: &TokenStream, param_start: u64 in Trapping) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> generic_machine_name(input, param_start)
+            _ -> expected_generic_name_at_end()
+        }
+    }
+
+    state generic_machine_name(&mut self, input: &TokenStream, param_start: u64 in Trapping) {
+        self.load_current(input);
+        transition { _ -> generic_machine_name_loaded(input, param_start) }
+    }
+
+    state generic_machine_name_loaded(&mut self, input: &TokenStream, param_start: u64 in Trapping) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> retain_generic_name(
+                input,
+                GenericParameterKind::Machine,
+                param_start,
+                token.start,
+                token.end,
+                token.decoded_start,
+                token.decoded_length
+            )
+            _ -> expected_generic_name(token.start, token.end)
+        }
+    }
+
+    // An identifier at parameter position is either the contextual `const`
+    // opener or an ordinary name that becomes a type parameter or — when a
+    // colon follows — a runtime value binder. `const` is resolved against the
+    // token's decoded bytes exactly like the `in` type qualifier.
+    state generic_parameter_word(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        let token: Token = input.tokens[self.current_index];
+        transition token.decoded_length == 5 {
+            true -> generic_const_bounds(
+                input,
+                token.decoded_start as u64,
+                start,
+                end
+            )
+            _ -> generic_bare_name(input, start, end)
+        }
+    }
+
+    state generic_const_bounds(
+        &mut self,
+        input: &TokenStream,
+        decoded_start: u64,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition decoded_start < 65532 {
+            true -> generic_const_byte0(
+                input,
+                decoded_start,
+                start,
+                end
+            )
+            _ -> generic_bare_name(input, start, end)
+        }
+    }
+
+    state generic_const_byte0(
+        &mut self,
+        input: &TokenStream,
+        decoded_start: u64 [0..=65531],
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        let byte1: u64 [0..=65532] = decoded_start + 1;
+        transition input.decoded[decoded_start] == 99 && input.decoded[byte1] == 111 {
+            true -> generic_const_byte2(input, byte1, start, end)
+            _ -> generic_bare_name(input, start, end)
+        }
+    }
+
+    state generic_const_byte2(
+        &mut self,
+        input: &TokenStream,
+        decoded_start: u64 [0..=65532],
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        let byte1: u64 [0..=65533] = decoded_start + 1;
+        transition input.decoded[decoded_start] == 110 && input.decoded[byte1] == 115 {
+            true -> generic_const_byte4(input, byte1, start, end)
+            _ -> generic_bare_name(input, start, end)
+        }
+    }
+
+    state generic_const_byte4(
+        &mut self,
+        input: &TokenStream,
+        decoded_start: u64 [0..=65533],
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        let byte1: u64 [0..=65534] = decoded_start + 1;
+        transition input.decoded[decoded_start] == 115 && input.decoded[byte1] == 116 {
+            true -> generic_const_name_start(input, start)
+            _ -> generic_bare_name(input, start, end)
+        }
+    }
+
+    // `const` is confirmed: the following identifier is the binder name and a
+    // mandatory colon introduces its type.
+    state generic_const_name_start(&mut self, input: &TokenStream, param_start: u64 in Trapping) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> generic_binder_name(input, GenericParameterKind::Const, param_start)
+            _ -> expected_generic_name_at_end()
+        }
+    }
+
+    state generic_binder_name(
+        &mut self,
+        input: &TokenStream,
+        kind: GenericParameterKind,
+        param_start: u64 in Trapping
+    ) {
+        self.load_current(input);
+        transition { _ -> generic_binder_name_loaded(input, kind, param_start) }
+    }
+
+    state generic_binder_name_loaded(
+        &mut self,
+        input: &TokenStream,
+        kind: GenericParameterKind,
+        param_start: u64 in Trapping
+    ) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> retain_generic_name(
+                input,
+                kind,
+                param_start,
+                token.start,
+                token.end,
+                token.decoded_start,
+                token.decoded_length
+            )
+            _ -> expected_generic_name(token.start, token.end)
+        }
+    }
+
+    // Bare `name` at parameter position: record it, then let the following
+    // token pick between a type parameter and a `name: Ty` value binder.
+    state generic_bare_name(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        let token: Token = input.tokens[self.current_index];
+        self.generic_param_start = start;
+        self.generic_pending_kind = GenericParameterKind::Type;
+        self.generic_name_start = start;
+        self.generic_name_end = end;
+        self.generic_decoded_start = token.decoded_start;
+        self.generic_decoded_length = token.decoded_length;
+        self.generic_bounds = DataMultiplicity::Affine;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition { _ -> generic_dup_begin(input) }
+    }
+
+    // Shared name commit: stores the parameter name coordinates and moves to
+    // the duplicate-spelling scan. Callers sit on the name token with the
+    // parameter's leading coordinate already chosen.
+    state retain_generic_name(
+        &mut self,
+        input: &TokenStream,
+        kind: GenericParameterKind,
+        param_start: u64 in Trapping,
+        name_start: u64 in Trapping,
+        name_end: u64 in Trapping,
+        decoded_start: u64 in Trapping,
+        decoded_length: u64 in Trapping
+    ) {
+        self.generic_param_start = param_start;
+        self.generic_pending_kind = kind;
+        self.generic_name_start = name_start;
+        self.generic_name_end = name_end;
+        self.generic_decoded_start = decoded_start;
+        self.generic_decoded_length = decoded_length;
+        self.generic_bounds = DataMultiplicity::Affine;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition { _ -> generic_dup_begin(input) }
+    }
+
+    // Duplicate parameter names are rejected the way the Rust grammar rejects
+    // them: each new name's decoded spelling is compared against every name
+    // already retained in this parameter list.
+    state generic_dup_begin(&mut self, input: &TokenStream) {
+        transition { _ -> generic_dup_scan(input, self.data_first_generic) }
+    }
+
+    state generic_dup_scan(&mut self, input: &TokenStream, index: u64 in Trapping) {
+        let index_u64: u64 = index as u64;
+        transition index_u64 < self.output.generic_parameter_count {
+            true -> generic_dup_index_bound(input, index_u64)
+            _ -> generic_after_dup(input)
+        }
+    }
+
+    state generic_dup_index_bound(&mut self, input: &TokenStream, index: u64) {
+        transition index < 256 {
+            true -> generic_dup_prefix(input, index)
+            _ -> generic_after_dup(input)
+        }
+    }
+
+    state generic_dup_prefix(&mut self, input: &TokenStream, index: u64 [0..=255]) {
+        let prior: GenericParameter = self.output.generic_parameters[index];
+        let prior_length: u64 = prior.name_decoded_length as u64;
+        let current_length: u64 = self.generic_decoded_length as u64;
+        transition prior_length == current_length {
+            true -> generic_dup_bytes(
+                input,
+                index,
+                prior.name_decoded_start,
+                self.generic_decoded_start,
+                prior.name_decoded_start + prior.name_decoded_length
+            )
+            _ -> generic_dup_next(input, index)
+        }
+    }
+
+    state generic_dup_bytes(
+        &mut self,
+        input: &TokenStream,
+        index: u64 [0..=255],
+        prior_cursor: u64 in Trapping,
+        current_cursor: u64 in Trapping,
+        prior_end: u64 in Trapping
+    ) {
+        let prior_cursor_u64: u64 = prior_cursor as u64;
+        let prior_end_u64: u64 = prior_end as u64;
+        transition prior_cursor_u64 < prior_end_u64 {
+            true -> generic_dup_byte(
+                input,
+                index,
+                prior_cursor,
+                current_cursor,
+                prior_end
+            )
+            _ -> generic_dup_found(input)
+        }
+    }
+
+    state generic_dup_byte(
+        &mut self,
+        input: &TokenStream,
+        index: u64 [0..=255],
+        prior_cursor: u64 in Trapping,
+        current_cursor: u64 in Trapping,
+        prior_end: u64 in Trapping
+    ) {
+        let prior_cursor_u64: u64 = prior_cursor as u64;
+        let current_cursor_u64: u64 = current_cursor as u64;
+        transition prior_cursor_u64 < 65536 && current_cursor_u64 < 65536 {
+            true -> generic_dup_byte_compare(
+                input,
+                index,
+                prior_cursor_u64,
+                current_cursor_u64,
+                prior_end
+            )
+            _ -> generic_dup_next(input, index)
+        }
+    }
+
+    state generic_dup_byte_compare(
+        &mut self,
+        input: &TokenStream,
+        index: u64 [0..=255],
+        prior_cursor: u64 [0..=65535],
+        current_cursor: u64 [0..=65535],
+        prior_end: u64 in Trapping
+    ) {
+        transition input.decoded[prior_cursor] == input.decoded[current_cursor] {
+            true -> generic_dup_bytes(
+                input,
+                index,
+                prior_cursor + 1,
+                current_cursor + 1,
+                prior_end
+            )
+            _ -> generic_dup_next(input, index)
+        }
+    }
+
+    state generic_dup_next(&mut self, input: &TokenStream, index: u64 [0..=255]) {
+        transition { _ -> generic_dup_scan(input, index + 1) }
+    }
+
+    state generic_dup_found(&mut self, input: &TokenStream) {
+        self.output.reject(
+            ParseDiagnosticCode::DuplicateDataGenericParameter,
+            self.source,
+            self.generic_name_start,
+            self.generic_name_end
+        );
+    }
+
+    // The name survived the duplicate scan; the pending kind chooses what the
+    // grammar admits next.
+    state generic_after_dup(&mut self, input: &TokenStream) {
+        transition self.cursor < input.token_count {
+            true -> generic_after_dup_load(input)
+            _ -> generic_after_dup_at_end(input)
+        }
+    }
+
+    state generic_after_dup_load(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> generic_after_dup_loaded(input) }
+    }
+
+    state generic_after_dup_at_end(&mut self, input: &TokenStream) {
+        transition self.generic_pending_kind {
+            GenericParameterKind::Const -> expected_generic_colon_at_end()
+            _ -> expected_generic_end_at_end()
+        }
+    }
+
+    state generic_after_dup_loaded(&mut self, input: &TokenStream) {
+        transition self.generic_pending_kind {
+            GenericParameterKind::Lifetime -> generic_separator_loaded(input)
+            GenericParameterKind::Machine -> generic_separator_loaded(input)
+            GenericParameterKind::Const -> generic_const_colon(input)
+            GenericParameterKind::Type -> generic_type_tail(input)
+            GenericParameterKind::Value -> generic_separator_loaded(input)
+        }
+    }
+
+    state generic_const_colon(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> generic_binder_type_start(input)
+            _ -> expected_generic_colon(token.start, token.end)
+        }
+    }
+
+    // A type parameter tail: `,`/`>` retain it, `:` turns it into a value
+    // binder, and `[` opens its property bounds.
+    state generic_type_tail(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Colon } -> generic_value_colon(input)
+            Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> generic_bounds_start(input)
+            _ -> generic_retain_parameter(input, self.generic_name_end)
+        }
+    }
+
+    state generic_value_colon(&mut self, input: &TokenStream) {
+        self.generic_pending_kind = GenericParameterKind::Value;
+        transition { _ -> generic_binder_type_start(input) }
+    }
+
+    state generic_binder_type_start(&mut self, input: &TokenStream) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> generic_binder_type(input)
+            _ -> expected_generic_type_at_end()
+        }
+    }
+
+    state generic_binder_type(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> generic_binder_type_loaded(input) }
+    }
+
+    state generic_binder_type_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Identifier -> generic_type_name(
+                input,
+                token.start,
+                token.end
+            )
+            Token::Keyword { keyword } -> generic_type_keyword(
+                input,
+                keyword,
+                token.start,
+                token.end
+            )
+            _ -> expected_generic_type(token.start, token.end)
+        }
+    }
+
+    state generic_type_keyword(
+        &mut self,
+        input: &TokenStream,
+        keyword: KeywordKind,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition keyword {
+            KeywordKind::SelfType -> expected_generic_type(start, end)
+            KeywordKind::SelfValue -> expected_generic_type(start, end)
+            _ -> generic_type_name(input, start, end)
+        }
+    }
+
+    state generic_type_name(
+        &mut self,
+        input: &TokenStream,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.type_name_start = start;
+        self.type_name_end = end;
+        self.type_qualified = false;
+        self.type_qualifier_payload = false;
+        self.type_qualifier_generic = true;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> generic_type_end(input)
+            _ -> expected_generic_end_at_end()
+        }
+    }
+
+    state generic_type_end(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> generic_type_end_loaded(input) }
+    }
+
+    state generic_type_end_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Comma } -> generic_binder_typeref(input)
+            Token::Punctuation { punctuation: PunctuationKind::Greater } -> generic_binder_typeref(input)
+            Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> generic_binder_typeref_bounds(input)
+            Token::Identifier -> type_qualifier(
+                input,
+                token.start,
+                token.end
+            )
+            _ -> expected_generic_end(token.start, token.end)
+        }
+    }
+
+    // Property bounds after a type, const, or value parameter reuse the data
+    // property chain; `data_property_generic` steers its scratch and exit back
+    // to this grammar.
+    state generic_binder_typeref_bounds(&mut self, input: &TokenStream) {
+        transition { _ -> generic_binder_typeref(input) }
+    }
+
+    state generic_binder_typeref(&mut self, input: &TokenStream) {
+        transition self.type_qualified {
+            true -> retain_qualified_generic_type(input)
+            _ -> retain_named_generic_type(input)
+        }
+    }
+
+    state retain_qualified_generic_type(&mut self, input: &TokenStream) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_qualified_generic_type_bounded(input)
+            _ -> type_reference_full(input)
+        }
+    }
+
+    state retain_named_generic_type(&mut self, input: &TokenStream) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_named_generic_type_bounded(input)
+            _ -> type_reference_full(input)
+        }
+    }
+
+    state retain_qualified_generic_type_bounded(&mut self, input: &TokenStream) {
+        self.generic_type_index = self.output.type_reference_count;
+        self.output.type_references[self.output.type_reference_count] = TypeReference {
+            kind: TypeReferenceKind::Qualified,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.type_name_start, end: self.type_name_end }
+                }
+            },
+            domain: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.type_domain_start, end: self.type_domain_end }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.type_name_start, end: self.type_domain_end }
+            }
+        };
+        self.output.type_reference_count = self.output.type_reference_count + 1;
+        transition { _ -> generic_after_typeref(input, self.type_domain_end) }
+    }
+
+    state retain_named_generic_type_bounded(&mut self, input: &TokenStream) {
+        self.generic_type_index = self.output.type_reference_count;
+        self.output.type_references[self.output.type_reference_count] = TypeReference {
+            kind: TypeReferenceKind::Named,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.type_name_start, end: self.type_name_end }
+                }
+            },
+            domain: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: 0, end: 0 }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.type_name_start, end: self.type_name_end }
+            }
+        };
+        self.output.type_reference_count = self.output.type_reference_count + 1;
+        transition { _ -> generic_after_typeref(input, self.type_name_end) }
+    }
+
+    state generic_after_typeref(&mut self, input: &TokenStream, type_end: u64 in Trapping) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::LeftBracket } -> generic_bounds_start(input)
+            _ -> generic_retain_parameter(input, type_end)
+        }
+    }
+
+    state generic_bounds_start(&mut self, input: &TokenStream) {
+        self.data_property_generic = true;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_property(input)
+            _ -> expected_data_property_at_end()
+        }
+    }
+
+    // The `]` closing a parameter's bounds lands here from after_data_property
+    // when data_property_generic is set; the token is the bracket itself.
+    state generic_bounds_done(&mut self, input: &TokenStream, param_end: u64 in Trapping) {
+        transition { _ -> generic_retain_parameter(input, param_end) }
+    }
+
+    state generic_retain_parameter(&mut self, input: &TokenStream, param_end: u64 in Trapping) {
+        transition self.generic_pending_kind {
+            GenericParameterKind::Const -> generic_retain_typed_capacity(input, param_end)
+            GenericParameterKind::Value -> generic_retain_typed_capacity(input, param_end)
+            _ -> generic_retain_untyped_capacity(input, param_end)
+        }
+    }
+
+    state generic_retain_typed_capacity(&mut self, input: &TokenStream, param_end: u64 in Trapping) {
+        transition self.output.generic_parameter_count < 256 {
+            true -> generic_retain_typed(input, param_end)
+            _ -> generic_parameter_full(input)
+        }
+    }
+
+    state generic_retain_untyped_capacity(&mut self, input: &TokenStream, param_end: u64 in Trapping) {
+        transition self.output.generic_parameter_count < 256 {
+            true -> generic_retain_untyped(input, param_end)
+            _ -> generic_parameter_full(input)
+        }
+    }
+
+    state generic_retain_typed(&mut self, input: &TokenStream, param_end: u64 in Trapping) {
+        self.output.generic_parameters[self.output.generic_parameter_count] = GenericParameter {
+            kind: self.generic_pending_kind,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.generic_name_start, end: self.generic_name_end }
+                }
+            },
+            name_decoded_start: self.generic_decoded_start,
+            name_decoded_length: self.generic_decoded_length,
+            has_type_reference: true,
+            type_reference: self.generic_type_index,
+            bounds: self.generic_bounds,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.generic_param_start, end: param_end }
+            }
+        };
+        self.output.generic_parameter_count = self.output.generic_parameter_count + 1;
+        transition { _ -> generic_mark_runtime(input) }
+    }
+
+    state generic_retain_untyped(&mut self, input: &TokenStream, param_end: u64 in Trapping) {
+        self.output.generic_parameters[self.output.generic_parameter_count] = GenericParameter {
+            kind: self.generic_pending_kind,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.generic_name_start, end: self.generic_name_end }
+                }
+            },
+            name_decoded_start: self.generic_decoded_start,
+            name_decoded_length: self.generic_decoded_length,
+            has_type_reference: false,
+            type_reference: 0,
+            bounds: self.generic_bounds,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.generic_param_start, end: param_end }
+            }
+        };
+        self.output.generic_parameter_count = self.output.generic_parameter_count + 1;
+        transition self.generic_pending_kind {
+            GenericParameterKind::Lifetime -> generic_separator(input)
+            _ -> generic_mark_runtime(input)
+        }
+    }
+
+    state generic_mark_runtime(&mut self, input: &TokenStream) {
+        self.generic_saw_runtime = true;
+        transition { _ -> generic_separator(input) }
+    }
+
+    state generic_separator(&mut self, input: &TokenStream) {
+        self.load_current(input);
+        transition { _ -> generic_separator_loaded(input) }
+    }
+
+    state generic_separator_loaded(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
+        transition token {
+            Token::Punctuation { punctuation: PunctuationKind::Comma } -> generic_parameter_next(input)
+            Token::Punctuation { punctuation: PunctuationKind::Greater } -> generic_close(input)
+            _ -> expected_generic_end(token.start, token.end)
+        }
+    }
+
+    state generic_parameter_next(&mut self, input: &TokenStream) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> generic_parameter(input)
+            _ -> expected_generic_parameter_at_end()
+        }
+    }
+
+    state generic_close(&mut self, input: &TokenStream) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia(input);
+        transition self.cursor < input.token_count {
+            true -> data_body(input)
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state generic_parameter_full(&mut self, input: &TokenStream) {
+        let token: Token = input.tokens[self.current_index];
+        self.output.reject(
+            ParseDiagnosticCode::DataGenericParameterCapacityExceeded,
+            self.source,
+            token.start,
+            token.end
+        );
+    }
+
+    state generic_lifetime_ordering(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::DataGenericLifetimeOrdering, self.source, start, end);
+    }
+
+    state expected_generic_parameter(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataGenericParameter, self.source, start, end);
+    }
+
+    state expected_generic_parameter_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataGenericParameter,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_generic_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataGenericParameterName, self.source, start, end);
+    }
+
+    state expected_generic_name_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataGenericParameterName,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_generic_colon(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataGenericParameterColon, self.source, start, end);
+    }
+
+    state expected_generic_colon_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataGenericParameterColon,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_generic_type(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataGenericParameterType, self.source, start, end);
+    }
+
+    state expected_generic_type_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataGenericParameterType,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_generic_end(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataGenericParameterEnd, self.source, start, end);
+    }
+
+    state expected_generic_end_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataGenericParameterEnd,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
     state retain_data(&mut self, input: &TokenStream, item_end: u64 in Trapping) {
         transition self.output.data_count < 256 {
             true -> retain_data_bounded(item_end)
@@ -1335,6 +2349,8 @@ machine Parser::parse_data(
                     span: Span { start: self.data_name_start, end: self.data_name_end }
                 }
             },
+            first_generic_parameter: self.data_first_generic,
+            generic_parameter_count: self.output.generic_parameter_count - self.data_first_generic,
             first_member: self.data_first_member,
             member_count: self.output.data_member_count - self.data_first_member,
             first_field: self.data_first_field,
