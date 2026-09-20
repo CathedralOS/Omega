@@ -16,7 +16,12 @@ fn output_predicates_survive_read_only_boundary_arguments() {
             }}
         "#
         );
-        lower_typed_trees(parse_typed_trees_with_core_service(&source))
+        // The `Service<Console>` receiver needs the same fused-service
+        // erasure authorizations `settle_checked_providers` binds in real
+        // builds; without them the carrier parameter stays unshaped.
+        let mut typed = parse_typed_trees_with_core_service(&source);
+        crate::tests::bind_fixture_fused_service_erasures(&mut typed);
+        lower_typed_trees(typed)
             .unwrap_or_else(|diagnostics| panic!("{receiver}: {diagnostics:#?}"));
     }
 }
