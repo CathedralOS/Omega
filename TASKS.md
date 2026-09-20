@@ -10117,7 +10117,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   trusted_surface on linux x86-64 including
   `recorded_digests_match_the_working_tree`.
 - **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
-- **TRUSTED-SURFACE-DIGEST-RERECORD** — scope verified at `0f5ae41e7d`,
+- **TRUSTED-SURFACE-DIGEST-RERECORD.** Resolved — scope verified at `0f5ae41e7d`,
   implemented on this row's branch: the ledger had renewed drift, so the
   re-record operation ran for real. `e2974a6a800` split
   `bounded_denotation/integer_operations.rs` out of `bounded_denotation.rs`
