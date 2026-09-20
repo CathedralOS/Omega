@@ -5728,7 +5728,15 @@ Platform/cross-host (structurally gated — document host limits):
   x86_64-apple-darwin host run.
 - **WINDOWS-SET-FILE-TIME-RESPELL.** Windows SetFileTime respell incl. unsigned carrier (merges FILESYSTEM-WINDOWS-FILETIME-RESPELL).
 - **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native validation.
-- **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows host.
+- **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows
+  host. The edge gate's provenance leg now runs the committed forge
+  (`tools/bootstrap/alpha/forge.py --check`) on any Python-3 host, including
+  non-executing ones — verified on Linux x86-64. Remaining acceptance is the
+  seed-execution legs of `tests/bootstrap/alpha-beta-edge.sh` and
+  `tests/alpha/reference/diamond-py.sh` on Windows x64 (Git Bash + Python 3):
+  `tests/alpha/io-registers.hex` must exit 0 with stdout `ABCDEF` for input
+  `AB`, retaining exact bounds/Trap observations and register preservation
+  through host I/O.
 - **BENCHMARK-HOST-ROW-MATRIX.** Benchmark host-row matrix incl. Windows peak-RSS and UEFI rows.
 - **EPOCH-RESOURCE-SNAPSHOTS.** Epoch aggregate/resource snapshots + installation-era journal (merges EPOCH-AGGREGATE-SNAPSHOTS, INSTALLATION-ERA-JOURNAL, REPLACEMENT-ERA-JOURNAL, SERVICE-ERA-REPLACEMENT-SUBSTRATE).
 - **SHARED-MAPPING-REVOCATION.** Shared-mapping revocation and hostile shared-memory placement/remapping.

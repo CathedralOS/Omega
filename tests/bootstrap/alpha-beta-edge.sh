@@ -1,7 +1,9 @@
 #!/usr/bin/env sh
 # Local trust check for the host's Alpha seed, end to end:
 #   provenance  - the committed binary re-derives from the committed source
-#                 (where a forge exists; modulo the OS-imposed code signature);
+#                 (macOS arm64: clang rebuild modulo the OS-imposed code
+#                 signature; Windows x64: the committed forge re-emits the
+#                 audited .hex listing — checkable on any host with Python 3);
 #   behavior    - it realizes SEMANTICS.md (conformance.sh, every opcode + edge);
 #   reconstruction - the VM reproduces the admitted Beta compiler tape.
 # Run after touching a seed; this is the per-platform acceptance gate.
@@ -71,7 +73,21 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
       unset ALPHA_DEVELOPER_DIR ALPHA_CLANG ALPHA_SDK
       ;;
     *)
-      echo "provenance MANUAL — audit $ALPHA_SEED against its .hex listing (no committed forge)"
+      # The selected seed is the Windows x64 container; its audited source is
+      # the annotated .hex listing and the committed forge re-emits it. That
+      # comparison needs only Python 3, so it also runs on hosts (like this
+      # Linux checkout) where the container itself cannot execute.
+      if command -v python3 >/dev/null 2>&1; then
+        if python3 "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/forge.py" \
+            "$OMEGA_PATH_ALPHA/alpha_x64_windows.hex" --check \
+            "$OMEGA_PATH_ALPHA/alpha_x64_windows.exe"; then
+          echo "provenance ✓ — alpha_x64_windows.exe reproduces from alpha_x64_windows.hex (committed forge)"
+        else
+          echo "provenance FAIL — committed binary differs from a forge of its listing"; rc=1
+        fi
+      else
+        echo "provenance MANUAL — audit $ALPHA_SEED against its .hex listing (committed forge needs python3)"
+      fi
       ;;
   esac
 fi
