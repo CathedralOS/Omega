@@ -105,6 +105,11 @@ conflict. When unfenced items run out, do NOT park the pool:
 - **Keep a retry schedule.** For each `blocked` verdict, record the blocking
   ticket's `expires_utc`; foreign leases die in waves — mass-retry the moment
   a batch lapses.
+- **Adaptive retry throttle.** Each cycle, re-fire half the suspended reserve
+  onto their last (or next unfenced) items. If claim-success ≥50%, fire the
+  rest; if ~0 for two cycles, drop to a quarter. Retries are cheap
+  (~1-5 min per blocked verdict) and a dead fence is free work — the throttle
+  exists to bound churn noise, not cost.
 - **Persist the pool map.** Write `name → session_id` to a json file
   (`build/swarm/w9/zergling-map.json`) and refresh it from
   `devin_session_search` each cycle — never trust in-context session IDs.
