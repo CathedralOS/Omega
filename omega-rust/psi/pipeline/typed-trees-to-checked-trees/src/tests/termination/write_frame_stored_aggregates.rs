@@ -96,12 +96,12 @@ fn stored_aggregate_reference_leaves_reach_caller_frames() {
         (
             "stored_reference_slot_reborrow",
             "let first: View = View { body: &mut self.value, tag: 0 }; let mut second: View = View { body: &mut first.body, tag: 0 }; second.body = 1;",
-            None,
+            Some(vec!["self.value"]),
         ),
         (
             "helper_wrapped_stored_reference_slot_reborrow",
             "let first: View = View { body: &mut self.value, tag: 0 }; let mut second: View = View { body: identity(&mut first.body), tag: 0 }; second.body = 1;",
-            None,
+            Some(vec!["self.value"]),
         ),
         (
             "stored_member_origin",
@@ -389,8 +389,6 @@ fn unproven_stored_aggregate_origins_never_become_private_storage() {
         "let mut view: View = View { tag: 0 }; view.body = 1;",
         "let mut view: View = View { body: unknown(&mut self.value), tag: 0 }; view.body = 1;",
         "let mut view: View = View { body: &mut self.value, tag: 0 }; view.body = &mut self.other; view.body = 1;",
-        "let first: View = View { body: &mut self.value, tag: 0 }; let mut second: View = View { body: &mut first.body, tag: 0 }; second.body = 1;",
-        "let first: View = View { body: &mut self.value, tag: 0 }; let mut second: View = View { body: identity(&mut first.body), tag: 0 }; second.body = 1;",
     ] {
         let program = stored_aggregate_program(body);
         let machine = program
