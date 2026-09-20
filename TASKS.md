@@ -5938,16 +5938,6 @@ Build/packages:
 
 - **BUILD-PACKAGES-GATE.** RC build-and-packages gate closure work.
 - **DELTA-EXHAUSTION-ATTRIBUTION.** Delta compiler exhaustion attribution.
--- **BETA-ENCODER-DEFINITION-PACKAGE.** Beta encoder definition package.
-  Resolved at `6e8dd6fa33`: the emitted 116,900-byte package (sha256
-  `6bbdd15a…`) is committed as `bootstrap/proofs/beta_encoding/
-  definition_package.bin`, bound by `require_beta_encoding_definition_package_
-  identity` in `tools/bootstrap/proofs/sources_env.sh`, with
-  `tests/bootstrap/proofs-identity.sh` covering the canonical identity check,
-  a one-byte-corruption refusal, and README record pins — the owner fixes the
-  exact bytes independently of the certificate producer as ACCEPTANCE.md
-  requires. The encoding certificate itself is BETA-ENCODING-CERTIFICATE-
-  PRODUCTION's surface, not this item's.
 - **BETA-RECONSTRUCTION-REFUSAL.** Beta reconstruction refusal. Landed: every
   Beta compiler-exec entrypoint refuses (exit 2) on hosts that cannot run the
   audited Alpha container — `tests/beta/compiler/reconstruction.sh`,
