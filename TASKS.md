@@ -16579,6 +16579,70 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   still reject with their pinned fragments. The drift census and the
   silent acceptances remain RC-DIAGNOSTICS-GATE's named lane; no
   custody-specific stale-expectation slice exists on this row.
+||||||| parent of 25a15855a5ae (board: STARTUP-ENTRY-PLACEHOLDER-SWEEP resolved — mechanics sweep settled)
+- **STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
+- **STARTUP-ENTRY-PLACEHOLDER-SWEEP** — mined candidate; verify scope then implement.
+- **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
+- **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
+- **STRUCTURAL-GENERIC-INFERENCE** — mined candidate; verify scope then implement.
+- **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
+- **STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.** Mined candidate; scope verified
+  at 10d93dd448, resolved — this stub owns the lowered-psi cleanup-roster
+  emission leg (per OWNED-SUCCESSOR-DISCARD-ORDER's sibling note), which is
+  landed: `scalar_graph_lowering/structural_values.rs` emits the cleanup
+  `Jump`'s `trivial_affine_discards` in reverse destination/declaration
+  order, matching the verifier's `expected_trivial_affine_discards`
+  canonical sequence (operation results reverse producer order, then
+  trivial-affine locals reverse declaration order, then affine parameters
+  reverse parameter order) enforced by `apply_edge_trivial_affine_discards`
+  as an in-order subsequence. Witnessed this host at 10d93dd448:
+  `return_disposes_only_surviving_affine_parameters_in_reverse_declaration_order`
+  PASS; the discard battery legs pass (12/13 + 4/6 filtered runs) — the 3
+  failures are the known preexisting `Service<R>`-spelling fixture drift
+  (`bare boundary trait Console`) recorded under RC-REPOSITORY-CLOSURE, not
+  ordering defects. Sibling verifier-side rows (resolved): EDGE-CLEANUP-
+  ERROR-PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER, SUCCESSOR-DISCARD-ORDER,
+  VERIFIER-EDGE-CLEANUP-PHASE-ORDER.
+- **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
+- **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
+- **STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
+- **STARTUP-ENTRY-PLACEHOLDER-SWEEP.** Resolved — named sibling alias of
+  the resolved STARTUP-ENTRY-MECHANICS-OWNERSHIP cluster (:7578). The
+  sweep for placeholder/shadow startup-entry mechanics is already
+  settled: ownership consolidates at
+  `backend/runtime/external-roots/src/root_entry` (validation,
+  admission, provider execution, progress-profile installation) plus
+  `platform_bringup` for UEFI bootstrap; `program-entry-plan` is
+  data-only and `_start` resolution + `entry_settlement` are emission
+  detail, not second mechanics sites. `tests/architecture/layering.rs`
+  pins the ownership rows; the runtime side was settled by
+  BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS (free Unit entries emit process
+  adapters on linux_x86_64/linux_arm64; ELF `e_entry` round-trips through
+  final-image validation). No placeholder mechanics survive to sweep —
+  no independent slice exists.
+- **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
+- **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
+- **STRUCTURAL-GENERIC-INFERENCE** — mined candidate; verify scope then implement.
+- **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
+- **STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.** Mined candidate; scope verified
+  at 10d93dd448, resolved — this stub owns the lowered-psi cleanup-roster
+  emission leg (per OWNED-SUCCESSOR-DISCARD-ORDER's sibling note), which is
+  landed: `scalar_graph_lowering/structural_values.rs` emits the cleanup
+  `Jump`'s `trivial_affine_discards` in reverse destination/declaration
+  order, matching the verifier's `expected_trivial_affine_discards`
+  canonical sequence (operation results reverse producer order, then
+  trivial-affine locals reverse declaration order, then affine parameters
+  reverse parameter order) enforced by `apply_edge_trivial_affine_discards`
+  as an in-order subsequence. Witnessed this host at 10d93dd448:
+  `return_disposes_only_surviving_affine_parameters_in_reverse_declaration_order`
+  PASS; the discard battery legs pass (12/13 + 4/6 filtered runs) — the 3
+  failures are the known preexisting `Service<R>`-spelling fixture drift
+  (`bare boundary trait Console`) recorded under RC-REPOSITORY-CLOSURE, not
+  ordering defects. Sibling verifier-side rows (resolved): EDGE-CLEANUP-
+  ERROR-PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER, SUCCESSOR-DISCARD-ORDER,
+  VERIFIER-EDGE-CLEANUP-PHASE-ORDER.
+- **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
+- **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
 - **SUPPLIED-BYTES-SCAN.** Scope verified — real item, no bounded slice exists inside this repo's board. The stub names the Squalr submodule's ordered execution row (`samples/apps/squalr/TASKS.md`): port the scalar scan, snapshot storage, comparison dispatch, RLE encoder and query path through squalr-engine-api + squalr-engine-scanning — a multi-session port inside a submodule whose own AGENTS.md forbids placeholder bodies and requires the unchanged application command as outer acceptance. The submodule path is additionally wholesale-fenced at verification time (SQUALR-TARGETS-AND-THROUGHPUT, exp 21:39Z) and per the submodule's ordering it precedes CLI-COMMANDS, which gates on this row landing first. Execution belongs to the submodule's own lane under its pin — not a parent-repo slice; SQUALR-SUPPLIED-BYTES-SCAN is a sibling stub naming the same row.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
   rank-range endpoints expressed as field chains are landed and green.
