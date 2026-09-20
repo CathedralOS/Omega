@@ -5,6 +5,7 @@ use super::{
     CanonicalPackageReconstructionQuestionLimits,
 };
 use crate::declarations::PackageKey;
+use crate::lock::PackageCheckedContext;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use package_evidence::ledger::{
@@ -19,12 +20,17 @@ use package_evidence::ledger::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocallyComposedPackageObligationEntry {
     package: PackageKey,
+    context: PackageCheckedContext,
     results: OrdinaryPackageObligationResultSet,
 }
 
 impl LocallyComposedPackageObligationEntry {
     pub const fn package(&self) -> &PackageKey {
         &self.package
+    }
+
+    pub const fn context(&self) -> PackageCheckedContext {
+        self.context
     }
 
     pub const fn results(&self) -> &OrdinaryPackageObligationResultSet {
@@ -129,6 +135,7 @@ impl LocallyComposedPackageObligationResults {
         for (question_entry, review) in question.entries().iter().zip(reviews) {
             let results = review.obligation_results();
             if review.key() != question_entry.package()
+                || review.checked_context() != question_entry.context()
                 || results.package() != question_entry.package().identity()
                 || results.schema() != question_entry.obligations().schema()
                 || results.target() != question_entry.obligations().target()
@@ -183,6 +190,7 @@ impl LocallyComposedPackageObligationResults {
                 })?;
             entries.push(LocallyComposedPackageObligationEntry {
                 package: question_entry.package().clone(),
+                context: question_entry.context(),
                 results: results.clone(),
             });
         }
@@ -317,6 +325,7 @@ impl LocallyComposedPackageObligationResults {
     ) -> impl ExactSizeIterator<
         Item = (
             &PackageKey,
+            PackageCheckedContext,
             &OrdinaryPackageContractEntailmentOpenObligation,
         ),
     > {
@@ -326,6 +335,7 @@ impl LocallyComposedPackageObligationResults {
                 let entry = &self.entries[reference.package_index];
                 (
                     &entry.package,
+                    entry.context,
                     &entry.results.open_contract_entailment_obligations()
                         [reference.obligation_index],
                 )
@@ -339,6 +349,7 @@ impl LocallyComposedPackageObligationResults {
     ) -> impl ExactSizeIterator<
         Item = (
             &PackageKey,
+            PackageCheckedContext,
             &OrdinaryPackageContractEntailmentAssumptionDischarge,
         ),
     > {
@@ -348,6 +359,7 @@ impl LocallyComposedPackageObligationResults {
                 let entry = &self.entries[reference.package_index];
                 (
                     &entry.package,
+                    entry.context,
                     &entry.results.contract_entailment_assumption_discharges()
                         [reference.discharge_index],
                 )
@@ -367,11 +379,18 @@ impl LocallyComposedPackageObligationResults {
     /// authored claim.
     pub fn root_open_accepted_claims(
         &self,
-    ) -> impl ExactSizeIterator<Item = (&PackageKey, &OrdinaryPackageAcceptedClaimObligation)> {
+    ) -> impl ExactSizeIterator<
+        Item = (
+            &PackageKey,
+            PackageCheckedContext,
+            &OrdinaryPackageAcceptedClaimObligation,
+        ),
+    > {
         self.root_open_accepted_claims.iter().map(|reference| {
             let entry = &self.entries[reference.package_index];
             (
                 &entry.package,
+                entry.context,
                 &entry.results.open_accepted_claims()[reference.claim_index],
             )
         })
@@ -384,6 +403,7 @@ impl LocallyComposedPackageObligationResults {
     ) -> impl ExactSizeIterator<
         Item = (
             &PackageKey,
+            PackageCheckedContext,
             &OrdinaryPackageExternalExecutableSupplyObligation,
         ),
     > {
@@ -393,6 +413,7 @@ impl LocallyComposedPackageObligationResults {
                 let entry = &self.entries[reference.package_index];
                 (
                     &entry.package,
+                    entry.context,
                     &entry.results.open_external_executable_supplies()[reference.supply_index],
                 )
             })
@@ -402,14 +423,20 @@ impl LocallyComposedPackageObligationResults {
     /// while retaining its original package owner.
     pub fn root_open_dangerous_authorities(
         &self,
-    ) -> impl ExactSizeIterator<Item = (&PackageKey, &OrdinaryPackageDangerousAuthorityObligation)>
-    {
+    ) -> impl ExactSizeIterator<
+        Item = (
+            &PackageKey,
+            PackageCheckedContext,
+            &OrdinaryPackageDangerousAuthorityObligation,
+        ),
+    > {
         self.root_open_dangerous_authorities
             .iter()
             .map(|reference| {
                 let entry = &self.entries[reference.package_index];
                 (
                     &entry.package,
+                    entry.context,
                     &entry.results.open_dangerous_authorities()[reference.authority_index],
                 )
             })
@@ -422,6 +449,7 @@ impl LocallyComposedPackageObligationResults {
     ) -> impl ExactSizeIterator<
         Item = (
             &PackageKey,
+            PackageCheckedContext,
             &OrdinaryPackageTerminalAuthorityPermissionObligation,
         ),
     > {
@@ -431,6 +459,7 @@ impl LocallyComposedPackageObligationResults {
                 let entry = &self.entries[reference.package_index];
                 (
                     &entry.package,
+                    entry.context,
                     &entry.results.open_terminal_authority_permissions()
                         [reference.permission_index],
                 )

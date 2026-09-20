@@ -56,6 +56,7 @@ fn with_permission(
         &tree.path(&format!("{label}-final")),
         SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
             closure.graph().root().clone(),
+            review.checked_context(),
             binding,
         )]),
     )

@@ -280,6 +280,155 @@ invokes console;
 }
 
 #[test]
+fn accepted_build_permissions_do_not_become_same_target_product_permissions() {
+    use package_manager::declarations::DependencyPurpose;
+    let Some(profile) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping scoped permission projection: no supported build execution profile");
+        return;
+    };
+    let temporary = TemporaryTree::new();
+    let root = temporary.package("root");
+    let shared = temporary.package("shared");
+    write_file(
+        root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.package("permission-consumer");
+    builder.depend_as("product_library", Source::Path { location: "../shared" });
+    builder.build_depend_as("build_library", Source::Path { location: "../shared" });
+}
+"#,
+    );
+    write_file(root.join("main.omg"), "pub const VALUE: u64 = 1;\n");
+    write_file(
+        shared.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"permission-library\"); }\n",
+    );
+    write_file(
+        shared.join("main.omg"),
+        r#"pub boundary trait FilesystemHost {
+    machine inspect() reaches FilesystemHost;
+}
+pub machine access()
+    reaches FilesystemHost
+    invokes FilesystemHost;
+{
+    FilesystemHost::inspect();
+}
+"#,
+    );
+    let storage = SourceResolverStorage::for_hardened_base(
+        temporary.0.join("cache"),
+        PrimaryGitChoices::default(),
+    )
+    .unwrap();
+    let closure = resolve_external_local_project_closure(
+        &root,
+        ExternalSourceContext::derive(b"same-target-role-permissions"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
+    )
+    .unwrap();
+    let target = closure.for_exact_target(profile);
+    let preliminary = compile_resolved_package_reviews(
+        &target,
+        &temporary.0.join("preliminary"),
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .unwrap();
+    let shared_key = closure
+        .graph()
+        .packages()
+        .iter()
+        .find(|package| package.source().key().name().as_str() == "permission-library")
+        .unwrap()
+        .source()
+        .key();
+    assert_eq!(preliminary.reviews_for(shared_key).count(), 2);
+    assert!(preliminary.review(shared_key).is_none());
+    for purpose in [DependencyPurpose::Build, DependencyPurpose::Product] {
+        let review = preliminary.review_occurrence(shared_key, purpose).unwrap();
+        assert_eq!(review.checked_context().target(), profile);
+        assert_eq!(
+            review.checked_context().build_execution_profile(),
+            Some(profile)
+        );
+        let [candidate] = review.semantic_binding_candidates() else {
+            panic!("one filesystem service candidate per occurrence");
+        };
+        let [requirement] = candidate.service_schema().methods.as_slice() else {
+            panic!("one exact filesystem requirement");
+        };
+        let binding = candidate
+            .binding()
+            .clone()
+            .with_terminal_authority_permissions(vec![ServiceTerminalAuthorityPermission::new(
+                candidate.binding().normalized_schema_digest(),
+                requirement.requirement_identity.clone(),
+                TerminalAuthorityDisposition::from_classes([
+                    TerminalAuthorityClass::FilesystemContentRead,
+                ]),
+            )])
+            .unwrap();
+        let input = ConsumerScopedSemanticBindingReviewInput::new(
+            shared_key.clone(),
+            review.checked_context(),
+            binding,
+        );
+        let reviews = compile_resolved_package_reviews(
+            &target,
+            &temporary.0.join(purpose.name()),
+            SemanticBindingReview::Explicit(&[input]),
+        )
+        .unwrap();
+        let policy = accepted_policy_fixture::accepted_policy(&target, &reviews);
+        let evidence = accept_ordinary_closure_evidence(
+            &target,
+            &reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(),
+            Some(&policy),
+        )
+        .unwrap();
+        let permissions = evidence
+            .acceptance()
+            .obligations()
+            .root_open_terminal_authority_permissions()
+            .collect::<Vec<_>>();
+        let [(owner, context, permission)] = permissions.as_slice() else {
+            panic!("accepted evidence retains exactly the explicitly bound occurrence permission");
+        };
+        assert_eq!(*owner, shared_key);
+        assert_eq!(*context, review.checked_context());
+        assert_eq!(
+            permission.permission().permitted().classes(),
+            &[TerminalAuthorityClass::FilesystemContentRead]
+        );
+        let product_policy = accepted_terminal_authority_permission_policy(&evidence).unwrap();
+        if purpose == DependencyPurpose::Build {
+            assert!(
+                product_policy.rows().is_empty(),
+                "same-target build authority must not become product authority"
+            );
+        } else {
+            let [row] = product_policy.rows() else {
+                panic!("the product control retains its explicit permission");
+            };
+            assert_eq!(
+                row.service_schema(),
+                candidate.binding().normalized_schema_digest()
+            );
+            assert_eq!(row.requirement_identity(), requirement.requirement_identity);
+            assert_eq!(
+                row.permitted().classes(),
+                &[TerminalAuthorityClass::FilesystemContentRead]
+            );
+        }
+    }
+}
+
+#[test]
 fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     let (temporary, application, closure) = console_binding_fixture();
     let preliminary = compile_resolved_package_reviews(
@@ -332,8 +481,11 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::ProcessTermination]),
     )])
     .expect("attach exact Console exit terminal permission");
-    let binding_input =
-        ConsumerScopedSemanticBindingReviewInput::new(root_key.clone(), binding.clone());
+    let binding_input = ConsumerScopedSemanticBindingReviewInput::new(
+        root_key.clone(),
+        root_candidate.checked_context(),
+        binding.clone(),
+    );
 
     let absent_consumer = PackageKey::new(
         PackageName::parse("absent-consumer").expect("absent package name"),
@@ -343,6 +495,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     assert!(matches!(
         compile_resolved_package_reviews(&closure.for_exact_target(target::TargetProfile::LinuxX64), &temporary.0.join("absent-consumer-build"), SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
                 absent_consumer.clone(),
+                root_candidate.checked_context(),
                 binding.clone(),
             )])),
         Err(CompileResolvedPackageReviewsError::SemanticBindingConsumerAbsent {
@@ -481,7 +634,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         .obligations()
         .root_open_terminal_authority_permissions()
         .collect::<Vec<_>>();
-    let [(permission_owner, propagated_permission)] = propagated_permissions.as_slice() else {
+    let [(permission_owner, _, propagated_permission)] = propagated_permissions.as_slice() else {
         panic!("root reconstruction propagates one owner-retaining terminal permission")
     };
     assert_eq!(*permission_owner, &root_key);

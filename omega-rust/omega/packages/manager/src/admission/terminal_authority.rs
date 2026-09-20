@@ -46,10 +46,21 @@ pub fn accepted_terminal_authority_permission_policy(
         .acceptance()
         .obligations()
         .root_open_terminal_authority_permissions();
+    let target = evidence
+        .acceptance()
+        .obligations()
+        .question()
+        .source_closure()
+        .target_profile();
     let mut rows = Vec::new();
     rows.try_reserve_exact(permissions.len())
         .map_err(|_| AcceptedTerminalAuthorityPermissionPolicyError::AllocationFailed)?;
-    for (_, obligation) in permissions {
+    for (_, context, obligation) in permissions {
+        // Build-host authority never becomes a permission of the produced
+        // application, even when both checked occurrences share source or ISA.
+        if !context.purpose().is_product() || context.target() != target {
+            continue;
+        }
         let permission = obligation.permission();
         rows.push(TerminalAuthorityPermissionPolicyRow::new(
             permission.service_schema(),
@@ -268,7 +279,10 @@ fn validate_accepted_terminal_production_subject(
     let accepted_root = evidence
         .packages()
         .iter()
-        .find(|package| package.package().identity() == package_subject.root())
+        .find(|package| {
+            package.package().identity() == package_subject.root()
+                && package.generated_sources().purpose().is_product()
+        })
         .ok_or_else(|| {
             diagnostics(
                 "accepted Terminal realization package root is absent from accepted evidence",

@@ -136,21 +136,23 @@ artifact validation is not a claim of successful publication.
 `build.omg`; Omega has no second package manifest. `resolution` binds those
 declarations to immutable sources and reconciles one exact closure. `review`
 turns that closure into compiler-issued facts and root-owned decisions. Its
-`reconstruction/root_policy.rs` gate rederives fresh obligations and conflicts
-from the same closure, requires exact conflict bijections for open accepted
+`reconstruction/root_policy.rs` gate rederives fresh obligations from the exact
+checked occurrences and requires canonical-row bijections for open accepted
 claims, dangerous authorities, external executable supplies, and Terminal
 permissions. Those rows and the normalized policy comparison come from the same
-fresh compiler reviews; initial conflicts witness that correspondence, not a
+fresh compiler reviews; there is no parallel initial-conflict comparison or
 second approval decision. Contract-entailment obligations remain unadmittable
 while open; canonically recorded,
 locally rechecked assumption discharges compose separately across the complete
-closure with their original package owners. The result remains review and
+closure with their original package owners and checked contexts. The result remains review and
 policy state.
 
 `admission` rechecks live source custody, obligation reconstruction, and accepted
 policy before producing in-memory evidence. That evidence retains exact
 compiler-consumed semantic bindings scoped to their
-consuming package. Changed requirements need ordinary project review; stale
+consuming package occurrence. Build-host permissions never project into the
+product's native authority, even when both roles use the same target.
+Changed requirements need ordinary project review; stale
 source evidence and unproved contracts still reject.
 It has no codec, `omega.lock` mutation route, or transaction
 authority. Its promotion layer is current implementation, not a requirement to
@@ -167,7 +169,10 @@ and require actual host grants under
 Start candidate compilation at
 [`compilation.rs`](src/review/candidate/compilation.rs): product selection,
 binding discovery, final checking, session disposal, then result handoff.
-Its `package_pass.rs` owns dependency-order compilation and projection;
+Its `package_pass.rs` owns dependency-order compilation and projection for each
+required build/product occurrence, using the same roster as lock comparison and
+reconstruction. Acquisition and parsed source are shared; checked targets,
+generated bundles, bindings, component descriptions and reviews are not.
 session, policy budgeting, and ledger budgeting live beneath that same owner.
 [`review_set.rs`](src/review/candidate/review_set.rs) describes the issued output.
 
@@ -182,7 +187,7 @@ This creates no source exports: missing imported modules still reject. Explicit
 root check entries and native application entry requirements remain unchanged.
 It uses one preliminary compiler review only to discover supported
 package-owned semantic surfaces, then recompiles with exact consumer-scoped
-bindings. Only that final review may proceed to conflicts and admission; the
+bindings. Only that final review may proceed to policy comparison and admission; the
 discovery pass is neither policy nor evidence that an audit occurred.
 The two passes share per-package immutable parse checkpoints, not checked reviews.
 Discovery requests a source-output slot on the ordinary `CheckedCompileRequest`;

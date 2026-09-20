@@ -365,6 +365,10 @@ fn one_alias_can_select_different_packages_in_the_two_purposes() {
 
 #[test]
 fn one_package_can_serve_product_and_build_purposes() {
+    let Some(execution_profile) = TargetProfile::host_if_supported() else {
+        eprintln!("skipping dual-purpose review: no supported build execution profile");
+        return;
+    };
     let tree = Tree::new();
     package(
         &tree.path("sources/root"),
@@ -417,6 +421,40 @@ fn one_package_can_serve_product_and_build_purposes() {
     assert_eq!(inputs.packages().count(), 2);
     let root_key = fresh.graph().root().clone();
     let std_key = package_key(&fresh, "std");
+    let reviews = compile_resolved_package_reviews(
+        &fresh.for_exact_target(TARGET),
+        &tree.path("recovered-review"),
+        package_manager::review::SemanticBindingReview::Explicit(&[]),
+    )
+    .unwrap();
+    assert!(
+        reviews.review(&std_key).is_none(),
+        "package-only lookup must not choose between roles"
+    );
+    assert_eq!(reviews.reviews_for(&std_key).count(), 2);
+    for purpose in DependencyPurpose::ALL {
+        let review = reviews.review_occurrence(&std_key, purpose).unwrap();
+        let context = review.checked_context();
+        assert_eq!(context.purpose(), purpose);
+        assert_eq!(context.build_execution_profile(), Some(execution_profile));
+        assert_eq!(
+            context.target(),
+            match purpose {
+                DependencyPurpose::Product => TARGET,
+                DependencyPurpose::Build => execution_profile,
+            }
+        );
+        assert!(
+            lock.target(TARGET)
+                .unwrap()
+                .occurrences()
+                .iter()
+                .any(
+                    |occurrence| occurrence.acceptance().package() == std_key.identity()
+                        && occurrence.context() == context
+                )
+        );
+    }
     assert_eq!(
         inputs.dependency_target(root_key.identity(), "std"),
         Some(std_key.identity())

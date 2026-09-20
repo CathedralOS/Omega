@@ -82,10 +82,11 @@ machine build(builder: &mut Build) {
         .expect("selected root result");
     assert!(root_entry.results().open_accepted_claims().is_empty());
     let propagated = composed.root_open_accepted_claims().collect::<Vec<_>>();
-    let [(owner, claim)] = propagated.as_slice() else {
+    let [(owner, context, claim)] = propagated.as_slice() else {
         panic!("one dependency claim must propagate to the root")
     };
     assert_eq!(owner.name().as_str(), "claim-dependency");
+    assert!(context.purpose().is_product());
     assert_eq!(
         claim.status(),
         OrdinaryPackageObligationStatus::OpenRootAdmission
@@ -180,7 +181,7 @@ machine build(builder: &mut Build) {
         .obligations()
         .root_open_accepted_claims()
         .collect::<Vec<_>>();
-    let [(owner, _)] = accepted_claims.as_slice() else {
+    let [(owner, _, _)] = accepted_claims.as_slice() else {
         panic!("one accepted dependency claim")
     };
     assert_eq!(owner.name().as_str(), "claim-dependency");
@@ -357,7 +358,7 @@ machine build(builder: &mut Build) {
     let propagated = composed
         .root_open_external_executable_supplies()
         .collect::<Vec<_>>();
-    let [(owner, supply)] = propagated.as_slice() else {
+    let [(owner, _, supply)] = propagated.as_slice() else {
         panic!("one dependency external executable supply must propagate to the root")
     };
     assert_eq!(owner.name().as_str(), "foreign-surface");
@@ -511,7 +512,7 @@ machine build(builder: &mut Build) {
     let propagated = composed
         .root_open_contract_entailment_obligations()
         .collect::<Vec<_>>();
-    let [(owner, obligation)] = propagated.as_slice() else {
+    let [(owner, _, obligation)] = propagated.as_slice() else {
         panic!("one dependency contract-entailment obligation must propagate to the root")
     };
     assert_eq!(owner.name().as_str(), "contract-surface");
@@ -680,7 +681,7 @@ machine build(builder: &mut Build) {
     let root_discharges = composed
         .root_contract_entailment_assumption_discharges()
         .collect::<Vec<_>>();
-    let [(discharge_owner, root_discharge)] = root_discharges.as_slice() else {
+    let [(discharge_owner, _, root_discharge)] = root_discharges.as_slice() else {
         panic!("one dependency discharge must compose to the root")
     };
     assert_eq!(discharge_owner.name().as_str(), "contract-surface");

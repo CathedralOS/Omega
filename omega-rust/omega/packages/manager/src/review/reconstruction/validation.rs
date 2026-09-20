@@ -22,14 +22,19 @@ pub(super) fn validate_association(
             "package reconstruction source closure is empty",
         ));
     }
-    if entries.len() != source_closure.packages().len() {
-        return Err(CanonicalPackageReconstructionQuestionError::new(
-            "source closure and obligation ledgers are not bijective",
-        ));
-    }
-    if entries.len() > limits.maximum_packages {
+    if source_closure.packages().len() > limits.maximum_packages {
         return Err(CanonicalPackageReconstructionQuestionError::new(
             "package reconstruction question exceeds its package-count ceiling",
+        ));
+    }
+    let roster = PackageOccurrenceRoster::derive(source_closure).map_err(|_| {
+        CanonicalPackageReconstructionQuestionError::new(
+            "could not derive the source closure occurrence roster",
+        )
+    })?;
+    if entries.len() != roster.occurrence_count() {
+        return Err(CanonicalPackageReconstructionQuestionError::new(
+            "source closure and obligation ledger occurrences are not bijective",
         ));
     }
 
@@ -45,43 +50,43 @@ pub(super) fn validate_association(
         }
     }
 
-    let expected_target = entries[0].obligations.target();
-    if expected_target != source_closure.target_profile() {
-        return Err(CanonicalPackageReconstructionQuestionError::new(
-            "package reconstruction obligation target does not match the source closure target",
-        ));
-    }
-    let roster = PackageOccurrenceRoster::derive(source_closure).map_err(|_| {
-        CanonicalPackageReconstructionQuestionError::new(
-            "could not derive the source closure occurrence roster",
-        )
-    })?;
+    let execution_profile = entries
+        .first()
+        .and_then(|entry| entry.context().build_execution_profile());
     let outgoing = outgoing_product_requests(source_closure)?;
-    for (source, entry) in source_closure.packages().iter().zip(entries) {
-        if entry.package != *source.key() {
+    let expected = roster.coverages().iter().flat_map(|coverage| {
+        coverage
+            .purposes()
+            .iter()
+            .map(move |purpose| (coverage.package(), *purpose))
+    });
+    for ((package, purpose), entry) in expected.zip(entries) {
+        if entry.package() != package || entry.context().purpose() != purpose {
             return Err(CanonicalPackageReconstructionQuestionError::new(
-                "package reconstruction entries are not in canonical source-package order",
+                "package reconstruction entries do not match canonical source-package/purpose order",
             ));
         }
-        if entry.occurrence_purposes()
-            != roster
-                .purposes(source.key())
-                .expect("validated source package has an occurrence")
+        let context = entry.context();
+        let expected_target = if purpose.is_product() {
+            Some(source_closure.target_profile())
+        } else {
+            execution_profile
+        };
+        if context.build_execution_profile() != execution_profile
+            || Some(context.target()) != expected_target
+            || entry.obligations.target() != context.target()
         {
             return Err(CanonicalPackageReconstructionQuestionError::new(
-                "package reconstruction entry does not cover its occurrence roster",
+                "package reconstruction entry has a mismatched checked target or execution profile",
             ));
         }
-        if entry.obligations.package() != entry.package.identity() {
+        if entry.obligations.package() != package.identity() {
             return Err(CanonicalPackageReconstructionQuestionError::new(
                 "obligation ledger root identity does not match its source package",
             ));
         }
-        if entry.obligations.target() != expected_target {
-            return Err(CanonicalPackageReconstructionQuestionError::new(
-                "package reconstruction question mixes deployment targets",
-            ));
-        }
+        // Ordinary dependencies inherit this occurrence's context. Its own
+        // build-only edges belong to separately reconstructed activations.
         validate_ledger_source_closure(source_closure, &outgoing, entry)?;
     }
     Ok(())

@@ -87,6 +87,7 @@ fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
     );
     let exact = ConsumerScopedSemanticBindingReviewInput::new(
         closure.graph().root().clone(),
+        review.checked_context(),
         entry.clone(),
     );
     let explicit = compile_resolved_package_reviews(
@@ -109,8 +110,11 @@ fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
         entry.normalized_schema_digest(),
     )
     .unwrap();
-    let changed =
-        ConsumerScopedSemanticBindingReviewInput::new(closure.graph().root().clone(), changed);
+    let changed = ConsumerScopedSemanticBindingReviewInput::new(
+        closure.graph().root().clone(),
+        review.checked_context(),
+        changed,
+    );
     assert!(
         compile_resolved_package_reviews(
             &target,

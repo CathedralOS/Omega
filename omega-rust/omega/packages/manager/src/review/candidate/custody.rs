@@ -88,11 +88,16 @@ pub(super) fn package_build_root(
     build_root: &Path,
     key: &PackageKey,
     resolution: &ImmutableSourceResolution,
+    purpose: crate::declarations::DependencyPurpose,
 ) -> PathBuf {
+    // The staging sponsor creates one child of the existing session root.
+    // Encode the occurrence in that child name rather than inventing an
+    // intermediate directory outside the sponsor's creation protocol.
     build_root.join(format!(
-        "{}-{}",
+        "{}-{}-{}",
         encode_hex(&key.identity().digest()),
-        resolution.content().to_hex()
+        resolution.content().to_hex(),
+        purpose.name(),
     ))
 }
 
@@ -123,8 +128,33 @@ mod tests {
         let second = ImmutableSourceResolution::workspace(SourceContentDigest::derive(b"b"));
 
         assert_ne!(
-            package_build_root(Path::new("build"), &key, &first),
-            package_build_root(Path::new("build"), &key, &second)
+            package_build_root(
+                Path::new("build"),
+                &key,
+                &first,
+                crate::declarations::DependencyPurpose::Product
+            ),
+            package_build_root(
+                Path::new("build"),
+                &key,
+                &second,
+                crate::declarations::DependencyPurpose::Product
+            )
         );
+        let product = package_build_root(
+            Path::new("build"),
+            &key,
+            &first,
+            crate::declarations::DependencyPurpose::Product,
+        );
+        let helper = package_build_root(
+            Path::new("build"),
+            &key,
+            &first,
+            crate::declarations::DependencyPurpose::Build,
+        );
+        assert_ne!(product, helper);
+        assert_eq!(product.parent(), Some(Path::new("build")));
+        assert_eq!(helper.parent(), Some(Path::new("build")));
     }
 }
