@@ -6490,7 +6490,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
-- **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then implement.
+- **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
+  implement. Landed slice: the pipeline-directive family — `serialize`
+  (x86_64) / `isb` (aarch64) instruction-stream serialization plus `pause`
+  (x86_64) / `yield` (aarch64) scheduling hints, all UserChecked/NoAuthority
+  zero-operand zero-clobber contracts threaded through the catalog, parser,
+  builtin table, statement gate, interpreter unit arm, and terminal-authority
+  inventory (row count 545->549 + policy commitment re-pinned); canary coverage
+  is check-level with pass and expected-reject fixtures. Remaining: byte-level
+  emission assertions once native-artifact production accepts asm-only
+  entries (currently unreachable at entry selection), the catalog doc family
+  table row (fenced elsewhere this wave), and memory/authority-bearing
+  families blocked on UnmodeledMemoryAccess and service admission.
+- **ASM-CATALOG-MEMORY-AND-CONTROL** — mined candidate; verify scope then implement.
 - **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.

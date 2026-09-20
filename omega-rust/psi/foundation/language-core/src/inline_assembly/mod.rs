@@ -33,8 +33,78 @@ pub enum AsmInstructionShape {
     MsrWrite,
     ControlRegisterRead(AsmControlRegister),
     ControlRegisterWrite(AsmControlRegister),
+    /// Serializes the instruction stream itself rather than memory traffic:
+    /// every prior instruction completes and instruction fetch re-synchronizes
+    /// before the next instruction executes.
+    InstructionSerialization(AsmInstructionSerializationKind),
+    /// A scheduler/pipeline hint the core may legally elide; it never changes
+    /// program semantics or machine-state obligations.
+    SchedulingHint(AsmSchedulingHintKind),
     DescriptorTableLoad,
     DerivedExit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmInstructionSerializationKind {
+    /// x86_64 `serialize`: drains speculative execution and forces fetch to
+    /// re-start after the instruction, bounding code-update races.
+    Serialize,
+    /// AArch64 `isb`: flushes the pipeline so later instructions re-fetch
+    /// updated context (the AArch64 serialization barrier).
+    InstructionSynchronizationBarrier,
+}
+
+impl AsmInstructionSerializationKind {
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::Serialize => "serialize",
+            Self::InstructionSynchronizationBarrier => "isb",
+        }
+    }
+
+    pub const fn intrinsic_name(self) -> &'static str {
+        match self {
+            Self::Serialize => "asm#serialize",
+            Self::InstructionSynchronizationBarrier => "asm#isb",
+        }
+    }
+
+    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+        [Self::Serialize, Self::InstructionSynchronizationBarrier]
+            .into_iter()
+            .find(|kind| kind.intrinsic_name() == name)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmSchedulingHintKind {
+    /// x86_64 `pause`: spin-wait pipeline hint; improves a polling loop's
+    /// sibling-thread behavior without changing its result.
+    SpinPause,
+    /// AArch64 `yield`: scheduling hint; the core may deschedule this thread.
+    Yield,
+}
+
+impl AsmSchedulingHintKind {
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::SpinPause => "pause",
+            Self::Yield => "yield",
+        }
+    }
+
+    pub const fn intrinsic_name(self) -> &'static str {
+        match self {
+            Self::SpinPause => "asm#pause",
+            Self::Yield => "asm#yield",
+        }
+    }
+
+    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+        [Self::SpinPause, Self::Yield]
+            .into_iter()
+            .find(|kind| kind.intrinsic_name() == name)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -420,9 +490,11 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     };
     use AsmInstructionAvailability::{DeriverOnly, UserChecked};
     use AsmInstructionRefusal::{HiddenControlExit, UnmodeledMemoryAccess};
+    use AsmInstructionSerializationKind::{InstructionSynchronizationBarrier, Serialize};
     use AsmInstructionShape::{
-        DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt, InterruptControl,
-        JumpState, MemoryFence, MsrRead, MsrWrite, PortIn, PortOut, RegisterMove,
+        DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt,
+        InstructionSerialization, InterruptControl, JumpState, MemoryFence, MsrRead, MsrWrite,
+        PortIn, PortOut, RegisterMove, SchedulingHint,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
@@ -430,6 +502,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         RestoreFromOperand as RestoreInterruptFlag,
     };
     use AsmMemoryOrdering::{Fence, None as NoOrdering};
+    use AsmSchedulingHintKind::{SpinPause, Yield};
     use AsmTargetApplicability::{Aarch64, Any, X86_64};
 
     if let Some(register) = AsmControlRegister::from_read_mnemonic(mnemonic) {
@@ -614,6 +687,56 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             interrupt_flag_effect: NoInterruptChange,
             flags_data_flow: NoFlagsDataFlow,
             clobbers: MSR_WRITE_CLOBBERS,
+        }),
+
+        // Instruction-stream serialization and scheduling-hint directives.
+        // Neither reads nor mutates modeled machine state, so they carry no
+        // authority requirement -- `serialize`/`isb` bound reordering (the
+        // realized sequence is the instruction itself), while `pause`/`yield`
+        // are legal to elide entirely.
+        "serialize" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: InstructionSerialization(Serialize),
+            target: X86_64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "isb" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: InstructionSerialization(InstructionSynchronizationBarrier),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "pause" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(SpinPause),
+            target: X86_64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        "yield" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: SchedulingHint(Yield),
+            target: Aarch64,
+            required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
         }),
 
         // This remains deriver-only: an admitted provider supplies the

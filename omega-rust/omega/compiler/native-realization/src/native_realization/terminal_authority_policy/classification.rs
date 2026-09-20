@@ -120,6 +120,10 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmLoadFence
         | BuiltinFunction::AsmStoreFence
         | BuiltinFunction::AsmFullFence
+        | BuiltinFunction::AsmSerialize
+        | BuiltinFunction::AsmInstructionSyncBarrier
+        | BuiltinFunction::AsmSpinPause
+        | BuiltinFunction::AsmYieldHint
         | BuiltinFunction::AsmSnapshotFlags
         | BuiltinFunction::FloatIsNan
         | BuiltinFunction::FloatMultiplyThenAddF32

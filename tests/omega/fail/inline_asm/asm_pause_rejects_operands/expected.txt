@@ -1,0 +1,1 @@
+multiple asm instructions must be separated by `;`

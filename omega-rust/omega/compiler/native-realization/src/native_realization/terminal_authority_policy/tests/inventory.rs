@@ -59,6 +59,10 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmLoadFence
             | BuiltinFunction::AsmStoreFence
             | BuiltinFunction::AsmFullFence
+            | BuiltinFunction::AsmSerialize
+            | BuiltinFunction::AsmInstructionSyncBarrier
+            | BuiltinFunction::AsmSpinPause
+            | BuiltinFunction::AsmYieldHint
             | BuiltinFunction::AsmSnapshotFlags
             | BuiltinFunction::FloatIsNan
             | BuiltinFunction::FloatMultiplyThenAddF32
@@ -169,8 +173,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            16, 152, 215, 45, 241, 95, 240, 121, 174, 31, 12, 230, 136, 152, 136, 230, 194, 24,
-            169, 159, 253, 75, 136, 3, 170, 20, 157, 158, 169, 92, 154, 165,
+            159, 205, 164, 116, 50, 135, 128, 240, 210, 236, 191, 83, 119, 50, 11, 131, 173, 239,
+            183, 105, 133, 97, 193, 56, 94, 13, 4, 199, 191, 189, 99, 119,
         ]
     );
 }

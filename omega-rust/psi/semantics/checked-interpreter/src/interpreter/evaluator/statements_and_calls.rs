@@ -426,9 +426,10 @@ impl<'program> Evaluator<'program> {
 
         // Asm intrinsic statement (`asm { hlt }`): the tree-walker cannot model
         // halting the CPU, but `hlt` in an idle loop is observably a no-op step
-        // (the loop simply proceeds), so evaluate it as unit. Memory fences
-        // are also no-ops in the single-threaded tree walker: its evaluation
-        // order is already total. CLI/STI cannot change an interrupt source
+        // (the loop simply proceeds), so evaluate it as unit. Memory fences,
+        // serialization barriers and scheduling hints are also no-ops in the
+        // single-threaded tree walker: its evaluation order is already total.
+        // CLI/STI cannot change an interrupt source
         // the interpreter does not model, so they are unit steps as well.
         // Port I/O (`asm#port_out`) has real device effects the interpreter
         // cannot reproduce and stays unsupported.
@@ -439,6 +440,14 @@ impl<'program> Evaluator<'program> {
             )
             .is_some()
             || language_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+            || language_core::inline_assembly::AsmInstructionSerializationKind::from_intrinsic_name(
+                call.target.as_str(),
+            )
+            .is_some()
+            || language_core::inline_assembly::AsmSchedulingHintKind::from_intrinsic_name(
                 call.target.as_str(),
             )
             .is_some()

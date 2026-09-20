@@ -155,6 +155,10 @@ pub(super) fn validate_asm_statement_call(
             "asm#mfence" => ("mfence", 0),
             "asm#cli" => ("cli", 0),
             "asm#sti" => ("sti", 0),
+            "asm#serialize" => ("serialize", 0),
+            "asm#isb" => ("isb", 0),
+            "asm#pause" => ("pause", 0),
+            "asm#yield" => ("yield", 0),
             "asm#popfq" => ("popfq", 1),
             "asm#wrmsr" => ("wrmsr", 2),
             other => {

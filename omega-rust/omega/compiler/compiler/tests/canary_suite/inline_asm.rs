@@ -220,3 +220,29 @@ fn asm_control_registers_enforce_authority_and_value_contracts() {
         assert_contract_rejects(name, expected);
     }
 }
+
+// Native-artifact production currently refuses asm-only program entries before
+// emission, so pipeline directives are pinned at the checked surface -- the
+// same contract the byte-assertion canaries relied on. When artifact
+// production reaches this family, promote these fixtures to byte assertions
+// (x86: `0f 01 e8` serialize / `f3 90` pause) and an aarch64 refusal test.
+#[test]
+fn pipeline_directives_reach_checked_semantics() {
+    for &name in &[
+        fixture_roster::ASM_X86_PIPELINE_DIRECTIVES_COMPILE,
+        fixture_roster::ASM_AARCH64_PIPELINE_DIRECTIVES_COMPILE,
+    ] {
+        compile_canary_without_output(&pass_canary(name)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "pipeline-directive canary {name} should reach checked semantics:\n{diagnostics:#?}"
+            )
+        });
+    }
+}
+
+#[test]
+fn pipeline_directives_enforce_zero_operand_and_clobber_contracts() {
+    for &(name, expected) in fixture_roster::PIPELINE_DIRECTIVE_FAIL_CANARIES {
+        assert_contract_rejects(name, expected);
+    }
+}

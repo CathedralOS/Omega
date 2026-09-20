@@ -2,8 +2,9 @@
 
 use super::{
     AsmAuthorityRequirement, AsmCatalogEntry, AsmControlRegister, AsmFenceKind, AsmFlagsDataFlow,
-    AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape, AsmInterruptFlagEffect,
-    AsmMemoryOrdering, AsmOperandAccess, AsmTargetApplicability, asm_catalog_entry,
+    AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionSerializationKind,
+    AsmInstructionShape, AsmInterruptFlagEffect, AsmMemoryOrdering, AsmOperandAccess,
+    AsmSchedulingHintKind, AsmTargetApplicability, asm_catalog_entry,
 };
 
 #[test]
@@ -260,6 +261,61 @@ fn fence_contracts_pin_ordering_without_invented_clobbers() {
         };
         assert_eq!(contract.memory_ordering, AsmMemoryOrdering::Fence(kind));
         assert_eq!(contract.target, AsmTargetApplicability::X86_64);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+}
+
+#[test]
+fn pipeline_directive_contracts_pin_no_authority_and_no_clobbers() {
+    for (mnemonic, kind, target) in [
+        (
+            "serialize",
+            AsmInstructionSerializationKind::Serialize,
+            AsmTargetApplicability::X86_64,
+        ),
+        (
+            "isb",
+            AsmInstructionSerializationKind::InstructionSynchronizationBarrier,
+            AsmTargetApplicability::Aarch64,
+        ),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("serialization contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(
+            contract.shape,
+            AsmInstructionShape::InstructionSerialization(kind)
+        );
+        assert_eq!(contract.target, target);
+        assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
+        assert_eq!(contract.memory_ordering, AsmMemoryOrdering::None);
+        assert!(contract.operands.is_empty());
+        assert!(contract.clobbers.is_empty());
+    }
+
+    for (mnemonic, kind, target) in [
+        (
+            "pause",
+            AsmSchedulingHintKind::SpinPause,
+            AsmTargetApplicability::X86_64,
+        ),
+        (
+            "yield",
+            AsmSchedulingHintKind::Yield,
+            AsmTargetApplicability::Aarch64,
+        ),
+    ] {
+        let AsmCatalogEntry::Contract(contract) =
+            asm_catalog_entry(mnemonic).expect("scheduling-hint contract")
+        else {
+            panic!("{mnemonic} must be contracted");
+        };
+        assert_eq!(contract.shape, AsmInstructionShape::SchedulingHint(kind));
+        assert_eq!(contract.target, target);
         assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
         assert!(contract.operands.is_empty());
         assert!(contract.clobbers.is_empty());
