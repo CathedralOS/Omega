@@ -12,6 +12,7 @@ use super::evidence::CallCompatibility;
 use checked_trees::{BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject};
 
 mod aliases;
+mod returned;
 
 /// A compiler-owned operation borrows a checked place without invoking a
 /// source machine. Retained alias ancestry supplies authority, not competing
@@ -22,50 +23,36 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
     state_flow: &FlowStateFact,
     statement: &checked_trees::FlowStatementFact,
     expression: typed_trees::expression::ExpressionHandle,
+    later_operand: typed_trees::expression::ExpressionHandle,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
-    let Some(crate::flow::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(root_symbol),
-        segments,
-    }) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(receiver) = returned::resolve(
         program,
-        state_flow.state_symbol,
-        statement.statement_index,
+        facts,
+        state_flow,
+        statement,
         expression,
-    )
-    else {
-        diagnostics.push(Diagnostic::error("exclusive operation requires an exact retained receiver place; computed receiver results are not implemented"));
+        call_frames,
+    ) else {
+        diagnostics.push(Diagnostic::error(
+            "exclusive operation requires an exact receiver source and available loan authority",
+        ));
         return;
-    };
-    let receiver = CapturedPlace {
-        root_symbol,
-        segments,
     };
     if !receiver_is_writable(
         program,
         facts,
         state_flow,
         statement.entry_constraints,
-        &receiver,
+        &receiver.place,
     ) {
         diagnostics.push(Diagnostic::error(
             "exclusive operation receiver is not writable in this state",
         ));
         return;
     }
-    let Some(receiver) = aliases::resolve_receiver(
-        program,
-        facts,
-        state_flow,
-        statement.entry_constraints,
-        receiver,
-    ) else {
-        diagnostics.push(Diagnostic::error(
-            "exclusive operation requires an available retained receiver loan origin",
-        ));
-        return;
-    };
     for loan_handle in facts
         .flow
         .borrow_loan_constraints(statement.entry_constraints)
@@ -91,6 +78,66 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
                 "exclusive operation receiver overlaps local borrow `{}` which is still active",
                 program.symbols.name(loan.owner_symbol),
             )));
+        }
+    }
+    // A computed reference or explicit borrow has no local loan owner. It remains held
+    // across the later operand: every access to overlapping backing storage
+    // conflicts, including access through an ancestor alias. Stored receivers
+    // already have ordinary loan liveness and call-conflict checks.
+    if later_operand.is_valid()
+        && (matches!(
+            program.expression_table.expression(expression),
+            typed_trees::expression::ExpressionNode::Borrow(_)
+        ) || crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state_flow.state_symbol,
+            statement.statement_index,
+            expression,
+        )
+        .is_none_or(|place| !matches!(place.root, facts::PlaceRoot::Symbol(_))))
+    {
+        let mut segments = arena::Arena::new();
+        let mut accesses = arena::Arena::new();
+        let span = crate::borrow::accesses::collect_call_argument_accesses(
+            program,
+            &mut segments,
+            &mut accesses,
+            &[later_operand],
+            state_flow.state_symbol,
+            statement.statement_index,
+            state_flow.machine_symbol,
+        );
+        for access in accesses.span_or_empty(span) {
+            let place = CapturedPlace {
+                root_symbol: access.root_symbol,
+                segments: segments.span_or_empty(access.segments).to_vec(),
+            };
+            let Some(access) = aliases::resolve_place(
+                program,
+                facts,
+                state_flow,
+                statement.entry_constraints,
+                place,
+            ) else {
+                diagnostics.push(Diagnostic::error(
+                    "exclusive receiver result requires an exact later operand loan origin",
+                ));
+                continue;
+            };
+            if !captured_place_compatibility(
+                program,
+                &receiver.place,
+                &BorrowAccessKind::Mutable,
+                &access.place,
+                &BorrowAccessKind::Read,
+                stated_premises,
+            )
+            .non_interfering
+            {
+                diagnostics.push(Diagnostic::error(
+                    "later operand accesses storage held by the exclusive receiver result",
+                ));
+            }
         }
     }
 }

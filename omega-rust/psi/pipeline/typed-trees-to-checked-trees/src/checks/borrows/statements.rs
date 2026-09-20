@@ -103,8 +103,10 @@ pub(super) fn check_statement_borrows(
                 state_flow,
                 statement,
                 binding.receiver,
+                binding.implementation_operand,
                 stated_premises,
                 diagnostics,
+                call_frames,
             );
         }
 

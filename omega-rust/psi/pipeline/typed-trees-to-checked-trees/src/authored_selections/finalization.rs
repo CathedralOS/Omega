@@ -55,25 +55,10 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                     statement_index,
                     binding.receiver,
                 );
-                let receiver_place = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    binding.receiver,
-                );
-                if !receiver_place.is_some_and(|place| {
-                    matches!(place.root, facts::PlaceRoot::Symbol(_))
-                        && place.segments.iter().all(|segment| {
-                            matches!(
-                                segment,
-                                facts::PlaceSegment::Field { .. }
-                                    | facts::PlaceSegment::FixedIndex { .. }
-                            )
-                        })
-                }) {
-                    return Err(Diagnostic::error("root binding requires a retained receiver place; computed receiver results and dynamic selectors are not implemented")
-                        .with_source_span(binding.source_span));
-                }
+                // Source/result loan checking establishes receiver authority,
+                // including a returned temporary's lifetime across its operand.
+                // Selection finalization checks the exact compiler-owned type;
+                // evaluation separately checks this activation's original cell.
                 let mut receiver = binding.receiver;
                 while let ExpressionNode::Borrow(borrow) = expressions.expression(receiver) {
                     if borrow.access != language_semantics::ReferenceAccess::Mutable {
@@ -90,7 +75,7 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                             if *access == language_semantics::ReferenceAccess::Mutable && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
                 })
                 {
-                    return Err(Diagnostic::error("root binding requires a compiler-issued &mut Build place; computed receiver results are not implemented")
+                    return Err(Diagnostic::error("root binding requires a compiler-issued &mut Build receiver")
                         .with_source_span(binding.source_span));
                 }
                 if binding.slot.is_empty()

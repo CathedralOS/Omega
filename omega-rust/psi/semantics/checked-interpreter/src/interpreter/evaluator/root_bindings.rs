@@ -50,7 +50,10 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<()> {
         self.tick()?;
-        let receiver = self.resolve_place(binding.receiver, frame)?;
+        // Read a reference carrier once, preserving its original cell even
+        // when an ordinary call produced it. General writable-place lookup
+        // remains effect-free; its speculative callers must not replay calls.
+        let receiver = self.eval_read_cell(binding.receiver, frame)?;
         let receiver = self.deref_cell(receiver);
         if !self
             .root_build

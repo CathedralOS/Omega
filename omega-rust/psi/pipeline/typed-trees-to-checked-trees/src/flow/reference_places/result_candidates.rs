@@ -1,5 +1,4 @@
-//! Finite candidate origins of a `&mut` local bound from a checked callee's
-//! reference result.
+//! Checked reference-result sources for loan authority and storage facts.
 //!
 //! `let room: &mut Room = level.room_mut(cell)` binds a reference whose
 //! referent is one of the places the callee's exits return -- here the
@@ -19,6 +18,9 @@
 //! parameter through field, case and literal-index segments only; a
 //! sub-state route, a runtime index, or an unresolved callee local yields no
 //! candidates and the caller keeps its conservative treatment.
+//! Lifetime binders are erased regions, not runtime parameters. They do not
+//! change this source substitution; ordinary lifetime/escape checks still
+//! establish whether the returned access and source relation are legal.
 
 use crate::flow::CanonicalPlace;
 use facts::{PlaceRoot, PlaceSegment};
@@ -80,6 +82,93 @@ fn call_result_candidates(
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    let mut candidates = Vec::new();
+    for source in call_result_sources(program, call, call_frames)? {
+        for mut storage in reference_expression_storage_places(
+            program,
+            caller_state_symbol,
+            statement_index,
+            source.actual,
+            call_frames,
+        )? {
+            storage.segments.extend_from_slice(&source.segments);
+            if !candidates.contains(&storage) {
+                candidates.push(storage);
+            }
+        }
+    }
+    (!candidates.is_empty()).then_some(candidates)
+}
+
+/// Backing storage of a reference expression for effect/range invalidation.
+/// This is not loan authority: a borrow consumer must also establish the live
+/// source loan and parent relationship before granting exclusive access.
+pub(crate) fn reference_expression_storage_places(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CanonicalPlace>> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => {
+            return reference_expression_storage_places(
+                program,
+                state,
+                statement_index,
+                borrow.target,
+                frames,
+            );
+        }
+        ExpressionNode::Call(call) => {
+            return call_result_candidates(program, state, statement_index, call, frames);
+        }
+        _ => {}
+    }
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state,
+        statement_index,
+        expression,
+    )?;
+    if let Some(storage) = crate::flow::rebase_exact_local_place(
+        program,
+        state,
+        statement_index,
+        place.clone(),
+        frames,
+    ) {
+        return matches!(storage.root, PlaceRoot::Symbol(_)).then_some(vec![storage]);
+    }
+    let PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let mut candidates = reference_result_candidates_before_statement(
+        program,
+        state,
+        statement_index,
+        root,
+        frames,
+    )?;
+    for candidate in &mut candidates {
+        candidate.segments.extend_from_slice(&place.segments);
+    }
+    Some(candidates)
+}
+
+/// The actual carrying a returned reference, before rebasing through caller
+/// locals. Borrow checking needs that local identity to recover parent loans;
+/// a storage-only candidate cannot grant an ancestry exemption.
+pub(crate) struct ReferenceResultSource {
+    pub(crate) actual: ExpressionHandle,
+    pub(crate) segments: Vec<PlaceSegment>,
+}
+
+pub(crate) fn call_result_sources(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<ReferenceResultSource>> {
     let callee_state = crate::semantic_calls::find_state(program, call.target_symbol)?;
     let callee = program.machines().iter().find(|candidate| {
         program
@@ -89,7 +178,6 @@ fn call_result_candidates(
     })?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
-        || !callee.lifetime_parameters.is_empty()
         || !program.machine_type_parameters(callee).is_empty()
         || call.receiver.is_valid() != callee.attached_data.is_some()
         || !call.machine_arguments.is_empty()
@@ -111,7 +199,7 @@ fn call_result_candidates(
     {
         return None;
     }
-    let mut candidates = Vec::new();
+    let mut sources = Vec::new();
     for (returned_index, returned) in callee_returned_expressions(program, callee_state)? {
         let place = crate::flow::canonical_place_from_expression_in_state(
             program,
@@ -160,25 +248,12 @@ fn call_result_candidates(
                     .position(|candidate| candidate.symbol == root)?,
             )?
         };
-        let mut storage = crate::flow::canonical_place_from_expression_in_state(
-            program,
-            caller_state_symbol,
-            statement_index,
+        sources.push(ReferenceResultSource {
             actual,
-        )?;
-        storage = crate::flow::rebase_exact_local_place(
-            program,
-            caller_state_symbol,
-            statement_index,
-            storage,
-            call_frames,
-        )?;
-        storage.segments.extend_from_slice(&place.segments);
-        if !candidates.contains(&storage) {
-            candidates.push(storage);
-        }
+            segments: place.segments,
+        });
     }
-    (!candidates.is_empty()).then_some(candidates)
+    (!sources.is_empty()).then_some(sources)
 }
 
 /// Every returned expression of the callee's entry state with its statement
