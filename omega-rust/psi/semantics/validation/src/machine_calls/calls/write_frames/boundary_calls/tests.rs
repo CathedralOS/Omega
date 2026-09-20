@@ -831,12 +831,13 @@ fn generic_boundary_owner_result_uses_existing_candidate_origins() {
 }
 
 #[test]
-fn generic_boundary_method_shadow_remains_opaque_when_its_binder_is_unbound() {
+fn generic_boundary_method_shadow_binds_its_own_declaration() {
     let program = typed(
         "data Cell { value: u64; } data Other { value: u32; } boundary trait Device<T> { machine consume<T>(carrier: &mut T); } data Main { device: Device<Cell>; other: Other; } machine Main::inspect(&mut self) { self.device.consume(&mut self.other); }",
     );
-    // The typed formal currently selects the owner's T while the distinct,
-    // same-spelled method binder remains unbound. Never guess a substitution
-    // from spelling to manufacture a complete frame.
-    assert!(!frame(&program).is_complete());
+    let mut paths = frame(&program)
+        .into_complete_paths()
+        .expect("the method binder selects Other independently of owner Cell");
+    paths.sort();
+    assert_eq!(paths, ["self.device", "self.other"]);
 }

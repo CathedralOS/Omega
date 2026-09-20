@@ -230,10 +230,10 @@ fn assign_contract_span(
                     // An indexed application's arguments resolve in the
                     // signature's lexical generic scope, exactly as a
                     // parameter's `T in Family<P>` constraint arguments do:
-                    // the owning machine or trait telescope, then the
-                    // requirement's own binders.
-                    let mut local_type_parameters = machine.type_parameters.to_vec();
-                    local_type_parameters.extend_from_slice(signature_type_parameters);
+                    // the requirement's own binders shadow the owning
+                    // machine or trait telescope under first-match lookup.
+                    let mut local_type_parameters = signature_type_parameters.to_vec();
+                    local_type_parameters.extend_from_slice(machine.type_parameters);
                     for offset in 0..membership.domain_arguments.count() {
                         let start = membership.domain_arguments.start();
                         let handle = arena::Handle::from_parts(

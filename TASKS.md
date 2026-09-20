@@ -3841,11 +3841,8 @@ Owners include
   - Converge the categories that still sink: unresolved receivers,
     boundary-result origins, conditional helper-body case refinement, mutable
     case-state transfer, graph-level aggregate result routes, and computed
-    reference arguments outside proven helper-result relations. Same-named
-    owner and method type binders still need exact typed selection: a method's
-    formal can resolve to the owner binder, leaving its own binder unbound;
-    write-frame inference must remain opaque rather than guess that binding.
-    Other unsupported expression shapes remain conservative.
+    reference arguments outside proven helper-result relations. Other
+    unsupported expression shapes remain conservative.
     Each has landed slices; rerun its `write_frame_*` tests in
     `typed-trees-to-checked-trees/src/tests/termination/` to find the residue.
     Prefer shared fixpoint and alias reasoning over syntax-shape exceptions.

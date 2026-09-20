@@ -91,6 +91,60 @@ fn generic_boundary_value_argument_does_not_invalidate_its_source() {
     });
 }
 
+fn shadowed_boundary_call_source(subject: &str) -> String {
+    format!(
+        "data Cell {{ value: u64; }}
+         data Other {{ value: u64; }}
+         boundary trait Device<T> {{ machine consume<T>(carrier: &mut T, metadata: u64); }}
+         data Main {{ device: Device<Cell>; other: Other; untouched: u64; }}
+         machine Main::inspect(&mut self)
+         reaches Device
+         requires {subject} == 7;
+         ensures {subject} == 7;
+         {{ self.device.consume(&mut self.other, self.untouched); }}"
+    )
+}
+
+#[test]
+fn generic_boundary_shadowed_method_binder_preserves_disjoint_facts() {
+    let source = shadowed_boundary_call_source("self.untouched");
+    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
+        panic!("a method binder must select Other independently of owner Cell: {diagnostics:#?}")
+    });
+    let machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::inspect")
+        .unwrap();
+    let mut paths = validation::CallFrameResolver::new(&checked.typed)
+        .unwrap()
+        .inferred_state_write_frame(machine, &checked.typed.machine_states(machine)[0])
+        .into_complete_paths()
+        .expect("complete boundary frame");
+    paths.sort();
+    assert_eq!(paths, ["self.device", "self.other"]);
+}
+
+#[test]
+fn generic_boundary_shadowed_method_binder_invalidates_written_facts() {
+    let source = shadowed_boundary_call_source("self.other.value");
+    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
+    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("shadowing cannot hide the exclusive argument's writes");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove ensures")),
+        "{diagnostics:#?}"
+    );
+}
+
 /// A resolved non-boundary requirement call keeps the runtime receiver's
 /// proven origin plus every exclusive argument's origin: the retained
 /// `target_symbol` — or, on a nested receiver path the typer does not
