@@ -46,18 +46,26 @@ pub(super) fn home_available(
                         | TargetUnitOperation::EstablishReference {
                             result_home: home, ..
                         }
-                        | TargetUnitOperation::StructuralResultCall {
-                            result_home: Some(home),
+                        | TargetUnitOperation::Call {
+                            result:
+                                target_operations::TargetCallResult::Structural {
+                                    result_home: Some(home),
+                                    ..
+                                },
                             ..
                         } if home.place() == expected_source => {
                             Some((candidate.block, Some(home.clone())))
                         }
                         // A reference-only call result carries no physical
                         // home; the custody metadata roster stands in for it.
-                        TargetUnitOperation::StructuralResultCall {
-                            result_home: None,
-                            result,
-                            reference_results,
+                        TargetUnitOperation::Call {
+                            result:
+                                target_operations::TargetCallResult::Structural {
+                                    result_home: None,
+                                    result,
+                                    reference_results,
+                                    ..
+                                },
                             ..
                         } if !reference_results.is_empty() && result.place == expected_source => {
                             Some((candidate.block, None))

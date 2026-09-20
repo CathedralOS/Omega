@@ -1,6 +1,6 @@
-//! Independent replay of retained `StructuralResultCall` reference rosters.
+//! Independent replay of retained structural-result `Call` reference rosters.
 //!
-//! A `StructuralResultCall` carries `reference_results`: the ordered leaf
+//! A structural-result `Call` carries `reference_results`: the ordered leaf
 //! roster declaring which suspended referent root each returned reference
 //! carrier names. The producer resolves that roster through live custody —
 //! owned arguments move their complete leaf set, `.., Referent` mappings
@@ -942,7 +942,7 @@ fn schedule(
 /// Replay the caller's custody in dominator order and collect the reference
 /// leaf roster each `CallStructural` — authored or installed-provider —
 /// establishes. A source whose custody stream cannot be replayed yields no
-/// expected rows, and a retained `StructuralResultCall` row without an
+/// expected rows, and a retained structural-result `Call` row without an
 /// expected entry rejects.
 pub(super) fn expected(
     function: &AbstractFunction,

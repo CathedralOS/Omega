@@ -46,12 +46,6 @@ pub(in crate::legalization) fn installed_operation(
                 origin,
                 callee,
                 ..
-            }
-            | TargetUnitOperation::StructuralResultCall {
-                psi_operation: identity,
-                origin,
-                callee,
-                ..
             } if identity == psi_operation => Some((operation, origin, *callee)),
             _ => None,
         });
@@ -189,7 +183,7 @@ pub(in crate::legalization) fn installed_operation(
             terminal_psi::BoundaryMachineResult::Scalar(boundary_scalar),
             AbstractFunctionResult::Scalar(candidate_result),
             TargetUnitOperation::Call {
-                result_home: Some(actual),
+                result: target_operations::TargetCallResult::Scalar(actual),
                 ..
             },
         ) if actual.source_value == result.value
@@ -215,7 +209,8 @@ pub(in crate::legalization) fn installed_operation(
             terminal_psi::BoundaryMachineResult::Unit,
             AbstractFunctionResult::Unit,
             TargetUnitOperation::Call {
-                result_home: None, ..
+                result: target_operations::TargetCallResult::Unit,
+                ..
             },
         ) => AbstractOperation::CallUnit {
             psi_operation: *psi_operation,
@@ -230,9 +225,13 @@ pub(in crate::legalization) fn installed_operation(
             abstract_operations::AbstractBoundaryResult::Structural(result),
             terminal_psi::BoundaryMachineResult::Structural(boundary_result),
             AbstractFunctionResult::Structural(candidate_result),
-            TargetUnitOperation::StructuralResultCall {
-                result: actual,
-                callee_result,
+            TargetUnitOperation::Call {
+                result:
+                    target_operations::TargetCallResult::Structural {
+                        result: actual,
+                        callee_result,
+                        ..
+                    },
                 ..
             },
         ) if actual == result

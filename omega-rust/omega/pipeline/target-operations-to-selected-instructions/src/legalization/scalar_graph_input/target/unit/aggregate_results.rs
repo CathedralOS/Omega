@@ -1,7 +1,7 @@
-//! Rejoin aggregate constructors and result calls to their exact source operations.
+//! Rejoin aggregate constructors to their exact source operations.
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, Source,
-    TargetOperationPlan, TargetUnitOperation, ValueId,
+    TargetUnitOperation, ValueId,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
@@ -10,9 +10,7 @@ pub(super) fn validate(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
     sources: &[(ValueId, Source)],
-    custody: &scalar_graph_input::reference_custody::Custody,
     optimized: &PsiOptimizationFunction,
-    native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
@@ -162,130 +160,6 @@ pub(super) fn validate(
                             optimization_unit::OptimizationFact::OperationObligationReference { obligation: retained, support }
                             if *retained == obligation && support == psi_operation)))
                 { return Err(invalid); }
-            }
-        }
-        (
-            TargetUnitOperation::StructuralResultCall {
-                origin: target_operations::NativeCallOrigin::Authored,
-                psi_operation,
-                result,
-                callee,
-                callee_result,
-                result_home,
-                call_plan,
-                scalar_arguments,
-                arguments,
-                claim_transfers,
-                returned_claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                reference_results,
-            },
-            AbstractOperation::CallStructural {
-                psi_operation: expected_operation,
-                result: expected_result,
-                callee: expected_callee,
-                arguments: values,
-                structural_arguments,
-                claim_transfers: expected_claims,
-                returned_claim_transfers: expected_returns,
-                requirement_obligations: expected_requirements,
-                crash_continuations: expected_crashes,
-                selected_evidence,
-            },
-        ) => {
-            let called = unit
-                .functions
-                .iter()
-                .find(|function| function.machine == *callee)
-                .ok_or(invalid.clone())?;
-            let expected_plan = scalar_graph_input::callee_plan(*callee, native, plan, unit)?;
-            // A bare reference result is custody only: no physical result
-            // home is established. The declared leaf roster is independently
-            // replayed against pre-call custody.
-            let reference_only = plan.structural_types.iter().any(|declaration| {
-                declaration.id == result.structural_type
-                    && matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::Reference { .. }
-                    )
-            });
-            let expected_home = if reference_only {
-                None
-            } else {
-                Some(scalar_graph_input::aggregate_results::result_home(
-                    optimized,
-                    result.place,
-                    plan,
-                )?)
-            };
-            let expected_references = scalar_graph_input::reference_custody::reference_results(
-                optimized,
-                called,
-                structural_arguments,
-                result.structural_type,
-                custody,
-                &plan.structural_types,
-            )?;
-            if psi_operation != expected_operation
-                || result != expected_result
-                || callee != expected_callee
-                || called.result.structural() != Some(callee_result)
-                || result.structural_type != callee_result.structural_type
-                || result.multiplicity != callee_result.multiplicity
-                || *result_home != expected_home
-                || *reference_results != expected_references
-                || *call_plan != expected_plan
-                || !claim_transfers.is_empty()
-                || !expected_claims.is_empty()
-                || !returned_claim_transfers.is_empty()
-                || !expected_returns.is_empty()
-                || !requirement_obligations.is_empty()
-                || !expected_requirements.is_empty()
-                || !crash_continuations.is_empty()
-                || !expected_crashes.is_empty()
-                || !selected_evidence.is_empty()
-                || values.len() != called.parameters.len()
-                || scalar_arguments.len() != values.len()
-                || structural_arguments.len() != called.structural_parameters.len()
-                || arguments.len() != structural_arguments.len()
-            {
-                return Err(invalid);
-            }
-            for (position, ((value, parameter), argument)) in values
-                .iter()
-                .zip(&called.parameters)
-                .zip(scalar_arguments)
-                .enumerate()
-            {
-                if argument.parameter_index as usize != position
-                    || argument.placement != expected_plan.parameters[position]
-                    || argument.source.scalar_type() != parameter.scalar_type
-                    || !sources
-                        .iter()
-                        .any(|(identity, source)| identity == value && *source == argument.source)
-                {
-                    return Err(invalid);
-                }
-            }
-            for (position, (semantic, retained)) in
-                structural_arguments.iter().zip(arguments).enumerate()
-            {
-                if *retained
-                    != scalar_graph_input::aggregate_results::call_argument(
-                        semantic,
-                        position,
-                        *psi_operation,
-                        optimized,
-                        called,
-                        &expected_plan,
-                        native,
-                        plan,
-                        custody,
-                    )?
-                {
-                    return Err(invalid);
-                }
             }
         }
         _ => return Err(invalid),

@@ -508,8 +508,12 @@ fn read_access(
                 .any(|operation| {
                     let home = match operation {
                         TargetUnitOperation::EstablishRecord { result_home, .. }
-                        | TargetUnitOperation::StructuralResultCall {
-                            result_home: Some(result_home),
+                        | TargetUnitOperation::Call {
+                            result:
+                                target_operations::TargetCallResult::Structural {
+                                    result_home: Some(result_home),
+                                    ..
+                                },
                             ..
                         } => result_home,
                         _ => return false,

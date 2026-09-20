@@ -233,7 +233,7 @@ fn scalar_cycle_returns_replay_arithmetic_calls_and_result_abi() {
             [
                 TargetUnitOperation::ScalarDefinition { .. },
                 TargetUnitOperation::Call {
-                    result_home: Some(_),
+                    result: target_operations::TargetCallResult::Scalar(_),
                     ..
                 },
                 TargetUnitOperation::ScalarDefinition { .. }
@@ -484,7 +484,7 @@ fn scalar_cycle_rejects_changed_arithmetic_and_call_rows() {
         } else {
             let TargetUnitOperation::Call {
                 scalar_arguments: arguments,
-                result_home: Some(result_home),
+                result: target_operations::TargetCallResult::Scalar(result_home),
                 call_plan,
                 ..
             } = &mut graph.blocks[2].operations[1]

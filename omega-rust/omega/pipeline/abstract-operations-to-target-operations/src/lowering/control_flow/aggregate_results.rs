@@ -394,19 +394,21 @@ pub(super) fn call(
     {
         return Err(invalid());
     }
-    operations.push(TargetUnitOperation::StructuralResultCall {
+    operations.push(TargetUnitOperation::Call {
         origin: target_operations::NativeCallOrigin::Authored,
         psi_operation: *psi_operation,
-        result: result.clone(),
         callee: *callee,
-        callee_result: callee_result.clone(),
-        result_home: (!reference_only).then_some(result_home),
-        reference_results,
+        result: target_operations::TargetCallResult::Structural {
+            result: result.clone(),
+            callee_result: callee_result.clone(),
+            result_home: (!reference_only).then_some(result_home),
+            reference_results,
+            returned_claim_transfers: returned_claim_transfers.clone(),
+        },
         call_plan: signature.call_plan,
         scalar_arguments,
         arguments: target_arguments,
         claim_transfers: claim_transfers.clone(),
-        returned_claim_transfers: returned_claim_transfers.clone(),
         requirement_obligations: requirement_obligations.clone(),
         crash_continuations: crash_continuations.clone(),
     });

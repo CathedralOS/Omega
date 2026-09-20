@@ -131,14 +131,14 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
             TargetUnitOperation::Call {
                 psi_operation: first_operation,
                 call_plan: first_plan,
-                result_home: Some(first_home),
+                result: target_operations::TargetCallResult::Scalar(first_home),
                 scalar_arguments: first_arguments,
                 ..
             },
             TargetUnitOperation::Call {
                 psi_operation: second_operation,
                 call_plan: second_plan,
-                result_home: Some(second_home),
+                result: target_operations::TargetCallResult::Scalar(second_home),
                 scalar_arguments: second_arguments,
                 ..
             },

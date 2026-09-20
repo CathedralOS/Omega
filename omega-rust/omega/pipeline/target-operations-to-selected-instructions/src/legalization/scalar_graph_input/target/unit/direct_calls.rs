@@ -7,9 +7,10 @@
 use super::{
     AbstractOperation, AbstractOperationPlan, LegalizationError, PsiOptimizationFunction,
     PsiOptimizationUnit, Source, TargetOperationPlan, TargetUnitOperation, ValueId, callee_plan,
-    scalar_shape,
 };
-use target_operations::{NativeCallOrigin, TargetUnitScalarHomeRequirement};
+use target_operations::{NativeCallOrigin, TargetCallResult};
+
+mod results;
 
 pub(super) fn validate(
     target: &TargetUnitOperation,
@@ -27,7 +28,7 @@ pub(super) fn validate(
         psi_operation,
         callee,
         call_plan,
-        result_home,
+        result,
         scalar_arguments,
         arguments,
         claim_transfers,
@@ -37,7 +38,7 @@ pub(super) fn validate(
     else {
         return Err(invalid());
     };
-    let (actual, called, values, structural_arguments, claims, requirements, crashes, result) =
+    let (actual, called, values, structural_arguments, claims, requirements, crashes) =
         match abstracted {
             AbstractOperation::CallUnit {
                 psi_operation,
@@ -47,17 +48,8 @@ pub(super) fn validate(
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-            } => (
-                *psi_operation,
-                *callee,
-                arguments.as_slice(),
-                structural_arguments.as_slice(),
-                claim_transfers.as_slice(),
-                requirement_obligations,
-                crash_continuations,
-                None,
-            ),
-            AbstractOperation::CallStructuralScalar {
+            }
+            | AbstractOperation::CallStructuralScalar {
                 psi_operation,
                 callee,
                 arguments,
@@ -65,7 +57,17 @@ pub(super) fn validate(
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-                result,
+                ..
+            }
+            | AbstractOperation::CallStructural {
+                psi_operation,
+                callee,
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                ..
             } => (
                 *psi_operation,
                 *callee,
@@ -74,7 +76,6 @@ pub(super) fn validate(
                 claim_transfers.as_slice(),
                 requirement_obligations,
                 crash_continuations,
-                Some(*result),
             ),
             AbstractOperation::Call {
                 psi_operation,
@@ -82,8 +83,7 @@ pub(super) fn validate(
                 arguments,
                 requirement_obligations,
                 crash_continuations,
-                result,
-                scalar_type,
+                ..
             } => (
                 *psi_operation,
                 *callee,
@@ -92,28 +92,10 @@ pub(super) fn validate(
                 &[][..],
                 requirement_obligations,
                 crash_continuations,
-                Some(abstract_operations::AbstractResult {
-                    value: *result,
-                    scalar_type: *scalar_type,
-                }),
             ),
             _ => return Err(invalid()),
         };
     let expected = callee_plan(*callee, native, plan, unit)?;
-    let expected_home = result
-        .map(|result| {
-            let shape = scalar_shape(result.scalar_type).ok_or_else(invalid)?;
-            if expected.result.as_ref().map(|placement| placement.shape) != Some(shape) {
-                return Err(invalid());
-            }
-            Ok(TargetUnitScalarHomeRequirement {
-                defining_operation: actual,
-                source_value: result.value,
-                scalar_type: result.scalar_type,
-                shape,
-            })
-        })
-        .transpose()?;
     let callee_function = unit
         .functions
         .iter()
@@ -122,8 +104,6 @@ pub(super) fn validate(
     if psi_operation != &actual
         || callee != &called
         || call_plan != &expected
-        || *result_home != expected_home
-        || result.is_none() != expected.result.is_none()
         || claim_transfers != claims
         || requirement_obligations != requirements
         || crash_continuations != crashes
@@ -140,6 +120,8 @@ pub(super) fn validate(
             .any(|(position, ((argument, value), placement))| {
                 argument.parameter_index != position as u32
                     || argument.placement != *placement
+                    || argument.source.scalar_type()
+                        != callee_function.parameters[position].scalar_type
                     || !sources.iter().any(|(source, definition)| {
                         source == value && *definition == argument.source
                     })
@@ -147,8 +129,25 @@ pub(super) fn validate(
     {
         return Err(invalid());
     }
+    results::validate(
+        result,
+        abstracted,
+        callee_function,
+        &expected,
+        custody,
+        optimized,
+        plan,
+    )?;
+    // Structural-result calls currently include block-carried byte views
+    // but have a narrower primitive projection rule. Retain that admission
+    // boundary while sharing the transport checks and argument traversal.
+    let reconstruct = if matches!(result, TargetCallResult::Structural { .. }) {
+        super::super::super::aggregate_results::call_argument
+    } else {
+        super::super::super::structural_call::argument_at
+    };
     for (position, (argument, semantic)) in arguments.iter().zip(structural_arguments).enumerate() {
-        if super::super::super::structural_call::argument_at(
+        if reconstruct(
             semantic,
             position,
             *psi_operation,
@@ -163,8 +162,8 @@ pub(super) fn validate(
             return Err(invalid());
         }
     }
-    if let Some(home) = expected_home {
-        sources.push((home.source_value, Source::Home(home)));
+    if let Some(home) = result.scalar_home() {
+        sources.push((home.source_value, Source::Home(*home)));
     }
     Ok(())
 }

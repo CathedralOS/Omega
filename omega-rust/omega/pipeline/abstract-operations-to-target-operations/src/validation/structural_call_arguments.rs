@@ -54,7 +54,7 @@ enum EmbeddedResult<'a> {
     Unit,
     /// An ordinary scalar call retains its exact semantic result and home.
     Scalar(&'a TargetUnitScalarHomeRequirement),
-    /// `StructuralResultCall`: the call's result row, the retained declared
+    /// structural-result `Call`: the call's result row, the retained declared
     /// callee result, the required durable home, and the retained reference
     /// leaf roster.
     Structural {
@@ -192,7 +192,7 @@ struct Replay<'a> {
     /// The reference leaf roster each structural-result call establishes,
     /// independently recomputed from the caller's own custody stream by
     /// `reference_results::expected`. A source whose custody cannot be
-    /// replayed yields an empty map, so every retained `StructuralResultCall`
+    /// replayed yields an empty map, so every retained structural-result `Call`
     /// row under it rejects.
     expected_reference_results: BTreeMap<OperationId, Vec<TargetReferenceResult>>,
 }
@@ -234,66 +234,54 @@ pub(super) fn validate(
                 TargetUnitOperation::Call {
                     origin,
                     psi_operation,
-                    result_home,
-                    callee,
-                    call_plan,
-                    scalar_arguments,
-                    arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::Direct {
-                        origin,
-                        callee: *callee,
-                        call_plan,
-                        scalar_arguments,
-                        arguments,
-                        result: result_home
-                            .as_ref()
-                            .map_or(EmbeddedResult::Unit, EmbeddedResult::Scalar),
-                        claim_transfers,
-                        returned_claim_transfers: &[],
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::StructuralResultCall {
-                    origin,
-                    psi_operation,
                     result,
                     callee,
-                    callee_result,
-                    result_home,
-                    reference_results,
                     call_plan,
                     scalar_arguments,
                     arguments,
                     claim_transfers,
-                    returned_claim_transfers,
                     requirement_obligations,
                     crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::Direct {
-                        origin,
-                        callee: *callee,
-                        call_plan,
-                        scalar_arguments,
-                        arguments,
-                        result: EmbeddedResult::Structural {
+                } => {
+                    let (result, returned_claim_transfers) = match result {
+                        target_operations::TargetCallResult::Unit => {
+                            (EmbeddedResult::Unit, &[][..])
+                        }
+                        target_operations::TargetCallResult::Scalar(home) => {
+                            (EmbeddedResult::Scalar(home), &[][..])
+                        }
+                        target_operations::TargetCallResult::Structural {
                             result,
                             callee_result,
-                            result_home: result_home.as_ref(),
-                            reference_results: reference_results.as_slice(),
+                            result_home,
+                            reference_results,
+                            returned_claim_transfers,
+                        } => (
+                            EmbeddedResult::Structural {
+                                result,
+                                callee_result,
+                                result_home: result_home.as_ref(),
+                                reference_results,
+                            },
+                            returned_claim_transfers.as_slice(),
+                        ),
+                    };
+                    (
+                        *psi_operation,
+                        EmbeddedCall::Direct {
+                            origin,
+                            callee: *callee,
+                            call_plan,
+                            scalar_arguments,
+                            arguments,
+                            result,
+                            claim_transfers,
+                            returned_claim_transfers,
+                            requirement_obligations,
+                            crash_continuations,
                         },
-                        claim_transfers,
-                        returned_claim_transfers,
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
+                    )
+                }
                 TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
                     psi_operation,
                     result,
@@ -1352,8 +1340,8 @@ impl Replay<'_> {
                     ..
                 }
                 | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(result_home),
-                TargetUnitOperation::Call { result_home, .. }
-                | TargetUnitOperation::NormalizedForeignCall { result_home, .. } => {
+                TargetUnitOperation::Call { result, .. } => result.scalar_home(),
+                TargetUnitOperation::NormalizedForeignCall { result_home, .. } => {
                     result_home.as_ref()
                 }
                 _ => None,

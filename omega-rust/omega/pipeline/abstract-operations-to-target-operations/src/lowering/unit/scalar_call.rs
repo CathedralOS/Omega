@@ -238,7 +238,7 @@ pub(in crate::lowering) fn lower_scalar_call(
         psi_operation: *psi_operation,
         callee: *callee,
         call_plan,
-        result_home: Some(result_home),
+        result: target_operations::TargetCallResult::Scalar(result_home),
         scalar_arguments: target_arguments,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),

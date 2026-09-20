@@ -307,7 +307,7 @@ fn zero_call_proposal_and_forward_references_reject() {
     let mut forward = target.clone();
     let body = &mut forward.functions[0].graph;
     let target_operations::TargetUnitOperation::Call {
-        result_home: Some(future),
+        result: target_operations::TargetCallResult::Scalar(future),
         ..
     } = body.blocks[0].operations[3]
     else {
@@ -334,15 +334,17 @@ fn direct_call_result_home_is_reconstructed_before_receiving() {
     let legal = legalize_target_operations(&target, &source, &unit).unwrap();
     for mutation in ["missing", "operation", "value", "type", "shape"] {
         let mut changed = target.clone();
-        let target_operations::TargetUnitOperation::Call { result_home, .. } =
+        let target_operations::TargetUnitOperation::Call { result, .. } =
             &mut changed.functions[0].graph.blocks[0].operations[2]
         else {
             panic!("source fixture has a direct scalar call");
         };
         if mutation == "missing" {
-            *result_home = None;
+            *result = target_operations::TargetCallResult::Unit;
         } else {
-            let home = result_home.as_mut().unwrap();
+            let target_operations::TargetCallResult::Scalar(home) = result else {
+                panic!("source fixture has a scalar result");
+            };
             match mutation {
                 "operation" => {
                     home.defining_operation = semantic_vocabulary::OperationId::new(99).unwrap()
