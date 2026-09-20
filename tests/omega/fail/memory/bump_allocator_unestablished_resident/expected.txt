@@ -1,0 +1,1 @@
+implicit domain strengthening in machine `exercise` state `entry` local `forged` assumes `Resident<SlotPlacement, Slot>`; a qualification with no predicate or establishment route may be introduced only by an explicit `as` to the intended target
