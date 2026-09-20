@@ -3434,8 +3434,14 @@ Owners include
     specialized provider applications, target-dependent declarations, and
     selected floating operations/NaN identities,
     which need determined bits through ordinary typed floating provider
-    applications. Constrained constants
-    still fence aggregate values and indices, open applications, non-domain
+    applications. Record-carried constrained
+    constants bind `self` through their scalar-decodable fields, so closed
+    `self.<field>` predicates discharge at declaration site
+    (`module_namespace_residuals::constrained_record_const_discharges_field_domain_facts`
+    holds the discharge, refutation and unprojectable-projection controls).
+    Constrained constants
+    still fence aggregate indices, whole-aggregate `self` operands, fields
+    without a scalar leaf, open applications, non-domain
     constraints and unprovable facts. Carrier-polymorphic scalar constants
     discharge carrier-independent closed predicates; carrier-property bounds
     and operations on abstract `self` still need typed application evidence.
