@@ -4,8 +4,8 @@ use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractDynamicDescriptorArgument,
     AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
     AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
-    AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicReadsFrom, CompletionClaimSource,
-    ValueBinding,
+    AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicModificationAfter, AtomicReadsFrom,
+    CompletionClaimSource, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -166,10 +166,13 @@ pub enum AbstractOperation {
     /// `event.custody_is_consistent()` replay the source-admitted legality
     /// and result-custody relations so optimization and target refinement
     /// verify the concurrency contract rather than trusting producer
-    /// assertion. `reads_from` retains the edge the event claims in its
-    /// place's modification order — `Some` on every observing event,
-    /// `None` on stores and fences — for the independent coherence
-    /// recheck `abstract_operations::happens_before_atomic_coherence_violation`
+    /// assertion. `reads_from` retains the edge the event claims to have
+    /// observed — `Some` on every observing event, `None` on stores and
+    /// fences — and `modification_after` retains the edge a write claims
+    /// to immediately follow in its place's modification order — `Some`
+    /// on every write event, `None` on loads and fences — for the
+    /// independent coherence recheck
+    /// `abstract_operations::happens_before_atomic_coherence_violation`
     /// under the activation's bounded `happens_before` derivation.
     /// Terminal Psi does not yet emit normalized atomic events;
     /// consumers must keep rejecting this operation until its producer and
@@ -178,6 +181,7 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         event: AbstractAtomicEvent,
         reads_from: Option<AtomicReadsFrom>,
+        modification_after: Option<AtomicModificationAfter>,
     },
     /// Atomically establish one exact scalar case of a declared structural sum.
     /// Target realization remains deliberately separate from retention in the

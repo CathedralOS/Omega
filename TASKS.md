@@ -4311,19 +4311,22 @@ Owners include
 
   Every `AtomicEvent` operation retains a `reads_from` edge — the
   pre-activation `InitialResidency` or the observed write's operation
-  identity — encoded into operation identity like the retained ordering.
-  Unit validation replays the coherence axiom function-wide through
+  identity — and every write event retains a `modification_after` edge
+  naming the order member it immediately follows, both encoded into
+  operation identity like the retained ordering. Unit validation replays
+  both coherence axioms function-wide through
   `happens_before_atomic_coherence_violation`: a bounded happens-before
   derivation (intra-block position union block dominance) feeds a
   reaching-writes must-analysis, so a `Write` claim resolves only when the
   named write is the modification-order-latest write to the place on every
-  execution path. Unit tests pin the refusals: writes on non-dominating,
-  successor, or converging branches fail `ObservedWriteNotHappensBefore`;
-  overwritten claims fail `ObservedWriteOverwritten`; partially-written
-  paths refuse `InitialResidency`; and a fence joins no modification order
-  yet disturbs none. The admitted-ordering matrix, fence legality,
-  instruction-observed priors, and single-attempt custody were already
-  independently rechecked.
+  execution path — the observation's witness for readers, the immediate
+  predecessor for writers. Unit tests pin the refusals on both sides:
+  non-dominating, successor, or converging-branch members fail their
+  `NotHappensBefore` case; overwritten claims fail `ObservedWriteOverwritten`
+  or `PredecessorNotLatest`; partially-written paths refuse
+  `InitialResidency`; and a fence joins no modification order yet disturbs
+  none. The admitted-ordering matrix, fence legality, instruction-observed
+  priors, and single-attempt custody were already independently rechecked.
 
   Remaining work:
 
