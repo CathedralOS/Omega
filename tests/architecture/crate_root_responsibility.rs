@@ -136,6 +136,7 @@ const REPRESENTATION_ROOTS: &[(&str, &[&str])] = &[
         "omega/representations/task-plans",
         &[
             "activation_plans",
+            "composition_model",
             "executor_selection",
             "identities",
             "lifecycle_ledger",
@@ -351,5 +352,88 @@ fn lib_rs_owned_crates_define_their_items_inline() {
             lib_rs.contains("pub struct") || lib_rs.contains("pub enum"),
             "{crate_path}: lib.rs owns no public definition — it needs a named root file"
         );
+    }
+}
+
+/// Every workspace crate root — `src/lib.rs` or `src/main.rs` — opens with a
+/// `//!` doc stating the crate's responsibility. `omega-rust/README.md` makes
+/// public crate roots map responsibilities, and the discoverability contract
+/// requires an obvious starting point that explains it; a root with no doc
+/// names nothing. Inner attributes and plain comments may precede the doc;
+/// no item, `use`, or `mod` may.
+#[test]
+fn every_crate_root_opens_with_a_responsibility_doc() {
+    let root = repository();
+    let mut roots = Vec::new();
+    collect_package_roots(&root.join("omega-rust"), &mut roots);
+    assert!(
+        !roots.is_empty(),
+        "crate-root audit found no packages under omega-rust"
+    );
+    let mut missing = Vec::new();
+    for path in roots {
+        let source = rust_source(&path);
+        let mut lines = source.lines().enumerate();
+        let mut documented = false;
+        while let Some((index, line)) = lines.next() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if line.starts_with("#![") {
+                let mut depth = line.matches('[').count() as i64 - line.matches(']').count() as i64;
+                while depth > 0 {
+                    let Some((_, inner)) = lines.next() else {
+                        panic!("{}: unterminated inner attribute", path.display())
+                    };
+                    depth += inner.matches('[').count() as i64 - inner.matches(']').count() as i64;
+                }
+                continue;
+            }
+            if line.starts_with("//!") {
+                documented = true;
+                continue;
+            }
+            if line.starts_with("//") {
+                continue;
+            }
+            if !documented {
+                panic!(
+                    "{}:{}: first code line reached without a `//!` responsibility doc",
+                    path.display(),
+                    index + 1
+                );
+            }
+            break;
+        }
+        if !documented {
+            missing.push(path.display().to_string());
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "crate roots without a `//!` responsibility doc: {missing:?}"
+    );
+}
+
+/// Every `src/lib.rs`/`src/main.rs` belonging to a `[package]` manifest below
+/// `dir`, which is the workspace member tree (`omega-rust/`).
+fn collect_package_roots(dir: &Path, roots: &mut Vec<PathBuf>) {
+    for entry in fs::read_dir(dir).unwrap_or_else(|error| panic!("read {}: {error}", dir.display()))
+    {
+        let path = entry.expect("read workspace entry").path();
+        if !path.is_dir() {
+            continue;
+        }
+        let manifest = path.join("Cargo.toml");
+        if manifest.is_file() && rust_source(&manifest).contains("[package]") {
+            for root in ["lib.rs", "main.rs"] {
+                let candidate = path.join("src").join(root);
+                if candidate.is_file() {
+                    roots.push(candidate);
+                }
+            }
+        }
+        collect_package_roots(&path, roots);
     }
 }
