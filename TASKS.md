@@ -7065,7 +7065,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RUST-COMPILER-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
 - **RUST-PRODUCER-OMISSION** — mined candidate; verify scope then implement.
-- **RUST-PRODUCER-RETENTION-POLICY** — mined candidate; verify scope then implement.
+- **RUST-PRODUCER-RETENTION-POLICY** — mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
 - **RUST-PRODUCER-RETIREMENT-GATE** — mined candidate; verify scope then implement.
 - **RUST-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **SAMPLES-COMPILE-MULTI-HOST** — mined candidate; verify scope then implement.
