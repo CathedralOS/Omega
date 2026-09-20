@@ -2,12 +2,13 @@ use super::{
     EntryStack, EntryStubId, InstalledCode, MachineRegime, MachineRegimeId,
     SecondaryProcessorAccount, SecondaryProcessorOccurrenceId, SecondaryProcessorQuiescenceOutcome,
     SecondaryProcessorQuiescenceReceipt, SecondaryProcessorQuiescenceReceiptId,
-    SecondaryProcessorStarted, SecondaryProcessorStartupInvocation,
-    SecondaryProcessorStartupInvocationId, SecondaryProcessorStartupLedger,
-    SecondaryProcessorStartupOutcome, SecondaryProcessorStartupProfile,
-    SecondaryProcessorStartupProfileId, SecondaryProcessorStartupReceipt,
-    SecondaryProcessorStartupReceiptId, SecondaryProcessorStartupVerdict,
-    bind_secondary_processor_trampoline,
+    SecondaryProcessorSettlementOutcome, SecondaryProcessorSettlementReceipt,
+    SecondaryProcessorSettlementReceiptId, SecondaryProcessorStarted,
+    SecondaryProcessorStartupInvocation, SecondaryProcessorStartupInvocationId,
+    SecondaryProcessorStartupLedger, SecondaryProcessorStartupOutcome,
+    SecondaryProcessorStartupProfile, SecondaryProcessorStartupProfileId,
+    SecondaryProcessorStartupReceipt, SecondaryProcessorStartupReceiptId,
+    SecondaryProcessorStartupVerdict, bind_secondary_processor_trampoline,
 };
 use calling_conventions::CallingPolicy;
 use layout_plans::{
@@ -46,6 +47,11 @@ fn receipt_id(identity: u64) -> SecondaryProcessorStartupReceiptId {
 fn quiescence_receipt_id(identity: u64) -> SecondaryProcessorQuiescenceReceiptId {
     SecondaryProcessorQuiescenceReceiptId::from_normalized_identity(identity)
         .expect("normalized quiescence receipt identity")
+}
+
+fn settlement_receipt_id(identity: u64) -> SecondaryProcessorSettlementReceiptId {
+    SecondaryProcessorSettlementReceiptId::from_normalized_identity(identity)
+        .expect("normalized settlement receipt identity")
 }
 
 fn startup_entry() -> EntryStubId {
@@ -985,6 +991,53 @@ fn withdrawal_returns_the_complete_never_invoked_account() {
     ));
 }
 
+/// Drive one admitted processor through issuance and an unconfirmed
+/// receipt, returning the still-outstanding carrier the settlement edge
+/// consumes.
+fn unconfirmed_processor(
+    ledger: &mut SecondaryProcessorStartupLedger<'_>,
+    processor: u64,
+    invocation: u64,
+    receipt: u64,
+) -> SecondaryProcessorStartupInvocation {
+    let carrier = ledger
+        .begin_secondary_processor_startup(processor_id(processor), invocation_id(invocation))
+        .expect("startup invocation issues");
+    let unconfirmed = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(receipt),
+        &carrier,
+        SecondaryProcessorStartupVerdict::DispatchUnconfirmed,
+    );
+    match ledger
+        .complete_secondary_processor_startup(carrier, unconfirmed)
+        .expect("unconfirmed startup completes")
+    {
+        SecondaryProcessorStartupOutcome::Unconfirmed(unresolved) => unresolved.into_carrier(),
+        _ => panic!("an unconfirmed dispatch must not resolve the account"),
+    }
+}
+
+/// Forge a carrier naming this ledger's exact trampoline for an account
+/// that never issued `invocation` — the settlement and completion edges
+/// must still refuse it.
+fn forged_carrier(
+    code: &InstalledCode,
+    processor: u64,
+    invocation: u64,
+    transition: super::SecondaryProcessorRegimeTransition,
+) -> SecondaryProcessorStartupInvocation {
+    SecondaryProcessorStartupInvocation {
+        invocation: invocation_id(invocation),
+        processor: processor_id(processor),
+        startup_vector: TRAMPOLINE_BASE / STARTUP_ALIGNMENT,
+        startup_entry: startup_entry(),
+        transition,
+        installed_code: code.identity(),
+        installed_code_context: code.receipt_context(),
+        artifact: code.artifact(),
+    }
+}
+
 /// Drive one admitted processor through issuance and a started receipt,
 /// returning the minted started evidence the quiescence edge consumes.
 fn start_processor(
@@ -1416,4 +1469,425 @@ fn retirement_rejects_receipts_off_the_exact_started_evidence() {
         outcome,
         SecondaryProcessorQuiescenceOutcome::Retired(_)
     ));
+}
+
+#[test]
+fn settled_unconfirmed_attempt_returns_the_complete_account() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("first secondary processor admits");
+    ledger
+        .admit_secondary_processor(processor_account(0x11, 10, 0x3_0000, 0x1000))
+        .expect("second secondary processor admits");
+    let carrier = unconfirmed_processor(&mut ledger, 0x10, 0x20, 0x30);
+
+    let settlement_receipt = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x40),
+        &carrier,
+        true,
+        true,
+    );
+    let outcome = ledger
+        .settle_secondary_processor_startup(carrier, settlement_receipt)
+        .expect("a fully attested settlement releases the account");
+    let SecondaryProcessorSettlementOutcome::Settled(settled) = outcome else {
+        panic!("a fully attested settlement must release the account");
+    };
+    assert_eq!(settled.processor(), processor_id(0x10));
+    assert_eq!(settled.invocation(), invocation_id(0x20));
+    assert_eq!(settled.settlement_receipt(), settlement_receipt_id(0x40));
+    let (boundary, stack_class, wcsu_bytes, wcsu_alignment, state, transition) =
+        settled.into_parts();
+    assert_eq!(stack_class, 9);
+    assert_eq!(wcsu_bytes, WCSU_BYTES);
+    assert_eq!(wcsu_alignment, WCSU_ALIGNMENT);
+    assert_eq!(state.base(), 0x2_0000);
+    assert_eq!(state.length(), 0x1000);
+    assert_eq!(transition.arrival_regime(), arrival_regime());
+    assert_eq!(
+        boundary.plan().state.stack,
+        EntryStack::Dedicated { class: 9 }
+    );
+
+    // Only the settled account left the ledger; the pending account is
+    // untouched.
+    assert!(ledger.record(processor_id(0x10)).is_none());
+    assert_eq!(ledger.records().count(), 1);
+
+    // Custody actually returned: the released stack class and state
+    // backing are accountable to a fresh processor again.
+    let readmitted = ledger
+        .admit_secondary_processor(processor_account(0x12, 9, 0x2_0000, 0x1000))
+        .expect("the settled stack class and state backing admit again");
+    assert_eq!(readmitted.stack_class(), 9);
+    assert!(!readmitted.is_started());
+
+    // The settled invocation is retired, not reusable: its identity stays
+    // issued even against a fresh account.
+    let reused = ledger
+        .begin_secondary_processor_startup(processor_id(0x12), invocation_id(0x20))
+        .expect_err("a settled invocation identity stays issued");
+    assert!(reused.diagnostic().0.contains("already issued"));
+}
+
+#[test]
+fn settlement_rejects_accounts_without_an_outstanding_invocation() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("pending secondary processor admits");
+    ledger
+        .admit_secondary_processor(processor_account(0x11, 10, 0x3_0000, 0x1000))
+        .expect("started secondary processor admits");
+    let started = start_processor(&mut ledger, 0x11, 0x21, 0x31);
+    let pending_transition = ledger
+        .record(processor_id(0x10))
+        .expect("pending record")
+        .transition();
+    let started_transition = ledger
+        .record(processor_id(0x11))
+        .expect("started record")
+        .transition();
+
+    // Carriers naming pending or started accounts cannot settle them:
+    // only an invoked, unconfirmed attempt has anything to settle.
+    let pending_carrier = forged_carrier(&code, 0x10, 0x20, pending_transition);
+    let pending_receipt = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x40),
+        &pending_carrier,
+        true,
+        true,
+    );
+    let error = ledger
+        .settle_secondary_processor_startup(pending_carrier, pending_receipt)
+        .expect_err("a pending account has nothing to settle");
+    assert!(error.diagnostic().0.contains("invoked"));
+
+    let started_carrier = forged_carrier(&code, 0x11, 0x21, started_transition);
+    let started_receipt = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x41),
+        &started_carrier,
+        true,
+        true,
+    );
+    let error = ledger
+        .settle_secondary_processor_startup(started_carrier, started_receipt)
+        .expect_err("a started account leaves only through the quiescence edge");
+    assert!(error.diagnostic().0.contains("invoked"));
+
+    let unknown_carrier = forged_carrier(&code, 0x12, 0x22, pending_transition);
+    let unknown_receipt = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x42),
+        &unknown_carrier,
+        true,
+        true,
+    );
+    let error = ledger
+        .settle_secondary_processor_startup(unknown_carrier, unknown_receipt)
+        .expect_err("an unadmitted processor has nothing to settle");
+    assert!(error.diagnostic().0.contains("no admitted processor"));
+
+    // Nothing moved: both accounts remain, and the started processor still
+    // retires on its own quiescence edge.
+    assert_eq!(ledger.records().count(), 2);
+    let quiescent = SecondaryProcessorQuiescenceReceipt::from_provider(
+        quiescence_receipt_id(0x50),
+        &started,
+        true,
+    );
+    let outcome = ledger
+        .retire_secondary_processor(started, quiescent)
+        .expect("the started account still retires");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorQuiescenceOutcome::Retired(_)
+    ));
+}
+
+#[test]
+fn settlement_rejects_drifted_foreign_or_stale_carriers() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+    let carrier = unconfirmed_processor(&mut ledger, 0x10, 0x20, 0x30);
+
+    // A carrier naming drifted vector geometry is foreign even when it
+    // cites the same installed occurrence.
+    let drifted = SecondaryProcessorStartupInvocation {
+        invocation: carrier.invocation,
+        processor: carrier.processor,
+        startup_vector: carrier.startup_vector + 1,
+        startup_entry: carrier.startup_entry,
+        transition: carrier.transition,
+        installed_code: carrier.installed_code,
+        installed_code_context: carrier.installed_code_context.clone(),
+        artifact: carrier.artifact,
+    };
+    let drifted_receipt = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x40),
+        &drifted,
+        true,
+        true,
+    );
+    let error = ledger
+        .settle_secondary_processor_startup(drifted, drifted_receipt)
+        .expect_err("a drifted carrier must not settle");
+    assert!(error.diagnostic().0.contains("foreign, stale, or drifted"));
+
+    // A carrier minted under a different installed occurrence is foreign.
+    let foreign_code = crate::tests::installed_code_in_placement(
+        0x610,
+        startup_entry(),
+        vec![0xCC; 96],
+        0x611,
+        Architecture::X86_64,
+        trampoline_constraints(
+            Some(arrival_regime()),
+            TRAMPOLINE_RANGE_END,
+            STARTUP_ALIGNMENT,
+        ),
+        TRAMPOLINE_BASE,
+        TRAMPOLINE_LENGTH,
+    );
+    let foreign = SecondaryProcessorStartupInvocation {
+        invocation: carrier.invocation,
+        processor: carrier.processor,
+        startup_vector: carrier.startup_vector,
+        startup_entry: carrier.startup_entry,
+        transition: carrier.transition,
+        installed_code: foreign_code.identity(),
+        installed_code_context: foreign_code.receipt_context(),
+        artifact: foreign_code.artifact(),
+    };
+    let foreign_receipt = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x41),
+        &foreign,
+        true,
+        true,
+    );
+    let error = ledger
+        .settle_secondary_processor_startup(foreign, foreign_receipt)
+        .expect_err("a foreign carrier must not settle");
+    assert!(error.diagnostic().0.contains("foreign, stale, or drifted"));
+
+    // Resolve the outstanding carrier to nondispatch and retry: a
+    // settlement carrier naming the earlier attempt cannot settle the new
+    // outstanding invocation.
+    let refusal_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x31),
+        &carrier,
+        SecondaryProcessorStartupVerdict::DefiniteNondispatch,
+    );
+    let outcome = ledger
+        .complete_secondary_processor_startup(carrier, refusal_receipt)
+        .expect("definite nondispatch returns pending custody");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorStartupOutcome::Refused(_)
+    ));
+    let retry = ledger
+        .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x21))
+        .expect("retried startup invocation issues");
+    let stale = SecondaryProcessorStartupInvocation {
+        invocation: invocation_id(0x20),
+        processor: retry.processor,
+        startup_vector: retry.startup_vector,
+        startup_entry: retry.startup_entry,
+        transition: retry.transition,
+        installed_code: retry.installed_code,
+        installed_code_context: retry.installed_code_context.clone(),
+        artifact: retry.artifact,
+    };
+    let stale_receipt = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x42),
+        &stale,
+        true,
+        true,
+    );
+    let error = ledger
+        .settle_secondary_processor_startup(stale, stale_receipt)
+        .expect_err("a settlement carrier naming a superseded attempt must not settle");
+    assert!(error.diagnostic().0.contains("outstanding invocation"));
+
+    // The same guard holds on the completion edge: a delayed
+    // acknowledgement answering the superseded attempt must not resolve
+    // the outstanding one.
+    let (stale, _) = error.into_parts();
+    let delayed_receipt = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x32),
+        &stale,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
+    let error = ledger
+        .complete_secondary_processor_startup(stale, delayed_receipt)
+        .expect_err("a delayed acknowledgement must not resolve another invocation");
+    assert!(error.diagnostic().0.contains("outstanding invocation"));
+
+    // The real outstanding carrier still completes normally.
+    let definitive = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x33),
+        &retry,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
+    let outcome = ledger
+        .complete_secondary_processor_startup(retry, definitive)
+        .expect("the outstanding invocation still completes");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorStartupOutcome::Started(_)
+    ));
+}
+
+#[test]
+fn settlement_rejects_receipts_off_the_exact_carrier() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+    let carrier = unconfirmed_processor(&mut ledger, 0x10, 0x20, 0x30);
+
+    let mut other_invocation = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x40),
+        &carrier,
+        true,
+        true,
+    );
+    other_invocation.invocation = invocation_id(0x99);
+    let mut other_processor = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x41),
+        &carrier,
+        true,
+        true,
+    );
+    other_processor.processor = processor_id(0x11);
+    let mut other_vector = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x42),
+        &carrier,
+        true,
+        true,
+    );
+    other_vector.startup_vector += 1;
+
+    let mut carrier = carrier;
+    for (receipt, label) in [
+        (other_invocation, "another invocation"),
+        (other_processor, "another processor"),
+        (other_vector, "another vector"),
+    ] {
+        let Err(error) = ledger.settle_secondary_processor_startup(carrier, receipt) else {
+            panic!("a receipt naming {label} must not settle");
+        };
+        assert!(
+            error.diagnostic().0.contains("does not bind"),
+            "{label}: {}",
+            error.diagnostic().0
+        );
+        let (returned, _) = error.into_parts();
+        carrier = returned;
+        assert!(
+            ledger.record(processor_id(0x10)).is_some(),
+            "{label} left the account held"
+        );
+    }
+
+    let exact = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x43),
+        &carrier,
+        true,
+        true,
+    );
+    let outcome = ledger
+        .settle_secondary_processor_startup(carrier, exact)
+        .expect("the exact receipt settles");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorSettlementOutcome::Settled(_)
+    ));
+}
+
+#[test]
+fn incomplete_settlement_keeps_the_carrier_outstanding() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+    let carrier = unconfirmed_processor(&mut ledger, 0x10, 0x20, 0x30);
+
+    // The carrier may still dispatch: settlement is refused and the
+    // attempt stays outstanding.
+    let arrival_possible = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x40),
+        &carrier,
+        false,
+        true,
+    );
+    let outcome = ledger
+        .settle_secondary_processor_startup(carrier, arrival_possible)
+        .expect("a partially attested settlement is held, not rejected");
+    let SecondaryProcessorSettlementOutcome::Held(refusal) = outcome else {
+        panic!("a possible arrival must not release the account");
+    };
+    assert_eq!(refusal.processor(), processor_id(0x10));
+    assert_eq!(refusal.invocation(), invocation_id(0x20));
+    assert_eq!(refusal.receipt(), settlement_receipt_id(0x40));
+    assert!(!refusal.arrival_impossible());
+    assert!(refusal.resources_quiescent());
+    let carrier = refusal.into_carrier();
+
+    // The carrier is dead but its resources are still in use: settlement
+    // is refused on the second premise.
+    let still_in_use = SecondaryProcessorSettlementReceipt::from_provider(
+        settlement_receipt_id(0x41),
+        &carrier,
+        true,
+        false,
+    );
+    let outcome = ledger
+        .settle_secondary_processor_startup(carrier, still_in_use)
+        .expect("a partially attested settlement is held, not rejected");
+    let SecondaryProcessorSettlementOutcome::Held(refusal) = outcome else {
+        panic!("in-use resources must not release the account");
+    };
+    assert!(refusal.arrival_impossible());
+    assert!(!refusal.resources_quiescent());
+    let carrier = refusal.into_carrier();
+
+    // The account stays invoked: neither withdrawable nor reissuable.
+    let withdrawal = ledger
+        .withdraw_secondary_processor(processor_id(0x10))
+        .expect_err("a held settlement must not release the account");
+    assert!(withdrawal.diagnostic().0.contains("pending"));
+    let reissue = ledger
+        .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x21))
+        .expect_err("a held settlement must not open a fresh invocation");
+    assert!(reissue.diagnostic().0.contains("pending"));
+
+    // The outstanding carrier still answers: a confirmed arrival on the
+    // same invocation marks the processor started — custody never lapsed
+    // across the settlement race.
+    let definitive = SecondaryProcessorStartupReceipt::from_provider(
+        receipt_id(0x31),
+        &carrier,
+        SecondaryProcessorStartupVerdict::ConfirmedArrival,
+    );
+    let outcome = ledger
+        .complete_secondary_processor_startup(carrier, definitive)
+        .expect("the definitive receipt resolves the outstanding attempt");
+    assert!(matches!(
+        outcome,
+        SecondaryProcessorStartupOutcome::Started(_)
+    ));
+    assert!(
+        ledger
+            .record(processor_id(0x10))
+            .expect("record")
+            .is_started()
+    );
 }

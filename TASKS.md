@@ -1024,22 +1024,24 @@ Owners include
   selected hardware boundaries supply explicit premises. The compiler checks
   installed entry, placement, resources and evidence, not an APIC/firmware driver.
 
-  `external-roots/src/platform_bringup/secondary_processor.rs` now carries the
-  three-way `SecondaryProcessorStartupVerdict`: `complete_secondary_processor_startup`
-  returns pending custody only on `DefiniteNondispatch`, keeps the account
-  invoked and held on `DispatchUnconfirmed` (neither withdrawable nor
-  reissuable; the returned carrier still answers a later definitive receipt),
-  and marks started on `ConfirmedArrival`. Only definite nondispatch permits
-  immediate withdrawal. Still open before the authored route: the
-  cancellation/settlement leg below, and timeout cannot release
-  stack/state/code or erase an outstanding attempt.
+  `external-roots/src/platform_bringup/secondary_processor.rs` carries the
+  three-way `SecondaryProcessorStartupVerdict` and the settlement leg:
+  `complete_secondary_processor_startup` returns pending custody only on
+  `DefiniteNondispatch`, keeps the account invoked and held on
+  `DispatchUnconfirmed` (neither withdrawable nor reissuable; the returned
+  carrier still answers a later definitive receipt), and marks started on
+  `ConfirmedArrival`. `settle_secondary_processor_startup` releases an
+  invoked, unconfirmed account only when a settlement receipt naming the
+  exact outstanding carrier attests both that no later arrival remains
+  possible and that nothing executes on its stack or state; either unmet
+  premise returns the carrier still outstanding, so a timeout cannot
+  release stack/state/code or erase an outstanding attempt. Completion and
+  settlement both bind the record's outstanding invocation, so a delayed
+  or replayed acknowledgement cannot resolve another attempt.
 
-  Add cancellation/settlement without requiring `SecondaryProcessorStarted`:
-  establish both no current use and no possible late arrival before release.
-  Confirmation must come from a checked handshake or admitted provider guarantee
-  bound to the exact invocation/entry, not construction of a success record.
-  Preserve atomic custody across acknowledgement/cancellation races.
-  `BOUNDARY-ISSUANCE` owns the general issuance review, not this concrete repair.
+  `BOUNDARY-ISSUANCE` owns the general issuance review, not this ledger's
+  concrete repair. Remaining before acceptance: the authored Cathedral
+  route itself — no source-level startup program exists yet.
 
   Reuse installed-code, per-processor stack/state and retirement joins. Bind the
   provider-declared profile to its selected contract; low-memory/vector geometry

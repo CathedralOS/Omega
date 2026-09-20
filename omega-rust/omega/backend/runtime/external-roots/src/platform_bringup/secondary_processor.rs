@@ -24,15 +24,29 @@
 //! a confirmed arrival keeps the started processor's stack and state account
 //! held, and an unconfirmed dispatch leaves the account invoked — neither
 //! withdrawable nor reissuable — until a later definitive receipt answers
-//! the outstanding carrier. `retire_secondary_processor` is the quiescence edge that
-//! releases that hold: it consumes the started evidence together with a
-//! provider quiescence receipt naming it exactly, and returns the complete
-//! account only when the provider attests the processor no longer executes
-//! on the accounted stack or private state. An incomplete drain keeps the
-//! account held and hands the started evidence back for a later attempt.
-//! Withdrawal is permitted only for a processor that has never been invoked,
-//! returning its state extent and account intact. Neither edge retires the
-//! trampoline: the ledger's borrow keeps the installed code unretirable.
+//! the outstanding carrier.
+//!
+//! An attempt whose dispatch is never confirmed leaves through
+//! `settle_secondary_processor_startup`: a settlement receipt naming the
+//! exact outstanding carrier must attest both that the carrier can no
+//! longer dispatch and that nothing executes on the account's dedicated
+//! stack or private state before the account's custody returns. A receipt
+//! missing either premise keeps the attempt outstanding — the carrier
+//! comes back, still answerable by a later definitive startup receipt or
+//! a later settlement answer. Elapsed time alone is not settlement
+//! evidence: a timeout cannot release stack, state, or code, and cannot
+//! erase an outstanding attempt.
+//!
+//! `retire_secondary_processor` is the quiescence edge that releases a
+//! started processor's hold: it consumes the started evidence together
+//! with a provider quiescence receipt naming it exactly, and returns the
+//! complete account only when the provider attests the processor no
+//! longer executes on the accounted stack or private state. An incomplete
+//! drain keeps the account held and hands the started evidence back for a
+//! later attempt. Withdrawal is permitted only for a processor that has
+//! never been invoked, returning its state extent and account intact. No
+//! edge retires the trampoline: the ledger's borrow keeps the installed
+//! code unretirable.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -43,8 +57,8 @@ use layout_plans::{EntryStubId, MachineRegimeId};
 
 use crate::{
     ExternalRootDiagnostic, SecondaryProcessorOccurrenceId, SecondaryProcessorQuiescenceReceiptId,
-    SecondaryProcessorStartupInvocationId, SecondaryProcessorStartupProfileId,
-    SecondaryProcessorStartupReceiptId,
+    SecondaryProcessorSettlementReceiptId, SecondaryProcessorStartupInvocationId,
+    SecondaryProcessorStartupProfileId, SecondaryProcessorStartupReceiptId,
 };
 
 /// Normalized compiler- or target-authored plan for one secondary-processor
@@ -612,7 +626,7 @@ impl SecondaryProcessorStartupRefusal {
 /// An unresolved startup attempt. The provider could not confirm whether
 /// the vector dispatched, so the account stays invoked and held — it cannot
 /// withdraw or accept a fresh invocation — and the carrier returns so a
-/// later definitive receipt can still resolve it.
+/// later definitive receipt or a settlement answer can still resolve it.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SecondaryProcessorStartupUnconfirmed {
     carrier: SecondaryProcessorStartupInvocation,
@@ -767,6 +781,156 @@ impl SecondaryProcessorQuiescenceRefusal {
 pub enum SecondaryProcessorQuiescenceOutcome {
     Retired(SecondaryProcessorRetirement),
     Held(SecondaryProcessorQuiescenceRefusal),
+}
+
+/// The provider's settlement answer for one outstanding startup carrier.
+///
+/// Settling an unconfirmed attempt must establish both premises before
+/// custody returns: `arrival_impossible` attests the carrier can no
+/// longer dispatch — no later arrival through this attempt — and
+/// `resources_quiescent` attests nothing executes on the account's
+/// dedicated stack or private state. A receipt attesting only one
+/// premise leaves the attempt outstanding.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SecondaryProcessorSettlementReceipt {
+    identity: SecondaryProcessorSettlementReceiptId,
+    invocation: SecondaryProcessorStartupInvocationId,
+    processor: SecondaryProcessorOccurrenceId,
+    startup_vector: u64,
+    arrival_impossible: bool,
+    resources_quiescent: bool,
+}
+
+impl SecondaryProcessorSettlementReceipt {
+    pub fn from_provider(
+        identity: SecondaryProcessorSettlementReceiptId,
+        carrier: &SecondaryProcessorStartupInvocation,
+        arrival_impossible: bool,
+        resources_quiescent: bool,
+    ) -> Self {
+        Self {
+            identity,
+            invocation: carrier.invocation,
+            processor: carrier.processor,
+            startup_vector: carrier.startup_vector,
+            arrival_impossible,
+            resources_quiescent,
+        }
+    }
+
+    pub const fn identity(&self) -> SecondaryProcessorSettlementReceiptId {
+        self.identity
+    }
+
+    /// The provider attests the carrier can no longer dispatch.
+    pub const fn arrival_impossible(&self) -> bool {
+        self.arrival_impossible
+    }
+
+    /// The provider attests nothing executes on the account's dedicated
+    /// stack or private state.
+    pub const fn resources_quiescent(&self) -> bool {
+        self.resources_quiescent
+    }
+}
+
+/// Returned custody for a settled startup attempt: the complete account
+/// plus its state extent, bound to the invocation and settlement receipt
+/// that closed it, so nothing provisioned for the AP is dropped silently.
+#[derive(Debug)]
+pub struct SecondaryProcessorSettlement {
+    processor: SecondaryProcessorOccurrenceId,
+    invocation: SecondaryProcessorStartupInvocationId,
+    settlement_receipt: SecondaryProcessorSettlementReceiptId,
+    boundary: ValidatedBoundaryEntryPlan,
+    stack_class: u16,
+    wcsu_bytes: u64,
+    wcsu_alignment: u64,
+    state: Extent,
+    transition: SecondaryProcessorRegimeTransition,
+}
+
+impl SecondaryProcessorSettlement {
+    pub const fn processor(&self) -> SecondaryProcessorOccurrenceId {
+        self.processor
+    }
+
+    pub const fn invocation(&self) -> SecondaryProcessorStartupInvocationId {
+        self.invocation
+    }
+
+    pub const fn settlement_receipt(&self) -> SecondaryProcessorSettlementReceiptId {
+        self.settlement_receipt
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        ValidatedBoundaryEntryPlan,
+        u16,
+        u64,
+        u64,
+        Extent,
+        SecondaryProcessorRegimeTransition,
+    ) {
+        (
+            self.boundary,
+            self.stack_class,
+            self.wcsu_bytes,
+            self.wcsu_alignment,
+            self.state,
+            self.transition,
+        )
+    }
+}
+
+/// An unanswered settlement. The provider accepted the settlement
+/// request but could not attest both premises, so the account stays
+/// invoked and held exactly as it was and the outstanding carrier
+/// returns — still answerable by a later definitive startup receipt or
+/// a later settlement answer.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SecondaryProcessorSettlementRefusal {
+    carrier: SecondaryProcessorStartupInvocation,
+    receipt: SecondaryProcessorSettlementReceiptId,
+    arrival_impossible: bool,
+    resources_quiescent: bool,
+}
+
+impl SecondaryProcessorSettlementRefusal {
+    pub const fn processor(&self) -> SecondaryProcessorOccurrenceId {
+        self.carrier.processor
+    }
+
+    pub const fn invocation(&self) -> SecondaryProcessorStartupInvocationId {
+        self.carrier.invocation
+    }
+
+    pub const fn receipt(&self) -> SecondaryProcessorSettlementReceiptId {
+        self.receipt
+    }
+
+    /// Whether the provider attested the carrier can no longer dispatch.
+    pub const fn arrival_impossible(&self) -> bool {
+        self.arrival_impossible
+    }
+
+    /// Whether the provider attested no current use of the account's
+    /// dedicated stack or private state.
+    pub const fn resources_quiescent(&self) -> bool {
+        self.resources_quiescent
+    }
+
+    /// The still-outstanding carrier.
+    pub fn into_carrier(self) -> SecondaryProcessorStartupInvocation {
+        self.carrier
+    }
+}
+
+#[derive(Debug)]
+pub enum SecondaryProcessorSettlementOutcome {
+    Settled(SecondaryProcessorSettlement),
+    Held(SecondaryProcessorSettlementRefusal),
 }
 
 /// Returned custody for a never-invoked processor: the complete account plus
@@ -1013,9 +1177,19 @@ impl<'code> SecondaryProcessorStartupLedger<'code> {
                 receipt,
             );
         };
-        if !matches!(record.phase, SecondaryProcessorPhase::Invoked { .. }) {
+        let SecondaryProcessorPhase::Invoked {
+            invocation: outstanding,
+        } = record.phase
+        else {
             return reject(
                 "secondary-processor startup completion is reordered or replayed",
+                carrier,
+                receipt,
+            );
+        };
+        if outstanding != carrier.invocation {
+            return reject(
+                "secondary-processor startup carrier does not name the account's outstanding invocation",
                 carrier,
                 receipt,
             );
@@ -1079,6 +1253,112 @@ impl<'code> SecondaryProcessorStartupLedger<'code> {
                 ))
             }
         }
+    }
+
+    /// Settle one invoked, unconfirmed startup attempt, releasing the
+    /// account's custody without a started record.
+    ///
+    /// Cancellation abandons an attempt whose dispatch was never
+    /// confirmed. The settlement receipt must name the exact outstanding
+    /// carrier and attest both premises of the startup contract: the
+    /// carrier can no longer dispatch, so no later arrival through this
+    /// attempt remains possible, and nothing executes on the account's
+    /// dedicated stack or private state. Only then does the account leave
+    /// the ledger and return its complete custody. A receipt missing
+    /// either premise holds the account exactly as it was — the carrier
+    /// stays outstanding, answerable by a later definitive startup
+    /// receipt or a later settlement answer — and a started processor
+    /// still leaves only through the quiescence edge.
+    pub fn settle_secondary_processor_startup(
+        &mut self,
+        carrier: SecondaryProcessorStartupInvocation,
+        receipt: SecondaryProcessorSettlementReceipt,
+    ) -> Result<SecondaryProcessorSettlementOutcome, Box<SecondaryProcessorSettlementError>> {
+        let reject = |diagnostic: &str,
+                      carrier: SecondaryProcessorStartupInvocation,
+                      receipt: SecondaryProcessorSettlementReceipt| {
+            Err(Box::new(SecondaryProcessorSettlementError {
+                carrier,
+                receipt,
+                diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+            }))
+        };
+
+        let exact_carrier = carrier.installed_code == self.trampoline.installed_code.identity()
+            && carrier.installed_code_context == self.trampoline.installed_code.receipt_context()
+            && carrier.artifact == self.trampoline.installed_code.artifact()
+            && carrier.startup_vector == self.trampoline.startup_vector
+            && carrier.startup_entry == self.trampoline.profile.startup_entry;
+        if !exact_carrier {
+            return reject(
+                "secondary-processor settlement carrier is foreign, stale, or drifted",
+                carrier,
+                receipt,
+            );
+        }
+        let Some(record) = self.records.get(&carrier.processor) else {
+            return reject(
+                "secondary-processor settlement carrier names no admitted processor",
+                carrier,
+                receipt,
+            );
+        };
+        let SecondaryProcessorPhase::Invoked {
+            invocation: outstanding,
+        } = record.phase
+        else {
+            return reject(
+                "secondary-processor settlement requires an invoked, outstanding account",
+                carrier,
+                receipt,
+            );
+        };
+        if outstanding != carrier.invocation {
+            return reject(
+                "secondary-processor settlement carrier does not name the account's outstanding invocation",
+                carrier,
+                receipt,
+            );
+        }
+        let exact_receipt = receipt.invocation == carrier.invocation
+            && receipt.processor == carrier.processor
+            && receipt.startup_vector == carrier.startup_vector
+            && receipt.processor == record.processor;
+        if !exact_receipt {
+            return reject(
+                "secondary-processor settlement receipt does not bind the exact issued carrier",
+                carrier,
+                receipt,
+            );
+        }
+
+        if !receipt.arrival_impossible || !receipt.resources_quiescent {
+            return Ok(SecondaryProcessorSettlementOutcome::Held(
+                SecondaryProcessorSettlementRefusal {
+                    carrier,
+                    receipt: receipt.identity,
+                    arrival_impossible: receipt.arrival_impossible,
+                    resources_quiescent: receipt.resources_quiescent,
+                },
+            ));
+        }
+        let record = self
+            .records
+            .remove(&carrier.processor)
+            .expect("validated secondary-processor record remains retained");
+        Ok(SecondaryProcessorSettlementOutcome::Settled(
+            SecondaryProcessorSettlement {
+                processor: record.processor,
+                invocation: carrier.invocation,
+                settlement_receipt: receipt.identity,
+                boundary: record.boundary,
+                stack_class: record.stack_class,
+                wcsu_bytes: record.wcsu_bytes,
+                wcsu_alignment: record.wcsu_alignment,
+                state: record.state,
+                transition: record.transition,
+            },
+        ))
     }
 
     /// Withdraw one never-invoked processor, returning its complete account
@@ -1297,6 +1577,28 @@ impl SecondaryProcessorWithdrawError {
 
     pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
         &self.diagnostic
+    }
+}
+
+#[derive(Debug)]
+pub struct SecondaryProcessorSettlementError {
+    carrier: SecondaryProcessorStartupInvocation,
+    receipt: SecondaryProcessorSettlementReceipt,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl SecondaryProcessorSettlementError {
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        SecondaryProcessorStartupInvocation,
+        SecondaryProcessorSettlementReceipt,
+    ) {
+        (self.carrier, self.receipt)
     }
 }
 
