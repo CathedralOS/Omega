@@ -181,6 +181,105 @@ rc=0
   fail "truncated development entry: expected exit 3, got $rc"
 echo "driver: a truncated development entry is refused"
 
+# Gate-local prefix entries packed on top of the bound member closure:
+# single-file drivers bind the file directly; controls closures bind the
+# gate-owned manifest plus the packed bytes the manifest repacks to.
+require_delta_lowering_plan_driver_identity ||
+  fail "bound lowering-plan driver check refused the canonical driver"
+require_delta_normalization_driver_identity ||
+  fail "bound normalization driver check refused the canonical driver"
+echo "drivers: bound lowering-plan and normalization drivers pass the identity check"
+
+cp "$OMEGA_PATH_DELTA_LOWERING_PLAN_DRIVER" "$TMP/corrupt-lp-driver.gamma"
+printf 'x' | dd of="$TMP/corrupt-lp-driver.gamma" bs=1 seek=0 conv=notrunc status=none
+rc=0
+(
+  export OMEGA_PATH_DELTA_LOWERING_PLAN_DRIVER=$TMP/corrupt-lp-driver.gamma
+  require_delta_lowering_plan_driver_identity
+) 2>"$TMP/corrupt-lp-driver.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted lowering-plan driver: expected exit 3, got $rc"
+grep -q 'lowering-plan/README.md' "$TMP/corrupt-lp-driver.err" ||
+  fail "corrupted lowering-plan driver: refusal did not cite the driver record"
+head -c $((DELTA_LOWERING_PLAN_DRIVER_SIZE - 1)) \
+  "$OMEGA_PATH_DELTA_LOWERING_PLAN_DRIVER" > "$TMP/truncated-lp-driver.gamma"
+rc=0
+(
+  export OMEGA_PATH_DELTA_LOWERING_PLAN_DRIVER=$TMP/truncated-lp-driver.gamma
+  require_delta_lowering_plan_driver_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated lowering-plan driver: expected exit 3, got $rc"
+echo "drivers: a corrupted or truncated lowering-plan driver is refused"
+
+cp "$OMEGA_PATH_DELTA_NORMALIZATION_DRIVER" "$TMP/corrupt-norm-driver.gamma"
+printf 'x' | dd of="$TMP/corrupt-norm-driver.gamma" bs=1 seek=0 conv=notrunc status=none
+rc=0
+(
+  export OMEGA_PATH_DELTA_NORMALIZATION_DRIVER=$TMP/corrupt-norm-driver.gamma
+  require_delta_normalization_driver_identity
+) 2>"$TMP/corrupt-norm-driver.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted normalization driver: expected exit 3, got $rc"
+head -c $((DELTA_NORMALIZATION_DRIVER_SIZE - 1)) \
+  "$OMEGA_PATH_DELTA_NORMALIZATION_DRIVER" > "$TMP/truncated-norm-driver.gamma"
+rc=0
+(
+  export OMEGA_PATH_DELTA_NORMALIZATION_DRIVER=$TMP/truncated-norm-driver.gamma
+  require_delta_normalization_driver_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated normalization driver: expected exit 3, got $rc"
+echo "drivers: a corrupted or truncated normalization driver is refused"
+
+require_delta_internal_boundary_controls_identity ||
+  fail "bound internal-boundary controls check refused the canonical closure"
+require_delta_emission_controls_identity ||
+  fail "bound emission controls check refused the canonical closure"
+echo "controls: bound internal-boundary and emission closures repack exactly"
+
+cp -R "$OMEGA_REPO_ROOT/tests/delta/internal-boundary" "$TMP/internal-boundary"
+head -c $((DELTA_INTERNAL_BOUNDARY_CONTROLS_MANIFEST_SIZE - 1)) \
+  "$OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES" \
+  > "$TMP/internal-boundary/controls.gamma.sources"
+rc=0
+(
+  export OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES=$TMP/internal-boundary/controls.gamma.sources
+  require_delta_internal_boundary_controls_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated internal-boundary manifest: expected exit 3, got $rc"
+cp "$OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES" \
+  "$TMP/internal-boundary/controls.gamma.sources"
+if [ "$(od -An -tc -j 100 -N1 "$TMP/internal-boundary/main.gamma" | tr -d ' ')" = "a" ]; then
+  printf 'b' | dd of="$TMP/internal-boundary/main.gamma" bs=1 seek=100 conv=notrunc status=none
+else
+  printf 'a' | dd of="$TMP/internal-boundary/main.gamma" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES=$TMP/internal-boundary/controls.gamma.sources
+  require_delta_internal_boundary_controls_identity
+) 2>"$TMP/corrupt-ib-member.err" || rc=$?
+[ "$rc" != 0 ] ||
+  fail "corrupted internal-boundary member: repack unexpectedly succeeded"
+grep -q 'digest' "$TMP/corrupt-ib-member.err" ||
+  fail "corrupted internal-boundary member: refusal did not name the member digest"
+echo "controls: a truncated manifest or changed internal-boundary member refuses"
+
+cp -R "$OMEGA_REPO_ROOT/tests/delta/emission" "$TMP/emission"
+head -c $((DELTA_EMISSION_CONTROLS_MANIFEST_SIZE - 1)) \
+  "$OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES" \
+  > "$TMP/emission/controls/emission.gamma.sources"
+rc=0
+(
+  export OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES=$TMP/emission/controls/emission.gamma.sources
+  require_delta_emission_controls_identity
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated emission manifest: expected exit 3, got $rc"
+echo "controls: a truncated emission manifest refuses"
+
 for needle in \
   "$GAMMA_EVALUATOR_TAPE_SHA256" "$DELTA_COMPILER_PACKED_SHA256" \
   "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_SUPPORT_PACKED_SHA256" \
@@ -263,4 +362,4 @@ grep -q "$GAMMA_EVALUATOR_TAPE_SHA256" \
   fail "EVALUATOR_PROFILE.md lacks bound evaluator identity"
 echo "records: bound identities match delta_compiler.composed, README.md, every gate record of the packed closure and support section, execution_storage.md, both EVALUATOR_PROFILE.md records, and the staged-compiler records"
 
-echo "Delta identity: bound closure materialized exactly; corrupted entry, manifest, member, record, and driver refused"
+echo "Delta identity: bound closure materialized exactly; corrupted entry, manifest, member, record, driver, gate-local drivers, and controls refused"

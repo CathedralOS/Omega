@@ -61,6 +61,38 @@ EPSILON_EVALUATOR_ENTRY_SHA256=52032438c1236f51095b761afcb3111df2ae2d73ac9be7e91
 EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE=729060
 EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256=bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368
 
+# Bound gate-local driver entries packed on top of the bound Epsilon member
+# closure. checking's checking_driver.delta and array-storage's
+# invariants.delta are single-file drivers appended after the packed
+# evaluator; checking-invariants, runtime-invariants, runtime-references, and
+# source-views instead repack a gate-owned controls closure manifest and
+# append the packed bytes, so each binds its manifest and the packed bytes it
+# reproduces. The identical pins in each gate's {README.md,run.sh} or gate.py
+# are records of these same subjects, not independent identities. A digest
+# here is an identity check on the driver or controls bytes; it is not a
+# proof of the gate's judgment. Changing a driver or a controls member
+# changes the packed subject and must update every record together.
+EPSILON_CHECKING_DRIVER_SIZE=944
+EPSILON_CHECKING_DRIVER_SHA256=d6a066af55a4e1b6b95e825120b632b177b774a4eab68a6d366d8d18a4c55e5d
+EPSILON_ARRAY_STORAGE_DRIVER_SIZE=8415
+EPSILON_ARRAY_STORAGE_DRIVER_SHA256=2bc73c60572ddac4ebbfe9b36d4d0d5f44268b56fc0cbafc14dd2a127f947144
+EPSILON_CHECKING_INVARIANTS_CONTROLS_MANIFEST_SIZE=488
+EPSILON_CHECKING_INVARIANTS_CONTROLS_MANIFEST_SHA256=f27a9eb49463e23a1aa69d5e9ce367e557535d03d29222c53d66690d6d927496
+EPSILON_CHECKING_INVARIANTS_CONTROLS_PACKED_SIZE=3230
+EPSILON_CHECKING_INVARIANTS_CONTROLS_PACKED_SHA256=fda3538d2b00173a9203b38efb887470db9d139da5432260d980b327166c5f83
+EPSILON_RUNTIME_INVARIANTS_CONTROLS_MANIFEST_SIZE=962
+EPSILON_RUNTIME_INVARIANTS_CONTROLS_MANIFEST_SHA256=60a32f78d6e0f6ce6ba30fb07933a8304cc088de1cf6dd85e7e60072e41eb866
+EPSILON_RUNTIME_INVARIANTS_CONTROLS_PACKED_SIZE=13759
+EPSILON_RUNTIME_INVARIANTS_CONTROLS_PACKED_SHA256=ffbb3e56cc19b8d4972c6fefff9646561a2ab343abdec3ec23355d8f9a9326c8
+EPSILON_RUNTIME_REFERENCES_CONTROLS_MANIFEST_SIZE=808
+EPSILON_RUNTIME_REFERENCES_CONTROLS_MANIFEST_SHA256=14f0953f007df9fd9cfcfcfc9567c45cb94488fb728f5c6a4418a25ac9d4f61c
+EPSILON_RUNTIME_REFERENCES_CONTROLS_PACKED_SIZE=24886
+EPSILON_RUNTIME_REFERENCES_CONTROLS_PACKED_SHA256=d80bc13dcbba2faa9bcb338c7808db3c2e8e104a54e5a7e46fa5648be9911712
+EPSILON_SOURCE_VIEWS_CONTROLS_MANIFEST_SIZE=641
+EPSILON_SOURCE_VIEWS_CONTROLS_MANIFEST_SHA256=309ca5d9b8a2c563dd4db16383d7c1d8b5708049884520e978624fd7ef59de16
+EPSILON_SOURCE_VIEWS_CONTROLS_PACKED_SIZE=5687
+EPSILON_SOURCE_VIEWS_CONTROLS_PACKED_SHA256=24c2a9e1a391b91fe670f209108651751624110d6dc5c284e0d997fe58bbfcb0
+
 # require_epsilon_evaluator_identity : the canonical manifest is the bound
 # file and repacking it reproduces exactly the bound evaluator closure.
 # Every materialization runs it; tests may call it directly. bootstrap_sha256
@@ -139,6 +171,114 @@ require_epsilon_evaluator_entry_receipt_identity() {
     "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE" \
     "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256" \
     "tests/epsilon/evaluator-entry/README.md"
+}
+
+# require_epsilon_checking_driver_identity : the checking gate's
+# checking_driver.delta appended after the packed evaluator is the bound
+# file. Same contract as require_epsilon_execution_driver_identity.
+require_epsilon_checking_driver_identity() {
+  require_bound_identity "checking_driver.delta" \
+    "$OMEGA_PATH_EPSILON_CHECKING_DRIVER" \
+    "$EPSILON_CHECKING_DRIVER_SIZE" "$EPSILON_CHECKING_DRIVER_SHA256" \
+    "tests/epsilon/checking/README.md"
+}
+
+# require_epsilon_array_storage_driver_identity : the array-storage gate's
+# invariants.delta driver appended after the packed evaluator is the bound
+# file. Same contract.
+require_epsilon_array_storage_driver_identity() {
+  require_bound_identity "invariants.delta" \
+    "$OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER" \
+    "$EPSILON_ARRAY_STORAGE_DRIVER_SIZE" \
+    "$EPSILON_ARRAY_STORAGE_DRIVER_SHA256" \
+    "tests/epsilon/array-storage/README.md"
+}
+
+# require_epsilon_controls_identity LABEL SOURCES MANIFEST_SIZE
+#   MANIFEST_SHA256 PACKED_SIZE PACKED_SHA256 RECORD : a gate-owned controls
+#   closure's manifest is the bound file and repacking it reproduces the
+#   bound packed driver bytes. Shared by the checking-invariants,
+#   runtime-invariants, runtime-references, and source-views controls.
+#   Repacking needs python3; without it the check refuses rather than
+#   skipping.
+require_epsilon_controls_identity() {
+  EPSILON_CONTROLS_LABEL=$1
+  EPSILON_CONTROLS_SOURCES=$2
+  EPSILON_CONTROLS_MANIFEST_SIZE=$3
+  EPSILON_CONTROLS_MANIFEST_SHA256=$4
+  EPSILON_CONTROLS_PACKED_SIZE=$5
+  EPSILON_CONTROLS_PACKED_SHA256=$6
+  EPSILON_CONTROLS_RECORD=$7
+  require_bound_identity "$EPSILON_CONTROLS_LABEL manifest" \
+    "$EPSILON_CONTROLS_SOURCES" \
+    "$EPSILON_CONTROLS_MANIFEST_SIZE" "$EPSILON_CONTROLS_MANIFEST_SHA256" \
+    "$EPSILON_CONTROLS_RECORD" || return $?
+  command -v python3 >/dev/null 2>&1 || {
+    echo "bootstrap artifact: no python3 to repack the $EPSILON_CONTROLS_LABEL controls" >&2
+    return 2
+  }
+  EPSILON_CONTROLS_TMP=$(mktemp -d)
+  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$EPSILON_CONTROLS_SOURCES" "$EPSILON_CONTROLS_TMP/controls.delta" || {
+      EPSILON_CONTROLS_RC=$?
+      rm -rf -- "$EPSILON_CONTROLS_TMP"
+      return "$EPSILON_CONTROLS_RC"
+    }
+  require_bound_identity "$EPSILON_CONTROLS_LABEL packed controls" \
+    "$EPSILON_CONTROLS_TMP/controls.delta" \
+    "$EPSILON_CONTROLS_PACKED_SIZE" "$EPSILON_CONTROLS_PACKED_SHA256" \
+    "$EPSILON_CONTROLS_RECORD"
+  EPSILON_CONTROLS_RC=$?
+  rm -rf -- "$EPSILON_CONTROLS_TMP"
+  return "$EPSILON_CONTROLS_RC"
+}
+
+# require_epsilon_checking_invariants_controls_identity : the
+# checking-invariants gate's packed controls suffix is the bound closure.
+require_epsilon_checking_invariants_controls_identity() {
+  require_epsilon_controls_identity "checking-invariants" \
+    "$OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES" \
+    "$EPSILON_CHECKING_INVARIANTS_CONTROLS_MANIFEST_SIZE" \
+    "$EPSILON_CHECKING_INVARIANTS_CONTROLS_MANIFEST_SHA256" \
+    "$EPSILON_CHECKING_INVARIANTS_CONTROLS_PACKED_SIZE" \
+    "$EPSILON_CHECKING_INVARIANTS_CONTROLS_PACKED_SHA256" \
+    "tests/epsilon/checking-invariants/README.md"
+}
+
+# require_epsilon_runtime_invariants_controls_identity : the
+# runtime-invariants gate's packed controls suffix is the bound closure.
+require_epsilon_runtime_invariants_controls_identity() {
+  require_epsilon_controls_identity "runtime-invariants" \
+    "$OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES" \
+    "$EPSILON_RUNTIME_INVARIANTS_CONTROLS_MANIFEST_SIZE" \
+    "$EPSILON_RUNTIME_INVARIANTS_CONTROLS_MANIFEST_SHA256" \
+    "$EPSILON_RUNTIME_INVARIANTS_CONTROLS_PACKED_SIZE" \
+    "$EPSILON_RUNTIME_INVARIANTS_CONTROLS_PACKED_SHA256" \
+    "tests/epsilon/runtime-invariants/README.md"
+}
+
+# require_epsilon_runtime_references_controls_identity : the
+# runtime-references gate's packed controls suffix is the bound closure.
+require_epsilon_runtime_references_controls_identity() {
+  require_epsilon_controls_identity "runtime-references" \
+    "$OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES" \
+    "$EPSILON_RUNTIME_REFERENCES_CONTROLS_MANIFEST_SIZE" \
+    "$EPSILON_RUNTIME_REFERENCES_CONTROLS_MANIFEST_SHA256" \
+    "$EPSILON_RUNTIME_REFERENCES_CONTROLS_PACKED_SIZE" \
+    "$EPSILON_RUNTIME_REFERENCES_CONTROLS_PACKED_SHA256" \
+    "tests/epsilon/runtime-references/README.md"
+}
+
+# require_epsilon_source_views_controls_identity : the source-views gate's
+# packed controls suffix is the bound closure.
+require_epsilon_source_views_controls_identity() {
+  require_epsilon_controls_identity "source-views" \
+    "$OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES" \
+    "$EPSILON_SOURCE_VIEWS_CONTROLS_MANIFEST_SIZE" \
+    "$EPSILON_SOURCE_VIEWS_CONTROLS_MANIFEST_SHA256" \
+    "$EPSILON_SOURCE_VIEWS_CONTROLS_PACKED_SIZE" \
+    "$EPSILON_SOURCE_VIEWS_CONTROLS_PACKED_SHA256" \
+    "tests/epsilon/source-views/README.md"
 }
 
 # materialize_epsilon_evaluator DEST : write the canonical packed evaluator

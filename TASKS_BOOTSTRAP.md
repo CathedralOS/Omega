@@ -348,11 +348,20 @@ prerequisite to every lower-rung milestone.
     (`request_staging_bytes`) were added to the outcome tables in
     `bootstrap/5_omega/outcome.epsilon` and
     `wiki/spec/build/compiler_request.md`, rebinding the D closure records.
-  - The gate-local prefixes packed on top of bound member bytes: every
-    gate-local driver except the shared Epsilon slice driver. D's gate-local
-    customer entries bind in `tools/bootstrap/omega/compiler_env.sh`, recorded
-    in each omega-* gate README; `tests/bootstrap/omega-identity.sh` checks
-    them and the packed compiler-plus-entry customer bytes on Linux.
+  - ~~The gate-local prefixes packed on top of bound member bytes: every
+    gate-local driver except the shared Epsilon slice driver.~~ Bound in
+    `tools/bootstrap/{delta/compiler,epsilon/evaluator}_env.sh`: the
+    lowering-plan and normalization Delta-edge driver entries plus the
+    internal-boundary and emission gate-owned controls closures (each binds
+    its manifest and the packed bytes it repacks to), and the checking and
+    array-storage Epsilon-edge drivers plus the checking-invariants,
+    runtime-invariants, runtime-references, and source-views controls
+    closures; `tests/bootstrap/{delta,epsilon}-identity.sh` pass the bound
+    identities and refuse corrupted or truncated drivers, manifests, and
+    controls members on Linux. D's gate-local customer entries bind in
+    `tools/bootstrap/omega/compiler_env.sh`, recorded in each omega-* gate
+    README; `tests/bootstrap/omega-identity.sh` checks them and the packed
+    compiler-plus-entry customer bytes on Linux.
   - The `omega0` and `omega` compiler tapes, which **OMEGA-C** has yet to
     produce.
   - The certificates and disclosed admission records, as the edges producing
