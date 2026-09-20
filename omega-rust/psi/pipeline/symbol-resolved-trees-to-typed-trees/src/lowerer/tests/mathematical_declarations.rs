@@ -3,7 +3,8 @@
 //! interpreting the grammar — dependent telescopes, universe classification,
 //! kernel elaboration — is the checked-trees leg, which refuses until then.
 
-use crate::lowerer::tests::lower_source;
+use crate::lowerer::seeded_continuation::{SeededContinuationError, lower_seeded_extension};
+use crate::lowerer::tests::{lower_source, seeded_plain_data_inputs};
 use typed_trees::mathematical::{MathematicalBody, MathematicalType};
 
 #[test]
@@ -139,4 +140,32 @@ fn mathematical_definitions_keep_authored_order_alongside_ordinary_roots() {
         .collect();
     assert_eq!(names, ["first", "second"]);
     assert_eq!(typed.machines().len(), 1);
+}
+
+#[test]
+fn seeded_continuation_retains_typed_mathematical_declarations() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "let base_fn(x: u64): u64 = x; data Authored { value: u16; }",
+        "data Generated { value: u32; }",
+    );
+    let retained: Vec<_> = base.typed().mathematical_definitions().to_vec();
+    assert_eq!(retained.len(), 1);
+
+    let typed = lower_seeded_extension(extension, base)
+        .unwrap_or_else(|_| panic!("plain-data extension stays on the seeded path"));
+    assert_eq!(typed.mathematical_definitions(), retained.as_slice());
+}
+
+#[test]
+fn seeded_continuation_fences_extension_mathematical_declarations() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "let base_fn(x: u64): u64 = x; data Authored { value: u16; }",
+        "let extra(y: u64): u64 = base_fn(y); data Generated { value: u32; }",
+    );
+    let expected = base.typed().clone();
+    let Err((returned, error)) = lower_seeded_extension(extension, base) else {
+        panic!("an extension-authored `let` must reject transactionally")
+    };
+    assert_eq!(error, SeededContinuationError::UnsupportedExtensionShape);
+    assert_eq!(returned.into_typed(), expected);
 }
