@@ -52,8 +52,9 @@ fn integer_comparison_association_rejoins_the_exact_selected_use() {
 }
 
 /// Drifted custody must fail closed: a substituted occurrence, a wrong
-/// emission triple, or a roster that no longer covers every emitted integer
-/// comparison is not consumable.
+/// emission triple, or repeated selected occurrence is not consumable.
+/// Completeness needs the artifact-bound boundary companions and is checked
+/// by final proposal admission, not this selected-row association helper.
 #[test]
 fn integer_comparison_association_rejects_incomplete_or_substituted_occurrences() {
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -73,7 +74,8 @@ fn integer_comparison_association_rejects_incomplete_or_substituted_occurrences(
             rows,
         )
     };
-    assert!(check(&[]).is_err(), "missing occurrence");
+    let repeated = [occurrences[0], occurrences[0]];
+    assert!(check(&repeated).is_err(), "repeated occurrence");
     let mut changed = occurrences.clone();
     changed[0].provider_plan_commitment = Default::default();
     assert!(check(&changed).is_err(), "missing exact provider");
