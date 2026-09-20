@@ -5944,23 +5944,6 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   ordinary statement sequencing **STATE-LOCAL-VALUE-FRONTIER** names.
 
 
-## Fuzz findings (coordinator-harvested, swarm wave 9)
-
-New items mined from fuzz legs; each is a confirmed divergence from expected
-corpus polarity on origin/main. Claim the named paths under the parent corpus
-family and pin the documented behavior with a canary plus the fix if scoped.
-
-- **FUZZ-WEAK-VACANT-QUALIFIER-DROP.** `Weak { e: whole }` where `e` is
-  `Extent in Granted` but the field expects `Extent in Granted & Vacant`
-  exits 0 — the `Vacant` qualifier drops silently while `Resident` weakening
-  rejects. Pin a fail-canary for silent qualifier weakening in Weak.
-  Paths: `tests/omega/{pass,fail}/memory/`, weakening checks in
-  `omega-rust/psi/semantics/`.
-
-Each fuzz leg's full divergence detail lives in wave-9.outcomes.json entries
-with `result: fuzz_report`.
-
-
 ## Mined items (swarm wave 9 mine legs)
 
 Candidates extracted by mine legs from `wiki/drafts/`, `TASKS_OPTIMIZER.md`,
@@ -6491,11 +6474,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 ## Mined items (deep-mine sweep, wave 9)
 
-- **ABI-LAYOUT-REDERIVATION-AUDIT.** Audit that every retained ABI plan
-  coordinate on `ForeignCallRelocation` is re-derived at image custody:
-  `object_artifact/call_sites.rs` re-derives the call facet via
-  `evaluate_call_plan` but never re-derives `boundary_entry_plan.state`;
-  compare the retained state facet to the ordinary-entry re-derivation.
 - **ALIGNMENT-STRING-PARSING.** Mined candidate — scope verified,
   covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING: the
   alignment-string parsing gap inside the Squalr app's geometry lane
