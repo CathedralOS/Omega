@@ -8505,7 +8505,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DOMAIN-REFINEMENT-CHAINS-EXTRA holds `facts/field_domain.rs` (22:36Z).
   Sibling re-mine names: BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR.
 - **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY** — mined candidate; verify scope then implement.
-- **PURPOSE-AWARE-PACKAGE-LOCKS** — mined candidate; verify scope then implement.
+- **PURPOSE-AWARE-PACKAGE-LOCKS.** Resolved — landed alias: dependency-purpose
+  binding exists in the shipped lock. `ada583b92d` pinned dependency purposes
+  through the binary; `d8ab3ebfe9` retains generated sources by checked
+  package purpose; `d97c159951` binds retained risk consent to checked
+  purpose; `8aac98ec2b` replaced package-only slots with purpose-specific
+  acceptance records (v3 lock rejects implicit-purpose envelopes; the
+  restricted-build fence stays explicit); `63c4ff281a` compiles and
+  reconstructs exact build occurrences; `87fd2eb816` carries the occurrence
+  roster through lock and review joins. (package, purpose) is the identity —
+  `lock/occurrences.rs`, the text codec writes and reads each context's
+  purpose name, and `resolve/locked/comparison.rs` re-decides edges per
+  purpose so drift mismatches. The BUILD-ADMISSION-CHECKPOINT sentence
+  "dependency-purpose binding still does not exist" predates that landing.
+  Verified at `f1675418b1` on Linux x86-64 (`cargo nextest run -p omega
+  --test package_commands -E 'test(~build_purposes::)'`): 13/18 pass
+  including exact per-purpose occurrence publishing, dual-purpose
+  aliasing, authorized-import rejection on edge drop, and generated-source
+  prerequisite builds. The five reds are the generated-source/nested-build
+  cross-profile cohort plus one timeout — `update` publishes, then `--check`
+  re-requests review (exit 3); that restricted-build replay leg is inside
+  BUILD-ADMISSION-CHECKPOINT's live claimed fence (build_purposes.rs
+  included), not this row.
 - **QUOTIENT-RUNTIME-REALIZATION** — mined candidate; verify scope then implement.
 - **RANKED-CALLEE-NATIVE-COMPOSITION** — mined candidate; scope verified, re-mine of the surface sibling RANKED-PROJECTED-RECEIVER-COMPOSITION resolved at `6ef64f6dd6` (immediately below). "Native composition of ranked callees" names the same GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: composed argument references, call/return, cleanup, callee-measure checking, and composed resource evidence for ranked callees reaching native lowering — versus today's whole-entry-only native admission (`terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`, "Ranked native admission" admits only whole ranked modules). It is an extend-the-common-graph leg, not a separate item. Every implementing surface is live-fenced this wave: `execution/unit/{control,state_graph,composed_control}` (GENERAL-CYCLIC-EXECUTION, 19:37Z), `receiver_calls` (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native `lowering/control_flow` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice exists; the residual stays on the parent optimizer rows. Sibling re-mine names: RANKED-NATIVE-ADMISSION.
 - **RANKED-NATIVE-ADMISSION** — mined candidate; verify scope then implement.
