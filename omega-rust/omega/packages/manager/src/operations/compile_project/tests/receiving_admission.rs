@@ -6,9 +6,12 @@
 //! can never satisfy an explicit admission replay. This leg exercises that
 //! contract end to end on one accepted customer whose demanded closure is a
 //! package-owned `Console::exit_process` compiler-intrinsic leaf: the artifact
-//! emits without any receiving policy, the same program rejects under a
-//! denying policy, admits under the policy that rejoins every demanded leaf,
-//! and the emitted artifact replays its recorded admission exactly.
+//! emits without any receiving policy, the same program rejects under every
+//! denying policy — explicit empty, dispositions substituted in either
+//! direction off the accepted rows, and rows keyed to foreign coordinates —
+//! and admits under the policy that rejoins every demanded leaf. Surplus
+//! rows at undemanded coordinates admit and the emitted artifact binds and
+//! replays the supplied policy identity exactly.
 
 use super::super::{
     CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,
@@ -127,7 +130,8 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
 
     // A policy holding a row at the same coordinate with a disposition that
     // does not cover the leaf's exercised classes is a substitution, not a
-    // grant: the leaf rejects it.
+    // grant: the program rejects it. Every package-approved coordinate must
+    // replay its accepted row exactly inside the receiving policy.
     let substituted = receipt
         .leaves()
         .iter()
@@ -148,6 +152,26 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
             Err(CompilePreparedLocalProjectNativeError::Native(_))
         ),
         "a receiving policy substituting a narrower permission must reject"
+    );
+
+    // A row keyed beside the demanded coordinate forges no grant: the leaf
+    // still finds no exact row for its schema and requirement.
+    let forged = terminal_authority_permission_policy_with_rows(vec![
+        TerminalAuthorityPermissionPolicyRow::new(
+            effects::provider_plan::ServiceSchemaDigest::from_digest([0xee; 32]),
+            "console::Console::exit_process#forged",
+            effects::TerminalAuthorityDisposition::from_classes([
+                effects::TerminalAuthorityClass::ProcessTermination,
+            ]),
+        ),
+    ])
+    .expect("forged-coordinate receiving policy is well formed");
+    assert!(
+        matches!(
+            compile_with_receiving_policy(&project, Some(forged)),
+            Err(CompilePreparedLocalProjectNativeError::Native(_))
+        ),
+        "a receiving policy keyed to foreign coordinates must reject"
     );
 
     // The policy rejoining every accepted row admits: the artifact records
@@ -180,4 +204,71 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
             .is_err(),
         "replaying under a different permission policy must reject"
     );
+
+    // Widening is also a substitution: the receiver cannot grant a class the
+    // accepted package permission did not contain. Every accepted coordinate
+    // must replay its approved row exactly — the package axis is the ceiling
+    // for the receiving policy.
+    let mut widened_coordinates = BTreeSet::new();
+    let widened = receipt
+        .leaves()
+        .iter()
+        .filter(|leaf| {
+            widened_coordinates.insert((
+                leaf.service_schema(),
+                leaf.requirement_identity().to_owned(),
+            ))
+        })
+        .map(|leaf| {
+            let mut classes = leaf.exercised().classes().to_vec();
+            classes.push(effects::TerminalAuthorityClass::ProcessInput);
+            TerminalAuthorityPermissionPolicyRow::new(
+                leaf.service_schema(),
+                leaf.requirement_identity().to_owned(),
+                effects::TerminalAuthorityDisposition::from_classes(classes),
+            )
+        })
+        .collect::<Vec<_>>();
+    let widened = terminal_authority_permission_policy_with_rows(widened)
+        .expect("widened receiving policy is well formed");
+    assert_ne!(
+        widened.identity(),
+        sufficient.identity(),
+        "the wider grant is a distinct supplied policy"
+    );
+    assert!(
+        matches!(
+            compile_with_receiving_policy(&project, Some(widened)),
+            Err(CompilePreparedLocalProjectNativeError::Native(_))
+        ),
+        "a receiving policy widening an accepted permission must reject"
+    );
+
+    // Surplus rows beside the demanded coordinates admit unchanged: the
+    // admitted identity is the supplied policy itself, not a canonicalized
+    // demanded subset.
+    let mut surplus_rows = sufficient.rows().to_vec();
+    surplus_rows.push(TerminalAuthorityPermissionPolicyRow::new(
+        effects::provider_plan::ServiceSchemaDigest::from_digest([0x44; 32]),
+        "console::Console::read_byte#surplus",
+        effects::TerminalAuthorityDisposition::from_classes([
+            effects::TerminalAuthorityClass::ProcessInput,
+        ]),
+    ));
+    let surplus = terminal_authority_permission_policy_with_rows(surplus_rows)
+        .expect("surplus receiving policy is well formed");
+    let admitted = compile_with_receiving_policy(&project, Some(surplus.clone()))
+        .expect("a surplus grant beside sufficient rows still admits");
+    let artifact = admitted.retained_native_artifact().unwrap();
+    assert_eq!(
+        artifact.terminal_authority_permission_policy_identity(),
+        Some(surplus.identity()),
+    );
+    artifact
+        .validate_for_terminal_authority_policies(
+            current_terminal_authority_policy().identity(),
+            surplus.identity(),
+            artifact.terminal_authority_closure_review().identity(),
+        )
+        .expect("the surplus-grant artifact replays its receiver admission");
 }
