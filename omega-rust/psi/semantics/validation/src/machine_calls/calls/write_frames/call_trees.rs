@@ -193,92 +193,122 @@ fn complete_expression_tree(
     // acyclic or solved-cycle frame per state per tree walk.
     let mut complete_state_summaries = Vec::new();
     while let Some(node) = pending.pop() {
-        let expression =
-            match node {
-                PendingNode::Receiver(expression) => {
-                    match admit_expression(expression, ValuePosition::IndexOperand, inference) {
-                        ExpressionAdmission::Reject => return false,
-                        ExpressionAdmission::Leaf => continue,
-                        ExpressionAdmission::Traverse => {}
-                    }
-                    if matches!(
-                        program.expression_table.expression(expression),
-                        ExpressionNode::Call(_)
-                    ) {
-                        expression
-                    } else {
-                        match program.expression_table.expression(expression) {
-                            ExpressionNode::Borrow(borrow) => {
-                                pending.push(PendingNode::Receiver(borrow.target))
-                            }
-                            ExpressionNode::Member(member) => {
-                                pending.push(PendingNode::Receiver(member.receiver))
-                            }
-                            ExpressionNode::Indexed(indexed) => {
-                                pending.push(PendingNode::Expression(
-                                    indexed.index,
-                                    ValuePosition::IndexOperand,
-                                ));
-                                pending.push(PendingNode::Receiver(indexed.collection));
-                            }
-                            _ => return false,
-                        }
-                        continue;
-                    }
+        let expression = match node {
+            PendingNode::Receiver(expression) => {
+                match admit_expression(expression, ValuePosition::IndexOperand, inference) {
+                    ExpressionAdmission::Reject => return false,
+                    ExpressionAdmission::Leaf => continue,
+                    ExpressionAdmission::Traverse => {}
                 }
-                PendingNode::Expression(expression, position) => {
-                    match admit_expression(expression, position, inference) {
-                        ExpressionAdmission::Reject => return false,
-                        ExpressionAdmission::Leaf => continue,
-                        ExpressionAdmission::Traverse => {
-                            if matches!(
-                                program.expression_table.expression(expression),
-                                ExpressionNode::Call(_)
+                if matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::Call(_)
+                ) {
+                    expression
+                } else {
+                    match program.expression_table.expression(expression) {
+                        ExpressionNode::Borrow(borrow) => {
+                            pending.push(PendingNode::Receiver(borrow.target))
+                        }
+                        ExpressionNode::Member(member) => {
+                            pending.push(PendingNode::Receiver(member.receiver))
+                        }
+                        ExpressionNode::Indexed(indexed) => {
+                            pending.push(PendingNode::Expression(
+                                indexed.index,
+                                ValuePosition::IndexOperand,
+                            ));
+                            pending.push(PendingNode::Receiver(indexed.collection));
+                        }
+                        // A receiver may be selected by a match: the
+                        // subject and value patterns are reads, and every
+                        // arm value is itself a receiver source.
+                        ExpressionNode::Match(dispatch) => {
+                            pending.push(PendingNode::Expression(
+                                dispatch.subject,
+                                ValuePosition::IndexOperand,
+                            ));
+                            for arm in program.expression_table.match_arms(dispatch.arms).iter() {
+                                if let typed_trees::expression::MatchPattern::Value(pattern) =
+                                    arm.pattern
+                                {
+                                    pending.push(PendingNode::Expression(
+                                        pattern,
+                                        ValuePosition::IndexOperand,
+                                    ));
+                                }
+                                pending.push(PendingNode::Receiver(arm.value));
+                            }
+                        }
+                        _ => return false,
+                    }
+                    continue;
+                }
+            }
+            PendingNode::Expression(expression, position) => {
+                match admit_expression(expression, position, inference) {
+                    ExpressionAdmission::Reject => return false,
+                    ExpressionAdmission::Leaf => continue,
+                    ExpressionAdmission::Traverse => {
+                        if matches!(
+                            program.expression_table.expression(expression),
+                            ExpressionNode::Call(_)
+                        ) {
+                            if !value_call_result_is_admitted(
+                                program, expression, position, symbols,
                             ) {
-                                if !value_call_result_is_admitted(
-                                    program, expression, position, symbols,
-                                ) {
-                                    return false;
-                                }
-                                expression
-                            } else {
-                                value_children.clear();
-                                if !push_value_children(
-                                    program,
-                                    expression,
-                                    position,
-                                    &mut value_children,
-                                ) {
-                                    return false;
-                                }
-                                pending.extend(value_children.drain(..).map(
-                                    |(child, position)| PendingNode::Expression(child, position),
-                                ));
-                                continue;
+                                return false;
                             }
+                            expression
+                        } else {
+                            value_children.clear();
+                            if !push_value_children(
+                                program,
+                                expression,
+                                position,
+                                &mut value_children,
+                            ) {
+                                return false;
+                            }
+                            pending.extend(
+                                value_children.drain(..).map(|(child, position)| {
+                                    PendingNode::Expression(child, position)
+                                }),
+                            );
+                            continue;
                         }
                     }
                 }
-                PendingNode::CallFrame(expression) => expression,
-            };
+            }
+            PendingNode::CallFrame(expression) => expression,
+        };
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
             return false;
         };
         let arguments = program.expression_table.expression_handles(call.arguments);
-        let Some((receiver_members, receiver_origin)) = super::receiver_frame_origin(
-            program,
-            current_machine,
-            call.receiver,
-            symbols,
-            inference,
-        ) else {
+        let Some((receiver_members, receiver_origins, receiver_data_name)) =
+            super::receiver_frame_origins(
+                program,
+                current_machine,
+                call.receiver,
+                symbols,
+                inference,
+            )
+        else {
             return false;
         };
+        // A computed call or match receiver has no member spelling, but a
+        // proven divergent candidate set plus its declared referent data may
+        // still resolve the callee by type; the CallFrame arm decides.
         if call.receiver.is_valid()
             && receiver_member_chain(program, call.receiver).is_none()
             && super::machine_state_by_symbol(program, call.target_symbol).is_none()
             && super::boundary_calls::requirement_signature_by_target(program, call.target_symbol)
                 .is_none()
+            && !matches!(
+                program.expression_table.expression(call.receiver),
+                ExpressionNode::Call(_) | ExpressionNode::Match(_)
+            )
         {
             return false;
         }
@@ -309,7 +339,8 @@ fn complete_expression_tree(
             call.target_symbol,
             call.target.as_str(),
             &receiver_members,
-            receiver_origin.as_ref(),
+            &receiver_origins,
+            receiver_data_name.as_deref(),
             arguments,
             current_machine,
             machine_symbols,
@@ -334,9 +365,14 @@ fn complete_expression_tree(
             )
         })
         .or_else(|| {
+            // A divergent receiver names several candidate referents, none of
+            // them a single spelling a requirement signature could select by.
+            let single_receiver_origin = (receiver_origins.len() == 1)
+                .then(|| receiver_origins.first())
+                .flatten();
             if call.receiver.is_valid()
                 && receiver_member_chain(program, call.receiver).is_none()
-                && receiver_origin.is_none()
+                && single_receiver_origin.is_none()
             {
                 return None;
             }
@@ -347,7 +383,7 @@ fn complete_expression_tree(
                 symbols,
                 &receiver_members,
                 call.target.as_str(),
-                receiver_origin.as_ref(),
+                single_receiver_origin,
                 super::caller_aliases::CallerWriteSite::Expression(expression),
                 arguments,
                 inference,

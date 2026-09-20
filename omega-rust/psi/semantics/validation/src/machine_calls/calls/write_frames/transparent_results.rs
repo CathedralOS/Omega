@@ -631,6 +631,7 @@ fn statement_call_preserves_transparent_result(
         call.target_symbol,
         call.target.as_str(),
         &receiver_members,
+        &[],
         None,
         arguments,
         current_machine,

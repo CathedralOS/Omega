@@ -20,21 +20,109 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Receiver lookup spelling and storage precision travel together. A proven
 /// computed origin is storage evidence, not authority for lookup by name.
-pub(super) fn receiver_frame_origin(
+///
+/// A receiver carrying a finite divergent candidate set keeps every proven
+/// route: the callee's `self`-relative writes instantiate under each base and
+/// union, and one unproven route fails the whole frame closed. A divergent
+/// receiver has no single member-chain spelling, so its member path is empty;
+/// its referent data name is the only remaining callee selector, so it is
+/// returned beside the candidates — a resolved attached machine still names
+/// the one execution the call can take.
+pub(super) fn receiver_frame_origins(
     program: &TypedTrees,
     current_machine: &Machine,
     receiver: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<(Vec<String>, Option<FramePlaceOrigin>)> {
+) -> Option<(Vec<String>, Vec<FramePlaceOrigin>, Option<String>)> {
     if !receiver.is_valid() {
-        return Some((Vec::new(), None));
+        return Some((Vec::new(), Vec::new(), None));
     }
-    let origin = frame_place_path(program, receiver).or_else(|| {
-        owned_receiver_origin(program, current_machine, receiver, symbols, inference)
-    })?;
-    let members = origin.path.split('.').map(str::to_owned).collect();
-    Some((members, Some(origin)))
+    if let Some(origin) = frame_place_path(program, receiver)
+        .or_else(|| owned_receiver_origin(program, current_machine, receiver, symbols, inference))
+    {
+        let members = origin.path.split('.').map(str::to_owned).collect();
+        return Some((members, vec![origin], None));
+    }
+    match program.expression_table.expression(receiver) {
+        ExpressionNode::Call(_) | ExpressionNode::Match(_) => {
+            let origins = exclusive_reference_origins(
+                program,
+                current_machine,
+                receiver,
+                symbols,
+                inference,
+            )?;
+            if origins.is_empty() {
+                return None;
+            }
+            Some((
+                Vec::new(),
+                origins,
+                receiver_referee_name(program, current_machine, receiver),
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// The named data a computed receiver borrows into — the callee selector a
+/// divergent candidate set still admits when the call's own target symbol is
+/// unresolved. A match receiver names it only when every arm agrees on the
+/// same referent data; an ambiguous or untyped arm leaves it unknown.
+fn receiver_referee_name(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    receiver: ExpressionHandle,
+) -> Option<String> {
+    let (state, _, _) = caller_statement_at_site(
+        program,
+        current_machine,
+        CallerWriteSite::Expression(receiver),
+    )?;
+    // `self`-arm borrows may not carry a declared type of their own: peel to
+    // the borrowed place, whose declared type is the referent itself.
+    let referent_name = |mut expression: ExpressionHandle| {
+        let type_reference = loop {
+            match crate::value_custody::places::declared_place_type_raw(
+                program,
+                current_machine,
+                Some(state),
+                expression,
+            ) {
+                Some(type_reference) => break type_reference,
+                None => match program.expression_table.expression(expression) {
+                    ExpressionNode::Borrow(borrow) => expression = borrow.target,
+                    _ => return None,
+                },
+            }
+        };
+        let mut type_reference = type_reference;
+        loop {
+            match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Named { name, .. } => break Some(name.as_str().to_owned()),
+                TypeReferenceNode::Reference { .. } | TypeReferenceNode::Constrained { .. } => {
+                    type_reference = exclusive_reference_referee(program, type_reference)?;
+                }
+                _ => break None,
+            }
+        }
+    };
+    match program.expression_table.expression(receiver) {
+        ExpressionNode::Match(dispatch) => {
+            let mut selected = None;
+            for arm in program.expression_table.match_arms(dispatch.arms) {
+                let name = referent_name(arm.value)?;
+                match &selected {
+                    None => selected = Some(name),
+                    Some(selected) if *selected == name => {}
+                    Some(_) => return None,
+                }
+            }
+            selected
+        }
+        _ => referent_name(receiver),
+    }
 }
 
 /// Reuse the checked body's result relation, validating its selected input for
