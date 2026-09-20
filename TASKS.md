@@ -5241,6 +5241,24 @@ Owners include
   merely to bypass that fence. The requesting machine itself has no checked
   scalar plan; the execution gate needs no such plan.
 
+  One superseded assertion survives this move and is red on main (measured
+  2026-09-20 at `e5bbe53956`, macOS arm64): `package-evidence`
+  `capture::quotients::tests::total_direct_define_projects_one_deterministic_recoverable_review_row`
+  (`packages/review/evidence/src/capture/quotients/tests.rs:247`) still
+  asserts `typed_trees_to_checked_trees::lower_typed_trees(program).is_err()`
+  with the message "ordinary checked lowering must not admit the proof-only
+  request". That is exactly the rejection `21bdf20fafa0` deliberately deferred
+  past the termination fence and `a8be17adc1dc` finalized as a proof-only
+  intrinsic, so the assertion is stale by design rather than a regression. Its
+  first assertion — `validation::validate_program(&program).is_err()` — still
+  holds, and the non-executability it was protecting is now held by this row's
+  own named gate: `lowering_any_machine_of_an_admitted_program_stops_at_the_published_correspondence_gate`
+  (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs:519`)
+  re-verified PASS here. So the repair is to re-pin that second assertion on
+  the new contract (lowering admits; the correspondence gate refuses), not to
+  drop it. Left unlanded: the file is fenced to
+  PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION (Devin, exp ~04:50Z Sep 21).
+
   Remaining work:
 
   - Put the managed admission shape on the checked-only source corpus and
