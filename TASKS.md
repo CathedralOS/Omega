@@ -7711,8 +7711,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MATHEMATICAL-PREDICATE-PARAMETERS's remaining work — neither is this row's
   seam.
 - **PSI-HOSTED-ENTRY-RECEIVER-PROVISIONING.** Done (linux x86-64 witnessed): respelled the hosted-receiver provisioning canaries off the closed `in Bound` carrier qualification — the core `Service` carrier admits no authored qualification, so `Service<Console>` alone denotes the toolchain service era — and re-pinned the bare-interface rejections on the moved check-stage diagnostic ("the intrinsic `Service<R>` carrier is the only service value spelling"). `select_provider` operands now spell product-scope paths (`omega_language_std::Console` / `omega_language_std::ConsoleNativeProvider`); the same respell was applied to `tests/omega/pass/expressions/runtime_float_receiver_storage_exit/build.omg` under a companion fixture claim. hosted_receiver{,_linux,_linux_arm64} now pass their provisioning, explicit-exit, erased-receiver, record-array, float-leaf, and bare-interface legs; the linux x86-64 legs emit and execute real ELF artifacts (exit 37/0 + stdout "A" witnessed). Remaining: `hosted_receiver_windows.rs` carries the same stale spellings but sits under the RC-WINDOWS-X64-NATIVE-ROW claim; its windows legs and macOS/aarch64 execution legs remain host-gated.
-- **PSI-NATIVE-FIELD-STORES** — mined candidate; verify scope then implement.
-  Verified scope: re-mines **STATE-LOCAL-VALUE-FRONTIER**'s field-store leg —
+- **PSI-NATIVE-FIELD-STORES.** Mined candidate; scope verified at
+  b28abc01fe — re-mines **STATE-LOCAL-VALUE-FRONTIER**'s field-store leg —
   the recorded `structural field store: scalar field type` frontier in
   `typed-trees-to-checked-trees/src/execution/unit/structural_scalar_store`
   (the path admits scalar fields while native customers like
