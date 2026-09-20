@@ -6642,7 +6642,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION,
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION, PIPELINE-WRAPPER-OBJECT-ORPHAN.
 - **WRITE-ONLY-BORROW-RESIDUE** — mined candidate; verify scope then implement.
-- **ZERO-ARRAY-ADMISSION-FENCE** — mined candidate; verify scope then implement.
 - **ZERO-BYTE-ARRAY-FENCE-PLACEMENT** — mined candidate; verify scope then implement.
 - **ZERO-EXTENT-BYTE-ARRAY-ADMISSION** — mined candidate; verify scope then implement.
 - **ZERO-EXTENT-BYTE-ARRAY-FENCE** — mined candidate; verify scope then implement.
