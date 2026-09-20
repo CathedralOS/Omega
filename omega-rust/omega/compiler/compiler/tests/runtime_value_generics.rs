@@ -729,14 +729,20 @@ fn runtime_bound_stale_call_guard_rejects_publication() {
         "state allowed(value: u8, limit: u8) {",
         "state allowed(value: u8, mut limit: u8) { limit = 0;",
     ) + "\ndata Main {}\nmachine Main::main(&mut self) { let result: u8 = guarded_result(3, 7); }";
+    // The reassigned bound subject defeats the stale premise at the source
+    // contract check, so publication never reaches the artifact gate.
+    let Err(diagnostic) = check_source("stale-call-guard", &source) else {
+        panic!("stale call guard must not pass check");
+    };
+    assert!(
+        diagnostic.contains("cannot prove requires contract"),
+        "{diagnostic}"
+    );
     let Err((_fixture, diagnostic)) = try_publish("stale-call-guard", &source) else {
         panic!("stale call guard must not publish");
     };
-    // Check alone currently retains the stale call premise. Artifact production
-    // must still demand operation evidence for the actual, reassigned subject.
     assert!(
-        diagnostic.contains("OperationProofUnavailable")
-            || diagnostic.contains("cannot prove requires contract"),
+        diagnostic.contains("cannot prove requires contract"),
         "{diagnostic}"
     );
 }
