@@ -315,7 +315,10 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        GUARANTEED_ENTRY_STACK_PROJECTION, TargetProfile, TargetSemantics, UEFI_X86_64_SUBJECT,
+        UefiX86_64,
+    };
 
     #[test]
     fn exact_uefi_application_retains_projection_subject_version_and_profile() {
