@@ -19,7 +19,7 @@ use super::{
 use crate::{
     EntryControl, EntryStack, MachineRegime, MachineRegister, MachineState, MachineStateSet,
     PlanDiagnostic, Preemption, ProviderExitRealization, RegisterSet, StateFootprintEvidence,
-    ValidatedBoundaryEntryPlan,
+    ValidatedBoundaryEntryPlan, ValueLocation,
 };
 
 /// Where the normalized frame's error-code word comes from for one arrival
@@ -32,6 +32,20 @@ pub enum X86_64ErrorCodeDisposition {
     /// The vector carries no architectural error code, so the stub pushes a
     /// synthetic zero word. Every member therefore sees one frame shape.
     StubSynthesized,
+}
+
+/// The frame the stub reserves below the save area to stage the member call.
+///
+/// `outgoing_stack_bytes` is the 8-aligned extent of the boundary plan's
+/// outgoing stack-argument locations; `reserved_bytes` adds the 8-byte slot
+/// that holds the pre-normalization stack pointer and rounds up to the
+/// 16-byte alignment the stub's `and rsp, -16` normalization establishes.
+/// Both are derived from the admitted boundary plan here so the emitted
+/// bytes and the composed stack demand read one contract-owned number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64DeriverStubCallFrame {
+    pub outgoing_stack_bytes: u64,
+    pub reserved_bytes: u64,
 }
 
 /// The deriver-owned stub shape for one admissible arrival context.
@@ -70,8 +84,35 @@ pub struct X86_64DeriverStub {
     /// realize — exactly the plan's permitted transitive use, preserved by the
     /// stub's save area around it.
     pub member_body_envelope: StateFootprintEvidence,
+    /// The member-call frame the stub reserves below the save area. Derived
+    /// from the admitted boundary plan's outgoing stack-argument area plus
+    /// the saved pre-normalization stack word; emission encodes exactly this
+    /// reservation.
+    pub member_call_frame: X86_64DeriverStubCallFrame,
     pub exit: ProviderExitRealization,
     pub contexts: Vec<X86_64DeriverStubContext>,
+}
+
+impl X86_64DeriverStub {
+    /// Worst-case stack bytes the emitted stub adds below the delivered
+    /// hardware frame before the member body's own stack demand begins:
+    /// per-context error-code normalization and register save area, at most
+    /// 15 bytes the `and rsp, -16` normalization can drop below the pushed
+    /// save area, the anchored member-call frame reservation, and the member
+    /// call's 8-byte pushed return address. This is the deriver-owned term a
+    /// dedicated critical stack must carry in addition to the architectural
+    /// arrival frame and the member's own terminal demand.
+    pub fn peak_entry_overhead_bytes(&self) -> u64 {
+        let context_peak = self
+            .contexts
+            .iter()
+            .map(|context| context.normalizing_bytes + context.saved_area_bytes)
+            .max()
+            .unwrap_or(0);
+        // 15 bytes of worst-case alignment normalization plus the call's
+        // pushed return address are recipe constants of the emitted shape.
+        context_peak + 15 + self.member_call_frame.reserved_bytes + 8
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,7 +180,10 @@ pub fn derive_x86_64_entry_exit_stub(
     }
 
     let saved_registers = stub_saved_registers(plan.state.saved_state);
-    let saved_area_bytes = (saved_registers.len() as u64) * 8;
+    let saved_area_bytes = saved_registers
+        .iter()
+        .map(saved_register_area_bytes)
+        .sum::<u64>();
     let saved_footprint =
         StateFootprintEvidence::new(RegisterSet::new(saved_registers), plan.state.saved_state);
     if saved_footprint.machine_state() != plan.state.saved_state {
@@ -161,6 +205,26 @@ pub fn derive_x86_64_entry_exit_stub(
     let exit = ProviderExitRealization {
         control: EntryControl::InterruptReturn,
         restored_state: plan.state.restored_state,
+    };
+
+    let mut outgoing_stack_end = 0_u64;
+    for parameter in &plan.call.parameters {
+        for location in &parameter.locations {
+            if let ValueLocation::Stack {
+                stack_byte_offset,
+                byte_size,
+                ..
+            } = location
+            {
+                outgoing_stack_end =
+                    outgoing_stack_end.max(u64::from(*stack_byte_offset) + u64::from(*byte_size));
+            }
+        }
+    }
+    let outgoing_stack_bytes = outgoing_stack_end.next_multiple_of(8);
+    let member_call_frame = X86_64DeriverStubCallFrame {
+        outgoing_stack_bytes,
+        reserved_bytes: (outgoing_stack_bytes + 8).next_multiple_of(16),
     };
 
     let mut contexts = Vec::with_capacity(facts.contexts.len());
@@ -196,6 +260,7 @@ pub fn derive_x86_64_entry_exit_stub(
         gate: facts.gate,
         saved_footprint,
         member_body_envelope,
+        member_call_frame,
         exit,
         contexts,
     };
@@ -204,6 +269,17 @@ pub fn derive_x86_64_entry_exit_stub(
         stub,
         non_authoritative_report_fingerprint,
     })
+}
+
+/// Save-area bytes one register occupies below the normalized frame: a
+/// GPR-sized slot for word registers, a 16-byte slot for vector registers —
+/// vector state cannot ride a qword push, so its reserve is the store slot
+/// the emission must occupy rather than a push of its own.
+fn saved_register_area_bytes(register: &MachineRegister) -> u64 {
+    match register {
+        MachineRegister::X86Xmm(_) | MachineRegister::Aarch64V(_) => 16,
+        _ => 8,
+    }
 }
 
 /// The stub's push list under the plan's saved-state law: every
@@ -257,14 +333,14 @@ fn stub_report_fingerprint(stub: &X86_64DeriverStub) -> u64 {
     }
     hash.u64(u64::from(stub.saved_footprint.machine_state().bits()));
     hash.u64(u64::from(stub.member_body_envelope.machine_state().bits()));
-    hash.u64(
-        stub.member_body_envelope.registers().as_slice().len() as u64,
-    );
+    hash.u64(stub.member_body_envelope.registers().as_slice().len() as u64);
     hash.u64(match stub.exit.control {
         EntryControl::InterruptReturn => 0,
         _ => unreachable!("validated above"),
     });
     hash.u64(u64::from(stub.exit.restored_state.bits()));
+    hash.u64(stub.member_call_frame.outgoing_stack_bytes);
+    hash.u64(stub.member_call_frame.reserved_bytes);
     hash.u64(stub.contexts.len() as u64);
     for context in &stub.contexts {
         hash.u64(context.context.get());

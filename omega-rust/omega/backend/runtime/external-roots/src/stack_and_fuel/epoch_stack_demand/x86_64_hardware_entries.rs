@@ -245,7 +245,10 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
     entry: EntryStubId,
     installed_target_arrival: &InstalledX86_64TargetDerivedHardwareArrival,
 ) -> Result<BoundEpochStackCompositionInput, ExternalRootDiagnostic> {
-    let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence else {
+    let Some(body_matches_entry) = summary
+        .local_evidence
+        .terminal_body_matches_installed_entry(installed_code, entry)
+    else {
         return Err(ExternalRootDiagnostic(
             "target-derived direct entry stack realization requires emitter-derived Terminal body evidence"
                 .into(),
@@ -256,7 +259,7 @@ pub fn bind_x86_64_target_direct_entry_stack_realization(
             "x86-64 target arrival evidence cannot bind a non-x86 installed artifact".into(),
         ));
     }
-    if !binding.matches_installed_entry(installed_code, entry) {
+    if !body_matches_entry {
         return Err(ExternalRootDiagnostic(
             "target-derived direct entry body evidence names a different installed entry".into(),
         ));
@@ -561,8 +564,10 @@ pub(crate) fn validate_bound_entry_stack_realization(
             }
         }
     }
-    if let StackLocalEvidence::TerminalEntry(binding) = &summary.local_evidence
-        && !binding.matches_installed_entry(installed_code, entry)
+    if let Some(matches) = summary
+        .local_evidence
+        .terminal_body_matches_installed_entry(installed_code, entry)
+        && !matches
     {
         return Err(ExternalRootDiagnostic(
             "terminal body WCSU and entry realization name different installed entries".into(),

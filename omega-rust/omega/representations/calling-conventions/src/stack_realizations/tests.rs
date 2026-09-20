@@ -3,12 +3,11 @@
 use super::{
     ArrivalContextId, ArrivalContextRealization, ArrivalContextStackDomain, EntryStack,
     EntryStackEpoch, EntryStackRealization, EntryStackStage, InstalledEntryFactIdentity,
-    Preemption, StackDomainRef, StackOccupancy, X86_64ArrivalMechanism, X86_64GateKind,
-    ValidatedX86_64InstalledHardwareEntryFacts, X86_64HardwareStackSelection,
-    X86_64InstalledArrivalContext, X86_64InstalledHardwareEntryFacts,
-    X86_64TargetProfileIdentity, derive_x86_64_hardware_arrival,
-    validate_entry_stack_domain_closure, validate_entry_stack_realization,
-    validate_x86_64_installed_hardware_entry_facts,
+    Preemption, StackDomainRef, StackOccupancy, ValidatedX86_64InstalledHardwareEntryFacts,
+    X86_64ArrivalMechanism, X86_64GateKind, X86_64HardwareStackSelection,
+    X86_64InstalledArrivalContext, X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity,
+    derive_x86_64_hardware_arrival, validate_entry_stack_domain_closure,
+    validate_entry_stack_realization, validate_x86_64_installed_hardware_entry_facts,
 };
 
 fn installed_identity() -> InstalledEntryFactIdentity {
@@ -518,8 +517,15 @@ fn x86_derived_identity_binds_every_exact_installation_fact_and_revalidates() {
 // normalization, saved-state footprint and interrupt-return exit.
 
 fn interrupt_boundary(class: u16) -> crate::ValidatedBoundaryEntryPlan {
+    interrupt_boundary_with_parameters(class, 1)
+}
+
+fn interrupt_boundary_with_parameters(
+    class: u16,
+    parameter_count: usize,
+) -> crate::ValidatedBoundaryEntryPlan {
     let signature = crate::CallSignature {
-        parameters: vec![crate::ValueShape::integer(8, 8)],
+        parameters: vec![crate::ValueShape::integer(8, 8); parameter_count],
         result: None,
     };
     let mut call = crate::evaluate_call_plan(crate::CallingPolicy::MicrosoftX64, &signature)
@@ -710,6 +716,84 @@ fn external_interrupt_stub_synthesizes_the_error_word() {
 }
 
 #[test]
+fn deriver_stub_carries_member_call_frame_and_peak_overhead() {
+    // A register-only signature leaves no outgoing stack-argument area: the
+    // reserved frame is just the 8-byte anchor word at the 16-byte alignment.
+    let boundary = interrupt_boundary(11);
+    let installed = stub_installed_facts(
+        &boundary,
+        13,
+        X86_64GateKind::Trap,
+        vec![masked_context(
+            1,
+            3,
+            0,
+            X86_64HardwareStackSelection::InterruptStackTable {
+                slot: 3,
+                dedicated_class: 11,
+            },
+            X86_64ArrivalMechanism::Exception,
+        )],
+    );
+    let stub = super::derive_x86_64_entry_exit_stub(&installed, &boundary).expect("stub derives");
+    assert_eq!(stub.stub().member_call_frame.outgoing_stack_bytes, 0);
+    assert_eq!(stub.stub().member_call_frame.reserved_bytes, 16);
+    // hardware-pushed error word: normalization adds nothing; overhead is
+    // the save area plus the recipe constants (15 slack + reserved + ret).
+    assert_eq!(
+        stub.stub().peak_entry_overhead_bytes(),
+        15 * 8 + 15 + 16 + 8
+    );
+
+    // Eight word parameters overflow the register quadrant, so the outgoing
+    // stack-argument area is real and lands inside the reserved frame.
+    let boundary = interrupt_boundary_with_parameters(11, 8);
+    let installed = stub_installed_facts(
+        &boundary,
+        13,
+        X86_64GateKind::Trap,
+        vec![masked_context(
+            1,
+            3,
+            0,
+            X86_64HardwareStackSelection::InterruptStackTable {
+                slot: 3,
+                dedicated_class: 11,
+            },
+            X86_64ArrivalMechanism::Exception,
+        )],
+    );
+    let stub = super::derive_x86_64_entry_exit_stub(&installed, &boundary).expect("stub derives");
+    let outgoing = boundary
+        .plan()
+        .call
+        .parameters
+        .iter()
+        .flat_map(|parameter| parameter.locations.iter())
+        .filter_map(|location| match location {
+            crate::ValueLocation::Stack {
+                stack_byte_offset,
+                byte_size,
+                ..
+            } => Some(u64::from(*stack_byte_offset) + u64::from(*byte_size)),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0)
+        .next_multiple_of(8);
+    assert!(outgoing > 0, "eight parameters must spill to the stack");
+    assert_eq!(stub.stub().member_call_frame.outgoing_stack_bytes, outgoing);
+    assert_eq!(
+        stub.stub().member_call_frame.reserved_bytes,
+        (outgoing + 8).next_multiple_of(16)
+    );
+    assert_eq!(
+        stub.stub().peak_entry_overhead_bytes(),
+        15 * 8 + 15 + (outgoing + 8).next_multiple_of(16) + 8
+    );
+}
+
+#[test]
 fn deriver_stub_fails_closed_on_unadmitted_boundary_or_drifted_facts() {
     let boundary = interrupt_boundary(11);
     let installed = stub_installed_facts(
@@ -732,7 +816,11 @@ fn deriver_stub_fails_closed_on_unadmitted_boundary_or_drifted_facts() {
     let foreign = interrupt_boundary(12);
     let error = super::derive_x86_64_entry_exit_stub(&installed, &foreign)
         .expect_err("a lookalike policy must not attach");
-    assert!(error.0.contains("exact admitted boundary plan"), "{}", error.0);
+    assert!(
+        error.0.contains("exact admitted boundary plan"),
+        "{}",
+        error.0
+    );
 
     // A boundary without interrupt-return control cannot exit a gate stub.
     let mut ordinary_call = crate::evaluate_call_plan(
@@ -774,8 +862,8 @@ fn deriver_stub_fails_closed_on_unadmitted_boundary_or_drifted_facts() {
     .expect("validated ordinary boundary");
     // Give the CallReturn plan the facts' commitment to isolate the
     // entry-control rejection.
-    let mismatched_control = validate_x86_64_installed_hardware_entry_facts(
-        X86_64InstalledHardwareEntryFacts {
+    let mismatched_control =
+        validate_x86_64_installed_hardware_entry_facts(X86_64InstalledHardwareEntryFacts {
             identity: InstalledEntryFactIdentity {
                 boundary_plan_report_fingerprint: ordinary.contract_report_fingerprint(),
                 boundary_plan_commitment: ordinary.contract_commitment_digest(),
@@ -785,9 +873,8 @@ fn deriver_stub_fails_closed_on_unadmitted_boundary_or_drifted_facts() {
             gate: X86_64GateKind::Trap,
             boundary_stack: ordinary.plan().state.stack,
             contexts: installed.facts().contexts.clone(),
-        },
-    )
-    .expect("validated installed facts");
+        })
+        .expect("validated installed facts");
     let error = super::derive_x86_64_entry_exit_stub(&mismatched_control, &ordinary)
         .expect_err("CallReturn cannot service an installed gate");
     assert!(error.0.contains("InterruptReturn"), "{}", error.0);

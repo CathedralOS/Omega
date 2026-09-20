@@ -2951,11 +2951,26 @@ Owners include
     deferred seams, while stack pieces stage through exact-width 4/2/1-byte
     tail stores (`emit_x86_64_deriver_entry_exit_stub`); the byte recipe
     lives in machine-emission until a second x86-64 deriver emission moves
-    it into the ISA crate; the stack column still rides the opaque-adapter shape
-    until `produce_x86_64_installed_hardware_entry_facts` +
-    `bind_x86_64_target_direct_entry_stack_realization` get emitted
-    Terminal-body evidence; provider-admitted resource columns and
-    fuel/state receipts remain test-admitted shapes; the multi-resolution
+    it into the ISA crate; the member's stack column can now bind through
+    the emitted stub — `StackLocalEvidence::DeriverStubEntry` bound by
+    `bind_installed_deriver_stub_entry_stack`
+    (`external-roots/.../stack_demand.rs`) seals the member's terminal
+    demand at its certified text offset, replays the sealed `call rel32`
+    target equation and the exact installed entry bytes against the
+    contract's installed-entry identity and admitted boundary plan, and
+    folds the contract-carried `X86_64DeriverStub::peak_entry_overhead_bytes`
+    (normalization + save area + ≤15 normalization slack + anchored
+    member-call frame + the call's return slot) into the entry's ceiling,
+    so `bind_x86_64_target_direct_entry_stack_realization` accepts the
+    stub-entry summary and the dedicated-stack demand composes as
+    hardware frame + stub overhead + member ceiling; the contract now
+    carries `member_call_frame` (outgoing stack-argument extent plus the
+    anchored reservation) as the single derivation emission and stack
+    accounting share, and the save-area accounting reserves 16 bytes per
+    vector register; producing `X86_64DeriverStubEntryEmission` rows during
+    real admission still waits on the image-emission join above;
+    provider-admitted resource columns and fuel/state receipts remain
+    test-admitted shapes; the multi-resolution
     seam now exists — `with_installation_reach_resolutions` keys the roster
     by (requirement identity, provider plan report identity) and
     `installation_reach_resolution_for_plan`/`resolve_installation_reach_for_plan`

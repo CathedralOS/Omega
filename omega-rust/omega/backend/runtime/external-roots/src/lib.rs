@@ -236,7 +236,9 @@ pub use stack_and_fuel::fixed_fuel::{
     validate_installed_segment_fuel, validate_installed_segment_fuel_catalog,
 };
 pub use stack_and_fuel::stack_demand::{
-    ArtifactStackComposition, ComposedStackDemand, InstalledEntryStackDemand, ProviderStackSummary,
-    StackDomain, StackLocalEvidence, StackNestingEdge, StackNestingRelation, StackResourceColumn,
-    bind_installed_entry_stack, compose_artifact_stacks, validate_installed_entry_stack,
+    ArtifactStackComposition, ComposedStackDemand, InstalledDeriverStubEntryStackDemand,
+    InstalledEntryStackDemand, ProviderStackSummary, StackDomain, StackLocalEvidence,
+    StackNestingEdge, StackNestingRelation, StackResourceColumn, X86_64DeriverStubEntryEmission,
+    bind_installed_deriver_stub_entry_stack, bind_installed_entry_stack, compose_artifact_stacks,
+    validate_installed_deriver_stub_entry_stack, validate_installed_entry_stack,
 };
