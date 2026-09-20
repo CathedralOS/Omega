@@ -32,6 +32,11 @@ pub(super) struct StatementBorrowLoan {
     pub(super) source_owner_symbol: SymbolHandle,
     pub(super) lineage: checked_trees::BorrowLoanLineage,
     pub(super) kind: checked_trees::BorrowAccessKind,
+    /// The loan's retained root was captured from a call result, not from a
+    /// borrow expression. It resolves receivers like any direct root, but it
+    /// is not borrow ancestry: children formed through it stay derived rather
+    /// than claiming `Reborrow` lineage.
+    pub(super) call_result: bool,
 }
 
 struct RebasedBorrowPlace {
@@ -252,13 +257,33 @@ fn reference_local_borrow_loans(
     );
     let explicit_reborrow_target = direct_reborrow_target(program, local_data.initial_value);
     let is_explicit_reborrow = explicit_reborrow_target.is_some();
+    // A call result keeps direct provenance only when its declared view
+    // source resolves to storage carrying no live local loan: the callee
+    // signature already names the exact parameter or receiver the return
+    // borrows, so the loan captures that storage like a direct borrow does.
+    // Calls whose signature declares no single direct source -- ambiguous,
+    // carrier-field, or view-free results -- and the name-matched slice/view
+    // builtins stay derived. A source place that does rebase through a live
+    // local loan still stays derived below -- a call transfer never gains
+    // reborrow ancestry. Non-borrow recast casts remain deliberately
+    // unretained in every case.
+    let call_declares_direct_source = match program
+        .expression_table
+        .expression(local_data.initial_value)
+    {
+        checked_trees::expression::ExpressionNode::Call(call) => {
+            call_declares_direct_view_source(program, call.target_symbol)
+        }
+        _ => false,
+    };
     let force_unretained = matches!(
         program
             .expression_table
             .expression(local_data.initial_value),
-        checked_trees::expression::ExpressionNode::Call(_)
-            | checked_trees::expression::ExpressionNode::Cast(_)
-    ) && !is_explicit_reborrow;
+        checked_trees::expression::ExpressionNode::Cast(_)
+            | checked_trees::expression::ExpressionNode::Call(_)
+    ) && !call_declares_direct_source
+        && !is_explicit_reborrow;
     let explicit_reborrow_place = explicit_reborrow_target.and_then(|target| {
         whole_place_recast_borrow_place(
             program,
@@ -338,6 +363,12 @@ fn reference_local_borrow_loans(
         return Vec::new();
     };
 
+    let is_call_result = matches!(
+        program
+            .expression_table
+            .expression(local_data.initial_value),
+        checked_trees::expression::ExpressionNode::Call(_)
+    );
     let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
     rebased
         .iter()
@@ -354,6 +385,7 @@ fn reference_local_borrow_loans(
                 force_unretained,
             ),
             kind: local_access.clone(),
+            call_result: is_call_result,
         })
         .collect()
 }
@@ -413,6 +445,7 @@ fn selected_arm_borrow_loans(
                     source_owner_symbol: source.source_owner_symbol,
                     lineage: retained_reference_lineage(source, &rebased, false, false),
                     kind: kind.clone(),
+                    call_result: false,
                 })
                 .collect::<Vec<_>>()
         })
@@ -618,6 +651,7 @@ fn borrowed_initializer_loans(
                     } else {
                         checked_trees::BorrowAccessKind::Read
                     },
+                    call_result: false,
                 })
                 .collect()
         }
@@ -685,6 +719,7 @@ fn aggregate_expression_borrow_loans(
                     } else {
                         checked_trees::BorrowAccessKind::Read
                     },
+                    call_result: false,
                 })
                 .collect()
         }
@@ -824,6 +859,7 @@ fn helper_call_aggregate_borrow_loans(
                         source_owner_symbol: source.source_owner_symbol,
                         lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                         kind: field.kind.clone(),
+                        call_result: false,
                     }
                 })
                 .collect::<Vec<_>>()
@@ -867,12 +903,13 @@ fn transferred_aggregate_loans(
                 source_owner_symbol: loan.owner_symbol,
                 lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
                 kind: loan.kind.clone(),
+                call_result: false,
             })
         })
         .collect()
 }
 
-fn helper_call_borrow_loan_place(
+pub(crate) fn helper_call_borrow_loan_place(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -942,6 +979,21 @@ fn call_view_return_source(
         return ViewReturnSource::NotApplicable;
     };
     resolve_signature_view_return_source(program, parameters, return_type)
+}
+
+/// True when the call target's own declaration names one exact borrow source
+/// for its returned view: the self receiver or a single direct reference
+/// parameter. This is the promotion gate for call-result loan provenance --
+/// the name-matched slice/view builtins, carrier-field sources, ambiguous
+/// signatures, and view-free calls all stay deliberately unretained.
+pub(crate) fn call_declares_direct_view_source(
+    program: &typed_trees::TypedTrees,
+    target_symbol: SymbolHandle,
+) -> bool {
+    matches!(
+        call_view_return_source(program, target_symbol),
+        ViewReturnSource::Parameter { .. } | ViewReturnSource::SelfReceiver
+    )
 }
 
 fn call_view_signature(
@@ -1066,8 +1118,13 @@ fn rebase_borrow_places_through_local_loans(
                 },
                 source_owner_symbol: source_loan.owner_symbol,
                 parent_loan: source_loan.handle,
+                // A call-result root is retained for receiver resolution but
+                // carries no borrow ancestry: children formed through it stay
+                // derived, so the reborrow resource model never sees more than
+                // the suspension shapes it can represent.
                 parent_lineage_is_retained: source_loan.lineage
-                    != checked_trees::BorrowLoanLineage::UnretainedDerived,
+                    != checked_trees::BorrowLoanLineage::UnretainedDerived
+                    && !source_loan.call_result,
             }
         })
         .collect()

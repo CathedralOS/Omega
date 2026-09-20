@@ -54,16 +54,34 @@ fn expected_loan_lineage(
         };
     };
     let checked_trees::statement::StatementNode::LocalData(local) = statement else {
-        if let checked_trees::statement::StatementNode::Assignment(assignment) = statement
-            && matches!(
-                program.expression_table.expression(assignment.value),
-                checked_trees::expression::ExpressionNode::Call(_)
-                    | checked_trees::expression::ExpressionNode::Cast(_)
-                    | checked_trees::expression::ExpressionNode::ArrayLiteral(_)
-                    | checked_trees::expression::ExpressionNode::StructLiteral(_)
-            )
-        {
-            return BorrowLoanLineage::UnretainedDerived;
+        if let checked_trees::statement::StatementNode::Assignment(assignment) = statement {
+            match program.expression_table.expression(assignment.value) {
+                checked_trees::expression::ExpressionNode::Call(call) => {
+                    let target_is_reference = crate::flow::expression_type_reference_in_state(
+                        program,
+                        typed_state.symbol,
+                        loan.statement_index,
+                        assignment.target,
+                    )
+                    .is_some_and(|target| {
+                        crate::borrow::view_link::is_reference_type(program, target)
+                    });
+                    return expected_call_result_lineage(
+                        program,
+                        typed_state,
+                        state.machine_symbol,
+                        target_is_reference,
+                        call,
+                        loan,
+                    );
+                }
+                checked_trees::expression::ExpressionNode::Cast(_)
+                | checked_trees::expression::ExpressionNode::ArrayLiteral(_)
+                | checked_trees::expression::ExpressionNode::StructLiteral(_) => {
+                    return BorrowLoanLineage::UnretainedDerived;
+                }
+                _ => {}
+            }
         }
         return if loan.source_owner_symbol.is_valid() {
             BorrowLoanLineage::UnretainedDerived
@@ -95,14 +113,56 @@ fn expected_loan_lineage(
                 }
             })
         }
-        checked_trees::expression::ExpressionNode::Call(_)
-        | checked_trees::expression::ExpressionNode::Cast(_)
+        checked_trees::expression::ExpressionNode::Call(call) => expected_call_result_lineage(
+            program,
+            typed_state,
+            state.machine_symbol,
+            crate::borrow::view_link::is_reference_type(program, local.type_reference),
+            call,
+            loan,
+        ),
+        checked_trees::expression::ExpressionNode::Cast(_)
         | checked_trees::expression::ExpressionNode::ArrayLiteral(_)
         | checked_trees::expression::ExpressionNode::StructLiteral(_) => {
             BorrowLoanLineage::UnretainedDerived
         }
         _ if loan.source_owner_symbol.is_valid() => BorrowLoanLineage::UnretainedDerived,
         _ => BorrowLoanLineage::DirectRoot,
+    }
+}
+
+/// Expected lineage for a call-valued initializer or assignment value.
+///
+/// Formation promotes a call result's loan to `DirectRoot` only when the
+/// call target's own declaration names one exact borrow source -- the self
+/// receiver or a single direct reference parameter -- and that source place
+/// resolves to storage carrying no live local loan. The name-matched
+/// slice/view builtins, carrier-field sources (`Fields`), ambiguous or
+/// view-free signatures, and any source rebased through a live local loan
+/// all stay deliberately `UnretainedDerived`.
+fn expected_call_result_lineage(
+    program: &typed_trees::TypedTrees,
+    typed_state: &typed_trees::state::State,
+    machine_symbol: symbols::SymbolHandle,
+    target_is_reference: bool,
+    call: &checked_trees::expression::TableCallExpression,
+    loan: &BorrowLoanFact,
+) -> BorrowLoanLineage {
+    if target_is_reference
+        && !loan.source_owner_symbol.is_valid()
+        && crate::borrow::call_declares_direct_view_source(program, call.target_symbol)
+        && crate::borrow::helper_call_borrow_loan_place(
+            program,
+            typed_state.symbol,
+            loan.statement_index,
+            machine_symbol,
+            call,
+        )
+        .is_some()
+    {
+        BorrowLoanLineage::DirectRoot
+    } else {
+        BorrowLoanLineage::UnretainedDerived
     }
 }
 
@@ -130,6 +190,10 @@ fn expected_explicit_reborrow_parent(
             && borrow.state_owns_loan(state, *parent_handle)
             && parent.statement_index < child.statement_index
             && parent.lineage != BorrowLoanLineage::UnretainedDerived
+            // A call-result root is retained for receiver resolution but is
+            // not borrow ancestry: formation never gives its children
+            // `Reborrow` lineage, so replay must not either.
+            && !loan_is_call_result_root(program, typed_state, parent)
             && parent.owner_symbol == source_root
             && owner_path_matches_source(program, borrow.loan_owner_path(parent), &source.segments)
             && child.source_owner_symbol == parent.owner_symbol
@@ -141,6 +205,40 @@ fn expected_explicit_reborrow_parent(
         return None;
     }
     Some(parent_handle)
+}
+
+/// True when the loan's retained root was captured from a call result rather
+/// than a borrow expression. Mirrors the `call_result` marker formation
+/// records on `StatementBorrowLoan`: a `LocalData` initializer or an
+/// `Assignment` value that is a call. Non-reference call carriers stay
+/// `UnretainedDerived` during formation, so any retained loan reaching this
+/// check through a call-valued statement is exactly a promoted call root.
+fn loan_is_call_result_root(
+    program: &typed_trees::TypedTrees,
+    typed_state: &typed_trees::state::State,
+    loan: &BorrowLoanFact,
+) -> bool {
+    let Some(statement) = program
+        .statement_table
+        .statements(typed_state.statement_nodes)
+        .get(loan.statement_index)
+    else {
+        return false;
+    };
+    match statement {
+        checked_trees::statement::StatementNode::LocalData(local) => {
+            local.symbol == loan.owner_symbol
+                && matches!(
+                    program.expression_table.expression(local.initial_value),
+                    checked_trees::expression::ExpressionNode::Call(_)
+                )
+        }
+        checked_trees::statement::StatementNode::Assignment(assignment) => matches!(
+            program.expression_table.expression(assignment.value),
+            checked_trees::expression::ExpressionNode::Call(_)
+        ),
+        _ => false,
+    }
 }
 
 fn child_place_replays_from_parent(

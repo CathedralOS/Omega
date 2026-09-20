@@ -78,6 +78,7 @@ pub(super) fn append_state_borrow_facts(
                 owner_name: pending.owner_name,
                 kind: pending.kind,
                 lineage: pending.lineage,
+                call_result: pending.call_result,
                 owner_path: pending.owner_path,
                 place: pending.place,
             });
