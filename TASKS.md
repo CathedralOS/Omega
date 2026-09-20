@@ -7474,7 +7474,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION, HOST-ALIAS-BUILD-DIR-DETECTION,
   REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE.
 - **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
-- **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
+- **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate. Verified
+  scope (z131 at `e5bbe53956f`): re-mines the race-window residual the
+  landed BUILD-DIR-HOST-ALIAS-COLLISIONS row assigns to
+  BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION — a host alias planted
+  between admission's `overlap_key` check and the first write. The
+  write-root leg already landed on main
+  (`ensure_established_write_root` re-checks the write root post-creation
+  and rejects both a symlink occupant and canonical-resolution drift, with
+  tests); this leg adds the missing coverage of the same host-alias
+  rejection at the captured-source snapshot backing —
+  `materialize_snapshot` refused a symlink occupant (and any other
+  non-directory resident) but no test pinned it. New test
+  `captured_source_snapshot_rejects_a_host_alias_at_its_backing` covers
+  both occupants. In-window establishment coverage inside `build-output`
+  remains the sibling detector item's slice (its claim holds that dir).
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate.
   Verified scope: re-mines the same race-window residual assigned to
   **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** (see
