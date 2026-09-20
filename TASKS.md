@@ -6535,7 +6535,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STALE-CUSTODY-GATE-EXPECTATIONS** — mined candidate; verify scope then implement.
 - **STANDALONE-REQUEST-CONTRACT** — mined candidate; verify scope then implement.
 - **STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
-- **STARTUP-ENTRY-MECHANICS-OWNERSHIP** — mined candidate; verify scope then implement.
+- **STARTUP-ENTRY-MECHANICS-OWNERSHIP.** Resolved by audit at `be03555d17` — startup/entry mechanics already sit under backend runtime ownership per `omega-rust/pipeline.md`: `backend/runtime/external-roots/src/root_entry` owns entry/exit mechanics (validation, admission, provider execution, progress-profile installation) and `platform_bringup` owns UEFI bootstrap + secondary-processor startup; `backend/plans/program-entry-plan` is data-only planning (its lib.rs owns "no emitted bytes, installation state, or legacy backend pipeline"); `_start` symbol resolution under `backend/images/image-{elf,macho}` and `compiler/native-realization/src/entry_settlement` are emission detail and realization orchestration, not mechanics. No placeholder crate owns startup mechanics; `tests/architecture/layering.rs` already pins the external-roots ownership rows. Sibling aliases (STARTUP-ENTRY-MECHANICS, STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS, BACKEND-RUNTIME-STARTUP-*, ENTRY-MECHANICS-RUNTIME-CONSOLIDATION) remain separate stubs.
 - **STARTUP-ENTRY-PLACEHOLDER-SWEEP** — mined candidate; verify scope then implement.
 - **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
 - **STATEMENT-CALL-RECURSIVE-ARGUMENT-DEDUP** — mined candidate; verify scope then implement.
