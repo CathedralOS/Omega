@@ -12669,6 +12669,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the `terminal_psi_indexed_receivers` legs sit inside the wholesale fence
   regardless of who owns them this wave. Adjudication unchanged — no
   independent slice exists.
+||||||| parent of 6a297aefaa0d (board: OMEGA-PARSER-WINDOWS-ROUTE resolved — host leg, not a code slice)
+- **OMEGA-PARSER-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-WRITTEN-PRODUCT-COMPILER** — mined candidate; verify scope then implement.
+- **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; scope verified, residual owned — re-mines OMEGA-PRODUCT-COMPILER-SOURCE wholesale (the Omega-written production compiler chain IS that item: `source/psi/` target-neutral phases + `source/omega/` Terminal-Psi consumer). Its documented frontier is not a separable zergling slice: (1) the parser gate's next Unit omission — `source_full` statement-sequence call through a nested receiver with a copy-enum case literal — is measured but `Main::main`'s next stop is unmeasured; (2) native production stops on `terminal_psi_indexed_receivers` legs owned by STATE-LOCAL-VALUE-FRONTIER (live claim to ~02:17Z); (3) the gate-check cost regression (~6,500 s wall) needs attribution before further slices iterate; (4) everything after the parser — resolution/typing/checking/proof/Terminal production in `source/psi` and the whole `source/omega` consumer — is unwritten by design. No independent slice exists here.
+- **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-WINDOWS-ROUTE.** Resolved — sibling re-mine of the
+  omega-parser Windows x64 host-leg cluster settled on
+  OMEGA-PARSER-GATE-WINDOWS-VALIDATION (:8328, which names
+  OMEGA-PARSER-GATE-WINDOWS-ROUTE as an alias; this stub is the same
+  surface). The host-free surface is landed and re-verified green on
+  linux x86-64 at `9b75533b9c7`: `sh tests/bootstrap/omega-parser/run.sh
+  --identity` binds every bound identity plus DCREQ request framing,
+  customer assembly, and expected fixture. The only remaining leg is
+  Windows x64 seed execution — `sh run.sh` on a MINGW/MSYS x64 host; no
+  audited seed executes on linux x86-64, so the row is a host leg, not a
+  code slice. Nothing producible on this machine.
+- **OMEGA-WRITTEN-PRODUCT-COMPILER** — mined candidate; verify scope then implement.
+- **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; scope verified, residual owned — re-mines OMEGA-PRODUCT-COMPILER-SOURCE wholesale (the Omega-written production compiler chain IS that item: `source/psi/` target-neutral phases + `source/omega/` Terminal-Psi consumer). Its documented frontier is not a separable zergling slice: (1) the parser gate's next Unit omission — `source_full` statement-sequence call through a nested receiver with a copy-enum case literal — is measured but `Main::main`'s next stop is unmeasured; (2) native production stops on `terminal_psi_indexed_receivers` legs owned by STATE-LOCAL-VALUE-FRONTIER (live claim to ~02:17Z); (3) the gate-check cost regression (~6,500 s wall) needs attribution before further slices iterate; (4) everything after the parser — resolution/typing/checking/proof/Terminal production in `source/psi` and the whole `source/omega` consumer — is unwritten by design. No independent slice exists here.
+- **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
 - **OPTIMIZATION-WORKLOAD-CORPUS.** Mined candidate; scope verified at
   7a5a87d5a1, authorization gate recorded — same verdict as both scoped
   siblings on this surface (WORKLOAD-CORPUS, GRAPH-COST-EVIDENCE-CORPUS).
