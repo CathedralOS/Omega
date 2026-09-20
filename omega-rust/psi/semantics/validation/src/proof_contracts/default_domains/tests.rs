@@ -166,6 +166,149 @@ fn canonical_meet_retains_only_shared_known_literals() {
     }
 }
 
+// DEPENDENT-VALUES-CHECKER-COVERAGE: a call nested inside any other
+// expression shape is still "a call" consumption point, a gated read nested
+// inside a non-Member shape still crosses the open window, and an
+// unrepresentable index position opens a wildcard window.
+#[test]
+fn call_inside_cast_expression_consumes_open_window() {
+    let source = r#"
+        data Pair where left <= right, { left: u64; right: u64; }
+        data Main { pair: Pair; }
+        machine Main::main(&mut self) {
+            self.pair = Pair { left: 1, right: 2 };
+            self.pair.left = 9;
+            let sunk: u64 = self.pick() as u64;
+            self.pair = Pair { left: 0, right: 0 };
+        }
+        machine Main::pick(&mut self) -> i32 { 1 }
+    "#;
+    let diagnostics = diagnostics(source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("a call")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn call_inside_struct_literal_consumes_open_window() {
+    let source = r#"
+        data Pair where left <= right, { left: u64; right: u64; }
+        data Main { pair: Pair; }
+        machine Main::main(&mut self) {
+            self.pair = Pair { left: 1, right: 2 };
+            self.pair.left = 9;
+            let sunk: Pair = Pair { left: self.pick() as u64, right: 8 };
+            self.pair = Pair { left: 0, right: 0 };
+        }
+        machine Main::pick(&mut self) -> i32 { 1 }
+    "#;
+    let diagnostics = diagnostics(source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("a call")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn gated_read_inside_cast_refuses_while_window_open() {
+    // `left < right` makes Pair establishment-gated (zero image violates
+    // it), so reads during the opened window police the consumption point.
+    let source = r#"
+        data Pair where left < right, { left: u64; right: u64; }
+        data Main { pair: Pair; }
+        machine Main::main(&mut self) {
+            self.pair = Pair { left: 1, right: 2 };
+            self.pair.left = 9;
+            let sunk: u64 = self.pair.right as u64;
+            self.pair = Pair { left: 0, right: 0 };
+        }
+    "#;
+    let diagnostics = diagnostics(source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("OPEN invariant window")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn call_inside_index_expression_consumes_open_window() {
+    let source = r#"
+        data Pair where left <= right, { left: u64; right: u64; }
+        data Main { pair: Pair; vals: [u64; 2]; }
+        machine Main::main(&mut self) {
+            self.pair = Pair { left: 1, right: 2 };
+            self.pair.left = 9;
+            let sunk: u64 = self.vals[self.pick() as u32];
+            self.pair = Pair { left: 0, right: 0 };
+        }
+        machine Main::pick(&mut self) -> i32 { 1 }
+    "#;
+    let diagnostics = diagnostics(source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("a call")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn call_inside_transition_argument_consumes_open_window() {
+    let source = r#"
+        data Pair where left <= right, { left: u64; right: u64; }
+        data Main { pair: Pair; }
+        machine Main::main(&mut self) {
+            self.pair = Pair { left: 1, right: 2 };
+            self.pair.left = 9;
+            transition { _ -> done(self.pick()) }
+            state done(&mut self, value: i32) {
+                self.pair = Pair { left: 0, right: 0 };
+            }
+        }
+        machine Main::pick(&mut self) -> i32 { 1 }
+    "#;
+    let diagnostics = diagnostics(source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("a call")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn dynamic_index_write_opens_window_until_whole_place_write() {
+    // `self.maps[i]` is an unrepresentable origin: the write may hit any
+    // element, so the wildcard window covers the whole region and a literal
+    // element re-proof cannot close it -- the next call still refuses.
+    let source = r#"
+        data Map where start <= end, { start: i32; end: i32; }
+        data Main { maps: [Map; 2]; }
+        machine Main::main(&mut self, i: u32) {
+            self.maps[0] = Map { start: 0, end: 4 };
+            self.maps[i].start = 9;
+            self.maps[0].start = 1;
+            self.maps[0].end = 2;
+            self.touch();
+        }
+        machine Main::touch(&mut self) {}
+    "#;
+    let diagnostics = diagnostics(source);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("a call")),
+        "{diagnostics:#?}"
+    );
+}
+
 #[test]
 fn canonical_meet_retains_the_active_case_only_when_both_agree() {
     // CASE-CONSTRAINTS (ch12): a constrained case's `where` facts are only

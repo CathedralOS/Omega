@@ -4,8 +4,8 @@
 use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, data_has_case_where_facts, domain_definition_by_name,
-    fact_span_mentions_field, field_is_where_mentioned, is_self_rooted, membership_field_name,
-    self_place_spelling,
+    fact_span_mentions_field, field_is_where_mentioned, is_self_rooted, is_subplace,
+    membership_field_name, place_spelling_covers, write_place_spelling,
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
@@ -81,11 +81,16 @@ pub(crate) fn handle_assignment<'program>(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // A whole-place store of a struct literal reseeds the valuation (the
-    // literal itself was proven at construction, rung 2b).
+    // literal itself was proven at construction, rung 2b). A wildcard
+    // position (`self.maps[i] = ...`) is different: the literal proves only
+    // the one element the runtime index hits, so the wildcard place cannot
+    // be marked established -- its window opens as ch11's conservative
+    // ceiling on unrepresentable origins.
     if let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
-        && let Some(spelling) = self_place_spelling(program, target)
+        && let Some(spelling) = write_place_spelling(program, target)
         && let Some(definition) = domain_definition_by_name(program, literal.type_name.as_str())
     {
+        let wildcard = spelling.contains("[*]");
         let fields = program
             .expression_table
             .struct_fields(literal.fields)
@@ -115,22 +120,25 @@ pub(crate) fn handle_assignment<'program>(
                     .map(|(length, capacity)| (field.name.as_str().to_string(), length, capacity))
             })
             .collect();
-        tracked.retain(|place| place.spelling != spelling);
+        tracked
+            .retain(|place| place.spelling != spelling && !is_subplace(&place.spelling, &spelling));
         let place_born_zero = born_zero && is_self_rooted(&spelling);
         tracked.push(TrackedPlace {
             spelling,
             definition,
-            fields,
-            symbols,
-            measures,
-            // Rung 2b proved this literal against the domain.
-            established: true,
+            fields: if wildcard { Vec::new() } else { fields },
+            symbols: if wildcard { Vec::new() } else { symbols },
+            measures: if wildcard { Vec::new() } else { measures },
+            // Rung 2b proved this literal against the domain -- for the one
+            // representable position a literal spelling names.
+            established: !wildcard,
             born_zero: place_born_zero,
-            window_open: false,
+            window_open: wildcard,
             // The literal's selected case replaces the place's active case:
             // the previous case's facts lapse with its payload, and the new
-            // case's facts were already proven at construction.
-            active_case: literal.case_symbol,
+            // case's facts were already proven at construction. A wildcard
+            // position cannot claim a case for the whole covered region.
+            active_case: if wildcard { None } else { literal.case_symbol },
         });
         return;
     }
@@ -140,9 +148,16 @@ pub(crate) fn handle_assignment<'program>(
     let ExpressionNode::Member(member) = program.expression_table.expression(target) else {
         return;
     };
-    let Some(receiver_spelling) = self_place_spelling(program, member.receiver) else {
+    let Some(receiver_spelling) = write_place_spelling(program, member.receiver) else {
         return;
     };
+    // A whole-region reseed drops every tracked place strictly nested under
+    // the target; a wildcard receiver's write may hit any covered concrete
+    // place, so covered siblings lose this field's valuation too.
+    let target_spelling = write_place_spelling(program, target);
+    if let Some(target_spelling) = target_spelling.as_deref() {
+        tracked.retain(|place| !is_subplace(&place.spelling, target_spelling));
+    }
     let Some(definition) =
         data_definition_for_expression(program, machine, Some(state), member.receiver)
     else {
@@ -156,6 +171,21 @@ pub(crate) fn handle_assignment<'program>(
     }
     let field_name = member.member.as_str().to_string();
     let written = integer_literal_value(program, value);
+
+    // A wildcard receiver (`self.maps[*]`) may hit any covered concrete
+    // element: every tracked sibling under it loses this field's known
+    // valuation before the write proceeds. The siblings' own window state is
+    // untouched -- the write can neither prove nor disprove what it did not
+    // positionally name.
+    if receiver_spelling.contains("[*]") {
+        for sibling in tracked.iter_mut() {
+            if place_spelling_covers(&receiver_spelling, &sibling.spelling) {
+                sibling.fields.retain(|(name, _)| *name != field_name);
+                sibling.symbols.retain(|(name, _)| *name != field_name);
+                sibling.measures.retain(|(name, _, _)| *name != field_name);
+            }
+        }
+    }
 
     let place = if let Some(position) = tracked
         .iter()
@@ -313,8 +343,10 @@ pub(crate) fn handle_assignment<'program>(
     // Every fact re-proven at the post-write valuation: the place
     // satisfies its domain again (any open window CLOSES; a gated place
     // establishes). A checkable violation leaves the window OPEN for the
-    // consumption points to police (ch11).
-    if all_hold {
+    // consumption points to police (ch11). A wildcard place never closes
+    // here: one dynamic position's re-proof cannot discharge the covered
+    // region -- only a whole-place reseed drops it.
+    if all_hold && !place.spelling.contains("[*]") {
         place.established = true;
         place.window_open = false;
     } else {

@@ -2,7 +2,8 @@
 //! against established places and range gates.
 
 use crate::proof_contracts::default_domains::place_queries::{
-    data_definition_for_expression, is_self_rooted, self_place_spelling,
+    data_definition_for_expression, is_self_rooted, place_spelling_covers, self_place_spelling,
+    transition_evaluated_expressions, write_target_index_expressions,
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
@@ -82,10 +83,15 @@ pub(crate) fn scan_statement_reads(
             );
         }
         StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard {
-                reads.push(*guard);
-            }
+            // Guards, named-target arguments, and value targets are all
+            // evaluated reads at the transition point.
+            reads.extend(transition_evaluated_expressions(program, transition));
         }
+    }
+    if let StatementNode::Assignment(assignment) = statement {
+        // The place spine of the target is the write path, but every index
+        // expression inside it is an ordinary evaluated read.
+        reads.extend(write_target_index_expressions(program, assignment.target));
     }
     for read in reads {
         scan_expression_reads(
@@ -145,7 +151,7 @@ fn scan_expression_reads(
                     .join(".");
                 if let Some(place) = tracked
                     .iter()
-                    .find(|place| place.spelling == receiver_spelling)
+                    .find(|place| place_spelling_covers(&place.spelling, &receiver_spelling))
                 {
                     validate_data_read(
                         program,
@@ -192,7 +198,7 @@ fn scan_expression_reads(
             if let Some(receiver_spelling) = self_place_spelling(program, member.receiver) {
                 let tracked_receiver = tracked
                     .iter()
-                    .find(|place| place.spelling == receiver_spelling);
+                    .find(|place| place_spelling_covers(&place.spelling, &receiver_spelling));
                 let definition = tracked_receiver.map(|place| place.definition).or_else(|| {
                     data_definition_for_expression(program, machine, Some(state), member.receiver)
                 });
@@ -279,9 +285,9 @@ fn scan_expression_reads(
             if let ExpressionNode::Member(member) =
                 program.expression_table.expression(inner.target)
                 && let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
-                && let Some(place) = tracked
-                    .iter()
-                    .find(|place| place.spelling == receiver_spelling && place.window_open)
+                && let Some(place) = tracked.iter().find(|place| {
+                    place_spelling_covers(&place.spelling, &receiver_spelling) && place.window_open
+                })
             {
                 validate_data_read(
                     program,
@@ -334,6 +340,136 @@ fn scan_expression_reads(
                 );
             }
         }
+        ExpressionNode::Cast(cast) => {
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                cast.value,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Unary(unary) => {
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                unary.operand,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Atomic(atomic) => {
+            for operand in [atomic.value, atomic.result] {
+                scan_expression_reads(
+                    program,
+                    machine,
+                    state,
+                    operand,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::Range(range) => {
+            for bound in [range.start, range.end] {
+                scan_expression_reads(
+                    program,
+                    machine,
+                    state,
+                    bound,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in program
+                .expression_table
+                .expression_handles(*elements)
+                .iter()
+                .copied()
+            {
+                scan_expression_reads(
+                    program,
+                    machine,
+                    state,
+                    element,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            for field in program.expression_table.struct_fields(literal.fields) {
+                scan_expression_reads(
+                    program,
+                    machine,
+                    state,
+                    field.value,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+            }
+        }
+        ExpressionNode::Match(matched) => {
+            scan_expression_reads(
+                program,
+                machine,
+                state,
+                matched.subject,
+                tracked,
+                entry_established,
+                call_established,
+                inherited_windows,
+                diagnostics,
+            );
+            for arm in program.expression_table.match_arms(matched.arms) {
+                scan_expression_reads(
+                    program,
+                    machine,
+                    state,
+                    arm.value,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    inherited_windows,
+                    diagnostics,
+                );
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    scan_expression_reads(
+                        program,
+                        machine,
+                        state,
+                        pattern,
+                        tracked,
+                        entry_established,
+                        call_established,
+                        inherited_windows,
+                        diagnostics,
+                    );
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -360,7 +496,7 @@ fn validate_data_read(
 ) {
     let place = tracked
         .iter()
-        .find(|place| place.spelling == receiver_spelling);
+        .find(|place| place_spelling_covers(&place.spelling, receiver_spelling));
     let established = place.map(|place| place.established).unwrap_or_else(|| {
         // Parameters and locals arrive domain-valid from their caller or
         // initializer; machine-owned `self` storage starts as representation
@@ -392,7 +528,12 @@ fn validate_data_read(
             definition.name.as_str()
         )));
     }
-    if place.is_some_and(|place| place.window_open) {
+    // Any covering place with an open window polices the read -- a wildcard
+    // place's window still covers a closed concrete sibling it subsumes.
+    if tracked
+        .iter()
+        .any(|place| place_spelling_covers(&place.spelling, receiver_spelling) && place.window_open)
+    {
         diagnostics.push(Diagnostic::error(format!(
             "reading `{receiver_spelling}.{member_name}` inside an OPEN invariant window: \
              a prior write left data `{}`'s default domain FALSE -- restore the facts \
@@ -403,7 +544,7 @@ fn validate_data_read(
     if place.is_none()
         && inherited_windows
             .iter()
-            .any(|(spelling, _, _)| spelling == receiver_spelling)
+            .any(|(spelling, _, _)| place_spelling_covers(spelling, receiver_spelling))
     {
         diagnostics.push(Diagnostic::error(format!(
             "reading `{receiver_spelling}.{member_name}` inside an OPEN invariant window \

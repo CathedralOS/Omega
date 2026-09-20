@@ -264,6 +264,11 @@ pub(super) fn expression_sequence_measures(
     }
 }
 
+/// Whether ANY reachable nested expression is a call. A call is a hard
+/// consumption point for open invariant windows, so the traversal must cover
+/// every expression shape that can carry one -- casts, unary operands,
+/// indices, literals' elements and fields, match subjects and arms, ranges,
+/// and atomic value/result -- not merely the binary/member/breadth spine.
 pub(super) fn expression_contains_call(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     if !expression.is_valid() {
         return false;
@@ -276,6 +281,46 @@ pub(super) fn expression_contains_call(program: &TypedTrees, expression: Express
         }
         ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
         ExpressionNode::Borrow(inner) => expression_contains_call(program, inner.target),
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains_call(program, indexed.collection)
+                || expression_contains_call(program, indexed.index)
+        }
+        ExpressionNode::Cast(cast) => expression_contains_call(program, cast.value),
+        ExpressionNode::Unary(unary) => expression_contains_call(program, unary.operand),
+        ExpressionNode::Atomic(atomic) => {
+            expression_contains_call(program, atomic.value)
+                || expression_contains_call(program, atomic.result)
+        }
+        ExpressionNode::Range(range) => {
+            expression_contains_call(program, range.start)
+                || expression_contains_call(program, range.end)
+        }
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .any(|element| expression_contains_call(program, *element)),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| expression_contains_call(program, field.value)),
+        ExpressionNode::Match(matched) => {
+            expression_contains_call(program, matched.subject)
+                || program
+                    .expression_table
+                    .match_arms(matched.arms)
+                    .iter()
+                    .any(|arm| {
+                        expression_contains_call(program, arm.value)
+                            || match arm.pattern {
+                                typed_trees::expression::MatchPattern::Value(pattern) => {
+                                    expression_contains_call(program, pattern)
+                                }
+                                typed_trees::expression::MatchPattern::Wildcard => false,
+                            }
+                    })
+        }
         _ => false,
     }
 }
