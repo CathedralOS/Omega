@@ -119,6 +119,57 @@ pub(super) fn append_constraints(
     }
 }
 
+/// Reuse the canonical input banks without retaining source-signature permutations.
+pub(super) fn append_normalized_foreign_constraints(
+    constraints: &mut Vec<RegisterInstructionConstraint>,
+    model: &ValidatedPhysicalRegisterModel,
+) {
+    for (inputs, keys) in [
+        (
+            aarch64_aapcs64_register_unit_call_keys()
+                .into_iter()
+                .chain(aarch64_aapcs64_mixed_unit_call_keys()),
+            super::aarch64_aapcs64_normalized_foreign_call_keys(),
+        ),
+        (
+            aarch64_darwin_register_unit_call_keys()
+                .into_iter()
+                .chain(aarch64_darwin_mixed_unit_call_keys()),
+            super::aarch64_darwin_normalized_foreign_call_keys(),
+        ),
+    ] {
+        let mut keys = keys.into_iter();
+        for input in inputs {
+            let Some(base) = constraints.iter().find(|row| row.key == input).cloned() else {
+                return;
+            };
+            for result_name in [None, Some("x0"), Some("d0")] {
+                let Some(key) = keys.next() else { return };
+                let mut row = base.clone();
+                row.key = key;
+                if let Some(result_name) = result_name {
+                    let Some(result) = model.model().view_named(result_name) else {
+                        return;
+                    };
+                    row.operands.push(RegisterOperandConstraint {
+                        operand: row.operands.len() as u16,
+                        access: RegisterOperandAccess::Def,
+                        class: result.class,
+                        fixed_view: Some(result.id),
+                        tied_to: None,
+                        early_clobber: false,
+                    });
+                    // The explicit result defines its full architectural write
+                    // footprint. Every other caller-save unit stays clobbered.
+                    row.clobbers
+                        .retain(|unit| !result.write_units.contains(unit));
+                }
+                constraints.push(row);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::{

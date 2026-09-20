@@ -285,8 +285,8 @@ mod tests {
     use crate::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
 
     fn inputs(
-        arity: usize,
-        has_result: bool,
+        input_layout: usize,
+        result: usize,
     ) -> (
         ValidatedPhysicalRegisterModel,
         SelectedInstructionKind,
@@ -305,8 +305,7 @@ mod tests {
             variant: 0,
         };
         let catalog = x86_64_register_constraint_catalog(&physical);
-        let key = crate::x86_64_system_v_normalized_foreign_call_keys()
-            [arity * 2 + usize::from(has_result)];
+        let key = crate::x86_64_system_v_normalized_foreign_call_keys()[input_layout * 3 + result];
         let row = catalog
             .constraints
             .iter()
@@ -355,7 +354,7 @@ mod tests {
 
     #[test]
     fn template_has_exact_bytes_and_fixup() {
-        let (physical, kind, alternative, operands, accesses, effects) = inputs(1, true);
+        let (physical, kind, alternative, operands, accesses, effects) = inputs(1, 1);
         let template = encode_x86_64_selected_normalized_foreign_call_template(
             NativeTarget::linux_x64(),
             &physical,
@@ -384,10 +383,10 @@ mod tests {
 
     #[test]
     fn every_plan_row_selects_its_exact_operands_and_effects() {
-        let (physical, kind, alternative, _, _, _) = inputs(0, false);
-        for arity in 0..=6usize {
-            for has_result in [false, true] {
-                let (_, _, _, operands, accesses, effects) = inputs(arity, has_result);
+        let (physical, kind, alternative, _, _, _) = inputs(0, 0);
+        for input_layout in 0..63 {
+            for result in 0..3 {
+                let (_, _, _, operands, accesses, effects) = inputs(input_layout, result);
                 let template = encode_x86_64_selected_normalized_foreign_call_template(
                     NativeTarget::linux_x64(),
                     &physical,
@@ -399,23 +398,23 @@ mod tests {
                 )
                 .unwrap();
                 assert_eq!(template.operand_views(), operands.as_slice());
-                // A different plan's operand roster selects that plan's row,
-                // whose canonical effects reject this row's effects.
-                if arity > 0 {
-                    let (_, _, _, wrong, wrong_accesses, _) = inputs(arity - 1, has_result);
-                    assert!(
-                        encode_x86_64_selected_normalized_foreign_call_template(
-                            NativeTarget::linux_x64(),
-                            &physical,
-                            kind,
-                            alternative,
-                            &wrong,
-                            &wrong_accesses,
-                            &effects,
-                        )
-                        .is_err()
-                    );
-                    // A view outside the integer argument bank matches no row.
+                // A different result choice is a valid row, but cannot retain
+                // this row's external writes and remaining caller-save effects.
+                let (_, _, _, wrong, wrong_accesses, _) = inputs(input_layout, (result + 1) % 3);
+                assert_eq!(
+                    encode_x86_64_selected_normalized_foreign_call_template(
+                        NativeTarget::linux_x64(),
+                        &physical,
+                        kind,
+                        alternative,
+                        &wrong,
+                        &wrong_accesses,
+                        &effects,
+                    ),
+                    Err(X86_64NormalizedForeignCallTemplateError::EffectMismatch)
+                );
+                if !operands.is_empty() {
+                    // This view belongs to neither the input nor result bank.
                     let mut substituted = operands.clone();
                     substituted[0] = physical.model().view_named("r11").unwrap().id;
                     assert_eq!(
@@ -430,9 +429,15 @@ mod tests {
                         ),
                         Err(X86_64NormalizedForeignCallTemplateError::OperandViewMismatch)
                     );
-                    // A swapped operand role selects no row for this plan.
+                    // Flip the actual role: result-only rows start with Def,
+                    // whereas nonempty input layouts start with Use. If the
+                    // new roles describe another valid row, stale effects reject.
                     let mut swapped_accesses = accesses.clone();
-                    swapped_accesses[0] = RegisterOperandAccess::Def;
+                    swapped_accesses[0] = match accesses[0] {
+                        RegisterOperandAccess::Use => RegisterOperandAccess::Def,
+                        RegisterOperandAccess::Def => RegisterOperandAccess::Use,
+                        RegisterOperandAccess::UseDef => unreachable!(),
+                    };
                     assert!(
                         encode_x86_64_selected_normalized_foreign_call_template(
                             NativeTarget::linux_x64(),
@@ -536,7 +541,7 @@ mod tests {
 
     #[test]
     fn rejects_wrong_kind_target_alternative_and_fixup() {
-        let (physical, kind, alternative, operands, accesses, effects) = inputs(1, true);
+        let (physical, kind, alternative, operands, accesses, effects) = inputs(1, 1);
         assert_eq!(
             encode_x86_64_selected_normalized_foreign_call_template(
                 NativeTarget::linux_x64(),

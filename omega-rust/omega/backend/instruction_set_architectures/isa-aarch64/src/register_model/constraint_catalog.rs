@@ -520,40 +520,6 @@ pub fn aarch64_register_constraint_catalog(
         constraints.push(call);
     }
 
-    // Per-plan normalized foreign call rows: one row per (integer bank,
-    // register arity, scalar-result presence). Stack-passed arguments are
-    // outgoing custody, never row operands; every caller-saved register is
-    // clobbered regardless of how many bank registers carry arguments. A row
-    // without a scalar result leaves X0 clobbered, like the unit-call rows.
-    for (keys, call_convention) in [
-        (aarch64_aapcs64_normalized_foreign_call_keys(), aapcs),
-        (aarch64_darwin_normalized_foreign_call_keys(), darwin),
-    ] {
-        for (index, key) in keys.into_iter().enumerate() {
-            let arity = index / 2;
-            let mut operands = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
-                .into_iter()
-                .take(arity)
-                .enumerate()
-                .map(|(index, name)| fixed(index as u16, RegisterOperandAccess::Use, name))
-                .collect::<Vec<_>>();
-            let mut clobbers = call_clobbers(call_convention);
-            if index % 2 == 1 {
-                operands.push(fixed(arity as u16, RegisterOperandAccess::Def, "x0"));
-            } else {
-                clobbers = sorted_units(clobbers.into_iter().chain(x0_units.iter().copied()));
-            }
-            constraints.push(RegisterInstructionConstraint {
-                id: RegisterConstraintId(0),
-                key,
-                operands,
-                implicit_uses: call_uses.clone(),
-                implicit_defs: call_defs.clone(),
-                clobbers,
-            });
-        }
-    }
-
     for (key, syscall_register) in [
         (AARCH64_HOSTED_READ_BYTE, "x8"),
         (AARCH64_DARWIN_HOSTED_READ_BYTE, "x16"),
@@ -861,6 +827,7 @@ pub fn aarch64_register_constraint_catalog(
         });
     }
     mixed_calls::append_constraints(&mut constraints, model);
+    mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);
     for (key, restore) in [
