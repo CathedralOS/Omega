@@ -1,4 +1,4 @@
-use crate::unsequenced_spill_stages::stack_slot_coloring::compute::{
+use crate::assignment::stack_slot_coloring::compute::{
     StackSlotInterval, color_intervals_first_fit,
 };
 use crate::{LiveRangePoint, LogicalSpillStorageClass, LogicalSpillStorageId};

@@ -7,12 +7,12 @@ use selected_instructions::SelectedBlockId;
 use crate::LiveRangePoint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::unsequenced_spill_stages::stack_slot_coloring) struct StackSlotInterval {
-    pub(in crate::unsequenced_spill_stages::stack_slot_coloring) storage: LogicalSpillStorageId,
-    pub(in crate::unsequenced_spill_stages::stack_slot_coloring) class: LogicalSpillStorageClass,
-    pub(in crate::unsequenced_spill_stages::stack_slot_coloring) block: SelectedBlockId,
-    pub(in crate::unsequenced_spill_stages::stack_slot_coloring) live_from: LiveRangePoint,
-    pub(in crate::unsequenced_spill_stages::stack_slot_coloring) live_through: LiveRangePoint,
+pub(in crate::assignment::stack_slot_coloring) struct StackSlotInterval {
+    pub(in crate::assignment::stack_slot_coloring) storage: LogicalSpillStorageId,
+    pub(in crate::assignment::stack_slot_coloring) class: LogicalSpillStorageClass,
+    pub(in crate::assignment::stack_slot_coloring) block: SelectedBlockId,
+    pub(in crate::assignment::stack_slot_coloring) live_from: LiveRangePoint,
+    pub(in crate::assignment::stack_slot_coloring) live_through: LiveRangePoint,
 }
 
 pub(super) fn intervals_for_function(

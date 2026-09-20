@@ -6,7 +6,7 @@ use super::StackSlotInterval;
 
 const SLOT_BYTES: u64 = 8;
 
-pub(in crate::unsequenced_spill_stages::stack_slot_coloring) fn color_intervals_first_fit(
+pub(in crate::assignment::stack_slot_coloring) fn color_intervals_first_fit(
     function: usize,
     machine: MachineId,
     mut intervals: Vec<StackSlotInterval>,

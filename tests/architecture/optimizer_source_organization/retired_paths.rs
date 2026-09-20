@@ -199,7 +199,6 @@ pub(crate) fn check(audit: &mut Audit) {
         "spill_recovery_actions",
         "spill_recovery_choice",
         "spill_recovery_worklist",
-        "stack_slot_coloring",
         "synthetic_reload_values",
     ] {
         let obsolete = format!(
@@ -241,6 +240,13 @@ pub(crate) fn check(audit: &mut Audit) {
                 "logical spill planning retains a retired flat entrance or mixed leaf: {obsolete}"
             ));
         }
+    }
+
+    let retired_coloring_home = "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/stack_slot_coloring";
+    if repository.join(retired_coloring_home).exists() {
+        violations.insert(format!(
+            "stack-slot coloring retains an unsequenced home beside its sequenced assignment module: {retired_coloring_home}"
+        ));
     }
 
     for obsolete in [
