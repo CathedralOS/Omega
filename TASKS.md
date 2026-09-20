@@ -6088,11 +6088,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `ensure_write_roots` rejects a `--build-dir` that names the source root
   or one of its ancestors (a covering write root would make read-only
   sources writable). Nested-inside-source default remains admitted.
-  Residual: named-input snapshot dirs derive from the checked source
-  backing without re-running the fence (a `--build-dir` spelled exactly
-  `<snapshot>.input-N` still aliases that input's read root); race-window
-  aliases (symlink created between admission and first write) remain the
-  sibling BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION scope.
+  The named-input residual also landed (`f0f902d6ef`): each named input's
+  read root derives as `<snapshot>.input-N` — a sibling spelling the bind
+  fence cannot see — and `ensure_write_roots` now replays the
+  spelling-independent `roots_overlap` check against every bound named
+  input after inventory binding, so `--build-dir` spelled exactly
+  `<snapshot>.input-N` (or a descendant) rejects instead of aliasing that
+  input's read-only root; pinned by
+  `build_write_root_rejects_alias_of_a_named_input_snapshot` and
+  `captured_source_scope_rejects_host_alias_spellings_of_the_roots` (both
+  green at `164abfbbdb`). Race-window aliases (symlink created between
+  admission and first write) remain the sibling
+  BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION scope.
 - **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate; verify scope then implement.
