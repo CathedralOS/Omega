@@ -3282,6 +3282,25 @@ Owners include
   Cathedral validator; the compiler keeps root records, the IST-to-stack-
   class join that stack selection derives, and the `lidt` contract.
 
+  Leg frontier at 867443a8fd (18:20Z attempt): a same-item claim is live
+  (Devin / exception-roots-and-timer, calling-conventions' stack_realizations,
+  until 23:14Z) and the remaining implementing surfaces are fenced —
+  `external-roots` platform_bringup/wholesale (UEFI-OS-HANDOFF 20:00Z),
+  interrupt_table member_admissions (RC-REPOSITORY-BASELINE-GREEN 23:46Z),
+  image-emission installation_record (FAULT-INJECTED-TARGET-READER 23:43Z)
+  plus image-emission src/ (ENTRY-CONTENT-ROOTS 01:45Z+1d), machine-emission
+  startup (AP-BRINGUP 01:40Z+1d), compiler/tests (several, incl.
+  TWO-AXIS-TERMINAL-AUTHORITY-REVIEW 19:24Z, PROOF-KERNEL-CORE 21:39Z).
+  First implementable retry order per the bullet above: (1) plan-scoped
+  installation-reach resolvers in provider-planning
+  (`derive_selected_installation_reach_resolutions`) +
+  `ResolvedRootServiceReach::from_*` adoption in root_validation.rs +
+  `receipt_binding.rs` shared-requirement admission; (2) authored `TimerRoot`
+  + acknowledge/record/wake member in `interrupt_table_canary` with the
+  compiler-side `admit_interrupt_table_member` drive; (3) image-emission
+  artifact join placing stub bytes at `identity.entry_offset` + relocation
+  seal (image-emission fence); (4) QEMU execution legs per the acceptance.
+
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Finish
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
   for component contracts and for the completion route an opaque carrier owns.
