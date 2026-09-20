@@ -10612,6 +10612,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   representations-home rule, not transform orphans. No independent slice
   exists here.
 
+||||||| parent of b5e4b81de70e (board: DUPLICATE-OVERLOAD-RESOLUTION resolved — rule landed + pinned)
+  2026-09-20T21:52Z).
+- **DUPLICATE-NAMED-MACHINE-OVERLOAD** — mined candidate; verify scope then implement.
+- **DUPLICATE-OVERLOAD-RESOLUTION** — mined candidate; verify scope then implement.
+- **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.
+  2026-09-20T21:52Z).
+- **DUPLICATE-NAMED-MACHINE-OVERLOAD** — mined candidate; verify scope then implement.
+- **DUPLICATE-OVERLOAD-RESOLUTION.** Resolved — the duplicate-overload
+  resolution rule is landed and pinned. Re-verified at `bbcff399ed7`
+  (linux x86-64): `validate_named_callable_overload_declarations`
+  (`validation/src/machine_calls/callable_overloads.rs:19-70`) resolves
+  overload identity by `NormalizedNamedCallableIdentity` (path + parameter
+  signature + result dispatch set) for both machines and trait
+  requirements; same identity in non-separate scopes rejects with
+  "duplicate named {kind} overload ... predicate-only result refinements
+  do not distinguish overloads", while scope-separated or identity-
+  distinct declarations coexist. Pinned by
+  `surface_and_targets::duplicate_overload_and_visibility_admissions_reject`
+  (five fixtures green at `00e1da7ae2a`) plus the legal-half
+  `repeated_exact_declaration_selection_compiles`. Sibling stub
+  CANARY-DUPLICATE-OVERLOAD-DECLARATIONS covers the corpus row. No
+  independent slice exists.
+- **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-RELOCATION.** Mined candidate. Upstream: the
   [PIPELINE-OWNER-CONSOLIDATION](TASKS_OPTIMIZER.md) remaining-work bullet in
   TASKS_OPTIMIZER.md: "Move durable codecs out of transforms and coordinators
