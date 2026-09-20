@@ -9249,7 +9249,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   owner's branch; no in-fence work attempted.
 - **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
 - **REWRITE-CATALOG-ADMISSION** — mined candidate; verify scope then implement.
-- **REWRITE-VALIDATOR-INDEPENDENCE** — mined candidate; verify scope then implement.
+- **REWRITE-VALIDATOR-INDEPENDENCE.** Mined candidate — resolved at
+  `d8041919ad`: this re-mines the EXACT-MACHINE-SIMPLIFICATIONS bullet
+  "separate validation from proposal" (TASKS_OPTIMIZER.md) — each rewrite's
+  `validation.rs` must reconstruct the legality preconditions itself; calling
+  the producer's `admission::admit` detects a wrong edit but not a wrong
+  legality decision, and each converted module proves the separation on a
+  forged proposal in its own `independence_tests`. Landed precedent at this
+  revision: `copy_removal` + `redundant_extension` (per the bullet) and
+  `address_fold` (`a291bf30fa`) + the in-block relocation family
+  `commuting_relocation`/`local_relocation`/`run_relocation` (`8ccd793fa8`)
+  — six modules with independent validators. The remaining 34 modules still
+  open with `let admitted = admission::admit(`: every compare/flag family
+  (literal_*, constant_*, boundary_*, dead_compare), the rest of the
+  interchange/relocation families, `load_forwarding`, `store_motion`,
+  `local_schedule`, `dead_store`, `runtime_rematerialization` and
+  `runtime_spill`. Currently unfenced claim available only item-wide: the
+  whole `selected-instructions-to-selected-instructions/` crate is fenced
+  under POC-REWRITE-ORPHANS (Zergling-91, exp 22:33Z) and the
+  `rewrites/{mod.rs,module_catalog.rs}` pair under
+  SELECTED-STAGE-RULE-CATALOG (Devin/z88, exp 02:32Z), so the per-module
+  conversion is claim-blocked this wave — the work item stays a named
+  EXACT-MACHINE-SIMPLIFICATIONS sub-leg, not an independent surface.
 - **RO-CODEC-PLACEMENT** — mined candidate; verify scope then implement.
 - **RO-S2S-ANCESTRY-WALKS** — resolved: verified on `99b24364c2`. Every
   `live_range_stage()`/`liveness_stage()`/`selected_stage()`/
