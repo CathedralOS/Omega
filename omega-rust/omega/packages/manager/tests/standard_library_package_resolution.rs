@@ -648,7 +648,7 @@ fn write_console_consumer(root: &Path, dependency: &str) {
             r#"
 machine build(builder: &mut Build) {{
     builder.application("console-consumer");
-{dependency}    builder.select_provider<Console, ConsoleNativeProvider>();
+{dependency}    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
 }}
 "#
         ),
@@ -657,9 +657,10 @@ machine build(builder: &mut Build) {{
     fs::write(
         root.join("main.omg"),
         r#"use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
