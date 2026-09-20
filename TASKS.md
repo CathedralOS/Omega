@@ -9778,7 +9778,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an
   entry does not claim that its native bridge has been installed"), which
   the note itself assigns to ENTRY-CONTENT-ROOTS. Its acceptance leg now
-  passes natively on linux x86-64 at `cdee121ee9`, re-verified `9ff8673b31`:
+  passes natively on linux x86-64 at `cdee121ee9`, re-verified `25709a68706`:
   `samples_with_documented_exit_run_correctly`
   (`OMEGA_SAMPLE_RUNTIME_FILTER==cli__basics__number_guess`) compiles
   number_guess — a published process with a `Service<Console>` receiver and
