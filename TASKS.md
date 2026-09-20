@@ -5289,7 +5289,14 @@ Owners include
   description bytes each reject inside independent verification rather than
   being treated as complete, and the join is per selection: a second
   dependency's own `Independent` edge stays unmatched — naming its plan —
-  while only the first dependency's description is attached.
+  while only the first dependency's description is attached. Forged fields
+  inside otherwise-canonical bytes are pinned the same way: decoding the
+  published description, mutating one field, and re-encoding reaches the
+  check inside `verify_component` — an unadmitted schema, a frontier
+  preceding artifact closure, a forged export row, an omitted module-derived
+  entry or export, a declared assumption the consumer never authored, and an
+  entry row bound to an assumption absent from the roster each reject inside
+  settlement's independent-verification wrapper.
   Still, a settled `Independent` edge carries no symbolic import or
   installation obligation into the product past that emission fence.
 

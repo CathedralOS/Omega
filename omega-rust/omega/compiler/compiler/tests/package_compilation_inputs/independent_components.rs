@@ -1056,3 +1056,188 @@ fn a_description_for_one_dependency_cannot_realize_anothers_selection() {
         ],
     );
 }
+
+/// Decode the published description, mutate one field, and re-encode it back
+/// into canonical bytes: the carrier for forged rosters and early frontiers
+/// that must survive the codec and fail inside `verify_component` during
+/// settlement.
+fn forged_description(
+    published: &IndependentComponentDescription,
+    mutate: impl FnOnce(&mut component_description::ComponentDescription),
+) -> IndependentComponentDescription {
+    let mut description =
+        component_description::decode_component_description(published.description())
+            .expect("the published description decodes canonically");
+    mutate(&mut description);
+    IndependentComponentDescription::new(
+        published.package(),
+        published.expected_subject(),
+        component_description::encode_component_description(&description),
+    )
+}
+
+#[test]
+fn a_description_naming_an_unadmitted_schema_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        description.schema = description.schema.saturating_add(1);
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a schema outside the admitted set cannot verify");
+    rejects_with(
+        &diagnostics,
+        &["failed independent verification", "is not admitted"],
+    );
+}
+
+#[test]
+fn a_description_naming_an_earlier_frontier_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        description.frontier = component_description::DescriptionFrontier::SelectedPlan;
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a frontier preceding artifact closure cannot verify");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "precedes a closed artifact",
+        ],
+    );
+}
+
+#[test]
+fn a_description_claiming_a_forged_export_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        description
+            .exports
+            .push(component_description::ExportSurface {
+                identity: "export:forged::Surface".to_owned(),
+            });
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a description cannot claim exports the artifact lacks");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "claims a surface the artifact lacks",
+        ],
+    );
+}
+
+#[test]
+fn a_description_omitting_a_module_derived_entry_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        let before = description.entries.len();
+        description
+            .entries
+            .retain(|entry| entry.kind != component_description::ComponentEntryKind::Canonical);
+        assert!(
+            description.entries.len() < before,
+            "the published description carries the canonical entry"
+        );
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a description cannot omit a module-derived entry");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "module-derived entry",
+            "is missing",
+        ],
+    );
+}
+
+#[test]
+fn a_description_omitting_a_module_derived_export_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        assert!(
+            !description.exports.is_empty(),
+            "the published description carries the provider realization export"
+        );
+        description.exports.pop();
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a description cannot omit a module-derived export");
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "module-derived export",
+            "is missing",
+        ],
+    );
+}
+
+#[test]
+fn a_description_declaring_an_unaccepted_assumption_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        description.assumptions.push([0xA5; 32]);
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a description cannot declare assumptions the consumer never authored");
+    rejects_with(
+        &diagnostics,
+        &["failed independent verification", "is not accepted"],
+    );
+}
+
+#[test]
+fn an_entry_row_bound_to_an_unlisted_assumption_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let forged = forged_description(&published, |description| {
+        let entry = description
+            .entries
+            .first_mut()
+            .expect("the published description carries at least one entry");
+        entry.evidence = component_description::EntryEvidence::AssumptionBound([0x5A; 32]);
+    });
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![forged]))
+        .expect_err("a row cannot bind an assumption absent from the description's roster");
+    rejects_with(
+        &diagnostics,
+        &["failed independent verification", "absent from the roster"],
+    );
+}
