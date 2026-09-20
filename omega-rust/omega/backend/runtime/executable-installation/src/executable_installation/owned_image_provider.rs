@@ -411,9 +411,11 @@ impl OwnedImageProvider {
     /// site with its bound admitted fragment, order and read back the patched
     /// bytes, then re-suspend write authority before reporting. The patch is
     /// staged and committed atomically, so a refused site leaves the resident
-    /// image byte-identical. Both realizations must be resident here — the
-    /// provider cannot patch code it does not hold, nor route calls to a
-    /// successor it never installed.
+    /// image byte-identical. Both realizations must be resident here and
+    /// still live — the provider cannot patch code it does not hold, cannot
+    /// patch a drained superseded (live-site patching has no live site left,
+    /// and resuming write authority would undo the retirement that restored
+    /// it), and cannot route calls to a quarantined or retired successor.
     pub fn patch(
         &mut self,
         superseded: &InstalledCode,
@@ -444,6 +446,11 @@ impl OwnedImageProvider {
                     "cannot route calls to a quarantined successor realization".into(),
                 ));
             }
+            Some(successor_image) if !successor_image.execute_enabled => {
+                return Err(InstallationDiagnostic(
+                    "cannot route calls to a successor whose execute authority was removed".into(),
+                ));
+            }
             Some(_) => {}
             None => {
                 return Err(InstallationDiagnostic(
@@ -459,6 +466,11 @@ impl OwnedImageProvider {
         if image.quarantined {
             return Err(InstallationDiagnostic(
                 "cannot patch the trapping reservation of a quarantined realization".into(),
+            ));
+        }
+        if !image.execute_enabled {
+            return Err(InstallationDiagnostic(
+                "cannot patch a realization after its execute authority was removed".into(),
             ));
         }
         let artifact = &superseded.validated.frozen.artifact.artifact;

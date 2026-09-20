@@ -405,6 +405,75 @@ fn patch_refuses_when_the_provider_holds_no_resident_successor() {
     assert!(error.0.contains("no resident image"));
 }
 
+#[test]
+fn patch_refuses_a_superseded_whose_execute_authority_was_removed() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_superseded_id, superseded) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let (_successor_id, successor) =
+        install_through_provider(&mut provider, &artifact(42), 42, 0x8000);
+    let retirement_authority = RetirementAuthority::from_admitted_provider(
+        &superseded,
+        OwnedImageProvider::retire_facts(),
+    );
+    provider
+        .retire(&superseded, &retirement_authority)
+        .expect("provider performs the retirement");
+
+    // Live-site patching has no live site left here: the drained image must
+    // not have its restored write authority re-suspended under dead code.
+    let fragment = admit(&relocatable_artifact(
+        71,
+        Architecture::X86_64,
+        vec![0xCC; 4],
+        Vec::new(),
+    ));
+    let authority = ReplacementAuthority::from_admitted_provider(
+        &superseded,
+        &successor,
+        [(entry_id(1041), fragment)],
+        OwnedImageProvider::patch_facts(),
+    );
+    let error = provider
+        .patch(&superseded, &successor, &authority)
+        .expect_err("patching a drained realization refuses");
+    assert!(error.0.contains("execute authority"));
+    assert_eq!(provider.write_suspended(_superseded_id), Some(false));
+}
+
+#[test]
+fn patch_refuses_a_successor_whose_execute_authority_was_removed() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_superseded_id, superseded) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let (_successor_id, successor) =
+        install_through_provider(&mut provider, &artifact(42), 42, 0x8000);
+    let retirement_authority =
+        RetirementAuthority::from_admitted_provider(&successor, OwnedImageProvider::retire_facts());
+    provider
+        .retire(&successor, &retirement_authority)
+        .expect("provider performs the retirement");
+
+    // The successor is resident but drained: patched sites would route calls
+    // into a mapping no executor can enter.
+    let fragment = admit(&relocatable_artifact(
+        71,
+        Architecture::X86_64,
+        vec![0xCC; 4],
+        Vec::new(),
+    ));
+    let authority = ReplacementAuthority::from_admitted_provider(
+        &superseded,
+        &successor,
+        [(entry_id(1041), fragment)],
+        OwnedImageProvider::patch_facts(),
+    );
+    let error = provider
+        .patch(&superseded, &successor, &authority)
+        .expect_err("routing to a drained successor refuses");
+    assert!(error.0.contains("successor whose execute authority"));
+}
+
 /// The contract identity every seal test demands; open vocabulary, so any
 /// canonical bytes name a contract.
 const SEAL_CONTRACT_BYTES: &[u8] = b"omega.test.entry-contract.sealed-call.v1";
