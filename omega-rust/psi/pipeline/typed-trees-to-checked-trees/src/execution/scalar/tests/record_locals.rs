@@ -613,7 +613,16 @@ fn record_move_disposition_retains_only_final_owners_and_original_provenance() {
     for (_, event) in checked.facts.flow.ownership.permissions.iter() {
         eprintln!("event {event:?}");
     }
-    eprintln!("disposition0={:?}", validation::record_local_disposition(&checked.typed, &checked.facts, machine, checked.typed.machine_states(&checked.machines()[0])[0].symbol, 0));
+    eprintln!(
+        "disposition0={:?}",
+        validation::record_local_disposition(
+            &checked.typed,
+            &checked.facts,
+            machine,
+            checked.typed.machine_states(&checked.machines()[0])[0].symbol,
+            0
+        )
+    );
     let graph = checked
         .facts
         .flow

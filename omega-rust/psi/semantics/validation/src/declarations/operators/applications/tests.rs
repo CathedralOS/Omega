@@ -8,6 +8,7 @@ use super::{
 };
 use crate::declarations::symbols::TopLevelSymbols;
 use symbols::{SymbolHandle, SymbolKind, SymbolNameRef};
+use typed_trees::TypedTrees;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::machine::{Machine, TraitConformance};
@@ -18,7 +19,6 @@ use typed_trees::operator::{
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees::TypedTrees;
 
 struct ClosedApplicationFixture {
     program: TypedTrees,
@@ -36,23 +36,31 @@ fn closed_application_fixture() -> ClosedApplicationFixture {
     let mut program = TypedTrees::default();
 
     let mut extension = std::mem::take(&mut program.symbols).begin_extension(None, Vec::new());
-    let [concrete, binder, operator_symbol, machine_symbol, entry_symbol, conformance_symbol, left_symbol, right_symbol] =
-        extension
-            .insert_top_level([
-                (SymbolKind::BuiltinType, SymbolNameRef::Static("i32")),
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
-                (SymbolKind::Operator, SymbolNameRef::Static("add")),
-                (SymbolKind::Machine, SymbolNameRef::Static("I32Add")),
-                (SymbolKind::State, SymbolNameRef::Static("entry")),
-                (
-                    SymbolKind::Conformance,
-                    SymbolNameRef::Static("add_conformance"),
-                ),
-                (SymbolKind::Parameter, SymbolNameRef::Static("left")),
-                (SymbolKind::Parameter, SymbolNameRef::Static("right")),
-            ])
-            .try_into()
-            .expect("exact fixture symbol count");
+    let [
+        concrete,
+        binder,
+        operator_symbol,
+        machine_symbol,
+        entry_symbol,
+        conformance_symbol,
+        left_symbol,
+        right_symbol,
+    ] = extension
+        .insert_top_level([
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("i32")),
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            (SymbolKind::Operator, SymbolNameRef::Static("add")),
+            (SymbolKind::Machine, SymbolNameRef::Static("I32Add")),
+            (SymbolKind::State, SymbolNameRef::Static("entry")),
+            (
+                SymbolKind::Conformance,
+                SymbolNameRef::Static("add_conformance"),
+            ),
+            (SymbolKind::Parameter, SymbolNameRef::Static("left")),
+            (SymbolKind::Parameter, SymbolNameRef::Static("right")),
+        ])
+        .try_into()
+        .expect("exact fixture symbol count");
     program.symbols = extension.finish();
 
     let concrete_type = program

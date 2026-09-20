@@ -1,6 +1,6 @@
 use super::{
-    compile_to_checked, identity, root_inputs, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, TempTree,
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, TempTree,
+    compile_to_checked, identity, root_inputs,
 };
 use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
 use compiler::CheckedCompilation;

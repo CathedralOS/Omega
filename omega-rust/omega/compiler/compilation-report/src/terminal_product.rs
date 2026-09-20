@@ -1342,7 +1342,7 @@ impl RetainedTerminalArtifact {
 
 #[cfg(test)]
 mod tests {
-    use super::{integer_comparisons, TerminalIntegerComparisonOccurrenceProposal};
+    use super::{TerminalIntegerComparisonOccurrenceProposal, integer_comparisons};
     use lowered_psi::{
         LoweredSelectedIntegerComparisonOperandOrder as OperandOrder,
         LoweredSelectedIntegerComparisonOperation as Emitted,
