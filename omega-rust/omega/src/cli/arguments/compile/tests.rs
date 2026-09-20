@@ -51,6 +51,51 @@ fn offline_combines_with_existing_compilation_options() {
 }
 
 #[test]
+fn compilation_accepts_one_report_file_path() {
+    let parsed = parse_arguments(
+        [
+            "--check",
+            "--report-file",
+            "observations/report.txt",
+            "main.omg",
+        ]
+        .into_iter()
+        .map(OsString::from),
+    )
+    .unwrap();
+    assert_eq!(
+        parsed.report_file,
+        Some(PathBuf::from("observations/report.txt"))
+    );
+    assert!(parsed.check_only);
+    assert!(usage().contains("--report-file <path>"));
+}
+
+#[test]
+fn compilation_rejects_duplicate_and_missing_report_file() {
+    for (arguments, expected) in [
+        (
+            vec![
+                "--report-file",
+                "a.txt",
+                "--report-file",
+                "b.txt",
+                "main.omg",
+            ],
+            "duplicate --report-file",
+        ),
+        (vec!["main.omg", "--report-file"], "--report-file requires"),
+        (
+            vec!["--report-file", "--check", "main.omg"],
+            "--report-file requires",
+        ),
+    ] {
+        let result = parse_arguments(arguments.iter().map(OsString::from));
+        assert!(matches!(result, Err(error) if error.contains(expected)));
+    }
+}
+
+#[test]
 fn compilation_rejects_duplicate_offline_and_missing_root() {
     for (arguments, expected) in [
         (

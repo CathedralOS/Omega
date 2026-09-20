@@ -139,6 +139,7 @@ are parsed in `omega-rust/omega/src/cli/arguments/`. Full surface:
 
 ```text
 omega [--check] [--offline] [--accept-admissions] [--timings]
+      [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>
 omega run [--both] [--keep] [--target <name>] <root.omg>
@@ -157,8 +158,10 @@ Git pins. It does not refresh selectors or sandbox later program execution.
 
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;
-normal invocations do not collect optional timing measurements. There is no
-`--output-only` switch or report-file mode. Required proof and installation
+normal invocations do not collect optional timing measurements.
+`--report-file <path>` writes the produced compile report (product, target,
+summary, and publication lines) as a plain-text observation file; there is no
+`--output-only` switch. Required proof and installation
 records remain governed by the requested product. See the
 [compiler product contract](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations).
 
