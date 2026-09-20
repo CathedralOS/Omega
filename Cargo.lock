@@ -1509,6 +1509,7 @@ dependencies = [
  "checked-trees",
  "diagnostics",
  "effects",
+ "optimization-core",
  "semantic-vocabulary",
  "sha2",
  "source",
@@ -1804,6 +1805,7 @@ dependencies = [
  "arena",
  "diagnostics",
  "language-semantics",
+ "optimization-core",
  "representation-selections",
  "source",
  "symbols",
@@ -2432,6 +2434,7 @@ dependencies = [
  "compiler",
  "diagnostics",
  "effects",
+ "optimization-core",
  "provider-planning",
  "trust-model",
 ]
