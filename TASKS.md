@@ -6238,28 +6238,32 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   (`bf8769cce13`). The crate is excluded from the landing gate
   (`--exclude omega-native-differential-test`), so nothing else watches it. The
   sibling `--test terminal_psi_source_payloadless_optimizer` is also green, 3/3.
-- **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** (new-scope) Unrepaired
-  failure in `external-roots`:
-  `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`
-  expects the ranked fixture's five segment ceilings to bind as
-  `[1, 3, 3, 3, 1]` and observes `[1, 25769803776, 25769803776, 25769803776, 1]`
-  (macOS AArch64, `cargo nextest run -p external-roots` 248 run / 247 passed
-  at origin/main d4a908ec95 plus the 0e7dbf60de build repair). 25769803776
-  is 6·2^32: `7591b2607c` ("terminal-fixed-fuel: bound segments through
-  ranked cyclic components", whose body records its local tests as still
-  pending) now charges a `TerminalRankedScc::Natural` component as
-  rank-max-plus-one member visits, and the fixture's rank carrier is `u32`,
-  so the component bound is taken over the carrier range rather than the
-  countdown the external-roots binding expects. The failure was
-  unobservable while `external-roots` did not build (20bd592af1 removed the
-  journal types 2d8c5136cc consumed); the fuel crate's own suite is green
-  (`cargo nextest run -p terminal-fixed-fuel` 60/60). Owner: the
-  terminal-fixed-fuel ranked-segment lane (**PSIIR** resource-analysis leg)
-  decides whether a ranked component's segment ceiling is the carrier-wide
-  bound or the verified countdown; the external-roots expectation follows
-  that decision. Repair is one of the two files
-  (`terminal-fixed-fuel/src/fuel_certification/{outcome_bounds,segment_partition}.rs`
-  or `external-roots/src/stack_and_fuel/fixed_fuel/tests.rs`), not both.
+- **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** Resolved — landed at
+  `29983459ec1a` ("terminal-fixed-fuel: charge safe-point rows as single
+  block traversals"). The recorded failure reproduced exactly: the ranked
+  fixture's five safe-point ceilings bound as
+  `[1, 25769803776, 25769803776, 25769803776, 1]` where the catalog pins
+  `[1, 3, 3, 3, 1]`, and 25769803776 = 6·2^32 — the rank-amplified
+  whole-component bound, not a packed-lane readback. `7591b2607c`
+  ("terminal-fixed-fuel: bound segments through ranked cyclic components")
+  routed every `Natural`-ranked segment through the condensed component
+  graph, so a catalog row whose endpoint rides the start block's own
+  terminator billed the component's rank-max-plus-one member visits
+  instead of the single traversal. The repair keeps the board's first
+  option: a safe-point row is per-traversal evidence, so
+  `natural_segment_bound` now takes the ordinary acyclic walk charge when
+  `end_edge` commits on the start block's terminator, while walks that
+  continue past it still compose the component bound and whole-entry
+  derivation keeps the amplified bound. The corpus contract required this
+  direction — `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`
+  needs the catalog derivable when the whole-entry bound overflows u64.
+  Two regression pins land beside the fix: a u32 catalog pinning
+  per-traversal ceilings and a u64 case proving the catalog still derives
+  while `derive_maximum_entry_bound` returns `BoundOverflow`. Verified on
+  macOS AArch64 at `29983459ec1a`: `cargo nextest run -p external-roots`
+  248/248, `cargo nextest run -p terminal-fixed-fuel` 63/63, scoped clippy
+  and `cargo check --all-targets` clean on both crates, and the three
+  ranked-countdown corpus pins in checked-trees-to-lowered-psi green.
 - **BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP.** Unrepaired failure in the `pipeline_ownership` native-differential lane. Current red state is a
   compile-broken test target at `62c502f9f6` (linux x86-64,
   `cargo nextest run -p omega-native-differential-test --test
