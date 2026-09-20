@@ -9403,7 +9403,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   written and were deliberately left unrelaxed — relaxing them would mask the regression.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
 - **REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
-- **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
+- **REMAINING-INTRINSIC-SPAN-ARMS.** Mined candidate — resolved, same
+  surface and verdict as sibling TV-INTRINSIC-SPAN-ARMS (verified
+  `14e6f8f72e`): the name re-mines the TRANSLATION-VALIDATION "remaining
+  intrinsic kinds have no span arm" clause (TASKS_OPTIMIZER.md). The
+  span-arm surface for every intrinsic family producing coverage
+  occurrences is complete — IEEE FMA joins `x86_scalar_fma_occurrences`
+  fragments, integer comparisons join `semantic_code_attribution` rows,
+  float comparisons take the fragment-publication arm, structural
+  returns arrive through the checked-body call span. Re-verified at
+  `9e3edc7be9` (z146): `lowered-psi-to-terminal-psi/boundary_operator_
+  custody/replay_scope.rs` still replays only those four families —
+  every other intrinsic kind produces no occurrences, so an arm has no
+  demand side and adding one would be dead code. Occurrence production
+  for the remaining intrinsic kinds is **TV-OPERATOR-APPLICATIONS-REPLAY**'s
+  scope; `native-artifact/src/physical` is currently fenced by
+  PHYSICAL-ACCESS-PROFILES (02:00Z). Row consumed — the residual stays
+  on TRANSLATION-VALIDATION in TASKS_OPTIMIZER.md. Sibling stub on the
+  same clause: TV-DYNAMIC-AND-INTRINSIC-SPANS; sibling claimed:
+  INTRINSIC-PHYSICAL-SPAN-ARMS (swarm-w9, 05:04Z).
 - **REPLACEMENT-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
 - **REPOSITORY-BASELINE-GATE** — mined candidate; verify scope then implement.
 - **REPRESENTATION-OWNERSHIP** — mined candidate; scope verified, coverage recorded — the stub re-mines the same-named real item on the optimizer board (`TASKS_OPTIMIZER.md`), which owns the `omega-rust/{omega,psi}/representations/` ownership finish. Both stage-ancestry legs are landed there: staged types expose `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`/`ranges`/`legality` directly with per-crate pins (`selected_stages_read_current_data_not_producer_ancestry`, `register_home_stages_read_current_data_not_producer_ancestry`; resolved sibling RO-STAGE-ANCESTRY-ELIMINATION re-verified 2/2 green at 39e156c73a), and `representations/optimization-unit` settled at 11eaa140cb. The only residual on that item is the durable-codec relocation (`post_allocation_manifest/codec`, `rewrites/allocation_recovery/fixed_view_copy/codec`, `optimized_semantic_wrapper_object/codec`), shared with DURABLE-CODEC-RELOCATION — the board's own row, not this stub's slice. Row stays a pointer to the optimizer item; no leg remains here. Re-verified at a1daf35f2e: the optimizer item and its stage-ancestry annotations are current, the per-crate ancestry pins exist (`tests/architecture/representation_ownership.rs:1080`/`:1118` plus the `selected_optimization_stages` extension at `stage_crate_ownership.rs:354`), and all three residual codec sites remain where the row places them (`post_allocation_manifest/codec.rs`, `fixed_view_copy/codec/`, `optimized_semantic_wrapper_object/codec.rs`).
