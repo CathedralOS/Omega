@@ -54,9 +54,9 @@ the repository gate.
 
 ## Supported composition policy
 
-- The source vocabulary names six Psi suites. The current executable Psi phase
-  supports `DeadPureScalarElimination`; other nonempty selections reject until
-  their transformations are implemented and independently validated there.
+- The source vocabulary names six Psi suites; the executable
+  `lowered-psi-to-lowered-psi` phase runs every member through
+  `run_psi_optimization` over the complete validated carrier.
 - One checked-tree product-pruning rule may follow authored checking when the
   compilation binds an exact product root; it prunes unreachable machine
   declarations and retains the identity-bearing product selection evidence.
@@ -92,4 +92,5 @@ status change unless that record names the exact rule and status and supplies
 semantic/corruption, differential, deterministic bounded-work, supported
 target, measurement, owner-approval, and exact rollback evidence — with each
 evidence field citing resolvable repository artifacts (`path` or
-`path::subject`), so a promotion leg cannot pass on unverifiable prose.
+`path::subject` confined to the checkout), so a promotion leg cannot pass on
+unverifiable prose.

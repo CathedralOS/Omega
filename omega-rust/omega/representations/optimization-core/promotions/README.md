@@ -13,11 +13,17 @@ the inventory does not yet reflect.
 
 Cite evidence as backticked repository citations: `` `path` `` names a file or
 directory under the repository root, and `` `path::subject` `` requires the
-file's text to name `subject` (a test function, section, or record). The
-architecture gate resolves every citation in the record, and each completed
-evidence field must carry at least one — unverifiable prose does not count as
-evidence. Bare identifiers (`Optimization::ALL`, target names, flags) stay
-prose and are not resolved.
+file's text to name `subject` (a test function, section, or record). Paths are
+plain repository-relative names — absolute paths, `..` components, and `\`
+separators do not resolve into the checkout, and every `::` subject must be
+nonempty. The architecture gate resolves every citation in the record, and
+each completed evidence field must carry at least one — unverifiable prose
+does not count as evidence. Bare identifiers (`Optimization::ALL`, target
+names, flags) stay prose and are not resolved.
+
+The title, `Exact rule`, `Approved status`, and `Rollback` lines are
+single-valued: each may appear only with its one expected value, never with a
+contradictory duplicate.
 
 ```text
 # <ExactRuleName> Promotion
@@ -30,6 +36,7 @@ prose and are not resolved.
 - Determinism and bounded-work evidence: <tests/results>
 - Target matrix evidence: <targets/results>
 - Measurement evidence: <versioned benchmark/results>
+- Rollback evidence: <tests/results>
 - Rollback: --disable-optimization <ExactRuleName>
 ```
 

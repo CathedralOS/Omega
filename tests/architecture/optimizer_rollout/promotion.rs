@@ -20,19 +20,21 @@ const PROMOTION_FIELDS: &[&str] = &[
     "Determinism and bounded-work evidence:",
     "Target matrix evidence:",
     "Measurement evidence:",
+    "Rollback evidence:",
 ];
 
 /// The schema fields that carry evidence. A completed value must cite at
 /// least one repository artifact, so a promotion leg cannot pass on
 /// unverifiable prose. `Approved status` and `Owner approval` record a
-/// decision, and the identity and rollback lines are checked exactly, so
-/// none of them is an evidence field.
+/// decision, and the title, `Exact rule`, and `Rollback` command lines are
+/// checked exactly, so none of them is an evidence field.
 const EVIDENCE_FIELDS: &[&str] = &[
     "Semantic and corruption evidence:",
     "Differential evidence:",
     "Determinism and bounded-work evidence:",
     "Target matrix evidence:",
     "Measurement evidence:",
+    "Rollback evidence:",
 ];
 
 /// Extensions that make a bare filename a repository citation. A backticked
@@ -132,6 +134,7 @@ fn record_defects(repository: &Path, name: &str, status: &str, contents: &str) -
             defects.push(format!("lacks exact `{expected}`"));
         }
     }
+    defects.extend(conflicting_label_lines(contents, name, Some(status)));
     for field in PROMOTION_FIELDS
         .iter()
         .filter(|field| **field != "Approved status:")
@@ -169,6 +172,7 @@ fn staged_record_defects(repository: &Path, name: &str, contents: &str) -> Vec<S
             defects.push(format!("lacks exact `{expected}`"));
         }
     }
+    defects.extend(conflicting_label_lines(contents, name, None));
     for field in PROMOTION_FIELDS {
         if !contents
             .lines()
@@ -192,6 +196,39 @@ fn staged_record_defects(repository: &Path, name: &str, contents: &str) -> Vec<S
     defects
 }
 
+/// Identity lines are single-valued: carrying the expected line alongside a
+/// second line under the same label asserting a different value contradicts
+/// the record, and the `any` presence checks alone would hide it. `status` is
+/// `Some` only for a promoted row; a staged record has no expected approval
+/// value, so its `Approved status:` lines are policed by the completed-field
+/// check instead.
+fn conflicting_label_lines(contents: &str, name: &str, status: Option<&str>) -> Vec<String> {
+    let title = format!("# {name} Promotion");
+    let exact_rule = format!("Exact rule: {name}");
+    let rollback = format!("Rollback: --disable-optimization {name}");
+    let approved = status.map(|status| format!("Approved status: {status}"));
+    let mut defects = Vec::new();
+    for line in contents.lines().map(normalize_record_line) {
+        let conflicts = if line.starts_with("Exact rule:") {
+            line != exact_rule
+        } else if line.starts_with("Rollback:") {
+            line != rollback
+        } else if line.starts_with("# ") && line.ends_with(" Promotion") {
+            line != title
+        } else if approved.is_some() && line.starts_with("Approved status:") {
+            Some(line) != approved.as_deref()
+        } else {
+            false
+        };
+        if conflicts {
+            defects.push(format!(
+                "line `{line}` conflicts with the record's single-valued identity"
+            ));
+        }
+    }
+    defects
+}
+
 fn backticked_spans(line: &str) -> impl Iterator<Item = &str> {
     line.split('`').skip(1).step_by(2)
 }
@@ -211,6 +248,20 @@ fn repository_citation(span: &str) -> Option<&str> {
 fn resolve_citation(repository: &Path, citation: &str) -> Result<(), String> {
     let mut parts = citation.split("::");
     let path = parts.next().unwrap_or_default();
+    // The path must stay a plain repository-relative name on every host:
+    // `join` would silently re-root an absolute path, a `..` component escapes
+    // the checkout, and `\` is a separator on Windows, so any of them resolves
+    // host files or nothing at all rather than a repository artifact.
+    let repository_relative = !path.is_empty()
+        && !path.contains('\\')
+        && Path::new(path)
+            .components()
+            .all(|component| matches!(component, std::path::Component::Normal(_)));
+    if !repository_relative {
+        return Err(format!(
+            "cites `{citation}` but `{path}` is not a plain repository-relative path"
+        ));
+    }
     let joined = repository.join(path);
     let metadata = fs::metadata(&joined)
         .map_err(|_| format!("cites `{citation}` but `{path}` is not a repository path"))?;
@@ -226,6 +277,9 @@ fn resolve_citation(repository: &Path, citation: &str) -> Result<(), String> {
     let text = fs::read_to_string(&joined)
         .map_err(|_| format!("cites `{citation}` but `{path}` is not a readable text artifact"))?;
     for subject in parts {
+        if subject.is_empty() {
+            return Err(format!("cites `{citation}` but an `::` subject is empty"));
+        }
         if !text.contains(subject) {
             return Err(format!(
                 "cites `{citation}` but `{subject}` does not appear in `{path}`"
@@ -327,6 +381,7 @@ fn promotion_record_requires_exact_identity_and_completed_evidence() {
 - Determinism and bounded-work evidence: `evidence/rule.rs::real_test` determinism leg
 - Target matrix evidence: `evidence/rule.rs` matrix run 1
 - Measurement evidence: `evidence/rule.rs` benchmark v1
+- Rollback evidence: `evidence/rule.rs::real_test` rollback leg
 - Rollback: --disable-optimization ControlFlowCleanup
 ";
     assert!(record_defects(&repository, "ControlFlowCleanup", "Recommended", valid).is_empty());
@@ -396,6 +451,66 @@ fn promotion_record_requires_exact_identity_and_completed_evidence() {
         "missing phantom-subject defect; saw {defects:?}"
     );
 
+    // A citation that leaves the checkout is not a repository artifact even
+    // when it happens to resolve on this host, and an empty `::` subject
+    // names nothing.
+    let escaped = valid.replace(
+        "`evidence/rule.rs` benchmark v1",
+        "`evidence/../evidence/rule.rs` benchmark v1",
+    );
+    let defects = record_defects(&repository, "ControlFlowCleanup", "Recommended", &escaped);
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("is not a plain repository-relative path")),
+        "missing escaping-citation defect; saw {defects:?}"
+    );
+    let empty_subject = valid.replace(
+        "`evidence/rule.rs` benchmark v1",
+        "`evidence/rule.rs::` benchmark v1",
+    );
+    let defects = record_defects(
+        &repository,
+        "ControlFlowCleanup",
+        "Recommended",
+        &empty_subject,
+    );
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("an `::` subject is empty")),
+        "missing empty-subject defect; saw {defects:?}"
+    );
+
+    // A contradictory duplicate identity line cannot hide beside the expected
+    // one, and a `PENDING` approval line cannot accompany the approved one.
+    let conflicted = format!("{valid}- Exact rule: CopyPropagation\n");
+    let defects = record_defects(
+        &repository,
+        "ControlFlowCleanup",
+        "Recommended",
+        &conflicted,
+    );
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("conflicts with the record's single-valued identity")),
+        "missing conflicting-rule defect; saw {defects:?}"
+    );
+    let pending_approval = format!("{valid}- Approved status: PENDING\n");
+    let defects = record_defects(
+        &repository,
+        "ControlFlowCleanup",
+        "Recommended",
+        &pending_approval,
+    );
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("conflicts with the record's single-valued identity")),
+        "missing pending-approval conflict defect; saw {defects:?}"
+    );
+
     let _ = std::fs::remove_dir_all(repository);
 }
 
@@ -412,6 +527,7 @@ fn staged_record_keeps_schema_while_pending_and_rejects_early_approval() {
 - Determinism and bounded-work evidence: `evidence/rule.rs::real_test` determinism and budget legs
 - Target matrix evidence: PENDING
 - Measurement evidence: PENDING
+- Rollback evidence: PENDING
 - Rollback: --disable-optimization ControlFlowCleanup
 ";
     assert!(staged_record_defects(&repository, "ControlFlowCleanup", staged).is_empty());
@@ -466,6 +582,17 @@ fn staged_record_keeps_schema_while_pending_and_rejects_early_approval() {
             .iter()
             .any(|defect| defect.contains("`gone_test` does not appear")),
         "missing staged phantom-subject defect; saw {defects:?}"
+    );
+
+    // A staged record cannot carry a second `Exact rule` or `Rollback` line
+    // naming something else.
+    let conflicted = format!("{staged}- Rollback: --disable-optimization CopyPropagation\n");
+    let defects = staged_record_defects(&repository, "ControlFlowCleanup", &conflicted);
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("conflicts with the record's single-valued identity")),
+        "missing staged conflicting-rollback defect; saw {defects:?}"
     );
 
     let _ = std::fs::remove_dir_all(repository);
