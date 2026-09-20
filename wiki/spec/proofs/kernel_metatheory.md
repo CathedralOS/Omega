@@ -358,9 +358,11 @@ subtraction shares the scalar operation when its children can be denoted;
 if evaluating a previously skipped child would introduce a resource refusal,
 the already-admitted open expression retains its prior opaque identity.
 Whole closed-term resource refusals are unchanged. Open addition likewise
-retains its operand applications. The correlated addition upper bound uses
+retains its operand applications. Correlated addition lower and upper bounds use
 fixed addition monotonicity and subtraction cancellation, followed by
-checked equality transport for the subtraction result and maximum endpoint.
+checked equality transport for the subtraction result and exact carrier endpoint.
+Lower bounds transport the left endpoint of the order; upper bounds transport
+the right. Both reuse the same fixed laws.
 The retained equality evidence is oriented by its denoted identity, because
 normalizing a source equality can reverse its endpoints. Cases requiring a
 closed numeral-to-operation bridge retain their explicit instance assumption;
@@ -388,10 +390,10 @@ reconstructed obligations, exact assumption closure through the mathematical
 wire, and rejection of a non-decreasing rank. A guarded decrement-two operation
 checks the same lower-bound rule and rejects an insufficient guard.
 `compiler/tests/kernel_add_bound.rs` uses the unchanged guarded-addition source
-customer, independently reconstructs its operation question and checks the
-correlated upper-bound certificate and mathematical wire. A changed addend,
-reversed guard, missing premises or malformed kernel evidence rejects. Its
-receipt records the exact closure, term storage, normalization budget and wire
+customers, independently reconstructs their operation questions and checks the
+correlated lower- and upper-bound certificates and mathematical wire. A changed
+addend, reversed guard, missing premises or malformed kernel evidence rejects.
+Each receipt records the exact closure, term storage, normalization budget and wire
 size; these are measurements of this certificate, not a general speed claim.
 The `terminal-codec` bounded-certificate tests exercise retained declarations,
 exact shared-integer closure, universally quantified order laws and
