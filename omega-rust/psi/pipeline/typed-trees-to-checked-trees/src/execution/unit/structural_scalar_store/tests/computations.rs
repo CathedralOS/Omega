@@ -316,7 +316,7 @@ fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
     assert_eq!(
         trace.stage(),
         checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "structural field store: whole record destination",
+            phase: "structural field store: record literal field",
             state_index: None,
             statement_index: None,
         }
