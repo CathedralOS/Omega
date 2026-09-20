@@ -6531,7 +6531,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BENCHMARK-CROSS-TARGET-COMPILE-ROWS, BENCHMARK-LINUX-ARM64-ROW,
   BENCHMARK-LINUX-X64-ROW-REFRESH, BENCHMARK-MACOS-ARM64-ROW,
   BENCHMARK-PRIME-COUNTER-ROW, BENCHMARK-HOST-ROW-MATRIX.
-- **BENCHMARK-CROSS-TARGET-COMPILE-LEGS** — mined candidate; verify scope then implement.
+- **BENCHMARK-CROSS-TARGET-COMPILE-LEGS.** Scope verified — re-mine of
+  BENCHMARK-COMPILE-ONLY-ROWS (~line 6395), which owns this exact deliverable:
+  committed `tools/benchmark/records/` rows for the cross-target compile legs
+  (`benchmark.py measure --no-run` on `windows_x86_64`, `macos_arm64`,
+  `linux_arm64`; `macos_x86_64`/`uefi_x86_64` are not valid CLI-subject
+  targets — they fail review settlement on the unbound `ProgramEntry` slot,
+  not the compile). The producer-side blocker it names (integer
+  comparison-occurrence rejection) is already resolved at `f2f39039da`; the
+  three measured records sit staged on the w9 machine at
+  `~/bench-records-z57/` pending commit into `tools/benchmark/records/`
+  under the parent row, so no independent slice exists here. Re-verified at
+  `62c502f9f6` on linux x86-64.
 - **BENCHMARK-CROSS-TARGET-COMPILE-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT** — mined candidate; verify scope then implement.
 - **BENCHMARK-HOST-ROW-MATRIX.** Host-row matrix machinery verified already landed: `tools/benchmark/benchmark.py matrix` renders one row per committed `tools/benchmark/records/` record plus one explicit row per catalogued deployment profile (`HOST_LEGS`, `TargetProfile::ALL` order) so unavailable host legs stay visible; the rendered table is embedded in `wiki/drafts/benchmarks.md` between `benchmark-matrix` markers and drift-pinned by `tools/tests/test_benchmark.py` (regenerate via the `matrix` command after each row lands). At `749794ddeb` the comparison-occurrence rejection recorded in that note is lifted — a `cli_mvp` default-selection probe on linux x86-64 reached `published native output` after `29ca2fd46e` — and the frontier paragraph now records it. Remaining legs belong to sibling items: new record production under `tools/benchmark/records/` (BENCHMARK-LINUX-X64-ROW-REFRESH, BENCHMARK-CROSS-TARGET-COMPILE-ROWS) and uncovered host rows (BENCHMARK-LINUX-ARM64-ROW, BENCHMARK-MACOS-ARM64-ROW, windows/uefi hosts); `macos_x86_64` stays structurally unavailable under MACOS-X64-HOST-PROFILE.
