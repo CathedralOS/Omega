@@ -528,6 +528,7 @@ dependencies = [
  "external-roots",
  "facts",
  "flow-effects",
+ "image",
  "image-emission",
  "installation-evidence",
  "language-core",
