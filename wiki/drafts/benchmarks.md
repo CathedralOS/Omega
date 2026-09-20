@@ -77,7 +77,7 @@ artifact — see that record's notes when a selection row for it lands.
 Cross-target compile legs (`--no-run`) measure compile-time and
 code-size but mark `runtime_ms` as `skipped`.
 
-## Frontier: no measurable subject at e48558bd41
+## Frontier: `linux_x86_64` rows resumable, hosts still uncovered
 
 A w9 benchmarks session attempted two further `linux_x86_64` rows on
 this host at `e48558bd41` — `cli_mvp` with `CopyPropagation` disabled
@@ -90,18 +90,24 @@ cannot realize accepted package production:
   exactly once
 ```
 
-The failure is selection-independent and subject-independent:
+The failure was selection-independent and subject-independent:
 `cli_mvp`'s authored code contains no integer comparisons, so the
-uncovered occurrence lives in the shared `std`/entry plumbing every
+uncovered occurrence lived in the shared `std`/entry plumbing every
 `depend()`-ing subject compiles. The only subjects without a
 `build.omg` dependency — `math_proofs` and `structural_proofs` — emit
 no runtime code (no selected `ProgramEntry`) and one fails earlier at
-checked-call selection. No committed row can be produced at this
-revision; the gate is the comparison-occurrence producer/validator pair
-landed by `29ca2fd46e` (tracked under CRASH-CONTRACT, the same failure
-`euclid_gcd`'s README already records). New `linux_x86_64` rows resume
-the moment `omega --target linux_x86_64 <subject>` publishes an
-artifact again.
+checked-call selection.
+
+The blocking gate — the comparison-occurrence producer/validator pair
+tracked under CRASH-CONTRACT, the same failure `euclid_gcd`'s README
+records — landed as `29ca2fd46e`. A `cli_mvp` default-selection probe
+on this host at `749794ddeb` reached `published native output` in
+1240655 ms, so new `linux_x86_64` rows are producible again. None has
+been committed yet: the remaining frontier is the record-production
+legs (`tools/benchmark/records/`) and the uncovered host rows —
+`linux_arm64`, `macos_arm64`, `windows_x86_64`, and `uefi_x86_64` each
+still need their named runtime environment, and `macos_x86_64` stays
+structurally unavailable under MACOS-X64-HOST-PROFILE.
 
 ## Reading a row
 
