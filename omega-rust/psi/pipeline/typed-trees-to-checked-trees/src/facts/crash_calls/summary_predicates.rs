@@ -171,6 +171,24 @@ pub(crate) fn concrete_guard_scalar_value(
     }
 }
 
+/// Whether the substituted checked scalar annotation alone proves the guard
+/// false — the last discharge channel when entry custody cannot produce a
+/// caller-namespace predicate at all. The annotation is retained
+/// independently of entry custody, so a closed `false` still kills the
+/// alternative rather than widening its route to `Truth`; a true or
+/// undecided fold cannot narrow a missing identity and keeps the ceiling.
+/// The gate matches the identity path's: the route's own builtin meaning
+/// plus a (possibly negated) integer comparison, the one annotation shape
+/// the domain-free identity cannot fold itself.
+pub(crate) fn scalar_guard_proves_false(
+    builtin_meaning: bool,
+    scalar: Option<&checked_trees::CheckedBooleanExpression>,
+) -> bool {
+    builtin_meaning
+        && scalar.is_some_and(scalar_guard_is_integer_comparison)
+        && scalar.and_then(concrete_guard_scalar_value) == Some(false)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct SummaryCrashBucket {
     pub(crate) cause: checked_trees::CrashCause,
@@ -238,12 +256,6 @@ impl SummaryCrashBucket {
                             &arguments.identity,
                         ),
                     };
-                    let Some(identity) = identity else {
-                        // A current storage read with no entry-value custody
-                        // cannot become a caller Parameter. Retain its cause,
-                        // without inventing a guard in the caller namespace.
-                        return Some(SummaryCrashRouteGuard::Truth);
-                    };
                     let scalar = predicate.scalar.as_ref().and_then(|scalar| {
                         substitute_checked_boolean_expression(
                             scalar,
@@ -251,6 +263,19 @@ impl SummaryCrashBucket {
                             &arguments.fields,
                         )
                     });
+                    let Some(identity) = identity else {
+                        // A current storage read with no entry-value custody
+                        // cannot become a caller Parameter. The annotation
+                        // still substitutes on its own lane, so a guard it
+                        // proves false dies here instead of widening; an
+                        // undecided one keeps the unconditional ceiling
+                        // without inventing a guard in the caller namespace.
+                        return (!scalar_guard_proves_false(
+                            predicate.builtin_meaning,
+                            scalar.as_ref(),
+                        ))
+                        .then_some(SummaryCrashRouteGuard::Truth);
+                    };
                     let folded = if predicate.builtin_meaning {
                         summary_boolean_value(&identity)
                     } else {
