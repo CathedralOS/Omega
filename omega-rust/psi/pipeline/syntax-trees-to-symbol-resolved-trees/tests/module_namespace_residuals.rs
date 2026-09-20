@@ -782,6 +782,65 @@ fn constrained_boolean_index_publishes_the_selected_constant() {
 }
 
 #[test]
+fn constrained_record_const_discharges_field_domain_facts() {
+    // A record constant binds `self` through its scalar-decodable fields, so
+    // `self.x > 0` evaluates against the canonical `x` leaf and the
+    // declaration publishes compatibility identity.
+    let program = lower_multi(&[(
+        "mine.omg",
+        "module mine; data Pair [copy] { x: u64; } domain Pair::NonEmpty requires self.x > 0; const P: Pair in Pair::NonEmpty = Pair { x: 1 };",
+    )])
+    .expect("record field fact discharges the constrained const");
+    assert_eq!(const_named(&program, "P"), "mine::P");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::P")
+        .expect("mine::P");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "a discharged record constrained const publishes compatibility identity"
+    );
+
+    // A refuting field value rejects with the precise refutation diagnostic,
+    // not the generic fence.
+    let error = lower_multi(&[(
+        "mine.omg",
+        "module mine; data Pair [copy] { x: u64; } domain Pair::NonEmpty requires self.x > 0; const P: Pair in Pair::NonEmpty = Pair { x: 0 };",
+    )])
+    .expect_err("a refuted record field fact rejects");
+    assert!(error.contains("is false"), "unexpected diagnostic: {error}");
+
+    for (tag, sources) in [
+        // A field that never decodes to a scalar leaf cannot bind `self`'s
+        // projection, so the fact stays fenced for checked downstream
+        // evidence.
+        (
+            "unknown field projection",
+            "module mine; data Pair [copy] { x: u64; } domain Pair::Counted requires self.count > 0; const P: Pair in Pair::Counted = Pair { x: 1 };",
+        ),
+        // A nested record field has no scalar leaf; `self.inner.v` does not
+        // project through the record binding.
+        (
+            "nested record field",
+            "module mine; data Inner [copy] { v: u64; } data Outer [copy] { inner: Inner; } domain Outer::Deep requires self.inner.v > 0; const O: Outer in Outer::Deep = Outer { inner: Inner { v: 1 } };",
+        ),
+        // A whole-aggregate `self` operand has no scalar identity to compare.
+        (
+            "whole-aggregate self operand",
+            "module mine; data Pair [copy] { x: u64; } domain Pair::Any requires self == self; const P: Pair in Pair::Any = Pair { x: 1 };",
+        ),
+    ] {
+        let error = lower_multi(&[("mine.omg", sources)]).expect_err("{tag} must stay fenced");
+        assert!(
+            error
+                .contains("constrained const declarations require declaration-site proof checking"),
+            "{tag}: unexpected diagnostic: {error}"
+        );
+    }
+}
+
+#[test]
 fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
     for (tag, sources) in [
         // `Pos` exists only inside the unimported sibling `units`; the
@@ -850,15 +909,6 @@ fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
             &[(
                 "mine.omg",
                 "module mine; domain<const N: u64> u64::Window<N> requires self < N; const X: u64 in u64::Window<K> = 3;",
-            )][..],
-        ),
-        // An aggregate const value is not a scalar `self` payload: nominal
-        // carriers still owe checked case/field evidence downstream.
-        (
-            "aggregate constrained value",
-            &[(
-                "mine.omg",
-                "module mine; data Pair [copy] { x: u64; } domain Pair::NonEmpty requires self.x > 0; const P: Pair in Pair::NonEmpty = Pair { x: 1 };",
             )][..],
         ),
     ] {
