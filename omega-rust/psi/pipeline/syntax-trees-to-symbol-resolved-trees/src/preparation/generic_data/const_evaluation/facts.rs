@@ -41,14 +41,17 @@ pub(crate) fn evaluate_const_fact_expression(
         parameter_values,
         self_value,
         None,
+        None,
         warnings,
     )
 }
 
 /// The fact evaluator's complete binding surface: `self_fields` is the
 /// scalar-decodable field ledger a record carrier binds for `self.<name>`
-/// reads while a selected domain replays its facts. Callers without a record
-/// `self` delegate through `evaluate_const_fact_expression`.
+/// reads, and `self_elements` the scalar-decodable element ledger an array
+/// carrier binds for `self[<index>]` reads while a selected domain replays
+/// its facts. Callers without an aggregate `self` delegate through
+/// `evaluate_const_fact_expression`.
 fn evaluate_const_fact_expression_at(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
@@ -56,6 +59,7 @@ fn evaluate_const_fact_expression_at(
     parameter_values: &HashMap<String, impl Copy + Into<ConstScalarValue>>,
     self_value: Option<ConstScalarValue>,
     self_fields: Option<&[(String, ConstScalarValue)]>,
+    self_elements: Option<&[Option<ConstScalarValue>]>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
     if let Some(value) = evaluate_anonymous_numeric_expression(syntax, expression)? {
@@ -152,6 +156,44 @@ fn evaluate_const_fact_expression_at(
                 .find(|(name, _)| name.as_str() == member.member.as_str())
                 .map(|(_, value)| value.into_fact_value()))
         }
+        // An array carrier's `self` answers only `self[<index>]` reads against
+        // its scalar-decodable element ledger: the index must close to an
+        // in-bounds integer and the element must hold a scalar leaf.
+        ExpressionNode::Indexed(indexed) => {
+            let Some(elements) = self_elements else {
+                return Ok(None);
+            };
+            if !matches!(
+                syntax.expressions.expression(indexed.collection),
+                ExpressionNode::SelfValue
+            ) {
+                return Ok(None);
+            }
+            let Some(index_value) = evaluate_const_fact_expression_at(
+                syntax,
+                indexed.index,
+                const_values,
+                parameter_values,
+                self_value,
+                self_fields,
+                self_elements,
+                warnings,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(index) = index_value.into_integer(syntax, warnings)? else {
+                return Ok(None);
+            };
+            let Ok(index) = usize::try_from(index) else {
+                return Ok(None);
+            };
+            Ok(elements
+                .get(index)
+                .copied()
+                .flatten()
+                .map(|value| value.into_fact_value()))
+        }
         ExpressionNode::Unary(unary) => match unary.operator {
             UnaryOperator::LogicalNot => Ok(evaluate_const_fact_expression_at(
                 syntax,
@@ -160,6 +202,7 @@ fn evaluate_const_fact_expression_at(
                 parameter_values,
                 self_value,
                 self_fields,
+                self_elements,
                 warnings,
             )?
             .and_then(|value| match value {
@@ -180,6 +223,7 @@ fn evaluate_const_fact_expression_at(
                 parameter_values,
                 self_value,
                 self_fields,
+                self_elements,
                 warnings,
             )?
             else {
@@ -192,6 +236,7 @@ fn evaluate_const_fact_expression_at(
                 parameter_values,
                 self_value,
                 self_fields,
+                self_elements,
                 warnings,
             )?
             else {
@@ -262,20 +307,24 @@ pub(crate) fn evaluate_const_membership_fact(
 }
 
 /// The `self` operand one selected domain replay binds for its carrier: a
-/// scalar payload for whole-value operands, or a record carrier's
-/// scalar-decodable field ledger for `self.<name>` projection. A record never
-/// binds a whole-`self` scalar — whole-aggregate comparisons and deeper
-/// member chains stay undecided and their facts keep the declaration fenced.
+/// scalar payload for whole-value operands, a record carrier's
+/// scalar-decodable field ledger for `self.<name>` projection, or an array
+/// carrier's scalar-decodable element ledger for `self[<index>]` projection.
+/// Aggregate carriers never bind a whole-`self` scalar — whole-aggregate
+/// comparisons, deeper member chains, and slots without a scalar leaf stay
+/// undecided and their facts keep the declaration fenced.
 #[derive(Clone, Copy)]
 enum ConstSelfBinding<'a> {
     Scalar(ConstScalarValue),
     Record(&'a [(String, ConstScalarValue)]),
+    Elements(&'a [Option<ConstScalarValue>]),
 }
 
-/// Decode one canonical record field to the scalar a `self.<name>` read binds.
-/// Fields without a scalar leaf — nested aggregates, arrays, variants and
-/// floats — stay unbound rather than folding into a guessed identity.
-fn scalar_self_field(
+/// Decode one canonical leaf to the scalar a `self.<name>` or `self[<index>]`
+/// read binds. Leaves without a scalar payload — nested aggregates, arrays,
+/// variants and floats — stay unbound rather than folding into a guessed
+/// identity.
+fn scalar_self_leaf(
     value: &language_semantics::const_value::DecodedCanonicalConstValue,
 ) -> Option<ConstScalarValue> {
     match value {
@@ -423,10 +472,9 @@ fn evaluate_selected_domain_facts(
     if !domain.authored_routes.is_empty() {
         return Ok(None);
     }
-    let TypeReferenceNode::Named(domain_target) =
-        syntax.type_references.type_reference(domain.target_type)
-    else {
-        return Ok(None);
+    let domain_target_name = match syntax.type_references.type_reference(domain.target_type) {
+        TypeReferenceNode::Named(name) => Some(name.as_str()),
+        _ => None,
     };
     let carrier_parameter = syntax
         .items
@@ -434,25 +482,41 @@ fn evaluate_selected_domain_facts(
         .first()
         .filter(|parameter| {
             matches!(parameter.kind, TypeParameterKind::Type)
-                && domain_target.as_str() == parameter.name.as_str()
+                && domain_target_name == Some(parameter.name.as_str())
         });
-    let (self_value, self_fields) = if let Some(parameter) = carrier_parameter {
+    let (self_value, self_fields, self_elements) = if let Some(parameter) = carrier_parameter {
         // Property-bound discharge belongs to typed application checking.
         // Omitting the abstract `self` binding keeps selected carrier operations
         // there too, while closed index-only predicates reuse ordinary replay.
         if parameter.bounds != syntax_trees::item::DataProperties::default() {
             return Ok(None);
         }
-        (None, None)
-    } else if domain_target.as_str() != carrier {
-        return Err(format!(
-            "domain `{domain_key}` has carrier `{}`, but the const value has carrier `{carrier}`",
-            domain_target.as_str(),
-        ));
+        (None, None, None)
     } else {
+        let domain_carrier = match syntax.type_references.type_reference(domain.target_type) {
+            TypeReferenceNode::Named(name) => name.as_str().to_owned(),
+            // A fixed-array target's normalized identity matches the canonical
+            // carrier label `[element; length]` byte for byte.
+            TypeReferenceNode::FixedArray { .. } => {
+                match crate::preparation::generic_data::syntax_type_identity(
+                    syntax,
+                    domain.target_type,
+                ) {
+                    Ok(identity) => identity,
+                    Err(_) => return Ok(None),
+                }
+            }
+            _ => return Ok(None),
+        };
+        if domain_carrier != carrier {
+            return Err(format!(
+                "domain `{domain_key}` has carrier `{domain_carrier}`, but the const value has carrier `{carrier}`",
+            ));
+        }
         match self_binding {
-            ConstSelfBinding::Scalar(value) => (Some(value), None),
-            ConstSelfBinding::Record(fields) => (None, Some(fields)),
+            ConstSelfBinding::Scalar(value) => (Some(value), None, None),
+            ConstSelfBinding::Record(fields) => (None, Some(fields), None),
+            ConstSelfBinding::Elements(elements) => (None, None, Some(elements)),
         }
     };
     let warning_start = warnings.len();
@@ -502,6 +566,7 @@ fn evaluate_selected_domain_facts(
                     parameter_values,
                     self_value,
                     self_fields,
+                    self_elements,
                     carrier,
                     visiting,
                     selection,
@@ -515,6 +580,7 @@ fn evaluate_selected_domain_facts(
                         parameter_values,
                         self_value,
                         self_fields,
+                        self_elements,
                         warnings,
                     )?
                     else {
@@ -984,6 +1050,7 @@ pub(crate) fn prove_declared_const_domain_constraints(
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
 ) -> Result<(), String> {
     let record_fields: Vec<(String, ConstScalarValue)>;
+    let array_elements: Vec<Option<ConstScalarValue>>;
     let (carrier, self_binding) = match value.decode_encoding() {
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
             type_name,
@@ -1017,10 +1084,21 @@ pub(crate) fn prove_declared_const_domain_constraints(
             record_fields = fields
                 .iter()
                 .filter_map(|(name, field)| {
-                    scalar_self_field(field).map(|value| (name.clone(), value))
+                    scalar_self_leaf(field).map(|value| (name.clone(), value))
                 })
                 .collect();
             (type_name, ConstSelfBinding::Record(&record_fields))
+        }
+        // An array carrier binds `self` through its scalar-decodable elements:
+        // `self[<index>]` reads project canonical leaves positionally while
+        // whole-aggregate operands, non-integer or out-of-bounds indices, and
+        // elements without a scalar leaf stay unbound.
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Array {
+            type_name,
+            values,
+        }) => {
+            array_elements = values.iter().map(scalar_self_leaf).collect();
+            (type_name, ConstSelfBinding::Elements(&array_elements))
         }
         _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
     };
@@ -1104,6 +1182,8 @@ pub(crate) fn prove_declared_const_domain_constraints(
 /// `parameter_values` carries the
 /// application's closed index bindings so a family fact like `self < N`
 /// resolves its binder exactly; a monomorphic domain passes an empty map.
+/// `self_elements` is the scalar-decodable element ledger an array carrier
+/// binds for `self[<index>]` projection inside its facts.
 pub(crate) fn evaluate_const_domain_expression(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
@@ -1111,6 +1191,7 @@ pub(crate) fn evaluate_const_domain_expression(
     parameter_values: &HashMap<String, ConstScalarValue>,
     self_value: Option<ConstScalarValue>,
     self_fields: Option<&[(String, ConstScalarValue)]>,
+    self_elements: Option<&[Option<ConstScalarValue>]>,
     carrier: &str,
     visiting: &mut Vec<(source::SourceSpan, String)>,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
@@ -1129,6 +1210,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 parameter_values,
                 self_value,
                 self_fields,
+                self_elements,
                 warnings,
             )?
             else {
@@ -1175,6 +1257,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 parameter_values,
                 self_value,
                 self_fields,
+                self_elements,
                 carrier,
                 visiting,
                 selection,
@@ -1190,6 +1273,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 parameter_values,
                 self_value,
                 self_fields,
+                self_elements,
                 carrier,
                 visiting,
                 selection,
@@ -1208,6 +1292,7 @@ pub(crate) fn evaluate_const_domain_expression(
             parameter_values,
             self_value,
             self_fields,
+            self_elements,
             warnings,
         ),
     })();
