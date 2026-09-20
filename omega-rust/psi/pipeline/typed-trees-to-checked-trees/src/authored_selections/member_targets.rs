@@ -43,6 +43,11 @@ pub(crate) fn checked_member_target(
                         AuthoredDeclarationSelectionIntrinsic::CollectionLength,
                     )
                 }
+                contexts::OwnerMemberTarget::CollectionCapacity => {
+                    CheckedResolutionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
+                    )
+                }
             },
         )
     })
@@ -80,11 +85,7 @@ fn checked_value_member_target(
         )
         .and_then(declaration_target)
         .or_else(|| {
-            (member.member.as_str() == "len"
-                && type_reference_is_collection(program, value.type_reference))
-            .then_some(CheckedResolutionTarget::Intrinsic(
-                AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-            ))
+            collection_measure_target(program, value.type_reference, member.member.as_str())
         });
         let Some(target) = target else {
             continue;
@@ -104,13 +105,7 @@ fn authored_member_target(
     let receiver_type = authored_operand_type(program, member.receiver)?;
     member_symbol_from_type_reference(program, receiver_type, member.member.as_str())
         .and_then(declaration_target)
-        .or_else(|| {
-            (member.member.as_str() == "len"
-                && type_reference_is_collection(program, receiver_type))
-            .then_some(CheckedResolutionTarget::Intrinsic(
-                AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-            ))
-        })
+        .or_else(|| collection_measure_target(program, receiver_type, member.member.as_str()))
 }
 
 fn contextual_statement_member_target(
@@ -150,11 +145,7 @@ fn contextual_statement_member_target(
                 )
                 .and_then(declaration_target)
                 .or_else(|| {
-                    (member.member.as_str() == "len"
-                        && type_reference_is_collection(program, receiver_type))
-                    .then_some(CheckedResolutionTarget::Intrinsic(
-                        AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-                    ))
+                    collection_measure_target(program, receiver_type, member.member.as_str())
                 })?;
                 if resolved.is_some_and(|candidate| candidate != target) {
                     return None;
@@ -213,6 +204,25 @@ fn member_symbol_from_type_reference(
                 .find_map(|field| (field.name.as_str() == member_name).then_some(field.symbol)),
             _ => None,
         })
+}
+
+/// A `len` or `capacity` member on a fixed array or slice selects the
+/// compiler-owned standing measure of that name; neither is a package
+/// declaration. Anything else yields no intrinsic target.
+fn collection_measure_target(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    member_name: &str,
+) -> Option<CheckedResolutionTarget> {
+    if !type_reference_is_collection(program, type_reference) {
+        return None;
+    }
+    let intrinsic = match member_name {
+        "len" => AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+        "capacity" => AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
+        _ => return None,
+    };
+    Some(CheckedResolutionTarget::Intrinsic(intrinsic))
 }
 
 pub(crate) fn type_reference_is_collection(
@@ -451,13 +461,18 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
             .find_map(|state| (state.symbol == call.target_symbol).then_some(state.return_type)),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::Member(member) => {
-            if contexts::checked_member_target_from_exact_owner(
-                program,
-                &CheckFacts::default(),
-                expression,
-                member,
-            ) == Some(contexts::OwnerMemberTarget::CollectionLength)
-            {
+            if matches!(
+                contexts::checked_member_target_from_exact_owner(
+                    program,
+                    &CheckFacts::default(),
+                    expression,
+                    member,
+                ),
+                Some(
+                    contexts::OwnerMemberTarget::CollectionLength
+                        | contexts::OwnerMemberTarget::CollectionCapacity
+                )
+            ) {
                 return true;
             }
             type_reference_for_symbol(

@@ -110,6 +110,10 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// compiler-owned value metadata, not a declaration selected from the
     /// package namespace.
     CollectionLength,
+    /// The `capacity` projection on a fixed array or slice. Collection
+    /// capacity is compiler-owned value metadata alongside length, not a
+    /// declaration selected from the package namespace.
+    CollectionCapacity,
     /// A checked compiler-owned collection/text view operation.
     CollectionView(CollectionViewOperation),
     /// One exact compiler-owned byte-sequence predicate. Retaining the
