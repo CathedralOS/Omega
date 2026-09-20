@@ -6920,7 +6920,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-BUILD-AND-PACKAGES-GATE** — mined candidate; verify scope then implement.
 - **RC-CLOSURE-EVIDENCE-RETENTION** — mined candidate; verify scope then implement.
 - **RC-DIAGNOSTICS** — mined candidate; verify scope then implement.
-- **RC-DIAGNOSTICS-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-DIAGNOSTICS-CLOSURE.** — recorded at
+  `wiki/drafts/rc_diagnostics_linux_x86_64.md` (revision e76d715c8e,
+  linux-x86_64): the `RC-DIAGNOSTICS` fail-canary row runs
+  `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
+  (the completion doc's filter omits the middle module) and is **red** —
+  10 drifted canaries in 127.3s: 8 stale `expected.txt` fragments behind
+  improved diagnostics, 2 silent acceptances
+  (`ownership/linear_ambiguous_state_result_mapping`,
+  `calls/guarded_value_call_terminal_rejected` compile where a rejection
+  is pinned). 9 of the 10 fixtures are fenced to the
+  RC-DIAGNOSTICS-GATE worker (exp 22:41Z); only
+  `domains/boundary_operator_mutation_invalidates_domain` is unfenced.
+  Closure = respell/land those legs on another row run; sibling stubs
+  RC-DIAGNOSTICS, RC-DIAGNOSTICS-GATE, RC-DIAGNOSTICS-STABILITY re-mine
+  the same row.
 - **RC-DIAGNOSTICS-GATE** — mined candidate; verify scope then implement.
 - **RC-DIAGNOSTICS-STABILITY** — mined candidate; verify scope then implement.
 - **RC-GATE-STABILITY-REPAIR** — mined candidate; verify scope then implement.
