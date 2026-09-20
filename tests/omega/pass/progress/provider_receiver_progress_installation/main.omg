@@ -1,15 +1,20 @@
 use omega::language::core::service;
-pub boundary trait Scheduler {
-    machine notify(&self, value: i32)
-    requires self in WeakFair
-    terminates;
 
-    machine grant(scheduler: Service<Scheduler>) -> Service<Scheduler> in WeakFair;
-}
+// Admission token for the scheduler capability; the provider's grant route
+// issues it WeakFair-qualified.
+pub data SchedulerHandle [copy] {}
 
-domain Scheduler::WeakFair
+pub domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
 established by Scheduler::grant;
+
+pub boundary trait Scheduler {
+    machine notify(&self, value: i32)
+    requires self in SchedulerHandle::WeakFair
+    terminates;
+
+    machine grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
+}
 
 data SchedulerProvider { grant: addr; }
 
@@ -19,7 +24,7 @@ linux_x86_64 machine SchedulerProvider::notify(&self, value: i32)
 satisfies Scheduler::notify
 via Binding::Syscall(1);
 
-machine SchedulerProvider::grant(scheduler: Service<Scheduler>) -> Service<Scheduler> in WeakFair
+machine SchedulerProvider::grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair
 satisfies Scheduler::grant
 via Binding::VtableField(grant);
 
@@ -29,8 +34,14 @@ data Main {
 
 machine Main::main(&mut self)
 reaches Scheduler
-requires self + Scheduler.scheduler in Scheduler::WeakFair
+requires self.scheduler in SchedulerHandle::WeakFair
 terminates
 {
     self.scheduler.notify(65);
+}
+
+machine build(builder: &mut Build) {
+    builder.application("provider-receiver-progress-installation");
+    builder.select_provider<Scheduler, SchedulerProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

@@ -10,6 +10,7 @@ use super::{
     terminal_psi_identity, validate_artifact_manifest, validate_fixed_entry_fuel, verify_module,
 };
 use compiler::CheckedCompileRequest;
+use target_operations::TargetControlTerminator;
 use terminal_fuel::FuelChargeSite;
 use terminal_interpreter::AcceptTerminalEffects;
 
@@ -153,7 +154,7 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
 }
 
 #[test]
-fn checked_crash_branches_execute_but_native_graph_crashes_remain_unsupported() {
+fn checked_crash_branches_execute_and_lower_to_native_crash_leaves() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("two-leaf crash source canary should compile");
     let lowered = lower_machine(&checked, "terminal_two_crash_leaves")
@@ -208,9 +209,23 @@ fn checked_crash_branches_execute_but_native_graph_crashes_remain_unsupported() 
     let abstract_operations = lower_verified_artifact(&verified)
         .expect("two crash leaves should cross the Omega boundary");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        assert!(
+        let plan =
             lower_to_target_operations(&abstract_operations, TargetLoweringRequest::new(target))
-                .is_err()
+                .expect("explicit crash leaves lower to target operations");
+        let mut crash_causes: Vec<CrashCause> = plan
+            .functions
+            .iter()
+            .flat_map(|function| function.graph.blocks.iter())
+            .filter_map(|block| match &block.terminator {
+                TargetControlTerminator::Crash { cause, .. } => Some(*cause),
+                _ => None,
+            })
+            .collect();
+        crash_causes.sort();
+        assert_eq!(
+            crash_causes,
+            [CrashCause::Trap, CrashCause::Abort],
+            "both guarded crash leaves retain their causes in {target:?} target operations"
         );
     }
 }
