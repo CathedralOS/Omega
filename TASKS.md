@@ -8631,20 +8631,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
 - **POC-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
 - **POC-SPILL-FAMILY-SEQUENCING** — mined candidate; verify scope then implement.
-- **POC-WRAPPER-OBJECT-PLACEMENT** — mined candidate; verify scope then implement.
-  Verified scope: "placement" is the move leg of the
-  `optimized_semantic_wrapper_{encoding,object}` orphan-owner question —
+- **POC-WRAPPER-OBJECT-PLACEMENT.** Mined candidate; scope verified, covered
+  and fenced — "placement" is the move leg of the
+  `optimized_semantic_wrapper_{encoding,object}` orphan-owner question,
   the same surface WRAPPER-OBJECT-OWNERSHIP's landed annotation catalogs
   and POC-NATIVE-WRAPPER-RELOCATION names from this cluster. The
   keep/move/delete decision is PIPELINE-OWNER-CONSOLIDATION's enumerated
   remaining work (TASKS_OPTIMIZER.md); the durable-codec destination is
   deferred to DURABLE-CODEC-RELOCATION / REPRESENTATION-OWNERSHIP, and the
-  first real caller leg is UEFI-PHYSICAL-SEMANTIC-ENTRY's. The module paths
-  sit under PIPELINE-WRAPPER-OBJECT-ORPHAN's live claim (expires 22:46Z);
-  the wider POC/rewrite territory is fenced by POC-REWRITE-ORPHANS'
-  wholesale `selected-instructions-to-selected-instructions/` claim
-  (22:33Z). Sibling re-mine names are listed on the
-  WRAPPER-OBJECT-OWNERSHIP row.
+  first real caller leg is UEFI-PHYSICAL-SEMANTIC-ENTRY's. No independent
+  slice exists here. The module paths sit under
+  PIPELINE-WRAPPER-OBJECT-ORPHAN's live claim (expires 22:46Z); the wider
+  POC/rewrite territory is fenced by POC-REWRITE-ORPHANS' wholesale
+  `selected-instructions-to-selected-instructions/` claim (22:33Z).
+  Sibling re-mine names are listed on the WRAPPER-OBJECT-OWNERSHIP row.
+  Claim evidence (z181): re-verified at `797e99ead7` — the
+  PIPELINE-WRAPPER-OBJECT-ORPHAN claim still holds
+  `native-realization/src/optimized_semantic_wrapper_object` + lib.rs +
+  tests; claim returned exit 2 on the fenced paths.
 - **PORTABLE-PROCESS-EXIT-OBSERVATION** — mined candidate; verify scope then implement.
 - **PORTABLE-REVIEW-LOCK.** Resolved — scope verified; the portable
   review/acceptance lock contract is already landed end-to-end. The spec's
