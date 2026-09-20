@@ -7424,7 +7424,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the entry machine calls a generated codec; the producing surfaces
   (`typed-trees-to-checked-trees/src/execution/unit/*`, terminal-production
   receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's unit-plan lane and
-  ENTRY-CONTENT-ROOTS' live claim — outside this item's fence.
+  ENTRY-CONTENT-ROOTS' live claim — outside this item's fence. Re-witnessed
+  at `27deadf412` (linux x86-64):
+  `OMEGA_PASS_CANARY_FILTER=wire/runtime_wire_exact_array_without_count_exit`
+  pass_canaries_compile still fails identically ("selected ProgramEntry
+  establishment rejoins 0 Terminal attachment identities; expected one",
+  47s compile) — the moved-failure persists; no in-fence slice exists.
 - **CANDIDATE-REVALIDATION-AT-SEARCH-SCALE** — mined candidate; verify scope then implement.
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST** — mined candidate; verify scope then implement.
