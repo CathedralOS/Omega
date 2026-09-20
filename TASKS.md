@@ -10266,7 +10266,44 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (external-roots, 03:56Z). clippy/arch/libtests not re-run; the
   a9fa1a4fe6 attribution stands and its residual is sibling-fenced.
   Gate stays open until the fenced repairs land.
-- **RC-REPRESENTATIVE-PROGRAMS-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-REPRESENTATIVE-PROGRAMS-CLOSURE.** Mined candidate; scope verified,
+  gate is OPEN (red on the available host). This stub re-mines the
+  representative-programs matrix row — the closure condition of the same
+  `wiki/drafts/rust_compiler_completion.md` gate measured by sibling
+  RC-REPRESENTATIVE-PROGRAMS-GREEN: every maintained sample reaches checked
+  semantics, host-entry samples reach their native product, deterministic
+  oracles pass, on every required host, on one commit. Re-measured the
+  linux-x86_64 leg at `9e3edc7be9` (cargo, no mbx; external-roots
+  `ComponentEraJournalRoster` test-build break is gone on this tip —
+  harness compiles): `cargo nextest run -p compiler --test samples_compile
+  --no-fail-fast` completed 17/33 before the >47min heavyweight aggregate
+  legs were stopped; observed failures stay red and unchanged in family:
+  (1) windows_x86_64 entry selection still rejects bundled std
+  `targets/windows_x86_64/entry.omg` against
+  `named-callable(WindowsProcessEntry::enter)` — brightness_control,
+  fletcher_checksum, caesar_cipher, format_number, rpn_calculator,
+  stack_calculator, stack_vm, token_interpreter, all windowed GUI samples;
+  (2) ProgramEntry establishment rejoins 0 Terminal attachment identities —
+  fletcher_checksum + algorithms samples on linux_x86_64/linux_arm64/
+  macos_arm64; (3) print_number domain-field leg unchanged — `self.out
+  requires [u8; N]::Utf8`. Two families new since `d8041919ad`:
+  (4) `authored Operator selection occurrence 108 remained unresolved
+  after successful checking (CheckedOperator)` — binary_search_viz on all
+  four targets inside algorithm_samples_compile; (5) `selected ProgramEntry
+  Service field Main::{clock,input,gui,raw} requires a selected Fused
+  provider for boundary {Clock,Input,Gui,FilesystemHost}` — image_viewer,
+  window_app, window_demo, windowed_calculator on macos_arm64; plus
+  `sample_entry_exceptions_are_explicit_and_non_runnable` now red:
+  `cli__device__device_extent_access` lacks an authored root. Passing legs:
+  dutch_flag, euclid_gcd, cli_mvp, generic_counter, both native_acceptance
+  tests. Still running at stop: arithmetic/collection/game/all_samples
+  aggregate legs + probe/rendering/simulation/samples_with_documented_exit.
+  macOS/Windows/QEMU host legs unavailable on this host per protocol.
+  Closure stays gated on the ENTRY-CONTENT-ROOTS lane, the print_number
+  domain-field leg, the new CheckedOperator-occurrence audit residual
+  (t2c authored_selections), the GUI Fused-provider legs, and the
+  device_extent_access authored root. Sibling re-mines of the same matrix
+  row: RC-REPRESENTATIVE-PROGRAMS-GATE, -GREEN, -PER-HOST.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
   Re-measured at `edc77c21480` on linux x86-64 (`cargo nextest run
