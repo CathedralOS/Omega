@@ -61,10 +61,10 @@ semantics.
 
 ## Bound customer entry
 
-The [customer](main.epsilon) entry is bound at 18,230 bytes, SHA-256
-`c92fdbd62f7933859922481c021b951ffb01baec7efee5d4ee8f72c9f3d8ca4d`, and packs
-on top of the bound member closure to 577,383 bytes, SHA-256
-`a2fec32633f9e35fe77fa036f1397597eac3d6f1012afa8324ea69b7d1892445`.
+The [customer](main.epsilon) entry is bound at 19,632 bytes, SHA-256
+`ce58f84f280c4f7682cb4be3f9db1763a165fb82afffa0cd5da8df413c21fa16`, and packs
+on top of the bound member closure to 581,426 bytes, SHA-256
+`c0fc0f0abc69130b8e7549db419c0fda7be2fbbea92ef5ffc52a00adf64a0435`.
 `tools/bootstrap/omega/compiler_env.sh` checks the entry identity before every
 packing and `tests/bootstrap/omega-identity.sh` covers the refusals. The same
 pins stand inline in `gate.py`; they are records of this one subject, not
