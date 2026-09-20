@@ -7592,7 +7592,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   blowup). Shrinkage since the `6ef64f6dd6` reading: the 3 site_guard
   crash-namespace rejections and the closed-projection replay member now
   pass — their unbisected suspects sit in the retained-borrow/
-  result-contract lane. Full attribution recorded in
+  result-contract lane. Re-censused at `e5bbe53956` after the crate moved:
+  2199 run, 2175 passed, 23 FAIL + 1 blowup — the bare `Service<R>`
+  family is GONE (landed `00a69f066b`, the `src/tests` carrier migration)
+  and the missing transitive-plan family collapsed into provider-
+  attachment legs. Current reds: `unit_state_graph::provider_attachments`
+  ×9 + `provider_attachment_source` ×6 (provider-attachment lane),
+  `unit_plan_omissions` ×3, `owned_record_return_source` ×3 +
+  `guarded_scalar_returns_source` ×1 (scalar-return custody lane),
+  `unit_state_graph::bindings` ×1, and the `mixed_nominal_integer_comparison`
+  blowup (SIGTERM >1026s). Full attribution recorded in
   `wiki/drafts/known_baseline_failures.md`; sibling subsets C2L-SCALAR-
   RETURN-SOURCE-CUSTODY-FAILURES / CHECKED-TREES-TO-LOWERED-PSI-
   UNATTRIBUTED-SET remain named on the parent row.
