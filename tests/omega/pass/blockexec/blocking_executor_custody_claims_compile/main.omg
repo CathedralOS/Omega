@@ -129,6 +129,18 @@ data Executor [linear] {
 // `Task::settle<T>(self) {}` shape).
 machine Submission::release(self) { }
 
+// Cancellation request authority: borrows the claim and retains it — the
+// request asks for a transition, it is not proof the worker stopped and it
+// discharges nothing (Task::request_cancel's shape). The linear claim must
+// still be settled exactly once after this call.
+machine Ticket::request_cancel(&self) { }
+
+// The hung-worker recovery boundary: a provider satisfying this contract
+// runs workers under process isolation — forcible termination and fault
+// containment live in the provider's execution domain, never as an
+// in-address-space teardown (foreign_bindings.md / provider_selection.md).
+boundary trait IsolatedWorkerProvider: WorkerProvider {}
+
 // Terminal consumption of the completion claim: parks on the wait word
 // while the worker is in flight, then reports the lifecycle outcome.
 // Declared `suspends; blocks` because settlement is a blocking wait, not a
@@ -168,6 +180,9 @@ machine Main::probe(&mut self) reaches WorkerProvider suspends; blocks; {
     // `settle` discharges it exactly once at a blocking wait on the
     // executor's wait word.
     let ticket: Ticket = Ticket { executor: 0, slot: 0 };
+    // Cancel-request borrows the claim and retains it: the claim still
+    // discharges exactly once at `settle` below.
+    ticket.request_cancel();
     let settled: ExecutorOutcome =
         suspend block ticket.settle(self.executor.wait_word);
     ExecutorOutcome::release(settled);

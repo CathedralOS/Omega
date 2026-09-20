@@ -35,9 +35,11 @@
 //     outside the bundled library, and the executor does not widen it.
 //
 // Remaining legs (recorded on the board): worker loops and queue bodies at
-// the generic-machine frontier, `Ticket`/`Task` interoperation with real
-// provider admission (TR4+), and hung-worker recovery — termination of a
-// hung worker MUST use process isolation, never in-address-space teardown;
-// that boundary is not yet declared here.
+// the generic-machine frontier, and `Ticket`/`Task` interoperation with
+// real provider admission (TR4+). The hung-worker recovery boundary is
+// declared in `executor.omg` as `IsolatedWorkerProvider` — termination of
+// a hung worker MUST use process isolation, never in-address-space
+// teardown — and `Ticket::request_cancel` carries the spec's
+// cancel-request authority alongside `settle`.
 use executor;
 use queue;
