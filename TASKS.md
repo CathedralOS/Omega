@@ -8020,7 +8020,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-mine: RULE-PROMOTION-EVIDENCE-COMPLETION.
 - **RULE-PROMOTION-EVIDENCE-COMPLETION** — mined candidate; scope verified, covered — sibling stub RULE-PROMOTION-EVIDENCE's landed annotation already scopes this surface verbatim: WORKSPACE-ROLLOUT's exact-rule promotion territory (six staged records in `optimization-core/promotions/` each need the promotion contract's full evidence set before `Approved status` completes, gated by `exact_rule_rollout_is_complete_and_promotion_gated`). The `Rollback evidence` rejoin legs sit under PROMOTION-ROLLBACK-REJOIN-LEGS's live claim; `Measurement evidence` waits on the BENCHMARKS native-realization failure; owner approval and the `CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 mbx test --workspace --no-fail-fast` gate are product decisions. No independent slice exists here.
 - **RUNTIME-CAPABLE-BINDERS** — mined candidate; verify scope then implement.
-- **RUNTIME-SIZED-ACTIVATION-CONTRACT** — mined candidate; verify scope then implement.
+- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Scope verified at `e12b9e8e06` —
+  this names the contract half of the runtime-sized activation storage
+  chapter (`wiki/spec/resources/activation_storage.md`): bounded-claim
+  admission (`committed <= bound` as a checked admission failure, never a
+  trap or clamp), demand composition of claim bounds (add across
+  simultaneously-live claims, max across mutually-exclusive branches), the
+  linear activation-scoped custody (reverse-establishment release,
+  nonmoving backing, live-claim roster at suspension crossings), and the
+  per-site publication rows with site/plan-bijection replay. No
+  implementation substrate exists to hang the contract on: there is no
+  `claim` token or extent-claim syntax/checked node under `omega-rust/psi`
+  or `omega-rust/omega` (existing `claim` hits are linear-obligation custody
+  and concurrency tickets, unrelated), and `compose_task_stack_demand`
+  (`omega-rust/omega/build/provider-planning/src/task_plans/stack_graphs.rs`)
+  composes selected-local demand only — it is the composition host a claim
+  bound would extend, not an existing claim path. The construct leg
+  (sibling stub RUNTIME-SIZED-ACTIVATION-STORAGE) must land first;
+  RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT is the same chapter and resolves
+  as this item's alias. Re-mine once a claim surface is authorized.
 - **RUNTIME-SIZED-ACTIVATION-STORAGE** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT** — mined candidate; verify scope then implement.
 - **RUST-COMPILER-RELEASE-RECORD** — mined candidate; verify scope then implement.
