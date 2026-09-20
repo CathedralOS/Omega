@@ -90,6 +90,7 @@ fn selected_operator_crash_fences_cover_admission_and_direct_execution() {
             checked_interpreter::evaluate_build_time_machine(
                 &typed,
                 BuildMachineEvaluationRequest {
+                    product_entry_compatibility: None,
                     operators: &rows,
                     ..BuildMachineEvaluationRequest::symbol(machine, Vec::new())
                 }

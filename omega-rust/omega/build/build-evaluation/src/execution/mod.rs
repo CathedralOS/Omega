@@ -88,6 +88,7 @@ fn execute_admitted_build_occurrence(
         execution_mode,
         evaluation_sponsor,
         &machine_name,
+        selected_target_profile,
     )?;
     let usage = measured.usage();
 

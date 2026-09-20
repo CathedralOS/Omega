@@ -517,8 +517,8 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   Entry/provider/schema queries, opaque descriptions, delegated entry binding,
   and exact-symbol final admission exist. Remaining:
 
-  - Finish exact expected slot/requirement/application checking beyond the
-    entry slot match, and visibility across description use and final admission.
+  - Finish exact expected provider requirement/application checking and
+    visibility across description use and final admission.
     Qualified queries select public declarations in the authorized package's
     product checked instance, never its build copy; bare queries retain the
     same-package product frontier. Source names and evaluator table indices
@@ -536,7 +536,7 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   stale activation, lookalike operations, sibling-private enumeration,
   forged descriptions, description-to-callable
   conversion, and same-build generated/layout cycles reject. Preserve
-  `compiler/tests/build_target_activation/{foreign_helper_product_queries,qualified_root_bindings,product_query_paths}.rs`.
+  `compiler/tests/build_target_activation/{foreign_helper_product_queries,qualified_root_bindings,product_query_paths,product_entry_signatures}.rs`.
   Preserve the ordinary-return-to-local, inline, nested-effect, and generic
   native tests alongside returned-forgery and expression-checking negatives in
   the foreign-helper module, including computed receivers, named lifetimes,

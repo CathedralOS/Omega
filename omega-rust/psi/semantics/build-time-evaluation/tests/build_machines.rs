@@ -96,6 +96,7 @@ fn prepared_entries_select_exact_scoped_machines_with_the_same_short_name() {
     let first = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Entry(&entry("First::build")),
             arguments: vec![empty_build_selection()],
             mode: BuildMachineExecutionMode::Pure,
@@ -106,6 +107,7 @@ fn prepared_entries_select_exact_scoped_machines_with_the_same_short_name() {
     let second = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Entry(&entry("Second::build")),
             arguments: vec![empty_build_selection()],
             mode: BuildMachineExecutionMode::Pure,
@@ -163,6 +165,7 @@ fn prepared_entry_from_another_program_rejects_even_a_colliding_raw_symbol() {
     let error = evaluate_build_machine_measured(
         &second,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Entry(&foreign_entry),
             arguments: vec![empty_build_selection()],
             mode: BuildMachineExecutionMode::Pure,
@@ -534,6 +537,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
     let pure = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![argument.clone()],
             mode: BuildMachineExecutionMode::Pure,
@@ -545,6 +549,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
     let pure_error = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("Stager::build"),
             arguments: vec![argument.clone()],
             mode: BuildMachineExecutionMode::Pure,
@@ -562,6 +567,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
     let granted_error = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("Stager::build"),
             arguments: vec![argument],
             mode: BuildMachineExecutionMode::Granted {
@@ -583,6 +589,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
     let statement_error = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("StatementStager::build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
@@ -623,6 +630,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
     let baseline = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![argument()],
             mode: BuildMachineExecutionMode::Pure,
@@ -659,6 +667,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
     let first = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![argument()],
             mode: BuildMachineExecutionMode::Pure,
@@ -669,6 +678,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
     let second = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![argument()],
             mode: BuildMachineExecutionMode::Pure,
@@ -701,6 +711,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
     let error = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![argument()],
             mode: BuildMachineExecutionMode::Pure,
@@ -728,6 +739,7 @@ fn sponsored_build_rejects_cell_allocation_before_exceeding_the_live_ceiling() {
     let error = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
@@ -757,6 +769,7 @@ fn sponsored_build_rejects_text_materialization_above_the_live_byte_ceiling() {
     let error = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
@@ -795,6 +808,7 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
     let evaluated = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![argument()],
             mode: mode(),
@@ -815,6 +829,7 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
     let error = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![argument()],
             mode: mode(),
@@ -848,6 +863,7 @@ fn sponsored_build_rejects_result_custody_above_the_shared_ceiling() {
     let error = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("pure_build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
@@ -891,6 +907,7 @@ fn prepared_build_program_specializes_static_machine_helpers() {
     let evaluated = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),

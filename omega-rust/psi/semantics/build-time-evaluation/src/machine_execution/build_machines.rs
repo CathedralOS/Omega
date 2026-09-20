@@ -172,6 +172,7 @@ pub struct BuildMachineInvocation<'a> {
     pub arguments: Vec<BuildTimeValue>,
     pub mode: BuildMachineExecutionMode,
     pub sponsor: Option<&'a BuildEvaluationSponsor>,
+    pub product_entry_compatibility: Option<&'a dyn checked_interpreter::ProductEntryCompatibility>,
 }
 
 /// Evaluate one build machine and measure its evaluation. All build-machine
@@ -218,6 +219,7 @@ pub fn evaluate_build_machine_measured(
         arguments: invocation.arguments,
         operators: &[],
         sponsor: invocation.sponsor,
+        product_entry_compatibility: invocation.product_entry_compatibility,
     };
     match invocation.mode {
         BuildMachineExecutionMode::Pure => {

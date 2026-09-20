@@ -286,6 +286,7 @@ pub(crate) struct Evaluator<'program> {
     /// evaluated code can copy the marker but cannot read or fabricate the
     /// selection payload.
     product_entry_descriptions: Vec<crate::DescribedProductEntry>,
+    pub(super) product_entry_compatibility: Option<&'program dyn crate::ProductEntryCompatibility>,
     /// Compiler-issued product-type-schema descriptions handed to evaluated
     /// code as opaque `ProductTypeSchema` markers. Same marker discipline as
     /// the entry table: the marker indexes this table and evaluated code

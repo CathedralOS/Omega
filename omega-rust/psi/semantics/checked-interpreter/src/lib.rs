@@ -136,7 +136,7 @@ pub use filesystem::{
     canonical_filesystem_metadata_path_is_canonical, filesystem_root_relative_path_is_canonical,
 };
 pub use interpreter::{
-    BuildMachineEntry, BuildMachineEvaluationRequest, InterpretOptions,
+    BuildMachineEntry, BuildMachineEvaluationRequest, InterpretOptions, ProductEntryCompatibility,
     evaluate_build_machine_arguments, evaluate_build_time_machine, evaluate_const_machine,
     evaluate_const_machine_measured, evaluate_granted_build_machine_arguments, interpret_entry,
 };

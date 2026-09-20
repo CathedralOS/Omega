@@ -133,11 +133,30 @@ pub enum BuildMachineEntry<'a> {
 /// One build-time machine evaluation: the machine, its arguments, the selected
 /// build-time operators a structured evaluation may call, and the sponsor an
 /// argument evaluation charges for its result custody.
+///
+/// Product-entry descriptions additionally require an explicit compatibility
+/// owner. Ordinary constant evaluation has no product selection authority.
 pub struct BuildMachineEvaluationRequest<'a> {
     pub entry: BuildMachineEntry<'a>,
     pub arguments: Vec<BuildTimeValue>,
     pub operators: &'a [SelectedBuildTimeBinaryOperator],
     pub sponsor: Option<&'a BuildEvaluationSponsor>,
+    pub product_entry_compatibility: Option<&'a dyn ProductEntryCompatibility>,
+}
+
+/// Source-signature compatibility for the narrowly designated product-entry
+/// query. The build owner supplies target meaning; Psi retains lexical lookup
+/// and exact-symbol selection without depending on target or native crates.
+/// This check must not execute the entry or require the build's unfinished
+/// provider, receiver-provision, or layout settlement. Final admission rechecks
+/// the selected declaration after the build completes.
+pub trait ProductEntryCompatibility: Sync {
+    fn validate_entry(
+        &self,
+        program: &TypedTrees,
+        machine: SymbolHandle,
+        slot: &str,
+    ) -> Result<(), String>;
 }
 
 impl<'a> BuildMachineEvaluationRequest<'a> {
@@ -149,6 +168,7 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             arguments,
             operators: &[],
             sponsor: None,
+            product_entry_compatibility: None,
         }
     }
 
@@ -160,6 +180,7 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
             arguments,
             operators: &[],
             sponsor: None,
+            product_entry_compatibility: None,
         }
     }
 }
@@ -185,6 +206,7 @@ pub fn evaluate_build_machine_arguments(
         request.entry,
         request.arguments,
         request.sponsor.cloned(),
+        request.product_entry_compatibility,
     )
 }
 
@@ -201,6 +223,7 @@ pub fn evaluate_granted_build_machine_arguments(
         request.arguments,
         options,
         request.sponsor.cloned(),
+        request.product_entry_compatibility,
     )
 }
 
@@ -290,6 +313,7 @@ fn evaluate_observed_arguments(
     entry: BuildMachineEntry<'_>,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     sponsor: Option<BuildEvaluationSponsor>,
+    product_entry_compatibility: Option<&dyn ProductEntryCompatibility>,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -297,6 +321,7 @@ fn evaluate_observed_arguments(
             .spawn_scoped(scope, || {
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, sponsor);
+                evaluator.product_entry_compatibility = product_entry_compatibility;
                 let result = match entry {
                     BuildMachineEntry::Name(machine_name) => {
                         evaluator.run_build_time_machine_arguments(machine_name, arguments)
@@ -356,6 +381,7 @@ fn evaluate_granted_arguments(
     arguments: Vec<crate::build_time::BuildTimeValue>,
     options: InterpretOptions,
     sponsor: Option<BuildEvaluationSponsor>,
+    product_entry_compatibility: Option<&dyn ProductEntryCompatibility>,
 ) -> Result<
     MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>,
     BuildMachineEvaluationFailure,
@@ -366,6 +392,7 @@ fn evaluate_granted_arguments(
             .spawn_scoped(scope, move || {
                 let mut evaluator = Evaluator::new(program, &[]);
                 evaluator.configure_build_evaluation(STEP_BUDGET, sponsor);
+                evaluator.product_entry_compatibility = product_entry_compatibility;
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
                 if options.filesystem_service_binding.is_some() {
                     return Err(BuildMachineEvaluationFailure::without_evidence(
