@@ -1780,8 +1780,26 @@ fn retained_source_evaluated_fixed_i64_result_requires_complete_scalar_custody()
 }
 
 #[test]
-fn float_scalar_foreign_boundary_refuses_at_boundary_realization() {
+fn widened_scalar_foreign_boundary_refuses_at_selection_legalization() {
     for (label, fixture, receipt_identity) in [
+        (
+            "bool-argument",
+            macho_scalar_import_fixture(
+                "bool-argument",
+                "gate(open: bool)",
+                "self.boundary.gate(true);",
+            ),
+            0x4d41_4348_0c05,
+        ),
+        (
+            "bool-result",
+            macho_scalar_import_fixture(
+                "bool-result",
+                "alive() -> bool",
+                "let observed: bool = self.boundary.alive();",
+            ),
+            0x4d41_4348_0d05,
+        ),
         (
             "f32-argument",
             macho_scalar_import_fixture(
@@ -1790,6 +1808,15 @@ fn float_scalar_foreign_boundary_refuses_at_boundary_realization() {
                 "self.boundary.waitf32(3.0f32);",
             ),
             0x4d41_4348_0a05,
+        ),
+        (
+            "f64-argument",
+            macho_scalar_import_fixture(
+                "f64-argument",
+                "waitf64(seconds: f64)",
+                "self.boundary.waitf64(3.0f64);",
+            ),
+            0x4d41_4348_0e05,
         ),
         (
             "f64-result",
@@ -1841,12 +1868,10 @@ fn float_scalar_foreign_boundary_refuses_at_boundary_realization() {
             })
             .map_err(|(_, diagnostics)| diagnostics)
         }
-        .expect_err("a floating-point foreign boundary must refuse realization today");
+        .expect_err("a widened scalar foreign boundary must refuse selection admission today");
         assert_eq!(diagnostics.len(), 1, "unexpected diagnostics for {label}");
         assert!(
-            diagnostics[0]
-                .message
-                .contains("BoundaryRealizationMismatch"),
+            diagnostics[0].message.contains("SourceCustodyMismatch"),
             "unexpected diagnostic for {label}: {}",
             diagnostics[0].message
         );
