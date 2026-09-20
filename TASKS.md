@@ -8422,8 +8422,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   per package, and all three join call-sites hold the source closure
   (`check_project.rs`, `compile_project.rs`, `check_locked_sources.rs`
   under `operations/`). Slice: thread the `DependencyRequestPath` through
-  the gap record and its `Display`. Currently unworkable — every touch
-  point sits under live claims: `review/restricted_build_grants.rs`,
+  the gap record and its `Display`. **Landed (z103):**
+  `UngrantedRestrictedBuildRequest` now carries
+  `request_path: Option<DependencyRequestPath>` — the occurrence's
+  shortest root-to-package route from `dependency_paths.rs`'s BFS — and
+  its `Display` renders `path <root-hex> -> "alias" <target-hex> …` in
+  the decision document's form. `ungranted_restricted_build_requests`
+  takes the joining `ResolvedPackageSourceClosure`; all four call sites
+  (check_project, compile_project, check_locked_sources, and the
+  in-compile checkpoint in package_pass.rs) supply it. Pinned by
+  `supplied_host_scope_requires_exact_retained_request_and_occurrence`'s
+  new route assertions; the four grant-join tests pass at this commit.
+  Historical fence record: every touch point sat under live claims —
+  `review/restricted_build_grants.rs`,
   `review/candidate`, and `review/decision` are fenced by Zergling-79's
   BUILD-ADMISSION-CHECKPOINT (expires ~2026-09-21T00:05Z), `operations/` by
   Jarod's TWO-AXIS-TERMINAL-AUTHORITY-REVIEW, and `manager/src/lock` +

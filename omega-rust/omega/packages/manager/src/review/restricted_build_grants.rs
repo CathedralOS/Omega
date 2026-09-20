@@ -24,16 +24,23 @@ use crate::lock::{
     PackageAcceptanceRow, PackageCheckedContext, PackageLockError, PackageLockTarget,
     PackagePolicyAcceptance,
 };
+use crate::resolution::graph::{DependencyRequestPath, ResolvedPackageSourceClosure};
 
 /// One normalized restricted build request a checked package occurrence
 /// projected without identical retained accepted-request meaning. Its
 /// compile result must not be consumed as locked evidence: acceptance is the
 /// only authority a locked operation honors for restricted host reach.
+///
+/// Restricted-build acceptance attributes each request to the originating
+/// package *and the dependency path* by which resolution reached it, so the
+/// record carries the occurrence's shortest root-to-package route alongside
+/// its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UngrantedRestrictedBuildRequest {
     package: PackageKeyIdentity,
     purpose: DependencyPurpose,
     request_meaning: String,
+    request_path: Option<DependencyRequestPath>,
 }
 
 impl UngrantedRestrictedBuildRequest {
@@ -53,6 +60,14 @@ impl UngrantedRestrictedBuildRequest {
     pub fn request_meaning(&self) -> &str {
         &self.request_meaning
     }
+
+    /// The shortest root-to-package request path by which source resolution
+    /// reached the requesting occurrence, in the same root/alias/target form
+    /// the decision document's `path` lines render. `None` only when the
+    /// reviewed key holds no custody in the joining closure.
+    pub fn request_path(&self) -> Option<&DependencyRequestPath> {
+        self.request_path.as_ref()
+    }
 }
 
 impl std::fmt::Display for UngrantedRestrictedBuildRequest {
@@ -61,12 +76,29 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
         for byte in &self.package.digest()[..4] {
             identity.push_str(&format!("{byte:02x}"));
         }
-        write!(
+        writeln!(
             formatter,
             "package {identity}… {} occurrence requests:\n    {}",
             self.purpose.name(),
             self.request_meaning
-        )
+        )?;
+        match &self.request_path {
+            Some(path) => {
+                write!(formatter, "    path ")?;
+                for byte in path.root().identity().digest() {
+                    write!(formatter, "{byte:02x}")?;
+                }
+                for step in path.steps() {
+                    write!(formatter, " -> {:?}", step.alias().as_str())?;
+                    write!(formatter, " ")?;
+                    for byte in step.target().identity().digest() {
+                        write!(formatter, "{byte:02x}")?;
+                    }
+                }
+                Ok(())
+            }
+            None => write!(formatter, "    path none"),
+        }
     }
 }
 
@@ -117,11 +149,14 @@ impl RestrictedBuildCheckpoint {
 
     /// The projected request meanings one checked occurrence asked that this
     /// checkpoint does not grant — an absent occurrence, a missing row, or a
-    /// request that widened since acceptance each surface ungranted.
+    /// request that widened since acceptance each surface ungranted. The
+    /// occurrence's dependency route is shared across its projected requests
+    /// and attaches to each gap record.
     pub fn ungranted_requests<'a>(
         &self,
         package: PackageKeyIdentity,
         context: PackageCheckedContext,
+        request_path: Option<DependencyRequestPath>,
         projected: impl Iterator<Item = &'a str>,
     ) -> Vec<UngrantedRestrictedBuildRequest> {
         let granted = self
@@ -137,6 +172,7 @@ impl RestrictedBuildCheckpoint {
                 package,
                 purpose: context.purpose(),
                 request_meaning: meaning.to_owned(),
+                request_path: request_path.clone(),
             })
             .collect()
     }
@@ -154,6 +190,7 @@ impl RestrictedBuildCheckpoint {
 pub fn ungranted_restricted_build_requests(
     accepted: &PackageLockTarget,
     reviews: &CompilerIssuedPackageReviewSet,
+    closure: &ResolvedPackageSourceClosure,
 ) -> Result<Vec<UngrantedRestrictedBuildRequest>, PackageLockError> {
     let checkpoint = RestrictedBuildCheckpoint::derive(accepted);
     let mut ungranted = Vec::new();
@@ -168,6 +205,7 @@ pub fn ungranted_restricted_build_requests(
             checkpoint.ungranted_requests(
                 review.key().identity(),
                 review.checked_context(),
+                closure.dependency_path(review.key()),
                 projected
                     .rows()
                     .iter()

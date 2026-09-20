@@ -153,7 +153,7 @@ pub fn check_locked_sources<'lock>(
     // Locked-source checking is an executor of the accepted policy, not a
     // review: a projected restricted build request the accepted rows do not
     // grant rejects the recovered compile before its results are consumed.
-    let ungranted = ungranted_restricted_build_requests(accepted, &reviews)
+    let ungranted = ungranted_restricted_build_requests(accepted, &reviews, &source_closure)
         .map_err(CheckLockedSourcesError::GrantJoin)?;
     if !ungranted.is_empty() {
         return Err(CheckLockedSourcesError::UngrantedRestrictedBuild(ungranted));
