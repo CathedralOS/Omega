@@ -10896,7 +10896,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   names the same respelling and records that the fixture is Windows-gated, so
   neither its failure nor its repair can be measured on a non-Windows host.
   The parent row owns the residual bookkeeping; no independent slice exists
-  here. Sibling stubs resolved on the same clause:
+  here. Re-verified at `59610bf809` (linux x86-64): main.omg still assembles
+  `st_mtime` through `widen_u8_to_u64` per byte with
+  `narrow_u64_to_i64_wrapping` at landing; the old `widen_u8_to_i64`
+  idiom does not recur. Sibling stubs resolved on the same clause:
   WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
   WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
 - **WINDOWS-PEAK-MEMORY-MEASUREMENT** — mined candidate; verify scope then implement.
