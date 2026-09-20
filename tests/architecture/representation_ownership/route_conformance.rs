@@ -58,6 +58,48 @@ fn resolve(target: &str) -> PathBuf {
     base
 }
 
+/// Link-bearing rows of one contiguous markdown table, in row order.
+/// Header and separator rows carry no links and drop out.
+fn table_rows(document: &str) -> Vec<Vec<(String, String)>> {
+    let mut tables = Vec::new();
+    let mut current = Vec::new();
+    for line in document.lines() {
+        if line.trim_start().starts_with('|') {
+            current.extend(links(line));
+        } else if !current.is_empty() {
+            tables.push(std::mem::take(&mut current));
+        }
+    }
+    if !current.is_empty() {
+        tables.push(current);
+    }
+    tables
+}
+
+/// The declared route is "connected": each `X-to-Y` row's owner crate begins
+/// where the previous row's ended. Backend owners such as `machine-emission`
+/// are not `X-to-Y` crates and close a route without a chainable edge.
+#[test]
+fn route_rows_chain_each_output_into_the_next_input() {
+    let document = pipeline_map();
+    for table in table_rows(&document) {
+        for pair in table.windows(2) {
+            let Some((_, output)) = pair[0].0.split_once("-to-") else {
+                continue;
+            };
+            let Some((input, _)) = pair[1].0.split_once("-to-") else {
+                continue;
+            };
+            assert_eq!(
+                output, input,
+                "route rows {} and {} are not connected: {} ends at {output} \
+                 but {} starts at {input}",
+                pair[0].0, pair[1].0, pair[0].0, pair[1].0,
+            );
+        }
+    }
+}
+
 /// `(parent, crate)` for each crate directory under
 /// `omega-rust/{psi,omega}/pipeline/`.
 fn pipeline_crates() -> Vec<(String, String)> {
