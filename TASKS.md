@@ -3527,14 +3527,6 @@ Owners include
     `Buffer::capacity<[u8; 7]>()` checks, but Terminal production rejects the
     same bounded-static-realization gate as nongeneric `Buffer::capacity()`.
     Receiver-method equation discharge does not depend on that separate gap.
-    Direct attached-data entries also retain a native acceptance gap:
-    `RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test application_type_equations --no-fail-fast -E 'test(=boolean_data_equations_attached_consumer_executes_native)'`
-    reaches source-free Terminal execution but rejects with
-    `Selection(Legalization(SourceCustodyMismatch))` on macOS ARM64.
-    The integer data-equation fixture with native realization added reproduces
-    that rejection on clean `02778e24e5`; resume in
-    `target-operations-to-selected-instructions/src/legalization`, preserving
-    the native expectation. Free-machine equation consumers execute natively.
   - Endpoint invocation admission for nominal parameters and Trapping positions,
     trait-operator owners (owner-sensitive typed operations), and applications
     that need inference in data-field types or machine/evidence binders.

@@ -1,5 +1,6 @@
 //! Straight-line scalar graph production and independent corruption controls.
 
+mod attachments;
 mod expression_custody;
 
 use crate::{
