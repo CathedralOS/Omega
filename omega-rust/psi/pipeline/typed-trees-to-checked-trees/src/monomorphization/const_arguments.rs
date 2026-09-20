@@ -442,7 +442,7 @@ pub(super) fn validate_bindings(
 // A range-bound call belongs to the declaration containing its type, not
 // to whichever machine happens to share its arena. Follow only that
 // caller's type roots; named data does not lend its separate binder scope.
-fn collect_type_expressions(
+pub(super) fn collect_type_expressions(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
     visited: &mut Vec<TypeReferenceHandle>,

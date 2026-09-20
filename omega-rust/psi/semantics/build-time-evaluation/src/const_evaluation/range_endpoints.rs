@@ -26,14 +26,17 @@
 //! entry and receiver classification, then evaluate that exact machine symbol;
 //! rebuilding a name could select an unrelated same-spelled machine. Calls with
 //! runtime receivers or unresolved arguments remain outside this closed route.
-//! An explicit type/const application is admitted only when its tuple closes.
+//! A type/const application is admitted only when its tuple closes.
 //! Ordinary static specialization (its all-expression scan covers calls in
 //! type positions) rewrites the call to a concrete instance, and the endpoint
 //! then resolves that instance from the prepared tree. Its signature types
 //! live in the prepared tree, so their positions and original argument
-//! expressions read that same tree. An application that
-//! still needs inference is not pending here; a partially supplied one is
-//! pending so it can report the missing argument.
+//! expressions read that same tree. Declaration-type calls in a machine retain
+//! the same caller context as its body calls, so ordinary argument inference
+//! can close a tuple. Pending discovery does not grant execution: missing or
+//! conflicting binders still reject unless specialization produces a concrete
+//! instance. Data-field calls still need explicit static arguments because
+//! their owner has no machine argument-evaluation context.
 //! Closed integer arguments share the type system's exact numeric evaluation,
 //! with argument carrier and declaration-selection checks before interpreter
 //! snapshots erase their authored types. No runtime flow bound supplies a value.
@@ -96,10 +99,10 @@ struct PendingEndpoint {
     expression: ExpressionHandle,
     root: ExpressionHandle,
     /// The resolved callee in the working tree: a plain machine, or the
-    /// generic template of an explicit static application.
+    /// generic template of a static application, explicit or inferred.
     machine: symbols::SymbolHandle,
-    /// The authored call carries explicit static machine arguments; the
-    /// executable callee is the prepared tree's specialized instance.
+    /// The authored target is generic; the executable callee must be the
+    /// prepared tree's specialized instance.
     static_application: bool,
 }
 
@@ -546,9 +549,9 @@ fn endpoint_plan(typed: &TypedTrees) -> Result<EndpointPlan, Vec<Diagnostic>> {
 }
 
 /// The endpoint's callee in the working tree and whether the call is an
-/// explicit static application. Returns `None` for calls this route never
-/// folds: runtime receivers, evidence/dispatch forms, and generic callees
-/// whose binders would need inference from ordinary arguments.
+/// static application. Returns `None` for calls this route never
+/// folds: runtime receivers and evidence/dispatch forms. Generic callees still
+/// require an exact concrete instance from ordinary specialization.
 fn selected_endpoint_machine(
     typed: &TypedTrees,
     expression: ExpressionHandle,
@@ -564,7 +567,7 @@ fn selected_endpoint_machine(
     {
         return None;
     }
-    // Discover explicit type/const applications, not a second specialization
+    // Discover type/const applications, not a second specialization
     // rule. Preparation validates types in the caller's scope and resolves the
     // complete tuple; resolve_endpoint_callee then requires its concrete
     // instance. The instance's substituted signature owns scalar admission.
@@ -597,11 +600,13 @@ fn selected_endpoint_machine(
             .is_empty()
             .then_some((machine, false));
     }
-    // Ordinary arguments do not close generic binders: an application with
-    // no static arguments needs inference and stays with ordinary call
-    // validation. A partially supplied one is pending so evaluation can name
-    // the missing argument.
-    (!call.machine_arguments.is_empty() && machine.conformance_bounds.is_empty())
+    // Discovery is not inference or admission. Let ordinary specialization
+    // infer from declared argument types, then require its complete instance
+    // in resolve_endpoint_callee before interpreting any value. An unused,
+    // underdetermined binder cannot disappear merely because this is a bound.
+    machine
+        .conformance_bounds
+        .is_empty()
         .then_some((machine, true))
 }
 

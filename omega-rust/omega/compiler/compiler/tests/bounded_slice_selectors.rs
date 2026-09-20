@@ -72,6 +72,44 @@ fn typed_range_endpoint_drives_inferred_capacity_through_native_execution() {
 }
 
 #[test]
+fn inferred_endpoint_type_drives_capacity_through_native_execution() {
+    let source = TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "identity(7u64)");
+    assert_endpoint_executes(checked_source(&source));
+}
+
+#[test]
+fn partially_explicit_endpoint_keeps_its_selected_type_through_native_execution() {
+    let source = format!(
+        "machine pick<T, Other>(value: T, ignored: Other) -> T {{ value }} {}",
+        TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "pick<u64[0..=7]>(7u64, true)")
+    );
+    assert_endpoint_executes(checked_source(&source));
+}
+
+#[test]
+fn inferred_endpoint_arguments_cannot_conflict_or_override_an_explicit_type() {
+    for (application, diagnostic) in [
+        ("pick(7u64, 7u8)", "not specialized"),
+        ("pick<u8>(7u64, 7u8)", "destination carrier"),
+        ("pick<u64[0..=6]>(7u64, 7u64)", "outside declared range"),
+    ] {
+        let source = format!(
+            "machine pick<T>(left: T, right: T) -> T {{ left }} {}",
+            TYPED_RANGE_SOURCE.replace("identity<u64>(7)", application)
+        );
+        let errors = check_source(&source)
+            .map(|_| ())
+            .expect_err("inference must preserve binder identity and argument obligations");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains(diagnostic)),
+            "{application}: {errors:?}"
+        );
+    }
+}
+
+#[test]
 fn structural_type_endpoint_keeps_its_caller_context_through_native_execution() {
     let source = TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "identity<u64[0..=7]>(7)");
     assert_endpoint_executes(checked_source(&source));
