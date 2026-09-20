@@ -14,7 +14,9 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Tally {
-    value: u64;
+    // Defined-overflow domain: the threaded `&mut` sink keeps unconditional
+    // bump semantics while `value + 1` is a wrapping, not exact, increment.
+    value: u64 in Wrapping;
 }
 
 data Stepper {
@@ -43,11 +45,14 @@ machine Main::main(&mut self) reaches Console {
     state spin(
         &mut self,
         tally: &mut Tally,
-        index: u64,
+        // Defined-overflow counter: the unconditional `index + 1` increments a
+        // value threaded through a mutating call, matching the corpus's own
+        // soak-loop convention (`u64 in Wrapping`).
+        index: u64 in Wrapping,
         count: u64
     ) {
         self.stepper.bump(tally);
-        let next_index: u64 = index + 1;
+        let next_index: u64 in Wrapping = index + 1;
         let has_next: bool = next_index < count;
 
         transition {
