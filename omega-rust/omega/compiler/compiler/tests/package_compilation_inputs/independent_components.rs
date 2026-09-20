@@ -17,11 +17,12 @@ use compiler::{
     compile_to_checked, published_independent_component_description,
 };
 use package_compilation::{
-    BuildDeclarationKind, IndependentComponentDescription, PackageCompilationInputs,
-    PackageDependencyBinding, PackageSourceBinding,
+    BuildDeclarationKind, IndependentComponentDescription, PackageCompilationInputError,
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 /// The dependency's public provider closure. Two provider types satisfy the
 /// same boundary requirement: the component's own build seals the requirement
@@ -217,6 +218,19 @@ fn write_consuming_root(directory: &Path, target_name: &str) {
 }
 
 fn write_consuming_root_with(directory: &Path, target_name: &str, extra_build: &str) {
+    write_consuming_root_selecting(directory, target_name, "Independent", extra_build);
+}
+
+fn write_consuming_root_fused(directory: &Path, target_name: &str) {
+    write_consuming_root_selecting(directory, target_name, "Fused", "");
+}
+
+fn write_consuming_root_selecting(
+    directory: &Path,
+    target_name: &str,
+    composition_mode: &str,
+    extra_build: &str,
+) {
     TempTree::write(
         directory.join("main.omg"),
         "use dep::pick;\n\ndata Main { }\nmachine Main::main(&mut self) { }\n",
@@ -227,7 +241,7 @@ fn write_consuming_root_with(directory: &Path, target_name: &str, extra_build: &
             r#"machine build(builder: &mut Build) {{
     builder.application("independent-consumer");
     builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
-    builder.select_provider<Pick, PickProvider>(CompositionMode::Independent);
+    builder.select_provider<Pick, PickProvider>(CompositionMode::{composition_mode});
 {extra_build}    builder.roots.bind({target_name}::ProgramEntry, Main::main);
 }}
 "#
@@ -698,4 +712,156 @@ fn a_malformed_acceptance_spelling_rejects_at_its_own_declaration() {
         .compile_root(fixture.attach(vec![fixture.published()]))
         .expect_err("a malformed digest spelling rejects at its authored declaration");
     rejects_with(&diagnostics, &["64 hexadecimal characters"]);
+}
+
+#[test]
+fn a_settled_independent_selection_retains_the_admitted_description_as_custody() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let checked = fixture
+        .compile_root(fixture.attach(vec![published.clone()]))
+        .expect("an independent selection over a described dependency component settles");
+    let retained = checked.independent_component_descriptions();
+    assert_eq!(
+        retained.len(),
+        1,
+        "settlement retains exactly the attached descriptions"
+    );
+    assert_eq!(retained[0].package(), identity(DEPENDENCY_PACKAGE_MARKER));
+    assert_eq!(
+        retained[0].description(),
+        published.description(),
+        "custody retains the admitted bytes so a replay re-verifies the same admission"
+    );
+    assert!(
+        checked.accepted_component_assumptions().is_empty(),
+        "the consuming build declared no component-assumption acceptances"
+    );
+}
+
+#[test]
+fn a_description_naming_the_root_package_rejects_at_attachment() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let rooted = IndependentComponentDescription::new(
+        identity(ROOT_PACKAGE_MARKER),
+        published.expected_subject(),
+        published.description().to_vec(),
+    );
+    let errors = fixture
+        .inputs()
+        .with_independent_component_descriptions(vec![rooted])
+        .expect_err("the root package cannot attach a description of itself");
+    assert!(
+        errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::RootIndependentComponentDescription { package }
+                if *package == identity(ROOT_PACKAGE_MARKER)
+        )),
+        "expected the root-attachment rejection among: {errors:#?}"
+    );
+}
+
+#[test]
+fn a_description_naming_a_foreign_package_rejects_at_attachment() {
+    const FOREIGN_PACKAGE_MARKER: u8 = 3;
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let foreign = IndependentComponentDescription::new(
+        identity(FOREIGN_PACKAGE_MARKER),
+        published.expected_subject(),
+        published.description().to_vec(),
+    );
+    let errors = fixture
+        .inputs()
+        .with_independent_component_descriptions(vec![foreign])
+        .expect_err("a description may only name a package inside the consuming closure");
+    assert!(
+        errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::ForeignIndependentComponentDescription { package }
+                if *package == identity(FOREIGN_PACKAGE_MARKER)
+        )),
+        "expected the foreign-attachment rejection among: {errors:#?}"
+    );
+}
+
+#[test]
+fn a_second_description_for_the_same_dependency_rejects_at_attachment() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let duplicate = IndependentComponentDescription::new(
+        published.package(),
+        published.expected_subject(),
+        published.description().to_vec(),
+    );
+    let errors = fixture
+        .inputs()
+        .with_independent_component_descriptions(vec![published, duplicate])
+        .expect_err("one dependency admits exactly one component description");
+    assert!(
+        errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::DuplicateIndependentComponentDescription { package }
+                if *package == identity(DEPENDENCY_PACKAGE_MARKER)
+        )),
+        "expected the duplicate-attachment rejection among: {errors:#?}"
+    );
+}
+
+#[test]
+fn a_genuine_description_beside_a_substituted_subject_rejects() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    let published = fixture.published();
+    let substituted = IndependentComponentDescription::new(
+        published.package(),
+        TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0xAA; 32]),
+        },
+        published.description().to_vec(),
+    );
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![substituted]))
+        .expect_err(
+            "the carried subject is a coordinate the caller supplies, not a field read from the bytes",
+        );
+    rejects_with(
+        &diagnostics,
+        &[
+            "failed independent verification",
+            "is not the admitted subject",
+        ],
+    );
+}
+
+#[test]
+fn an_attached_description_is_unmatched_when_the_dependency_selects_fused() {
+    let Some(target_name) = super::host_target_name() else {
+        return;
+    };
+    let fixture = IndependentFixture::new(target_name);
+    write_consuming_root_fused(&fixture.root, target_name);
+    let diagnostics = fixture
+        .compile_root(fixture.attach(vec![fixture.published()]))
+        .expect_err("a verified component no Independent selection consumes is not inert input");
+    rejects_with(
+        &diagnostics,
+        &["realizes no independently selected provider plan"],
+    );
 }
