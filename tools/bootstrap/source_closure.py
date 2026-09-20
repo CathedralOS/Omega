@@ -65,7 +65,7 @@ def check_inventory(root: Path, members: set[str]) -> None:
         fail(f"source inventory differs from manifest: {sorted(found ^ members)}")
 
 
-def materialize(manifest_path: Path) -> bytes:
+def materialize(manifest_path: Path) -> tuple[bytes, str]:
     manifest_bytes = manifest_path.read_bytes()
     try:
         lines = manifest_bytes.decode("ascii").splitlines()
@@ -115,7 +115,7 @@ def materialize(manifest_path: Path) -> bytes:
             )
         result.extend(data)
     check_inventory(manifest_path.parent, paths)
-    return bytes(result)
+    return bytes(result), suffix
 
 
 def write_atomic(path: Path, data: bytes) -> None:
@@ -137,9 +137,11 @@ def main() -> None:
     if manifest_path.is_symlink() or not manifest_path.is_file():
         fail("manifest is not a regular file")
     try:
-        data = materialize(manifest_path)
+        data, suffix = materialize(manifest_path)
         if len(sys.argv) == 5:
             prefix = Path(sys.argv[4])
+            if prefix.suffix != suffix:
+                fail(f"prefix suffix is not {suffix}: {prefix}")
             if prefix.is_symlink() or not prefix.is_file():
                 fail("prefix is not a regular file")
             data = source_bytes(prefix, str(prefix)) + data
