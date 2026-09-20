@@ -6754,7 +6754,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS** — mined candidate; verify scope then implement.
 - **TARGET-BATCH-MANIFEST** — mined candidate; verify scope then implement.
 - **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION** — mined candidate; verify scope then implement.
-- **TARGET-VOCABULARY-SPLIT** — mined candidate; verify scope then implement.
 - **TASK-RUNTIME-NATIVE-SUPPORT** — mined candidate; verify scope then implement.
 - **TERMINAL-SOURCE-CUSTODY-GATE-ORDER** — mined candidate; verify scope then implement.
 - **TERMINATION-FIELD-ENDPOINT-TRIO** — mined candidate; verify scope then implement.
