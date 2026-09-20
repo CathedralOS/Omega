@@ -145,8 +145,9 @@ pub use proof_contracts::properties::{
 };
 pub use proof_contracts::proposition_entailment::select_subjectless_evidence_conformance;
 pub use proof_contracts::quotients::{
-    NonExecutableQuotientCorrespondenceBatch, ValidatedQuotientFormation,
-    extract_non_executable_quotient_correspondences, validate_quotient_formations,
+    CheckedTerminationOracle, NonExecutableQuotientCorrespondenceBatch, ValidatedQuotientFormation,
+    extract_non_executable_quotient_correspondences,
+    extract_non_executable_quotient_correspondences_with_termination, validate_quotient_formations,
 };
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
