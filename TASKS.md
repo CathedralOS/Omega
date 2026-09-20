@@ -5868,7 +5868,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
-- **BACKEND-VOCABULARY-REJECTION-AUDIT** — mined candidate; verify scope then implement.
+- **BACKEND-VOCABULARY-REJECTION-AUDIT** — Resolved. Verified scope: audit of the compiler-owned closed vocabularies and where authored extension rejects. Landed in `wiki/drafts/backend_vocabulary_rejection_audit.md`: `std::calling` primitives are closed by `calling_policy_plans/build_time_decoding.rs`'s exhaustive variant decoders ("outside the compiler-owned vocabulary") plus `plan_computation.rs` relationship/signature rejects; the assembly catalog is closed by `language-core`'s `asm_catalog_entry` (unknown mnemonic → refusal at `asm_discharge.rs`, `DeriverOnly`/`Refused(HiddenControlExit)`/`IdtControlAuthority` cover the compiler-owned legs); sealed materialization sources are closed by the `RelocationTarget::{Entry,Data}` type itself; installation-bound reach rejects unresolved rows at install. No authored-extension gaps found; residual noted is keeping each decoder total as catalogs grow. Verified: `cargo nextest run -p provider-planning -p language-core --lib` 241/241 green on linux x86-64.
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — mined candidate; verify scope then implement.
 - **BASELINE-SERVICE-CARRIER-FAILURES** — mined candidate; verify scope then implement.
 - **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.

@@ -31,6 +31,10 @@ the existing task boards, not in a second tracking system.
   for future scheduling and selection comparisons.
 - [Cathedral alignment](cathedral_alignment.md): temporary cross-repository
   ownership and dependency map for OS bring-up.
+- [Backend vocabulary rejection audit](backend_vocabulary_rejection_audit.md):
+  catalog of the compiler-owned closed vocabularies (calling-policy primitives,
+  assembly catalog, sealed materialization symbols, root-reach bound) and where
+  authored extension rejects; delete once a permanent spec section owns it.
 
 Keep useful temporary residue here after review; delete obsolete or redundant
 history. Concrete proposed language or toolchain changes belong in proposals.
