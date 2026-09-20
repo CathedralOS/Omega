@@ -39,7 +39,7 @@ satisfies WindowProcedure::call
 }
 
 data RegistrarUser {
-    registrar: WindowRegistrar;
+    registrar: Service<WindowRegistrar>;
     specification: Spread<ForeignRecord>;
 }
 
@@ -97,8 +97,23 @@ impl Fixture {
         let source = source
             .replacen("use calling;", "use omega_language_std::calling;", 1)
             .replacen(
+                "use omega::language::core::layout;",
+                "use omega::language::core::layout;\nuse omega::language::core::service;",
+                1,
+            )
+            .replacen(
                 "boundary trait WindowProcedure {",
-                "boundary trait WindowProcedure: Calling<RegistrarPolicy> {",
+                "pub boundary trait WindowProcedure: Calling<RegistrarPolicy> {",
+                1,
+            )
+            .replacen(
+                "data RegistrarPolicy { }",
+                "pub data RegistrarPolicy { }",
+                1,
+            )
+            .replacen(
+                "boundary trait WindowRegistrar:",
+                "pub boundary trait WindowRegistrar:",
                 1,
             )
             .replacen(
