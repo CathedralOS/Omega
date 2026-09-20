@@ -5893,7 +5893,27 @@ Omega-side / native:
   again under this fix.
 - **I32-REMAINDER-NATIVE-LEGALIZATION.** i32 remainder native legalization.
 - **INTEGER-DIVISION-ENTRY-SELECTION.** Integer division entry selection.
-- **FLOAT-FMA-NATIVE-TRANSPORT.** Float FMA native transport.
+- **FLOAT-FMA-NATIVE-TRANSPORT.** Scope verified at 4e523615fe — re-mines
+  the transport legs already enumerated on sibling X86-FMA-PROVIDER-TRANSPORT:
+  (a) the production arm for `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd`
+  in `target-operations-to-selected-instructions` (`legalization/
+  scalar_graph_input/target/unit.rs` ingest + `unit/ieee_float.rs`
+  selection); (b) the downstream carry — s2s carry, s2rh XMM allocation,
+  post-allocation machine plan, machine-emission VFMADD + canonical MXCSR
+  envelope + `x86_scalar_fma*` object records; (c) the
+  `object_emission.rs` / `program_entry.rs` / `optimization_stage.rs`
+  fence removals once the transport proves out. The upstream custody leg
+  is already restored on `zergling/z132-fma-provider-transport`
+  (`bind_checked_x86_scalar_fma_plan_associations` now sees
+  requirement-spelled `CheckedNamedRequirementUseFact`s; transport tests
+  again die at the documented "not implemented in the common instruction
+  pipeline" fence). Implementing surfaces fenced at verification time:
+  `legalization/scalar_graph_input` under RESTORE-DYNAMIC-DESCRIPTOR-AND-
+  TABLE-CUSTODY (22:05Z) and SIGNED-CALL-PREMISES-NATIVE-WIDEN (22:20Z).
+  An unrelated upstream regression witnessed on that row's base also
+  applies: `derive_fused_program_entry_establishments` rejects
+  `Service<R>`-fielded ProgramEntry receivers — a Service-carrier custody
+  item, not this one.
 
 Proof/evidence:
 
