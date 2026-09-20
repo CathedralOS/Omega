@@ -179,7 +179,8 @@ fn validate_partial_moves(
                 // window is admitted only when every reachable arm agrees on
                 // the resolved places it extracts. Transition edges can never
                 // repair before leaving, so their moves skip the planner.
-                let mut arm_plan = borrowed_windows::ArmWindowPlan::new(program, statement);
+                let mut arm_plan =
+                    borrowed_windows::ArmWindowPlan::new(program, statement, &facts.operators);
                 if !is_transition && arm_plan.has_frames() {
                     for event in moves
                         .iter()
@@ -223,7 +224,7 @@ fn validate_partial_moves(
                     &facts.operators,
                 ) {
                     let (event_index, conditional) = match step {
-                        borrowed_windows::WindowStep::Observe(place) => {
+                        borrowed_windows::WindowStep::Observe { place, expression } => {
                             windows.check_use(
                                 program,
                                 machine,
@@ -233,11 +234,51 @@ fn validate_partial_moves(
                                 &place,
                                 &mut diagnostics,
                             );
+                            arm_plan.check_edge_use(
+                                program,
+                                machine,
+                                state,
+                                statements,
+                                statement_index,
+                                expression,
+                                &place,
+                                &mut diagnostics,
+                            );
                             continue;
                         }
                         borrowed_windows::WindowStep::Invoke(expression) => {
+                            // The match's own invocation is its join: agreed
+                            // arm debts become one statement-level hole here,
+                            // after every arm's reads already ran against its
+                            // own edge's view.
+                            for pending in arm_plan.commit_pending(expression) {
+                                let event = &moves[pending];
+                                if let Some(diagnostic) = windows.open(
+                                    program,
+                                    machine,
+                                    state,
+                                    statements,
+                                    statement_index,
+                                    event,
+                                    segments.span_or_empty(event.segments),
+                                ) {
+                                    diagnostics.push(diagnostic);
+                                }
+                            }
                             windows.check_invocation(
                                 program,
+                                state,
+                                statement_index,
+                                expression,
+                                &facts.flow.control,
+                                state_calls,
+                                &facts.service_reaches,
+                                &facts.operators,
+                                &mut diagnostics,
+                            );
+                            arm_plan.check_edge_invocation(
+                                program,
+                                machine,
                                 state,
                                 statement_index,
                                 expression,
@@ -287,22 +328,14 @@ fn validate_partial_moves(
                             state,
                             statements,
                             statement_index,
+                            event_index,
                             event,
                             path,
                         ) {
-                            Some(borrowed_windows::ArmWindowVerdict::Open) => {
-                                if let Some(diagnostic) = windows.open(
-                                    program,
-                                    machine,
-                                    state,
-                                    statements,
-                                    statement_index,
-                                    event,
-                                    path,
-                                ) {
-                                    diagnostics.push(diagnostic);
-                                }
-                            }
+                            // The agreed hole is recorded against this arm's
+                            // edge already; the joined window commits at the
+                            // match's `Invoke` step, after sibling arms ran.
+                            Some(borrowed_windows::ArmWindowVerdict::Open) => {}
                             // An unattributed move evaluates outside every
                             // match arm: an unconditional one opens normally,
                             // a conditional one (`&&`/`||` right operand,
