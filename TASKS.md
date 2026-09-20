@@ -6465,7 +6465,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   remain for their own slices.
 - **DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT** — mined candidate; verify scope then implement.
 - **DEPENDENT-RELATIONAL-PROOFS-VIEWS** — mined candidate; verify scope then implement.
-- **DEPENDENT-VALUES-CHECKER-COVERAGE** — mined candidate; verify scope then implement.
+- **DEPENDENT-VALUES-CHECKER-COVERAGE.** Mined candidate; scope verified at
+  `33eb8d92ff`: the residual named by the rewritten
+  [chapter 12](wiki/language_guide/chapter_12_dependent_types.md) sentence is
+  equality facts through writes — `requires self.count == before` +
+  `self.count = self.count + 1` still rejects `ensures self.count == before +
+  1` ("cannot prove ensures contract for exit from Counter::bump"), while the
+  unwritten and stale-equality directions check correctly (soundness holds;
+  the write retires the requires row from exit contexts). The slice is
+  transport inside `checks/contracts/exits/scalars.rs`: substitute the
+  equality fact live at the write's incoming statement context into the
+  place's retained `AssignedValue` expression. Note: a live freeform claim by
+  `devin-w9-dependent-values` (ticket 6c47f5116a7c, expires ~22:20Z) already
+  fences `proof_contracts/default_domains` for this item — coordinate before
+  working it.
 - **DERIVATION-STORE-SEMANTIC-INDEX** — mined candidate; verify scope then implement.
 - **DIFFERENTIAL-FRONTEND-DROP-EXPECTATIONS** — mined candidate; verify scope then implement.
 - **DIFFERENTIAL-STAGED-LOCAL-SEQUENCE** — mined candidate; scope verified, resolved — the native-differential staged-local-sequence leg is green on main: `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash` plus its six `checked_source_staged_local_*` siblings all pass on linux x86-64 at 4dbdaa9bc3 (`cargo nextest run -p omega-native-differential-test --test terminal_psi_source -E 'test(~staged_local)'`, 7/7). The `wiki/drafts/known_baseline_failures.md:447` entry recording `UnsupportedControlFlow(MachineId(1))` (expectation from `2694d433d3`, never bisected) is stale — the underlying lowering moved since; the doc row's refresh belongs to the known-failures doc lane. Owning parent: STAGED-LOCAL-SEQUENCE-LOWERING (TASKS.md:5774).
