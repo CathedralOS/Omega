@@ -192,6 +192,56 @@ const TYPED_RANGE_SOURCE: &str = r#"
     "#;
 
 #[test]
+fn policy_endpoint_values_preserve_each_operation_through_native_execution() {
+    for (policy, initial, operation, expected) in [
+        ("Wrapping", "250", "+ 13", "7"),
+        ("Saturating", "250", "+ 13", "255"),
+    ] {
+        let source = format!(
+            "machine seed() -> u8 in {policy} {{ {initial} }}
+             machine adjust(value: u8 in {policy}) -> u8 in {policy} {{ value {operation} }}
+             machine exact(value: u8 in {policy}) -> u64 {{ value as u64 }}
+             machine capacity<const N: u64>(value: u64[0..=N]) -> u64 {{ N }}
+             machine main() -> u64 {{
+                 let value: u64[0..=exact(adjust(seed()))] = 3;
+                 let composed: u64[0..=exact(seed() {operation})] = 3;
+                 let direct: u64[0..=seed() {operation}] = 3;
+                 let joined: u64[0..=exact((match true {{ true -> seed(), false -> seed() }}) {operation})] = 3;
+                 transition capacity(value) == {expected}
+                     && capacity(composed) == {expected}
+                     && capacity(direct) == {expected}
+                     && capacity(joined) == {expected} {{ true -> 7 false -> 0 }}
+             }}"
+        );
+        assert_endpoint_executes(checked_source(&source));
+    }
+}
+
+#[test]
+fn policy_endpoint_values_reject_implicit_policy_changes_and_invalid_landing() {
+    for (argument, parameter) in [
+        ("seed()", "u8"),
+        ("seed()", "u8 in Saturating"),
+        ("7u8", "u8 in Wrapping"),
+        ("256", "u8 in Wrapping"),
+        ("7 / 2", "u8 in Saturating"),
+    ] {
+        let source = format!(
+            "machine seed() -> u8 in Wrapping {{ 7 }}
+             machine exact(value: {parameter}) -> u64 {{ value as u64 }}
+             machine main() -> u64 {{
+                 let value: u64[0..=exact({argument})] = 3;
+                 value
+             }}"
+        );
+        assert!(
+            check_source(&source).is_err(),
+            "policy conversion admitted: {argument} -> {parameter}"
+        );
+    }
+}
+
+#[test]
 fn data_field_computed_bound_drives_capacity_through_native_execution() {
     assert_endpoint_executes(checked_source(DATA_FIELD_RANGE_SOURCE));
 }

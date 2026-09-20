@@ -26,13 +26,13 @@ impl EvaluationContext<'_> {
         if !self.is_closed() {
             return Ok(shape);
         }
-        let Shape::Integer(carrier, _) = shape else {
+        let Shape::Integer(carrier, _, policy) = shape else {
             return Ok(shape);
         };
         let reference = reference(program, shape)?
             .and_then(|reference| validation::arithmetic_result_type_reference(program, reference))
             .ok_or("closed arithmetic result has unresolved type qualifications")?;
-        Ok(Shape::Integer(carrier, reference))
+        Ok(Shape::Integer(carrier, reference, policy))
     }
 
     pub(super) fn joined_result(
@@ -44,7 +44,7 @@ impl EvaluationContext<'_> {
         if !self.is_closed() {
             return Ok(peer);
         }
-        let Shape::Integer(carrier, _) = peer else {
+        let Shape::Integer(carrier, _, policy) = peer else {
             return Ok(peer);
         };
         let references = shapes
@@ -57,7 +57,7 @@ impl EvaluationContext<'_> {
             .collect::<Vec<_>>();
         let reference = validation::join_result_type_references(program, &references, &anonymous)
             .ok_or("closed Match result has incompatible type qualifications")?;
-        Ok(Shape::Integer(carrier, reference))
+        Ok(Shape::Integer(carrier, reference, policy))
     }
 
     pub(super) fn has_builtin(self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
@@ -150,21 +150,34 @@ impl EvaluationContext<'_> {
     }
 }
 
-fn reference(program: &TypedTrees, shape: Shape) -> Result<Option<TypeReferenceHandle>, String> {
+pub(super) fn reference(
+    program: &TypedTrees,
+    shape: Shape,
+) -> Result<Option<TypeReferenceHandle>, String> {
     let primitive = match shape {
         Shape::Anonymous(_) => return Ok(None),
         Shape::Boolean => PrimitiveType::Bool,
         Shape::Float(format) => super::float_primitive(format),
-        Shape::Integer(_, reference) if reference.is_valid() => {
+        Shape::Integer(_, reference, policy) if reference.is_valid() => {
             if !program
                 .type_reference_table
                 .contains_type_reference(reference)
             {
                 return Err("constant call result type belongs to another program".into());
             }
-            return Ok(Some(reference));
+            return if super::reference_policy(program, reference)? == policy {
+                Ok(Some(reference))
+            } else {
+                program
+                    .type_reference_table
+                    .find_policy_qualified_type_reference(reference, policy)
+                    .map(Some)
+                    .ok_or_else(|| {
+                        "constant operand lost its selected arithmetic policy type".into()
+                    })
+            };
         }
-        Shape::Integer(carrier, _) => primitive(carrier)?,
+        Shape::Integer(carrier, _, _) => primitive(carrier)?,
     };
     use symbols::BuiltinTypeAtom as Atom;
     let atom = match primitive {
@@ -190,7 +203,13 @@ fn reference(program: &TypedTrees, shape: Shape) -> Result<Option<TypeReferenceH
         .ok_or("constant operand lost its builtin type")?;
     program
         .type_reference_table
-        .find_named_type_reference(symbol)
+        .find_arithmetic_result_type_reference(
+            symbol,
+            match shape {
+                Shape::Integer(_, _, policy) => policy,
+                _ => numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        )
         .map(Some)
         .ok_or_else(|| "constant operand lost its type reference".into())
 }

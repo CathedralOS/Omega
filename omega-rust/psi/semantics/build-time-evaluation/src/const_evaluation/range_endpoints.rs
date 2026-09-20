@@ -46,9 +46,12 @@
 //! for the same concrete value through the shared domain-fact evaluator, so
 //! `bounded(value: u64 in Positive)` admits `bounded(256)` and rejects
 //! `bounded(0)` before the callee runs. Neither concrete check replaces
-//! ordinary body checking. Wrapping/Saturating parameters accept exact initial
-//! anonymous landings and retain the callee policy during execution; policy-bearing
-//! results and parameterized domains remain outside this route. Calls computing signature bounds are invocation
+//! ordinary body checking. Wrapping/Saturating positions accept exact initial
+//! anonymous landings or already-landed values with the same carrier and policy.
+//! Calls, surrounding arithmetic and Match retain that policy through the shared
+//! scalar evaluator; explicit conversion alone changes it. Published endpoint
+//! literals preserve the completed landing, including its arithmetic policy.
+//! Parameterized domains remain outside this route. Calls computing signature bounds are invocation
 //! dependencies, independent of declaration order.
 //!
 //! Evaluation runs in rounds. Each round prepares the execution program from

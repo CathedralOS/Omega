@@ -1728,11 +1728,11 @@ fn policy_parameters_execute_the_declared_width_without_changing_initial_landing
 }
 
 #[test]
-fn policy_parameter_admission_checks_skipped_calls_and_preserves_result_policy_refusal() {
+fn policy_parameter_admission_checks_skipped_calls_and_implicit_erasure() {
     for endpoint in [
         "match false { true -> wrapping(255u8), false -> 256u64 }",
         "exact_result(wrapping_result())",
-        "wrapping_result()",
+        "wrapping_result() + 1u8",
     ] {
         let mut program = typed(&format!(
             "machine wrapping(value: u8 in Wrapping) -> u64 {{ (value + 2) as u64 }} machine wrapping_result() -> u8 in Wrapping {{ 1 }} machine exact_result(value: u8) -> u64 {{ value as u64 }} machine keep(value: u64[0..={endpoint}]) {{}}"
@@ -1740,6 +1740,96 @@ fn policy_parameter_admission_checks_skipped_calls_and_preserves_result_policy_r
         assert!(
             evaluate_const_range_endpoints(&mut program, None).is_err(),
             "{endpoint}"
+        );
+    }
+}
+
+#[test]
+fn policy_endpoint_publication_retains_its_landed_policy() {
+    for (policy, domain, expected) in [
+        ("Wrapping", ArithmeticDomain::Wrapping, "1"),
+        ("Saturating", ArithmeticDomain::Saturating, "255"),
+    ] {
+        let mut program = typed(&format!(
+            "machine seed() -> u8 in {policy} {{ 255 }}
+             machine keep(value: u64[0..=seed() + 2]) {{}}"
+        ));
+        let root = pending_endpoints(&program).unwrap()[0].root;
+        evaluate_const_range_endpoints(&mut program, None).unwrap();
+        assert_eq!(folded_maximum(&program).as_deref(), Some(expected));
+        assert!(pending_endpoints(&program).unwrap().is_empty());
+        let ExpressionNode::Integer(literal) = program.expression_table.expression(root) else {
+            panic!("completed endpoint must be a literal");
+        };
+        assert_eq!(literal.landing().unwrap().domain, domain);
+        assert_eq!(
+            program
+                .closed_integer_expression_value(root)
+                .unwrap()
+                .to_string(),
+            expected,
+        );
+        typed_trees_to_checked_trees::lower_typed_trees(program).unwrap();
+    }
+}
+
+#[test]
+fn completed_endpoint_queries_keep_policy_in_surrounding_arithmetic() {
+    for (domain, expected) in [
+        (ArithmeticDomain::Wrapping, Some("1")),
+        (ArithmeticDomain::Saturating, Some("255")),
+        (ArithmeticDomain::Exact, None),
+    ] {
+        let mut program = typed(
+            "machine wrapping() -> u8 in Wrapping { 0 }
+             machine saturating() -> u8 in Saturating { 0 }",
+        );
+        let left = program.expression_table.insert(ExpressionNode::Integer(
+            IntegerLiteral::from_value(255).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U8,
+                domain,
+            }),
+        ));
+        let right = program
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(2)));
+        let sum = program.expression_table.insert(ExpressionNode::Binary(
+            typed_trees::expression::TableBinaryExpression {
+                left,
+                operator: typed_trees::expression::BinaryOperator::Add,
+                right,
+            },
+        ));
+        assert_eq!(
+            program
+                .closed_integer_expression_value(sum)
+                .map(|value| value.to_string())
+                .as_deref(),
+            expected
+        );
+        if expected.is_some() {
+            let retained = program
+                .closed_integer_value_in(sum, symbols::SymbolHandle::invalid())
+                .unwrap();
+            assert_eq!(
+                program
+                    .type_reference_table
+                    .arithmetic_domain(retained.type_reference.unwrap()),
+                domain
+            );
+        }
+        *program.expression_table.expression_mut(right) =
+            ExpressionNode::Integer(IntegerLiteral::from_value(2).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::U8,
+                domain: if domain == ArithmeticDomain::Wrapping {
+                    ArithmeticDomain::Saturating
+                } else {
+                    ArithmeticDomain::Wrapping
+                },
+            }));
+        assert!(
+            program.closed_integer_expression_value(sum).is_none(),
+            "closed bounds cannot mix policies"
         );
     }
 }

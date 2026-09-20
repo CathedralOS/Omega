@@ -1,4 +1,4 @@
-//! Exact scalar evaluation after declaration selection.
+//! Policy-preserving scalar evaluation after declaration selection.
 //!
 //! Boolean leaves and comparison results share the same value path so nested
 //! equality keeps its operands' meaning. Each binary node is admitted against
@@ -20,10 +20,17 @@
 //! participate in the complete shape pass before execution: Boolean negation
 //! needs bool, and complement needs an already selected integer width. The
 //! shared integer operation preserves that width, including signed complement.
-//! Ordinary Exact integer casts introduce a landing at the conversion itself;
+//! Ordinary total integer casts introduce a landing at the conversion itself;
 //! they cannot widen earlier arithmetic retroactively. Landed operands require
 //! total carrier inclusion, while anonymous operands use the existing rational
 //! landing check. Partial conversions need evidence this evaluator does not own.
+//! Landed shapes and values retain Exact/Wrapping/Saturating at every node;
+//! anonymous values first land exactly even at a policy-qualified destination.
+//! Call signatures supply the policy before carrier/payload snapshots cross
+//! invocation boundaries. Their encoding alone cannot recover it. Existing
+//! declaration/index entrypoints still require Exact, while endpoint owners
+//! pass the selected destination policy explicitly. Trapping requires separate
+//! invocation-failure evidence and remains outside this evaluator.
 //!
 //! Match uses this same work stack: retain the subject, test patterns in order,
 //! then visit only the selected result. The Match owner first checks the complete
@@ -95,11 +102,21 @@ pub(crate) trait ConstantCalls {
 }
 
 #[derive(Clone, Copy)]
+struct ScalarDestination {
+    primitive: PrimitiveType,
+    policy: ArithmeticDomain,
+}
+
+#[derive(Clone, Copy)]
 enum Shape {
     Anonymous(ExpressionHandle),
     Boolean,
     Float(FloatFormat),
-    Integer(LandedIntegerType, typed_trees::types::TypeReferenceHandle),
+    Integer(
+        LandedIntegerType,
+        typed_trees::types::TypeReferenceHandle,
+        ArithmeticDomain,
+    ),
 }
 
 #[derive(Clone, Copy)]
@@ -107,7 +124,7 @@ enum Value {
     Anonymous(ExpressionHandle),
     Boolean(bool),
     Float(FloatFormat, u64),
-    Landed(LandedIntegerType, IntegerValue),
+    Landed(LandedIntegerType, IntegerValue, ArithmeticDomain),
 }
 
 /// Declaration values and generic indices have different eligibility. Floating
@@ -163,7 +180,10 @@ pub(crate) fn validate(
         program,
         EvaluationContext::Machine(machine, state),
         expression,
-        Some(destination),
+        Some(ScalarDestination {
+            primitive: destination,
+            policy: ArithmeticDomain::Exact,
+        }),
         calls,
     )?
     .warnings)
@@ -196,6 +216,7 @@ pub(crate) fn evaluate_scalar(
         EvaluationContext::Machine(machine, state),
         expression,
         destination,
+        ArithmeticDomain::Exact,
         calls,
     )
 }
@@ -205,10 +226,19 @@ fn evaluate_scalar_in(
     context: EvaluationContext<'_>,
     expression: ExpressionHandle,
     destination: PrimitiveType,
+    policy: ArithmeticDomain,
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
-    let (value, selected_arms, mut warnings) =
-        evaluate_expression(program, context, expression, Some(destination), calls)?;
+    let (value, selected_arms, mut warnings) = evaluate_expression(
+        program,
+        context,
+        expression,
+        Some(ScalarDestination {
+            primitive: destination,
+            policy,
+        }),
+        calls,
+    )?;
     let value = match value {
         Value::Anonymous(expression)
             if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
@@ -253,7 +283,7 @@ fn evaluate_scalar_in(
             warnings,
         ));
     }
-    let Value::Landed(carrier, value) = value else {
+    let Value::Landed(carrier, value, _) = value else {
         return Err("constant expression has no integer landing".into());
     };
     let value = match value {
@@ -276,7 +306,7 @@ fn evaluate_expression(
     program: &TypedTrees,
     context: EvaluationContext<'_>,
     expression: ExpressionHandle,
-    destination: Option<PrimitiveType>,
+    destination: Option<ScalarDestination>,
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<
     (
@@ -537,15 +567,20 @@ fn evaluate_expression(
                         &selected_arms,
                         &mut warnings,
                     )?,
-                    Value::Landed(source, value) => Value::Landed(
+                    Value::Landed(source, value, _) => Value::Landed(
                         target,
                         integer_type(source)?
                             .exact_cast_value_to(integer_type(target)?, value)
                             .ok_or("constant cast value does not fit its target carrier")?,
+                        ArithmeticDomain::Exact,
                     ),
                     _ => return Err("constant cast requires an integer operand".into()),
                 };
-                values.push(result);
+                let ExpressionNode::Cast(cast) = program.expression_table.expression(expression)
+                else {
+                    return Err("constant cast lost its expression".into());
+                };
+                values.push(retag_landed(result, cast.domain));
             }
             Step::Unary(expression, operator) => {
                 if active.pop() != Some(expression) {
@@ -554,11 +589,11 @@ fn evaluate_expression(
                 let operand = values.pop().ok_or("missing unary constant operand")?;
                 let result = match (operator, operand) {
                     (UnaryOperator::LogicalNot, Value::Boolean(value)) => Value::Boolean(!value),
-                    (UnaryOperator::BitwiseNot, Value::Landed(carrier, value)) => {
+                    (UnaryOperator::BitwiseNot, Value::Landed(carrier, value, policy)) => {
                         let value = integer_type(carrier)?
                             .bitwise_not(value)
                             .ok_or("integer complement operand does not inhabit its carrier")?;
-                        Value::Landed(carrier, value)
+                        Value::Landed(carrier, value, policy)
                     }
                     _ => return Err("unary constant operator has incompatible operand type".into()),
                 };
@@ -604,7 +639,7 @@ fn evaluate_expression(
                         }
                         Value::Anonymous(expression)
                     }
-                    (Value::Landed(carrier, left), Value::Anonymous(right)) => {
+                    (Value::Landed(carrier, left, policy), Value::Anonymous(right)) => {
                         let right_destination = if matches!(
                             operator,
                             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
@@ -621,9 +656,23 @@ fn evaluate_expression(
                             &selected_arms,
                             &mut warnings,
                         )?;
-                        apply(operator, Value::Landed(carrier, left), right)?
+                        apply(
+                            operator,
+                            Value::Landed(carrier, left, policy),
+                            retag_landed(
+                                right,
+                                if matches!(
+                                    operator,
+                                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+                                ) {
+                                    ArithmeticDomain::Exact
+                                } else {
+                                    policy
+                                },
+                            ),
+                        )?
                     }
-                    (Value::Anonymous(left), Value::Landed(carrier, right)) => {
+                    (Value::Anonymous(left), Value::Landed(carrier, right, policy)) => {
                         if matches!(
                             operator,
                             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
@@ -638,7 +687,11 @@ fn evaluate_expression(
                             &selected_arms,
                             &mut warnings,
                         )?;
-                        apply(operator, left, Value::Landed(carrier, right))?
+                        apply(
+                            operator,
+                            retag_landed(left, policy),
+                            Value::Landed(carrier, right, policy),
+                        )?
                     }
                     (left, right) => apply(operator, left, right)?,
                 };
@@ -664,7 +717,6 @@ fn evaluate_expression(
 // arithmetic. Landed operations are never executed by this pass, so a skipped
 // divide, overflow or shift still follows the selective expression schedule.
 struct ValidatedShapes {
-    result: Shape,
     warnings: Vec<Diagnostic>,
     matches: Vec<match_dispatch::MatchPlan>,
     call_shapes: Vec<(ExpressionHandle, Shape)>,
@@ -674,9 +726,14 @@ fn validate_shapes(
     program: &TypedTrees,
     context: EvaluationContext<'_>,
     root: ExpressionHandle,
-    destination: Option<PrimitiveType>,
+    destination: Option<ScalarDestination>,
     calls: Option<&dyn ConstantCalls>,
 ) -> Result<ValidatedShapes, String> {
+    let destination_policy = destination.map(|destination| destination.policy);
+    if let Some(policy) = destination_policy {
+        require_supported_policy(policy)?;
+    }
+    let destination = destination.map(|destination| destination.primitive);
     let mut pending = vec![(root, false)];
     let mut active = Vec::new();
     let mut shapes = Vec::new();
@@ -697,8 +754,9 @@ fn validate_shapes(
                         .ok_or("machine calls require constant invocation admission")?
                         .validate_call(expression)?;
                     let mut shape = scalar_shape(primitive)?;
-                    if let Shape::Integer(_, reference) = &mut shape {
+                    if let Shape::Integer(_, reference, policy) = &mut shape {
                         *reference = calls.expect("validated call owner").result_type(expression);
+                        *policy = reference_policy(program, *reference)?;
                     }
                     shapes.push(shape);
                     call_shapes.push((expression, shape));
@@ -726,12 +784,13 @@ fn validate_shapes(
                 }
                 ExpressionNode::Boolean(_) => shapes.push(Shape::Boolean),
                 ExpressionNode::Integer(literal) if literal.landing().is_some() => {
-                    let Value::Landed(carrier, _) = landed_literal(literal)? else {
+                    let Value::Landed(carrier, _, policy) = landed_literal(literal)? else {
                         unreachable!()
                     };
                     shapes.push(Shape::Integer(
                         carrier,
                         typed_trees::types::TypeReferenceHandle::invalid(),
+                        policy,
                     ));
                 }
                 ExpressionNode::Integer(_) => shapes.push(Shape::Anonymous(expression)),
@@ -792,7 +851,7 @@ fn validate_shapes(
             let operand = shapes.pop().ok_or("missing unary constant operand type")?;
             let result = match (unary.operator, operand) {
                 (UnaryOperator::LogicalNot, Shape::Boolean) => Shape::Boolean,
-                (UnaryOperator::BitwiseNot, Shape::Integer(_, _)) => {
+                (UnaryOperator::BitwiseNot, Shape::Integer(_, _, _)) => {
                     context.arithmetic_result(program, operand)?
                 }
                 _ => return Err("unary constant operator has incompatible operand type".into()),
@@ -814,11 +873,11 @@ fn validate_shapes(
                         program, context, operand, primitive(target)?, &mut warnings,
                     )?;
                 }
-                Shape::Integer(source, _) if source == target
+                Shape::Integer(source, _, _) if source == target
                     || integer_type(source)?.can_widen_to(integer_type(target)?) => {}
                 _ => return Err("constant cast needs a total integer conversion or checked partial-conversion evidence".into()),
             }
-            shapes.push(Shape::Integer(target, cast.target_type));
+            shapes.push(Shape::Integer(target, cast.target_type, cast.domain));
             continue;
         }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
@@ -863,7 +922,7 @@ fn validate_shapes(
                 shapes.push(Shape::Anonymous(expression));
                 continue;
             }
-            (Shape::Integer(carrier, reference), Shape::Anonymous(right)) => {
+            (Shape::Integer(carrier, reference, policy), Shape::Anonymous(right)) => {
                 let destination = if shift {
                     PrimitiveType::U64
                 } else {
@@ -877,14 +936,19 @@ fn validate_shapes(
                     &mut warnings,
                 )?;
                 (
-                    Shape::Integer(carrier, reference),
+                    Shape::Integer(carrier, reference, policy),
                     Shape::Integer(
                         right_carrier,
                         typed_trees::types::TypeReferenceHandle::invalid(),
+                        if shift {
+                            ArithmeticDomain::Exact
+                        } else {
+                            policy
+                        },
                     ),
                 )
             }
-            (Shape::Anonymous(left), Shape::Integer(carrier, reference)) => {
+            (Shape::Anonymous(left), Shape::Integer(carrier, reference, policy)) => {
                 if shift {
                     return Err("shift value requires a selected fixed carrier".into());
                 }
@@ -896,8 +960,12 @@ fn validate_shapes(
                     &mut warnings,
                 )?;
                 (
-                    Shape::Integer(carrier, typed_trees::types::TypeReferenceHandle::invalid()),
-                    Shape::Integer(carrier, reference),
+                    Shape::Integer(
+                        carrier,
+                        typed_trees::types::TypeReferenceHandle::invalid(),
+                        policy,
+                    ),
+                    Shape::Integer(carrier, reference, policy),
                 )
             }
             operands => operands,
@@ -914,11 +982,14 @@ fn validate_shapes(
             {
                 Shape::Boolean
             }
-            (Shape::Integer(left, left_reference), Shape::Integer(right, right_reference)) => {
+            (
+                Shape::Integer(left, left_reference, left_policy),
+                Shape::Integer(right, right_reference, right_policy),
+            ) => {
                 if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
                     return Err("Boolean logic requires Boolean operands".into());
                 }
-                if !shift && left != right {
+                if !shift && (left != right || left_policy != right_policy) {
                     return Err(
                         "constant operands have incompatible landed integer carriers".into(),
                     );
@@ -934,8 +1005,14 @@ fn validate_shapes(
                 ) {
                     Shape::Boolean
                 } else {
-                    context.arithmetic_result(program, Shape::Integer(right, right_reference))?;
-                    context.arithmetic_result(program, Shape::Integer(left, left_reference))?
+                    context.arithmetic_result(
+                        program,
+                        Shape::Integer(right, right_reference, right_policy),
+                    )?;
+                    context.arithmetic_result(
+                        program,
+                        Shape::Integer(left, left_reference, left_policy),
+                    )?
                 }
             }
             _ => return Err("constant operator has incompatible operand types".into()),
@@ -971,14 +1048,18 @@ fn validate_shapes(
         }
         Shape::Boolean if calls.is_none() || destination == Some(PrimitiveType::Bool) => {}
         Shape::Float(format) if destination == Some(float_primitive(format)) => {}
-        Shape::Integer(carrier, _)
+        Shape::Integer(carrier, _, _)
             if calls.is_none()
                 || destination
                     .is_none_or(|destination| primitive(carrier).ok() == Some(destination)) => {}
         _ => return Err("constant expression differs from its destination carrier".into()),
     }
+    if let (Some(expected), Shape::Integer(_, _, actual)) = (destination_policy, shapes[0])
+        && expected != actual
+    {
+        return Err("constant expression cannot implicitly change its arithmetic policy".into());
+    }
     Ok(ValidatedShapes {
-        result: shapes[0],
         warnings,
         matches,
         call_shapes,
@@ -1002,6 +1083,7 @@ fn scalar_shape(primitive: PrimitiveType) -> Result<Shape, String> {
             _ => return Err("constant call requires an exact integer or Boolean carrier".into()),
         },
         typed_trees::types::TypeReferenceHandle::invalid(),
+        ArithmeticDomain::Exact,
     ))
 }
 
@@ -1011,13 +1093,16 @@ fn cast_integer_carrier(
 ) -> Result<LandedIntegerType, String> {
     if cast.form.is_recast()
         || !cast.semantic_domain.is_empty()
-        || cast.domain != ArithmeticDomain::Exact
+        || !matches!(
+            cast.domain,
+            ArithmeticDomain::Exact | ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
+        )
     {
-        return Err("constant cast requires an ordinary Exact integer conversion".into());
+        return Err("constant cast requires an ordinary nontrapping integer conversion".into());
     }
     let target = super::exact_probe_destination(program, cast.target_type)
         .ok_or("constant cast target requires an unqualified fixed integer carrier")?;
-    let Shape::Integer(carrier, _) = scalar_shape(target)? else {
+    let Shape::Integer(carrier, _, ArithmeticDomain::Exact) = scalar_shape(target)? else {
         return Err("constant cast target requires a fixed integer carrier".into());
     };
     Ok(carrier)
@@ -1038,7 +1123,7 @@ fn call_value(value: &CanonicalConstValue, shape: Shape) -> Result<Value, String
             Ok(Value::Boolean(result))
         }
         (
-            Shape::Integer(carrier, _),
+            Shape::Integer(carrier, _, policy),
             Some(DecodedCanonicalConstValue::Integer { value: result, .. }),
         ) if value.identity() == CanonicalConstIdentity::integer(carrier.name(), result) => {
             let result = if carrier.is_signed() {
@@ -1051,7 +1136,7 @@ fn call_value(value: &CanonicalConstValue, shape: Shape) -> Result<Value, String
             if !integer_type(carrier)?.admits(result) {
                 return Err("constant call result exceeds its declared carrier".into());
             }
-            Ok(Value::Landed(carrier, result))
+            Ok(Value::Landed(carrier, result, policy))
         }
         _ => Err("constant call result differs from its validated scalar carrier".into()),
     }
@@ -1104,9 +1189,7 @@ fn land_anonymous(
 
 fn landed_literal(literal: &IntegerLiteral) -> Result<Value, String> {
     let landing = literal.landing().ok_or("missing integer landing")?;
-    if landing.domain != ArithmeticDomain::Exact {
-        return Err("constant generic arithmetic requires Exact integer policy".into());
-    }
+    require_supported_policy(landing.domain)?;
     let carrier = integer_type(landing.landed_type)?;
     let value = if landing.landed_type.is_signed() {
         IntegerValue::Signed(i128::from(
@@ -1124,7 +1207,7 @@ fn landed_literal(literal: &IntegerLiteral) -> Result<Value, String> {
     if !carrier.admits(value) {
         return Err("constant literal is outside its selected integer carrier".into());
     }
-    Ok(Value::Landed(landing.landed_type, value))
+    Ok(Value::Landed(landing.landed_type, value, landing.domain))
 }
 
 fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, String> {
@@ -1135,7 +1218,10 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
             _ => Err("unsupported builtin Boolean constant operator".into()),
         };
     }
-    let (Value::Landed(left_carrier, left), Value::Landed(right_carrier, right)) = (left, right)
+    let (
+        Value::Landed(left_carrier, left, policy),
+        Value::Landed(right_carrier, right, right_policy),
+    ) = (left, right)
     else {
         return Err("integer operation requires landed operands".into());
     };
@@ -1144,7 +1230,7 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
         operator,
         BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
     );
-    if !shifts && left_carrier != right_carrier {
+    if !shifts && (left_carrier != right_carrier || policy != right_policy) {
         return Err("constant operands have incompatible landed integer carriers".into());
     }
     if matches!(
@@ -1166,24 +1252,114 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
             BinaryOperator::LessOrEqual => ordering.is_le(),
             BinaryOperator::Greater => ordering.is_gt(),
             BinaryOperator::GreaterOrEqual => ordering.is_ge(),
-            _ => unreachable!(),
+            _ => return Err("constant comparison lost its operator".into()),
         };
         return Ok(Value::Boolean(result));
     }
-    let result = match operator {
-        BinaryOperator::Add => integer.exact_add(left, right),
-        BinaryOperator::Subtract => integer.exact_sub(left, right),
-        BinaryOperator::Multiply => integer.exact_mul(left, right),
-        BinaryOperator::Divide => integer.exact_div(left, right),
-        BinaryOperator::Modulo => integer.exact_rem(left, right),
-        BinaryOperator::BitwiseAnd => integer.bitwise_and(left, right),
-        BinaryOperator::BitwiseOr => integer.bitwise_or(left, right),
-        BinaryOperator::BitwiseXor => integer.bitwise_xor(left, right),
-        BinaryOperator::ShiftLeft => integer.exact_shift_left(left, integer_type(right_carrier)?, right),
-        BinaryOperator::ShiftRight => integer.exact_shift_right(left, integer_type(right_carrier)?, right),
-        _ => return Err("unsupported builtin integer constant operator".into()),
-    }.ok_or("Exact integer constant operation overflows, divides by zero, or has an invalid shift count")?;
-    Ok(Value::Landed(left_carrier, result))
+    require_supported_policy(policy)?;
+    use ArithmeticDomain::{Exact, Saturating, Wrapping};
+    let result = match (operator, policy) {
+        (BinaryOperator::Add, Exact) => integer.exact_add(left, right),
+        (BinaryOperator::Add, Wrapping) => integer.wrapping_add(left, right),
+        (BinaryOperator::Add, Saturating) => integer.saturating_add(left, right),
+        (BinaryOperator::Subtract, Exact) => integer.exact_sub(left, right),
+        (BinaryOperator::Subtract, Wrapping) => integer.wrapping_sub(left, right),
+        (BinaryOperator::Subtract, Saturating) => integer.saturating_sub(left, right),
+        (BinaryOperator::Multiply, Exact) => integer.exact_mul(left, right),
+        (BinaryOperator::Multiply, Wrapping) => integer.wrapping_mul(left, right),
+        (BinaryOperator::Multiply, Saturating) => integer.saturating_mul(left, right),
+        (BinaryOperator::Divide, Exact) => integer.exact_div(left, right),
+        (BinaryOperator::Divide, Wrapping) => integer.wrapping_div(left, right),
+        (BinaryOperator::Divide, Saturating) => integer.saturating_div(left, right),
+        (BinaryOperator::Modulo, Exact) => integer.exact_rem(left, right),
+        (BinaryOperator::Modulo, Wrapping) => integer.wrapping_rem(left, right),
+        (BinaryOperator::Modulo, Saturating) => integer.saturating_rem(left, right),
+        (BinaryOperator::BitwiseAnd, _) => integer.bitwise_and(left, right),
+        (BinaryOperator::BitwiseOr, _) => integer.bitwise_or(left, right),
+        (BinaryOperator::BitwiseXor, _) => integer.bitwise_xor(left, right),
+        (BinaryOperator::ShiftLeft, Exact) => {
+            integer.exact_shift_left(left, integer_type(right_carrier)?, right)
+        }
+        (BinaryOperator::ShiftLeft, Wrapping) => {
+            integer.wrapping_shift_left(left, integer_type(right_carrier)?, right)
+        }
+        (BinaryOperator::ShiftRight, Exact | Saturating) => {
+            integer.exact_shift_right(left, integer_type(right_carrier)?, right)
+        }
+        (BinaryOperator::ShiftRight, Wrapping) => {
+            integer.wrapping_shift_right(left, integer_type(right_carrier)?, right)
+        }
+        _ => return Err("unsupported builtin integer constant operation policy".into()),
+    }
+    .ok_or(
+        "integer constant operation overflows, divides by zero, or has an invalid shift count",
+    )?;
+    Ok(Value::Landed(left_carrier, result, policy))
+}
+
+fn require_supported_policy(policy: ArithmeticDomain) -> Result<(), String> {
+    if matches!(
+        policy,
+        ArithmeticDomain::Exact | ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
+    ) {
+        Ok(())
+    } else {
+        Err("constant scalar evaluation requires a nontrapping integer policy".into())
+    }
+}
+
+/// Region/domain identity stays in the retained type; this reads only its one
+/// arithmetic policy, rejecting ambiguity before a call snapshot can erase it.
+fn reference_policy(
+    program: &TypedTrees,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Result<ArithmeticDomain, String> {
+    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    if !reference.is_valid() {
+        return Ok(ArithmeticDomain::Exact);
+    }
+    let mut seen = Vec::new();
+    let mut policy = None;
+    loop {
+        if !program
+            .type_reference_table
+            .contains_type_reference(reference)
+            || seen.contains(&reference)
+        {
+            return Err("constant scalar type is invalid or cyclic".into());
+        }
+        seen.push(reference);
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        else {
+            break;
+        };
+        let constraints = program
+            .type_reference_table
+            .constraint_span(*constraints)
+            .ok_or("constant scalar type has invalid constraints")?;
+        for constraint in constraints {
+            if let TypeConstraintNode::ArithmeticDomain(selected) = constraint {
+                require_supported_policy(*selected)?;
+                if policy.replace(*selected).is_some() {
+                    return Err("constant scalar type has multiple arithmetic policies".into());
+                }
+            }
+        }
+        reference = *base_type;
+    }
+    Ok(policy.unwrap_or(ArithmeticDomain::Exact))
+}
+
+/// Only anonymous landing or an authored cast calls this operation. A landed
+/// destination check must compare policies instead of using it to retag values.
+fn retag_landed(value: Value, policy: ArithmeticDomain) -> Value {
+    match value {
+        Value::Landed(carrier, value, _) => Value::Landed(carrier, value, policy),
+        value => value,
+    }
 }
 
 fn integer_type(carrier: LandedIntegerType) -> Result<IntegerType, String> {
@@ -1214,12 +1390,12 @@ fn primitive(carrier: LandedIntegerType) -> Result<PrimitiveType, String> {
     })
 }
 
-/// Constant positions have no implicit machine activation. Calls still carry
-/// their selected result type and source custody through their invocation owner.
-pub(crate) fn validate_closed_scalar(
+/// Anonymous values land exactly; already-landed values retain their policy.
+pub(crate) fn validate_closed_scalar_with_policy(
     program: &TypedTrees,
     expression: ExpressionHandle,
     destination: PrimitiveType,
+    policy: ArithmeticDomain,
     calls: &dyn ConstantCalls,
 ) -> Result<Vec<Diagnostic>, String> {
     match_dispatch::validate_graph(program, expression)?;
@@ -1227,35 +1403,16 @@ pub(crate) fn validate_closed_scalar(
         program,
         EvaluationContext::Closed,
         expression,
-        Some(destination),
+        Some(ScalarDestination {
+            primitive: destination,
+            policy,
+        }),
         Some(calls),
     )?
     .warnings)
 }
 
-/// A policy-qualified destination may land an anonymous value, but cannot
-/// implicitly change an already-landed caller policy. Use the completed shape
-/// judgment so Match and surrounding arithmetic follow the ordinary evaluator.
-pub(crate) fn validate_closed_anonymous_scalar(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    destination: PrimitiveType,
-    calls: &dyn ConstantCalls,
-) -> Result<Vec<Diagnostic>, String> {
-    match_dispatch::validate_graph(program, expression)?;
-    let validated = validate_shapes(
-        program,
-        EvaluationContext::Closed,
-        expression,
-        Some(destination),
-        Some(calls),
-    )?;
-    if !matches!(validated.result, Shape::Anonymous(_)) {
-        return Err("policy-qualified endpoint parameters require anonymous initial values; landed caller policies cannot change implicitly".into());
-    }
-    Ok(validated.warnings)
-}
-
+#[cfg(test)]
 pub(crate) fn evaluate_closed_scalar(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -1267,6 +1424,27 @@ pub(crate) fn evaluate_closed_scalar(
         EvaluationContext::Closed,
         expression,
         destination,
+        ArithmeticDomain::Exact,
+        Some(calls),
+    )?;
+    Ok((value.into_index()?, warnings))
+}
+
+/// The caller retains its checked destination type while the canonical value
+/// crosses the invocation boundary as carrier and payload.
+pub(crate) fn evaluate_closed_scalar_with_policy(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    destination: PrimitiveType,
+    policy: ArithmeticDomain,
+    calls: &dyn ConstantCalls,
+) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+    let (value, warnings) = evaluate_scalar_in(
+        program,
+        EvaluationContext::Closed,
+        expression,
+        destination,
+        policy,
         Some(calls),
     )?;
     Ok((value.into_index()?, warnings))
@@ -1297,7 +1475,7 @@ pub(crate) fn evaluate_integer_endpoint(
             .ok_or("range endpoint needs a defined exact integer")?;
             (exact, None)
         }
-        Value::Landed(carrier, value) => {
+        Value::Landed(carrier, value, policy) => {
             let integer = match value {
                 IntegerValue::Signed(value) => numerics::bignum::BigInt::from_i128(value),
                 IntegerValue::Unsigned(value) => numerics::bignum::BigInt::from_u128(value),
@@ -1306,7 +1484,7 @@ pub(crate) fn evaluate_integer_endpoint(
                 integer,
                 Some(IntegerLanding {
                     landed_type: carrier,
-                    domain: ArithmeticDomain::Exact,
+                    domain: policy,
                 }),
             )
         }
@@ -1338,37 +1516,101 @@ mod tests {
 
     #[test]
     fn exact_nodes_reject_overflow_before_later_cancellation() {
-        let maximum = Value::Landed(LandedIntegerType::U8, IntegerValue::Unsigned(255));
-        let one = Value::Landed(LandedIntegerType::U8, IntegerValue::Unsigned(1));
+        let maximum = Value::Landed(
+            LandedIntegerType::U8,
+            IntegerValue::Unsigned(255),
+            ArithmeticDomain::Exact,
+        );
+        let one = Value::Landed(
+            LandedIntegerType::U8,
+            IntegerValue::Unsigned(1),
+            ArithmeticDomain::Exact,
+        );
         assert!(apply(BinaryOperator::Add, maximum, one).is_err());
     }
 
     #[test]
     fn remainder_rejects_signed_minimum_divided_by_negative_one() {
-        let minimum = Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(-128));
-        let negative_one = Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(-1));
+        let minimum = Value::Landed(
+            LandedIntegerType::I8,
+            IntegerValue::Signed(-128),
+            ArithmeticDomain::Exact,
+        );
+        let negative_one = Value::Landed(
+            LandedIntegerType::I8,
+            IntegerValue::Signed(-1),
+            ArithmeticDomain::Exact,
+        );
         assert!(apply(BinaryOperator::Modulo, minimum, negative_one).is_err());
     }
 
     #[test]
+    fn policy_quotients_preserve_signed_overflow_and_zero_division_rules() {
+        for (domain, expected) in [
+            (ArithmeticDomain::Wrapping, -128),
+            (ArithmeticDomain::Saturating, 127),
+        ] {
+            let minimum = Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(-128), domain);
+            let negative_one =
+                Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(-1), domain);
+            let zero = Value::Landed(LandedIntegerType::I8, IntegerValue::Signed(0), domain);
+            for (operator, expected) in [
+                (BinaryOperator::Divide, expected),
+                (BinaryOperator::Modulo, 0),
+            ] {
+                let Value::Landed(carrier, result, retained) =
+                    apply(operator, minimum, negative_one).unwrap()
+                else {
+                    panic!("integer quotient result");
+                };
+                assert_eq!(carrier, LandedIntegerType::I8);
+                assert_eq!(result, IntegerValue::Signed(expected));
+                assert_eq!(retained, domain);
+                assert!(apply(operator, minimum, zero).is_err());
+            }
+        }
+    }
+
+    #[test]
     fn shift_uses_value_width_and_independent_count_carrier() {
-        let one = Value::Landed(LandedIntegerType::U8, IntegerValue::Unsigned(1));
-        let invalid_count = Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(8));
+        let one = Value::Landed(
+            LandedIntegerType::U8,
+            IntegerValue::Unsigned(1),
+            ArithmeticDomain::Exact,
+        );
+        let invalid_count = Value::Landed(
+            LandedIntegerType::U64,
+            IntegerValue::Unsigned(8),
+            ArithmeticDomain::Exact,
+        );
         assert!(apply(BinaryOperator::ShiftLeft, one, invalid_count).is_err());
-        let count = Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(7));
+        let count = Value::Landed(
+            LandedIntegerType::U64,
+            IntegerValue::Unsigned(7),
+            ArithmeticDomain::Exact,
+        );
         assert!(matches!(
             apply(BinaryOperator::ShiftLeft, one, count),
             Ok(Value::Landed(
                 LandedIntegerType::U8,
-                IntegerValue::Unsigned(128)
+                IntegerValue::Unsigned(128),
+                ArithmeticDomain::Exact
             ))
         ));
     }
 
     #[test]
     fn arithmetic_never_relands_incompatible_carriers() {
-        let left = Value::Landed(LandedIntegerType::U8, IntegerValue::Unsigned(1));
-        let right = Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(1));
+        let left = Value::Landed(
+            LandedIntegerType::U8,
+            IntegerValue::Unsigned(1),
+            ArithmeticDomain::Exact,
+        );
+        let right = Value::Landed(
+            LandedIntegerType::U64,
+            IntegerValue::Unsigned(1),
+            ArithmeticDomain::Exact,
+        );
         assert!(apply(BinaryOperator::Add, left, right).is_err());
     }
 
@@ -1383,7 +1625,7 @@ mod tests {
                 });
         assert!(matches!(
             landed_literal(&literal),
-            Ok(Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(value)))
+            Ok(Value::Landed(LandedIntegerType::U64, IntegerValue::Unsigned(value), ArithmeticDomain::Exact))
                 if value == u128::from(u64::MAX)
         ));
     }

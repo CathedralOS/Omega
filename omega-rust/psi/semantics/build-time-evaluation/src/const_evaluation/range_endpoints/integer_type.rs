@@ -1,12 +1,12 @@
 //! Closed integer positions establish every range and domain before snapshots
 //! erase types.
 //!
-//! A range refines values of the same integer carrier. Parameter positions may
+//! A range refines values of the same integer carrier. Scalar positions may
 //! also retain one Wrapping or Saturating policy: anonymous arguments still
 //! land exactly before invocation, and the original callee signature supplies
-//! the interpreter's arithmetic meaning. Result positions reject these policies
-//! because the surrounding closed scalar evaluator does not carry policy-bearing
-//! results; explicit erasure in the callee must precede publication.
+//! the interpreter's arithmetic meaning. The shared scalar evaluator preserves
+//! the policy through results and verifies it before argument snapshots erase
+//! the type shell. Trapping still needs independent invocation-failure evidence.
 //! A declared, argument-free integer domain requires concrete membership through
 //! the shared domain-fact evaluator before invocation or folding. Parameterized
 //! domains and compiler-owned domain subjects remain outside this route. Bounds
@@ -32,19 +32,12 @@ pub(super) enum ScalarPosition {
     Boolean,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum PositionRole {
-    Parameter,
-    Result,
-}
-
 impl ScalarPosition {
     pub(super) fn prepare(
         program: &TypedTrees,
         original: &TypedTrees,
         reference: TypeReferenceHandle,
         authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
-        role: PositionRole,
     ) -> Result<Self, String> {
         // A qualified Boolean (`bool in Domain`) has no closed proof route
         // here; only the bare builtin leaf is a Boolean position.
@@ -57,8 +50,7 @@ impl ScalarPosition {
         {
             return Ok(Self::Boolean);
         }
-        IntegerPosition::prepare_for_role(program, original, reference, authority, role)
-            .map(Self::Integer)
+        IntegerPosition::prepare(program, original, reference, authority).map(Self::Integer)
     }
 }
 
@@ -71,28 +63,11 @@ pub(super) struct IntegerPosition {
 }
 
 impl IntegerPosition {
-    #[cfg(test)]
     pub(super) fn prepare(
-        program: &TypedTrees,
-        original: &TypedTrees,
-        reference: TypeReferenceHandle,
-        authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
-    ) -> Result<Self, String> {
-        Self::prepare_for_role(
-            program,
-            original,
-            reference,
-            authority,
-            PositionRole::Result,
-        )
-    }
-
-    fn prepare_for_role(
         program: &TypedTrees,
         original: &TypedTrees,
         mut reference: TypeReferenceHandle,
         authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
-        role: PositionRole,
     ) -> Result<Self, String> {
         let mut policy = None;
         let mut ranges = Vec::new();
@@ -160,15 +135,14 @@ impl IntegerPosition {
                         domains.push((domain.symbol, domain.name.as_str().to_owned()));
                     }
                     TypeConstraintNode::ArithmeticDomain(domain)
-                        if role == PositionRole::Parameter
-                            && matches!(
-                                domain,
-                                ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
-                            ) =>
+                        if matches!(
+                            domain,
+                            ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating
+                        ) =>
                     {
                         if policy.replace(*domain).is_some() {
                             return Err(
-                                "range endpoint parameter has multiple arithmetic policies".into(),
+                                "range endpoint position has multiple arithmetic policies".into()
                             );
                         }
                     }
