@@ -8469,6 +8469,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
 
 - **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
+||||||| parent of e8b454acf901 (board: ASM-PRIVILEGED-SERVICE-ADMISSION — scope verified, mechanism landed)
+- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
+- **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
+- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
+- **ASM-PRIVILEGED-SERVICE-ADMISSION.** Mined candidate; scope verified at
+  `17fec446ef2` — the admission leg is landed, and what remains is gated
+  elsewhere. Re-mines the ASM-CATALOG-FAMILY-EXPANSION residual
+  ("memory/authority-bearing families blocked on UnmodeledMemoryAccess and
+  service admission"). Verified the admission route end-to-end at this
+  revision: `Build.privileged_services.{port_io,interrupt_table}` parses into
+  `PrivilegedServicesGrants` (build-evaluation `admission/configuration.rs`),
+  flows through `phase_transitions.rs:192` into
+  `AsmAuthorityAdmission::from_freestanding(...).with_grants(...)`, and
+  `validate_asm_discharge` admits per instruction-authority class — the
+  catalog's current three classes are all routable (7 MachineOwner
+  instructions, freestanding-only by contract; 1 PortIo + 1 IdtControl under
+  the mediated grants). No Mmio-authority or memory-authority instruction
+  exists to admit a fourth class for — such a grant would be dead code.
+  The blocked families themselves are gated on memory-access modeling:
+  `inline_assembly/mod.rs:808` refuses ldr/str/ldp/stp/push/pop as
+  `UnmodeledMemoryAccess`, a spec/model item rather than an admission slice.
+  Fence note: the admission config surface `build-evaluation/src/admission`
+  is path-claimed under TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION
+  (Zergling-112) this wave. No independent implementable slice exists.
 - **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
 - **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; scope verified at
   `95019d341a9`: re-mines the recorded frontier of **UEFI-OS-HANDOFF**
