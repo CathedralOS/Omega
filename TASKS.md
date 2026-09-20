@@ -6790,7 +6790,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **TRANSFORM-CODEC-RELOCATION** — mined candidate; verify scope then implement.
 - **TRANSLATION-VALIDATION** — mined candidate; verify scope then implement.
 - **TRANSPARENT-TRAIT-REFINEMENTS** — mined candidate; verify scope then implement.
-- **TRUSTED-SURFACE-DIGEST-RE-RECORD** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-RE-RECORDING** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-RERECORD** — mined candidate; verify scope then implement.
