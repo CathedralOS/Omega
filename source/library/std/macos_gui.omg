@@ -28,7 +28,7 @@ use omega::language::core::numeric_conversion;
 use omega::language::core::float_operations;
 use omega::language::core::service;
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 // The Objective-C runtime seam (libobjc). Human method names; the `_objc_*`/`_sel_*`
