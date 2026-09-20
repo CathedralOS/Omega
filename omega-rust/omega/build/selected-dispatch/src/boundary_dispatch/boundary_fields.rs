@@ -81,7 +81,7 @@ pub(crate) fn exact_boundary_trait<'typed>(
                     typed,
                     definition.symbol,
                 )
-                && definition.name.as_str() == name
+                && typed.trait_declaration_path(definition) == name
                 && typed.symbols.symbol_package_identity(definition.symbol) == package_identity
         })
         .collect::<Vec<_>>();

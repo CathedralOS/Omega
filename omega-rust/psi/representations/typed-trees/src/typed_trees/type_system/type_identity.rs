@@ -278,6 +278,25 @@ impl TypedTrees {
         matches.next().is_none().then_some(machine)
     }
 
+    /// Export one trait's declaration path, retaining module ownership.
+    /// Module-free and source-free semantic trees carry their complete path
+    /// directly in the declaration, as for named machine identities. Package
+    /// identity and exact symbol custody remain separate from this projection.
+    pub fn trait_declaration_path(
+        &self,
+        trait_definition: &crate::trait_definition::TraitDefinition,
+    ) -> String {
+        if self
+            .symbols
+            .symbol_module(trait_definition.symbol)
+            .is_valid()
+        {
+            self.symbols.display_path(trait_definition.symbol, "::")
+        } else {
+            trait_definition.name.as_str().to_owned()
+        }
+    }
+
     /// Canonical identity of one trait machine requirement overload.
     pub fn normalized_trait_requirement_overload_identity(
         &self,
@@ -286,8 +305,14 @@ impl TypedTrees {
     ) -> NormalizedNamedCallableIdentity {
         let mut type_parameters = self.trait_type_parameters(trait_definition).to_vec();
         type_parameters.extend_from_slice(self.state_signature_type_parameters(requirement));
+        // As with concrete machines, a requirement belongs to its full module
+        // path. Sibling modules may declare identically shaped boundary traits.
         self.normalized_named_callable_identity(
-            &format!("{}::{}", trait_definition.name, requirement.name),
+            &format!(
+                "{}::{}",
+                self.trait_declaration_path(trait_definition),
+                requirement.name
+            ),
             trait_definition.symbol,
             &type_parameters,
             self.state_signature_parameters(requirement),

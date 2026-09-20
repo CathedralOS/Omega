@@ -502,12 +502,10 @@ fn type_reference_for_symbol(
                 .map(|owned| owned.type_reference)
         })
         .or_else(|| {
-            let definition = machine.attached_data.as_ref().and_then(|name| {
-                program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.name.as_str() == name.as_str())
-            })?;
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == machine.attached_data_symbol)?;
             program.data_members(definition).iter().find_map(|member| {
                 let typed_trees::data::DataMember::Field(field) = member else {
                     return None;
@@ -739,12 +737,10 @@ fn origin_for_symbol(
         return boundary_service_for_type(program, owned.type_reference)
             .map(InvocationTarget::Service);
     }
-    let attached = machine.attached_data.as_ref().and_then(|name| {
-        program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == name.as_str())
-    });
+    let attached = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == machine.attached_data_symbol);
     attached
         .and_then(|definition| {
             program

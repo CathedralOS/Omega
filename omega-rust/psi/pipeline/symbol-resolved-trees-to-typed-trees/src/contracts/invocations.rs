@@ -26,11 +26,15 @@ pub(crate) fn lower_authored_invocations(
                 symbol: parameter.symbol,
             }
         } else {
-            let service_symbol = program.symbols.find_child_by_name_and_kind(
-                program.symbols.root(),
-                declaration.as_str(),
-                SymbolKind::Trait,
-            );
+            // Invocation ceilings belong to the declaring source's namespace,
+            // not the first same-spelled trait in the assembled forest.
+            let service_symbol = program
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    declaration.as_str(),
+                    &[SymbolKind::Trait],
+                    declaration.source_span(),
+                );
             service_symbol.map_or(
                 typed::signature::AuthoredInvocationTarget::Unresolved,
                 typed::signature::AuthoredInvocationTarget::Service,

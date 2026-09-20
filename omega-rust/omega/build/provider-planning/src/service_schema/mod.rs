@@ -4,6 +4,9 @@
 //! The assembled tree may retain a second checked copy of a dependency for
 //! build execution. Equal package and signature identities do not authorize
 //! that copy to supply a product schema or provider.
+//! Portable requirement names are complete module paths projected from the
+//! exact symbol, paired with package identity. An authored leaf is not unique
+//! even inside one package; replay must use the same projection as derivation.
 
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
@@ -58,7 +61,7 @@ pub fn from_typed_instance(
         &mut methods,
     );
     Some(ServiceSchema {
-        trait_name: trait_definition.name.as_str().to_owned(),
+        trait_name: program.trait_declaration_path(trait_definition),
         trait_package_identity: program
             .symbols
             .symbol_package_identity(trait_definition.symbol),
@@ -153,7 +156,7 @@ pub fn schema_binds_exact_boundary_trait(
 ) -> bool {
     is_product_declaration(program, trait_definition.symbol)
         && trait_definition.is_boundary
-        && trait_definition.name.as_str() == schema.trait_name
+        && program.trait_declaration_path(trait_definition) == schema.trait_name
         && program
             .symbols
             .symbol_package_identity(trait_definition.symbol)
@@ -197,7 +200,8 @@ pub fn from_typed_boundary_requirement(
     let [entry] = program.machine_states(requirement) else {
         return None;
     };
-    let (requirement_owner, method_name) = requirement.name.as_str().rsplit_once("::")?;
+    let requirement_path = program.symbols.display_path(requirement.symbol, "::");
+    let (requirement_owner, method_name) = requirement_path.rsplit_once("::")?;
     if requirement_owner.is_empty() || method_name.is_empty() {
         return None;
     }
@@ -209,7 +213,7 @@ pub fn from_typed_boundary_requirement(
     let package_identity = program.symbols.symbol_package_identity(requirement.symbol);
 
     Some(ServiceSchema {
-        trait_name: requirement.name.as_str().to_owned(),
+        trait_name: requirement_path.clone(),
         trait_package_identity: package_identity,
         methods: vec![ServiceMethod {
             name: method_name.to_owned(),
@@ -301,7 +305,7 @@ fn collect_service_methods(
         );
         methods.push(ServiceMethod {
             name: signature.name.as_str().to_owned(),
-            requirement_owner: trait_definition.name.as_str().to_owned(),
+            requirement_owner: program.trait_declaration_path(trait_definition),
             requirement_owner_package_identity: program
                 .symbols
                 .symbol_package_identity(trait_definition.symbol),
@@ -714,7 +718,7 @@ fn synchronous_invocation_names(
                 .traits()
                 .iter()
                 .find(|definition| definition.is_boundary && definition.symbol == symbol)
-                .map(|definition| definition.name.as_str().to_owned()),
+                .map(|definition| program.trait_declaration_path(definition)),
         })
         .collect::<Vec<_>>();
     names.sort_unstable();
@@ -745,7 +749,7 @@ fn machine_synchronous_invocation_names(
                 .traits()
                 .iter()
                 .find(|definition| definition.is_boundary && definition.symbol == symbol)
-                .map(|definition| definition.name.as_str().to_owned()),
+                .map(|definition| program.trait_declaration_path(definition)),
         })
         .collect::<Vec<_>>();
     names.sort_unstable();
@@ -765,5 +769,5 @@ fn boundary_trait_name_for_type(
         .traits()
         .iter()
         .find(|definition| definition.is_boundary && definition.symbol == symbol)
-        .map(|definition| definition.name.as_str().to_owned())
+        .map(|definition| program.trait_declaration_path(definition))
 }

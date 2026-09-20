@@ -407,7 +407,7 @@ fn plan_selected_boundary_adapter_dispatch(
         let owners = typed
             .data_definitions()
             .iter()
-            .filter(|data| data.name == *attached_data)
+            .filter(|data| data.symbol == machine.attached_data_symbol)
             .collect::<Vec<_>>();
         let [owner] = owners.as_slice() else {
             if boundary_field_declarations

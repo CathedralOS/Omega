@@ -68,10 +68,14 @@ pub(crate) fn selected_task_runtime_provider(
         .plans()
         .iter()
         .filter(|plan| {
-            plan.schema.trait_name == requirement_owner.name.as_str()
-                && plan.schema.trait_package_identity == requirement_owner_package
+            crate::service_schema::schema_binds_exact_boundary_trait(
+                &program.typed,
+                &plan.schema,
+                requirement_owner,
+            ) && plan.schema.trait_package_identity == requirement_owner_package
                 && plan.schema.methods.iter().any(|method| {
-                    method.requirement_owner == requirement_owner.name.as_str()
+                    method.requirement_owner
+                        == program.typed.trait_declaration_path(requirement_owner)
                         && method.requirement_owner_package_identity == requirement_owner_package
                         && method.requirement_identity == authored_requirement_identity
                 })
@@ -94,7 +98,7 @@ pub(crate) fn selected_task_runtime_provider(
         .methods
         .iter()
         .filter(|method| {
-            method.requirement_owner == requirement_owner.name.as_str()
+            method.requirement_owner == program.typed.trait_declaration_path(requirement_owner)
                 && method.requirement_owner_package_identity == requirement_owner_package
                 && method.requirement_identity == authored_requirement_identity
         })

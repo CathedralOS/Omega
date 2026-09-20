@@ -327,15 +327,15 @@ fn selected_source_boundary_entry_plan(
             .normalized_machine_overload_identity(requirement)
             .map(|identity| identity.identity())
             .unwrap_or_default();
-        let Some((requirement_owner, requirement_method)) =
-            requirement.name.as_str().rsplit_once("::")
+        let requirement_path = typed.symbols.display_path(requirement.symbol, "::");
+        let Some((requirement_owner, requirement_method)) = requirement_path.rsplit_once("::")
         else {
             return Err(Diagnostic::error(format!(
                 "selected source top-level boundary requirement `{}` has no exact owner and method path",
                 requirement.name,
             )));
         };
-        if requirement.name.as_str() != plan.schema.trait_name
+        if requirement_path != plan.schema.trait_name
             || requirement_method != method_name
             || method.requirement_owner != requirement_owner
             || method.requirement_identity != exact_requirement_identity
@@ -381,7 +381,7 @@ fn selected_source_boundary_entry_plan(
         .traits()
         .iter()
         .filter(|definition| {
-            definition.name.as_str() == method.requirement_owner
+            typed.trait_declaration_path(definition) == method.requirement_owner
                 && crate::service_schema::is_product_declaration(typed, definition.symbol)
                 && typed.symbols.symbol_package_identity(definition.symbol)
                     == method.requirement_owner_package_identity

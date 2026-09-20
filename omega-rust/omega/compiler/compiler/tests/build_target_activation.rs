@@ -15,6 +15,8 @@ mod linux_entry_acceptance;
 mod product_entry_signatures;
 #[path = "build_target_activation/product_query_paths.rs"]
 mod product_query_paths;
+#[path = "build_target_activation/qualified_provider_selection.rs"]
+mod qualified_provider_selection;
 #[path = "build_target_activation/qualified_root_bindings.rs"]
 mod qualified_root_bindings;
 #[path = "build_target_activation/x86_feature_admission.rs"]

@@ -57,11 +57,19 @@ pub fn build_boundary_provider_approval_registry(
             .iter()
             .filter(|candidate| candidate.symbol == trait_definition.symbol)
             .count();
+        // Duplicate declarations still fail closed, but sibling modules and
+        // independently checked package instances do not share a namespace.
+        let declaration_module = program.symbols.symbol_module(trait_definition.symbol);
         let exact_name_owners = program
             .traits()
             .iter()
             .filter(|candidate| {
-                candidate.is_boundary && candidate.name.as_str() == trait_definition.name.as_str()
+                candidate.is_boundary
+                    && candidate.name.as_str() == trait_definition.name.as_str()
+                    && program.symbols.symbol_module(candidate.symbol) == declaration_module
+                    && program
+                        .symbols
+                        .same_symbol_source_package(candidate.symbol, trait_definition.symbol)
             })
             .count();
         let has_exact_identity = trait_definition.symbol.is_valid()
@@ -69,7 +77,7 @@ pub fn build_boundary_provider_approval_registry(
             && exact_symbol_owners == 1
             && exact_name_owners == 1;
         let implemented_in_package =
-            boundary_trait_is_implemented(program, trait_definition.name.as_str());
+            boundary_trait_is_implemented(program, trait_definition.symbol);
         registry.register(BoundaryProviderApproval::new(
             trait_definition.symbol,
             has_exact_identity && !implemented_in_package,
@@ -104,7 +112,7 @@ pub fn audit_boundary_provider_calls(
     unapproved
 }
 
-fn boundary_trait_is_implemented(program: &TypedTrees, trait_name: &str) -> bool {
+fn boundary_trait_is_implemented(program: &TypedTrees, trait_symbol: SymbolHandle) -> bool {
     // PRV4 supply edges: a machine satisfying ONE exact requirement (a
     // checked adapter forwarding already-held authority, or a `via` external
     // leaf) is not an in-package implementation of the trait. Whole-trait
@@ -114,6 +122,6 @@ fn boundary_trait_is_implemented(program: &TypedTrees, trait_name: &str) -> bool
         matches!(
             &conformance.subject,
             typed_trees::trait_definition::ConformanceSubject::Carrier(_)
-        ) && conformance.trait_name.as_str() == trait_name
+        ) && conformance.trait_symbol == trait_symbol
     })
 }

@@ -2,9 +2,8 @@
 //! invocations and realizations that prove it.
 
 use crate::provider_planning::provenance_replay::requirement_identities::{
-    external_provider_binding, realization_machine_identity,
+    exact_satisfied_requirement_identity, external_provider_binding, realization_machine_identity,
 };
-use crate::provider_planning::provenance_replay::satisfied_requirement_identity;
 use crate::provider_planning::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
 };
@@ -75,16 +74,11 @@ pub(crate) fn checked_adapter_has_exact_conformance(
         .iter()
         .filter(|conformance| conformance.external_binding.is_none())
         .filter_map(|conformance| {
-            let requirement = conformance.requirement.as_ref()?;
-            let definition = typed
-                .traits()
-                .iter()
-                .find(|definition| definition.symbol == conformance.symbol)?;
-            Some(satisfied_requirement_identity(
+            conformance.requirement.as_ref()?;
+            Some(exact_satisfied_requirement_identity(
                 typed,
-                adapter.name.as_str(),
-                definition.name.as_str(),
-                requirement.as_str(),
+                conformance.symbol,
+                conformance.requirement_symbol,
             ))
         })
         .any(|identity| identity == row.requirement_identity)
@@ -475,7 +469,7 @@ pub(crate) fn exact_top_level_external_realization<'typed>(
                     external_provider_binding(
                         binding,
                         &plan.provider_type,
-                        &realization_machine_identity(typed, machine.name.as_str()),
+                        &realization_machine_identity(typed, machine),
                     ) == row.binding
                 })
         })
@@ -607,7 +601,7 @@ fn exact_invocation_service_name(
             matches.len(),
         )));
     };
-    Ok(definition.name.as_str().to_owned())
+    Ok(typed.trait_declaration_path(definition))
 }
 
 pub(crate) fn exact_checked_adapter_invocations(
@@ -653,7 +647,7 @@ pub(crate) fn exact_checked_adapter_invocations(
         .filter(|definition| {
             definition.is_boundary
                 && crate::service_schema::is_product_declaration(typed, definition.symbol)
-                && definition.name.as_str() == method.requirement_owner
+                && typed.trait_declaration_path(definition) == method.requirement_owner
                 && typed.symbols.symbol_package_identity(definition.symbol)
                     == method.requirement_owner_package_identity
         })
@@ -711,7 +705,7 @@ pub(crate) fn exact_checked_adapter_invocations(
                     })
                     .unwrap_or_default();
                 method.parameter_count.checked_add(1) == Some(parameter_count)
-                    && target_name == boundary.name.as_str()
+                    && target_name == typed.trait_declaration_path(boundary)
             });
         if self_forwarded {
             continue;
