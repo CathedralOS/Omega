@@ -7224,7 +7224,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   rows CROSS-COMPILER-DIFFERENTIAL and
   RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL name the same scope.
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN** — mined candidate; verify scope then implement.
-- **CTTL-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
+- **CTTL-FAILURE-ATTRIBUTION** — mined candidate; scope verified, resolved.
+  Names the attribution pass over the `typed-trees-to-checked-trees` section
+  of `wiki/drafts/known_baseline_failures.md` (last recorded reading:
+  `660f5af762` macOS arm64, 4159 run / 6 failed — the long-standing trio
+  plus the rank_ranges field-endpoint set). Re-verified green on linux
+  x86-64 at `d32183a35c`:
+  `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast`
+  → 5014 run, 5014 passed, 0 failed — every recorded member closed
+  (`indexed_operand_access_preserves_shared_collection_and_owned_index`,
+  `consuming_call_that_returns_an_obligation_transfers_its_origin`,
+  `scalar_caller_retains_call_produced_record_local_before_getter`, and
+  the three rank_ranges field-endpoint cases all pass), so the residual
+  tail is empty and there is nothing left to attribute. The ledger
+  section's stale draft rows belong to the live claims already fencing
+  `wiki/drafts/known_baseline_failures.md` (LOWERED-UNIT-FAILURE-
+  ATTRIBUTION until ~01:17Z, BASELINE-PACKAGE-COMPILATION-INPUTS until
+  ~20:19Z); this lane claims no file paths.
 - **CUSTODY-MATRIX-HARNESS-MIGRATION.** Mined candidate (split-of:CUSTODY-MUTATION-COVERAGE):
   convert the legacy handwritten one-field substitution matrices to the shared
   `custody_field_inventory!`/`run_one_field_substitution_matrix` harness in
