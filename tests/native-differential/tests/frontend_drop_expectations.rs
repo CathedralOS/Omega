@@ -524,8 +524,9 @@ machine Main::main(&mut self) {
 
 /// The member state-predicate form `ensures self.<field> <state>` is also a proved
 /// exit contract — with an empty drop body nothing establishes it.
-/// (`tests/omega/pass/drops/drop_ensures_unlocked_predicate` still carries the older
-/// "retained without proof" expectation and is red on main today.)
+/// (The older "retained without proof" expectation lived at
+/// `tests/omega/pass/drops/drop_ensures_unlocked_predicate`; it now sits in the
+/// fail corpus as `tests/omega/fail/drops/drop_ensures_unlocked_predicate`.)
 #[test]
 fn drop_ensures_member_state_predicate_unprovable_is_frontend_rejected() {
     frontend_rejects(

@@ -1,0 +1,24 @@
+// FAIL canary: Chapter 17 spells a drop guarantee as `ensures self.mutex
+// unlocked`: a named state predicate after a place. A drop `ensures` is a
+// proved exit contract like any other machine's, and the executable cleanup
+// slice admits only empty bodies (or exact-empty helper calls) — nothing here
+// establishes the member state, so the contract rejects as unprovable.
+
+data Mutex {
+    locked: bool;
+}
+
+data MutexGuard {
+    mutex: i32;
+}
+
+machine MutexGuard::drop(&mut self)
+    ensures self.mutex unlocked
+{
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}
