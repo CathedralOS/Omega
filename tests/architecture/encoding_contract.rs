@@ -575,3 +575,614 @@ fn proof_rule_children_arity_matches_spec() {
         );
     }
 }
+
+const SEMANTIC_MODULE_WIRE: &str =
+    "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module";
+
+fn module_wire(leaf: &str) -> String {
+    format!("{SEMANTIC_MODULE_WIRE}/{leaf}")
+}
+
+#[test]
+fn structural_type_shape_table_matches_codec() {
+    assert_table_matches(
+        "<!-- structural-type-shape-tags -->",
+        code_tags(
+            &module_wire("structural_type_wire.rs"),
+            "encode_structural_type",
+            "StructuralTypeShape",
+        ),
+    );
+}
+
+#[test]
+fn byte_sequence_carrier_table_matches_both_encoders() {
+    let type_encoder = code_tags(
+        &module_wire("structural_type_wire.rs"),
+        "encode_structural_type",
+        "ByteSequenceCarrier",
+    );
+    let field_encoder = code_tags(
+        &module_wire("structural_field_wire.rs"),
+        "encode_byte_sequence_carrier",
+        "ByteSequenceCarrier",
+    );
+    assert_eq!(
+        type_encoder, field_encoder,
+        "byte-sequence carrier tag spaces diverge between encoders"
+    );
+    assert_table_matches("<!-- byte-sequence-carrier-tags -->", type_encoder);
+}
+
+#[test]
+fn binding_relevance_table_matches_codec() {
+    assert_table_matches(
+        "<!-- binding-relevance-tags -->",
+        code_tags(
+            &module_wire("structural_field_wire.rs"),
+            "encode_structural_field",
+            "BindingRelevance",
+        ),
+    );
+}
+
+#[test]
+fn structural_field_type_table_matches_codec() {
+    assert_table_matches(
+        "<!-- structural-field-type-tags -->",
+        code_tags(
+            &module_wire("structural_field_wire.rs"),
+            "encode_structural_field",
+            "StructuralFieldType",
+        ),
+    );
+}
+
+#[test]
+fn canonical_path_segment_table_matches_codec() {
+    assert_table_matches(
+        "<!-- canonical-path-segment-tags -->",
+        code_tags(
+            &module_wire("structural_field_wire.rs"),
+            "encode_canonical_structural_field",
+            "CanonicalStructuralPathSegment",
+        ),
+    );
+}
+
+#[test]
+fn structural_path_segment_table_matches_codec() {
+    assert_table_matches(
+        "<!-- structural-path-segment-tags -->",
+        code_tags(
+            &module_wire("structural_place_wire.rs"),
+            "encode_structural_path",
+            "StructuralPathSegment",
+        ),
+    );
+}
+
+#[test]
+fn structural_access_table_matches_codec() {
+    assert_table_matches(
+        "<!-- structural-access-tags -->",
+        code_tags(
+            &module_wire("structural_signature_wire.rs"),
+            "encode_structural_access",
+            "StructuralAccess",
+        ),
+    );
+}
+
+#[test]
+fn structural_multiplicity_table_matches_codec() {
+    assert_table_matches(
+        "<!-- structural-multiplicity-tags -->",
+        code_tags(
+            &module_wire("structural_signature_wire.rs"),
+            "encode_structural_parameters",
+            "StructuralMultiplicity",
+        ),
+    );
+}
+
+#[test]
+fn content_projection_expression_table_matches_codec() {
+    assert_table_matches(
+        "<!-- content-projection-expression-tags -->",
+        code_tags(
+            &module_wire("structural_signature_wire.rs"),
+            "encode_content_projection_expression",
+            "ContentProjectionExpression",
+        ),
+    );
+}
+
+#[test]
+fn boundary_parameter_kind_table_matches_codec() {
+    assert_table_matches(
+        "<!-- boundary-parameter-kind-tags -->",
+        code_tags(
+            &module_wire("structural_signature_wire.rs"),
+            "encode_boundary_machine",
+            "BoundaryParameterKind",
+        ),
+    );
+}
+
+#[test]
+fn boundary_result_table_matches_codec() {
+    assert_table_matches(
+        "<!-- boundary-result-tags -->",
+        code_tags(
+            &module_wire("structural_signature_wire.rs"),
+            "encode_boundary_machine",
+            "BoundaryMachineResult",
+        ),
+    );
+}
+
+#[test]
+fn boundary_content_guarantee_table_matches_codec() {
+    assert_table_matches(
+        "<!-- boundary-content-guarantee-tags -->",
+        code_tags(
+            &module_wire("structural_signature_wire.rs"),
+            "encode_boundary_machine",
+            "BoundaryContentGuarantee",
+        ),
+    );
+}
+
+#[test]
+fn retained_borrow_root_table_matches_codec() {
+    assert_table_matches(
+        "<!-- retained-borrow-root-tags -->",
+        code_tags(
+            &module_wire("structural_signature_wire.rs"),
+            "encode_retained_borrow_place",
+            "RetainedBorrowPlaceRoot",
+        ),
+    );
+}
+
+#[test]
+fn retained_borrow_segment_table_matches_codec() {
+    assert_table_matches(
+        "<!-- retained-borrow-segment-tags -->",
+        code_tags(
+            &module_wire("structural_signature_wire.rs"),
+            "encode_retained_borrow_place",
+            "ContentPlaceSegment",
+        ),
+    );
+}
+
+#[test]
+fn crash_cause_table_matches_codec() {
+    assert_table_matches(
+        "<!-- crash-cause-tags -->",
+        code_tags(
+            &module_wire("contract_wire.rs"),
+            "encode_crash_route_bucket",
+            "CrashCause",
+        ),
+    );
+}
+
+#[test]
+fn crash_route_guard_table_matches_codec() {
+    assert_table_matches(
+        "<!-- crash-route-guard-tags -->",
+        code_tags(
+            &module_wire("contract_wire.rs"),
+            "encode_crash_route_bucket",
+            "CrashRouteGuard",
+        ),
+    );
+}
+
+#[test]
+fn proposition_binder_kind_table_matches_codec() {
+    assert_table_matches(
+        "<!-- proposition-binder-kind-tags -->",
+        code_tags(
+            &module_wire("proof_declaration_wire.rs"),
+            "encode_proposition_declaration",
+            "PropositionBinderKind",
+        ),
+    );
+}
+
+#[test]
+fn proposition_evidence_table_matches_codec() {
+    assert_table_matches(
+        "<!-- proposition-evidence-tags -->",
+        code_tags(
+            &module_wire("proof_declaration_wire.rs"),
+            "encode_proposition_declaration",
+            "PropositionEvidence",
+        ),
+    );
+}
+
+#[test]
+fn binder_argument_kind_table_matches_codec() {
+    assert_table_matches(
+        "<!-- binder-argument-kind-tags -->",
+        code_tags(
+            &module_wire("proof_declaration_wire.rs"),
+            "encode_proposition_application",
+            "PropositionBinderArgumentKind",
+        ),
+    );
+}
+
+#[test]
+fn evidence_lane_kind_table_matches_codec() {
+    assert_table_matches(
+        "<!-- evidence-lane-kind-tags -->",
+        code_tags(
+            &module_wire("module_wire/evidence_wire.rs"),
+            "encode_evidence_contract_lane",
+            "EvidenceContractLaneKind",
+        ),
+    );
+}
+
+#[test]
+fn borrow_boundary_table_matches_codec() {
+    assert_table_matches(
+        "<!-- borrow-boundary-tags -->",
+        code_tags(
+            &module_wire("module_wire/borrow_wire.rs"),
+            "encode_borrow_boundary",
+            "TerminalBorrowBoundarySource",
+        ),
+    );
+}
+
+#[test]
+fn borrow_owner_segment_table_matches_codec() {
+    assert_table_matches(
+        "<!-- borrow-owner-segment-tags -->",
+        code_tags(
+            &module_wire("module_wire/borrow_wire.rs"),
+            "encode_owner_path",
+            "TerminalBorrowOwnerSegment",
+        ),
+    );
+}
+
+#[test]
+fn borrow_place_segment_table_matches_codec() {
+    assert_table_matches(
+        "<!-- borrow-place-segment-tags -->",
+        code_tags(
+            &module_wire("module_wire/borrow_wire.rs"),
+            "encode_place_segments",
+            "TerminalBorrowPlaceSegment",
+        ),
+    );
+}
+
+#[test]
+fn restoration_class_table_matches_codec() {
+    assert_table_matches(
+        "<!-- restoration-class-tags -->",
+        code_tags(
+            &module_wire("module_wire/borrow_wire.rs"),
+            "encode_reborrow_restored_call_use",
+            "TerminalReborrowRestorationClass",
+        ),
+    );
+}
+
+#[test]
+fn suspension_target_table_matches_codec() {
+    assert_table_matches(
+        "<!-- suspension-target-tags -->",
+        code_tags(
+            &module_wire("module_wire/carry_and_suspension_wire.rs"),
+            "encode_suspension_call_target",
+            "TerminalSuspensionCallTarget",
+        ),
+    );
+}
+
+#[test]
+fn carry_policy_tables_match_codec() {
+    let path = module_wire("module_wire/carry_and_suspension_wire.rs");
+    for (marker, prefix) in [
+        ("<!-- carry-suspension-tags -->", "CarrySuspension"),
+        ("<!-- carry-cpu-tags -->", "CarryCpu"),
+        ("<!-- carry-host-thread-tags -->", "CarryHostThread"),
+        ("<!-- carry-address-tags -->", "CarryAddress"),
+    ] {
+        assert_table_matches(marker, code_tags(&path, "encode_carry_policy", prefix));
+    }
+}
+
+#[test]
+fn suspension_place_table_matches_codec() {
+    assert_table_matches(
+        "<!-- suspension-place-tags -->",
+        code_tags(
+            &module_wire("module_wire/carry_and_suspension_wire.rs"),
+            "encode_suspension_call_plan",
+            "TerminalSuspensionPlace",
+        ),
+    );
+}
+
+#[test]
+fn suspension_value_type_table_matches_codec() {
+    assert_table_matches(
+        "<!-- suspension-value-type-tags -->",
+        code_tags(
+            &module_wire("module_wire/carry_and_suspension_wire.rs"),
+            "encode_suspension_call_plan",
+            "TerminalSuspensionValueType",
+        ),
+    );
+}
+
+#[test]
+fn suspension_storage_table_matches_codec() {
+    assert_table_matches(
+        "<!-- suspension-storage-tags -->",
+        code_tags(
+            &module_wire("module_wire/carry_and_suspension_wire.rs"),
+            "encode_suspension_call_plan",
+            "TerminalSuspensionStorage",
+        ),
+    );
+}
+
+#[test]
+fn ranking_relation_table_matches_codec() {
+    assert_table_matches(
+        "<!-- ranking-relation-tags -->",
+        code_tags(
+            &module_wire("module_wire/recursive_component_wire.rs"),
+            "encode_proof_recursive_component",
+            "TerminalProofRankingRelation",
+        ),
+    );
+}
+
+#[test]
+fn recursive_call_site_table_matches_codec() {
+    assert_table_matches(
+        "<!-- recursive-call-site-tags -->",
+        code_tags(
+            &module_wire("module_wire/recursive_component_wire.rs"),
+            "encode_proof_recursive_component",
+            "TerminalProofRecursiveCallSite",
+        ),
+    );
+}
+
+#[test]
+fn recursive_transition_lane_table_matches_codec() {
+    assert_table_matches(
+        "<!-- recursive-transition-lane-tags -->",
+        code_tags(
+            &module_wire("module_wire/recursive_component_wire.rs"),
+            "encode_proof_recursive_component",
+            "TerminalProofRecursiveTransitionLane",
+        ),
+    );
+}
+
+#[test]
+fn conformance_parameter_kind_table_matches_codec() {
+    assert_table_matches(
+        "<!-- conformance-parameter-kind-tags -->",
+        code_tags(
+            &module_wire("module_wire/closed_conformance_wire.rs"),
+            "encode_closed_conformance_application",
+            "ClosedConformanceParameterKind",
+        ),
+    );
+}
+
+#[test]
+fn callable_result_table_matches_both_codecs() {
+    let conformance = code_tags(
+        &module_wire("module_wire/closed_conformance_wire.rs"),
+        "encode_closed_conformance_application",
+        "ClosedConformanceCallableResult",
+    );
+    let dispatch = code_tags(
+        &module_wire("dynamic_dispatch_wire.rs"),
+        "encode_dynamic_descriptor_parameters",
+        "ClosedConformanceCallableResult",
+    );
+    assert_eq!(
+        conformance, dispatch,
+        "callable result tag spaces diverge between conformance and dispatch encoders"
+    );
+    assert_table_matches("<!-- callable-result-tags -->", conformance);
+}
+
+#[test]
+fn descriptor_source_table_matches_codec() {
+    assert_table_matches(
+        "<!-- descriptor-source-tags -->",
+        code_tags(
+            &module_wire("dynamic_dispatch_wire.rs"),
+            "encode_dynamic_descriptor_arguments",
+            "TerminalDynamicDescriptorSource",
+        ),
+    );
+}
+
+#[test]
+fn float_value_type_table_matches_codec() {
+    assert_table_matches(
+        "<!-- float-value-type-tags -->",
+        code_tags(
+            &module_wire("module_wire/float_meaning_wire.rs"),
+            "encode_float_meaning_projection",
+            "ProofOnlyValueType",
+        ),
+    );
+}
+
+#[test]
+fn float_meaning_source_table_matches_codec() {
+    assert_table_matches(
+        "<!-- float-meaning-source-tags -->",
+        code_tags(
+            &module_wire("module_wire/float_meaning_wire.rs"),
+            "encode_float_meaning_projection",
+            "FloatMeaningSource",
+        ),
+    );
+}
+
+#[test]
+fn ieee_format_table_matches_both_codecs() {
+    let module = code_tags(
+        &module_wire("module_wire/float_meaning_wire.rs"),
+        "encode_ieee_format",
+        "IeeeFloatFormat",
+    );
+    let field = code_tags(
+        &module_wire("structural_field_wire.rs"),
+        "encode_ieee_float_format",
+        "IeeeFloatFormat",
+    );
+    assert_eq!(
+        module, field,
+        "IEEE float format tag spaces diverge between encoders"
+    );
+    assert_table_matches("<!-- ieee-format-tags -->", module);
+}
+
+#[test]
+fn float_operand_table_matches_codec() {
+    assert_table_matches(
+        "<!-- float-operand-tags -->",
+        code_tags(
+            &module_wire("module_wire/float_meaning_wire.rs"),
+            "encode_float_meaning_projection",
+            "FloatSemanticApplicationOperand",
+        ),
+    );
+}
+
+#[test]
+fn float_projection_operation_table_matches_codec() {
+    assert_table_matches(
+        "<!-- float-projection-operation-tags -->",
+        code_tags(
+            &module_wire("module_wire/float_meaning_wire.rs"),
+            "encode_float_meaning_projection",
+            "FloatMeaningProjectionOperation",
+        ),
+    );
+}
+
+#[test]
+fn quotient_operation_kind_table_matches_codec() {
+    assert_table_matches(
+        "<!-- quotient-operation-kind-tags -->",
+        code_tags(
+            &module_wire("quotient_correspondence_wire.rs"),
+            "encode_quotient_correspondence",
+            "QuotientCorrespondenceOperationKind",
+        ),
+    );
+}
+
+#[test]
+fn quotient_positional_relation_table_matches_codec() {
+    assert_table_matches(
+        "<!-- quotient-positional-relation-tags -->",
+        code_tags(
+            &module_wire("quotient_correspondence_wire.rs"),
+            "encode_quotient_correspondence",
+            "QuotientPositionalRelation",
+        ),
+    );
+}
+
+#[test]
+fn quotient_theorem_role_table_matches_codec() {
+    assert_table_matches(
+        "<!-- quotient-theorem-role-tags -->",
+        code_tags(
+            &module_wire("quotient_correspondence_wire.rs"),
+            "encode_quotient_correspondence",
+            "QuotientTheoremRole",
+        ),
+    );
+}
+
+#[test]
+fn quotient_theorem_correspondence_table_matches_codec() {
+    assert_table_matches(
+        "<!-- quotient-theorem-correspondence-tags -->",
+        code_tags(
+            &module_wire("quotient_correspondence_wire.rs"),
+            "encode_quotient_correspondence",
+            "QuotientTheoremCorrespondence",
+        ),
+    );
+}
+
+#[test]
+fn quotient_certificate_tables_match_codec() {
+    let path = module_wire("quotient_correspondence_wire.rs");
+    for (marker, prefix) in [
+        ("<!-- quotient-purity-tags -->", "QuotientPurityCertificate"),
+        (
+            "<!-- quotient-termination-tags -->",
+            "QuotientTerminationCertificate",
+        ),
+        ("<!-- quotient-crash-tags -->", "QuotientCrashCertificate"),
+    ] {
+        assert_table_matches(
+            marker,
+            code_tags(&path, "encode_quotient_correspondence", prefix),
+        );
+    }
+}
+
+#[test]
+fn quotient_parameter_role_table_matches_codec() {
+    assert_table_matches(
+        "<!-- quotient-parameter-role-tags -->",
+        code_tags(
+            &module_wire("quotient_correspondence_wire.rs"),
+            "encode_congruence",
+            "QuotientTheoremParameterRole",
+        ),
+    );
+}
+
+#[test]
+fn quotient_application_side_table_matches_codec() {
+    assert_table_matches(
+        "<!-- quotient-application-side-tags -->",
+        code_tags(
+            &module_wire("quotient_correspondence_wire.rs"),
+            "encode_transport_fact",
+            "QuotientTheoremApplicationSide",
+        ),
+    );
+}
+
+#[test]
+fn quotient_contract_owner_table_matches_codec() {
+    assert_table_matches(
+        "<!-- quotient-contract-owner-tags -->",
+        code_tags(
+            &module_wire("quotient_correspondence_wire.rs"),
+            "encode_coordinate",
+            "QuotientContractOwner",
+        ),
+    );
+}

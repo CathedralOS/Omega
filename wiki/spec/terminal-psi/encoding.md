@@ -399,7 +399,46 @@ identity even when the parameters have identical physical shapes.
 
 Module bytes are `PSITERM\0` + `u16` format marker 102 + `u16` vocabulary
 marker 107 + the entry machine id, followed by the module's counted tables in
-declaration order and ending with the machine roster. The roster is strictly
+the declaration order below and ending with the machine roster.
+
+| # | Module table | Row |
+| --- | --- | --- |
+| 1 | scalar qualification catalog | the four counted catalog tables above |
+| 2 | structural types | counted structural type declarations |
+| 3 | structural domains | counted structural domain declarations |
+| 4 | services | counted service declarations |
+| 5 | concrete root service reach | counted service ids |
+| 6 | installation reach dependencies | counted installation reach rows |
+| 7 | placed-view inputs | counted placed-view input rows |
+| 8 | reborrow root handoffs | counted reborrow handoff rows |
+| 9 | reborrow restored call uses | counted restored-use rows |
+| 10 | boundary machines | counted boundary machine declarations |
+| 11 | provider candidates | counted provider candidate rows |
+| 12 | float-meaning projections | counted projection rows |
+| 13 | float-meaning equalities | counted equality rows |
+| 14 | proposition declarations | counted proposition declaration rows |
+| 15 | proposition applications | counted proposition application rows |
+| 16 | evidence terms | counted evidence term rows |
+| 17 | evidence contract lanes | counted evidence lane rows |
+| 18 | proof-output invocations | counted proof-output call rows |
+| 19 | proof recursive components | counted recursive component rows |
+| 20 | closed conformance applications | counted conformance application rows |
+| 21 | dynamic descriptor parameters | counted descriptor parameter rows |
+| 22 | dynamic descriptor arguments | counted descriptor argument rows |
+| 23 | dynamic conformance selections | counted conformance selection rows |
+| 24 | rebound dynamic descriptors | counted rebound descriptor rows |
+| 25 | stored dynamic descriptors | counted stored descriptor rows |
+| 26 | direct dynamic dispatches | counted direct dispatch rows |
+| 27 | indirect dynamic dispatches | counted indirect dispatch rows |
+| 28 | stored dynamic dispatches | counted stored dispatch rows |
+| 29 | parameter dynamic dispatches | counted parameter dispatch rows |
+| 30 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 31 | quotient correspondences | counted quotient correspondence rows |
+| 32 | scalar block invariants | the counted invariant rows above |
+| 33 | operation crash contracts | counted operation crash contract rows |
+| 34 | machines | counted machine rows |
+
+The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
 an optional attachment structural type identity, counted parameter value
 declarations, counted structural parameters, a ranked-cycle byte, a machine
@@ -519,6 +558,648 @@ when present, by the call application.
 | 1 | Const | identity string |
 | 2 | Proposition | identity string |
 | 3 | Machine | identity string + 32-byte contract commitment |
+
+## Module declaration tables
+
+The counted module tables that precede the machine roster carry the module's
+declarations, custody evidence, and certificate indexes. Their rows are
+byte-encoded exactly as below; a receiver decodes them with no access to
+producer state and rederives every ordering rule.
+
+### Structural declarations
+
+| Row | Fields |
+| --- | --- |
+| structural type declaration | structural type id + identity string + structural type shape |
+| structural field | structural field id + identity string + binding relevance + structural field type |
+| structural case | structural case id + identity string + counted payload structural fields |
+| structural domain declaration | domain id + semantic domain id + identity string + carrier structural type id + optional content projection |
+| optional content projection | `u8` 0 absent; `u8` 1 + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression |
+| service declaration | service id + identity string + counted parent service ids |
+| concrete root service reach | counted service ids |
+| installation reach dependency | requirement identity string + counted service-id upper bound |
+
+Structural type declarations are strictly ordered by structural type id; a
+declaration's record and mixed fields are strictly ordered by structural field
+id, its sum and mixed cases by structural case id, and each case's payload
+fields by structural field id. Domains are strictly ordered by domain id.
+Services are strictly ordered by service id with strictly ordered parents.
+The concrete root service reach is strictly ordered, and installation reach
+dependencies are strictly ordered by requirement identity with each upper
+bound strictly ordered.
+
+<!-- structural-type-shape-tags -->
+
+| tag | Structural type shape |
+| --- | --- |
+| 1 | Record | counted structural fields |
+| 2 | FixedArray | element structural type id + `u64` length |
+| 3 | Sum | counted structural cases |
+| 4 | ByteSequence | byte-sequence carrier |
+| 5 | Mixed | counted structural fields + counted structural cases |
+| 6 | PrimitiveScalar | scalar type |
+| 7 | Reference | referent structural type id + structural access |
+
+<!-- byte-sequence-carrier-tags -->
+
+| tag | Byte-sequence carrier |
+| --- | --- |
+| 1 | BorrowedView |
+| 2 | BoundedOwned | `u64` capacity |
+
+<!-- binding-relevance-tags -->
+
+| tag | Binding relevance |
+| --- | --- |
+| 1 | Relevant |
+| 2 | Erased |
+
+<!-- structural-field-type-tags -->
+
+| tag | Structural field type |
+| --- | --- |
+| 1 | Scalar | scalar type |
+| 2 | Structural | structural type id |
+| 3 | Erased | type identity string |
+| 4 | IeeeFloat | IEEE float format |
+| 5 | ByteSequence | byte-sequence carrier |
+| 6 | BoundedInteger | integer type + integer value minimum + integer value maximum |
+
+<!-- structural-access-tags -->
+
+| tag | Structural access |
+| --- | --- |
+| 1 | Owned |
+| 2 | SharedBorrow |
+| 3 | MutableBorrow |
+| 4 | WriteOnlyBorrow |
+
+<!-- structural-multiplicity-tags -->
+
+| tag | Structural multiplicity |
+| --- | --- |
+| 1 | Unrestricted |
+| 2 | Affine |
+| 3 | Linear |
+
+<!-- structural-path-segment-tags -->
+
+| tag | Structural path segment |
+| --- | --- |
+| 1 | Field | field identity string |
+| 2 | FixedIndex | `u64` index |
+| 3 | Referent |
+
+<!-- canonical-path-segment-tags -->
+
+| tag | Canonical structural path segment |
+| --- | --- |
+| 1 | Field | structural field id |
+| 2 | FixedIndex | `u64` index |
+| 3 | Case | structural case id |
+
+A canonical structural field path is a root place id + counted canonical path
+segments. An IEEE float field path is a root place id + counted canonical
+path segments.
+
+<!-- content-projection-expression-tags -->
+
+| tag | Content projection expression |
+| --- | --- |
+| 1 | IntervalSet | counted (start capacity scalar + end capacity scalar) bounds |
+| 2 | CountedQuantity | capacity scalar |
+
+A capacity scalar inside a domain declaration is a `u8` tag: 1 SubjectField +
+counted field path strings; 2 RuntimeScalarEmbedding + counted field path
+strings; 3 Natural + natural string; 4 Successor + capacity scalar; 5 Add +
+two capacity scalars; 6 Subtract + two capacity scalars; 7 Multiply + two
+capacity scalars.
+
+### Placed-view inputs and reborrow custody
+
+These rosters are positional: entries decode in producer-declared order and
+are not re-sorted by the canonical-order checker.
+
+| Row | Fields |
+| --- | --- |
+| placed-view input | machine id + `u32` position + source machine identity string + source state identity string + source parameter identity string + structural access + `bool` const binding + `bool` mutable binding + view identity string + policy identity string + policy-plan machine identity string + schema identity string + `u64` placement report fingerprint + 32-byte placement commitment |
+| reborrow root handoff | machine id + source machine identity string + source state identity string + direct root owner identity string + counted owner path segments + direct root place + direct root access + activation boundary + weakening boundary + direct-root lifetime identity string + counted lineage steps |
+| reborrow lineage step | child owner identity string + counted owner path segments + child place + counted projection remainder segments + child access + child activation boundary + formation boundary + child weakening boundary |
+| reborrow place | root identity string + counted place segments |
+| reborrow restored call use | machine id + operation id + restoration class + call boundary + call target machine id + source machine identity string + source state identity string + direct root owner identity string + counted owner path segments + direct root place + activation boundary + weakening boundary + direct-root lifetime identity string + child owner identity string + counted owner path segments + child place + counted projection remainder segments + child access + child activation boundary + formation boundary + child weakening boundary + counted shared cohort |
+| shared cohort member | child owner identity string + counted owner path segments + child place + child access + child activation boundary + child weakening boundary |
+
+<!-- borrow-boundary-tags -->
+
+| tag | Borrow boundary |
+| --- | --- |
+| 1 | Statement | `u64` statement index |
+| 2 | Call | `u64` statement index + `u64` call ordinal + target identity string |
+
+<!-- borrow-owner-segment-tags -->
+
+| tag | Borrow owner path segment |
+| --- | --- |
+| 1 | Field | field name string |
+| 2 | Case | case name string |
+| 3 | FixedIndex | `u64` index |
+| 4 | DynamicIndex |
+
+<!-- borrow-place-segment-tags -->
+
+| tag | Borrow place segment |
+| --- | --- |
+| 1 | Field | field name string |
+| 2 | Case | case name string |
+| 3 | FixedIndex | `u64` index |
+| 4 | FixedRange | `u64` start + `u64` end |
+
+<!-- restoration-class-tags -->
+
+| tag | Reborrow restoration class |
+| --- | --- |
+| 1 | ExclusiveReactivation |
+| 2 | SharedFreezeRestoration |
+
+### Boundary machines and provider candidates
+
+| Row | Fields |
+| --- | --- |
+| boundary machine | boundary machine id + identity string + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted program-local root introductions + counted content guarantees + fixed service reach + published service ceiling |
+| optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
+| structural requirement | `u32` argument index + domain id |
+| program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
+| structural parameter | the machine-row structural parameter encoding |
+| service reach | counted service ids |
+| provider candidate | boundary machine id + requirement identity string + provider identity string + candidate identity string + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
+| signature parameter | `u32` position + `bool` self + structural type id + structural multiplicity + structural access + counted qualification domain ids + counted projected qualifications |
+| projected qualification | structural path + domain id |
+| positional refinement | `u32` boundary parameter index + `u32` candidate parameter index |
+| required domain | `u32` argument index + domain id |
+
+<!-- boundary-parameter-kind-tags -->
+
+| tag | Boundary parameter kind |
+| --- | --- |
+| 0 | Scalar |
+| 1 | Structural |
+
+<!-- boundary-result-tags -->
+
+| tag | Boundary machine result |
+| --- | --- |
+| 0 | Unit |
+| 1 | Scalar | scalar type |
+| 2 | Structural | structural type id + structural multiplicity + counted qualification domain ids |
+
+<!-- boundary-content-guarantee-tags -->
+
+| tag | Boundary content guarantee |
+| --- | --- |
+| 1 | Conservation | content conservation guarantee |
+| 2 | RetainedBorrow | retained-borrow custody |
+
+A content conservation guarantee is a `u64` report fingerprint + counted
+structural places (each a place id + content structural place kind) + a
+content conservation (content algebra + content term + content term).
+
+| Row | Fields |
+| --- | --- |
+| retained-borrow custody | callable identity string + source retained-borrow place + result retained-borrow place + structural access + `u32` callable lifetime parameter count + `u32` callable lifetime parameter ordinal + result nominal identity string + result structural multiplicity + `u32` result lifetime argument count + `u32` result lifetime argument ordinal + `bool` result lifetime slot erased + retained semantic domain id + source retained-borrow projection + result retained-borrow projection |
+| retained-borrow place | content place version + retained-borrow root + counted retained-borrow segments |
+| retained-borrow projection | semantic domain id + carrier identity string + domain id + `u64` report fingerprint + content algebra + content projection expression |
+
+<!-- retained-borrow-root-tags -->
+
+| tag | Retained-borrow root |
+| --- | --- |
+| 1 | Parameter | `u32` position + identity string + `bool` self |
+| 2 | Result |
+
+<!-- retained-borrow-segment-tags -->
+
+| tag | Retained-borrow place segment |
+| --- | --- |
+| 1 | Case | case name string |
+| 2 | Field | field name string |
+| 3 | FixedIndex | `u64` index |
+
+Retained-borrow place segments order Case before Field — deliberately the
+reverse of the content-place segment table; the two tag spaces are
+independent and a receiver must not share the decode table.
+
+Boundary machines are strictly ordered by boundary machine id with canonical
+crash routes, dense parameter positions, strictly ordered requirements and
+strictly ordered service ceilings. Provider candidates are strictly ordered
+by boundary machine id, then provider identity, then candidate identity, then
+candidate machine id.
+
+### Float-meaning rows
+
+| Row | Fields |
+| --- | --- |
+| float-meaning projection | `u32` proof value id + proof-only value type + float-meaning source + projection operation + projection contract |
+| projection contract | `u16` float format + `u8` operation + `u8` declaration + `u16` catalog version + 32-byte commitment |
+| float semantic contract identity | `u8` catalog row + `u16` catalog version + 32-byte commitment |
+| float-meaning equality | `u32` proposition id + `u32` left proof value + `u32` right proof value |
+| IEEE float field | root place id + counted canonical path segments |
+
+<!-- float-value-type-tags -->
+
+| tag | Proof-only value type |
+| --- | --- |
+| 1 | FloatMeaning |
+
+<!-- float-meaning-source-tags -->
+
+| tag | Float-meaning source |
+| --- | --- |
+| 1 | TransitionalInput | `u32` input id + IEEE float format |
+| 2 | ExactBinary32Literal | `u32` bit pattern |
+| 3 | ExactBinary64Literal | `u64` bit pattern |
+| 4 | DirectMachineParameter | owner machine id + parameter value id + IEEE float format |
+| 5 | DirectMachineResult | owner machine id + result id + IEEE float format |
+| 6 | DirectOperationResult | owner machine id + producer operation id + result id + IEEE float format |
+| 7 | DirectBlockParameter | owner machine id + block id + block parameter id + IEEE float format |
+| 8 | DirectCallResult | owner machine id + producer operation id + call result id + IEEE float format |
+| 9 | DirectStructuralLeaf | owner machine id + IEEE float field + IEEE float format |
+| 10 | SemanticApplication | float semantic contract identity + IEEE float format + counted operands |
+
+<!-- ieee-format-tags -->
+
+| tag | IEEE float format |
+| --- | --- |
+| 1 | Binary32 |
+| 2 | Binary64 |
+
+<!-- float-operand-tags -->
+
+| tag | Float semantic operand |
+| --- | --- |
+| 1 | Format | IEEE float format |
+| 2 | Meaning | `u32` proof value id |
+
+<!-- float-projection-operation-tags -->
+
+| tag | Float-meaning projection operation |
+| --- | --- |
+| 1 | Meaning32 |
+| 2 | Meaning64 |
+
+Projection rows carry dense proof value ids equal to their table position;
+TransitionalInput source ids are dense in first-use order across the whole
+roster. Equality rows carry dense proposition ids equal to their position and
+ordered operands. A projection source's IEEE float format is redundant with
+the referenced semantic contract row and is checked against it.
+
+### Proposition and evidence declarations
+
+| Row | Fields |
+| --- | --- |
+| proposition declaration | proposition id + proposition name string + counted binders + counted parameter type strings + proposition evidence |
+| proposition binder | binder name string + binder kind |
+| proposition application | proposition id + declaration id + counted binder arguments + counted argument strings + optional evidence interface |
+| binder argument | binder argument kind + `u8` selector (0 + identity string; 1 + evidence projection) |
+| evidence projection | evidence term id + declaring trait identity string + counted declaring trait argument strings + requirement identity string |
+| evidence interface | trait identity string + counted argument strings + counted requirements |
+| evidence interface requirement | declaring trait identity string + counted declaring trait argument strings + requirement identity string |
+| evidence term | evidence term id + proposition id + evidence interface |
+| evidence contract lane | machine id + lane kind + `u32` position + evidence term id + optional output field string |
+
+<!-- proposition-binder-kind-tags -->
+
+| tag | Proposition binder kind |
+| --- | --- |
+| 1 | Type |
+| 2 | Const | type identity string |
+| 3 | Machine |
+
+<!-- proposition-evidence-tags -->
+
+| tag | Proposition evidence |
+| --- | --- |
+| 1 | FactOnly |
+| 2 | Witness | evidence type identity string |
+
+<!-- binder-argument-kind-tags -->
+
+| tag | Binder argument kind |
+| --- | --- |
+| 1 | Type |
+| 2 | Const |
+| 3 | Machine |
+
+<!-- evidence-lane-kind-tags -->
+
+| tag | Evidence contract lane kind |
+| --- | --- |
+| 1 | Requires |
+| 2 | Ensures |
+
+Proposition declarations and applications are strictly ordered by semantic
+identity and by proposition id; application and evidence-interface selectors
+encode each argument's provenance (0 source identity string, 1 evidence
+projection). Evidence terms are strictly ordered by proposition id,
+interface, and term id and separately by term id; lanes are strictly ordered
+by machine id, lane kind, and position.
+
+### Proof-output invocations and recursive components
+
+| Row | Fields |
+| --- | --- |
+| proof-output invocation | caller machine id + `u32` ordinal + target machine identity string + optional static requirement dispatch + optional runtime result + optional runtime call + counted evidence arguments + counted outputs |
+| static requirement dispatch | `u64` conformance application report fingerprint + 32-byte commitment + public requirement identity + declaring trait identity + requirement identity + realization identity + realization callable identity + realization machine id |
+| runtime result | `u8` presence; when present `u8` scalar flag (1 + scalar type; 0 Unit) |
+| runtime call | `u8` presence; when present operation id + callee machine id |
+| evidence argument | `u32` input position + callee proposition id + source evidence term id + instantiated proposition id |
+| output | `u32` output position + output field string + callee proposition id + optional callee output evidence term id + instantiated proposition id + optional `u32` forwarded input position + optional evidence term id |
+| proof recursive component | ranking relation + rank type identity string + counted member types + counted members + counted edges |
+| member type | type identity string + counted fields (each field identity string + type identity string) |
+| recursive component member | contract id + machine identity string + rank parameter identity string |
+| recursive component edge | caller contract id + callee contract id + call site + counted strict member path strings |
+
+Optional fields above are a `u8` 0/1 presence flag followed by the payload
+when present. Proof-output invocations are strictly ordered by caller machine
+id and ordinal, and each call's outputs are positional by output position.
+
+<!-- ranking-relation-tags -->
+
+| tag | Proof ranking relation |
+| --- | --- |
+| 1 | StructuralSubterm |
+
+<!-- recursive-call-site-tags -->
+
+| tag | Recursive proof call site |
+| --- | --- |
+| 1 | Statement | state identity string + `u64` statement index |
+| 2 | Expression | state identity string + `u64` statement index + `u64` expression ordinal |
+| 3 | Transition | state identity string + `u64` statement index + transition lane |
+
+<!-- recursive-transition-lane-tags -->
+
+| tag | Recursive transition lane |
+| --- | --- |
+| 1 | Target |
+| 2 | Continuation |
+
+### Closed conformance applications
+
+| Row | Fields |
+| --- | --- |
+| closed conformance application | owner machine id + declaration identity string + counted telescope bindings + optional subject identity + trait identity string + counted trait lifetime argument strings + counted trait argument strings + counted realization callables + counted conformance rows + `u64` report fingerprint + 32-byte commitment |
+| telescope binding | parameter string + parameter kind + argument string |
+| realization callable | source callable identity string + machine id + callable result |
+| conformance row | declaring trait identity string + public requirement identity string + counted family tuple strings + requirement identity string + realization identity string + optional realization callable identity string |
+
+<!-- conformance-parameter-kind-tags -->
+
+| tag | Conformance parameter kind |
+| --- | --- |
+| 1 | Lifetime |
+| 2 | Type |
+| 3 | Const |
+| 4 | Machine |
+
+<!-- callable-result-tags -->
+
+| tag | Callable result |
+| --- | --- |
+| 1 | Unit |
+| 2 | I32 |
+| 3 | Bool |
+
+Closed conformance applications are strictly ordered by owner machine id,
+declaration identity, and report fingerprint.
+
+### Dynamic dispatch tables
+
+| Row | Fields |
+| --- | --- |
+| dynamic descriptor parameter | owner machine id + `u32` ordinal + `u32` source parameter position + trait identity string + structural access + counted requirements |
+| descriptor requirement | `u32` requirement slot + declaring trait identity string + public requirement identity string + counted family tuple strings + callable result |
+| dynamic descriptor argument | owner machine id + operation id + `u32` parameter ordinal + descriptor source |
+| dynamic conformance selection | owner machine id + `u32` ordinal + counted structural arguments (exactly one) + `u64` conformance application report fingerprint + 32-byte commitment |
+| structural argument | place id + structural access + counted structural path segments |
+| rebound dynamic descriptor | owner machine id + `u32` ordinal + `u32` initial selection ordinal + `u32` rebound selection ordinal |
+| stored dynamic descriptor | owner machine id + `u32` ordinal + establishment operation id + `u32` selection ordinal + aggregate type identity string + field identity string |
+| direct dynamic dispatch | owner machine id + operation id + `u32` selection ordinal + realization targets |
+| indirect dynamic dispatch | owner machine id + operation id + `u32` descriptor ordinal + realization targets |
+| stored dynamic dispatch | owner machine id + operation id + `u32` descriptor ordinal + realization targets |
+| parameter dynamic dispatch | owner machine id + operation id + `u32` parameter ordinal + `u32` requirement slot |
+| realization targets | declaring trait identity + public requirement identity + counted family tuple strings + requirement identity + realization identity + realization callable identity + realization machine id |
+
+<!-- descriptor-source-tags -->
+
+| tag | Dynamic descriptor source |
+| --- | --- |
+| 1 | ReboundDescriptor | `u32` rebound descriptor ordinal |
+| 2 | Parameter | `u32` descriptor parameter ordinal |
+| 3 | Selection | `u32` conformance selection ordinal |
+
+Descriptor parameters are strictly ordered by owner machine id and ordinal;
+arguments by owner machine id, operation id, and parameter ordinal;
+selections, rebound descriptors, and stored descriptors by owner machine id
+and ordinal; and every dispatch table by owner machine id and operation id.
+
+### Suspension rows
+
+The suspension section is a bare `u32` call-plan count, then counted call
+sites, then counted call plans.
+
+| Row | Fields |
+| --- | --- |
+| suspension call site | operation id + crossing id + suspension call target + 32-byte frontier commitment |
+| suspension call plan | operation id + crossing id + suspension call target + carry policy + `u32` live value count + counted live values |
+| suspension live value | suspension place + suspension value type + suspension storage + `u32` claim count + counted claim ids + carry policy |
+| carry policy | carry suspension + carry cpu + carry host thread + carry address (one tag byte each) |
+
+<!-- suspension-target-tags -->
+
+| tag | Suspension call target |
+| --- | --- |
+| 1 | Machine | machine id |
+| 2 | Boundary | boundary machine id |
+| 3 | DynamicDescriptor | `u32` descriptor ordinal |
+| 4 | DynamicParameter | `u32` parameter ordinal + `u32` requirement slot |
+
+<!-- carry-suspension-tags -->
+
+| tag | Carry suspension |
+| --- | --- |
+| 1 | Forbidden |
+| 2 | Allowed |
+
+<!-- carry-cpu-tags -->
+
+| tag | Carry cpu |
+| --- | --- |
+| 1 | Origin |
+| 2 | Any |
+
+<!-- carry-host-thread-tags -->
+
+| tag | Carry host thread |
+| --- | --- |
+| 1 | Origin |
+| 2 | Any |
+
+<!-- carry-address-tags -->
+
+| tag | Carry address |
+| --- | --- |
+| 1 | Stable |
+| 2 | Movable |
+
+<!-- suspension-place-tags -->
+
+| tag | Suspension place |
+| --- | --- |
+| 1 | Scalar | value id |
+| 2 | Structural | place id + counted structural path segments |
+
+<!-- suspension-value-type-tags -->
+
+| tag | Suspension value type |
+| --- | --- |
+| 1 | Scalar | scalar type |
+| 2 | Structural | structural type id |
+
+<!-- suspension-storage-tags -->
+
+| tag | Suspension storage |
+| --- | --- |
+| 1 | Persistent |
+| 2 | Parameter |
+| 3 | Local |
+| 4 | CallArgument |
+
+Suspension call sites and plans are strictly ordered by operation id and
+crossing id; each plan's live values are strictly ordered by place, storage,
+value type, and carry policy, and each live value's claims are strictly
+ordered by claim id.
+
+### Quotient correspondences
+
+| Row | Fields |
+| --- | --- |
+| quotient correspondence | operation kind + public callable + representative application + counted positional input relations + positional result relation + counted runtime positions + counted theorem evidence + representative eligibility + result flow positions |
+| public callable | declaration identity string + overload identity string |
+| representative application | public callable + counted static binding strings |
+| positional relation | quotient declaration identity + quotient type identity + carrier type identity + relation callable identity strings (two) |
+| runtime position | `u32` public position + `u32` representative position |
+| theorem evidence | theorem role + selected application + theorem correspondence + quotient eligibility (purity + termination + crash) |
+| representative eligibility | quotient purity + quotient termination |
+| result flow positions | `u32` state position + `u32` statement position |
+| congruence theorem | counted parameters + counted relation premises + counted legality premises + conclusion |
+| theorem parameter | `u32` theorem parameter position + parameter role |
+| relation premise | `u32` expected premise position + coordinate + relation string + `u32` left parameter + `u32` right parameter |
+| transport fact | application side + source coordinate + actual coordinate |
+| transport coordinate | contract owner + `u32` contract position + `u32` fact position |
+| congruence conclusion | coordinate + relation string + left representative application + right representative application |
+| theorem representative application | counted `u32` argument positions |
+
+<!-- quotient-operation-kind-tags -->
+
+| tag | Quotient operation kind |
+| --- | --- |
+| 1 | Lift |
+| 2 | Define |
+| 3 | LiftWithForwardPreconditionTransport |
+
+<!-- quotient-positional-relation-tags -->
+
+| tag | Quotient positional relation |
+| --- | --- |
+| 1 | Quotient | positional relation |
+| 2 | ExactEquality | public type identity string + representative type identity string |
+
+<!-- quotient-theorem-role-tags -->
+
+| tag | Quotient theorem role |
+| --- | --- |
+| 1 | Congruence |
+| 2 | ForwardPreconditionTransport |
+
+<!-- quotient-theorem-correspondence-tags -->
+
+| tag | Quotient theorem correspondence |
+| --- | --- |
+| 1 | Congruence | congruence theorem |
+| 2 | ForwardPreconditionTransport | counted public premises + counted representative conclusions (each a counted transport facts list) |
+
+<!-- quotient-purity-tags -->
+
+| tag | Quotient purity |
+| --- | --- |
+| 1 | PureClosure |
+
+<!-- quotient-termination-tags -->
+
+| tag | Quotient termination |
+| --- | --- |
+| 1 | Unconditional |
+
+<!-- quotient-crash-tags -->
+
+| tag | Quotient crash |
+| --- | --- |
+| 1 | CrashFree |
+
+<!-- quotient-parameter-role-tags -->
+
+| tag | Quotient theorem parameter role |
+| --- | --- |
+| 1 | QuotientLeft | `u32` input position |
+| 2 | QuotientRight | `u32` input position |
+| 3 | Shared | `u32` input position |
+
+<!-- quotient-application-side-tags -->
+
+| tag | Quotient application side |
+| --- | --- |
+| 1 | Left |
+| 2 | Right |
+
+<!-- quotient-contract-owner-tags -->
+
+| tag | Quotient contract owner |
+| --- | --- |
+| 1 | Machine |
+| 2 | State |
+
+A quotient correspondence's retained identity is derived from the
+certificate: it is a pure function of the encoded row and is not itself
+encoded. Rows are strictly ordered by that derived canonical identity.
+
+### Operation crash contracts
+
+| Row | Fields |
+| --- | --- |
+| operation crash contract | machine id + operation id + published crash routes + crash continuations |
+| crash routes / continuations | counted crash route buckets |
+| crash route bucket | crash cause + counted alternatives |
+
+<!-- crash-cause-tags -->
+
+| tag | Crash cause |
+| --- | --- |
+| 1 | Trap |
+| 2 | Abort |
+
+<!-- crash-route-guard-tags -->
+
+| tag | Crash route guard |
+| --- | --- |
+| 0 | Truth |
+| 1 | Predicate | proposition |
+
+Crash route buckets are strictly ordered by crash cause; each bucket's
+alternatives are nonempty and strictly increasing, with Truth permitted only
+as the sole alternative. Predicate alternatives must be canonical
+propositions. An operation's published crash routes must be nonempty.
+Operation crash contracts are strictly ordered by machine id and operation
+id.
 
 ## Proof bundle
 
