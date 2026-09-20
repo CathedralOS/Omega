@@ -6402,7 +6402,56 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SCHEDULING-RELOCATION-UNIFICATION** — mined candidate; verify scope then implement.
 - **SCOPED-LOOKUP-MAP-AUDIT** — mined candidate; verify scope then implement.
 - **SEALED-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
-- **SEED-HOST-CHAIN-LEGS** — mined candidate; verify scope then implement.
+- **SEED-HOST-CHAIN-LEGS.** Mined candidate. The bootstrap chain has two
+  audited seed hosts — macOS arm64 (`alpha_arm64_macos`) and Windows x64
+  (`alpha_x64_windows.exe`, `bootstrap/0_alpha/`). Every chain leg that
+  *executes* the seed must run on each host, and each leg's per-host result
+  must be recorded, not assumed.
+
+  Verified leg inventory (origin/main 0cc7a2081a): seed-executing legs are
+  `tests/alpha/conformance.sh` + `bounds.py` (behavior leg inside
+  `tests/bootstrap/alpha-beta-edge.sh`), the trusted-Beta reconstruction leg
+  of the same gate, the complete-chain customer gates
+  `tests/bootstrap/omega-parser`, `omega-outcome`, `omega-executable`, and
+  the per-rung execution gates under `tests/beta/compiler/`,
+  `tests/delta/` and `tests/epsilon/`. Identity gates
+  (`alpha/beta/gamma/delta/epsilon/omega/proofs-identity.sh`,
+  `source-closure`) and the container/provenance legs are host-independent
+  byte checks and need no seed host.
+
+  Guard coverage is incomplete: the bootstrap-level gates and the guarded
+  rung gates (`tests/gamma/*`, `tests/epsilon/{refinement,d-composition,
+  pair-boundary}`, `tests/delta/internal-boundary`,
+  `tests/alpha/{conformance.sh,reference/diamond-py.sh}`) refuse with exit 2
+  on hosts without an audited seed, but seventeen seed-executing gates lack
+  the guard and hard-fail opaquely on other hosts (`exec`/`Popen` on the
+  host-selected container): `tests/beta/compiler/register-address-regression.sh`;
+  `tests/delta/{emission,frontend-boundary,generated-function-census,
+  lowering-plan,normalization,request-boundary,resource-boundary,
+  staged-compiler}/run.sh`; and `tests/epsilon/{array-storage,
+  checking-invariants,checking,evaluator-entry,interpreted-omega-experiment,
+  runtime-invariants,runtime-references,source-views}/run.sh`. Each needs
+  the standard refusal stanza its guarded siblings carry
+  (`<gate>: unsupported host; needs macOS arm64 or Windows x64`, exit 2).
+
+  Leg status today: macOS arm64 legs are validated
+  ([tests/alpha/README.md](tests/alpha/README.md)). Every Windows x64 leg is
+  outstanding: `omega-parser` README records "Windows execution has not yet
+  been validated", `tests/alpha` README records "Windows native execution
+  remains outstanding", and `bootstrap/0_alpha` README records that PE
+  reconstruction and source review "do not establish Windows runtime
+  validation". **ALPHA-WINDOWS-CONFORMANCE** owns the Windows edge legs
+  (`alpha-beta-edge.sh` + `tests/alpha/reference/diamond-py.sh`); the
+  complete-chain customer legs on Windows x64 remain open beyond that item —
+  they are also the legs **OFFLINE-REBUILD**'s blank-host reconstruction
+  eventually needs on each seed host.
+
+  Remaining: (1) add the refusal stanza to the seventeen unguarded legs
+  above — currently fenced by the DELTA-COMPILER claim on `tests/delta` +
+  `tests/epsilon` and the BETA-PE-SEED-REFUSAL claim on `tests/beta/compiler`;
+  (2) run each seed-executing leg on Windows x64 and record the per-host
+  result — every Windows leg stays outstanding until a Windows host validates
+  it; no leg may report an unexecuted host result as passing.
 - **SEED-PARITY-ALIGNMENT** — mined candidate; verify scope then implement.
 - **SEED-PARITY-ASSERTIONS** — mined candidate; verify scope then implement.
 - **SEED-PARITY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
