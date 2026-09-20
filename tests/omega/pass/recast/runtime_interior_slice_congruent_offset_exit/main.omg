@@ -1,0 +1,37 @@
+// RUN CANARY (exit 70) + interpreter differential. Interior unsized slices
+// may start at a COMPOSITE runtime offset when the bound walk and the
+// residue proof agree: `k * 2` bounds at 6 (below the eight-byte region)
+// and is always even, so the remaining `8 - k * 2` bytes exactly tile
+// `u16` elements. Mutable projected writes must reach the backing bytes.
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console>;
+    bytes: [u8; 8];
+    k: u32 [0..=3];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.k = 2;
+    let words: &mut [u16] = &mut self.bytes[self.k * 2] as &mut [u16];
+    transition words.len > 1 {
+        true -> write_words(words)
+        _ -> bad_length()
+    }
+
+    state write_words(&mut self, words: &mut [u16]) {
+    words[0] = 0x0201;
+    words[1] = 0x0403;
+    transition words.len == 2
+        && self.bytes[4] == 1 && self.bytes[5] == 2
+        && self.bytes[6] == 3 && self.bytes[7] == 4 {
+        true -> good()
+        _ -> bad_write()
+    }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad_length(&mut self) { self.console.exit_process(71); }
+    state bad_write(&mut self) { self.console.exit_process(72); }
+}

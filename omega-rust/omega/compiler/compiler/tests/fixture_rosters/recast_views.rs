@@ -30,6 +30,8 @@ pub(crate) const SLICE_VIEW_NON_TILING_REJECTED: &str = "recast/slice_view_non_t
 pub(crate) const SLICE_VIEW_FACT_FENCED: &str = "recast/slice_view_fact_fenced";
 pub(crate) const RUNTIME_INTERIOR_SLICE_VIEW_MUTABLE_WRITE_EXIT: &str =
     "recast/runtime_interior_slice_view_mutable_write_exit";
+pub(crate) const RUNTIME_INTERIOR_SLICE_CONGRUENT_OFFSET_EXIT: &str =
+    "recast/runtime_interior_slice_congruent_offset_exit";
 pub(crate) const INTERIOR_SLICE_RUNTIME_OFFSET_NON_TILING: &str =
     "recast/interior_slice_runtime_offset_non_tiling";
 pub(crate) const INTERIOR_SLICE_FACT_FENCED: &str = "recast/interior_slice_fact_fenced";
@@ -95,6 +97,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_FIXED_ARRAY_VIEW_MUTABLE_WRITE_EXIT,
     RUNTIME_SLICE_VIEW_MUTABLE_WRITE_EXIT,
     RUNTIME_INTERIOR_SLICE_VIEW_MUTABLE_WRITE_EXIT,
+    RUNTIME_INTERIOR_SLICE_CONGRUENT_OFFSET_EXIT,
     RUNTIME_AGGREGATE_SLICE_REPRESENTATION_RECAST_EXIT,
     RUNTIME_MUTABLE_EQUIVALENT_DOMAIN_RECAST_EXIT,
     RUNTIME_MUTABLE_EQUIVALENT_RANGE_RECAST_EXIT,

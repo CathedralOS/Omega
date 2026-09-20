@@ -320,6 +320,26 @@ fn interior_slice_recasts_preserve_dynamic_tail_geometry() {
 }
 
 #[test]
+fn interior_slice_congruent_runtime_offset_tiles() {
+    let canary = fixture_roster::RUNTIME_INTERIOR_SLICE_CONGRUENT_OFFSET_EXIT;
+    assert_exit_70(canary, "interior-slice-congruent-offset");
+
+    let main = repo_root()
+        .join("tests/omega/pass")
+        .join(canary)
+        .join("main.omg");
+    let checked = compile_pass_to_checked(&main);
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "the interpreter must preserve the congruent-offset slice length and write-through: \
+         {interpreted:?}"
+    );
+
+    compile_for_cross_targets(canary, "interior-slice-congruent-offset");
+}
+
+#[test]
 fn aggregate_slice_recasts_compose_leaf_representation_sets() {
     let canary = fixture_roster::RUNTIME_AGGREGATE_SLICE_REPRESENTATION_RECAST_EXIT;
     assert_exit_70(canary, "aggregate-slice-representation-recast");

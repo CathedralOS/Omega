@@ -254,3 +254,29 @@ fn interior_slice_recasts_preserve_dynamic_tail_length_and_aliasing() {
     );
     assert_eq!(outcome.exit_code, 70);
 }
+
+#[test]
+fn interior_slice_congruent_runtime_offset_preserves_length_and_writes() {
+    let main = repo_root()
+        .join("tests/omega/pass")
+        .join(fixture_roster::RUNTIME_INTERIOR_SLICE_CONGRUENT_OFFSET_EXIT)
+        .join("main.omg");
+    let checked =
+        compile_to_checked(CheckedCompileRequest::new(&main, None)).unwrap_or_else(|diagnostics| {
+            panic!(
+                "congruent-offset interior slice recast should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "interpreter declined congruent-offset interior slice recast: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}

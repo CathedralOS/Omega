@@ -112,3 +112,52 @@ fn a_drifted_stride_witness_refuses_the_dependent_view() {
         "the refusal must name the unbounded offset bound meet: {rendered}"
     );
 }
+
+// Congruent runtime offsets: `k * 2` over `[u8; 8]` is bounded (high 6 <= 8)
+// and always even, so the remaining bytes exactly tile `u16` elements. The
+// same view at `k * 2 + 1` lands on odd bytes and must stay refused.
+const CONGRUENT_STRIDE_OFFSET: &str = "
+data Main {
+    bytes: [u8; 8];
+    k: u32 [0..=3];
+}
+machine Main::main(&mut self) {
+    self.k = 2;
+    let words: &[u16] = &self.bytes[self.k * 2] as &[u16];
+}";
+
+const NON_CONGRUENT_STRIDE_OFFSET: &str = "
+data Main {
+    bytes: [u8; 8];
+    k: u32 [0..=3];
+}
+machine Main::main(&mut self) {
+    self.k = 1;
+    let words: &[u16] = &self.bytes[self.k * 2 + 1] as &[u16];
+}";
+
+#[test]
+fn a_congruent_runtime_offset_tiles_the_slice_view() {
+    let typed = program(CONGRUENT_STRIDE_OFFSET);
+    let result = crate::validate_program(&typed);
+    assert!(
+        result.is_ok(),
+        "a proved-congruent runtime offset must tile the slice view: {result:?}"
+    );
+}
+
+#[test]
+fn a_non_congruent_runtime_offset_refuses_the_slice_view() {
+    let typed = program(NON_CONGRUENT_STRIDE_OFFSET);
+    let diagnostics = crate::validate_program(&typed)
+        .expect_err("an odd landing offset cannot tile u16 elements");
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("cannot prove exact tiling for interior slice"),
+        "the refusal must name the unproven tiling congruence: {rendered}"
+    );
+}
