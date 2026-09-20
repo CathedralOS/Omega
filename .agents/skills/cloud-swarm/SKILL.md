@@ -110,6 +110,20 @@ conflict. When unfenced items run out, do NOT park the pool:
   rest; if ~0 for two cycles, drop to a quarter. Retries are cheap
   (~1-5 min per blocked verdict) and a dead fence is free work — the throttle
   exists to bound churn noise, not cost.
+- **Surplus work order.** When unfenced board items run out, route the reserve
+  in this order: (1) split multi-path items, (2) retry waves on lapsed fences,
+  (3) **mine legs** — a worker reads a doc/board section
+  (`wiki/drafts/known_baseline_failures.md`, `rust_compiler_completion.md`,
+  remaining OPTIMIZER/BOOTSTRAP legs, `samples/apps/*/TASKS.md`) and returns
+  `mine_report` with candidate items; the coordinator dedupes them into real
+  board items (commit to TASKS.md is authorized), (4) **fuzz legs** — a worker
+  writes ~6 minimal `.omg` cases for one corpus family under
+  `/tmp/fuzz-<fam>-<side>/`, runs `omega --check`, and returns `fuzz_report`
+  with divergences; each confirmed divergence becomes a `FUZZ-*` board item,
+  (5) **garden legs** — verify "remaining legs" on landed items are still open
+  and return `garden_report`. Mining and fuzzing manufacture the next wave's
+  supply; never leave the reserve parked while docs or corpus families are
+  unscanned.
 - **Persist the pool map.** Write `name → session_id` to a json file
   (`build/swarm/w9/zergling-map.json`) and refresh it from
   `devin_session_search` each cycle — never trust in-context session IDs.
