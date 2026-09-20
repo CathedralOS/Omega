@@ -1,12 +1,17 @@
+// Structural scalar trait operators: a trait crowns a fixed token on a named
+// requirement (`operator < before`), a generic caller resolves the token
+// through the proof-static binder's selected conformance, the named
+// requirement call remains available without token syntax, and a concrete
+// declaration crowns the canonical token meaning for its operand signature.
 trait Ranked {
     operator < before(left: Self, right: Self) -> bool;
 }
 
-data Card { active: bool; }
+data Card { rank: i32; }
 
 Ascending: Card satisfies Ranked {
     machine before(left: Card, right: Card) -> bool {
-        true
+        left.rank < right.rank
     }
 }
 
@@ -17,6 +22,21 @@ machine choose<Element, Order: Element satisfies Ranked>(
     left < right
 }
 
-machine caller(left: Card, right: Card) -> bool {
-    choose<Card, Ascending>(left, right)
+machine named_requirement_call(left: Card, right: Card) -> bool {
+    Ranked::before(left, right)
+}
+
+machine < Card::less_by_rank(left: Card, right: Card) -> bool {
+    left.rank < right.rank
+}
+
+machine crowned_less(left: Card, right: Card) -> bool {
+    left < right
+}
+
+data Main {}
+
+machine Main::main(&mut self)
+terminates;
+{
 }
