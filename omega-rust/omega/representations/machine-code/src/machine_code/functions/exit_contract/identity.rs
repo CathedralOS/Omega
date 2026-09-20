@@ -10,7 +10,7 @@ use super::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v13\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v14\0";
 
 pub fn whole_function_exit_contract_identity(
     contract: &WholeFunctionExitContract,
@@ -82,6 +82,19 @@ pub fn whole_function_exit_contract_identity(
         hasher.update(function.entry_block.0.to_le_bytes());
         hasher.update(function.body_stack_delta.to_le_bytes());
         encode_units(&mut hasher, &function.modified_callee_saved_units);
+        hasher.update((function.crashes.len() as u64).to_le_bytes());
+        for crash in &function.crashes {
+            hasher.update(crash.block.0.to_le_bytes());
+            hasher.update(crash.psi_edge.get().to_le_bytes());
+            hasher.update([match crash.cause {
+                terminal_psi::CrashCause::Trap => 1,
+                terminal_psi::CrashCause::Abort => 2,
+            }]);
+            hasher.update(crash.instruction.0.to_le_bytes());
+            hasher.update(crash.offset.to_le_bytes());
+            hasher.update((crash.bytes.len() as u64).to_le_bytes());
+            hasher.update(&crash.bytes);
+        }
         hasher.update((function.process_exits.len() as u64).to_le_bytes());
         for exited in &function.process_exits {
             hasher.update(exited.block.0.to_le_bytes());

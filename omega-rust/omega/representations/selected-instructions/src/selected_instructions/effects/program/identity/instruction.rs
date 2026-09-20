@@ -37,6 +37,7 @@ pub(super) fn encode_ordinary_instruction(
 
 fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffects) {
     bytes.push(match instruction.trap {
+        MachineTrapBehavior::ExplicitCrashV1 => 5,
         MachineTrapBehavior::NeverV1 => 0,
         MachineTrapBehavior::HostedExitReturnedV1 => 3,
         MachineTrapBehavior::HostedReadFailureV1 => 4,
@@ -171,6 +172,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Load8 { .. } => 33,
         SelectedInstructionKind::Load16 { .. } => 34,
         SelectedInstructionKind::Load32 { .. } => 30,
+        SelectedInstructionKind::Crash => 111,
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::HostedReadByte { .. } => 32,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
@@ -340,6 +342,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::Jump
+        | SelectedInstructionKind::Crash
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnUnit => {}

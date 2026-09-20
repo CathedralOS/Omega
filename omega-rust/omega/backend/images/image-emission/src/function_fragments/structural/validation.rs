@@ -579,6 +579,7 @@ fn validate_settlement_position(
         Some(instruction) => instruction.id,
         None if position == block.instructions.len() => match &block.terminator {
             selected_instructions::SelectedTerminator::Return { instruction, .. }
+            | selected_instructions::SelectedTerminator::Crash { instruction, .. }
             | selected_instructions::SelectedTerminator::HostedExitProcess {
                 instruction, ..
             }

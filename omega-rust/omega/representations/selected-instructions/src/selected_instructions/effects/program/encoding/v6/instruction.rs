@@ -34,6 +34,7 @@ pub(super) fn decode_instruction(
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
+        5 => MachineTrapBehavior::ExplicitCrashV1,
         3 => MachineTrapBehavior::HostedExitReturnedV1,
         4 => MachineTrapBehavior::HostedReadFailureV1,
         2 => MachineTrapBehavior::HostedWriteFailureV1,
@@ -280,6 +281,7 @@ fn decode_kind(
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
         },
         6 => SelectedInstructionKind::ConditionalBranchNonZero,
+        111 => SelectedInstructionKind::Crash,
         31 => SelectedInstructionKind::HostedExitProcessI32,
         7 => SelectedInstructionKind::ReturnScalar,
         36 => SelectedInstructionKind::ReturnAggregate {
@@ -451,6 +453,7 @@ fn decode_alternative_for_version(
         44 => MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
         45 => MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
 
+        111 => MachineAlternativeFamily::Crash,
         31 => MachineAlternativeFamily::HostedExitProcessI32,
         32 => MachineAlternativeFamily::HostedReadByte,
         23 => MachineAlternativeFamily::HostedWriteByteI32,
@@ -648,6 +651,7 @@ fn decode_encoded_effects(
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let trap = match cursor.byte()? {
+        5 => MachineEncodedTrapBehavior::ExplicitCrashV1,
         3 => MachineEncodedTrapBehavior::HostedExitReturnedV1,
         4 => MachineEncodedTrapBehavior::HostedReadFailureV1,
         2 => MachineEncodedTrapBehavior::HostedWriteFailureV1,
@@ -656,6 +660,7 @@ fn decode_encoded_effects(
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let control = match cursor.byte()? {
+        9 => MachineEncodedControlEffect::CrashV1,
         7 => MachineEncodedControlEffect::HostedExitOrTrapV1,
         8 => MachineEncodedControlEffect::HostedReadReturnOrTrapV1,
         6 => MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,

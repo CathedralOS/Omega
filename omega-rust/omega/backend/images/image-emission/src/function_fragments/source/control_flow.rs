@@ -14,6 +14,12 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
             .iter()
             .filter(|block| match (source, &block.terminator) {
                 (
+                    AbstractOperation::Crash { psi_edge, .. },
+                    TargetControlTerminator::Crash {
+                        psi_edge: actual, ..
+                    },
+                ) => psi_edge == actual,
+                (
                     AbstractOperation::Return { psi_edge, .. }
                     | AbstractOperation::ReturnUnit { psi_edge, .. },
                     TargetControlTerminator::ReturnScalar { psi_edge: edge, .. }
@@ -46,6 +52,25 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
         return false;
     }
     match (source, &candidate.terminator) {
+        (
+            AbstractOperation::Crash {
+                psi_edge,
+                cause,
+                site_guard,
+                frontier_lower_bound,
+            },
+            TargetControlTerminator::Crash {
+                psi_edge: actual_edge,
+                cause: actual_cause,
+                site_guard: actual_guard,
+                frontier_lower_bound: actual_frontier,
+            },
+        ) => {
+            psi_edge == actual_edge
+                && cause == actual_cause
+                && site_guard == actual_guard
+                && frontier_lower_bound == actual_frontier
+        }
         (
             AbstractOperation::Return {
                 value,

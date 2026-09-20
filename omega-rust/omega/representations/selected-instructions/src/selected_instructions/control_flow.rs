@@ -96,6 +96,14 @@ pub enum SelectedSuccessorRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedTerminator {
+    /// Explicit semantic abandonment, with no normal successor or cleanup.
+    Crash {
+        instruction: SelectedInstruction,
+        psi_edge: EdgeId,
+        cause: terminal_psi::CrashCause,
+        site_guard: Vec<terminal_psi::CrashPredicateTerm>,
+        frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
+    },
     /// Physical termination or trap, never an executable return successor.
     HostedExitProcess {
         instruction: SelectedInstruction,

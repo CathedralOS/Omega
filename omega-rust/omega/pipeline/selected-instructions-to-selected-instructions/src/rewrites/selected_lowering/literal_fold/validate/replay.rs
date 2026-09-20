@@ -2261,6 +2261,7 @@ fn implicit_unit_used(function: &SelectedFunction, unit: RegisterUnitId) -> bool
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. }
                 | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::Crash { instruction, .. }
                 | SelectedTerminator::HostedExitProcess { instruction, .. } => {
                     std::iter::once(instruction)
                 }
@@ -2316,6 +2317,7 @@ fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId)
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => {
                 std::iter::once(instruction)
             }
@@ -2343,9 +2345,9 @@ fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId)
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
-                Vec::new()
-            }
+            SelectedTerminator::Return { .. }
+            | SelectedTerminator::Crash { .. }
+            | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
         };
         for successor in successors {
             occurrences += successor
@@ -2462,6 +2464,7 @@ fn validate_dense_identifiers(
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                     | SelectedTerminator::Jump { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. }
+                    | SelectedTerminator::Crash { instruction, .. }
                     | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0,
                 }))
         })
@@ -3061,9 +3064,9 @@ fn redensify(
                 when_not_less,
                 ..
             } => vec![when_less, when_not_less],
-            SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
-                Vec::new()
-            }
+            SelectedTerminator::Return { .. }
+            | SelectedTerminator::Crash { .. }
+            | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
         };
         for successor in successors {
             for binding in &mut successor.structural_bindings {
@@ -3118,6 +3121,7 @@ fn redensify(
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => {
                 lower_selected_instruction(
                     function_index,

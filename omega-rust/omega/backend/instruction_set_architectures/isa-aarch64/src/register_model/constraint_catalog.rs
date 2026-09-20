@@ -153,6 +153,14 @@ pub fn aarch64_register_constraint_catalog(
     let mut constraints = vec![
         RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
+            key: crate::AARCH64_CRASH,
+            operands: Vec::new(),
+            implicit_uses: view("pc").units.clone(),
+            implicit_defs: view("pc").units.clone(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
             key: AARCH64_AAPCS64_CALL,
             operands: call_operands(),
             implicit_uses: call_uses.clone(),

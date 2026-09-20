@@ -37,6 +37,7 @@ impl SelectedConstraintKeys {
         .chain(self.return_aggregate.iter().copied())
         .chain(self.return_float.iter().copied())
         .chain([
+            self.crash,
             self.materialize_i64,
             self.materialize_boolean,
             self.copy_i64,
@@ -80,6 +81,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::HostedWriteByteI32 => return self.hosted_write_byte_i32,
             MachineSemanticKind::SaveFloatingControl => return self.save_floating_control,
             MachineSemanticKind::RestoreFloatingControl => return self.restore_floating_control,
+            MachineSemanticKind::Crash => self.crash,
             MachineSemanticKind::HostedExitProcessI32 => return self.hosted_exit_process_i32,
             MachineSemanticKind::Store => return self.store,
             MachineSemanticKind::AddressOffset => return self.address_offset,

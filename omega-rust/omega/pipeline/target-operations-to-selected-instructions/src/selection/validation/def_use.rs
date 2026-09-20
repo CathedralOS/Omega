@@ -280,8 +280,8 @@ fn successors(terminator: &SelectedTerminator) -> Vec<&SelectedSuccessor> {
             ..
         } => vec![when_less, when_not_less],
         SelectedTerminator::Jump { successor, .. } => vec![successor],
-        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
-            Vec::new()
-        }
+        SelectedTerminator::Return { .. }
+        | SelectedTerminator::Crash { .. }
+        | SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
     }
 }

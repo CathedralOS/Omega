@@ -510,6 +510,16 @@ impl LegalizedStructuralCaseSource {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
+    /// Exact source crash custody; audit predicates are not executable reads.
+    Crash {
+        psi_edge: semantic_vocabulary::EdgeId,
+        cause: terminal_psi::CrashCause,
+        site_guard: Vec<terminal_psi::CrashPredicateTerm>,
+        frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
+        fuel: Vec<optimization_unit::FuelSettlement>,
+        effect: EffectLink,
+        ownership: Vec<OwnershipEvent>,
+    },
     StructuralCase {
         source: LegalizedStructuralCaseSource,
         layout: calling_conventions::ConventionalSumLayout,
@@ -542,6 +552,7 @@ impl LegalizedScalarTerminator {
                 .any(|binding| binding.argument == value)
         };
         match self {
+            Self::Crash { .. } => false,
             Self::StructuralCase { .. } => false,
             Self::Return(returned) => matches!(returned.value,
                 LegalizedScalarReturnValue::Value { value: returned, .. } if returned == value),

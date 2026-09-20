@@ -115,6 +115,7 @@ fn selected_instructions(block: &SelectedBlock) -> impl Iterator<Item = &Selecte
         }
         | selected_instructions::SelectedTerminator::Jump { instruction, .. }
         | selected_instructions::SelectedTerminator::Return { instruction, .. }
+        | selected_instructions::SelectedTerminator::Crash { instruction, .. }
         | selected_instructions::SelectedTerminator::HostedExitProcess { instruction, .. } => {
             instruction
         }

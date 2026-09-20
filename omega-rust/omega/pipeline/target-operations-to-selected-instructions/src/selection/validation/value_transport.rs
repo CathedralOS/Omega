@@ -77,7 +77,7 @@ fn reaches_observer(function: &LegalizedScalarFunction, value: ValueId) -> bool 
                     follow(when_true);
                     follow(when_false);
                 }
-                Terminator::StructuralCase { .. } => {}
+                Terminator::Crash { .. } | Terminator::StructuralCase { .. } => {}
             }
         }
     }

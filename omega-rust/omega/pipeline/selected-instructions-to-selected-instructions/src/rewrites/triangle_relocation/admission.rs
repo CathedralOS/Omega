@@ -166,7 +166,9 @@ pub(super) fn admit<'source>(
                     None => head_index = Some(source_index),
                 }
             }
-            SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
+            SelectedTerminator::Crash { .. }
+            | SelectedTerminator::HostedExitProcess { .. }
+            | SelectedTerminator::Return { .. } => {
                 return Err(TriangleRelocationError::SourceMismatch);
             }
         }
@@ -224,6 +226,7 @@ pub(super) fn admit<'source>(
             ..
         } => vec![when_less, when_not_less],
         SelectedTerminator::Jump { .. }
+        | SelectedTerminator::Crash { .. }
         | SelectedTerminator::HostedExitProcess { .. }
         | SelectedTerminator::Return { .. } => {
             return Err(TriangleRelocationError::UnsupportedPair);

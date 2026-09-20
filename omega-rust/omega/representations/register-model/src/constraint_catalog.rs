@@ -43,6 +43,7 @@ pub struct RegisterConstraintKey {
 /// environment. Named fields prevent positional key drift in its identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetRegisterEnvironmentConstraintKeys {
+    pub crash: RegisterConstraintKey,
     pub load64: Option<RegisterConstraintKey>,
     pub load_packed: Option<RegisterConstraintKey>,
     pub store_packed: Option<RegisterConstraintKey>,

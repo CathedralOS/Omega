@@ -241,6 +241,7 @@ pub(crate) fn control(
     use selected_instructions::SelectedTerminator;
     match terminator {
         SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => (instruction, [None, None]),
         SelectedTerminator::Jump {
             instruction,
@@ -273,6 +274,7 @@ pub(crate) fn control_mut(
     use selected_instructions::SelectedTerminator;
     match terminator {
         SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::ConditionalBranch { instruction, .. }
@@ -289,9 +291,9 @@ pub(crate) fn control_successors_mut(
 ) -> [Option<&mut selected_instructions::SelectedSuccessor>; 2] {
     use selected_instructions::SelectedTerminator;
     match terminator {
-        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
-            [None, None]
-        }
+        SelectedTerminator::Return { .. }
+        | SelectedTerminator::Crash { .. }
+        | SelectedTerminator::HostedExitProcess { .. } => [None, None],
         SelectedTerminator::Jump { successor, .. } => [Some(successor), None],
         SelectedTerminator::ConditionalBranch {
             when_nonzero,

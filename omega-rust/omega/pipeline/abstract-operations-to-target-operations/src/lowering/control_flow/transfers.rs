@@ -218,6 +218,7 @@ pub(super) fn validate_successors(
             )
         }
         AbstractOperation::Return { .. }
+        | AbstractOperation::Crash { .. }
         | AbstractOperation::ReturnStructural { .. }
         | AbstractOperation::ReturnUnit { .. }
         | AbstractOperation::StructuralCase { .. } => Ok(()),

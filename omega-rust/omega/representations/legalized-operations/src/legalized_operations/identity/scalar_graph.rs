@@ -621,6 +621,34 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
 
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
+        LegalizedScalarTerminator::Crash {
+            psi_edge,
+            cause,
+            site_guard,
+            frontier_lower_bound,
+            fuel,
+            effect,
+            ownership,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&psi_edge.get().to_le_bytes());
+            bytes.push(match cause {
+                terminal_psi::CrashCause::Trap => 1,
+                terminal_psi::CrashCause::Abort => 2,
+            });
+            encode_len(bytes, site_guard.len());
+            for predicate in site_guard {
+                let encoded =
+                    terminal_codec::canonical_proposition_order_key(predicate.proposition())
+                        .expect("validated crash predicate");
+                encode_len(bytes, encoded.len());
+                bytes.extend_from_slice(&encoded);
+            }
+            encode_ids(bytes, frontier_lower_bound.iter().map(|claim| claim.get()));
+            encode_fuel(bytes, fuel);
+            encode_effect(bytes, *effect);
+            encode_ownership_roster(bytes, ownership);
+        }
         LegalizedScalarTerminator::StructuralCase {
             source,
             layout,

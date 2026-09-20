@@ -77,6 +77,7 @@ pub(super) fn replay(
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         };
         if terminator.id == rewrite_row.instruction {
@@ -120,6 +121,7 @@ pub(super) fn replay(
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         };
         if terminator.id != first.instruction {

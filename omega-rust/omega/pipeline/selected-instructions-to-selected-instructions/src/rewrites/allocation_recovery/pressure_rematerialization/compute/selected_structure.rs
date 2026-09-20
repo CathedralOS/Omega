@@ -32,6 +32,7 @@ pub(super) fn find_instruction(
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. }
                 if instruction.id == id =>
             {
@@ -70,6 +71,7 @@ pub(super) fn validate_dense(
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                     | SelectedTerminator::Jump { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. }
+                    | SelectedTerminator::Crash { instruction, .. }
                     | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0,
                 }))
         })

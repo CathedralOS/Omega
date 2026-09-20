@@ -148,6 +148,16 @@ pub struct WholeFunctionProcessExitEvidence {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WholeFunctionCrashEvidence {
+    pub block: SelectedBlockId,
+    pub psi_edge: EdgeId,
+    pub cause: terminal_psi::CrashCause,
+    pub instruction: SelectedInstructionId,
+    pub offset: u64,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WholeFunctionExitEvidence {
     pub machine: MachineId,
     pub entry_block: SelectedBlockId,
@@ -155,6 +165,7 @@ pub struct WholeFunctionExitEvidence {
     pub modified_callee_saved_units: Vec<RegisterUnitId>,
     pub returns: Vec<WholeFunctionReturnEvidence>,
     pub process_exits: Vec<WholeFunctionProcessExitEvidence>,
+    pub crashes: Vec<WholeFunctionCrashEvidence>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

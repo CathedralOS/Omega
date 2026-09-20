@@ -107,6 +107,22 @@ pub(super) fn lower_terminator(
         })
     };
     match operation {
+        AbstractOperation::Crash {
+            psi_edge,
+            cause,
+            site_guard,
+            frontier_lower_bound,
+        } => {
+            // Crashing abandons this execution domain: there is no result,
+            // successor transport, or implicit owner cleanup to realize.
+            provenance.edges.push(*psi_edge);
+            Ok(TargetControlTerminator::Crash {
+                psi_edge: *psi_edge,
+                cause: *cause,
+                site_guard: site_guard.clone(),
+                frontier_lower_bound: frontier_lower_bound.clone(),
+            })
+        }
         AbstractOperation::ReturnStructural {
             psi_edge,
             source,

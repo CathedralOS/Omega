@@ -227,6 +227,7 @@ pub(crate) fn encode_unchecked(
 ) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
     let mut bytes = Vec::new();
     match kind {
+        SelectedInstructionKind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),
         SelectedInstructionKind::MaterializeI64 { value } => {
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);
             bytes.extend(integer_bits(value)?.to_le_bytes());

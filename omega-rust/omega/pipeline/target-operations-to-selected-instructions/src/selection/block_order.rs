@@ -14,7 +14,9 @@ pub(super) fn derive(
     let mut outgoing = Vec::new();
     for block in &source.blocks {
         let targets = match &block.terminator {
-            LegalizedScalarTerminator::Return(_) => Vec::new(),
+            LegalizedScalarTerminator::Crash { .. } | LegalizedScalarTerminator::Return(_) => {
+                Vec::new()
+            }
             LegalizedScalarTerminator::Jump { successor, .. } => vec![successor.target],
             LegalizedScalarTerminator::Conditional {
                 when_true,

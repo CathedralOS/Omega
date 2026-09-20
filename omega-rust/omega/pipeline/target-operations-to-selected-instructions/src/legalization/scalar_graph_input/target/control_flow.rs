@@ -233,6 +233,25 @@ pub(super) fn validate(
                     }
             }
             (
+                TargetControlTerminator::Crash {
+                    psi_edge,
+                    cause,
+                    site_guard,
+                    frontier_lower_bound,
+                },
+                AbstractOperation::Crash {
+                    psi_edge: expected_edge,
+                    cause: expected_cause,
+                    site_guard: expected_guard,
+                    frontier_lower_bound: expected_frontier,
+                },
+            ) => {
+                psi_edge == expected_edge
+                    && cause == expected_cause
+                    && site_guard == expected_guard
+                    && frontier_lower_bound == expected_frontier
+            }
+            (
                 TargetControlTerminator::ReturnScalar {
                     psi_edge,
                     source_value,

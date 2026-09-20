@@ -41,6 +41,14 @@ pub struct TargetScalarBlockParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetControlTerminator {
+    /// No successor or cleanup. Retain semantic evidence independently of the
+    /// target's chosen terminating instruction.
+    Crash {
+        psi_edge: EdgeId,
+        cause: terminal_psi::CrashCause,
+        site_guard: Vec<terminal_psi::CrashPredicateTerm>,
+        frontier_lower_bound: Vec<semantic_vocabulary::ClaimId>,
+    },
     ReturnStructural {
         psi_edge: EdgeId,
         source: TargetStructuralReturnSource,

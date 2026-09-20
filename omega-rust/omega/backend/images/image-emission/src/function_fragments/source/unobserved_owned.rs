@@ -90,6 +90,7 @@ pub(in crate::function_fragments) fn arrivals(
             ..
         } => unused(when_less) && unused(when_not_less),
         SelectedTerminator::Return { .. } => true,
+        SelectedTerminator::Crash { .. } => true,
         SelectedTerminator::HostedExitProcess { .. } => false,
     }) {
         return false;

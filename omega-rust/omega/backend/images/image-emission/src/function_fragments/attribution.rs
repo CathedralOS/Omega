@@ -81,6 +81,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 }
                 AbstractOperation::Return { psi_edge, .. }
                 | AbstractOperation::ReturnUnit { psi_edge, .. }
+                | AbstractOperation::Crash { psi_edge, .. }
                 | AbstractOperation::ReturnStructural { psi_edge, .. }
                 | AbstractOperation::Jump { psi_edge, .. } => {
                     site == SemanticCodeSite::Edge(*psi_edge)
@@ -129,6 +130,9 @@ pub(super) fn produce(
             push(SemanticCodeSite::Operation(*operation), offset, length)?;
         }
         match &instruction.control {
+            Control::Crash { psi_edge, .. } => {
+                push(SemanticCodeSite::Edge(*psi_edge), offset, length)?
+            }
             Control::HostedExitProcess {
                 nominal_return_edge,
             } => {
@@ -266,6 +270,7 @@ pub(super) fn validate(
             }
         }
         let edges: Vec<_> = match &instruction.control {
+            Control::Crash { psi_edge, .. } => vec![*psi_edge],
             Control::HostedExitProcess {
                 nominal_return_edge,
             } => vec![*nominal_return_edge],
@@ -327,6 +332,7 @@ fn supports(
             ordinary && instruction.provenance.operations.contains(&operation)
         }
         SemanticCodeSite::Edge(edge) => match &instruction.control {
+            Control::Crash { psi_edge, .. } => ordinary && edge == *psi_edge,
             Control::HostedExitProcess {
                 nominal_return_edge,
             } => {

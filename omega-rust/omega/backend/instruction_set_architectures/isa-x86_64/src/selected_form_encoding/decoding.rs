@@ -13,6 +13,7 @@ use selected_instructions::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DecodedInstruction {
+    Crash,
     SignedDivide {
         divisor: u8,
     },
@@ -370,6 +371,9 @@ pub(crate) fn decode_one(
             3,
         ));
     }
+    if bytes.starts_with(&[0x0f, 0x0b]) {
+        return Ok((DecodedInstruction::Crash, 2));
+    }
     if bytes.first() == Some(&0xc3) {
         return Ok((DecodedInstruction::Return, 1));
     }
@@ -544,6 +548,9 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedInstruction],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::Crash => {
+            registers.is_empty() && decoded == [DecodedInstruction::Crash]
+        }
         SelectedInstructionKind::MaterializeI64 { value } => {
             decoded
                 == [DecodedInstruction::Materialize {
@@ -1227,6 +1234,7 @@ pub(crate) fn footprint(
         return saturating_footprint(SaturatingForm::of(operation, carrier), operands);
     }
     let (reads, writes, writes_rflags) = match kind {
+        SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -1340,7 +1348,9 @@ pub(crate) fn footprint(
     };
     let physical = x86_64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if matches!(
+    let encoded = if kind == SelectedInstructionKind::Crash {
+        super::crash::effects(&units("rip"))
+    } else if matches!(
         kind,
         SelectedInstructionKind::ReturnScalar
             | SelectedInstructionKind::ReturnAggregate { .. }

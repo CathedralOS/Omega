@@ -1401,7 +1401,8 @@ fn measured_validation_step_boundary_admits_and_rejects() {
                 SelectedTerminator::ConditionalBranch { .. }
                 | SelectedTerminator::ConditionalBranchU64LessThan { .. }
                 | SelectedTerminator::ConditionalBranchI64LessThan { .. } => 2u64,
-                SelectedTerminator::HostedExitProcess { .. }
+                SelectedTerminator::Crash { .. }
+                | SelectedTerminator::HostedExitProcess { .. }
                 | SelectedTerminator::Return { .. } => 0u64,
             })
             .sum();
@@ -1413,7 +1414,8 @@ fn measured_validation_step_boundary_admits_and_rejects() {
                 SelectedTerminator::ConditionalBranch { .. }
                 | SelectedTerminator::ConditionalBranchU64LessThan { .. }
                 | SelectedTerminator::ConditionalBranchI64LessThan { .. } => 2u64,
-                SelectedTerminator::HostedExitProcess { .. }
+                SelectedTerminator::Crash { .. }
+                | SelectedTerminator::HostedExitProcess { .. }
                 | SelectedTerminator::Return { .. } => 0u64,
             })
             .max()
@@ -1438,7 +1440,8 @@ fn measured_validation_step_boundary_admits_and_rejects() {
                     when_not_less,
                     ..
                 } => vec![when_less, when_not_less],
-                SelectedTerminator::HostedExitProcess { .. }
+                SelectedTerminator::Crash { .. }
+                | SelectedTerminator::HostedExitProcess { .. }
                 | SelectedTerminator::Return { .. } => Vec::new(),
             })
             .map(|successor| {

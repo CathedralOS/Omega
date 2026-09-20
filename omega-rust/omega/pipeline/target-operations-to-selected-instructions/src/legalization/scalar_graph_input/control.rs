@@ -12,6 +12,7 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     match (&node.operation, &function.result) {
+        (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
         (AbstractOperation::StructuralCase { .. }, _) => {
             super::structural_case::validate(node, function)
         }
@@ -66,7 +67,7 @@ pub(super) fn validate(
             {
                 return Err(invalid);
             }
-            return_edge(node, *psi_edge)
+            terminal_edge(node, *psi_edge)
         }
         (
             AbstractOperation::ReturnUnit {
@@ -91,7 +92,7 @@ pub(super) fn validate(
                         cleanup_actions.clone(),
                     )]) =>
         {
-            return_edge(node, *psi_edge)
+            terminal_edge(node, *psi_edge)
         }
         (
             AbstractOperation::Return {
@@ -117,7 +118,7 @@ pub(super) fn validate(
                             cleanup_actions.clone(),
                         )])) =>
         {
-            return_edge(node, *psi_edge)
+            terminal_edge(node, *psi_edge)
         }
         (
             AbstractOperation::Jump {
@@ -173,7 +174,7 @@ pub(super) fn validate(
         _ => Err(invalid),
     }
 }
-fn return_edge(
+fn terminal_edge(
     node: &OptimizationNode,
     edge: semantic_vocabulary::EdgeId,
 ) -> Result<(), LegalizationError> {

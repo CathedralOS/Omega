@@ -75,6 +75,7 @@ fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
         }
         SelectedTerminator::Jump { .. }
         | SelectedTerminator::Return { .. }
+        | SelectedTerminator::Crash { .. }
         | SelectedTerminator::HostedExitProcess { .. } => None,
     }
 }

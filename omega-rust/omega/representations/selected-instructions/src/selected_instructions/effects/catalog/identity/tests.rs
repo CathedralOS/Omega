@@ -21,8 +21,28 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
     }
 }
 
+#[test]
+fn crash_identity_tags_do_not_alias_other_instruction_families() {
+    for semantic in MachineSemanticKind::ALL {
+        if semantic == MachineSemanticKind::Crash {
+            continue;
+        }
+        assert_ne!(
+            semantic_kind_tag(MachineSemanticKind::Crash),
+            semantic_kind_tag(semantic),
+            "{semantic:?}",
+        );
+        assert_ne!(
+            alternative_family_tag(MachineAlternativeFamily::Crash),
+            alternative_family_tag(semantic.into()),
+            "{semantic:?}",
+        );
+    }
+}
+
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        crash: instruction(780),
         copy_bytes: Some(instruction(40)),
         save_floating_control: Some(instruction(44)),
         restore_floating_control: Some(instruction(45)),

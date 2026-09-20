@@ -18,6 +18,7 @@ use selected_instructions::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DecodedWord {
+    Crash,
     SignedDivide {
         dividend: u8,
         divisor: u8,
@@ -235,6 +236,9 @@ pub(crate) fn decode_words(
 }
 
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
+    if word == 0xd420_0000 {
+        return Ok(DecodedWord::Crash);
+    }
     if word & 0xffe0_fc00 == 0x9ac0_0c00 {
         return Ok(DecodedWord::SignedDivide {
             dividend: ((word >> 5) & 31) as u8,
@@ -520,6 +524,7 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedWord],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::Crash => registers.is_empty() && decoded == [DecodedWord::Crash],
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -932,6 +937,7 @@ pub(crate) fn footprint(
     operands: &[RegisterViewId],
 ) -> Aarch64SelectedFormFootprint {
     let (reads, writes, writes_nzcv) = match kind {
+        SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -1026,7 +1032,9 @@ pub(crate) fn footprint(
     };
     let physical = aarch64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if matches!(
+    let encoded = if kind == SelectedInstructionKind::Crash {
+        super::crash::effects(&units("pc"))
+    } else if matches!(
         kind,
         SelectedInstructionKind::ReturnScalar
             | SelectedInstructionKind::ReturnAggregate { .. }

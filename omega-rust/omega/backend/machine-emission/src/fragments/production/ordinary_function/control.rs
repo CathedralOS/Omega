@@ -20,6 +20,15 @@ pub(super) fn provenance(
         return FunctionFragmentControlProvenance::NormalizedForeignCall { boundary, ordinal };
     }
     match &block.terminator {
+        SelectedTerminator::Crash {
+            instruction: terminal,
+            psi_edge,
+            cause,
+            ..
+        } if terminal.id == instruction.id => FunctionFragmentControlProvenance::Crash {
+            psi_edge: *psi_edge,
+            cause: *cause,
+        },
         SelectedTerminator::Jump {
             instruction: jump,
             successor,

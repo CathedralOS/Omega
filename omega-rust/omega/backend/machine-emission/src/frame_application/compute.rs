@@ -115,6 +115,7 @@ fn apply_function(
                 matches!(
                     row.control,
                     FunctionFragmentControlProvenance::HostedExitProcess { .. }
+                        | FunctionFragmentControlProvenance::Crash { .. }
                 )
             })
         })
@@ -250,6 +251,7 @@ fn validate_and_collect_returns(
             if matches!(
                 row.control,
                 FunctionFragmentControlProvenance::HostedExitProcess { .. }
+                    | FunctionFragmentControlProvenance::Crash { .. }
             ) && (index + 1 != block.instructions.len() || row.bytes.is_empty())
             {
                 return Err(FrameApplicationError::MissingFinalReturn(function.machine));
@@ -515,6 +517,66 @@ mod tests {
             application.fragments.identity,
             application.fragments.recomputed_identity()
         );
+    }
+
+    #[test]
+    fn crash_keeps_frame_without_return_cleanup_and_rejects_following_instructions() {
+        for cause in [
+            terminal_psi::CrashCause::Trap,
+            terminal_psi::CrashCause::Abort,
+        ] {
+            let mut source = source_plan();
+            let machine = source.entry;
+            let row = &mut source.functions[0].blocks[0].instructions[1];
+            row.control = FunctionFragmentControlProvenance::Crash {
+                psi_edge: EdgeId::new(1).unwrap(),
+                cause,
+            };
+            // Frame projection consumes already admitted bytes; opcode
+            // correctness is tested by the ISA and end-to-end execution tests.
+            row.alternative.family = MachineAlternativeFamily::Crash;
+            source.identity = source.recomputed_identity();
+            let manifest =
+                FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
+            let application = apply(&source, manifest, &protocol(machine), &physical()).unwrap();
+            assert!(application.functions[0].epilogues.is_empty());
+            assert_eq!(
+                application.fragments.functions[0].bytes.len(),
+                source.functions[0].bytes.len() + 1
+            );
+            super::super::validate_frame_protocol_application(
+                &source,
+                manifest,
+                &protocol(machine),
+                &physical(),
+                &application,
+            )
+            .unwrap();
+            let mut changed = application.clone();
+            changed.fragments.functions[0].blocks[0].instructions[1].control =
+                FunctionFragmentControlProvenance::Return {
+                    psi_return_edge: EdgeId::new(1).unwrap(),
+                };
+            changed.fragments.identity = changed.fragments.recomputed_identity();
+            changed.identity = changed.recomputed_identity();
+            assert!(
+                super::super::validate_frame_protocol_application(
+                    &source,
+                    manifest,
+                    &protocol(machine),
+                    &physical(),
+                    &changed,
+                )
+                .is_err()
+            );
+            source.functions[0].blocks[0].instructions[0].control =
+                FunctionFragmentControlProvenance::Crash {
+                    psi_edge: EdgeId::new(2).unwrap(),
+                    cause,
+                };
+            source.identity = source.recomputed_identity();
+            assert!(apply(&source, manifest, &protocol(machine), &physical()).is_err());
+        }
     }
 
     #[test]

@@ -445,6 +445,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     }
     hasher.update([match effects.trap {
         Trap::NeverV1 => 0,
+        Trap::ExplicitCrashV1 => 5,
         Trap::HostedExitReturnedV1 => 3,
         Trap::HostedReadFailureV1 => 4,
         Trap::HostedWriteFailureV1 => 2,
@@ -452,6 +453,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     }]);
     match effects.control {
         Control::HostedExitOrTrapV1 => hasher.update([7]),
+        Control::CrashV1 => hasher.update([9]),
         Control::HostedReadReturnOrTrapV1 => hasher.update([8]),
         Control::HostedWriteReturnOrTrapV1 => hasher.update([6]),
         Control::FallThroughV1 => hasher.update([0]),
@@ -528,6 +530,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,
         MachineAlternativeFamily::HostedExitProcessI32 => 31,
+        MachineAlternativeFamily::Crash => 111,
         MachineAlternativeFamily::HostedReadByte => 32,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,

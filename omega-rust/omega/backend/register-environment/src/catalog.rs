@@ -63,6 +63,7 @@ pub(super) fn selected_environment_keys(
     keys: SelectedConstraintKeys,
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
+        crash: keys.crash,
         load64: keys.load64,
         load8: keys.load8,
         load16: keys.load16,
@@ -122,6 +123,7 @@ pub(super) fn selected_environment_keys(
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
+            crash: isa_x86_64::X86_64_CRASH,
             call_aggregate: isa_x86_64::x86_64_system_v_aggregate_call_keys()
                 .into_iter()
                 .chain(isa_x86_64::x86_64_system_v_mixed_aggregate_call_keys())
@@ -186,6 +188,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
+            crash: isa_x86_64::X86_64_CRASH,
             call_aggregate: isa_x86_64::x86_64_microsoft_aggregate_call_keys()
                 .into_iter()
                 .chain(isa_x86_64::x86_64_microsoft_mixed_aggregate_call_keys())
@@ -248,6 +251,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
+            crash: isa_aarch64::AARCH64_CRASH,
             call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(false)
                 .into_iter()
                 .chain(isa_aarch64::aarch64_mixed_aggregate_call_keys(false))
@@ -313,6 +317,7 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: AARCH64_AAPCS64_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
+            crash: isa_aarch64::AARCH64_CRASH,
             call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(true)
                 .into_iter()
                 .chain(isa_aarch64::aarch64_mixed_aggregate_call_keys(true))

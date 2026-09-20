@@ -702,6 +702,7 @@ fn dropped_def_is_dead(
             }
             | selected_instructions::SelectedTerminator::Jump { instruction, .. }
             | selected_instructions::SelectedTerminator::Return { instruction, .. }
+            | selected_instructions::SelectedTerminator::Crash { instruction, .. }
             | selected_instructions::SelectedTerminator::HostedExitProcess {
                 instruction, ..
             } => std::iter::once(instruction),
@@ -732,6 +733,7 @@ fn dropped_def_is_dead(
                 ..
             } => vec![when_less, when_not_less],
             selected_instructions::SelectedTerminator::Return { .. }
+            | selected_instructions::SelectedTerminator::Crash { .. }
             | selected_instructions::SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
         };
         for successor in successors {

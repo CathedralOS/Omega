@@ -108,6 +108,7 @@ fn validate_function(
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         };
         validate_instruction(
@@ -237,6 +238,7 @@ fn replay_declaration<'a>(
 
 fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        crash: keys.crash,
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
         save_floating_control: keys.save_floating_control,
         restore_floating_control: keys.restore_floating_control,

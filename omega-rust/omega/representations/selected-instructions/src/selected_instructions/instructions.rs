@@ -20,6 +20,8 @@ pub struct SelectedInstruction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
+    /// Unconditional trap realizing the exact semantic Crash terminator.
+    Crash,
     /// Copy exactly count bytes between disjoint valid ranges. Inputs 0/1/2
     /// are preserved source/destination/count; 3/4 are early-clobber scratch.
     /// Count zero accesses neither pointer. Flags are clobbered.

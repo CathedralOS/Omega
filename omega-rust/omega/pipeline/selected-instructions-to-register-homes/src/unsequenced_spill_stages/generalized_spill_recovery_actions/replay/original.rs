@@ -211,6 +211,7 @@ pub(super) fn replay<S: ValidatedSelectedAnalysis>(
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. }
                 | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::Crash { instruction, .. }
                 | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
             }))
             .map(|instruction| (instruction.id, instruction))
