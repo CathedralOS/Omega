@@ -97,11 +97,11 @@ pub use primitive_access::primitive_specialization::{
     StablePrimitiveAccessRejection, StablePrimitiveAccessRequest, StablePrimitiveOperation,
 };
 pub use resources::device_operation_requirements::{
-    DeviceOperation, DeviceOperationProviderPlanId, DeviceOperationRequirement,
-    DeviceOperationRequirementId, DeviceOperationStructuralClosureError, DeviceOrderingScopeId,
-    DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId,
-    ProviderAssertedDeviceOperationClaim, StructurallyClosedDeviceOperationRequirement,
-    StructurallyClosedDeviceOperationRequirements,
+    DeviceOperation, DeviceOperationCoordinates, DeviceOperationProviderPlanId,
+    DeviceOperationRequirement, DeviceOperationRequirementId,
+    DeviceOperationStructuralClosureError, DeviceOrderingScopeId, DeviceOrderingScopeOccurrence,
+    DeviceOrderingScopeOccurrenceId, ProviderAssertedDeviceOperationClaim,
+    StructurallyClosedDeviceOperationRequirement, StructurallyClosedDeviceOperationRequirements,
     structurally_close_device_operation_requirements,
 };
 pub use resources::resource_compatibility::validate_placement_resources;
