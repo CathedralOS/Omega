@@ -9783,7 +9783,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SQUALR-CLONE-SERIALIZATION 22:50Z), so every implementable path is
   fenced at verification time.
 - **SQUALR-PLUGIN-PACKAGES** — mined candidate; verify scope then implement.
-- **SQUALR-SEED-ALIGNMENT-PARSING** — mined candidate; verify scope then implement.
+- **SQUALR-SEED-ALIGNMENT-PARSING** — mined candidate; scope verified,
+  covered. Compound re-mine: "seed" is the port-seed wording on the app
+  board's GEOMETRY-PARITY residual list ("the mapped Rust behavior still
+  absent from the seed", samples/apps/squalr/TASKS.md) already adjudicated
+  by SQUALR-SEED-PARITY (resolved merged alias at `a3ab15b7611`), and
+  "alignment parsing" is its enumerated gap owned by
+  SQUALR-ALIGNMENT-STRING-PARSING — whose verified row attributes the only
+  implementing surface to the `samples/apps/squalr` submodule (under
+  SQUALR-TARGETS-AND-THROUGHPUT and GEOMETRY-ALIGNMENT-REGIONS claims) and
+  the residual `set_alignment` call-site gate to the compiler
+  entry-mechanics lane under GEOMETRY-PARITY. No independent slice exists
+  under this name; sibling re-mine names on the same surface:
+  ALIGNMENT-STRING-PARSING, GEOMETRY-ALIGNMENT-PARSING,
+  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
 - **SQUALR-SEED-OPERATOR-PARITY** — mined candidate; verify scope then implement.
 - **SQUALR-SEED-REGION-OPERATIONS** — mined candidate; verify scope then implement.
 - **SQUALR-SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
