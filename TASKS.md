@@ -2186,14 +2186,17 @@ Owners include
     `normalized_foreign_calls::normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources`.
     `target-operations-to-selected-instructions/src/selection/scalar_call_abi/normalized_foreign.rs`
     still validates Integer only, so selected-instruction admission of the
-    widened shapes is the next leg. Borrowed flat-record projections and
-    owned whole-place aggregates both compose with scalars in retained
-    formal order: an `Owned` argument admits only an empty path against the
-    root structural type and joins the plan's ABI-classified destination on
-    byte size, alignment, and a non-`BorrowedReference` class, witnessed by
-    `normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_transport`.
-    Add dynamic descriptors without replacing the shared formal-order
-    mapping with signature-shape-specific routes.
+    widened shapes is the next leg. Borrowed flat-record projections, owned
+    whole-place aggregates, and borrowed dynamic descriptors all compose
+    with scalars in retained formal order: an `Owned` argument admits only
+    an empty path against the root structural type and joins the plan's
+    ABI-classified destination on byte size, alignment, and a
+    non-`BorrowedReference` class; a `ByteSequence(BorrowedView)` formal
+    borrows the caller's whole stored view or a stored descriptor field and
+    joins the plan's two-word by-value destination, witnessed by
+    `normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_transport`
+    and
+    `normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_field`.
   - Dynamic descriptor calls. Target lowering produces
     `StoreDynamicDescriptor`, the stored, rebound and parameter dynamic calls
     and the `...WithDynamicArguments` calls, and

@@ -397,19 +397,18 @@ pub(super) fn resolve_structural_field_path(
         .ok_or(LoweringError::UnknownStructuralType(root_type))
 }
 
-/// Bounded inline byte storage is a field, not a structural type: the path's
-/// last segment names a record field carrying `ByteSequence(BoundedOwned)`
-/// directly. Resolve only the field's offset and declared capacity; the live
-/// length word at that offset and the bytes after it stay the caller's storage.
+/// A byte-sequence field is a leaf carrier, not a structural type: the path's
+/// last segment names a record field carrying `ByteSequence` directly. Resolve
+/// only the field's byte offset and carrier; the storage stays the caller's.
 /// `Ok(None)` means the path does not end in such a field; `Err` means the
 /// prefix itself is malformed.
-pub(super) fn bounded_byte_field_geometry(
+fn byte_sequence_field_geometry(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<Option<(u32, u64)>, LoweringError> {
+) -> Result<Option<(u32, terminal_psi::ByteSequenceCarrier)>, LoweringError> {
     let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
         return Ok(None);
     };
@@ -447,13 +446,11 @@ pub(super) fn bounded_byte_field_geometry(
             .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?;
         if field.identity == *identity {
             return match field.field_type {
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-                ) => Ok(Some((
+                StructuralFieldType::ByteSequence(carrier) => Ok(Some((
                     parent_offset
                         .checked_add(local_offset)
                         .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?,
-                    capacity,
+                    carrier,
                 ))),
                 _ => Ok(None),
             };
@@ -463,6 +460,53 @@ pub(super) fn bounded_byte_field_geometry(
             .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?;
     }
     Ok(None)
+}
+
+/// Bounded inline byte storage is a field, not a structural type: the path's
+/// last segment names a record field carrying `ByteSequence(BoundedOwned)`
+/// directly. Resolve only the field's offset and declared capacity; the live
+/// length word at that offset and the bytes after it stay the caller's storage.
+/// `Ok(None)` means the path does not end in such a field; `Err` means the
+/// prefix itself is malformed.
+pub(super) fn bounded_byte_field_geometry(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<Option<(u32, u64)>, LoweringError> {
+    byte_sequence_field_geometry(structural_type, path, declarations, cache, active).map(
+        |geometry| {
+            geometry.and_then(|(offset, carrier)| match carrier {
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                    Some((offset, capacity))
+                }
+                terminal_psi::ByteSequenceCarrier::BorrowedView => None,
+            })
+        },
+    )
+}
+
+/// A stored borrowed-view descriptor field (`ByteSequence(BorrowedView)`)
+/// likewise carries no leaf type identity; the formal's declared descriptor
+/// type supplies it at the boundary. Resolve only its byte offset.
+/// `Ok(None)` means the path does not end in such a field; `Err` means the
+/// prefix itself is malformed.
+pub(super) fn borrowed_view_field_offset(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<Option<u32>, LoweringError> {
+    byte_sequence_field_geometry(structural_type, path, declarations, cache, active).map(
+        |geometry| {
+            geometry.and_then(|(offset, carrier)| match carrier {
+                terminal_psi::ByteSequenceCarrier::BorrowedView => Some(offset),
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
+            })
+        },
+    )
 }
 
 pub(super) fn resolve_structural_projection_path(

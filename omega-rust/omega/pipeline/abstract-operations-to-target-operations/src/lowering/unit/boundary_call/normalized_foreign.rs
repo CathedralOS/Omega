@@ -3,16 +3,17 @@
 use super::super::super::control_flow::scalar_sources::{ScalarSources, resolved_source};
 use super::super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::super::structural_layout::{
-    resolve_structural_field_path, structural_parameter_shape, structural_shape,
+    borrowed_view_field_offset, byte_sequence_shape, resolve_structural_field_path,
+    structural_parameter_shape, structural_shape,
 };
 #[cfg(test)]
 use super::KnownUnitInteger;
 use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
     MachineId, NativeTarget, OperationId, PlaceId, StructuralAccess, StructuralPathSegment,
-    StructuralTypeId, StructuralTypeLookup, TargetStructuralArgument, TargetStructuralParameter,
-    TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueClass, ValueId,
-    ValueLocation, ValueShape,
+    StructuralTypeId, StructuralTypeLookup, StructuralTypeShape, TargetStructuralArgument,
+    TargetStructuralParameter, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
+    ValueClass, ValueId, ValueLocation, ValueShape,
 };
 #[cfg(test)]
 use semantic_vocabulary::BlockId;
@@ -31,10 +32,14 @@ use semantic_vocabulary::BlockId;
 /// projection: a nonempty field-only path rooted at a caller structural
 /// parameter, the projected type equal to the declared parameter type, and
 /// the evaluated plan placing the referent pointer as one pointer-width word.
-/// An owned argument passes the caller's whole place by value — an empty
-/// path, the root type as the declared parameter type, and the evaluated
-/// plan carrying the aggregate's target ABI classification with the
-/// referent's exact size and alignment.
+/// A borrowed dynamic descriptor — a `ByteSequence(BorrowedView)` referent —
+/// instead projects either the caller's whole stored view (empty path) or a
+/// stored descriptor field (field-only path), and the evaluated plan places
+/// the two-word referent behind one indirect pointer carrying the
+/// descriptor's own size and alignment. An owned argument passes the caller's
+/// whole place by value — an empty path, the root type as the declared
+/// parameter type, and the evaluated plan carrying the aggregate's target ABI
+/// classification with the referent's exact size and alignment.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_normalized_foreign_structural_arguments(
     boundary: BoundaryMachineId,
@@ -83,43 +88,102 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             if usize::try_from(parameter.position).ok() != Some(index) {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
-            let (projected_type, projected_shape, source_byte_offset) =
-                if parameter.access == StructuralAccess::Owned {
-                    // An owned argument hands the callee the caller's whole
-                    // place by value; a field projection remains the
-                    // borrowed-projection form.
-                    if !argument.path.is_empty() {
+            let (projected_type, projected_shape, source_byte_offset) = if parameter.access
+                == StructuralAccess::Owned
+            {
+                // An owned argument hands the callee the caller's whole
+                // place by value; a field projection remains the
+                // borrowed-projection form.
+                if !argument.path.is_empty() {
+                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                }
+                (
+                    source.structural_type,
+                    structural_shape(
+                        source.structural_type,
+                        structural_types,
+                        shape_cache,
+                        active,
+                    )
+                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
+                    0,
+                )
+            } else {
+                // A dynamic descriptor's referent is the caller's stored
+                // view itself: borrowing the whole `ByteSequence`
+                // (BorrowedView) place carries an empty path, while a
+                // stored descriptor field resolves through the record
+                // path with the formal's declared type supplying the
+                // leaf's identity.
+                let descriptor_root = |structural_type: StructuralTypeId| {
+                    matches!(
+                        structural_types
+                            .get(&structural_type)
+                            .map(|declaration| &declaration.shape),
+                        Some(StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                        ))
+                    )
+                };
+                if argument.path.is_empty() {
+                    if !descriptor_root(source.structural_type) {
                         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                     }
                     (
                         source.structural_type,
-                        structural_shape(
+                        byte_sequence_shape(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView,
                             source.structural_type,
-                            structural_types,
-                            shape_cache,
-                            active,
                         )
                         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
                         0,
                     )
                 } else {
-                    if argument.path.is_empty()
-                        || argument
-                            .path
-                            .iter()
-                            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+                    if argument
+                        .path
+                        .iter()
+                        .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
                     {
                         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                     }
-                    resolve_structural_field_path(
+                    match resolve_structural_field_path(
                         source.structural_type,
                         &argument.path,
                         structural_types,
                         shape_cache,
                         active,
-                    )
-                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
-                };
+                    ) {
+                        Ok(projection) => projection,
+                        Err(_) => {
+                            let Some(offset) = borrowed_view_field_offset(
+                                source.structural_type,
+                                &argument.path,
+                                structural_types,
+                                shape_cache,
+                                active,
+                            )
+                            .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
+                            else {
+                                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                            };
+                            if !descriptor_root(parameter.structural_type) {
+                                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                            }
+                            (
+                                parameter.structural_type,
+                                byte_sequence_shape(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                    parameter.structural_type,
+                                )
+                                .map_err(|_| {
+                                    LoweringError::BoundaryRealizationMismatch(boundary)
+                                })?,
+                                offset,
+                            )
+                        }
+                    }
+                }
+            };
             if projected_type != parameter.structural_type
                 || argument.access != parameter.access
                 || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -141,29 +205,53 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 StructuralAccess::SharedBorrow
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow => {
-                    let placed_pointer_word = match destination.locations.as_slice() {
-                        [
-                            ValueLocation::Register {
-                                value_byte_offset: 0,
-                                byte_size,
-                                ..
-                            },
-                        ]
-                        | [
-                            ValueLocation::Stack {
-                                value_byte_offset: 0,
-                                byte_size,
-                                ..
-                            },
-                        ] => *byte_size,
-                        _ => {
+                    // A borrowed scalar or record field transports one pointer
+                    // word to the referent. A borrowed dynamic descriptor's
+                    // referent is itself the caller's two-word view, which the
+                    // plan transports by value under the target's aggregate
+                    // classification — register fragments or a stack row —
+                    // joined on the descriptor's exact size and alignment.
+                    let descriptor_formal = matches!(
+                        structural_types
+                            .get(&parameter.structural_type)
+                            .map(|declaration| &declaration.shape),
+                        Some(StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                        ))
+                    );
+                    if descriptor_formal {
+                        if destination.locations.is_empty()
+                            || destination.shape.byte_size != projected_shape.byte_size
+                            || destination.shape.alignment != projected_shape.alignment
+                            || destination.shape.class == ValueClass::BorrowedReference
+                        {
                             return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                         }
-                    };
-                    if destination.shape != ValueShape::integer(pointer_size, pointer_alignment)
-                        || placed_pointer_word != pointer_size
-                    {
-                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    } else {
+                        let placed_pointer_word = match destination.locations.as_slice() {
+                            [
+                                ValueLocation::Register {
+                                    value_byte_offset: 0,
+                                    byte_size,
+                                    ..
+                                },
+                            ]
+                            | [
+                                ValueLocation::Stack {
+                                    value_byte_offset: 0,
+                                    byte_size,
+                                    ..
+                                },
+                            ] => *byte_size,
+                            _ => {
+                                return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                            }
+                        };
+                        if destination.shape != ValueShape::integer(pointer_size, pointer_alignment)
+                            || placed_pointer_word != pointer_size
+                        {
+                            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                        }
                     }
                 }
                 StructuralAccess::Owned => {
