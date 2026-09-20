@@ -27,7 +27,9 @@ use crate::machine_calls::calls::write_frames::place_paths::{
 use crate::machine_calls::calls::write_frames::state_paths::{
     expression_forwards_exact_symbol, push_visible_frame_path, relative_state_path_is_visible,
 };
-use crate::machine_calls::calls::write_frames::state_write_walk::summarize_state_written_paths;
+use crate::machine_calls::calls::write_frames::state_write_walk::{
+    summarize_complete_state_written_paths, summarize_state_written_paths,
+};
 use crate::machine_calls::calls::write_frames::stored_origins::expand_write_path;
 use crate::machine_calls::calls::write_frames::transition_equations::{
     PermutedCycleFrameEquation, append_permuted_cycle_frame_edge, transition_state_reaches,
@@ -439,7 +441,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                         symbols,
                         &mut inference,
                         Some(&argument_origins),
-                        &mut Vec::new(),
+                        complete_state_summaries,
                     )
                     .or_else(|| {
                         (!arguments.iter().any(|argument| {
@@ -613,9 +615,10 @@ fn expression_forwards_exact_write_parameter(
 }
 
 #[allow(clippy::too_many_arguments)]
-/// Summarize one tail transition in the source state's namespace. Named target
-/// states compose only when their complete state graph is acyclic; target
-/// parameters substitute through authored arguments exactly like call-frame
+/// Summarize one tail transition in the source state's namespace. Complete
+/// queries recursively require complete targets; contextual prefixes may stop
+/// at an active target only when its parameter namespace is preserved. Target
+/// parameters substitute through authored arguments like call-frame
 /// instantiation. Value-position call writes are collected before the jump.
 pub(crate) fn summarize_transition_target_written_paths(
     program: &TypedTrees,
@@ -626,6 +629,7 @@ pub(crate) fn summarize_transition_target_written_paths(
     inference: &mut FrameInference,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     source_locals: &[String],
+    require_complete: bool,
 ) -> Option<Vec<String>> {
     if !target.is_valid() {
         return Some(Vec::new());
@@ -645,6 +649,12 @@ pub(crate) fn summarize_transition_target_written_paths(
             let target_state =
                 named_transition_target_state(program, machine, source_state, target)?;
             if inference.active_states.contains(&target_state.symbol) {
+                // Named topology can be acyclic while ordinary calls return
+                // to an active named state. Only a contextual prefix may
+                // truncate that edge; a reusable summary must cover the body.
+                if require_complete {
+                    return None;
+                }
                 return named_transition_preserves_state_namespace(
                     program,
                     source_state,
@@ -654,7 +664,12 @@ pub(crate) fn summarize_transition_target_written_paths(
                 .then(Vec::new);
             }
             inference.active_states.push(target_state.symbol);
-            let target_writes = summarize_state_written_paths(
+            let summarize = if require_complete {
+                summarize_complete_state_written_paths
+            } else {
+                summarize_state_written_paths
+            };
+            let target_writes = summarize(
                 program,
                 machine,
                 target_state,

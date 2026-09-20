@@ -492,10 +492,9 @@ impl<'program> CallFrameResolver<'program> {
     }
 
     /// Body-derived frames for every state in one machine, in source order.
-    /// Completed acyclic state summaries are independent of the requesting
-    /// root, so the batch reuses the summarizer's existing exact memo across
-    /// sibling queries. Opaque and cycle-permutation fallbacks are not entered
-    /// into that memo and therefore retain their one-shot fail-closed behavior.
+    /// Complete acyclic and solved cycle summaries are independent of the
+    /// requesting root, so sibling queries share their memo. Opaque results
+    /// and contextual depth-first prefixes never enter that memo.
     pub fn inferred_machine_state_write_frames(
         &self,
         machine: &'program Machine,

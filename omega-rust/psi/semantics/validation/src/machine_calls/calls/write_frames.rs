@@ -66,8 +66,7 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-use crate::machine_calls::calls::write_frames::permuted_cycle_frames::summarize_state_written_paths_with_permuted_cycles;
-use crate::machine_calls::calls::write_frames::state_write_walk::summarize_state_written_paths;
+use crate::machine_calls::calls::write_frames::state_write_walk::summarize_complete_state_written_paths;
 use assignment_targets::expression_is_effectful_indexed_place;
 use boundary_calls::known_boundary_call_written_paths_for_parts;
 use call_trees::parameter_relative_expression_preserves_transparent_result;
@@ -288,24 +287,14 @@ fn summarize_resolved_call(
     let mut written = Vec::new();
 
     inference.active_states.push(callee_state.symbol);
-    let relative_paths = summarize_state_written_paths(
+    let relative_paths = summarize_complete_state_written_paths(
         program,
         callee_machine,
         callee_state,
         symbols,
         inference,
         complete_state_summaries,
-    )
-    .or_else(|| {
-        summarize_state_written_paths_with_permuted_cycles(
-            program,
-            callee_machine,
-            callee_state,
-            symbols,
-            inference,
-            complete_state_summaries,
-        )
-    });
+    );
     inference.active_states.pop();
     // Actual expressions run in the caller, not recursively inside this
     // callee body. A producer may call this same consumer in a finite tree;
