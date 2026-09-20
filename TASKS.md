@@ -9979,6 +9979,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOF-VALUE-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here. Re-verified at `d74f2145b9` (linux x86-64): `OMEGA_PASS_CANARY_FILTER=proofs/case_call_premises` pass_canaries_compile 1/1 green; `OMEGA_FAIL_CANARY_FILTER=proofs/case_call_wrong_subject,proofs/case_citation_wrong_result` fail_canaries_reject 1/1 green.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; verify scope then implement.
+- **PSI-BORROWED-LOCAL-CALL-MUTATION.** Closed as superseded at
+  `03a942c3bb` ("close superseded psi-borrowed-local-call-mutation
+  item") — already implemented and pinned: `borrowed_scalar_call_source::
+  borrowed_primitive_local_read_observes_the_callee_write` pins a scalar
+  local borrowed `&mut`, mutated by the callee, observed post-call;
+  `nested_mut_alias_assignment_return` and the `borrows/`/`calls/`
+  pass+run canaries cover &mut locals, fields and indexed places
+  through calls; the gates (`plain_let_reassign_rejected`,
+  `borrow_immutable_parameter_mut`, mutable-receiver and overlapping-
+  alias rejections) behave on both sides. Re-verified holding at
+  `8e870505f7` (linux x86-64):
+  `cargo nextest run -p checked-trees-to-lowered-psi -E
+  'test(~borrowed_scalar_call)'` — 19/19 pass. The one recorded
+  residual — `is_record_value` admitting `ExpressionNode::Borrow` only
+  beneath a `Match` (`declared_range_inference_local_effects_retain_
+  pending_terminal_boundaries`) — stays with its storage owner
+  STATE-LOCAL-VALUE-FRONTIER per MATCH-SELECTIVE-LOWERING's flag note.
 - **PSI-DOMAIN-FACT-SELECTION-COVERAGE** — mined candidate; verify scope then implement.
 - **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN.** Resolved — the custody join for
   fresh (per-edge constructed) selection results is already implemented and
