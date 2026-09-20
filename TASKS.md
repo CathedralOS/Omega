@@ -7871,7 +7871,42 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PRIME-COUNTER-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **PRIVATE-PIPE-RUNTIME-ENFORCEMENT** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN** — mined candidate; verify scope then implement.
-- **PRIVILEGED-PORT-EFFECT-SETTLEMENTS** — mined candidate; verify scope then implement.
+- **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Partially resolved — the settlement
+  model landed at `c67ab1d0f2`: a privileged port effect settles only beneath
+  an installed selected checked adapter, and direct-root `PortWrite` rejects
+  at the terminal-authority closure review with "root-reachable checked
+  physical operation has no selected provider requirement custody" (pinned by
+  `root_checked_physical_operation_has_no_provider_permission_context`, the
+  `physical-port` leg of `artifact_identities_and_entries`, and
+  `checked_adapter_port_write_*`). The custody join is landed end to end:
+  `PortEffectRecord` (machine-code boundary/ports.rs) → `consumed_port_effects`
+  (native-artifact physical/derivation/evidence.rs, `UnownedPortEffect` gap
+  subject) → `hash_port_effect_record` (settlement_identity.rs) → format-36
+  `port_effect_codec` rows (`installation_port_effect_rejects_every_one_
+  field_substitution`). Slice landed this wave: the two stale pre-custody
+  canary pins were retargeted to the deliberate frontier —
+  `immediate_port_io_is_bound_in_final_image_validation` became
+  `immediate_port_io_rejects_without_provider_custody` and
+  `checked_physical_terminal_role_remains_explicit` became
+  `checked_physical_root_use_rejects_without_provider_custody`, both pinning
+  the custody reject on `asm_port_out_final_validation` (linux x86-64).
+  Verified on this revision: the two retargeted pins pass (11.8s/12.1s),
+  `native-artifact` 38/38, `image-emission` port-filter 17/17,
+  `native-realization` 150/151 (the one failure is the unrelated
+  Service-carrier fixture cluster on base), `OMEGA_FAIL_CANARY_FILTER=asm_port,
+  asm_service_import_required` fail-canary leg passes. Remaining legs:
+  privileged port-effect transport for the adapter route — a `PortIo`-declaring
+  boundary requirement bound to a checked adapter whose machine emits `out`,
+  then `TargetUnitOperation::PortWrite` selection in
+  target-operations-to-selected-instructions, register-home/post-allocation
+  transport, machine-emission `out` encoding with port-effect records, and a
+  re-authored positive fixture (current fixtures are direct-root); the
+  `asm_runtime_port_msr_final_validation` member of
+  `MACHINE_CONTROL_PASS_CANARIES`/`structured_machine_control_envelopes` stays
+  fenced behind that transport (its sibling members also lack root bindings —
+  separate staleness); `PortRead` (`in`) has no terminal-Psi operation yet;
+  the macos x86-64 `native_hosted_target()` cfg arm remains fenced here;
+  sibling translation-validation row `TV-PRIVILEGED-PORT-EFFECTS` is distinct.
 - **PRIVILEGED-SERVICE-ASM-ADMISSION** — mined candidate; verify scope then implement.
 - **PROCESS-EXIT-PORTABLE-OBSERVATION.** Mined candidate; scope verified at
   `b28abc01fe`: names the portable-observation leg of the
