@@ -5689,7 +5689,6 @@ Omega-side / native:
 Proof/evidence:
 
 - **PROOF-SEARCH-MEASUREMENT.** Proof-search cost measurement and instrumentation (consensus ×3).
-- **PROOF-DERIVATION-STORE-INDEX.** Semantic index for the derivation store/cache.
 - **PROOF-OBLIGATION-IDENTITY-KEY.** Semantic identity key for proof obligations.
 - **PROOF-INTERCHANGE-IMPORT.** External proof interchange: sort encoding, induction certificate, arithmetic import (3 mined aliases merged).
 - **INDUCTIVE-CARRIER-CERTIFICATE.** Inductive carrier certificate production.
