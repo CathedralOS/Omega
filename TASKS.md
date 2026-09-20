@@ -6713,7 +6713,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   22:28Z), and `build-output`
   (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
   exists; retire or re-scope once the sibling lanes land detection.
-- **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; verify scope then implement.
+- **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; scope verified,
+  family repaired. Re-mines the boundary-byte-buffer group of
+  checked-trees-to-lowered-psi recorded green at the d8d48fe4ff re-reading
+  in `wiki/drafts/known_baseline_failures.md`; re-verified at this revision
+  on linux x86-64: `cargo nextest run -p checked-trees-to-lowered-psi -E
+  'test(~boundary_byte_buffer)'` — 10/10 PASS. Live residual families in
+  that crate stay owned elsewhere (bare boundary-trait fixture spellings by
+  ENTRY-CONTENT-ROOTS; scalar-return custody / provider attachment /
+  attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and
+  C2L-RESIDUAL-FAILURE-ATTRIBUTION). No independent slice remains; sibling
+  stub LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES carries the same resolution.
 - **C2L-FAILURE-TRIAGE.** Resolved — the triage is already discharged by
   `wiki/drafts/known_baseline_failures.md`'s checked-trees-to-lowered-psi
   section, and it still holds on current main. Re-verified at
