@@ -614,15 +614,177 @@ fn machine_call_operand_denotes_application() {
     assert_eq!(signature.authored(), &[2, 4]);
 }
 
+/// Open machine operations the composing vocabulary does not name —
+/// `x * y`, `x % y`, `~x`, casts — intern an opaque carrier assumption
+/// keyed by the expression's own structure: a repeated `x * y` names
+/// one constant (so `x * y == x * y` is `refl`-provable) while `x * z`
+/// names its own, and the constants are assumptions at `Int`.
 #[test]
-fn open_multiplication_refuses() {
-    let diagnostics = refuse("let product(x: u64, y: u64): u64 = x * y;");
+fn open_machine_operations_intern_opaque_constants() {
+    let source = "let product(x: u64, y: u64): u64 = x * y;\n\
+                  let halves(x: u64, y: u64, z: u64): u64 = x * y + x * z;\n\
+                  let lemma(x: u64, y: u64): core::Strict<0> = x * y == x * y;";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("open operations check");
 
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("no bounded denotation")),
-        "unexpected diagnostics: {diagnostics:?}"
+    let declarations = signature.signature().declarations();
+    // `Int`, product's `x * y`, `product`, `IntAdd`, halves' `x * y`,
+    // halves' `x * z`, `halves`, lemma's `x * y`, `lemma`.
+    assert_eq!(declarations.len(), 9);
+    assert_eq!(signature.authored(), &[2, 6, 8]);
+    for opaque in [1usize, 4, 5, 7] {
+        assert!(declarations[opaque].is_assumption());
+        assert_eq!(
+            signature.term(declarations[opaque].ty),
+            Term::Constant {
+                declaration: 0,
+                levels: Vec::new()
+            }
+        );
+    }
+    let mut body = declarations[8].body.expect("lemma body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Id { left, right, .. } = signature.term(ty) else {
+        panic!("expected Id, got {:?}", signature.term(ty));
+    };
+    assert_eq!(signature.term(left), signature.term(right));
+    assert_eq!(
+        signature.term(left),
+        Term::Constant {
+            declaration: 7,
+            levels: Vec::new()
+        }
+    );
+}
+
+/// Unary `!`/`~` and `as` casts intern at their operators' carriers —
+/// `!b` at `bool`, `~x` and `x as u64` at `Int`.
+#[test]
+fn unary_and_cast_expressions_intern_at_their_carriers() {
+    let source = "let negate(b: bool): bool = !b;\n\
+                  let flip(x: u64): u64 = ~x;\n\
+                  let widen(x: u32): u64 = x as u64;";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("unary and cast check");
+
+    let declarations = signature.signature().declarations();
+    // `bool`, `!b`, `negate`, `Int`, `~x`, `flip`, `x as u64`, `widen`.
+    assert_eq!(declarations.len(), 8);
+    assert_eq!(signature.authored(), &[2, 5, 7]);
+    assert_eq!(
+        signature.term(declarations[1].ty),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+    for opaque in [4usize, 6] {
+        assert!(declarations[opaque].is_assumption());
+        assert_eq!(
+            signature.term(declarations[opaque].ty),
+            Term::Constant {
+                declaration: 3,
+                levels: Vec::new()
+            }
+        );
+    }
+}
+
+/// A `data` field projection interns at the field's declared carrier:
+/// `p.x` names an opaque `Int` constant.
+#[test]
+fn field_projections_intern_at_the_field_carrier() {
+    let source = "data Point { x: u64; y: u64; }\nlet px(p: Point): u64 = p.x;";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("member projection checks");
+
+    let declarations = signature.signature().declarations();
+    // `Point` carrier, `Int`, `p.x`, `px`.
+    assert_eq!(declarations.len(), 4);
+    assert_eq!(signature.authored(), &[3]);
+    assert!(declarations[2].is_assumption());
+    assert_eq!(
+        signature.term(declarations[2].ty),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+}
+
+/// The `subject = true` proposition rule covers any `bool`-carried
+/// subject — a `!b` unary and a call result alike.
+#[test]
+fn boolean_subjects_generalize_beyond_names() {
+    let source = "let nonzero(x: u64): bool = true;\n\
+                  let denied(b: bool): core::Strict<0> = !b;\n\
+                  let positive(x: u64): core::Strict<0> = nonzero(x);";
+    let signature = signature(source);
+    crate::lower_typed_trees(typed_program(source)).expect("generalized subjects check");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `bool`, `true`, `nonzero`, `!b`, `denied`, `positive`.
+    assert_eq!(signature.authored(), &[3, 5, 6]);
+    assert!(declarations[4].is_assumption());
+    assert_eq!(
+        signature.term(declarations[4].ty),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+    // `denied`: Squash (Id bool c_{!b} true).
+    let mut body = declarations[5].body.expect("denied body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Id { left, right, .. } = signature.term(ty) else {
+        panic!("expected Id, got {:?}", signature.term(ty));
+    };
+    // left is denied's own opaque `!b` constant; right is the `true` literal.
+    assert_eq!(
+        signature.term(left),
+        Term::Constant {
+            declaration: 4,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(
+        signature.term(right),
+        Term::Constant {
+            declaration: 2,
+            levels: Vec::new()
+        }
+    );
+    // `positive`: Squash (Id bool (nonzero x) true) — the applied
+    // declaration constant as subject.
+    let mut body = declarations[6].body.expect("positive body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Id { left, .. } = signature.term(ty) else {
+        panic!("expected Id, got {:?}", signature.term(ty));
+    };
+    let Term::Apply { function, .. } = signature.term(left) else {
+        panic!("expected application, got {:?}", signature.term(left));
+    };
+    assert_eq!(
+        signature.term(function),
+        Term::Constant {
+            declaration: 3,
+            levels: Vec::new()
+        }
     );
 }
 
