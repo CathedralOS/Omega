@@ -25,7 +25,7 @@ via Binding::CompilerIntrinsic;
 pub boundary data Sleeper;
 boundary machine Sleeper::park(token: i32) suspends;
 
-data Token {
+pub data Token {
     id: u64;
 }
 

@@ -51,7 +51,7 @@ data Main {
     values: [u64 in Wrapping; 16];
     observed: u64 in Wrapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Trace {
     self.observed = 18446744073709551615;
     Trace::record(self.observed as u64);
     self.advance();
