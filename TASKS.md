@@ -5034,9 +5034,15 @@ Owners include
   digest leaves it unaccepted and a malformed spelling rejects at the
   consumer's own declaration
   (`package_compilation_inputs/independent_components.rs` pins all three).
-  Still, no stage after settlement reads the composition mode, so a settled
-  `Independent` edge carries no symbolic import, separate artifact or
-  installation obligation into the product.
+  Product emission now reads the composition mode: both Terminal-artifact
+  producers (`produce_retained_terminal_artifact` and
+  `produce_program_entry_terminal_artifact`) run the
+  `terminal_artifact/composition_modes.rs` fence over the retained selection
+  provenance and reject a settled `Independent` edge — naming the plan and
+  provider — instead of emitting a silently fused artifact
+  (`independent_components.rs` pins both product routes; check-level
+  compilation, description publication and the component join are
+  unaffected).
 
   Remaining work:
 
@@ -5046,9 +5052,10 @@ Owners include
     `component-candidate`, behind the runtime quarantine in
     `tests/architecture/layering.rs`. `ObligationKind` and `CustodyKind` carry
     no mapping or lease row yet.
-  - Realize the settled edge, or keep rejecting production: symbolic
-    imports/exports, entry/leave and resource demands, and
-    installation/replacement obligations, never a silent Fused product.
+  - Realize the settled edge: symbolic imports/exports, entry/leave and
+    resource demands, and installation/replacement obligations carried into
+    the product. Until that carrier exists the product-emission fence keeps
+    rejecting rather than emitting a silent Fused artifact.
   - Expose the same consumer to independent admission/replacement and to
     **TOPOLOGY-PLAN-VERIFICATION**. First inventory actual producer/replay
     coverage; implement missing complete facts in their Psi, component, or
