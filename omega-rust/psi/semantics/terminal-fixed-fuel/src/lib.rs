@@ -35,9 +35,9 @@
 //! Two error variants are honest boundaries rather than missing features.
 //! `InvocationBoundCallee` means the callee arrives through the invocation's
 //! descriptor table with no retained realization identity, so no fixed
-//! ceiling can cover that open callee set; `BranchingNotYetSupported` fails
-//! closed because crossing an unresolved conditional would charge for a path
-//! the certificate never walked. Both reject where a looser design could
+//! ceiling can cover that open callee set; `BranchingNotYetSupported` remains
+//! only for a `StructuralCase` terminator carrying no case edges — an empty
+//! selection has no arms to bound. Both reject where a looser design could
 //! have guessed.
 //!
 //! Tests live in `fuel_certification/tests.rs`; the consuming read path is
@@ -176,6 +176,9 @@ pub enum FixedFuelError {
     UnknownBlock(BlockId),
     ControlCycle(BlockId),
     CallCycle(MachineId),
+    /// A `StructuralCase` terminator carries no case edges, so no arm exists
+    /// to compose a bound from — a degenerate terminator, not a selected
+    /// successor a caller failed to name.
     BranchingNotYetSupported(BlockId),
     SegmentEndNotReached {
         requested: EdgeId,

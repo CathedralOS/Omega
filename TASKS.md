@@ -1445,6 +1445,15 @@ Owners include
   of acceptance — interpretation, resource analysis, native lowering, and
   installation custody — which live outside this codec fence.
 
+  Resource-analysis slice landed: `terminal-fixed-fuel` segment derivation
+  composes acyclic conditional and case interiors as the maximum arm
+  (`block_to_edge_bound` in `fuel_certification/segment_partition.rs`), so a
+  multi-block segment certificate bounds every walk that commits its endpoint
+  instead of failing closed (`verify_module` + `derive_fixed_segment_fuel`,
+  `cargo nextest run -p terminal-fixed-fuel` 60/60). Open inside that leg:
+  invocation-bound callees, ranked-cyclic interiors, and
+  relevant-precondition derivation.
+
   Native/external execution, ABI, fixed native resource, and final-code replay
   claims additionally require exact final-realization evidence. Preserve
   complete standalone products without hidden `CheckedCompilation` state;
