@@ -10,6 +10,61 @@ use crate::{
 };
 
 #[test]
+fn settled_entry_retains_the_bound_placed_view_establishments() {
+    let (artifact, receipt, source, plans) = hosted_custody();
+    let settlement = validate_native_program_entry_settlement(
+        &artifact,
+        &receipt,
+        NativeProgramEntrySettlement::new(&source, Some(paired_calling_plan_parts(&plans)), &[]),
+        target::NativeTarget::windows_x64(),
+    )
+    .expect("independent ProgramEntry settlement");
+    // Settlement replays program-entry declaration custody only; placed-view
+    // loans are executable-input evidence that attach from the bound input.
+    assert!(settlement.placed_view_establishments().is_empty());
+
+    let policy_identity = "package:test::Uart".to_string();
+    let schema_identity = "package:test::Registers".to_string();
+    let establishment = terminal_interpreter::TerminalPlacedViewEstablishment {
+        input: terminal_psi::TerminalPlacedViewInput {
+            machine: semantic_vocabulary::MachineId::new(7).expect("nonzero machine id"),
+            position: 1,
+            source_machine_identity: "package:test::inspect".into(),
+            source_state_identity: "package:test::inspect::entry".into(),
+            source_parameter_identity: "package:test::inspect::entry::view".into(),
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+            binding_is_const: false,
+            binding_is_mutable: true,
+            view_identity: terminal_psi::canonical_placed_view_identity(
+                &policy_identity,
+                &schema_identity,
+            ),
+            policy_identity,
+            policy_plan_machine_identity: "package:test::Uart::plan".into(),
+            schema_identity,
+            placement_report_fingerprint: 41,
+            placement_commitment: [0x5a; 32],
+        },
+        referent: terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: 0x5a17,
+            structural_type: semantic_vocabulary::StructuralTypeId::new(11)
+                .expect("nonzero structural type"),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    };
+    let settled = settlement.with_placed_view_establishments(std::slice::from_ref(&establishment));
+    assert_eq!(
+        settled.placed_view_establishments(),
+        &[establishment],
+        "the settlement retains the exact bound loans in roster order",
+    );
+    assert_eq!(settled.source(), &source);
+    assert_eq!(settled.checked_entry(), &receipt);
+    assert!(settled.fused_service_establishments().is_empty());
+}
+
+#[test]
 fn independently_settles_exact_hosted_source_and_entry() {
     let (artifact, receipt, source, plans) = hosted_custody();
     let settlement = validate_native_program_entry_settlement(

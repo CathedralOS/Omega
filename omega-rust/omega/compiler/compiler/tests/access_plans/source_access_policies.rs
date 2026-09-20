@@ -1765,23 +1765,69 @@ machine Inspector::inspect(
         }
     }
 
-    // The image-emitting realization boundary stays fail-closed. The host leg
-    // above lends the referent from a C caller; an executable image's entry
-    // shim has no such caller, and the realization input does not yet carry
-    // the bound provider establishments the admission boundary now supplies,
-    // so executable realization rejects a nonempty roster instead of silently
-    // erasing the declared input.
+    // Executable input preparation owns the ordinary provider establishment
+    // route: the bound set the interpreter entrance accepted joins the roster
+    // inside the reusable prepared input, and every realization request that
+    // reopens it sees the exact loans. The establishment-less entrance and an
+    // unanswered or stale supply keep failing closed at the same custody gate.
+    let default_selections = optimization_core::PostTerminalOptimizationSelections::default();
+    let prepared =
+        native_realization::prepare_native_realization_input_with_placed_view_establishments(
+            &canonical_artifact(),
+            &profile,
+            &default_selections,
+            &establishments,
+        )
+        .expect("exact provider establishments bind the roster inside the prepared input");
+    assert_eq!(
+        prepared.placed_view_establishments(),
+        establishments.as_slice(),
+        "the prepared input retains the bound set in roster order",
+    );
+    assert!(prepared.matches(
+        canonical_artifact().manifest().identity(),
+        &profile,
+        &default_selections,
+    ));
     let realization_error = native_realization::prepare_native_realization_input(
         &canonical_artifact(),
         &profile,
-        &optimization_core::PostTerminalOptimizationSelections::default(),
+        &default_selections,
     )
-    .expect_err("executable realization still rejects plan-laid input custody");
+    .expect_err("the establishment-less entrance still rejects plan-laid input custody");
     assert!(
         realization_error.iter().any(|diagnostic| diagnostic
             .message
             .contains("PlacedViewInputsRequireCustodyLowering")),
         "executable realization rejection names the custody boundary: {realization_error:?}"
+    );
+    assert!(
+        native_realization::prepare_native_realization_input_with_placed_view_establishments(
+            &canonical_artifact(),
+            &profile,
+            &default_selections,
+            &[],
+        )
+        .expect_err("an unanswered roster row still fails custody")
+        .iter()
+        .any(|diagnostic| diagnostic
+            .message
+            .contains("PlacedViewInputsRequireCustodyLowering")),
+    );
+    let mut stale_prepared_supply = establishments[0].clone();
+    stale_prepared_supply.input.placement_commitment[0] ^= 1;
+    assert!(
+        native_realization::prepare_native_realization_input_with_placed_view_establishments(
+            &canonical_artifact(),
+            &profile,
+            &default_selections,
+            &[stale_prepared_supply],
+        )
+        .expect_err("a supply answering no declared row rejects at preparation")
+        .iter()
+        .any(|diagnostic| diagnostic
+            .message
+            .contains("PlacedViewEstablishmentUnexpected")),
     );
 }
 
