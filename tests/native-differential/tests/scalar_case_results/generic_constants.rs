@@ -11,27 +11,39 @@ impl Drop for Sources {
 }
 
 fn assert_native_constant(carrier: &str, initializer: &str, driver: &str) {
+    assert_native_source(
+        carrier,
+        &format!(
+            "module settings;
+         machine identity<T>(value: T) -> T {{ value }}
+         machine forward<T>(value: T) -> T {{ identity<T>(value) }}
+         machine amount<const N: u64>() -> u64 {{ N }}
+         pub const VALUE: {carrier} = {initializer};"
+        ),
+        carrier,
+        "settings::VALUE",
+        driver,
+    );
+}
+
+fn assert_native_source(
+    label: &str,
+    declarations: &str,
+    carrier: &str,
+    expression: &str,
+    driver: &str,
+) {
     let directory = std::env::temp_dir().join(format!(
-        "omega-native-generic-constant-{}-{carrier}",
+        "omega-native-generic-constant-{}-{label}",
         std::process::id()
     ));
     std::fs::create_dir(&directory).unwrap();
     let sources = Sources(directory);
     let root = sources.0.join("main.omg");
-    std::fs::write(
-        sources.0.join("settings.omg"),
-        format!(
-            "module settings;
-             machine identity<T>(value: T) -> T {{ value }}
-             machine forward<T>(value: T) -> T {{ identity<T>(value) }}
-             machine amount<const N: u64>() -> u64 {{ N }}
-             pub const VALUE: {carrier} = {initializer};"
-        ),
-    )
-    .unwrap();
+    std::fs::write(sources.0.join("settings.omg"), declarations).unwrap();
     std::fs::write(
         &root,
-        format!("use settings; machine read_constant() -> {carrier} {{ settings::VALUE }}"),
+        format!("use settings; machine read_constant() -> {carrier} {{ {expression} }}"),
     )
     .unwrap();
     let checked = compiler::compile_to_checked(compiler::CheckedCompileRequest::new(&root, None))
@@ -55,6 +67,40 @@ fn assert_native_constant(carrier: &str, initializer: &str, driver: &str) {
         publish(&artifact, target);
     }
     membership::execute(&artifact, driver);
+}
+
+#[test]
+fn nested_generic_record_tables_execute_after_source_removal() {
+    let declarations = "module settings;
+        pub data Cell<T [copy]> [copy] { value: T; }
+        pub data Row<T [copy]> [copy] { cells: [Cell<T>; 2]; }
+        pub const TABLE: [Row<u64>; 2] = [
+            Row { cells: [Cell { value: 7 }, Cell { value: 9 }] },
+            Row { cells: [Cell { value: 18364758544493064720 }, Cell { value: 31 }] }
+        ];
+        pub const FLAGS: [Cell<bool>; 2] = [Cell { value: false }, Cell { value: true }];
+        pub const COPIED: [Row<u64>; 2] = TABLE;";
+    assert_native_source(
+        "record-table-integer",
+        declarations,
+        "u64",
+        "settings::TABLE[1].cells[0].value",
+        "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) { return omega_entry() == UINT64_C(0xfedcba9876543210) ? 0 : 1; }",
+    );
+    assert_native_source(
+        "record-table-copied",
+        declarations,
+        "u64",
+        "settings::COPIED[1].cells[0].value",
+        "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) { return omega_entry() == UINT64_C(0xfedcba9876543210) ? 0 : 1; }",
+    );
+    assert_native_source(
+        "record-table-boolean",
+        declarations,
+        "bool",
+        "settings::FLAGS[1].value",
+        "#include <stdbool.h>\nextern bool omega_entry(void);\nint main(void) { return omega_entry() ? 0 : 1; }",
+    );
 }
 
 #[test]

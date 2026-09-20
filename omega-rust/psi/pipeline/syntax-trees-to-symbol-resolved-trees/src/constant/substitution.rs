@@ -88,7 +88,9 @@ pub(crate) fn substitute_resolved_constants(
     // Fixed scalar projections preserve their full typed indexing expression.
     // Dynamic selectors, slicing and borrowed projections still need value/view
     // lowering. Fence their original root before substituting names, including
-    // nonliteral outer selectors in a nested projection.
+    // nonliteral outer selectors in a nested projection. Field selection does
+    // not create storage: borrowing TABLE[0].field has the same constant root
+    // as borrowing TABLE[0], even when fields and indexes alternate.
     let unsupported_array_projection_sources = program
         .tables
         .bodies
@@ -111,20 +113,14 @@ pub(crate) fn substitute_resolved_constants(
                 {
                     indexed.collection
                 }
-                ExpressionNode::Borrow(borrow)
-                    if matches!(
-                        program.tables.bodies.expressions.expression(borrow.target),
-                        ExpressionNode::Indexed(_)
-                    ) =>
-                {
-                    borrow.target
-                }
+                ExpressionNode::Borrow(borrow) => borrow.target,
                 _ => return None,
             };
             loop {
                 match program.tables.bodies.expressions.expression(collection) {
                     ExpressionNode::Borrow(borrow) => collection = borrow.target,
                     ExpressionNode::Indexed(inner) => collection = inner.collection,
+                    ExpressionNode::Member(member) => collection = member.receiver,
                     _ => break,
                 }
             }
