@@ -5864,23 +5864,6 @@ Proof/evidence:
   and imported rules must respect the classicality boundary. An
   independently checked translation — not a trusted import — is the only
   sound route, per MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT's verified row.
-- **INDUCTIVE-CARRIER-CERTIFICATE.** Inductive carrier certificate production.
-  Verified scope: already landed end-to-end — the recursive-component
-  certificate is the inductive carrier's base/step/decrease certificate
-  ([classicality](wiki/spec/proofs/classicality.md): "a named ranking
-  relation, a proved well-foundedness obligation, and a per-edge decrease
-  certificate ... the base/step/decrease certificate the matching-logic lane
-  calls out"). Production lives in
-  `checked-trees-to-lowered-psi/src/proofs/{proof_recursion,control_cycle_proofs}.rs`,
-  the wire shape is `terminal-psi/src/artifacts/proof_bundle/recursion.rs`
-  (`RecursiveComponentCertificate`/`RecursiveEdgeCertificate`), and admission
-  is `proof-admission/src/admission/recursion.rs::verify_recursive_component`
-  (artifact/source reconstruction owns the shape; proof bundles discharge it).
-  If the mined name instead meant the external matching-logic induction
-  certificate, that deliverable is a merged alias of PROOF-INTERCHANGE-IMPORT
-  (row above: "sort encoding, induction certificate, arithmetic import") and
-  gated behind MATCHING-LOGIC-BOUNDED-SLICE's bounded comparison. No
-  independent slice exists here either way.
 - **GAMMA-CERTIFICATE-PRODUCTION.** Gamma certificate production + check (includes GAMMA-CERTIFICATE-CHECK).
 - **PROOF-RULE-CLASSICALITY-AUDIT.** Audit proof rules for classical/constructive boundary (matching-logic lane). Landed: `wiki/spec/proofs/classicality.md` audits every certificate rule — all are constructive or constructive-by-decidable-domain, `SemanticAxiom` is the only trusted admission, and the proposition grammar cannot express a classical principle. `AcceptedProofRule::foundation` (`proof-admission/src/classicality.rs`) enforces the classification by exhaustive match with tests pinning the boundary. Remaining: classify the obligation-side lemma library in `psi/semantics/proof` and the verifier's semantic-axiom reconstruction inventory.
 - **MATCHING-LOGIC-BOUNDED-SLICE.** Bounded matching-logic slice.
