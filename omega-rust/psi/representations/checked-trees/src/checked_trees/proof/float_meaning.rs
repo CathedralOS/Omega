@@ -181,6 +181,104 @@ pub struct CheckedFloatMeaningProjectionOccurrence {
     pub source_span: source::SourceSpan,
 }
 
+/// One operand of a checked float-semantic application, by catalog kind: a
+/// sealed IEEE binary format supplied to a `Format` parameter, or the proof
+/// value a `Meaning` parameter already bound, addressed by dense
+/// projection-row index. The catalog's `Integer`, `Bool`, and `Class`
+/// parameters have no proof-value carrier, so an application that needs one
+/// produces no row rather than approximating the operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedFloatSemanticApplicationOperand {
+    Format(semantic_vocabulary::IeeeFloatFormat),
+    Meaning(CheckedProofValueId),
+}
+
+/// One proof-only application of a sealed `FloatSemantics` catalog row.
+///
+/// `contract` identifies the exact catalog row; `operands` spell its
+/// signature position by position. `result` names the proof value the
+/// application produced — one canonical `float_meaning_projections` row whose
+/// projection source stays transitional until lowering rejoins it to the
+/// Terminal `SemanticApplication` carrier. `format` is the application's
+/// declared result format: the supplied `Format` operand's value, or the
+/// shared format of the `Meaning` operands on rows without a `Format`
+/// parameter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedFloatSemanticApplication {
+    pub result: CheckedProofValueId,
+    pub contract: numerics::float_semantics_catalog::FloatSemanticContractIdentity,
+    pub format: semantic_vocabulary::IeeeFloatFormat,
+    pub operands: Vec<CheckedFloatSemanticApplicationOperand>,
+}
+
+impl CheckedFloatSemanticApplication {
+    /// Replay the checked application against the closed catalog before the
+    /// row crosses into Terminal Psi: the contract identity resolves to one
+    /// row whose result is a `Meaning`, the operands spell that row's
+    /// signature in order, and every `Meaning` operand names a strictly
+    /// earlier proof row so the application remains well-founded.
+    pub fn validate(&self) -> Result<(), CheckedFloatSemanticApplicationError> {
+        use numerics::float_semantics_catalog::FloatSemanticValueKind;
+        let row = numerics::float_semantics_catalog::FloatSemanticOperation::for_contract_identity(
+            &self.contract,
+        )
+        .ok_or(CheckedFloatSemanticApplicationError::ContractIdentityMismatch)?;
+        if row.result != FloatSemanticValueKind::Meaning {
+            return Err(CheckedFloatSemanticApplicationError::ResultKindMismatch);
+        }
+        if self.operands.len() != row.parameters.len() {
+            return Err(CheckedFloatSemanticApplicationError::OperandCountMismatch);
+        }
+        for (operand_index, (operand, kind)) in
+            self.operands.iter().zip(row.parameters.iter()).enumerate()
+        {
+            let operand_index = u32::try_from(operand_index).unwrap_or(u32::MAX);
+            match (operand, kind) {
+                (
+                    CheckedFloatSemanticApplicationOperand::Format(format),
+                    FloatSemanticValueKind::Format,
+                ) if *format == self.format => {}
+                (
+                    CheckedFloatSemanticApplicationOperand::Format(_),
+                    FloatSemanticValueKind::Format,
+                ) => {
+                    return Err(CheckedFloatSemanticApplicationError::FormatMismatch {
+                        operand: operand_index,
+                    });
+                }
+                (
+                    CheckedFloatSemanticApplicationOperand::Meaning(value),
+                    FloatSemanticValueKind::Meaning,
+                ) if value.0 < self.result.0 => {}
+                (
+                    CheckedFloatSemanticApplicationOperand::Meaning(_),
+                    FloatSemanticValueKind::Meaning,
+                ) => {
+                    return Err(CheckedFloatSemanticApplicationError::OperandRow {
+                        operand: operand_index,
+                    });
+                }
+                _ => {
+                    return Err(CheckedFloatSemanticApplicationError::OperandKindMismatch {
+                        operand: operand_index,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedFloatSemanticApplicationError {
+    ContractIdentityMismatch,
+    ResultKindMismatch,
+    OperandCountMismatch,
+    OperandKindMismatch { operand: u32 },
+    OperandRow { operand: u32 },
+    FormatMismatch { operand: u32 },
+}
+
 /// One proof-only equality whose operands are exact results in the retained
 /// float-projection table. It is not a runtime Boolean or a machine operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

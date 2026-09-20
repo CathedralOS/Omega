@@ -1,4 +1,15 @@
-//! Erase validated source float-projection invocations into checked proof rows.
+//! Erase validated source float-projection invocations into checked proof
+//! rows, and bind the sealed `FloatSemantics` applications those rows
+//! reference so a contract obligation cites its exact checked kernel binding.
+//!
+//! Semantic applications ride the same projection table: each application
+//! owns one canonical proof value whose projection source stays transitional
+//! until lowering rejoins it to the Terminal `SemanticApplication` carrier.
+//! Validation's `float_semantic_application` recognition is deliberately
+//! crate-private, so the sealed-contract replay here re-derives it from the
+//! public typed-tree facts the sealed row admits — the same hermetic
+//! identity, sealed-source custody, and signature shape the lookalike gate
+//! enforces upstream.
 
 use checked_trees::{
     CheckedDirectBlockFloatParameter, CheckedDirectCallFloatResult,
@@ -7,15 +18,21 @@ use checked_trees::{
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
     CheckedFloatMeaningProjectionOccurrence, CheckedFloatMeaningProjectionOccurrenceId,
     CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
-    CheckedFloatUseSite, CheckedProofOnlyValueType, CheckedProofPropositionId,
-    CheckedProofValueDeclaration, CheckedProofValueId, ContractProofFactKind, ProofFacts,
+    CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationOperand, CheckedFloatUseSite,
+    CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
+    CheckedProofValueId, ContractProofFactKind, ProofFacts,
 };
 use diagnostics::Diagnostic;
-use numerics::float_projection::FloatProjectionOperation;
+use numerics::float_projection::{FLOAT_PROJECTION_CORE_SOURCE, FloatProjectionOperation};
+use numerics::float_semantics_catalog::{
+    FLOAT_FORMAT_CORE_SOURCE, FLOAT_SEMANTICS_NAMESPACE, FloatSemanticContractIdentity,
+    FloatSemanticOperation, FloatSemanticValueKind, IntegerCarrier,
+};
+use semantic_vocabulary::IeeeFloatFormat;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{BinaryOperator, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::operator::{resolve_named_call, resolve_named_expression_call};
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use validation::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
 };
@@ -57,6 +74,16 @@ enum CheckedFloatProjectionSourceKey {
     /// Transitional exact typed-expression custody for source forms whose
     /// artifact-reconstructible Terminal coordinate has not landed yet.
     TypedExpression(typed_trees::expression::ExpressionHandle),
+    /// One application of a sealed `FloatSemantics` catalog row. The key
+    /// carries the exact contract, declared result format, and bound operand
+    /// values, so the result dedupes only when the whole semantic
+    /// application repeats; distinct transport sites and operand bindings
+    /// keep distinct transitional identities.
+    SemanticApplication {
+        contract: FloatSemanticContractIdentity,
+        format: IeeeFloatFormat,
+        operands: Vec<CheckedFloatSemanticApplicationOperand>,
+    },
 }
 
 fn projection_source_key(
@@ -404,19 +431,10 @@ fn proof_fact_contains_expression(
         .any(|root| expression_contains(program, *root, target, &mut Vec::new()))
 }
 
-fn expression_contains(
+fn expression_children(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
-    target: typed_trees::expression::ExpressionHandle,
-    visited: &mut Vec<typed_trees::expression::ExpressionHandle>,
-) -> bool {
-    if expression == target {
-        return true;
-    }
-    if !expression.is_valid() || visited.contains(&expression) {
-        return false;
-    }
-    visited.push(expression);
+) -> Vec<typed_trees::expression::ExpressionHandle> {
     let mut children = Vec::new();
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
@@ -468,6 +486,22 @@ fn expression_contains(
         | ExpressionNode::ZeroValue(_) => {}
     }
     children
+}
+
+fn expression_contains(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    target: typed_trees::expression::ExpressionHandle,
+    visited: &mut Vec<typed_trees::expression::ExpressionHandle>,
+) -> bool {
+    if expression == target {
+        return true;
+    }
+    if !expression.is_valid() || visited.contains(&expression) {
+        return false;
+    }
+    visited.push(expression);
+    expression_children(program, expression)
         .into_iter()
         .any(|child| expression_contains(program, child, target, visited))
 }
@@ -681,7 +715,8 @@ fn push_float_meaning_projection(
                     },
                 ),
                 CheckedFloatProjectionSourceKey::ResolvedSymbol(_)
-                | CheckedFloatProjectionSourceKey::TypedExpression(_) => {
+                | CheckedFloatProjectionSourceKey::TypedExpression(_)
+                | CheckedFloatProjectionSourceKey::SemanticApplication { .. } => {
                     CheckedFloatProjectionSource::TransitionalInput(fallback)
                 }
                 CheckedFloatProjectionSourceKey::Binary32Literal(_)
@@ -889,6 +924,7 @@ fn instantiate_transported_ensures(
         numerics::float_projection::FloatProjectionContractIdentity,
     )],
     equalities: &mut Vec<CheckedFloatMeaningEqualityProposition>,
+    applications: &mut Vec<CheckedFloatSemanticApplication>,
 ) -> Result<(), Vec<Diagnostic>> {
     for (_, call) in proof.contract_calls.iter() {
         let use_site = CheckedFloatUseSite {
@@ -907,6 +943,15 @@ fn instantiate_transported_ensures(
         .map(|site| crate::semantic_calls::call_site_argument_expressions(program, &site));
         let target_parameters =
             crate::semantic_calls::call_target_parameters(program, call.target_state_symbol);
+        let operand_key = |invocation: &ValidatedFloatMeaningProjectionInvocation| {
+            imported_call_operand_key(
+                program,
+                invocation,
+                use_site,
+                target_parameters,
+                argument_expressions,
+            )
+        };
         for fact_ref in proof.contract_fact_refs.span_or_empty(call.ensures) {
             let contract_fact = proof.contract_facts.get(fact_ref.fact);
             if contract_fact.kind != ContractProofFactKind::Ensures {
@@ -923,20 +968,33 @@ fn instantiate_transported_ensures(
                 equality_facts,
                 expression,
                 use_site,
-                &|invocation| {
-                    imported_call_operand_key(
-                        program,
-                        invocation,
-                        use_site,
-                        target_parameters,
-                        argument_expressions,
-                    )
-                },
+                &operand_key,
                 projections,
                 projection_keys,
                 transitional_source_keys,
                 invocation_contracts,
                 equalities,
+            )?;
+            let mut application_values = Vec::new();
+            let mut application_tables = SemanticApplicationTables {
+                projections,
+                projection_keys,
+                transitional_source_keys,
+                applications,
+                application_values: &mut application_values,
+                equalities,
+            };
+            bind_semantic_applications_in_expression(
+                program,
+                expression,
+                &SemanticOperandSite::UseSite {
+                    facts,
+                    invocation_contracts,
+                    operand_key: &operand_key,
+                },
+                Some(use_site),
+                &mut application_tables,
+                &mut Vec::new(),
             )?;
         }
     }
@@ -961,6 +1019,9 @@ fn instantiate_transported_ensures(
             call_ordinal: 0,
         };
         let use_expression = operator_use.expression;
+        let operand_key = |invocation: &ValidatedFloatMeaningProjectionInvocation| {
+            imported_operation_operand_key(program, invocation, use_site, use_expression)
+        };
         for fact_ref in proof.contract_fact_refs.span_or_empty(operator_use.ensures) {
             let contract_fact = proof.contract_facts.get(fact_ref.fact);
             if contract_fact.kind != ContractProofFactKind::Ensures {
@@ -977,14 +1038,682 @@ fn instantiate_transported_ensures(
                 equality_facts,
                 expression,
                 use_site,
-                &|invocation| {
-                    imported_operation_operand_key(program, invocation, use_site, use_expression)
-                },
+                &operand_key,
                 projections,
                 projection_keys,
                 transitional_source_keys,
                 invocation_contracts,
                 equalities,
+            )?;
+            let mut application_values = Vec::new();
+            let mut application_tables = SemanticApplicationTables {
+                projections,
+                projection_keys,
+                transitional_source_keys,
+                applications,
+                application_values: &mut application_values,
+                equalities,
+            };
+            bind_semantic_applications_in_expression(
+                program,
+                expression,
+                &SemanticOperandSite::UseSite {
+                    facts,
+                    invocation_contracts,
+                    operand_key: &operand_key,
+                },
+                Some(use_site),
+                &mut application_tables,
+                &mut Vec::new(),
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Whether `symbol` was declared in the sealed toolchain `relative_source`.
+/// Mirrors validation's sealed-custody check: sealed declarations admit their
+/// catalog row only from the exact core file.
+fn declared_in_sealed_toolchain_source(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+    relative_source: &str,
+) -> bool {
+    let Some(span) = program.symbols.symbol_source_span(symbol) else {
+        return false;
+    };
+    let Some(source) = program.symbols.source_file(span) else {
+        return false;
+    };
+    source.origin == source::SourceOrigin::Toolchain
+        && source
+            .path
+            .strip_prefix(&source.package_root)
+            .ok()
+            .is_some_and(|relative| relative == std::path::Path::new(relative_source))
+}
+
+/// Whether `symbol` is the exact `toolchain::FloatSemantics::<name>` owner
+/// declared in the sealed projection source.
+fn sealed_float_semantics_owner(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+    name: &str,
+) -> bool {
+    let expected = format!("toolchain::{FLOAT_SEMANTICS_NAMESPACE}::{name}");
+    program
+        .normalized_hermetic_symbol_identity(symbol)
+        .ok()
+        .as_deref()
+        == Some(expected.as_str())
+        && declared_in_sealed_toolchain_source(program, symbol, FLOAT_PROJECTION_CORE_SOURCE)
+}
+
+/// Whether the type reference names the toolchain-owned data `name` declared
+/// in the sealed `relative_source`, by exact hermetic identity and custody.
+fn sealed_toolchain_data_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    name: &str,
+    relative_source: &str,
+) -> bool {
+    let TypeReferenceNode::Named {
+        symbol,
+        name: spelled,
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    spelled.as_str() == name
+        && program
+            .normalized_hermetic_symbol_identity(*symbol)
+            .ok()
+            .as_deref()
+            == Some(format!("toolchain::{name}").as_str())
+        && declared_in_sealed_toolchain_source(program, *symbol, relative_source)
+        && program
+            .data_definitions()
+            .iter()
+            .any(|data| data.symbol == *symbol && data.name.as_str() == name)
+}
+
+/// Classify one typed position of a sealed semantic declaration by exact
+/// toolchain identity — never by spelling, so a lookalike type named
+/// `FloatMeaning` outside sealed custody binds no catalog row.
+fn semantic_value_kind(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<FloatSemanticValueKind> {
+    if let Some(primitive) = program.primitive_type_reference(type_reference) {
+        return Some(match primitive {
+            PrimitiveType::Bool => FloatSemanticValueKind::Bool,
+            PrimitiveType::I8 => FloatSemanticValueKind::Integer(IntegerCarrier::I8),
+            PrimitiveType::I16 => FloatSemanticValueKind::Integer(IntegerCarrier::I16),
+            PrimitiveType::I32 => FloatSemanticValueKind::Integer(IntegerCarrier::I32),
+            PrimitiveType::I64 => FloatSemanticValueKind::Integer(IntegerCarrier::I64),
+            PrimitiveType::U8 => FloatSemanticValueKind::Integer(IntegerCarrier::U8),
+            PrimitiveType::U16 => FloatSemanticValueKind::Integer(IntegerCarrier::U16),
+            PrimitiveType::U32 => FloatSemanticValueKind::Integer(IntegerCarrier::U32),
+            PrimitiveType::U64 => FloatSemanticValueKind::Integer(IntegerCarrier::U64),
+            PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Addr => return None,
+        });
+    }
+    if sealed_toolchain_data_type(
+        program,
+        type_reference,
+        "FloatMeaning",
+        numerics::float_projection::FLOAT_MEANING_CORE_SOURCE,
+    ) {
+        return Some(FloatSemanticValueKind::Meaning);
+    }
+    if sealed_toolchain_data_type(
+        program,
+        type_reference,
+        "FloatFormat",
+        FLOAT_FORMAT_CORE_SOURCE,
+    ) {
+        return Some(FloatSemanticValueKind::Format);
+    }
+    if sealed_toolchain_data_type(
+        program,
+        type_reference,
+        "FloatClass",
+        FLOAT_PROJECTION_CORE_SOURCE,
+    ) {
+        return Some(FloatSemanticValueKind::Class);
+    }
+    None
+}
+
+/// Recognize one complete sealed float-semantics declaration and return the
+/// catalog row it selects with the row's contract identity — the same closed
+/// replay validation runs: toolchain/file custody, the public ordinary
+/// tokenless shape, and the exact toolchain identity of every parameter and
+/// result type bind as one row.
+fn sealed_float_semantic_contract(
+    program: &TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> Option<(
+    &'static FloatSemanticOperation,
+    FloatSemanticContractIdentity,
+)> {
+    let [namespace, name] = program.operator_path_members(operator.name) else {
+        return None;
+    };
+    if !FloatSemanticOperation::namespace_matches(namespace.as_str())
+        || !sealed_float_semantics_owner(program, operator.symbol, name.as_str())
+    {
+        return None;
+    }
+    if !operator.is_public
+        || operator.is_boundary
+        || operator.spelling.is_some()
+        || !operator.lifetime_parameters.is_empty()
+        || !program.operator_type_parameters(operator).is_empty()
+        || !program.operator_contracts(operator).is_empty()
+    {
+        return None;
+    }
+    let mut parameters = Vec::new();
+    for parameter in program.operator_parameters(operator) {
+        if parameter.is_const || parameter.is_mutable || parameter.is_self {
+            return None;
+        }
+        parameters.push(semantic_value_kind(program, parameter.type_reference)?);
+    }
+    let result = semantic_value_kind(program, operator.return_type)?;
+    let row = FloatSemanticOperation::from_source_identity(
+        namespace.as_str(),
+        name.as_str(),
+        &parameters,
+        result,
+    )?;
+    Some((row, row.contract_identity()))
+}
+
+/// The sealed IEEE format a `FloatFormat::BINARY*` const names, by exact
+/// hermetic identity and sealed-source custody.
+///
+/// Const substitution erases the authored const path before the typed trees:
+/// the operand arrives either as a surviving `Name` or — the common case — as
+/// the const's own `StructLiteral` value inlined at the use. A literal is
+/// matched by resolving its `type_symbol` to the sealed `toolchain::FloatFormat`
+/// record, then comparing every field value against the sealed const's
+/// `canonical_value_encoding` leaf-by-leaf, so `BINARY32`/`BINARY64` stay
+/// distinguishable even though they share one record type.
+fn sealed_float_format_const(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<IeeeFloatFormat> {
+    const FORMAT_CONST_IDENTITY: [(IeeeFloatFormat, &str); 2] = [
+        (
+            IeeeFloatFormat::Binary32,
+            "toolchain::FloatFormat::BINARY32",
+        ),
+        (
+            IeeeFloatFormat::Binary64,
+            "toolchain::FloatFormat::BINARY64",
+        ),
+    ];
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            if !path.symbol.is_valid()
+                || !declared_in_sealed_toolchain_source(
+                    program,
+                    path.symbol,
+                    FLOAT_FORMAT_CORE_SOURCE,
+                )
+            {
+                return None;
+            }
+            match program
+                .normalized_hermetic_symbol_identity(path.symbol)
+                .ok()?
+                .as_str()
+            {
+                "toolchain::FloatFormat::BINARY32" => Some(IeeeFloatFormat::Binary32),
+                "toolchain::FloatFormat::BINARY64" => Some(IeeeFloatFormat::Binary64),
+                _ => None,
+            }
+        }
+        ExpressionNode::StructLiteral(literal) => {
+            if !literal.type_symbol.is_valid()
+                || program
+                    .normalized_hermetic_symbol_identity(literal.type_symbol)
+                    .ok()
+                    .as_deref()
+                    != Some("toolchain::FloatFormat")
+                || !declared_in_sealed_toolchain_source(
+                    program,
+                    literal.type_symbol,
+                    FLOAT_FORMAT_CORE_SOURCE,
+                )
+            {
+                return None;
+            }
+            FORMAT_CONST_IDENTITY
+                .iter()
+                .find(|(_, identity)| {
+                    program.const_declarations().iter().any(|declaration| {
+                        program
+                            .normalized_hermetic_symbol_identity(declaration.symbol)
+                            .ok()
+                            .as_deref()
+                            == Some(*identity)
+                            && declared_in_sealed_toolchain_source(
+                                program,
+                                declaration.symbol,
+                                FLOAT_FORMAT_CORE_SOURCE,
+                            )
+                            && declaration
+                                .canonical_value_encoding
+                                .as_deref()
+                                .and_then(|encoding| {
+                                    language_semantics::const_value::CanonicalConstValue::new(
+                                        "", encoding, "",
+                                    )
+                                    .decode_encoding()
+                                })
+                                .is_some_and(|decoded| {
+                                    struct_literal_matches_decoded_const(
+                                        program, expression, &decoded,
+                                    )
+                                })
+                    })
+                })
+                .map(|(format, _)| *format)
+        }
+        _ => None,
+    }
+}
+
+/// Whether one expression equals a decoded canonical const value
+/// leaf-by-leaf — field names and scalar values only. The record's toolchain
+/// custody is the caller's symbol decision; the encoded `type_name` strings
+/// are encoded claims, not resolved type authority.
+fn struct_literal_matches_decoded_const(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    expected: &language_semantics::const_value::DecodedCanonicalConstValue,
+) -> bool {
+    use language_semantics::const_value::DecodedCanonicalConstValue as Decoded;
+    match (program.expression_table.expression(expression), expected) {
+        (ExpressionNode::Integer(literal), Decoded::Integer { value, .. }) => {
+            literal
+                .value_i64()
+                .map(i128::from)
+                .or_else(|| literal.value_u64().map(i128::from))
+                == Some(*value)
+        }
+        (ExpressionNode::Boolean(observed), Decoded::Boolean(expected)) => observed == expected,
+        (ExpressionNode::StructLiteral(literal), Decoded::Record { fields, .. }) => {
+            let observed = program.expression_table.struct_fields(literal.fields);
+            observed.len() == fields.len()
+                && fields.iter().all(|(name, expected_field)| {
+                    observed
+                        .iter()
+                        .find(|field| field.name.as_str() == name.as_str())
+                        .is_some_and(|field| {
+                            struct_literal_matches_decoded_const(
+                                program,
+                                field.value,
+                                expected_field,
+                            )
+                        })
+                })
+        }
+        _ => false,
+    }
+}
+
+fn ieee_format_primitive(format: IeeeFloatFormat) -> PrimitiveType {
+    match format {
+        IeeeFloatFormat::Binary32 => PrimitiveType::F32,
+        IeeeFloatFormat::Binary64 => PrimitiveType::F64,
+    }
+}
+
+fn ieee_format_operation(format: IeeeFloatFormat) -> FloatProjectionOperation {
+    match format {
+        IeeeFloatFormat::Binary32 => FloatProjectionOperation::Meaning32,
+        IeeeFloatFormat::Binary64 => FloatProjectionOperation::Meaning64,
+    }
+}
+
+/// How one `Meaning`-typed application argument reaches its checked proof
+/// value. A declaration position names the authored invocation's canonical
+/// value; a transported-ensures use site re-binds each operand invocation
+/// through the site's operand key so the per-site application cites the
+/// exact argument the use produced.
+enum SemanticOperandSite<'a> {
+    Declaration(
+        &'a [(
+            typed_trees::expression::ExpressionHandle,
+            CheckedProofValueId,
+        )],
+    ),
+    UseSite {
+        facts: &'a [ValidatedFloatMeaningProjectionInvocation],
+        invocation_contracts: &'a [(
+            typed_trees::expression::ExpressionHandle,
+            numerics::float_projection::FloatProjectionContractIdentity,
+        )],
+        operand_key: &'a dyn Fn(
+            &ValidatedFloatMeaningProjectionInvocation,
+        ) -> CheckedFloatProjectionSourceKey,
+    },
+}
+
+/// The tables semantic-application binding writes through, shared by the
+/// declaration pass and every transported-ensures instantiation so each
+/// application result joins the one canonical projection space.
+/// `application_values` maps an authored application expression to its
+/// bound value within one binding context — reset per use site because the
+/// shared declaration text produces site-specific operand values there.
+struct SemanticApplicationTables<'a> {
+    projections: &'a mut Vec<CheckedFloatMeaningProjection>,
+    projection_keys: &'a mut Vec<FloatMeaningProjectionKey>,
+    transitional_source_keys: &'a mut Vec<CheckedFloatProjectionSourceKey>,
+    applications: &'a mut Vec<CheckedFloatSemanticApplication>,
+    application_values: &'a mut Vec<(
+        typed_trees::expression::ExpressionHandle,
+        CheckedProofValueId,
+    )>,
+    equalities: &'a mut Vec<CheckedFloatMeaningEqualityProposition>,
+}
+
+/// Resolve one `Meaning`-typed application argument to its bound proof value
+/// and format. Nested applications already visited post-order rejoin through
+/// `application_values`; an argument that is neither a bound invocation nor
+/// a bound application binds nothing.
+fn semantic_meaning_operand(
+    argument: ExpressionHandle,
+    site: &SemanticOperandSite<'_>,
+    tables: &mut SemanticApplicationTables<'_>,
+) -> Result<Option<(CheckedProofValueId, IeeeFloatFormat)>, Vec<Diagnostic>> {
+    let operand_format =
+        |value: CheckedProofValueId, tables: &SemanticApplicationTables<'_>| -> IeeeFloatFormat {
+            let projection = &tables.projections[usize::try_from(value.0).unwrap_or(usize::MAX)];
+            match projection.operation {
+                FloatProjectionOperation::Meaning32 => IeeeFloatFormat::Binary32,
+                FloatProjectionOperation::Meaning64 => IeeeFloatFormat::Binary64,
+            }
+        };
+    if let Some((_, value)) = tables
+        .application_values
+        .iter()
+        .find(|(expression, _)| *expression == argument)
+    {
+        return Ok(Some((*value, operand_format(*value, tables))));
+    }
+    match site {
+        SemanticOperandSite::Declaration(invocation_values) => Ok(invocation_values
+            .iter()
+            .find(|(invocation, _)| *invocation == argument)
+            .map(|(_, value)| (*value, operand_format(*value, tables)))),
+        SemanticOperandSite::UseSite {
+            facts,
+            invocation_contracts,
+            operand_key,
+        } => {
+            let Some(invocation) = facts
+                .iter()
+                .find(|invocation| invocation.invocation == argument)
+            else {
+                return Ok(None);
+            };
+            let Some(contract) = invocation_contracts
+                .iter()
+                .find(|(handle, _)| *handle == argument)
+                .map(|(_, contract)| *contract)
+            else {
+                return Ok(None);
+            };
+            let value = push_float_meaning_projection(
+                tables.projections,
+                tables.projection_keys,
+                tables.transitional_source_keys,
+                operand_key(invocation),
+                invocation.operation,
+                contract,
+                invocation.source_primitive,
+            )?;
+            Ok(Some((value, operand_format(value, tables))))
+        }
+    }
+}
+
+/// Bind one expression-position `FloatSemantics::<name>(...)` call to its
+/// checked semantic-application row. Only the sealed toolchain declaration
+/// binds, only `Meaning` results occupy the proof-value carrier, and every
+/// operand must spell its catalog kind — a `Format` parameter takes the
+/// sealed `FloatFormat::BINARY*` const, a `Meaning` parameter an already
+/// bound invocation or nested application; unrepresentable operands bind no
+/// row rather than approximating.
+fn bind_semantic_application_call(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    call: &typed_trees::expression::TableCallExpression,
+    site: &SemanticOperandSite<'_>,
+    tables: &mut SemanticApplicationTables<'_>,
+) -> Result<Option<CheckedProofValueId>, Vec<Diagnostic>> {
+    let Some(operator) = resolve_named_expression_call(program, call) else {
+        return Ok(None);
+    };
+    let Some((row, contract)) = sealed_float_semantic_contract(program, operator) else {
+        return Ok(None);
+    };
+    if row.result != FloatSemanticValueKind::Meaning {
+        return Ok(None);
+    }
+    let arguments = program.expression_table.expression_handles(call.arguments);
+    if arguments.len() != row.parameters.len() {
+        return Err(vec![Diagnostic::error(
+            "validated float-semantic application arity drifted before checked binding",
+        )]);
+    }
+    let mut operands = Vec::with_capacity(arguments.len());
+    let mut declared_format = None;
+    let mut operand_format = None;
+    for (kind, argument) in row.parameters.iter().zip(arguments.iter()) {
+        match kind {
+            FloatSemanticValueKind::Format => {
+                let Some(format) = sealed_float_format_const(program, *argument) else {
+                    return Ok(None);
+                };
+                declared_format = Some(format);
+                operands.push(CheckedFloatSemanticApplicationOperand::Format(format));
+            }
+            FloatSemanticValueKind::Meaning => {
+                let Some((value, format)) = semantic_meaning_operand(*argument, site, tables)?
+                else {
+                    return Ok(None);
+                };
+                operand_format = match operand_format {
+                    None => Some(format),
+                    Some(existing) if existing == format => Some(existing),
+                    Some(existing) => {
+                        return Err(vec![Diagnostic::error(format!(
+                            "float-semantic application meaning operands do not share one exact format ({existing:?} vs {format:?})"
+                        ))]);
+                    }
+                };
+                operands.push(CheckedFloatSemanticApplicationOperand::Meaning(value));
+            }
+            FloatSemanticValueKind::Bool
+            | FloatSemanticValueKind::Class
+            | FloatSemanticValueKind::Integer(_) => return Ok(None),
+        }
+    }
+    let Some(format) = declared_format.or(operand_format) else {
+        return Ok(None);
+    };
+    let operation = ieee_format_operation(format);
+    let value = push_float_meaning_projection(
+        tables.projections,
+        tables.projection_keys,
+        tables.transitional_source_keys,
+        CheckedFloatProjectionSourceKey::SemanticApplication {
+            contract,
+            format,
+            operands: operands.clone(),
+        },
+        operation,
+        operation.contract_identity(),
+        ieee_format_primitive(format),
+    )?;
+    if !tables
+        .applications
+        .iter()
+        .any(|application| application.result == value)
+    {
+        let application = CheckedFloatSemanticApplication {
+            result: value,
+            contract,
+            format,
+            operands,
+        };
+        application.validate().map_err(|_| {
+            vec![Diagnostic::error(
+                "checked float-semantic application failed exact catalog replay",
+            )]
+        })?;
+        tables.applications.push(application);
+    }
+    tables.application_values.push((expression, value));
+    Ok(Some(value))
+}
+
+/// Emit the proof-only equality a `==` proposition between bound meaning
+/// values authors. This covers only pairs the validated equality facts do
+/// not already carry — a side bound by a semantic application — so a
+/// two-invocation equality never duplicates here.
+fn bind_semantic_application_equality(
+    expression: ExpressionHandle,
+    binary: &typed_trees::expression::TableBinaryExpression,
+    site: &SemanticOperandSite<'_>,
+    use_site: Option<CheckedFloatUseSite>,
+    tables: &mut SemanticApplicationTables<'_>,
+) -> Result<(), Vec<Diagnostic>> {
+    let is_application = |expression: ExpressionHandle, tables: &SemanticApplicationTables<'_>| {
+        tables
+            .application_values
+            .iter()
+            .any(|(bound, _)| *bound == expression)
+    };
+    if !is_application(binary.left, tables) && !is_application(binary.right, tables) {
+        return Ok(());
+    }
+    let mut operands = Vec::with_capacity(2);
+    for operand in [binary.left, binary.right] {
+        let Some((value, _)) = semantic_meaning_operand(operand, site, tables)? else {
+            return Ok(());
+        };
+        operands.push(value);
+    }
+    let [left, right] = operands.as_slice() else {
+        unreachable!("float-semantic equality has exactly two operands")
+    };
+    let left_row = &tables.projections[usize::try_from(left.0).unwrap_or(usize::MAX)];
+    let right_row = &tables.projections[usize::try_from(right.0).unwrap_or(usize::MAX)];
+    if left_row.operation != right_row.operation || left_row.contract != right_row.contract {
+        return Err(vec![Diagnostic::error(
+            "checked float-semantic equality operands do not share one exact format and projection contract",
+        )]);
+    }
+    let id = u32::try_from(tables.equalities.len()).map_err(|_| {
+        vec![Diagnostic::error(
+            "float-meaning equality plan exceeds its dense identity space",
+        )]
+    })?;
+    tables
+        .equalities
+        .push(CheckedFloatMeaningEqualityProposition {
+            id: CheckedProofPropositionId(id),
+            left: CheckedProofValueId(left.0.min(right.0)),
+            right: CheckedProofValueId(left.0.max(right.0)),
+            source_expression: expression,
+            use_site,
+        });
+    Ok(())
+}
+
+/// Post-order walk binding the semantic applications inside one contract
+/// expression: inner applications bind before the outer rows referencing
+/// them, each `FloatSemantics::*` call gains a checked application row, and
+/// each `==` proposition with an application operand emits its equality at
+/// the given use-site coordinate (`None` at the declaration).
+fn bind_semantic_applications_in_expression(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    site: &SemanticOperandSite<'_>,
+    use_site: Option<CheckedFloatUseSite>,
+    tables: &mut SemanticApplicationTables<'_>,
+    visited: &mut Vec<ExpressionHandle>,
+) -> Result<Option<CheckedProofValueId>, Vec<Diagnostic>> {
+    if !expression.is_valid() {
+        return Ok(None);
+    }
+    if let Some((_, value)) = tables
+        .application_values
+        .iter()
+        .find(|(bound, _)| *bound == expression)
+    {
+        return Ok(Some(*value));
+    }
+    if visited.contains(&expression) {
+        return Ok(None);
+    }
+    visited.push(expression);
+    for child in expression_children(program, expression) {
+        bind_semantic_applications_in_expression(program, child, site, use_site, tables, visited)?;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            bind_semantic_application_call(program, expression, call, site, tables)
+        }
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+            bind_semantic_application_equality(expression, binary, site, use_site, tables)?;
+            Ok(None)
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Bind every semantic application authored in the program's checked contract
+/// expressions and each `==` equality that references one — the
+/// declaration-level rows a transported `ensures` shares before it
+/// instantiates at a use site.
+fn bind_declaration_semantic_applications(
+    program: &TypedTrees,
+    invocation_values: &[(
+        typed_trees::expression::ExpressionHandle,
+        CheckedProofValueId,
+    )],
+    tables: &mut SemanticApplicationTables<'_>,
+) -> Result<(), Vec<Diagnostic>> {
+    let site = SemanticOperandSite::Declaration(invocation_values);
+    let mut visited = Vec::new();
+    for (_, fact) in program.proof_facts.iter() {
+        let roots: &[ExpressionHandle] = match fact {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                std::slice::from_ref(expression)
+            }
+            typed_trees::domain::ProofFact::Membership(membership) => {
+                std::slice::from_ref(&membership.value)
+            }
+            typed_trees::domain::ProofFact::Proposition(application) => program
+                .expression_table
+                .expression_handles(application.arguments),
+        };
+        for root in roots {
+            bind_semantic_applications_in_expression(
+                program,
+                *root,
+                &site,
+                None,
+                tables,
+                &mut visited,
             )?;
         }
     }
@@ -1104,6 +1833,23 @@ pub(crate) fn bind_float_meaning_projection_facts(
             use_site: None,
         });
     }
+    let mut applications = Vec::new();
+    {
+        let mut application_values = Vec::new();
+        let mut application_tables = SemanticApplicationTables {
+            projections: &mut projections,
+            projection_keys: &mut projection_keys,
+            transitional_source_keys: &mut transitional_source_keys,
+            applications: &mut applications,
+            application_values: &mut application_values,
+            equalities: &mut equalities,
+        };
+        bind_declaration_semantic_applications(
+            program,
+            &invocation_values,
+            &mut application_tables,
+        )?;
+    }
     instantiate_transported_ensures(
         program,
         proof,
@@ -1114,10 +1860,12 @@ pub(crate) fn bind_float_meaning_projection_facts(
         &mut transitional_source_keys,
         &invocation_contracts,
         &mut equalities,
+        &mut applications,
     )?;
     proof.float_meaning_projections = projections;
     proof.float_meaning_projection_occurrences = occurrences;
     proof.float_meaning_equalities = equalities;
+    proof.float_semantic_applications = applications;
     Ok(())
 }
 

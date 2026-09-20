@@ -17,10 +17,64 @@ use tokens_to_syntax_trees::{
     parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
 };
 
-const CORE_FLOAT_MEANING: &str = "data FloatMeaning { }";
+const CORE_FLOAT_MEANING: &str = "pub data FloatMeaning { }";
 const CORE_PROJECTIONS: &str = r#"
         operator Float::meaning32(value: f32) -> FloatMeaning;
         operator Float::meaning64(value: f64) -> FloatMeaning;
+    "#;
+/// The sealed toolchain `FloatFormat` record copied verbatim from
+/// `source/library/core/float_format.omg` — the two permanent consts differ
+/// only in their field values, which is exactly what the producer matches.
+const CORE_FLOAT_FORMAT: &str = r#"
+        pub data FloatSpecialValues [copy] {
+            signed_zero: bool;
+            subnormals: bool;
+            infinity: bool;
+            nan: bool;
+        }
+        pub data FloatFormat [copy] {
+            radix: u32;
+            precision: u32;
+            minimum_normal_exponent: i32;
+            maximum_normal_exponent: i32;
+            minimum_subnormal_exponent: i32;
+            specials: FloatSpecialValues;
+            rounds_to_nearest_ties_to_even: bool;
+        }
+        pub const FloatFormat::BINARY32: FloatFormat = FloatFormat {
+            radix: 2,
+            precision: 24,
+            minimum_normal_exponent: -126,
+            maximum_normal_exponent: 127,
+            minimum_subnormal_exponent: -149,
+            specials: FloatSpecialValues {
+                signed_zero: true,
+                subnormals: true,
+                infinity: true,
+                nan: true,
+            },
+            rounds_to_nearest_ties_to_even: true,
+        };
+        pub const FloatFormat::BINARY64: FloatFormat = FloatFormat {
+            radix: 2,
+            precision: 53,
+            minimum_normal_exponent: -1022,
+            maximum_normal_exponent: 1023,
+            minimum_subnormal_exponent: -1074,
+            specials: FloatSpecialValues {
+                signed_zero: true,
+                subnormals: true,
+                infinity: true,
+                nan: true,
+            },
+            rounds_to_nearest_ties_to_even: true,
+        };
+    "#;
+const CORE_SEMANTIC_PROJECTIONS: &str = r#"
+        operator Float::meaning32(value: f32) -> FloatMeaning;
+        operator Float::meaning64(value: f64) -> FloatMeaning;
+        pub machine FloatSemantics::add(format: FloatFormat, left: FloatMeaning, right: FloatMeaning) -> FloatMeaning;
+        pub machine FloatSemantics::multiply(format: FloatFormat, left: FloatMeaning, right: FloatMeaning) -> FloatMeaning;
     "#;
 
 fn lower_projection_fixture(source: &str) -> TypedTrees {
@@ -92,6 +146,68 @@ fn lower_projection_fixture_with_metadata(
     })
     .expect("resolve source-aware projection fixture");
     lower_symbol_resolved_trees(&resolved).expect("type projection fixture")
+}
+
+fn lower_semantic_fixture(source: &str) -> TypedTrees {
+    let mut sources = SourceMap::default();
+    let meaning_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_meaning.omg"),
+            CORE_FLOAT_MEANING.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let format_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_format.omg"),
+            CORE_FLOAT_FORMAT.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let projection_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_operations.omg"),
+            CORE_SEMANTIC_PROJECTIONS.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let user_source_id = sources
+        .add(
+            PathBuf::from("tests/float_projection/main.omg"),
+            source.to_owned(),
+        )
+        .source_id;
+    let meaning_tokens = Lexer::new(CORE_FLOAT_MEANING)
+        .tokenize()
+        .expect("tokenize float meaning");
+    let mut syntax = parse_syntax_trees_with_id(meaning_source_id, &meaning_tokens)
+        .expect("parse float meaning");
+    let format_tokens = Lexer::new(CORE_FLOAT_FORMAT)
+        .tokenize()
+        .expect("tokenize float format");
+    parse_syntax_trees_into_with_id(&mut syntax, format_source_id, &format_tokens)
+        .expect("parse float format");
+    let projection_tokens = Lexer::new(CORE_SEMANTIC_PROJECTIONS)
+        .tokenize()
+        .expect("tokenize semantic projections");
+    parse_syntax_trees_into_with_id(&mut syntax, projection_source_id, &projection_tokens)
+        .expect("parse semantic projections");
+    let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
+    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
+        .expect("parse fixture");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve source-aware semantic fixture");
+    lower_symbol_resolved_trees(&resolved).expect("type semantic fixture")
 }
 
 fn lower_local_projection_lookalike(source: &str) -> TypedTrees {
@@ -1048,4 +1164,196 @@ fn transported_ensures_result_is_distinct_per_call_site() {
         .filter(|equality| equality.use_site.is_none())
         .count();
     assert_eq!(authored, 3);
+}
+
+#[test]
+fn sealed_semantic_application_binds_contract_operands_and_equality() {
+    let program = lower_semantic_fixture(
+        r#"
+            machine helper(left: f32, right: f32) -> f32
+            ensures
+                Float::meaning32(result) == FloatSemantics::add(
+                    FloatFormat::BINARY32,
+                    Float::meaning32(left),
+                    Float::meaning32(right)
+                );
+            { left }
+        "#,
+    );
+    let proof = bind_projection_facts_without_exit_proof(&program);
+    let [application] = proof.float_semantic_applications.as_slice() else {
+        panic!("the authored FloatSemantics::add application should bind one row")
+    };
+    let row = numerics::float_semantics_catalog::FloatSemanticOperation::for_contract_identity(
+        &application.contract,
+    )
+    .expect("the application contract resolves to a catalog row");
+    assert_eq!(row.name, "add");
+    assert_eq!(
+        application.format,
+        semantic_vocabulary::IeeeFloatFormat::Binary32
+    );
+    let [format_operand, left_operand, right_operand] = application.operands.as_slice() else {
+        panic!("add spells its three catalog operands")
+    };
+    assert_eq!(
+        *format_operand,
+        checked_trees::CheckedFloatSemanticApplicationOperand::Format(
+            semantic_vocabulary::IeeeFloatFormat::Binary32
+        )
+    );
+    let (
+        checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(left_meaning),
+        checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(right_meaning),
+    ) = (left_operand, right_operand)
+    else {
+        panic!("the meaning operands name bound proof values")
+    };
+    assert!(left_meaning.0 < application.result.0);
+    assert!(right_meaning.0 < application.result.0);
+    assert_ne!(left_meaning, right_meaning);
+    // The application's result rides the canonical projection table: its row
+    // exists with a transitional source until lowering rejoins the semantic
+    // carrier.
+    let result_row = proof
+        .float_meaning_projections
+        .iter()
+        .find(|projection| projection.result.id == application.result)
+        .expect("application result owns a canonical projection row");
+    assert_eq!(result_row.operation, FloatProjectionOperation::Meaning32);
+    assert!(matches!(
+        result_row.source,
+        CheckedFloatProjectionSource::TransitionalInput(_)
+    ));
+    // The operand meanings are the machine's own parameter projections.
+    for (operand_value, parameter) in [(*left_meaning, "left"), (*right_meaning, "right")] {
+        let projection = &proof.float_meaning_projections[operand_value.0 as usize];
+        let CheckedFloatProjectionSource::DirectMachineParameter(direct) = projection.source else {
+            panic!("application operand should name the authored parameter projection")
+        };
+        assert_eq!(program.symbols.name(direct.parameter), parameter);
+    }
+    // The ensures' `==` gains the equality the validated facts could not
+    // carry: meaning32(result) equals the application.
+    let machine_result = proof
+        .float_meaning_projections
+        .iter()
+        .find(|projection| {
+            matches!(
+                projection.source,
+                CheckedFloatProjectionSource::DirectMachineResult(_)
+            )
+        })
+        .expect("the declaration keeps its machine-result projection");
+    let equality = proof
+        .float_meaning_equalities
+        .iter()
+        .find(|equality| {
+            equality.use_site.is_none()
+                && equality.left != equality.right
+                && [equality.left, equality.right].contains(&application.result)
+        })
+        .expect("the application equality binds at the declaration");
+    assert!(
+        [equality.left, equality.right].contains(&machine_result.result.id),
+        "the equality pairs the machine result with the application"
+    );
+}
+
+#[test]
+fn repeated_semantic_application_deduplicates_to_one_value() {
+    let program = lower_semantic_fixture(
+        r#"
+            machine helper(left: f32, right: f32) -> f32
+            ensures
+                FloatSemantics::add(
+                    FloatFormat::BINARY32,
+                    Float::meaning32(left),
+                    Float::meaning32(right)
+                ) == FloatSemantics::add(
+                    FloatFormat::BINARY32,
+                    Float::meaning32(left),
+                    Float::meaning32(right)
+                );
+            { left }
+        "#,
+    );
+    let proof = bind_projection_facts_without_exit_proof(&program);
+    let [application] = proof.float_semantic_applications.as_slice() else {
+        panic!("one canonical application row per identical semantic tuple")
+    };
+    let reflexive = proof
+        .float_meaning_equalities
+        .iter()
+        .find(|equality| equality.use_site.is_none())
+        .expect("the application self-equality binds once");
+    assert_eq!(reflexive.left, application.result);
+    assert_eq!(reflexive.right, application.result);
+}
+
+#[test]
+fn transported_semantic_application_instantiates_at_the_call_use_site() {
+    let program = lower_semantic_fixture(
+        r#"
+            machine helper(left: f32, right: f32) -> f32
+            ensures
+                Float::meaning32(result) == FloatSemantics::add(
+                    FloatFormat::BINARY32,
+                    Float::meaning32(left),
+                    Float::meaning32(right)
+                );
+            { left }
+
+            machine caller(value: f32, other: f32) -> f32
+            ensures Float::meaning32(result) == Float::meaning32(result);
+            { helper(value, other) }
+        "#,
+    );
+    let proof = bind_projection_facts_without_exit_proof(&program);
+    assert_eq!(proof.float_semantic_applications.len(), 2);
+    let declaration = &proof.float_semantic_applications[0];
+    let imported = &proof.float_semantic_applications[1];
+    assert_eq!(imported.contract, declaration.contract);
+    assert_eq!(imported.format, declaration.format);
+    assert_eq!(imported.operands.len(), 3);
+    // The imported application's meaning operands re-bind to the authored
+    // call arguments — distinct proof values from the declaration's.
+    for (imported_operand, declaration_operand) in imported.operands[1..]
+        .iter()
+        .zip(declaration.operands[1..].iter())
+    {
+        let (
+            checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(imported_value),
+            checked_trees::CheckedFloatSemanticApplicationOperand::Meaning(declaration_value),
+        ) = (imported_operand, declaration_operand)
+        else {
+            panic!("both applications carry meaning operands")
+        };
+        assert_ne!(imported_value, declaration_value);
+    }
+    // The site equality joins the use's produced call result to the imported
+    // application under the exact use-site coordinate.
+    let site_equality = proof
+        .float_meaning_equalities
+        .iter()
+        .find(|equality| {
+            equality.use_site.is_some()
+                && equality.left != equality.right
+                && [equality.left, equality.right].contains(&imported.result)
+        })
+        .expect("the imported ensures gains a site application equality");
+    let call_result = proof
+        .float_meaning_projections
+        .iter()
+        .find(|projection| {
+            matches!(
+                projection.source,
+                CheckedFloatProjectionSource::DirectCallResult(_)
+            )
+        })
+        .expect("the imported ensures names the call result");
+    assert!(
+        [site_equality.left, site_equality.right].contains(&call_result.result.id),
+        "the site equality pairs the produced call result with the application"
+    );
 }
