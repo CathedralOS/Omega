@@ -529,10 +529,7 @@ impl StateGraphEmission<'_, '_> {
             if stage {
                 let backedge = edge_id(allocate_dense(&mut next_edge)?);
                 let selection_edge = edge_id(allocate_dense(&mut next_edge)?);
-                self.arrival_edges
-                    .entry(target)
-                    .or_insert_with(Vec::new)
-                    .push(backedge);
+                self.arrival_edges.entry(target).or_default().push(backedge);
                 if let Some(rank) = current_rank {
                     self.block_ranks.insert(staged, rank);
                     self.block_ranks.insert(edge_evaluation.current, rank);
@@ -595,7 +592,7 @@ impl StateGraphEmission<'_, '_> {
                 let successor_edge = edge_id(allocate_dense(&mut next_edge)?);
                 self.arrival_edges
                     .entry(target)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(successor_edge);
                 if let Some(after) = arriving_rank {
                     self.rank_edges.insert(

@@ -10,10 +10,11 @@ use super::{
     validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
-    validate_x86_64_selected_u64_less_than_branch_form, x86_64_physical_register_model,
+    validate_x86_64_selected_u64_less_than_branch_form,
 };
 use crate::selected_form_encoding::decoding::{DecodedInstruction, decode_one};
 use crate::selected_form_encoding::saturating_forms::SaturatingForm;
+use crate::x86_64_physical_register_model;
 use optimization_core::AcceptedObligationFactIdentity;
 use register_model::validate_physical_register_model;
 use selected_instructions::{SaturatingCarrier, SaturatingOperation};

@@ -1083,12 +1083,9 @@ pub(crate) fn call_claim_transfers(
             if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal()
                 && argument.access == CheckedStructuralAccess::Owned
             {
-                let Some((_, root)) = caller_structural_results
+                let (_, root) = caller_structural_results
                     .iter()
-                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)
-                else {
-                    return None;
-                };
+                    .find(|(result, _)| result.binding_ordinal == binding_ordinal)?;
                 let mut claims = Vec::new();
                 for event in events.iter().filter(|event| event.root == *root) {
                     if event.claim_identity == PermissionClaimIdentity::Unknown
