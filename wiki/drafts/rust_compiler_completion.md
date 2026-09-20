@@ -82,6 +82,52 @@ irrelevant to that runner. A missing runner, unavailable runtime dependency,
 unexpected ignored test, timeout, or resource exhaustion leaves the row open;
 it is not a pass.
 
+### Recorded platform runs
+
+#### linux_x86_64 — 2026-09-20 — row open
+
+- Commit: `9684ea54ff70d7318c5501a1e81bc1589f977997`.
+- Toolchain: `nightly-2026-09-04` (`rustc 1.100.0-nightly (a69a63265
+  2026-09-03)`, cargo `b2e9d5f9d`); cargo-nextest 0.9.144. `mbx` is not
+  present in this environment; `cargo` was used directly.
+- Host: Linux x86_64 (`x86_64-unknown-linux-gnu`).
+- Gate command (`mbx nextest run -p omega-native-differential-test
+  --all-targets --no-fail-fast`, cargo equivalent): **does not compile** at
+  this revision. `tests/native-differential/tests/abstract_publication/
+  decision_custody.rs:58` compares `[Optimization; 6]` with
+  `[Optimization; 7]` (E0277): `PSI_PASS_CATALOG` enumerates seven public Psi
+  passes while the Applied-evidence custody fixture roster still maps six.
+  The suite emitted zero tests; no skips were exercised.
+- Direct-execution evidence on this host: `cargo nextest run -p compiler
+  --test canary_suite -E 'test(/_runs$/)' --no-fail-fast` — 911 selected run
+  tests each compile a canary for the host target and directly execute the
+  emitted ELF binary through `Command::new`, checking exit code and stdout.
+  Result: **126 passed / 785 failed / 0 skipped** (514 non-matching tests
+  excluded by the filter expression; every selected test is host-eligible, so
+  there are no expected skips). Wall-clock 142m17s (aggregate 8498s).
+- Passing executions include `runtime_i8/i16/i64_signed_arith`,
+  `runtime_contained_machine`, `runtime_gcd_euclid`,
+  `executable_domain_membership_*`, `checked_boundary_*_dispatch`, and
+  `runtime_const_array_length` — emitted ELF programs run directly and exit
+  with the expected status on this host.
+- Dominant failure families (all pre-execution or during emission except the
+  named exit mismatches): ~547 canaries fail at `selected ProgramEntry
+  establishment rejoins 0 Terminal attachment identities; expected one`;
+  ~44 at `Lowering(Unsupported)` (wrapping/signed conversion policy
+  realization, whole byte-view parameters, nested call roots); ~29 at
+  selection legalization (`UnsupportedScalarOperation` for
+  Exact/Wrapping integer divide or remainder, `SourceCustodyMismatch`);
+  ~50 default-domain `[u8]::Utf8` field-requirement proofs; ~24
+  boundary-call ordering rejections; ~14 operational-envelope
+  acknowledgement mismatches; ~12 missing selected-Fused-provider
+  requirements (Console/Clock2/Gui). Genuine execution mismatches (binary
+  emitted and ran, wrong exit): `runtime_shift_signedness`,
+  `runtime_shift_right_atwidth`, `const_fold_unsigned_shift_right_arg`,
+  `runtime_bitwise_high_ops` (exit 71 where 70 expected).
+- Next acceptance: repair the custody fixture roster drift in
+  `tests/native-differential` and the dominant ProgramEntry-establishment
+  family, then re-run the gate command on a matching host.
+
 ## Closure rule
 
 The contract closes only when all eight named gates pass from a clean checkout
