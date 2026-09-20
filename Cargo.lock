@@ -546,6 +546,7 @@ dependencies = [
  "numerics",
  "object-file",
  "optimization-core",
+ "optimization-unit-semantics",
  "package-compilation",
  "physical-instructions",
  "program-entry-plan",

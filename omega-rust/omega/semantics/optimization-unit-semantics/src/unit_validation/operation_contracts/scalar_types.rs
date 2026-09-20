@@ -6,6 +6,7 @@ use crate::MachineId;
 use crate::O;
 use crate::PsiOptimizationFunction;
 use crate::ScalarType;
+use crate::StructuralPlaceKind;
 use crate::ValueDefinition;
 use crate::ValueId;
 
@@ -340,9 +341,19 @@ pub(crate) fn operation_scalar_types_match(
             arguments,
             ..
         } => functions.get(callee).is_some_and(|callee| {
+            // Declared places include locals, not only call inputs. Each
+            // function's catalog, producers and ownership are independently
+            // replayed; scalar calls forbid boundary roots, not local storage.
             callee.structural_parameters.is_empty()
-                && callee.declared_places.is_empty()
                 && callee.entry_claim_declarations.is_empty()
+                && !callee.structural_places.iter().any(|place| {
+                    matches!(
+                        place.kind,
+                        StructuralPlaceKind::Parameter { .. }
+                            | StructuralPlaceKind::Result
+                            | StructuralPlaceKind::ProviderAttachment { .. }
+                    )
+                })
                 && matches!(
                     callee.result,
                     abstract_operations::AbstractFunctionResult::Scalar(signature)
