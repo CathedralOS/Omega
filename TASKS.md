@@ -7368,7 +7368,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **TARGET-BATCH-MANIFEST** — mined candidate; scope verified, no slice — the stub re-mines `wiki/spec/build/configuration.md`'s optional batch-manifest clause ("An optional batch manifest binds the explicit set and child commitments/outcomes, not completeness of a support/test/deployment matrix"). The batched semantics already exist: `compiler/README.md` runs distinct `TargetCompileConfiguration::with_build_snapshot` requests through one prepared continuation, collects one ordered outcome per target without fail-fast, and deliberately grants no batch manifest — the manifest is optional spec machinery no board deliverable requires, and adding one would invent an authority the spec says binds nothing extra. Sibling stubs on the same clause: COMPILER-BATCH-MANIFEST, MULTI-TARGET-BATCH-MANIFEST.
 - **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION** — mined candidate; verify scope then implement.
 - **TASK-RUNTIME-NATIVE-SUPPORT** — mined candidate; verify scope then implement.
-- **TERMINAL-SOURCE-CUSTODY-GATE-ORDER** — mined candidate; verify scope then implement.
+- **TERMINAL-SOURCE-CUSTODY-GATE-ORDER.** Resolved — alias of the landed
+  terminal-verifier custody-ordering surface. Every successor-bearing edge
+  already closes in the canonical order documented at
+  `validation/frontier/terminators.rs` (module header) and implemented in
+  `block_parameters.rs`: consume owned successor sources first (phase one),
+  run that edge's residual and trivial discard rosters, then establish the
+  target's parameters (phase two). `40ff9ad791` pinned the canonical
+  diagnostic order in the dispatch doc; the repinned
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
+  (`d96a0fda39`) expects `EdgeAffineDiscardsInvalid`, the more precise
+  discard diagnostic. Return-style terminators order their custody gates in
+  `terminators.rs`'s `close_*` bodies (partial custody and restoration debt
+  before rosters, reference release, terminal self-receiver, live-claim
+  sweep). Verified at `14e6f8f72e` on linux x86-64: `cargo nextest run -p
+  terminal-verifier structural_scalar_fields` is 62/62 green including the
+  pinning test. Sibling mined rows resolved to the same landed order:
+  EDGE-CLEANUP-ERROR-PRECEDENCE, SUCCESSOR-DISCARD-ORDER,
+  FRONTIER-EDGE-ERROR-ORDERING; OWNED-SUCCESSOR-DISCARD-ORDER and
+  STALE-CUSTODY-GATE-EXPECTATIONS remain for their own verified slices.
 - **TERMINATION-FIELD-ENDPOINT-TRIO** — mined candidate; verify scope then implement.
 - **TERMINATION-RANK-RANGE-FIELDS** — mined candidate; verify scope then implement.
 - **TEST-CYCLE-SELECTION-REMEASUREMENT** — mined candidate; verify scope then implement.
