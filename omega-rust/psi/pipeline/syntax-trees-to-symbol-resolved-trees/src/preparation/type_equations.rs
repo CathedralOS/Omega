@@ -23,7 +23,7 @@
 //! compares one shape.
 //!
 //! Fixed arrays and declared generic applications retain ordinary type trees.
-//! Their type and integer-const positions recursively recover binders, or build
+//! Their type, integer and Boolean const positions recursively recover binders, or build
 //! an omitted type once those binders are known. `type_structure` owns this
 //! traversal: nominal heads join by selected declaration, never layout or leaf
 //! spelling. Closed leaves still use `closed_argument_identity`.
@@ -40,6 +40,7 @@ use crate::preparation::generic_data::closed_name_identity;
 use crate::preparation::generic_data::constant_selection;
 use crate::preparation::generic_data::evaluate_const_fact_expression;
 use diagnostics::Diagnostic;
+use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use numerics::bignum::BigInt;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use source::SourceSpan;
@@ -551,6 +552,9 @@ pub(crate) fn complete_equation_arguments(
             Some(Binding::Integer(value)) => {
                 TypeReferenceNode::Named(Identifier::generated(value.to_string()))
             }
+            Some(Binding::Boolean(value)) => TypeReferenceNode::Named(Identifier::generated(
+                CanonicalConstValue::boolean(value).atom(),
+            )),
             Some(Binding::Opaque) | None => {
                 unreachable!("solving binds every omitted binder or rejects")
             }
@@ -568,6 +572,8 @@ enum Binding {
     /// fresh `Named` leaf once solving completes.
     NamedType(Identifier),
     Integer(BigInt),
+    /// Boolean index identity never participates in integer endpoint arithmetic.
+    Boolean(bool),
     /// A supplied const argument that is not an integer literal (a canonical
     /// structured atom). Equations cannot relate it to an endpoint.
     Opaque,
@@ -611,12 +617,18 @@ impl<'a, 's> Solver<'a, 's> {
         for (index, argument) in supplied.iter().enumerate() {
             bindings[index] = Some(if base_info.const_parameter_types[index].is_some() {
                 match syntax.tables.type_references.type_reference(*argument) {
-                    TypeReferenceNode::Named(value) => value
-                        .as_str()
-                        .parse::<i128>()
-                        .map_or(Binding::Opaque, |value| {
-                            Binding::Integer(BigInt::from_i128(value))
-                        }),
+                    TypeReferenceNode::Named(value) => {
+                        if let Some(value) = normalized_boolean_argument(value.as_str()) {
+                            Binding::Boolean(value)
+                        } else {
+                            value
+                                .as_str()
+                                .parse::<i128>()
+                                .map_or(Binding::Opaque, |value| {
+                                    Binding::Integer(BigInt::from_i128(value))
+                                })
+                        }
+                    }
                     _ => Binding::Opaque,
                 }
             } else {
@@ -822,7 +834,7 @@ impl<'a, 's> Solver<'a, 's> {
                         let expected = closed_name_identity(self.syntax, self.selection, &name);
                         self.match_name(*binder, expected, other, *other_binder, *span)
                     }
-                    Some(Binding::Integer(_) | Binding::Opaque) => Err(self
+                    Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => Err(self
                         .reject(format!(
                             "where equation mixes type and value kinds: type binder `{}` received a value argument",
                             self.binder_name(*binder)
@@ -878,7 +890,7 @@ impl<'a, 's> Solver<'a, 's> {
             None => Binding::NamedType(name.clone()),
             Some(other) => match self.bindings[*other].clone() {
                 Some(binding @ (Binding::Type(_) | Binding::NamedType(_))) => binding,
-                Some(Binding::Integer(_) | Binding::Opaque) => {
+                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
                     unreachable!("a type binder holds a type binding")
                 }
                 None => return Ok(Outcome::Deferred),
@@ -912,7 +924,7 @@ impl<'a, 's> Solver<'a, 's> {
             Some(index) => match self.bindings[index].clone() {
                 Some(Binding::Type(handle)) => ConstructedCarrier::Bound(handle),
                 Some(Binding::NamedType(name)) => ConstructedCarrier::Name(name),
-                Some(Binding::Integer(_) | Binding::Opaque) => {
+                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
                     unreachable!("a type binder holds a type binding")
                 }
                 None => return Ok(Outcome::Deferred),
@@ -967,7 +979,7 @@ impl<'a, 's> Solver<'a, 's> {
             Endpoint::Literal(value) => Ok(Some(value.clone())),
             Endpoint::Binder(index) => match &self.bindings[*index] {
                 Some(Binding::Integer(value)) => Ok(Some(value.clone())),
-                Some(Binding::Opaque) => Err(self
+                Some(Binding::Boolean(_) | Binding::Opaque) => Err(self
                     .reject(format!(
                         "where equation mixes type and value kinds: const binder `{}` holds a non-integer argument",
                         self.binder_name(*index)
@@ -1223,7 +1235,7 @@ impl<'a, 's> Solver<'a, 's> {
                                 span,
                             )?;
                         }
-                        Some(Binding::Integer(_) | Binding::Opaque) => {
+                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
                             unreachable!("a type binder holds a type binding")
                         }
                     },
@@ -1324,7 +1336,7 @@ impl<'a, 's> Solver<'a, 's> {
                 Some(Binding::NamedType(bound)) => {
                     closed_name_identity(self.syntax, self.selection, &bound)
                 }
-                Some(Binding::Integer(_) | Binding::Opaque) => {
+                Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
                     unreachable!("a type binder holds a type binding")
                 }
             },
@@ -1418,7 +1430,7 @@ impl<'a, 's> Solver<'a, 's> {
                     format!("where equations bind `{name}` to both {existing} and {value}")
                 })
                 .with_source_span(span)),
-            Some(Binding::Opaque) => Err(self
+            Some(Binding::Boolean(_) | Binding::Opaque) => Err(self
                 .reject(format!(
                     "where equation mixes type and value kinds: const binder `{name}` holds a non-integer argument"
                 ))
@@ -1476,6 +1488,25 @@ fn integer_to_i128(value: &BigInt) -> Option<i128> {
         .or_else(|| value.to_u64().map(i128::from))
 }
 
+/// Only already closed Boolean spelling or the shared canonical value atom.
+/// Constructor matching does not evaluate expressions or reinterpret integers.
+pub(super) fn normalized_boolean_argument(text: &str) -> Option<bool> {
+    match text {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => {
+            let value = CanonicalConstValue::from_atom(text)?;
+            if value.type_name != "bool" {
+                return None;
+            }
+            match value.decode_encoding()? {
+                DecodedCanonicalConstValue::Boolean(value) => Some(value),
+                _ => None,
+            }
+        }
+    }
+}
+
 pub(super) fn const_binder_envelope(type_name: &str) -> Option<(BigInt, BigInt)> {
     let (minimum, maximum) = match type_name {
         "i8" => (i128::from(i8::MIN), i128::from(i8::MAX)),
@@ -1489,4 +1520,23 @@ pub(super) fn const_binder_envelope(type_name: &str) -> Option<(BigInt, BigInt)>
         _ => return None,
     };
     Some((BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
+}
+
+#[cfg(test)]
+mod boolean_argument_tests {
+    use super::normalized_boolean_argument;
+    use language_semantics::const_value::CanonicalConstIdentity;
+    use language_semantics::const_value::CanonicalConstValue;
+
+    #[test]
+    fn boolean_atom_requires_its_exact_carrier_not_display_text() {
+        let mut value = CanonicalConstValue::boolean(true);
+        value.display = "false".to_owned();
+        assert_eq!(normalized_boolean_argument(&value.atom()), Some(true));
+        value.type_name = "u64".to_owned();
+        assert_eq!(normalized_boolean_argument(&value.atom()), None);
+        let integer = CanonicalConstIdentity::integer("bool", 1);
+        let value = CanonicalConstValue::new(integer.type_name, integer.encoding, "1");
+        assert_eq!(normalized_boolean_argument(&value.atom()), None);
+    }
 }

@@ -174,9 +174,13 @@ impl ConstructorFrontier<'_> {
         let Some(head) = syntax.expressions.identifier_path_members(path).first() else {
             return false;
         };
+        self.captures_name(syntax, head)
+    }
+
+    pub fn captures_name(&self, syntax: &SyntaxTrees, name: &Identifier) -> bool {
         self.prior_statements.iter().rev().any(|statement| matches!(
-            syntax.statements.statement(*statement), StatementNode::LocalData(local) if local.name == *head
+            syntax.statements.statement(*statement), StatementNode::LocalData(local) if local.name == *name
         )) || syntax.items.state_parameters(self.parameters).iter().any(|parameter|
-            syntax.items.state_parameter(*parameter).name == *head)
+            syntax.items.state_parameter(*parameter).name == *name)
     }
 }

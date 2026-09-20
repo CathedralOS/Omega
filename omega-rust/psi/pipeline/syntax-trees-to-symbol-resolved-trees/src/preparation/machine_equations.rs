@@ -13,6 +13,7 @@ use super::{
 };
 use arena::Handle;
 use diagnostics::Diagnostic;
+use language_semantics::const_value::CanonicalConstValue;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use symbol_resolved_trees::SymbolResolvedTrees;
 use syntax_trees::{
@@ -444,9 +445,14 @@ fn complete_arguments(
                 let name = argument.path.iter().map(|part| part.as_str()).collect::<Vec<_>>().join("::");
                 syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::new(name, argument.path[0].source_span())))
             }
+            // Supplied literals retain ordinary static-argument carrier checking;
+            // unrelated equations must not impose constructor-slot restrictions.
             TypeParameterKind::Const { .. } if argument.const_literal.is_some() => {
                 let value = argument.const_literal.as_ref().and_then(IntegerLiteral::value_bignum).ok_or_else(|| Diagnostic::error("machine equation const argument is not an exact integer"))?;
                 syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::generated(value.to_string())))
+            }
+            TypeParameterKind::Const { .. } => {
+                application_argument_reference(syntax, argument, &parameter.kind, selection)?
             }
             _ => return Err(Diagnostic::error("machine equation argument mixes type and value kinds or retains an open static argument").with_source_span(target.source_span())),
         };
@@ -514,6 +520,14 @@ fn complete_arguments(
                     ));
                 };
                 let text = value.as_str();
+                if let Some(value) = type_equations::normalized_boolean_argument(text) {
+                    argument.path = vec![syntax_trees::identifier::Identifier::generated(
+                        CanonicalConstValue::boolean(value).atom(),
+                    )]
+                    .into_boxed_slice();
+                    completed.push(argument);
+                    continue;
+                }
                 argument.const_literal = Some(
                     IntegerLiteral::from_parts(
                         text.starts_with('-'),
@@ -545,15 +559,38 @@ fn application_argument_reference(
     }
     match kind {
         TypeParameterKind::Const { type_reference } => {
-            let literal = argument
-                .const_literal
-                .as_ref()
-                .ok_or_else(|| reject("requires a closed integer constructor argument"))?;
             let TypeReferenceNode::Named(carrier) =
                 syntax.type_references.type_reference(*type_reference)
             else {
                 return Err(reject("requires a builtin integer constructor parameter"));
             };
+            if super::generic_data::closed_name_identity(syntax, Some(selection), carrier)
+                == Some(super::generic_data::ClosedArgumentIdentity::Builtin(
+                    symbols::BuiltinTypeAtom::Bool,
+                ))
+            {
+                if argument.const_literal.is_some()
+                    || argument.application.is_some()
+                    || argument.type_reference.is_valid()
+                {
+                    return Err(reject("requires a closed Boolean constructor argument"));
+                }
+                let [name] = argument.path.as_ref() else {
+                    return Err(reject("requires a closed Boolean constructor argument"));
+                };
+                let value = type_equations::normalized_boolean_argument(name.as_str())
+                    .ok_or_else(|| reject("requires a closed Boolean constructor argument"))?;
+                return Ok(syntax.type_references.insert(TypeReferenceNode::Named(
+                    syntax_trees::identifier::Identifier::new(
+                        CanonicalConstValue::boolean(value).atom(),
+                        name.source_span(),
+                    ),
+                )));
+            }
+            let literal = argument
+                .const_literal
+                .as_ref()
+                .ok_or_else(|| reject("requires a closed integer constructor argument"))?;
             if literal.landing().is_some_and(|landing| {
                 landing.landed_type.name() != carrier.as_str()
                     || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact

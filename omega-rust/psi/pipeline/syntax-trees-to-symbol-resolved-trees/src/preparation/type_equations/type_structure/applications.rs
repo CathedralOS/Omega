@@ -2,9 +2,10 @@
 //! Original application trees survive synthesis; generated display names never
 //! recover their arguments. This is structural matching, not const evaluation.
 
-use super::super::{Binding, Solver, const_binder_envelope};
+use super::super::{Binding, Solver, const_binder_envelope, normalized_boolean_argument};
 use crate::preparation::generic_data::{ClosedArgumentIdentity, closed_name_identity};
 use diagnostics::Diagnostic;
+use language_semantics::const_value::CanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
 use syntax_trees::identifier::Identifier;
@@ -82,7 +83,7 @@ impl Solver<'_, '_> {
             )
         }) {
             return Err(self.type_structure_error(
-                "requires type and integer const constructor parameters",
+                "requires type and scalar const constructor parameters",
                 span,
             ));
         }
@@ -117,6 +118,10 @@ impl Solver<'_, '_> {
                     self.match_type_structure(pattern, actual, span)?;
                 }
                 TypeParameterKind::Const { type_reference } => {
+                    if self.boolean_constructor_parameter(type_reference) {
+                        self.match_application_boolean(pattern, actual, span)?;
+                        continue;
+                    }
                     let value =
                         self.application_integer(actual, false, span)?
                             .ok_or_else(|| {
@@ -173,6 +178,17 @@ impl Solver<'_, '_> {
                     reference
                 }
                 TypeParameterKind::Const { type_reference } => {
+                    if self.boolean_constructor_parameter(type_reference) {
+                        let Some(value) = self.application_boolean(argument, true, span)? else {
+                            return Ok(None);
+                        };
+                        arguments.push(self.syntax.type_references.insert(
+                            TypeReferenceNode::Named(Identifier::generated(
+                                CanonicalConstValue::boolean(value).atom(),
+                            )),
+                        ));
+                        continue;
+                    }
                     let Some(value) = self.application_integer(argument, true, span)? else {
                         return Ok(None);
                     };
@@ -236,6 +252,85 @@ impl Solver<'_, '_> {
                     span,
                 )
             })
+    }
+
+    fn boolean_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
+        let TypeReferenceNode::Named(name) = self.syntax.type_references.type_reference(reference)
+        else {
+            return false;
+        };
+        closed_name_identity(self.syntax, self.selection, name)
+            == Some(ClosedArgumentIdentity::Builtin(
+                symbols::BuiltinTypeAtom::Bool,
+            ))
+    }
+
+    fn application_boolean(
+        &self,
+        reference: TypeReferenceHandle,
+        binders: bool,
+        span: SourceSpan,
+    ) -> Result<Option<bool>, Diagnostic> {
+        let TypeReferenceNode::Named(name) = self.syntax.type_references.type_reference(reference)
+        else {
+            return Err(self
+                .type_structure_error("requires a normalized Boolean constructor argument", span));
+        };
+        if binders && let Some((position, is_type)) = self.parameter_position(name.as_str()) {
+            if is_type
+                || self.base_info.const_parameter_types[position]
+                    .is_none_or(|reference| !self.boolean_constructor_parameter(reference))
+            {
+                return Err(self.type_structure_error(
+                    "requires a Boolean const binder in a Boolean constructor position",
+                    span,
+                ));
+            }
+            return match self.bindings[position] {
+                None => Ok(None),
+                Some(Binding::Boolean(value)) => Ok(Some(value)),
+                _ => Err(self.type_structure_error("requires a Boolean const binding", span)),
+            };
+        }
+        normalized_boolean_argument(name.as_str())
+            .map(Some)
+            .ok_or_else(|| {
+                self.type_structure_error(
+                    "requires a normalized Boolean constructor argument",
+                    span,
+                )
+            })
+    }
+
+    fn match_application_boolean(
+        &mut self,
+        pattern: TypeReferenceHandle,
+        actual: TypeReferenceHandle,
+        span: SourceSpan,
+    ) -> Result<(), Diagnostic> {
+        let value = self
+            .application_boolean(actual, false, span)?
+            .ok_or_else(|| {
+                self.type_structure_error("requires a closed Boolean constructor argument", span)
+            })?;
+        // Check the declared binder carrier even when it already has an explicit
+        // value: equal encodings cannot justify a Boolean/integer kind mixture.
+        let expected = self.application_boolean(pattern, true, span)?;
+        if let Some(expected) = expected {
+            if expected != value {
+                return Err(
+                    self.type_structure_error("has conflicting constructor constants", span)
+                );
+            }
+        } else if let TypeReferenceNode::Named(name) =
+            self.syntax.type_references.type_reference(pattern)
+            && let Some((position, false)) = self.parameter_position(name.as_str())
+        {
+            self.bindings[position] = Some(Binding::Boolean(value));
+        } else {
+            return Err(self.type_structure_error("lost its Boolean constructor binder", span));
+        }
+        Ok(())
     }
 
     // ClosedArgumentIdentity currently omits application lifetimes. Do not

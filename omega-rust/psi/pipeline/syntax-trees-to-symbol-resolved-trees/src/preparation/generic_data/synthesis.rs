@@ -1,10 +1,12 @@
 //! Closed-instance discovery, fixed-point synthesis and the ordered rewrite.
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::ConstFactValue;
+use crate::preparation::generic_data::ConstScalarValue;
 use crate::preparation::generic_data::GenericData;
 use crate::preparation::generic_data::Instantiation;
 use crate::preparation::generic_data::PendingRewrite;
 use crate::preparation::generic_data::canonicalize_closed_domain_indices;
+use crate::preparation::generic_data::capture_machine_runtime_template_names;
 use crate::preparation::generic_data::closed_constructor_carrier;
 use crate::preparation::generic_data::collect_type_reference_positions;
 use crate::preparation::generic_data::consider_generic_spelling;
@@ -18,6 +20,7 @@ use crate::preparation::generic_data::relabel_closed_data_uses_in_exact_calls_an
 use crate::preparation::generic_data::relabel_closed_sum_memberships_from_local_types;
 use crate::preparation::generic_data::relabel_unique_closed_sum_paths;
 use crate::preparation::generic_data::replace_const_expression_names_from;
+use crate::preparation::generic_data::replace_machine_const_expression_names_from;
 use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::generic_data::substitute_member;
 use arena::Handle;
@@ -27,6 +30,7 @@ use numerics::literals::IntegerLiteral;
 use numerics::literals::IntegerRadix;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ConstDefinition;
 use syntax_trees::item::DataDefinition;
@@ -365,7 +369,7 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
                     Some((name.clone(), type_name.as_str().to_string()))
                 })
                 .collect();
-            let const_literals: HashMap<String, IntegerLiteral> = const_parameter_values
+            let mut const_expressions: HashMap<String, ExpressionNode> = const_parameter_values
                 .iter()
                 .map(|(name, value)| {
                     let literal = IntegerLiteral::from_parts(
@@ -374,9 +378,40 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
                         value.unsigned_abs().to_string().as_str(),
                     )
                     .expect("a concrete const argument is a valid decimal integer literal");
-                    (name.clone(), literal)
+                    (name.clone(), ExpressionNode::Integer(literal))
                 })
                 .collect();
+            // Structural matching selects Boolean indices without turning them
+            // into integer endpoints. Synthesis must retain that same value in
+            // constructor facts and attached bodies; leaving the binder symbolic
+            // would silently defer a false closed instantiation obligation.
+            let mut const_parameter_scalars = const_parameter_values
+                .iter()
+                .map(|(name, value)| (name.clone(), ConstScalarValue::Integer(*value)))
+                .collect::<HashMap<_, _>>();
+            for (name, parameter_type) in base_info
+                .parameter_names
+                .iter()
+                .zip(&base_info.const_parameter_types)
+            {
+                if parameter_type.is_none() {
+                    continue;
+                }
+                let Some(argument) = substitution.get(name) else {
+                    continue;
+                };
+                let TypeReferenceNode::Named(value) =
+                    syntax.type_references.type_reference(*argument)
+                else {
+                    continue;
+                };
+                if let Some(value) =
+                    crate::preparation::type_equations::normalized_boolean_argument(value.as_str())
+                {
+                    const_parameter_scalars.insert(name.clone(), ConstScalarValue::Boolean(value));
+                    const_expressions.insert(name.clone(), ExpressionNode::Boolean(value));
+                }
+            }
 
             // A fact whose operands are all const-bound is an instantiation
             // obligation, not a standing runtime invariant. Prove it now and
@@ -411,7 +446,7 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
                         &snapshot,
                         *expression,
                         &const_values,
-                        &const_parameter_values,
+                        &const_parameter_scalars,
                         None,
                         warnings,
                     )
@@ -526,7 +561,11 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
             // substitution: a carried case `where` fact is copied inside the
             // loop above, so its `const` mentions land in the same rewritten
             // window as the data-level fact copies.
-            replace_const_expression_names_from(syntax, fact_expression_watermark, &const_literals);
+            replace_const_expression_names_from(
+                syntax,
+                fact_expression_watermark,
+                &const_expressions,
+            );
             let declaration = syntax.push_root_item(Item::Data(DataDefinition {
                 // The closed instance is compiler-generated, but its mandatory
                 // derivation origin is the exact authored generic declaration.
@@ -611,11 +650,25 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
                     );
                 clone.generic_data_template = machine.name.clone();
                 clone.type_parameters = HandleSpan::default();
+                let runtime_captures = capture_machine_runtime_template_names(
+                    syntax,
+                    &clone,
+                    type_watermark,
+                    expression_watermark,
+                );
                 for (handle, name) in syntax
                     .tables
                     .type_references
                     .named_nodes_from(type_watermark)
                 {
+                    // A value-bound name in a const argument must reach normal
+                    // admission, not silently acquire the template's value.
+                    // Ordinary type-binder substitution is unchanged.
+                    if const_expressions.contains_key(&name)
+                        && runtime_captures.captures_type_reference(handle)
+                    {
+                        continue;
+                    }
                     if let Some(argument) = substitution.get(&name) {
                         let replacement = syntax
                             .tables
@@ -658,7 +711,12 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
                         },
                     );
                 }
-                replace_const_expression_names_from(syntax, expression_watermark, &const_literals);
+                replace_machine_const_expression_names_from(
+                    syntax,
+                    expression_watermark,
+                    &const_expressions,
+                    &runtime_captures,
+                );
                 syntax.push_root_item(Item::Machine(clone));
             }
         }

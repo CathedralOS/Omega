@@ -3424,7 +3424,7 @@ Owners include
   their equation syntax reject explicitly. Provisional normalization retains
   pending equations; transitive build-time invocation cannot execute them.
 
-  Lifetime-free declared applications with type and builtin-integer const
+  Lifetime-free declared applications with type and builtin integer/Boolean const
   positions now share that traversal, including nested arrays/applications and
   reverse construction. Machine completion retains selected declaration identity,
   normalizes the completed type roots through ordinary data synthesis, and reuses
@@ -3441,8 +3441,8 @@ Owners include
     rejection of type/value mixtures, the unspecialized body checked under
     every admitted alternative, and a static branch's equality fact dropped
     at its join. No machine-level customer or control exists.
-  - Extend constructor matching beyond its lifetime-free type/integer-const
-    cohort, preserving exact lifetime/reference and noninteger index identity.
+  - Extend constructor matching beyond its lifetime-free type/integer/Boolean-const
+    cohort, preserving exact lifetime/reference and other const-index identities.
     Combine machine
     equations with existing argument/result inference rather than requiring a
     closed explicit prefix; retain obligations through generic forwarding and
@@ -3460,6 +3460,14 @@ Owners include
     `Buffer::capacity<[u8; 7]>()` checks, but Terminal production rejects the
     same bounded-static-realization gate as nongeneric `Buffer::capacity()`.
     Receiver-method equation discharge does not depend on that separate gap.
+    Direct attached-data entries also retain a native acceptance gap:
+    `RUST_MIN_STACK=67108864 cargo nextest run -p compiler --test application_type_equations --no-fail-fast -E 'test(=boolean_data_equations_attached_consumer_executes_native)'`
+    reaches source-free Terminal execution but rejects with
+    `Selection(Legalization(SourceCustodyMismatch))` on macOS ARM64.
+    The integer data-equation fixture with native realization added reproduces
+    that rejection on clean `02778e24e5`; resume in
+    `target-operations-to-selected-instructions/src/legalization`, preserving
+    the native expectation. Free-machine equation consumers execute natively.
   - Endpoint invocation admission for nominal parameters, already-landed policy
     arguments, Trapping parameters and policy-qualified results,
     trait-operator owners (owner-sensitive typed operations), and applications

@@ -2,7 +2,9 @@
 
 use compiler::{CheckedCompilation, CheckedCompileRequest, compile_to_checked};
 use diagnostics::Diagnostic;
-use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::{
     fs,
@@ -129,7 +131,394 @@ fn declared_application_recovers_element_and_capacity_natively() {
     assert_native_seven(&artifact);
 }
 
+#[test]
+fn boolean_constructor_equations_recover_exact_index_source_free() {
+    for expected in [true, false] {
+        for (parameters, arguments) in [
+            ("Backing, const Enabled: bool", format!("Flag<{expected}>")),
+            (
+                "Backing, const Enabled: bool",
+                format!("Flag<{expected}>, {expected}"),
+            ),
+            ("const Enabled: bool, Backing", expected.to_string()),
+        ] {
+            let source = format!(
+                "data Flag<const Enabled: bool> {{ value: u64; }}
+                 machine enabled<{parameters}>() -> bool
+                 where Backing == Flag<Enabled> {{ Enabled }}
+                 machine recovered() -> bool {{ enabled<{arguments}>() }}"
+            );
+            assert_boolean_equation(&source, expected);
+        }
+    }
+}
+
+fn assert_boolean_equation(source: &str, expected: bool) {
+    let artifact = boolean_equation_artifact(source, expected, &[]);
+    assert_native_boolean(&artifact, expected);
+}
+
+fn boolean_equation_artifact(
+    source: &str,
+    expected: bool,
+    parameters: &[bool],
+) -> terminal_codec::CanonicalTerminalArtifact {
+    let project = Project::new(&[("main.omg", source)]);
+    let checked = project
+        .check()
+        .expect("Boolean constructor argument is inferred");
+    let entries = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| checked.typed.machine_type_parameters(machine).is_empty())
+        .map(|machine| checked.symbols.display_path(machine.symbol, "::"))
+        .filter(|name| name == "recovered" || name.ends_with("::recovered"))
+        .collect::<Vec<_>>();
+    let [entry] = entries.as_slice() else {
+        panic!("one Boolean entry: {entries:?}");
+    };
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, entry)
+        .produce_artifact()
+        .expect("Boolean equation reaches Terminal");
+    drop(checked);
+    let root = project.0.clone();
+    drop(project);
+    assert!(!root.exists());
+    assert_eq!(
+        terminal_interpreter::interpret_terminal_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &parameters
+                .iter()
+                .copied()
+                .map(terminal_interpreter::TerminalScalarValue::Boolean)
+                .collect::<Vec<_>>(),
+        )
+        .expect("source-free Boolean equation"),
+        terminal_interpreter::TerminalExecutionResult::Scalar(
+            terminal_interpreter::TerminalScalarValue::Boolean(expected),
+        ),
+    );
+    artifact
+}
+
+fn assert_native_boolean(artifact: &terminal_codec::CanonicalTerminalArtifact, expected: bool) {
+    assert_native_result(
+        artifact,
+        &format!(
+            "#include <stdbool.h>\nextern bool omega_entry(void);\nint main(void) {{ return omega_entry() == {expected} ? 0 : 1; }}",
+        ),
+    );
+}
+
+#[test]
+fn boolean_data_equations_infer_and_construct_exact_instances() {
+    for expected in [true, false] {
+        for source in boolean_data_equation_sources(expected) {
+            drop(boolean_equation_artifact(&source, expected, &[]));
+        }
+    }
+}
+
+#[test]
+fn boolean_data_equations_attached_consumer_executes_native() {
+    for expected in [true, false] {
+        for source in boolean_data_equation_sources(expected) {
+            let artifact = boolean_equation_artifact(&source, expected, &[]);
+            assert_native_boolean(&artifact, expected);
+        }
+    }
+}
+
+fn boolean_data_equation_sources(expected: bool) -> [String; 2] {
+    let source = format!(
+        "data Flag<const Enabled: bool> {{ value:u64; }}
+             data Envelope<Backing, const Enabled: bool>
+             where Backing == Flag<Enabled> {{ storage:Backing; }}
+             machine Envelope::recovered<const Enabled: bool>() -> bool {{ Enabled }}
+             machine preserve(value:Envelope<Flag<{expected}> >)
+                 -> Envelope<Flag<{expected}>, {expected}> {{ value }}"
+    );
+    let reverse = source
+        .replace(
+            "Envelope<Backing, const Enabled: bool>",
+            "Envelope<const Enabled: bool, Backing>",
+        )
+        .replace(
+            &format!("Envelope<Flag<{expected}> >"),
+            &format!("Envelope<{expected}>"),
+        )
+        .replace(
+            &format!("Envelope<Flag<{expected}>, {expected}>"),
+            &format!("Envelope<{expected}, Flag<{expected}> >"),
+        );
+    [source, reverse]
+}
+
+#[test]
+fn boolean_constructor_equations_agree_at_repeated_nested_positions() {
+    let template = "data Flag<const Enabled:bool> { value:u64; }
+        data Pair<Left,Right> { left:Left; right:Right; }
+        machine enabled<Backing,const Enabled:bool>()->bool
+        where Backing == Pair<Flag<Enabled>,Flag<Enabled>> { Enabled }";
+    for expected in [true, false] {
+        assert_boolean_equation(
+            &format!(
+                "{template}
+            machine recovered()->bool {{ enabled<Pair<Flag<{expected}>,Flag<{expected}>>>() }}"
+            ),
+            expected,
+        );
+    }
+    rejects(
+        &[(
+            "main.omg",
+            &format!(
+                "{template}
+        machine recovered()->bool {{ enabled<Pair<Flag<true>,Flag<false>>>() }}"
+            ),
+        )],
+        "conflicting constructor constants",
+    );
+}
+
+#[test]
+fn boolean_attached_body_keeps_runtime_local_selection() {
+    drop(boolean_equation_artifact(
+        "data Flag<const Enabled:bool> { value:u64; }
+         data Envelope<Backing,const Enabled:bool>
+         where Backing == Flag<Enabled> { storage:Backing; }
+         machine Envelope::recovered<const Enabled:bool>()->bool {
+             let Enabled:bool = false;
+             Enabled
+         }
+         machine preserve(value:Envelope<Flag<true>>)->Envelope<Flag<true>,true> { value }",
+        false,
+        &[],
+    ));
+    drop(boolean_equation_artifact(
+        "data Flag<const Enabled:bool> { value:u64; }
+         data Envelope<Backing,const Enabled:bool>
+         where Backing == Flag<Enabled> { storage:Backing; }
+         machine Envelope::recovered<const Enabled:bool>()->bool {
+             let before:bool = Enabled;
+             let Enabled:bool = !Enabled;
+             before && !Enabled
+         }
+         machine preserve(value:Envelope<Flag<true>>)->Envelope<Flag<true>,true> { value }",
+        true,
+        &[],
+    ));
+}
+
+#[test]
+fn boolean_attached_signature_keeps_runtime_parameter_selection() {
+    drop(boolean_equation_artifact(
+        "data Flag<const Enabled:bool> { value:u64; }
+         data Envelope<Backing,const Enabled:bool>
+         where Backing == Flag<Enabled> { storage:Backing; }
+         machine Envelope::recovered<const Enabled:bool>(Enabled:bool)->bool
+         requires !Enabled; { Enabled }
+         machine preserve(value:Envelope<Flag<true>>)->Envelope<Flag<true>,true> { value }",
+        false,
+        &[false],
+    ));
+}
+
+#[test]
+fn boolean_attached_runtime_bindings_cannot_supply_const_indices() {
+    for (parameters, locals) in [("Enabled:bool", ""), ("", "let Enabled:bool = false;")] {
+        let source = format!(
+            "data Flag<const Enabled:bool> {{ value:u64; }}
+             data Envelope<Backing,const Enabled:bool>
+             where Backing == Flag<Enabled> {{ storage:Backing; }}
+             machine Envelope::read<const Enabled:bool>({parameters})->bool {{
+                 {locals}
+                 let indexed:Flag<Enabled> = Flag {{ value:7 }};
+                 true
+             }}
+             machine preserve(value:Envelope<Flag<true>>)->Envelope<Flag<true>,true> {{ value }}"
+        );
+        assert!(
+            Project::new(&[("main.omg", &source)]).check().is_err(),
+            "a runtime binding must not be replaced by the template const in a type application: {source}"
+        );
+    }
+}
+
+#[test]
+fn equation_completion_preserves_unused_ranged_const_arguments() {
+    Project::new(&[(
+        "main.omg",
+        "machine choose<Base,const Unused:u64[0..=10],Closed>()->u64
+         where Closed == Base { 7 }
+         machine recovered()->u64 { choose<u64,7>() }",
+    )])
+    .check()
+    .expect("unrelated type equations preserve valid supplied ranged const arguments");
+}
+
+#[test]
+fn equation_completion_rejects_unused_const_carrier_mismatches() {
+    for (carrier, argument) in [("u64[0..=10]", "11"), ("bool", "1")] {
+        let source = format!(
+            "machine choose<Base,const Unused:{carrier},Closed>()->u64
+             where Closed == Base {{ 7 }}
+             machine recovered()->u64 {{ choose<u64,{argument}>() }}"
+        );
+        assert!(
+            Project::new(&[("main.omg", &source)]).check().is_err(),
+            "unused const arguments retain declared carrier checking: {source}"
+        );
+    }
+}
+
+#[test]
+fn boolean_constructor_equations_preserve_kind_conflicts_and_constructor_facts() {
+    let prefix = "data Flag<const Enabled: bool> { value:u64; }
+        machine enabled<Backing,const Enabled:bool>() -> bool
+        where Backing == Flag<Enabled> { Enabled }";
+    let constrained = prefix.replace(
+        "data Flag<const Enabled: bool>",
+        "data Flag<const Enabled: bool> where Enabled",
+    );
+    Project::new(&[(
+        "main.omg",
+        &format!(
+            "{constrained}
+        machine recovered()->bool {{ enabled<Flag<true>>() }}"
+        ),
+    )])
+    .check()
+    .expect("a proved Boolean constructor fact remains admissible");
+    rejects(
+        &[(
+            "main.omg",
+            &format!(
+                "{prefix}
+        machine recovered()->bool {{ enabled<Flag<true>,false>() }}"
+            ),
+        )],
+        "conflicting constructor constants",
+    );
+    for (arguments, diagnostic) in [
+        ("Flag<1>", "Boolean constructor argument"),
+        ("Flag<true>,1", "Boolean const binding"),
+    ] {
+        rejects(
+            &[(
+                "main.omg",
+                &format!(
+                    "{prefix}
+            machine recovered()->bool {{ enabled<{arguments}>() }}"
+                ),
+            )],
+            diagnostic,
+        );
+    }
+    rejects(
+        &[(
+            "main.omg",
+            "data Flag<const Enabled:bool> { value:u64; }
+         machine bad<Backing,const Count:u64>()->u64
+         where Backing == Flag<Count> { Count }
+         machine recovered()->u64 { bad<Flag<true>>() }",
+        )],
+        "Boolean const binder",
+    );
+    rejects(
+        &[(
+            "main.omg",
+            "data Count<const N:u64> { value:u64; }
+         machine bad<Backing,const Enabled:bool>()->bool
+         where Backing == Count<Enabled> { Enabled }
+         machine recovered()->bool { bad<Count<1>>() }",
+        )],
+        "range endpoint",
+    );
+    rejects(
+        &[(
+            "main.omg",
+            &format!(
+                "{}
+        machine recovered()->bool {{ enabled<Flag<false>>() }}",
+                constrained
+            ),
+        )],
+        "is false",
+    );
+}
+
+#[test]
+fn boolean_constructor_equations_keep_nominal_selection_and_private_visibility() {
+    let settings = "module settings; pub data Flag<const Enabled:bool> { value:u64; }
+        pub machine enabled<Backing,const Enabled:bool>()->bool
+        where Backing == Flag<Enabled> { Enabled }";
+    rejects(
+        &[
+            ("settings.omg", settings),
+            (
+                "main.omg",
+                "use settings; data Flag<const Enabled:bool> { value:u64; }
+         machine recovered()->bool { settings::enabled<Flag<true>>() }",
+            ),
+        ],
+        "conflicting nominal constructors",
+    );
+    for public in [true, false] {
+        let declaration = if public {
+            settings.to_owned()
+        } else {
+            settings.replace("pub data Flag", "data Flag")
+        };
+        let library = Project::new(&[("settings.omg", &declaration)]);
+        let project = Project::new(&[(
+            "main.omg",
+            "use library::settings; machine recovered()->bool {
+                library::settings::enabled<library::settings::Flag<true>>() }",
+        )]);
+        let root_key = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let library_key = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let inputs = PackageCompilationInputs::new_package(
+            root_key,
+            vec![
+                PackageSourceBinding::new(root_key, "root", project.0.clone()),
+                PackageSourceBinding::new(library_key, "library", library.0.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_key,
+                "library",
+                library_key,
+            )],
+        )
+        .unwrap();
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&project.0.join("main.omg"), None)
+        });
+        if public {
+            checked.expect("a public foreign constructor remains selectable");
+        } else {
+            let errors =
+                checked.expect_err("an equation cannot expose a private foreign constructor");
+            assert!(
+                errors.iter().any(|error| error.message.contains("private")),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
 fn assert_native_seven(artifact: &terminal_codec::CanonicalTerminalArtifact) {
+    assert_native_result(
+        artifact,
+        "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) { return omega_entry() == 7 ? 0 : 1; }",
+    );
+}
+
+fn assert_native_result(artifact: &terminal_codec::CanonicalTerminalArtifact, driver: &str) {
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
     let optimized = native_realization::optimize_artifact_sections(
         artifact.semantic_bytes(),
@@ -168,7 +557,7 @@ fn assert_native_seven(artifact: &terminal_codec::CanonicalTerminalArtifact) {
     native_function::assert_c_text(
         &image.output().final_text_bytes,
         object.entry_function().text_offset,
-        "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) { return omega_entry() == 7 ? 0 : 1; }",
+        driver,
     );
     #[cfg(not(any(
         all(
