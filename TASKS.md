@@ -6887,7 +6887,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GAMMA-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **GAMMA-PROVISION-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **GATE-LOCAL-DRIVER-PREFIX-BINDING** — mined candidate; verify scope then implement.
-- **GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
+- **GATE-LOCAL-PREFIX-BINDING** — mined candidate; scope verified, residual
+  already bound. The name resolves to the TASKS_BOOTSTRAP.md manifest bullet
+  "gate-local prefixes packed on top of bound member bytes", whose written
+  residual — "every gate-local driver except the shared Epsilon slice
+  driver" — closed at e1fba5f523 ("bootstrap: bind Epsilon slice driver and
+  reconstructed receipt identity"): `EPSILON_EXECUTION_DRIVER_*` pins plus
+  `require_epsilon_execution_driver_identity` in
+  `tools/bootstrap/epsilon/evaluator_env.sh` gate every cross-rung consumer.
+  The full bullet is now bound: Delta's development entry
+  (`DELTA_COMPILER_DEVELOPMENT_ENTRY_*`), Gamma's derivation gate entries
+  (`DERIVATION_*_ENTRY_*` and substitution/comparison vector members in
+  `tools/bootstrap/proofs/sources_env.sh`), D's customer entries
+  (`OMEGA_REQUEST_ENTRY_*`/`OMEGA_REQUEST_FIXTURE_*`), and per-gate epsilon
+  drivers pinned inside each `tests/epsilon/*/gate.py` or manifest. The
+  bullet is struck in TASKS_BOOTSTRAP.md with the closure recorded; sibling
+  re-mine stubs of the same bullet: CHAIN-GATE-LOCAL-PREFIX-BINDING,
+  CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING,
+  CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING, CHAIN-MANIFEST-GATE-LOCAL-PREFIXES,
+  CHAIN-MANIFEST-GATE-PREFIX-BINDING, GATE-LOCAL-DRIVER-PREFIX-BINDING.
+  Remaining open legs on the manifest stay named in their own rows (`omega0`/
+  `omega` tapes under OMEGA-C; certificates and admission records per edge).
 - **GENERAL-LICM** — mined candidate; verify scope then implement.
 - **GENERAL-RELOCATION-ADMISSION** — mined candidate; verify scope then implement.
 - **GENERAL-SCHEDULE-RELOCATION** — mined candidate; verify scope then implement.
