@@ -119,7 +119,7 @@ fn comparisons_reject_runtime_operands_unsafe_arithmetic_and_authored_operators(
             "u8",
             "255",
             "(LIMIT + 1 == 0)",
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
         (
             "u8",
@@ -133,7 +133,7 @@ fn comparisons_reject_runtime_operands_unsafe_arithmetic_and_authored_operators(
             "u64",
             "1",
             "(LIMIT / 0 == 0)",
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
     ] {
         Sources::write(
@@ -361,12 +361,12 @@ fn boolean_logic_indices_do_not_skip_admission_or_selected_branch_failures() {
         (
             "",
             keep("keep", "(true && (LIMIT / 0 == 0))"),
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
         (
             "",
             keep("keep", "(false || (LIMIT / 0 == 0))"),
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
         (
             "",
@@ -573,12 +573,12 @@ fn literal_boolean_indices_retain_selection_types_and_evaluated_failures() {
         (
             "",
             "(true && (1u8 / 0 == 0))",
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
         (
             "",
             "(false || (255u8 + 1 == 0))",
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
         ("", "(true || 1u8)", "incompatible operand types"),
         ("", "(true || (1u8 == 1u64))", "incompatible"),

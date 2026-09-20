@@ -1,8 +1,11 @@
-//! Missing physical transports reject without replacing values with empty identities.
+//! Array results that once lacked physical transports now select on every
+//! target: packed fragments cover odd byte sizes and indirect destinations
+//! carry the rest, so a missing transport would still reject rather than
+//! substitute an empty identity — each row asserts the transport exists.
 
 use super::{NativeTarget, target_plan};
 #[test]
-fn indirect_result_fragments_remain_explicit_limits() {
+fn indirect_result_fragments_have_transports_on_every_target() {
     for (shape, value) in [
         ("[u8; 3]", "[1u8, 2u8, 3u8]"),
         ("[u64; 3]", "[1u64, 2u64, 3u64]"),
@@ -14,9 +17,6 @@ fn indirect_result_fragments_remain_explicit_limits() {
             NativeTarget::macos_arm64(),
             NativeTarget::windows_x64(),
         ] {
-            if shape == "[u8; 3]" && target != NativeTarget::windows_x64() {
-                continue;
-            }
             let compiled = target_plan(&source, "selected", target).unwrap();
             let environment =
                 register_environment::baseline_target_register_environment(target).unwrap();
@@ -25,7 +25,7 @@ fn indirect_result_fragments_remain_explicit_limits() {
                     compiled,
                     environment
                 )
-                .is_err(),
+                .is_ok(),
                 "{shape} on {target:?}"
             );
         }

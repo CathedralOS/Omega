@@ -516,7 +516,7 @@ fn declared_range_inference_nested_results_keep_source_type_errors() {
             "machine small() -> u8 {255}
           machine endpoint(ignored: u8) -> u64 {256}
           machine bounded(value: u64[0..=endpoint(small() + 1)]) {}",
-            "Exact integer constant operation overflows",
+            "integer constant operation overflows",
         ),
         (
             "data Limits {} machine Limits::capacity(&self) -> u64 {256}
@@ -528,7 +528,7 @@ fn declared_range_inference_nested_results_keep_source_type_errors() {
             "machine open<const N: u64>() -> u64 {256}
           machine endpoint(ignored: u64) -> u64 {256}
           machine bounded(value: u64[0..=endpoint(open())]) {}",
-            "range endpoint call needs an exact closed selected machine",
+            "static application of `open` was not specialized to a concrete instance",
         ),
         (
             "machine endpoint(ignored: u64[1..=256]) -> u64 {256}

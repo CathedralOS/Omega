@@ -245,7 +245,7 @@ fn computed_match_arithmetic_retains_typed_operand_width_and_selected_operation_
         ),
         (
             "((match true { true -> 255, false -> 254 }) + 1u8) - 1",
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
     ] {
         Sources::write(

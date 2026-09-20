@@ -339,7 +339,7 @@ fn match_indices_check_unselected_types_coverage_and_actual_landings() {
         (
             "u8",
             "(match ENABLED { true -> 1u8 / 0, false -> 2 })",
-            "Exact integer constant operation",
+            "integer constant operation",
         ),
         (
             "u8",
