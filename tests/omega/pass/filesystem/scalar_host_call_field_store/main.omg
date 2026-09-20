@@ -1,0 +1,27 @@
+// PASS canary (fuzz pin): a scalar host-call result stored directly into a
+// FIELD target is the intended allowance -- `self.rc = self.fs.close(self.fd)`
+// stages the boundary result straight into storage. Only composite byte-op
+// results (the whole `ByteRead` composite) refuse field targets; scalar
+// results realize, exactly like the filesystem/native_canonicalize fixture's
+// `self.n = self.fs.close(self.fd)` shape. Pinned for
+// FUZZ-HOST-SCALAR-FIELD-STORE.
+use omega_language_std::filesystem_host;
+use omega::language::core::service;
+
+data Main {
+    fs: Service<FilesystemHost>;
+    fd: i32;
+    rc: i32;
+    n: i64;
+}
+
+machine Main::main(&mut self) reaches FilesystemHost {
+    self.rc = self.fs.close(self.fd);
+    transition self.rc == 0 { true -> good() _ -> fail() }
+    state good(&mut self) {
+        self.n = self.fs.write(1, "PASS: scalar host result stores into a field\n");
+    }
+    state fail(&mut self) {
+        self.n = self.fs.write(1, "FAIL: close returned nonzero\n");
+    }
+}
