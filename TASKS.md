@@ -6412,10 +6412,28 @@ Platform/cross-host (structurally gated — document host limits):
   of a stale uname copy, so `tests/bootstrap/alpha-beta-edge.sh` VERIFIES on
   Linux (conformance 34/34, bounds 78/78, Beta reconstruction + word prefix
   byte-exact). Remaining: the Windows x64 host leg stays with
-  ALPHA-WINDOWS-CONFORMANCE-HOST, and `tests/bootstrap/omega-request` showed
-  a canonical-OCREQ observation divergence on Linux x86-64 (received
-  `020146850800` vs the pinned frame) to isolate — the receipt stage was
-  byte-identical, so the fault is in the composed evaluator run.
+  ALPHA-WINDOWS-CONFORMANCE-HOST, and the `tests/bootstrap/omega-request`
+  canonical-OCREQ divergence is isolated at `59610bf8097` (re-verified):
+  the receipt stage stays byte-identical (reconstructed in 245 s), then the
+  composed evaluator serve returns `020177930800` instead of the pinned
+  `00+i32+OCOUT` frame. Decoded through the execution driver's private
+  observation framing (tests/epsilon/interpreted-omega-experiment/README.md),
+  that is Reject (tag `02`) with reason `01` = InvalidSourceByte at source
+  offset 0x00089377 = 562,039 — exactly the first UTF-8 em-dash (`E2 80 94`)
+  in a `//` comment of the appended request entry
+  `tests/bootstrap/omega-request/main.epsilon` (entry offset 245; the
+  customer is D 561,794 B + entry 4,115 B = 565,909 B). Epsilon's
+  `check_source_bytes` pre-scan admits only HT/LF/CR/printable ASCII 0x20–0x7E
+  and rejects before tokenization with no comment exemption
+  (bootstrap/4_epsilon/lexical/validation.delta, LANGUAGE.md's closed byte
+  alphabet), so the pinned customer is lexically invalid and the composed
+  evaluator is behaving correctly — the defect is the entry's three em-dash
+  comments (offsets 245, 691, 816). Fix is an ASCII respell of
+  `main.epsilon`, which was under CHAIN-MANIFEST's live `tests/bootstrap`
+  claim at verification time. The earlier record `020146850800` decodes to
+  the same Reject(InvalidSourceByte) at offset 558,918 — same defect class
+  at an earlier pinned-source revision. The gate halts on the canonical
+  divergence, so the eight refusal serves did not run at this revision.
 - **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows
   host. The edge gate's provenance leg now runs the committed forge
   (`tools/bootstrap/alpha/forge.py --check`) on any Python-3 host, including
