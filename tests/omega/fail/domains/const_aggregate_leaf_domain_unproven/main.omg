@@ -1,0 +1,18 @@
+// CONST-LEAF-EXACT-CARRIER: a record field declared `in <domain>` owes its
+// const initializer leaf the same declaration-site discharge a constrained
+// scalar const gets. `5` does not satisfy `u64::Even`.
+
+domain u64::Even
+requires
+    self % 2 == 0;
+
+data Key [copy] {
+    value: u64 in Even;
+}
+
+const K: Key = Key { value: 5 };
+
+data Main {}
+
+machine Main::main(&mut self) {
+}
