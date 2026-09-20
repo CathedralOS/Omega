@@ -809,6 +809,23 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 engine.parameter_atoms
             );
         }
+        // A fact already folded to a Boolean constant carries the constant
+        // arithmetic's verdict directly: `true` is proven and `false` is
+        // disproved. Recording either as an unjudged stand-down would both
+        // inflate the admission ledger and, on `false`, let a refuted
+        // postcondition pass `--check` silently.
+        if let ExpressionNode::Boolean(constant) = program.expression_table.expression(*fact) {
+            if *constant {
+                proven.push(*fact);
+            } else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic",
+                    machine.name,
+                    program.expression_table.display_name(*fact)
+                )));
+            }
+            continue;
+        }
         match engine.judge(*fact) {
             Judgment::Proven => proven.push(*fact),
             Judgment::Refuted => {
