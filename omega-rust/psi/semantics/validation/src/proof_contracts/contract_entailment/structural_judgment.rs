@@ -1,8 +1,8 @@
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, ProofFact, RESULT_BINDER,
     SignatureContractKind, StatementNode, SymbolHandle, TraitDefinition, TransitionGuardNode,
-    TransitionTargetNode, TypedTrees, is_arm_pattern_marker, split_structural_machine_name,
-    structural_call_machine_name, structural_term, term_contains,
+    TransitionTargetNode, TypedTrees, is_arm_pattern_marker, structural_call_machine_name,
+    structural_term, term_contains,
 };
 use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
 use typed_trees::types::TypeReferenceHandle;
@@ -717,7 +717,6 @@ impl<'program> StructuralJudge<'program> {
                     let StructuralTerm::CallProjection {
                         selections,
                         target,
-                        machine,
                         result_type,
                         field,
                         arguments,
@@ -729,7 +728,6 @@ impl<'program> StructuralJudge<'program> {
                     if let Some(unfolded) = self.unfold_exact_call_projection(
                         *target,
                         selections,
-                        machine,
                         *result_type,
                         *field,
                         arguments,
@@ -771,14 +769,14 @@ impl<'program> StructuralJudge<'program> {
     /// Unfold one exact checked record-returning call far enough to interpret
     /// a direct result field. This is proof checking, not public-contract
     /// derivation: the statement remains coupled to the callee interface,
-    /// while the callee body is the evidence that establishes it. The first
-    /// rung deliberately accepts only one unconditional value transition;
-    /// broader control-flow joins remain opaque.
+    /// while checked body computation or a proven functional ensures supplies
+    /// the value. Reuse application normalization for locals and terminal values.
+    /// The direct-literal shortcut observes only the selected field, preserving
+    /// proofs whose unrelated record fields have no structural normal form.
     fn unfold_exact_call_projection(
         &self,
         target: SymbolHandle,
         selections: &[typed_trees::expression::StaticMachineArgument],
-        machine_application: &str,
         result_type: TypeReferenceHandle,
         field: SymbolHandle,
         arguments: &[StructuralTerm],
@@ -805,73 +803,107 @@ impl<'program> StructuralJudge<'program> {
         if state.return_type != result_type {
             return None;
         }
-        let (selected_name, _) = split_structural_machine_name(machine_application);
-        if machine.name.as_str() != selected_name {
-            return None;
-        }
-        let machine_parameters = program
-            .machine_type_parameters(machine)
-            .iter()
-            .filter(|parameter| {
-                matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Machine { .. }
-                )
-            })
-            .collect::<Vec<_>>();
-        if machine_parameters.len() != selections.len() {
-            return None;
-        }
-        let machine_environment = machine_parameters
-            .iter()
-            .zip(selections)
-            .map(|(parameter, selected)| {
-                (
-                    parameter.symbol,
-                    parameter.name.as_str().to_owned(),
-                    selected.clone(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let parameters = program.state_parameters(state);
-        if parameters.len() != arguments.len() {
-            return None;
-        }
-        let environment = parameters
-            .iter()
-            .zip(arguments)
-            .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
-            .collect::<Vec<_>>();
-        let [StatementNode::Transition(transition)] =
-            program.statement_table.statements(state.statement_nodes)
-        else {
-            return None;
+        // The selected state is authoritative. Its display spelling may be
+        // qualified or aliased and is not an additional declaration identity.
+        let data = crate::value_custody::places::data_definition_for_type(program, result_type)?;
+        let projected_field = program.data_members(data).iter().find_map(|member| {
+            let typed_trees::data::DataMember::Field(candidate) = member else {
+                return None;
+            };
+            (candidate.symbol == field).then_some(candidate)
+        })?;
+        let direct_literal_field = || {
+            let machine_parameters = program
+                .machine_type_parameters(machine)
+                .iter()
+                .filter(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Machine { .. }
+                    )
+                })
+                .collect::<Vec<_>>();
+            if machine_parameters.len() != selections.len() {
+                return None;
+            }
+            let machine_environment = machine_parameters
+                .iter()
+                .zip(selections)
+                .map(|(parameter, selected)| {
+                    (
+                        parameter.symbol,
+                        parameter.name.as_str().to_owned(),
+                        selected.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let parameters = program.state_parameters(state);
+            if parameters.len() != arguments.len() {
+                return None;
+            }
+            let environment = parameters
+                .iter()
+                .zip(arguments)
+                .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
+                .collect::<Vec<_>>();
+            let [StatementNode::Transition(transition)] =
+                program.statement_table.statements(state.statement_nodes)
+            else {
+                return None;
+            };
+            if !matches!(transition.guard, TransitionGuardNode::Always)
+                || transition.continuation.is_valid()
+            {
+                return None;
+            }
+            let TransitionTargetNode::Value(value) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            let ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(*value)
+            else {
+                return None;
+            };
+            let projected = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .iter()
+                .find(|candidate| candidate.field_symbol == field)?;
+            self.callee_term_with_machines(
+                projected.value,
+                &environment,
+                &machine_environment,
+                depth + 1,
+            )
         };
-        if !matches!(transition.guard, TransitionGuardNode::Always)
-            || transition.continuation.is_valid()
-        {
-            return None;
+        if let Some(value) = direct_literal_field() {
+            return Some(value);
         }
-        let TransitionTargetNode::Value(value) =
-            program.statement_table.transition_target(transition.target)
-        else {
-            return None;
-        };
-        let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(*value)
-        else {
-            return None;
-        };
-        let projected = program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .find(|candidate| candidate.field_symbol == field)?;
-        self.callee_term_with_machines(
-            projected.value,
-            &environment,
-            &machine_environment,
+        let result = self.unfold_application(
+            target,
+            selections,
+            machine.name.as_str(),
+            arguments,
             depth + 1,
-        )
+        )?;
+        let StructuralTerm::Constructor {
+            data: result_data,
+            case,
+            fields,
+        } = self.resolve_at(result, depth + 1)
+        else {
+            return None;
+        };
+        // The checked return type fixes the owner; spelling only selects within
+        // that owner's normalized value, after the exact field-handle join.
+        if result_data != data.name.as_str() || !case.is_empty() {
+            return None;
+        }
+        fields
+            .into_iter()
+            .find_map(|(name, value)| (name == projected_field.name.as_str()).then_some(value))
     }
 
     /// COMPUTE-MODE unfolding (N3): apply a single-state proof machine of
@@ -987,7 +1019,8 @@ impl<'program> StructuralJudge<'program> {
         }
 
         let mut environment = environment;
-        for statement in program.statement_table.statements(state.statement_nodes) {
+        let statements = program.statement_table.statements(state.statement_nodes);
+        for (index, statement) in statements.iter().enumerate() {
             // A `let` (spelled, or the lowering's __hoist_N of a call-valued
             // terminal -- e.g. a definitional wrapper like
             // `snoc(s, x) = (append(s, [x]))`) BINDS: its initializer
@@ -1006,6 +1039,21 @@ impl<'program> StructuralJudge<'program> {
                 )?;
                 environment.push((local.name.as_str().to_owned(), term));
                 continue;
+            }
+            // Ordinary body tails carry the same result value as a terminal
+            // transition. An earlier expression is not a return and cannot
+            // bypass subsequent statements or their effects.
+            if let StatementNode::Expression(expression) = statement {
+                return (index + 1 == statements.len())
+                    .then(|| {
+                        self.callee_term_with_machines(
+                            *expression,
+                            &environment,
+                            &machine_environment,
+                            depth + 1,
+                        )
+                    })
+                    .flatten();
             }
             let StatementNode::Transition(transition) = statement else {
                 return None;

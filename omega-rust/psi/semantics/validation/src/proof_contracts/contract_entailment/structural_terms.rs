@@ -213,20 +213,6 @@ pub(super) fn structural_call_machine_name(
     format!("{target}<{}>", selected.join(","))
 }
 
-pub(super) fn split_structural_machine_name(name: &str) -> (&str, Vec<&str>) {
-    let Some((base, selected)) = name.split_once('<') else {
-        return (name, Vec::new());
-    };
-    let Some(selected) = selected.strip_suffix('>') else {
-        return (name, Vec::new());
-    };
-    if selected.is_empty() {
-        (base, Vec::new())
-    } else {
-        (base, selected.split(',').collect())
-    }
-}
-
 /// Read an expression as a structural term. Single-segment names are
 /// variables; a resolved payload-free case path constructs its common fields.
 /// Record and case literals retain complete sorted fields, including established

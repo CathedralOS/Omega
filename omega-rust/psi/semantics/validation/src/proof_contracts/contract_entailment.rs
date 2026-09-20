@@ -178,8 +178,7 @@ use inductive_judgment::inductive_transition_entailment;
 use quotient_congruence::{quotient_equality_from_requires, quotient_equality_names};
 use structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use structural_terms::{
-    split_structural_machine_name, structural_call_machine_name, structural_term, term_contains,
-    unfold_constant_applications,
+    structural_call_machine_name, structural_term, term_contains, unfold_constant_applications,
 };
 
 /// The reserved binder naming a machine's return value inside `ensures`

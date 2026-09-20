@@ -3095,8 +3095,8 @@ Owners include
     abstract callable contracts or induction must preserve that ordering,
     independently establish descent, and never import private strengthening.
     Tag predicates retain exact classifier identities without field equations.
-    Structural receiver-call and result-projection premises still fail closed;
-    receiver-call opacity cannot substitute arguments. Constructor normalization
+    Structural receiver-call premises and projections outside denotational call
+    admission still fail closed; receiver-call opacity cannot substitute arguments. Constructor normalization
     still needs unsupported float/array
     leaves and established qualified defaults; supported Boolean/integer and
     nested data fields must keep complete value rosters, separate from case
