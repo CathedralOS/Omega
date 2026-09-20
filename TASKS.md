@@ -7348,7 +7348,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `wiki/drafts/known_baseline_failures.md`; sibling subsets C2L-SCALAR-
   RETURN-SOURCE-CUSTODY-FAILURES / CHECKED-TREES-TO-LOWERED-PSI-
   UNATTRIBUTED-SET remain named on the parent row.
-- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
+- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN.** Mined candidate — resolved
+  at `27deadf4122` (linux x86-64). The rostered fixture
+  `tests/omega/pass/capabilities/acquires_through_helper_return` is green
+  through the whole route: `pass_canaries_compile` filtered to it passes
+  (17s, native-artifact Terminal production included — the earlier red at
+  `1fc01bb690` was the signature-phase `InvalidUnitMachinePlan` family)
+  and `capability_flows_retain_exact_direct_and_propagated_sites` passes,
+  pinning the propagated provenance rows (`Backup::stage acquires via
+  Vault::pick`, `Main::main acquires via Backup::stage`). The checked/
+  lowering gap the prior reading named is closed: `Main::main`'s local
+  construction no longer stops at the signature for the
+  authority-propagating helper-return shape. No slice remains.
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
 - **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS** — mined candidate; verify scope then implement.
 - **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.** Mined candidate; scope
@@ -7437,7 +7448,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the entry machine calls a generated codec; the producing surfaces
   (`typed-trees-to-checked-trees/src/execution/unit/*`, terminal-production
   receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's unit-plan lane and
-  ENTRY-CONTENT-ROOTS' live claim — outside this item's fence.
+  ENTRY-CONTENT-ROOTS' live claim — outside this item's fence. Re-witnessed
+  at `27deadf412` (linux x86-64):
+  `OMEGA_PASS_CANARY_FILTER=wire/runtime_wire_exact_array_without_count_exit`
+  pass_canaries_compile still fails identically ("selected ProgramEntry
+  establishment rejoins 0 Terminal attachment identities; expected one",
+  47s compile) — the moved-failure persists; no in-fence slice exists.
 - **CANDIDATE-REVALIDATION-AT-SEARCH-SCALE** — mined candidate; verify scope then implement.
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST** — mined candidate; verify scope then implement.
@@ -7524,6 +7540,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   member symbols (suspects 39e156c73a0 / 143636cec8a, unbisected). Residual:
   the two new families want a single-test bisect by their owning lanes;
   sibling stub CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET remains open.
+  Sibling alias C2L-BASELINE-FAILURE-ATTRIBUTION re-mines this attribution
+  surface; scope verified at `27deadf412` — the reading is current
+  (C2L-UNATTRIBUTED-FAILURE-TAIL's fresh 23392bc467 census attributes all
+  56 reds onto owned families with identical diagnostics), and every
+  residual family the alias is named for on the cluster rows is fenced to
+  a live claim: scalar-return custody
+  (`tests/owned_record_return_source.rs` ×4, plus
+  `src/returns`/`terminal-production` source-replay legs) under
+  C2L-RESIDUAL-FAILURE-ATTRIBUTION (~04:59Z Sep 21), provider-attachment
+  and attached-unit sets under GENERAL-CYCLIC-EXECUTION /
+  UEFI-OS-HANDOFF / WRITE-ONLY-BORROW / PROOF-CERTIFICATION-BRIDGE
+  per the ledger's fence notes, and the ledger doc itself under
+  LOWERED-UNIT-FAILURE-ATTRIBUTION (~01:17Z) and this row's own live
+  claim (~01:42Z). No independent slice remains; the open board owners
+  are C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (the four-test family)
+  and C2L-RESIDUAL-FAILURE-ATTRIBUTION (in flight).
 - **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET** — scope verified and
   bisected at `c267df86acb8` (linux x86-64): the unattributed set is the
   three members the 6ef64f6dd6 reading opened as two new families, now
@@ -8049,8 +8081,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (4) `optimized_semantic_wrapper_object/codec` moves only after
   PIPELINE-OWNER-CONSOLIDATION resolves whether native-realization retains
   that owner — skip it while undecided.
-- **DYNAMIC-CALL-OCCURRENCE-SPANS** — mined candidate; scope verified,
-  resolved — landed at `95019d341a9` ("omega: dynamic-call occurrences bind
+- **DYNAMIC-CALL-OCCURRENCE-SPANS.** Mined candidate — resolved: scope
+  verified, landed at `95019d341a9` (confirmed ancestor of origin/main at
+  `ded56393da2` this session) ("omega: dynamic-call occurrences bind
   dispatch parents and span custody"): every surviving `CallDynamic*`
   produces a coverage occurrence joining the emitted call instruction's
   span, dispatch-parent identity, and role
@@ -10294,7 +10327,44 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (external-roots, 03:56Z). clippy/arch/libtests not re-run; the
   a9fa1a4fe6 attribution stands and its residual is sibling-fenced.
   Gate stays open until the fenced repairs land.
-- **RC-REPRESENTATIVE-PROGRAMS-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-REPRESENTATIVE-PROGRAMS-CLOSURE.** Mined candidate; scope verified,
+  gate is OPEN (red on the available host). This stub re-mines the
+  representative-programs matrix row — the closure condition of the same
+  `wiki/drafts/rust_compiler_completion.md` gate measured by sibling
+  RC-REPRESENTATIVE-PROGRAMS-GREEN: every maintained sample reaches checked
+  semantics, host-entry samples reach their native product, deterministic
+  oracles pass, on every required host, on one commit. Re-measured the
+  linux-x86_64 leg at `9e3edc7be9` (cargo, no mbx; external-roots
+  `ComponentEraJournalRoster` test-build break is gone on this tip —
+  harness compiles): `cargo nextest run -p compiler --test samples_compile
+  --no-fail-fast` completed 17/33 before the >47min heavyweight aggregate
+  legs were stopped; observed failures stay red and unchanged in family:
+  (1) windows_x86_64 entry selection still rejects bundled std
+  `targets/windows_x86_64/entry.omg` against
+  `named-callable(WindowsProcessEntry::enter)` — brightness_control,
+  fletcher_checksum, caesar_cipher, format_number, rpn_calculator,
+  stack_calculator, stack_vm, token_interpreter, all windowed GUI samples;
+  (2) ProgramEntry establishment rejoins 0 Terminal attachment identities —
+  fletcher_checksum + algorithms samples on linux_x86_64/linux_arm64/
+  macos_arm64; (3) print_number domain-field leg unchanged — `self.out
+  requires [u8; N]::Utf8`. Two families new since `d8041919ad`:
+  (4) `authored Operator selection occurrence 108 remained unresolved
+  after successful checking (CheckedOperator)` — binary_search_viz on all
+  four targets inside algorithm_samples_compile; (5) `selected ProgramEntry
+  Service field Main::{clock,input,gui,raw} requires a selected Fused
+  provider for boundary {Clock,Input,Gui,FilesystemHost}` — image_viewer,
+  window_app, window_demo, windowed_calculator on macos_arm64; plus
+  `sample_entry_exceptions_are_explicit_and_non_runnable` now red:
+  `cli__device__device_extent_access` lacks an authored root. Passing legs:
+  dutch_flag, euclid_gcd, cli_mvp, generic_counter, both native_acceptance
+  tests. Still running at stop: arithmetic/collection/game/all_samples
+  aggregate legs + probe/rendering/simulation/samples_with_documented_exit.
+  macOS/Windows/QEMU host legs unavailable on this host per protocol.
+  Closure stays gated on the ENTRY-CONTENT-ROOTS lane, the print_number
+  domain-field leg, the new CheckedOperator-occurrence audit residual
+  (t2c authored_selections), the GUI Fused-provider legs, and the
+  device_extent_access authored root. Sibling re-mines of the same matrix
+  row: RC-REPRESENTATIVE-PROGRAMS-GATE, -GREEN, -PER-HOST.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
   Re-measured at `edc77c21480` on linux x86-64 (`cargo nextest run
@@ -10746,6 +10816,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Sibling re-mine names on this cluster: SELECTED-REWRITE-CATALOG-DISPOSITION,
   -OR-DELETE, -ROUTE, -WIRING, SELECTED-REWRITES-CATALOG-OR-DELETE (delete
   leg landed: literal_compare/literal_arithmetic removed), POC-SELECTED-REWRITE-CATALOG.
+  This session (zergling-z21, base `a0b906db93` + work branch): retired
+  `rewrites/literal_minuend` as a second producer — its fold
+  (`MaterializeI64` feeding operand-0 `Use` of `CompareI64` → swapped
+  `CompareI64Immediate`, equality-sensing-unit-reader audit) is already
+  executed by pair rule `COMPARE_LEFT_IMMEDIATE_U12` under selection
+  `SelectedIncomingU12CompareImmediate`, and the module had no route or
+  live caller. Deleted `literal_minuend.rs` + `literal_minuend/`, its
+  `ValidatedSelectedAnalysis` impls in `analyses/selected_input.rs`, its
+  catalog row (catalog now 49 rows / 34 orphaned under
+  EXACT-MACHINE-SIMPLIFICATIONS), and pinned all five retired paths in
+  `optimizer_source_organization::retired_paths`. Verified: `cargo
+  nextest run -p selected-instructions-to-selected-instructions` 1520/1520,
+  `cargo clippy --all-targets` clean, `fmt --check` clean,
+  omega-architecture-test optimizer_source_organization pass. Not covered
+  by the pair rule and lost with the module: literal `0` at the minuend
+  selecting dedicated `CompareI64Zero` — a codegen refinement, no semantic
+  producer gap (the pair rule emits `CompareI64Immediate(_, 0)`); recovery
+  belongs to the DECLARATIVE-PEEPHOLES pair-widening leg as a
+  `COMPARE_LEFT_ZERO` grammar. Next acceptance: the vocabulary member +
+  catalog executor for the remaining 34 orphans still needs the
+  `optimization-core` naming handoff (WORKSPACE-ROLLOUT per the parent
+  row).
 - **SELECTED-REWRITE-CATALOG-OR-DELETE.** Mined candidate; scope verified
   at 6d00135b89 — re-mines the keep-or-delete leg of the
   SELECTED-REWRITE-CATALOG cluster; the verdict is recorded on sibling
