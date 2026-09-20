@@ -1549,3 +1549,72 @@ fn operator_visibility_gates_public_and_cross_package_selection() {
     })
     .expect("private implementation may select its package-private operator");
 }
+
+#[test]
+fn leaf_computed_constants_select_their_exact_declaration_owner() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use leaf::leaf;\nmachine limits() -> u64 { LIMIT + HALF }\n",
+    );
+    // Computed leaf declarations: an arithmetic initializer and a constant
+    // that itself selects another constant in the same leaf package.
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub const LIMIT: u64 = 6 * 7;\npub const HALF: u64 = LIMIT / 2;\n",
+    );
+
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "leaf", leaf.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "leaf",
+            identity(2),
+        )],
+    )
+    .expect("direct computed-const dependency graph should validate");
+
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("a computed leaf constant should be nameable by a direct dependent");
+
+    let selected = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| {
+            let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+                return None;
+            };
+            let symbol = target.selected_symbol();
+            let path = checked.symbols.display_path(symbol, "::");
+            matches!(path.as_str(), "LIMIT" | "HALF")
+                .then_some((path, checked.symbols.symbol_package_identity(symbol)))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        selected
+            .iter()
+            .all(|(_, owner)| *owner == Some(identity(2))),
+        "every computed-constant selection must name the exact leaf package: {selected:?}"
+    );
+    assert_eq!(
+        selected.iter().filter(|(path, _)| path == "HALF").count(),
+        1,
+        "the consumer selects HALF once: {selected:?}"
+    );
+    // LIMIT is selected by the consumer and inside the leaf's own
+    // `HALF = LIMIT / 2` initializer — both keep the leaf owner.
+    assert!(
+        selected.iter().filter(|(path, _)| path == "LIMIT").count() >= 2,
+        "LIMIT selection should cover consumer use and the leaf initializer: {selected:?}"
+    );
+}
