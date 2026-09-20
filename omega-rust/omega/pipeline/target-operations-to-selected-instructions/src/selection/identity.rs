@@ -197,6 +197,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::ExactShiftLeftI64 { .. } => 108,
         SelectedInstructionKind::ExactShiftRightI64 { .. } => 109,
         SelectedInstructionKind::ExactShiftRightU64 { .. } => 110,
+        SelectedInstructionKind::ExactDivideI64 { .. } => 112,
+        SelectedInstructionKind::ExactRemainderI64 { .. } => 113,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
@@ -263,6 +265,14 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             accepted_fact,
         }
         | SelectedInstructionKind::WrappingDivideI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactDivideI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactRemainderI64 {
             obligation,
             accepted_fact,
         }

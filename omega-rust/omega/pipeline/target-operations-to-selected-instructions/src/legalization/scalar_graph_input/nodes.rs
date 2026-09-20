@@ -289,7 +289,14 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             scalar_type,
             ..
-        } if *scalar_type == u64_type() => Ok((*psi_operation, *result)),
+        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
+            // Exact divide/remainder admit every fixed 8/16/32/64 carrier.
+            // Non-u64 carriers normalize into signed i64, where the proven
+            // NonZeroDivisor and ResultRepresentable obligations exclude every
+            // input the signed divide would fault on; u64 keeps its unsigned
+            // entry because its dividend range escapes i64.
+            Ok((*psi_operation, *result))
+        }
         AbstractOperation::ExactIntegerAdd {
             psi_operation,
             result,
@@ -312,8 +319,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             // fixed native carrier. Inputs are sign/zero normalized; the
             // retained representability proof makes the result canonical
             // without the truncation needed by wrapping arithmetic.
-            // Signedness is not an admission fence, and this does not widen
-            // exact division.
+            // Signedness is not an admission fence.
             Ok((*psi_operation, *result))
         }
         AbstractOperation::IntegerEqual {

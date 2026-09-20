@@ -358,6 +358,21 @@ pub(crate) fn encode_unchecked(
             bytes.extend([0xeb, 5]);
             append_signed_divide(&mut bytes, registers[1]);
         }
+        SelectedInstructionKind::ExactDivideI64 { .. } => {
+            if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            // `cqo; idiv`: the proven obligations already exclude the zero
+            // divisor and the out-of-range quotient pair.
+            append_signed_divide(&mut bytes, registers[1]);
+        }
+        SelectedInstructionKind::ExactRemainderI64 { .. } => {
+            if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            append_signed_divide(&mut bytes, registers[1]);
+            append_register_binary(&mut bytes, 0x89, registers[3], registers[2]);
+        }
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);

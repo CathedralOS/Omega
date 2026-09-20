@@ -157,6 +157,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::WrappingSubtractI64 => 90,
         SelectedInstructionKind::WrappingMultiplyI64 => 91,
         SelectedInstructionKind::WrappingDivideI64 { .. } => 92,
+        SelectedInstructionKind::ExactDivideI64 { .. } => 112,
+        SelectedInstructionKind::ExactRemainderI64 { .. } => 113,
         SelectedInstructionKind::BitwiseOrI64 => 93,
         SelectedInstructionKind::BitwiseNotI64 => 94,
         SelectedInstructionKind::SaveFloatingControl { .. } => 103,
@@ -234,6 +236,14 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             accepted_fact,
         }
         | SelectedInstructionKind::WrappingDivideI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactDivideI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactRemainderI64 {
             obligation,
             accepted_fact,
         }
@@ -517,6 +527,18 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         90 => SelectedInstructionKind::WrappingSubtractI64,
         91 => SelectedInstructionKind::WrappingMultiplyI64,
         92 => SelectedInstructionKind::WrappingDivideI64 {
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        },
+        112 => SelectedInstructionKind::ExactDivideI64 {
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        },
+        113 => SelectedInstructionKind::ExactRemainderI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
             accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                 cursor.array()?,
