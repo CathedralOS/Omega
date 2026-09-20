@@ -7659,7 +7659,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **D-REQUEST-OUTCOME-TABLE-PARITY** — mined candidate; verify scope then implement.
 - **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
 - **DELTA-COMPILER** — mined candidate; verify scope then implement.
-- **DELTA-EPSILON-CLOSURE-EXECUTION** — mined candidate; verify scope then implement.
+- **DELTA-EPSILON-CLOSURE-EXECUTION.** Resolved — a closed re-mine of the
+  epsilon evaluator bootstrap path, whose execution leg this row names is
+  already exercised end to end on main. `tests/epsilon/evaluator-entry/run.sh`
+  materializes the bound Epsilon evaluator closure, the canonical entry, and
+  the bound Delta compiler + support + Gamma evaluator, then runs the packed
+  closure through that compiler and binds the produced receipt by identity.
+  Re-verified green at `ded56393da2`: the gate passes 108 exact/adjacent
+  EEOUT controls, 2 Incomplete transport outcomes, and 8 canonical
+  observations; `tests/bootstrap/epsilon-identity.sh` materializes the bound
+  closure exactly and refuses corrupted manifest/member/driver/entry/receipt
+  shapes; `tools/bootstrap/check-chain-hygiene.sh` passes the bootstrap chain
+  topology and path hygiene including the source-closure gate. Sibling
+  re-mines of the same resolved path (swept or resolved): DELTA-EPSILON-
+  CLOSURE-COMPILE, EPSILON-EVALUATOR-BOOTSTRAP-PATH. No independent slice
+  exists.
 - **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; scope verified
   2026-09-20 (z180): re-mines the DELTA-COMPILER checkpoint leg "both measured
   stress families refuse in existing rows before post-frontend allocation is
