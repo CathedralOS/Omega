@@ -58,6 +58,13 @@ enum ContentsRequirement {
     /// declared type exists; its contents never materialize.
     CleanupOwned,
     StableObservation,
+    /// Contents an opaque `Service<R>`/boundary-trait call seam may marshal as
+    /// a caller-owned ABI copy while the observed place keeps custody of the
+    /// whole value. Runtime contents are exactly `StableObservation`'s, but an
+    /// `[erased]` member never materializes and never crosses the seam: it
+    /// stays with the observed place, so it only resolves to its declared
+    /// storage instead of needing stable contents of its own.
+    SeamMarshal,
 }
 
 pub fn has_plain_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
@@ -121,6 +128,19 @@ pub fn has_stable_observable_contents(
         &[],
         ContentsRequirement::StableObservation,
     )
+}
+
+/// Classify value contents an opaque `Service<R>`/boundary-trait call seam may
+/// marshal as a caller-owned ABI copy while the observed borrowed place keeps
+/// custody of the whole value. Runtime (non-erased) contents must be stable
+/// under observation exactly as for [`has_stable_observable_contents`]. An
+/// `[erased]` member contributes no runtime contents, so it never crosses the
+/// seam — it stays with the observed place — and needs only to resolve to its
+/// declared storage. This answers marshal shape only; the caller's custody and
+/// the provider's own establishment of the erased member remain their own
+/// obligations.
+pub fn has_service_seam_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    check_contents_requirement(program, reference, &[], ContentsRequirement::SeamMarshal)
 }
 
 fn check_contents_requirement(
@@ -211,11 +231,23 @@ fn resolve(
             access: language_semantics::ReferenceAccess::Shared,
             referee,
             ..
-        } if requirement == ContentsRequirement::StableObservation => Some(ContentType::Shared(
-            Box::new(resolve(program, *referee, arguments, requirement)?),
-        )),
+        } if matches!(
+            requirement,
+            ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
+        ) =>
+        {
+            Some(ContentType::Shared(Box::new(resolve(
+                program,
+                *referee,
+                arguments,
+                requirement,
+            )?)))
+        }
         TypeReferenceNode::Slice { element_type }
-            if requirement == ContentsRequirement::StableObservation =>
+            if matches!(
+                requirement,
+                ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
+            ) =>
         {
             Some(ContentType::Slice(Box::new(resolve(
                 program,
@@ -242,8 +274,10 @@ fn resolve(
                     matches!(contents, ContentType::Scalar(_))
                 }
                 typed_trees::types::TypeConstraintNode::Domain(domain) => {
-                    requirement == ContentsRequirement::StableObservation
-                        && is_plain_value_domain(program, domain)
+                    matches!(
+                        requirement,
+                        ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
+                    ) && is_plain_value_domain(program, domain)
                 }
                 typed_trees::types::TypeConstraintNode::Named(_) => false,
             });
@@ -359,8 +393,14 @@ fn check_contents(
         if field.relevance.is_erased() {
             // An erased member never materializes runtime contents; it still
             // must resolve to declared storage so the semantic member exists.
-            return requirement == ContentsRequirement::CleanupOwned
-                && resolve(program, field.type_reference, &substitutions, requirement).is_some();
+            // A drop carrier keeps it as owned cargo and a service seam leaves
+            // it inside the observed place, so neither asks its contents to be
+            // stable or cleanup-owned — only resolvable.
+            return matches!(
+                requirement,
+                ContentsRequirement::CleanupOwned | ContentsRequirement::SeamMarshal
+            ) && resolve(program, field.type_reference, &substitutions, requirement)
+                .is_some();
         }
         resolve(program, field.type_reference, &substitutions, requirement)
             .is_some_and(|field| check_contents(program, &field, active, complete, requirement))

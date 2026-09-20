@@ -176,22 +176,27 @@ pub(super) fn append_builtin_collection_view(
 /// Whether one by-value use of `place` is a detached observation rather than
 /// an ownership transfer out of borrowed storage.
 ///
-/// Two reaches admit a stable-observable copy while every other reach keeps
-/// its ordinary move or borrowed-window behavior:
+/// Two reaches admit a detached copy while every other reach keeps its
+/// ordinary move or borrowed-window behavior:
 ///
 /// - A chain that crosses only shared (`&`) loans and contains an index hop
 ///   reads the element by copy: `view[index]` on `&[T]` cannot move the
 ///   element out of the shared loan, so element access produces a detached
-///   value and leaves the borrowed storage whole. Field and case projections
-///   keep their ordinary place ownership; only the indexed element read
-///   detaches.
+///   value and leaves the borrowed storage whole. The detached element
+///   materializes a fresh value of the element type, so every member —
+///   including an `[erased]` one — must hold recursively stable contents.
+///   Field and case projections keep their ordinary place ownership; only
+///   the indexed element read detaches.
 /// - A call through a `Service<R>`/boundary-trait receiver receives a
 ///   caller-owned ABI copy of each stable borrowed argument: `self.foreign
 ///   .call(self.field)` resolves to a boundary trait signature whose provider
 ///   sits behind an opaque service handle, so it observes `self.field`
 ///   instead of extracting it through the `&mut` receiver, and the caller's
-///   loan returns intact. Direct provider calls — `boundary machine`, `via`,
-///   admission, or requirement targets — still consume custody.
+///   loan returns intact. The marshal carries runtime contents only: an
+///   `[erased]` member never materializes and never crosses the seam, so it
+///   stays with the observed place and needs only to resolve. Direct provider
+///   calls — `boundary machine`, `via`, admission, or requirement targets —
+///   still consume custody.
 ///
 /// A `&write` link never supplies readable content, and a `&mut` reach keeps
 /// its move-and-restore window outside the service-seam case, so forged or
@@ -211,12 +216,6 @@ pub(super) fn detached_borrowed_copy_admitted(
     else {
         return false;
     };
-    // Only recursively stable contents may be duplicated under observation:
-    // references, mutation-capable loans, nominal cleanup, linear carriers,
-    // and unclassified storage keep their real transfer obligation.
-    if !validation::has_stable_observable_contents(program, projected) {
-        return false;
-    }
 
     let mut has_reference = false;
     let mut has_exclusive = false;
@@ -256,7 +255,11 @@ pub(super) fn detached_borrowed_copy_admitted(
     if !has_reference || has_write_only {
         return false;
     }
-    // A purely shared reach detaches the indexed element read only.
+    // A purely shared reach detaches the indexed element read only; the
+    // detached value carries the member contents its type declares, so only
+    // recursively stable contents may be duplicated under observation:
+    // references, mutation-capable loans, nominal cleanup, linear carriers,
+    // and unclassified storage keep their real transfer obligation.
     if !has_exclusive
         && place.segments.iter().any(|segment| {
             matches!(
@@ -265,14 +268,17 @@ pub(super) fn detached_borrowed_copy_admitted(
             )
         })
     {
-        return true;
+        return validation::has_stable_observable_contents(program, projected);
     }
     // A service-receiver invocation detaches its stable arguments at the ABI
-    // seam; the caller's custody stays whole.
+    // seam; the caller's custody stays whole. The seam's copy carries runtime
+    // contents only, so an `[erased]` member — which stays with the observed
+    // place — does not decide admission.
     let FlowOwnershipEventSource::Call { target_symbol, .. } = source else {
         return false;
     };
     call_target_is_service_signature(program, target_symbol)
+        && validation::has_service_seam_contents(program, projected)
 }
 
 /// Whether `target_symbol` names a machine signature of a `boundary` trait —
