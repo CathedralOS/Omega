@@ -10269,13 +10269,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `configuration.md` excludes a debug/release mode and assertion
   primitive; parity means authored `crash` checks or `requires` clauses on
   the ported machines. Currently unworkable: every ported counterpart sits
-  under live claims — the only three existing `.omg` files
-  (`snapshot_region_filter.omg`, `normalized_region.omg`,
-  `memory_alignment.omg`) are file-fenced by Zergling-61's
-  SQUALR-CLONE-SERIALIZATION (expires ~2026-09-20T22:50Z) and the whole
-  `samples/apps/squalr` tree is dir-fenced by Jarod's
-  SQUALR-TARGETS-AND-THROUGHPUT and zergling-z73's
-  SQUALR-REGION-ALIGNMENT-EXPANSION. Coordinate with GEOMETRY-PARITY's
+  under live claims — re-verified at `9b75533b9c7` (this session): the
+  three existing `.omg` files (`snapshot_region_filter.omg`,
+  `normalized_region.omg`, `memory_alignment.omg` under
+  `squalr-engine-api/src/structures/`) still exist, and the whole
+  `samples/apps/squalr` tree remains dir-fenced by Jarod's
+  SQUALR-TARGETS-AND-THROUGHPUT (until 21:39Z) and Zergling-112's
+  GEOMETRY-ALIGNMENT-REGIONS (until 01:18Z); Zergling-61's
+  SQUALR-CLONE-SERIALIZATION file-fence has drained, while
+  REGION-ALIGNMENT-EXPANSION and SQUALR-NAMED-TRAIT-OPERATORS hold
+  item-level claims on the same lane. Coordinate with GEOMETRY-PARITY's
   owner lane before working it.
 - **SQUALR-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
 - **SQUALR-ENGINE-CRATE-SOURCES** — mined candidate; verify scope then implement.
