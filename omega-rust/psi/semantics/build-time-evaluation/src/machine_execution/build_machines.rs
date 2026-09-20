@@ -102,6 +102,11 @@ impl PreparedBuildMachineEntry {
 impl PreparedBuildMachineProgram {
     pub fn prepare(program: &TypedTrees) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         let mut typed = program.clone();
+        // Preparation may precede endpoint evaluation. Preserve those exact
+        // obligations on the private copy: specialization leaves a tuple with
+        // pending type bounds unreplaced, so it cannot execute before a later
+        // preparation validates its fully evaluated arguments.
+        crate::const_evaluation::range_endpoints::defer_pending_endpoint_calls(&mut typed)?;
         typed_trees_to_checked_trees::specialize_static_machine_calls(&mut typed)?;
         Ok(Self {
             typed,
@@ -185,14 +190,11 @@ pub fn evaluate_build_machine_measured(
         }
     };
     // The public prepared execution service also accepts calls whose caller
-    // supplied its own effect grant. Equation discharge is independent of that
-    // grant and must precede either interpreter mode.
-    if program
-        .typed()
-        .machines()
-        .iter()
-        .any(|machine| machine.structural_type_equations_pending)
-    {
+    // supplied its own effect grant. Static tuple/equation discharge is
+    // independent of that grant and must precede either interpreter mode.
+    if program.typed().machines().iter().any(|machine| {
+        machine.structural_type_equations_pending || !machine.type_parameters.is_empty()
+    }) {
         let symbol = match invocation.machine {
             PreparedBuildMachine::Entry(entry) => entry.symbol(),
             PreparedBuildMachine::Name(name) => program
@@ -208,7 +210,7 @@ pub fn evaluate_build_machine_measured(
                 })?,
         };
         super::admission::BuildTimeAdmissionPlan::infer(program.typed(), None)
-            .require_discharged_structural_equations(program.typed(), symbol)
+            .require_closed_static_applications(program.typed(), symbol)
             .map_err(BuildMachineEvaluationError::Entry)?;
     }
     let request = checked_interpreter::BuildMachineEvaluationRequest {

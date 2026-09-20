@@ -204,7 +204,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
             return Ok(());
         }
         let contract_expressions = contract_expression_handles(program);
-        let selections = selection::collect_call_selections(
+        let mut selections = selection::collect_call_selections(
             program,
             &candidates,
             &callee_states,
@@ -219,6 +219,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
                 candidates[selection.candidate_index].template.template_name
             ))]);
         }
+        // A marked bound is an obligation, not a closed type argument. In
+        // particular an unused type binder must not disappear into an instance
+        // before the bound is evaluated and validated. Keep the original call
+        // until the owning const-evaluation continuation closes the tuple.
+        selections.retain(|selection| {
+            !const_arguments::has_pending_type_arguments(program, &selection.type_bindings)
+        });
         // A retained generic body still checks each known application argument,
         // including a discarded call with no inferred destination to refresh.
         // The tuple's bounds do not depend on whether we emit a private instance.

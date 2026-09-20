@@ -38,7 +38,7 @@ fn provisional_wrapper_cannot_execute_a_specialized_pending_equation() {
         .unwrap();
     let admission = BuildTimeAdmissionPlan::infer(prepared.typed(), None);
     let rejection = admission
-        .require_discharged_structural_equations(prepared.typed(), wrapper.symbol)
+        .require_closed_static_applications(prepared.typed(), wrapper.symbol)
         .unwrap_err();
     assert!(
         rejection.contains("undischarged structural type equation"),

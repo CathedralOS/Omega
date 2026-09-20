@@ -3469,9 +3469,8 @@ Owners include
     type/lifetime scope; `compiler --test bounded_slice_selectors` exercises a
     computed bound driving declared-range inference through source-free Terminal
     and native execution, with out-of-range argument and store rejection.
-    Calls nested inside a structural argument's own range still meet ordinary
-    static-type validation before endpoint folding and reject as nonconstant;
-    complete that staging without bypassing type validation. Extend the
+    Nested computed bounds retain their type obligations until folding and
+    specialization complete, including through nongeneric helpers. Extend the
     existing whole-expression scalar evaluator and shared admission plan;
     retain exact computed-result types and original selection custody. Do not
     add an arithmetic evaluator, infer layout from flow bounds, or use the i64

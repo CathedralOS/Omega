@@ -155,10 +155,10 @@ impl BuildTimeAdmissionPlan {
         }
     }
 
-    /// Provisional typing retains equation obligations through specialization.
-    /// A wrapper cannot execute a pending callee merely because its own
-    /// signature has no type binders.
-    pub(crate) fn require_discharged_structural_equations(
+    /// Provisional typing retains equation and pending-type obligations.
+    /// Every reachable call must have closed its static tuple before execution;
+    /// a wrapper's concrete signature cannot discharge its callee's obligations.
+    pub(crate) fn require_closed_static_applications(
         &self,
         program: &TypedTrees,
         root: SymbolHandle,
@@ -180,6 +180,12 @@ impl BuildTimeAdmissionPlan {
             if machine.structural_type_equations_pending {
                 return Err(format!(
                     "machine `{}` retains an undischarged structural type equation",
+                    machine.name
+                ));
+            }
+            if !machine.type_parameters.is_empty() {
+                return Err(format!(
+                    "machine `{}` retains an unspecialized static application",
                     machine.name
                 ));
             }
@@ -360,7 +366,7 @@ impl BuildTimeAdmissionPlan {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        self.require_discharged_structural_equations(program, machine.symbol)?;
+        self.require_closed_static_applications(program, machine.symbol)?;
         let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,

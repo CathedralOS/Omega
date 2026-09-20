@@ -78,6 +78,59 @@ fn structural_type_endpoint_keeps_its_caller_context_through_native_execution() 
 }
 
 #[test]
+fn computed_structural_type_bound_precedes_endpoint_specialization_and_execution() {
+    let source = format!(
+        "machine limit() -> u64 {{ 7 }} {}",
+        TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "identity<u64[0..=limit()]>(7)")
+    );
+    assert_endpoint_executes(checked_source(&source));
+}
+
+#[test]
+fn transitive_computed_type_bound_precedes_helper_execution() {
+    let source = format!(
+        "machine limit() -> u64 {{ 7 }}
+         machine wrapper() -> u64 {{ identity<u64[0..=limit()]>(7) }} {}",
+        TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "wrapper()")
+    );
+    assert_endpoint_executes(checked_source(&source));
+}
+
+#[test]
+fn computed_structural_type_bound_rejects_an_out_of_range_argument() {
+    let source = format!(
+        "machine limit() -> u64 {{ 6 }} {}",
+        TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "identity<u64[0..=limit()]>(7)")
+    );
+    let errors = check_source(&source)
+        .map(|_| ())
+        .expect_err("the computed type range still constrains invocation arguments");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("outside declared range")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn unused_structural_type_argument_cannot_erase_an_invalid_computed_bound() {
+    let source = format!(
+        "machine limit() -> u64 {{ 7 }} machine ignored<T>() -> u64 {{ 7 }} {}",
+        TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "ignored<u64[0..=limit() / 0]>()")
+    );
+    let errors = check_source(&source)
+        .map(|_| ())
+        .expect_err("an unused type binder must retain its invalid range computation");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("range endpoint")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn structural_type_endpoint_rejects_its_argument_outside_the_selected_range() {
     let source = TYPED_RANGE_SOURCE.replace("identity<u64>(7)", "identity<u64[0..=6]>(7)");
     let errors = check_source(&source)
