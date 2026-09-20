@@ -204,7 +204,8 @@ fn single_extraction_never_hides_sibling_failure() {
             Some(TargetProfile::WindowsX64),
             Err(vec![Diagnostic::error("second")]),
         ),
-    ]);
+    ])
+    .expect("rejected children still produce a batch collection");
     assert!(
         outcomes.into_single_report().unwrap_err()[0]
             .message
@@ -213,7 +214,8 @@ fn single_extraction_never_hides_sibling_failure() {
     let outcomes = CompileOutcomes::new(vec![CompileTargetOutcome::new(
         None,
         Err(vec![Diagnostic::error("source failed")]),
-    )]);
+    )])
+    .expect("a rejected child still produces a batch collection");
     assert_eq!(
         outcomes.into_single_report().unwrap_err()[0].message,
         "source failed"

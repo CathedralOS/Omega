@@ -25,6 +25,7 @@ image = { path = "../../backend/images/image" }
 image-macho = { path = "../../backend/images/image-macho" }
 image-pe = { path = "../../backend/images/image-pe" }
 native-artifact = { path = "../../backend/artifacts/native-artifact" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
 numerics = { path = "../../../psi/foundation/numerics" }
 package-compilation = { path = "../../build/package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }

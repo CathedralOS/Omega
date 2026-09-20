@@ -17,8 +17,10 @@ pub use checked_compilation_to_terminal_artifact::{
     validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,
 };
 pub use compilation_report::{
-    CompileOutputKind, CompileReport, ExecutablePublicationReceipt, FinalRealizationEvidenceError,
-    OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
+    BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
+    BatchCompilationManifestIdentity, CompileOutputKind, CompileReport,
+    ExecutablePublicationReceipt, FinalRealizationEvidenceError, OptimizationRollbackReceipt,
+    ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedBuildOutputs,
     RetainedNativeArtifact,
 };
