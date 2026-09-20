@@ -691,6 +691,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "borrow/nested_aggregate_result_unrelated_source_compile",
     "borrow/provider_owned_view_after_last_use",
     "borrow/provider_view_claim_invalidated_after_last_use",
+    // A copy-eligible fixed array (`[u32; N]`, Unrestricted multiplicity) passed
+    // by value copies rather than moves the owner place, so a live shared view
+    // stays valid. Pins the allowance reported by FUZZ-BORROW-BYVALUE-MOVE-LIVE-VIEW.
+    "borrow/copyable_array_view_survives_owner_pass_compile",
     "borrow/whole_place_recast_disjoint_member_compile",
     "borrows/borrow_disjoint_fixed_index_call_mut",
     "borrows/borrow_disjoint_fixed_index_mut",
@@ -1419,6 +1423,10 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "borrow/borrow_carrying_field_reassignment_invalidated",
     "borrow/aggregate_cast_loan_invalidated",
     "borrow/borrow_carrying_local_transfer_invalidated",
+    // Affine counterpart of the copyable-array pass pin: `[Entry; N]` derives
+    // affine multiplicity, so the by-value pass moves the owner out of borrowed
+    // `self` storage while the shared view is live.
+    "borrow/affine_array_move_under_live_view",
     "borrow/carrier_view_invalidated_by_owner_write",
     "borrow/lifetime_argument_arity",
     "borrow/multi_lifetime_result_field_invalidated",

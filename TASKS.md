@@ -5585,12 +5585,18 @@ family and pin the documented behavior with a canary plus the fix if scoped.
   ops. Extend the host-call result-staging rule to scalar stores or pin the
   intended allowance. Paths: `tests/omega/{pass,fail}/host/`,
   `omega-rust/psi/semantics/`.
-- **FUZZ-BORROW-BYVALUE-MOVE-LIVE-VIEW.** Passing owner array `self.items`
-  (`[u32; 2]`) by value into a callee while a shared view is live did not
-  invalidate the view (compiled clean). If arrays are not `Copy`, this is a
-  borrow-safety hole; pin a fail-canary for move-under-live-borrow.
-  Paths: `tests/omega/{pass,fail}/borrow/`, borrow checking in
-  `omega-rust/psi/semantics/`.
+- **FUZZ-BORROW-BYVALUE-MOVE-LIVE-VIEW.** Resolved at `be1b4a236b` — not a
+  borrow hole. `FixedArray` derives multiplicity from its element type
+  (`typed-trees/src/typed_trees/type_reference_queries.rs` `type_multiplicity`),
+  so `[u32; 2]` is Unrestricted/copyable: `consume(self.items)` copies, the
+  owner place stays established, and the live `&[u32]` view correctly remains
+  valid. Pinned both polarities: `pass/borrow/copyable_array_view_survives_owner_pass_compile`
+  (copyable array under live view compiles and the view reads through) and
+  `fail/borrow/affine_array_move_under_live_view` (affine `[Entry; 2]` rejects
+  with `receives an owned value while local borrow `view` is still active`).
+  No source change needed. Checked-only canary filters green on linux x86-64
+  (cargo nextest); roster audit has three pre-existing unregistered fixtures
+  on this base (generics/operators, other lanes).
 - **FUZZ-WEAK-VACANT-QUALIFIER-DROP.** `Weak { e: whole }` where `e` is
   `Extent in Granted` but the field expects `Extent in Granted & Vacant`
   exits 0 — the `Vacant` qualifier drops silently while `Resident` weakening

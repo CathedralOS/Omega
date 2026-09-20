@@ -1,0 +1,25 @@
+// FAIL canary: the mirror of the copyable case. `[Entry; 2]` derives affine
+// multiplicity from its record element type, so `consume(self.entries)` moves
+// the owner place out of borrowed `self` storage while the shared view `view`
+// is still live. Moving a borrowed owner under a live view must reject, both
+// at the call (owned argument vs live borrow) and at the place (non-copy value
+// must be restored before the state's exits consume the borrow).
+
+data Entry {
+    value: u32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+machine consume(entries: [Entry; 2]) {
+    let first: Entry = entries[0];
+}
+
+machine Main::main(&mut self) {
+    self.entries = [Entry { value: 3 }, Entry { value: 4 }];
+    let view: &[Entry] = self.entries.as_slice();
+    consume(self.entries);
+    let first: Entry = view[0];
+}
