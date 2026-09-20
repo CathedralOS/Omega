@@ -1,0 +1,88 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-20T17:08:01Z",
+  "subject": {
+    "name": "wrapping_square_sum",
+    "root": "samples/cli/arithmetic/wrapping_square_sum/main.omg",
+    "source_revision": "7ec604d7ef4b69e5c39ff3a6ee696b7cfd8d9902"
+  },
+  "key": {
+    "target": "linux_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": [
+        "CopyPropagation"
+      ]
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "linux",
+    "machine": "x86_64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8559C",
+    "logical_cpus": 8,
+    "python": "3.10.12",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "target/release/omega",
+    "omega_profile": "unknown"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        3748.427148000701,
+        3687.9538199991657,
+        3794.824790000348
+      ],
+      "median_ms": 3748.427148000701,
+      "min_ms": 3687.9538199991657,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 1.878,
+        "compile: sources -> requested product": 3729.731,
+        "publish: retained product -> published product": 57.483,
+        "total elapsed": 3789.334
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 84189184,
+      "run_max_rss": 12238848
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192,
+        8192,
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        4.8115660010807915,
+        4.024349998871912,
+        3.9004230002319673,
+        4.036627000459703,
+        3.2502710000699153
+      ],
+      "median_ms": 4.024349998871912,
+      "min_ms": 3.2502710000699153,
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "exit_code_expected": null,
+      "stdin": "devnull"
+    }
+  },
+  "notes": []
+}
