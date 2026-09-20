@@ -65,3 +65,20 @@ from distinct owned inputs require further implementation. Native execution is n
 by these source-free interpreter checks.
 These checks do not establish generic PCC or independently authenticated original
 contract projections.
+
+`projected_three.omg` carries the same whole-aggregate callback reach over
+`[Region in Owned; 3]`, pinning the source-level join at three indexed claims:
+
+```sh
+cargo run -p omega -- --check tests/omega/pass/effects/structural_callback_reach/projected_three.omg
+cargo run -p omega -- inspect-terminal --machine Main::demand tests/omega/pass/effects/structural_callback_reach/projected_three.omg
+```
+
+Measured frontier at the commit that added `projected_three.omg`: packing two
+distinct owned `Region` inputs into `[Region in Owned; 2]` and forwarding the
+array through `Selected` still fails Terminal production with
+`InvalidUnitMachinePlan` ("`Main::demand` has no admitted body (local
+construction stopped at result type)"), and extracting `forwarded[0]` while the
+`[1]` sibling stays live rejects at source check with the linear
+reaches-scope-exit diagnostic. Both remain upstream implementation work in
+`typed-trees-to-checked-trees`, not test-only gaps.
