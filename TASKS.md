@@ -7468,9 +7468,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CUSTODY-MATRIX-HARNESS-MIGRATION.** Mined candidate (split-of:CUSTODY-MUTATION-COVERAGE):
   convert the legacy handwritten one-field substitution matrices to the shared
   `custody_field_inventory!`/`run_one_field_substitution_matrix` harness in
-  `optimization-core`'s `test_support`, starting with the six-file ~15k-line set
-  led by `image-emission/tests/artifacts/installation_function_nested_custody.rs`
-  (18 matrices, 6,942 lines).
+  `optimization-core`. The lead file,
+  `image-emission/tests/artifacts/installation_function_nested_custody.rs`
+  (18 matrices, 471 legs), is migrated: 22 declared inventories, two shared
+  checkers, all authored labels retained as variant names. Remaining
+  handwritten sets, by size: `compilation-report/src/pcc/native_evidence/custody_tests.rs`
+  (7 matrices, 3,183 lines), `component-publication/src/tests.rs` (9, 3,140),
+  `executable-installation/src/executable_installation/tests.rs` (48, 2,614),
+  `image-emission/tests/artifacts/installation_records.rs` (11, 2,375),
+  `packages/topology/tests/custody_substitution.rs` (4, 2,179), and the
+  `terminal-codec/tests/artifact/*_custody.rs` single-matrix files. Each
+  migration keeps every authored leg (label, mutation, expected error) and
+  proves the test roster unchanged before and after.
 - **CUSTODY-MUTATION-COVERAGE** — mined candidate; verify scope then implement.
 - **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT** — mined candidate; verify scope then implement.
   Verified scope at `0e8bb1bdad`: re-mines the OMEGA-D clause
