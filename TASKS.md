@@ -6983,73 +6983,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
   + `representations/abstract-operations` (read-only enumeration).
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — mined candidate; verify scope then implement.
-- **BASELINE-SERVICE-CARRIER-FAILURES.** Partially advanced at
-  `62c502f9f6` — the bare `Service<R>`-carrier family of
-  `known_baseline_failures.md`'s c2l attribution: 33 tests spelled
-  `console: Console` / `runtime: TaskRuntime` / `output: Output` in value
-  position and rejected under `validate_no_bare_boundary_trait_values`
-  (32f5182254). Done (this slice): `tests/unit_plan_omissions.rs`'s 4 bare
-  `runtime: TaskRuntime` spellings migrated to `&'s mut TaskRuntime`
-  receivers on `Main<'s>`/`Carrier<'s>` per the 0e1977994b raw-pipeline
-  recipe. The 3 carrier-semantic members now pass source checking and stop
-  at `signature`-phase local construction, joining the missing-transitive-
-  machine-plan family (GENERAL-CYCLIC-EXECUTION / UEFI-OS-HANDOFF fences)
-  until ENTRY-CONTENT-ROOTS' receiver-lifecycle leg lands; the `&TaskRuntime`
-  shared-borrow negative control still pins the same stop. Remaining
-  (fenced): `checked-trees-to-lowered-psi/src/tests/{attached_unit_cases,
-  composed_operand_catalogs{,/dynamic_unit}, composed_unit_nested_control,
-  dynamic_composed_unit, indexed_primitive_storage,
-  structural_control_cases}.rs` (21 bare spellings) sit inside
-  PROOF-CERTIFICATION-BRIDGE's `src/tests` claim (expires ~2026-09-21T00:51Z)
-  — same migration applies there when the fence settles.
-  **One member outside the c2l roster, measured 2026-09-20 at `3533f7d0e8`
-  (macOS arm64):** `native-realization`
-  `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`
-  is the same 32f5182254 fallout — its `SINK_SOURCE` still spells
-  `data Main { sink: Sink; }` — but the roster's migration recipe does not
-  reach it, for a reason worth recording. Its entrance
-  `tests/fixtures/checked_source.rs::checked` resolves a **source-free**
-  forest (`ResolutionRequest::new`, `sources: None`), and `Service` is never
-  matched by name: both
-  `syntax-trees-to-symbol-resolved-trees::symbols::type_references::queries::exact_service_carrier_data`
-  and typed-trees `calls::service::is_exact_service_data_symbol` require the
-  declaration to come from a `SourceOrigin::Toolchain` file whose
-  package-relative path is exactly `service.omg` (`SERVICE_CORE_SOURCE`). So
-  no string handed to that helper can spell a routed service call, and
-  `sink: Service<Sink>` alone fails with "unknown generic type `Service`".
-  Walked the whole ladder to confirm where it actually stops: adding a
-  `SourceMap` with `add_with_metadata(PathBuf::from("core/service.omg"),
-  "pub boundary data Service<R>;", PathBuf::from("core"), None,
-  SourceOrigin::Toolchain)` parsed into the same forest via
-  `parse_syntax_trees_into_with_id` gets the carrier recognized; `Sink` must
-  then also be `pub` ("requires a public boundary trait as its stable slot
-  contract"); and the fixture then lands on exactly this row's stop —
-  `` `Main::launch` has no admitted body (local construction stopped at
-  signature) `` — which a source-declared provider satisfying `Sink::emit`
-  does NOT clear, because selection is build-evaluated and that helper runs
-  no build. So this member is fenced behind the same
-  missing-transitive-machine-plan leg as the carrier-semantic three above,
-  and migrating it additionally needs the fixture entrance to carry a
-  toolchain `SourceMap`. Probe reverted; nothing landed for it here.
-- **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.
-- **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; scope
-  verified, real residual, fenced. Re-mines the provider-attachment members
-  of the `InvalidUnitMachinePlan` family recorded in
-  `wiki/drafts/known_baseline_failures.md` (missing checked transitive
-  machine plan). Re-witnessed on linux x86-64 at `797e99ead7a`:
-  `cargo nextest run -p checked-trees-to-lowered-psi -E
-  'test(~provider_attachments)|test(~provider_attachment_source)'` → 15/15
-  still red at identical panic sites — `provider_attachment_source` ×6
-  (:97, stops at `signature`) and `unit_state_graph::provider_attachments`
-  ×9 (:220/:50, stops at `attached data shape, state 0`), all `` `X` has no
-  admitted body (local construction stopped at <phase>) ``. Fixtures pass
-  source checking (migrated in `0e1977994b`); the gap is admitting the
-  attached closure's transitive machine plans — repair surfaces are
-  `execution/unit/providers.rs` (PROVIDER-ATTACHMENT-MACHINE-PLAN, 22:37Z),
-  `execution/unit/{control,state_graph,composed_control}`
-  (GENERAL-CYCLIC-EXECUTION / -OPTIMIZER, 23:38Z/03:48Z), and
-  `execution/unit/{mod.rs,candidate_closure,calls}` per the doc fence map.
-  No unfenced slice exists.
+- **BASELINE-SERVICE-CARRIER-FAILURES.** Resolved. The bare
+  boundary-trait carrier family is fully migrated: the 21
+  `console: Console` and `output: Output` spellings across the lowering
+  crate's `src/tests` sources became `Service<R>` carrier fields at
+  00a69f066b0, with `checked_source_with_core_service` installing the core
+  service source, and `tests/unit_plan_omissions.rs`'s 4
+  `runtime: TaskRuntime` spellings became `&'s mut TaskRuntime` receivers at
+  37e309e6060. Verified at 00e1da7ae2a on macOS arm64, 2199 run and 2174
+  passed with no `validate_no_bare_boundary_trait_values` rejection left in
+  the log, and every declared boundary trait in those trees scanned for a
+  value-position field. The library members pass, not vacuously: their
+  harness ends in a check the fixture must survive before the tests assert
+  on the lowered result. The three carrier-semantic `unit_plan_omissions`
+  members reach the further stop the item predicted, `signature`-phase local
+  construction, joining the missing-transitive-machine-plan family behind
+  the **GENERAL-CYCLIC-EXECUTION** and **UEFI-OS-HANDOFF** fences until
+  **ENTRY-CONTENT-ROOTS**' receiver-lifecycle leg lands; the shared-borrow
+  negative control still pins that stop.
+
 - **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — names the
   baseline row's verifier cleanup-order surface
   (wiki/drafts/known_baseline_failures.md terminal-verifier section),
