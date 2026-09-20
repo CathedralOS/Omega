@@ -223,9 +223,13 @@ pub(super) fn assign_machine_parameter_signature_symbols(
         parameter.symbol = next_child_of_kind(&mut children, symbols, kind);
     }
 
-    let mut local_type_parameters = inherited_type_parameters.to_vec();
-    local_type_parameters
-        .extend_from_slice(data_type_parameters.span_or_empty(contract.type_parameters));
+    // Type lookup reads the first matching declaration. A nested signature's
+    // own binders shadow inherited owner binders without changing either
+    // declaration identity; unshadowed owner names remain in scope.
+    let mut local_type_parameters = data_type_parameters
+        .span_or_empty(contract.type_parameters)
+        .to_vec();
+    local_type_parameters.extend_from_slice(inherited_type_parameters);
 
     let nested_count = contract.type_parameters.len();
     for index in 0..nested_count {

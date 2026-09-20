@@ -248,9 +248,10 @@ to the storage it was copied from.
 Forwarded references need exact caller declarations or proven helper origins;
 `mut` binding syntax cannot amplify reference access. Signature-only boundary
 results provide no returned-place proof. Generic signatures remain unavailable
-to fact-seeding consumers that cannot retain their substitution. Failed boundary
-selection stays opaque through the fallback consumers, including for generic
-receivers.
+to fact-seeding consumers that cannot retain their substitution. For direct
+field and parameter receivers, failed boundary selection stays opaque through
+the fallback consumers, including when the receiver is generic. Nested receiver
+forms remain subject to the unresolved-receiver limitations on the R5 board.
 
 Aggregate transport retains declared Field/Case/FixedIndex reference leaves,
 frozen origins, and selected/possible case evidence. A coarse array demand unions
