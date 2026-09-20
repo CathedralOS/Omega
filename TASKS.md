@@ -6513,6 +6513,16 @@ moved to the termination-catalog fence (see that row's refresh note).
   Do not erase the claim to `Truth`/`Empty` or treat well-formed metadata as
   proof. Acceptance remains this same source reaching source-free verification
   with its contract intact, plus rejection of the false twin.
+  Measured at `739e4e81e97` (linux x86-64, this session): `--check` passes and
+  all five `float_semantic_applications` tests stay green, but
+  `omega inspect-terminal --machine read` on the source customer stops at
+  `scalar_graph_lowering/contract_lowering.rs:201`
+  `validate_closed_scalar_contract` — "machine must have exactly one requires
+  and one ensures clause". The gate fires before clause-shape checking: the
+  machine authors no requires and its ensures is a meaning equality rather
+  than a `ClosedScalarContractValue`, so the route to admission is a
+  meaning-valued contract proposition lane beside the closed-scalar one, not
+  another variant on the existing gate.
   Resume on macOS AArch64 with `RUST_MIN_STACK=67108864 cargo nextest run -p
   compiler --test float_semantic_applications --no-fail-fast --no-tests fail`.
   On the source-check implementation based on `0917f9983c`, all five tests pass:
