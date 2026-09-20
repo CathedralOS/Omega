@@ -240,6 +240,7 @@ pub fn compile_prepared_local_project_for_native<Observation>(
 mod tests {
     use super::PathBuf;
     mod accepted_lock;
+    mod receiving_admission;
     use crate::review::ReviewOnlyRootPolicyDisposition;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -295,6 +296,91 @@ machine Main::main(&mut self) { }
 
         fn entry(&self) -> PathBuf {
             self.source.join("main.omg")
+        }
+
+        /// An application that reaches the Console exit leaf through a
+        /// minimal local provider package: the demanded closure is the
+        /// package-owned `Console::exit_process` compiler-intrinsic
+        /// termination mechanism, so receiver admission is exercised by the
+        /// receiving permission policy alone without the standard library.
+        /// The dependency sits inside the workspace directory so `Drop`
+        /// cleans it with the rest of the fixture.
+        fn console_project() -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "omega-cli-package-native-console-{}-{}",
+                std::process::id(),
+                NEXT_TREE.fetch_add(1, Ordering::Relaxed),
+            ));
+            std::fs::create_dir(&path).expect("create temporary package project");
+            let workspace = std::env::temp_dir().join(format!(
+                "omega-cli-package-workspace-{}-{}",
+                std::process::id(),
+                NEXT_TREE.fetch_add(1, Ordering::Relaxed),
+            ));
+            std::fs::create_dir(&workspace).expect("create temporary build workspace");
+            let dependency = workspace.join("console-provider");
+            std::fs::create_dir(&dependency).expect("create temporary provider package");
+            std::fs::write(
+                dependency.join("build.omg"),
+                r#"machine build(builder: &mut Build) {
+    builder.package("console-provider");
+}
+"#,
+            )
+            .expect("write provider package build declaration");
+            std::fs::write(
+                dependency.join("console.omg"),
+                r#"pub boundary trait Console {
+    machine exit_process(return_code: i32)
+    reaches
+        Console;
+}
+
+pub data ConsoleNativeProvider { }
+
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+
+linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
+    defaults.select_provider<Console, ConsoleNativeProvider>();
+}
+"#,
+            )
+            .expect("write provider package source");
+            let dependency = dependency.to_string_lossy().replace('\\', "/");
+            std::fs::write(
+                path.join("build.omg"),
+                format!(
+                    r#"
+machine build(builder: &mut Build) {{
+    builder.application("receiving-admission-app");
+    builder.depend(Source::Path {{ location: "{dependency}" }});
+    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}}
+"#,
+                ),
+            )
+            .expect("write package build declaration");
+            std::fs::write(
+                path.join("main.omg"),
+                r#"use omega::language::core::service;
+use console_provider::console;
+
+data Main { console: Service<Console>; }
+
+machine Main::main(&mut self)
+reaches Console
+{
+    self.console.exit_process(70);
+}
+"#,
+            )
+            .expect("write package application");
+            Self {
+                source: path,
+                workspace,
+            }
         }
     }
 
