@@ -161,10 +161,11 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
-    // Format 98 carries referent path segments, reference structural type
-    // shapes, and result source rosters on top of format 97's
-    // complete-custody image-section header. The marker is checked before the
-    // body, so a relabeled payload cannot masquerade as a predecessor format.
+    // Format 99 retains the by-value opaque boundary application's selected
+    // custody on top of format 98's referent path segments, reference
+    // structural type shapes, and result source rosters. The marker is checked
+    // before the body, so a relabeled payload cannot masquerade as a
+    // predecessor format.
     // Reconstruct framing independently of the production helper and pin both
     // identities.
     use sha2::{Digest, Sha256};
@@ -179,7 +180,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     predecessor_payload[8..10].copy_from_slice(&95_u16.to_le_bytes());
     assert_eq!(
         independent_fingerprint(&predecessor_payload),
-        "1ef54fa0ef7023a644c22ca05a534fb30ae99cf4475be0e457db3a92ee116bf0"
+        "61e229fb134e8d955f6c7567702dc5dddde7c9458e1f1839eca4ae793ab0592a"
     );
     assert_eq!(
         decode_installation_record(&predecessor_payload),
@@ -187,13 +188,13 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "26e3caf5ea009da1310dc476ab3fdd68917d8f29414ae0a96fa8d64217b417ee"
+        "667970dccdc6b79e765f36c3e4267ea638f524528c8cc04e1b30326cca355bc8"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "26e3caf5ea009da1310dc476ab3fdd68917d8f29414ae0a96fa8d64217b417ee"
+        "667970dccdc6b79e765f36c3e4267ea638f524528c8cc04e1b30326cca355bc8"
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a
@@ -1650,6 +1651,7 @@ fn installation_record_retains_selected_provider_plan_without_execution() {
         [91],
         std::iter::empty::<&dyn ProviderExecutionEvidence>(),
         None,
+        boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
     )
     .expect("selected but unexecuted provider plan remains installation identity");
 
@@ -1664,6 +1666,7 @@ fn installation_record_retains_selected_provider_plan_without_execution() {
             [91, 91],
             std::iter::empty::<&dyn ProviderExecutionEvidence>(),
             None,
+            boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         ),
         Err(InstallationError::DuplicateProviderPlan)
     );
@@ -1694,6 +1697,7 @@ fn installation_selected_provider_plan_rejects_every_one_field_substitution() {
         [7, 42],
         [&provider],
         None,
+        boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
     )
     .expect("selected closure with an unexecuted plan");
     assert_eq!(
@@ -1734,6 +1738,7 @@ fn installation_selected_provider_plan_rejects_every_one_field_substitution() {
             plans.iter().copied(),
             [&provider],
             None,
+            boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         )
         .unwrap_or_else(|error| panic!("{field}: substituted roster admits: {error:?}"));
         assert_eq!(
@@ -1839,6 +1844,7 @@ fn installation_selected_provider_plan_rejects_every_one_field_substitution() {
             [42],
             [&provider],
             None,
+            boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         ),
         Err(InstallationError::ProviderExecutionOutsideSelectedClosure)
     );
@@ -1849,6 +1855,7 @@ fn installation_selected_provider_plan_rejects_every_one_field_substitution() {
             [7, 970],
             [&provider, &WriteExitProvider(970)],
             None,
+            boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         ),
         Err(InstallationError::ProviderExecutionClosureMismatch)
     );
@@ -1859,6 +1866,7 @@ fn installation_selected_provider_plan_rejects_every_one_field_substitution() {
             [7, 0],
             [&provider],
             None,
+            boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         ),
         Err(InstallationError::ZeroProviderPlan)
     );
