@@ -355,6 +355,51 @@ change no test behavior, and the near-threshold member
 264s — still slow-flagged, still not a failure. All 58 members remain owned
 by the families' named items.
 
+Residual attribution at 6ef64f6dd6 (2026-09-20, Linux x86-64), same command
+plus a separate `--test suite` run for the blowup member: 2152 run, 2093
+passed (18 slow), 59 failed, and the same
+`mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+member aborted by SIGTERM at ~892s — the blowup persists, still owned by
+PROOF-SEARCH-MEASUREMENT. The tail moved since 210ffe3c93 and is
+re-attributed member-by-member below.
+
+- Unchanged families at identical panic sites: 30 `tests::*` cases panic at
+  `src/tests.rs:82` on the bare `Service<R>` fixture spelling plus the 3
+  `unit_plan_omissions` members at `tests/unit_plan_omissions.rs:16` (33
+  total, ENTRY-CONTENT-ROOTS); 16 missing checked transitive machine plans
+  (`provider_attachment_source` ×6 at :97,
+  `unit_state_graph::provider_attachments` ×9 at :220/:50, and
+  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`
+  at tests/:84); 3 site_guard crash-namespace rejections; 4 scalar-return
+  custody cases; 1 blowup.
+- Closed: `registered_callback_lifetime::interpreted_register_unregister_round_trip_drives_the_ledger`,
+  the family's sole member, now passes — in-window closers are
+  851052b4f8f (admit constrained-result spelling as boundary issuance
+  witness) or 1fc01bb6907 (transferred input is not fresh supply), both in
+  `typed-trees-to-checked-trees/src/checks/content`.
+- New — ranked safe-point segment bounds (2 tests):
+  `structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
+  now reads per-edge ceiling 3·2³³ (0x600000000) instead of 3, and
+  `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64` gets
+  `Err(BoundOverflow)` where per-edge segments were asserted to stay within
+  the u64 schedule. `terminal-fixed-fuel`'s `derive_fixed_safe_point_segments`
+  is unchanged in-window; the change entered through its verified input —
+  prime suspect 39e156c73a0 (retain integer entry ranges through terminal
+  psi; scalar_qualifications +151 lines). Post-base 7591b2607c7 (bound
+  segments through ranked cyclic components) is actively migrating this
+  surface, so the family is mid-flight — the ranked-cycle/fuel lane owns it;
+  not bisected.
+- New — closed-projection replay admission (1 test):
+  `expression_preparation::bindings::tests::closed_record_projections_replay_exact_sources_carriers_and_all_siblings`
+  (bindings/tests.rs:209) — mutating a member's symbol to invalid/foreign no
+  longer fails replay; the checked bound-expression facts appear to be
+  authoritative for field identity. In-window suspects 39e156c73a0
+  (result_contract/scalar_contracts facts rework) or 143636cec8a
+  (retained-borrow boundary custody); unbisected.
+- Counts: +6 tests and +1 net FAIL versus 210ffe3c93; the near-threshold
+  member `owned_match_nested_record_replays_every_selected_payload` passed
+  at 261s — still slow-flagged, still not a failure.
+
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
 macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the
