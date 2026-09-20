@@ -7361,7 +7361,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `selected_stages_read_current_data_not_producer_ancestry` in
   `tests/architecture/representation_ownership.rs` enforces the contract;
   REPRESENTATION-OWNERSHIP in TASKS_OPTIMIZER.md records the leg done.
-- **RO-STAGE-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
+- **RO-STAGE-ANCESTRY-ELIMINATION.** Resolved at 39e156c73a — re-mine of the settled REPRESENTATION-OWNERSHIP ancestry surface on selected-instructions-to-selected-instructions, named as a sibling stub by SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL (TASKS.md). Contract re-verified green on this host: `cargo nextest run -p selected-instructions-to-selected-instructions --test ancestry_contract` 2/2 pass at 39e156c73a (Linux x86-64) — staged types read current data, not producer ancestry; named stage hops remain only at custody sites. No leg remains.
 - **ROOT-FILE-DISCIPLINE** — mined candidate; verify scope then implement.
 - **RULE-PROMOTION-EVIDENCE** — mined candidate; verify scope then implement.
   Verified scope: the name re-mines WORKSPACE-ROLLOUT's exact-rule promotion
