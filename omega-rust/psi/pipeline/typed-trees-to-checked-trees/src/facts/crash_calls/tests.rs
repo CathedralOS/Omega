@@ -2094,6 +2094,63 @@ fn indexed_actuals_keep_identity_but_drop_scalar_evidence() {
     );
 }
 
+/// A projected callee leaf over an indexed actual keeps the guarded route:
+/// `inner`'s `cell.count == 0` binds `outer`'s `cells[k]`, so the surviving
+/// predicate names `cells[k].count` in caller coordinates rather than
+/// widening to `Truth`. The operand's index step carries `k`'s own entry
+/// operand and the collection owes its whole-storage bound snapshot.
+#[test]
+fn an_indexed_actual_below_a_projected_leaf_keeps_the_guarded_route() {
+    use typed_trees::expression::BinaryOperator;
+
+    let buckets = call_site_buckets(
+        "data Cell { count: u8; }
+         machine inner(cell: Cell) -> bool crashes Trap cell.count == 0 { true }
+         machine outer(cells: [Cell; 4], k: u64 [0..=3]) -> bool crashes Trap { inner(cells[k]) }",
+        "outer",
+    );
+    let checked_trees::CrashRouteGuard::Predicate(identity) = single_surviving_bucket(&buckets)
+    else {
+        panic!("the projected leaf over an indexed actual keeps its guarded route: {buckets:?}")
+    };
+    assert_eq!(
+        identity.expression(),
+        Some(&CrashPredicateExpression::Binary {
+            operator: BinaryOperator::Equal as u8,
+            left: Box::new(CrashPredicateExpression::Member {
+                receiver: Box::new(CrashPredicateExpression::Indexed {
+                    collection: Box::new(CrashPredicateExpression::Parameter(0)),
+                    index: Box::new(CrashPredicateExpression::Parameter(1)),
+                }),
+                member: "count".into(),
+            }),
+            right: Box::new(CrashPredicateExpression::Integer("0".into())),
+        }),
+    );
+}
+
+/// The same projected leaf over an indexed actual widens once the collection
+/// can no longer prove its bound snapshot: an element write anywhere inside
+/// `cells` retires the whole-storage provenance the operand stands on.
+#[test]
+fn an_indexed_actual_below_rewritten_collection_widens_the_route() {
+    let buckets = call_site_buckets(
+        "data Cell { count: u8; }
+         machine inner(cell: Cell) -> bool crashes Trap cell.count == 0 { true }
+         machine outer(mut cells: [Cell; 4], k: u64 [0..=3], spare: Cell) -> bool
+         crashes Trap {
+             cells[0u64] = spare;
+             inner(cells[k])
+         }",
+        "outer",
+    );
+    assert_eq!(
+        single_surviving_bucket(&buckets),
+        &checked_trees::CrashRouteGuard::Truth,
+        "an element write retires the whole collection's entry snapshot: {buckets:?}"
+    );
+}
+
 /// The indexed identity still composes through a private summary — `mid`
 /// binds the whole structural actual, and `outer`'s `mid(cell, k)` re-roots
 /// the collection spine while `k` binds the index — and the scalar channel
