@@ -1,0 +1,15 @@
+// `in` resolves its declared `u8` result type, but no checked unit operation
+// arm exists for a port read yet: the machine is omitted at the
+// `call: call operation` planning phase rather than carrying a settled port
+// effect into the artifact.
+use omega::language::core::assembly;
+
+data Main {
+    byte: u8;
+}
+
+machine Main::main(&mut self) reaches PortIo {
+    asm where clobbers rax, rdx, r10, r15 {
+        in self.byte, 0x3F8
+    }
+}

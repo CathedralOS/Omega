@@ -4892,6 +4892,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "inline_asm/asm_popfq_requires_machine_authority",
     "inline_asm/asm_wrmsr_requires_machine_authority",
     "inline_asm/asm_write_cr3_requires_machine_authority",
+    "ports/asm_port_in_unsettled",
 ];
 
 #[derive(Clone, Copy)]

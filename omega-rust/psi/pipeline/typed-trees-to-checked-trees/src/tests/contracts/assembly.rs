@@ -310,3 +310,52 @@ fn checked_helpers_propagate_asm_services_without_repeated_declarations() {
         );
     }
 }
+
+/// An asm value intrinsic's call result resolves its declared type: the unit
+/// plan must advance past `call source result type` and stop at the operation
+/// frontier, where no `CheckedUnitEffectOperationPlan` arm exists for it yet.
+/// If this ever reports `call source result type` again, the intrinsic's
+/// builtin result type regressed.
+#[test]
+fn asm_value_intrinsic_result_types_reach_the_call_operation_frontier() {
+    for (service_name, field_type, clobbers, instruction) in [
+        ("PortIo", "u8", "rax, rdx, r10, r15", "in self.value, 0x3F8"),
+        (
+            "MachineControl",
+            "u64",
+            "rax, rcx, rdx, r10, r11, r15",
+            "rdmsr self.value, 3221225600",
+        ),
+    ] {
+        let source = format!(
+            "data Main {{ value: {field_type}; }}\n\
+             machine Main::main(&mut self) reaches {service_name} {{\n\
+             \x20   asm where clobbers {clobbers} {{ {instruction} }}\n\
+             }}",
+        );
+        let checked = lower_typed_trees(parse_typed_trees(&source))
+            .expect("asm value intrinsic checks cleanly at contract level");
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("main machine");
+        let omission = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine.symbol)
+            .expect("intrinsic call still has no unit operation arm");
+        assert!(
+            matches!(
+                omission.stage,
+                checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+                    phase: "statement sequence: call: call operation",
+                    ..
+                }
+            ),
+            "unexpected omission stage for {instruction}: {:?}",
+            omission.stage
+        );
+    }
+}
