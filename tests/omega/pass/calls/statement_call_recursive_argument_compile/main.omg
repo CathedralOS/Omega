@@ -14,19 +14,21 @@ use omega::language::core::service;
 data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 
-data Nat { case Zero; case Succ(prev: Nat); }
+// Local `Peano`/`peano_add` names: `core` exports `Nat` and `add`, so the
+// fixture declares its own chain under non-colliding spellings.
+data Peano { case Zero; case Succ(prev: Peano); }
 
-machine add(a: Nat, b: Nat) -> Nat
+machine peano_add(a: Peano, b: Peano) -> Peano
 terminates by a;
 {
     transition a {
-        Nat::Zero -> (b)
-        Nat::Succ { prev } -> Nat::Succ { prev: add(prev, b) }
+        Peano::Zero -> (b)
+        Peano::Succ { prev } -> Peano::Succ { prev: peano_add(prev, b) }
     }
 }
 
-machine lemma(x: Nat, y: Nat) { }
+machine lemma(x: Peano, y: Peano) { }
 
-machine consumer(p: Nat, q: Nat) {
-    lemma(q, add(p, q));
+machine consumer(p: Peano, q: Peano) {
+    lemma(q, peano_add(p, q));
 }
