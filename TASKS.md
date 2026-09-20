@@ -6579,6 +6579,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (00:48Z). This row's own deliverable is therefore the Windows validation
   leg (host-gated) plus witnessing that the sibling gaps closed; no
   linux_x86_64-implementable slice exists inside the claimed surfaces.
+- **GEOMETRY-PARITY.** Resolved at `7176821bc6` — this is the submodule
+  board's own name (samples/apps/squalr/TASKS.md:6) for the surface the
+  main board audits as SQUALR-GEOMETRY-PARITY; re-verified against the
+  pinned submodule `251699c4`, which still lists the item open with the
+  same residual set. Adjudication is unchanged: the Windows validation
+  leg is host-gated (no Windows host in this lane), and each remaining
+  parity gap is already a named sibling row — Rust debug-only assertions
+  (SQUALR-GEOMETRY-PARITY audit), alignment string parsing
+  (SQUALR-ALIGNMENT-STRING-PARSING), the `set_alignment` call-site gate
+  (GEOMETRY-ALIGNMENT-REGIONS), named trait operators
+  (SQUALR-NAMED-TRAIT-OPERATORS), clone/serialization
+  (SQUALR-CLONE-SERIALIZATION-PARITY). The implementing surface
+  `samples/apps/squalr` is wholesale under live sibling claims
+  (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z; SQUALR-GEOMETRY-PARITY exp
+  04:31Z — a sibling actively working this item's alias; SNAPSHOT-STORAGE
+  exp 05:21Z); no in-fence slice remains here. Re-entry caveat recorded
+  on the sibling row stands: both lock-bound run and fresh `omega update`
+  paths are red at HEAD until the submodule's std pin advances past
+  `32f5182254`.
 - **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators.
 - **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
 - **SQUALR-SEED-PARITY.** Resolved — merged alias of SQUALR-GEOMETRY-PARITY's "finish the mapped Rust behavior still absent from the seed" clause, adjudicated at `a3ab15b7611`. The submodule's TASKS.md carries no seed-parity item; the phrase mines the GEOMETRY-PARITY residual list, whose enumerated gaps are each already a sibling row: alignment string parsing (SQUALR-ALIGNMENT-STRING-PARSING), clone/serialization (SQUALR-CLONE-SERIALIZATION-PARITY), region alignment/expansion (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators (SQUALR-NAMED-TRAIT-OPERATORS), Rust debug-only assertions (SQUALR-GEOMETRY-PARITY), and the Windows validation leg plus the std-pin `32f5182254` upgrade (both recorded open inside SQUALR-GEOMETRY-PARITY's verified-scope audit). The implementing surface `samples/apps/squalr` stays with the port's own lane; no independent slice exists under this name. Re-verified at `59610bf809`: the submodule board still carries no seed-parity row, and the surface stays fenced — `samples/apps/squalr` under SQUALR-TARGETS-AND-THROUGHPUT (21:39Z) plus a same-item sibling claim `Jarod / swarm-w9-squalr-seed-parity` (02:08Z).
