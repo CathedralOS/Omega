@@ -304,7 +304,18 @@ fn build_operand(
                 .any(|parameter| parameter.symbol == path.symbol);
             let attached = path.symbol == machine.symbol
                 && parameters.iter().any(|parameter| parameter.is_self);
-            if !local && !parameter && !attached {
+            let value_binder = program
+                .machine_type_parameters(machine)
+                .iter()
+                .any(|parameter| {
+                    parameter.symbol == path.symbol
+                        && matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Value { .. }
+                                | typed_trees::data::TypeParameterKind::Const { .. }
+                        )
+                });
+            if !local && !parameter && !attached && !value_binder {
                 return None;
             }
             Some(Operand::Place {

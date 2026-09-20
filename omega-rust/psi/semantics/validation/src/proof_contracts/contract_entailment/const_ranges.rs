@@ -1,10 +1,13 @@
-//! Symbolic value bounds use immutable, exact current-machine const binders.
+//! Symbolic ranges use exact current-machine binders and current scope values.
+//! A store or return can consume live ordered facts from arithmetic validation;
+//! declaration-only queries use type envelopes, not guessed flow premises.
 //! No selected application supplies premises for the retained generic body.
 use super::{
     BigInt, BinaryOperator, Diagnostic, Engine, ExpressionHandle, ExpressionNode, Machine,
     Polynomial, StrictArithmeticBindingValue, StrictArithmeticSymbolBinding, SymbolHandle,
     TypedTrees,
 };
+use crate::proof_contracts::arithmetic_domains::ValueEnv;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::state::State;
@@ -82,11 +85,12 @@ pub(crate) fn symbolic_range_contains(
     state: Option<&State>,
     return_type: TypeReferenceHandle,
     value: ExpressionHandle,
+    environment: &ValueEnv,
 ) -> Option<bool> {
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(return_type)
     {
-        return symbolic_range_contains(program, machine, state, *referee, value);
+        return symbolic_range_contains(program, machine, state, *referee, value, environment);
     }
     if !program
         .primitive_type_reference(return_type)
@@ -118,14 +122,15 @@ pub(crate) fn symbolic_range_contains(
             ranges.push((*minimum, *maximum, *end_inclusive));
         }
     }
-    let inherited = symbolic_range_contains(program, machine, state, *base_type, value);
+    let inherited =
+        symbolic_range_contains(program, machine, state, *base_type, value, environment);
     if ranges.is_empty() {
         return inherited;
     }
     if inherited == Some(false) {
         return Some(false);
     }
-    let Some(mut engine) = scope_engine(program, machine, state) else {
+    let Some(mut engine) = scope_engine(program, machine, state, Some(environment)) else {
         return Some(false);
     };
     let Some([value_minimum, value_maximum]) =
@@ -153,14 +158,15 @@ pub(crate) fn symbolic_range_contains(
 
 /// The strict engine's symbol table covers the machine's integer const/Value
 /// binders plus the CHECKING state's integer scalar parameters and locals.
-/// Scope atoms carry only their declared type envelope as premise; the engine
-/// never equates two atoms, so a proof that an endpoint and a scoped value
-/// agree is version-invariant -- a reassigned local cannot launder a stale
-/// bound through the comparison.
+/// Without a point-specific environment, scope atoms carry only their declared
+/// type envelope. Range stores and returns additionally use live ordered facts
+/// from the ordinary write-invalidated environment, never reread entry contracts
+/// as though their subjects could not have changed.
 fn scope_engine<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
     state: Option<&State>,
+    environment: Option<&ValueEnv>,
 ) -> Option<Engine<'program>> {
     let mut bindings = Vec::new();
     let mut premises = Vec::new();
@@ -257,6 +263,30 @@ fn scope_engine<'program>(
                     ),
                 },
             });
+        }
+    }
+    if let Some(environment) = environment {
+        let atom = |symbol| {
+            bindings.iter().find_map(|binding| {
+                if binding.symbol != symbol {
+                    return None;
+                }
+                match &binding.value {
+                    StrictArithmeticBindingValue::Atom { identity, .. } => {
+                        Some(Polynomial::atom(identity.clone()))
+                    }
+                    StrictArithmeticBindingValue::Integer(_) => None,
+                }
+            })
+        };
+        for (left, right, floor) in environment.ordered_scalar_bounds() {
+            if let (Some(left), Some(right)) = (atom(left), atom(right)) {
+                premises.push((
+                    BinaryOperator::GreaterOrEqual,
+                    left.sub(&right),
+                    Polynomial::constant(BigInt::from_i64(floor)),
+                ));
+            }
         }
     }
     let mut engine = Engine::strict_with_symbol_bindings(program, machine, &bindings);
@@ -494,7 +524,7 @@ pub(crate) fn selected_const_call_result_bounds(
     {
         return None;
     }
-    let mut engine = scope_engine(program, machine, state)?;
+    let mut engine = scope_engine(program, machine, state, None)?;
     let [minimum, maximum] = value_bounds(program, machine, state, &mut engine, expression)?;
     let minimum = minimum.constant_value()?.to_i64()?;
     let maximum = maximum.constant_value()?.to_i64()?;
@@ -875,7 +905,7 @@ pub(crate) fn validate_const_range_call(
         return;
     }
     let proven = (|| {
-        let mut engine = scope_engine(program, caller, state)?;
+        let mut engine = scope_engine(program, caller, state, None)?;
         let bindings = call_bindings(
             program,
             caller,

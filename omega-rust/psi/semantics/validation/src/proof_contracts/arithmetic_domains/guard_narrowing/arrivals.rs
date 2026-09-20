@@ -135,10 +135,22 @@ fn condition_belongs_to_state(
         ExpressionNode::Name(path) => {
             path.symbol.is_valid()
                 && path.head_symbol.is_valid()
-                && program
+                && (program
                     .state_parameters(state)
                     .iter()
                     .any(|parameter| parameter.symbol == path.head_symbol)
+                    || (path.symbol == path.head_symbol
+                        && program
+                            .machine_type_parameters(machine)
+                            .iter()
+                            .any(|parameter| {
+                                parameter.symbol == path.symbol
+                                    && matches!(
+                                        parameter.kind,
+                                        typed_trees::data::TypeParameterKind::Value { .. }
+                                            | typed_trees::data::TypeParameterKind::Const { .. }
+                                    )
+                            })))
         }
         ExpressionNode::Member(member) => {
             member.member_symbol.is_valid()

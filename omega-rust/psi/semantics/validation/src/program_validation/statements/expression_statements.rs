@@ -179,6 +179,7 @@ pub(super) fn validate(
         Some(state),
         state.return_type,
         *expression,
+        value_env,
         &owner,
         diagnostics,
     );

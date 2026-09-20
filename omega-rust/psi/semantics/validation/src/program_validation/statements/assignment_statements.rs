@@ -226,6 +226,7 @@ pub(super) fn validate(
                 current_state,
                 handle,
                 assignment.value,
+                value_env,
                 &owner,
                 diagnostics,
             );
