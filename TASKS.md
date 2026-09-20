@@ -9018,7 +9018,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   names/phase/applicability/rollback, and fails a row that lacks an axis
   without a closed absent-reason — re-verified at `8ccd793fa8` on linux
   x86-64: `cargo nextest run -p omega-architecture-test -E
-  'test(exact_rule_rollout)'` PASS. The residual is the parent's own
+  'test(exact_rule_rollout)'` PASS. Re-verified at `a0b906db93` on linux
+  x86-64 with the same command:
+  `exact_rule_rollout_is_complete_and_promotion_gated` still PASS. The
+  residual is the parent's own
   remaining work — the missing disabled/exact-selection/identity/composition
   legs through `optimize_selected_instructions` and native-differential for
   the uncalled `rewrites/` modules, plus the shared rule-fixture matrix
