@@ -7741,7 +7741,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Windows x64 execution itself — `sh tests/bootstrap/omega-parser/run.sh` on a
   MINGW/MSYS x64 host; no audited seed executes on Linux or macOS x86_64.
 - **OMEGA-PARSER-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
-- **OMEGA-PARSER-WINDOWS-ROUTE-VALIDATION** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-WINDOWS-ROUTE-VALIDATION.** Resolved — merged alias of the
+  landed OMEGA-PARSER-GATE-WINDOWS-VALIDATION row above: the host-free
+  validation leg (`sh tests/bootstrap/omega-parser/run.sh --identity`)
+  re-verified green on Linux x86-64 at `8a37f82686` — every bound identity
+  plus the DCREQ request framing, customer assembly (563736-byte customer,
+  SHA-256 1ce55f17…), and expected fixture validate; the run emits the
+  622933-byte receipt request. Remaining is the Windows x64 execution
+  itself — `sh tests/bootstrap/omega-parser/run.sh` on a MINGW/MSYS x64
+  host — which no audited seed can perform on Linux or macOS x86_64.
+  Sibling re-mines: OMEGA-PARSER-GATE-WINDOWS, OMEGA-PARSER-GATE-WINDOWS-ROUTE,
+  OMEGA-PARSER-WINDOWS-ROUTE.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; verify scope then implement.
 - **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
