@@ -995,6 +995,73 @@ fn every_psi_representation_has_one_named_entry() {
 }
 
 #[test]
+fn every_omega_representation_is_a_named_root_or_pinned_vocabulary() {
+    // The omega half enforces the same named-root rule
+    // (omega-rust/pipeline.md#placement-and-semantic-ownership) as the psi
+    // enumeration above: every crate under representations/ is either a
+    // program representation with exactly `lib.rs` + one named entry, or a
+    // shared-vocabulary crate whose root file set is pinned by
+    // `shared_vocabulary_representations_need_no_program_root`. Adding a
+    // crate, growing a second program entrance, or renaming a root is a
+    // deliberate edit of this table.
+    let root = repository().join("omega-rust/omega/representations");
+    let entries = [
+        ("abstract-operations", "abstract_operations"),
+        ("boundary-applications", "boundary_applications"),
+        ("legalized-operations", "legalized_operations"),
+        ("machine-code", "machine_code"),
+        ("optimization-unit", "optimization_unit"),
+        ("physical-instructions", "physical_instructions"),
+        ("register-homes", "register_homes"),
+        ("representation-selections", "representation_selections"),
+        ("selected-instructions", "selected_instructions"),
+        ("target-operations", "target_operations"),
+    ];
+    let vocabulary = [
+        "calling-conventions",
+        "effects",
+        "function-identity",
+        "installation-evidence",
+        "optimization-core",
+        "register-model",
+        "target",
+        "task-plans",
+    ];
+    let mut packages = std::fs::read_dir(&root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("Cargo.toml").exists())
+        .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    packages.sort();
+    let mut expected_packages = entries
+        .map(|(package, _)| package)
+        .into_iter()
+        .chain(vocabulary)
+        .collect::<Vec<_>>();
+    expected_packages.sort();
+    assert_eq!(
+        packages, expected_packages,
+        "a new representations/ crate must join the named-root or vocabulary set"
+    );
+    for (package, entry) in entries {
+        let directory = root.join(package).join("src");
+        let mut files = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.is_file())
+            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        files.sort();
+        let mut expected = vec!["lib.rs".to_owned(), format!("{entry}.rs")];
+        expected.sort();
+        assert_eq!(files, expected, "ambiguous entry in {package}");
+        let entrance = std::fs::read_to_string(directory.join("lib.rs")).unwrap();
+        assert!(entrance.contains(&format!("mod {entry};")));
+    }
+}
+
+#[test]
 fn allocation_algorithms_and_staging_have_one_transform_owner() {
     let root = repository();
     let retired = root.join("omega-rust/omega/pipeline/omega-regalloc");
