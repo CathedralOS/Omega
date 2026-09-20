@@ -340,6 +340,22 @@ The three added tests since d8d48fe4ff all pass. One boundary-timing note:
 (was not flagged slow in the d8d48fe4ff reading) — a near-threshold pass on
 this host, not a failure.
 
+Confirmation at 210ffe3c93 (2026-09-20, Linux x86-64), same command: 2146
+run, 2088 passed (10 slow), 58 failed — the same 57 FAIL members plus the
+same nonterminating
+`mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`,
+killed externally after >1400s at ~570% CPU. Every failure maps onto the
+six families above with verbatim-identical diagnostics — 33 bare
+`Service<R>` spellings, 16 missing transitive machine plans, 3 site_guard
+crash-namespace rejections, 4 scalar-return custody cases, 1 `established
+by` qualification, 1 blowup — so the residual tail is still empty. The two
+crate-local commits since 9d07a59a48 (400c353604 machine_lowering
+coordinator domain shedding, 89f3a708b2 custody/selection doc-link repair)
+change no test behavior, and the near-threshold member
+`owned_match_nested_record_replays_every_selected_payload` passed again at
+264s — still slow-flagged, still not a failure. All 58 members remain owned
+by the families' named items.
+
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
 macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the
