@@ -189,30 +189,129 @@ fail-canary fragments, and umbrella membership are all consistent.
 
 ## checked-trees-to-lowered-psi
 
-`cargo test -p checked-trees-to-lowered-psi --test unit_scalar_result_source
-ordered_boolean_call_computations_preserve_normal_guarantees` fails at
-00d0f9c15f on 2026-09-16 (Linux x86-64) and identically at 51f21bb168:
-`boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees`
-returns `OperationProofUnavailable(ObligationId(9223372036854775809))` at
-`tests/unit_scalar_result_source/boundary_wrappers.rs:41`. The source has no
-floating ranges; reconstruction fails inside `src/proofs/operation_proofs.rs`
-for an obligation issued on the `machine_calls` call path, an area under live
-borrow-proof work.
+Repaired: `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees`
+previously failed with `OperationProofUnavailable(ObligationId(9223372036854775809))`
+at `tests/unit_scalar_result_source/boundary_wrappers.rs:41` (recorded at
+00d0f9c15f on 2026-09-16 and at 51f21bb168, reconstruction inside
+`src/proofs/operation_proofs.rs`). At d8d48fe4ff it passes in 13.8s under
+nextest, so the operation-proof obligation on the `machine_calls` path is
+discharged by the borrow-proof landings since.
+
+`cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
+d8d48fe4ff (2026-09-20, Linux x86-64) runs the whole crate: 2143 run, 2085
+passed, 58 failed (57 FAIL plus one test killed by SIGTERM after ~1300s).
+The prior whole-crate reading at 9d0d864656 (2026-09-18, macOS arm64) was
+2032 run / 20 failed; of its named groups, boundary byte buffers,
+crash-member byte entries, and the ordered-boolean row are green now, while
+scalar-return custody, provider attachment, and the attached-unit
+borrowed-self case continue (the last under a new diagnostic — see the
+Service<R> family). The current failure set attributes to six families:
+
+- Stale bare boundary-trait fixture spelling (33 tests). All 30 failing
+  library `tests::*` cases (`attached_unit_cases`, `composed_operand_catalogs`,
+  `composed_unit_nested_control`, `dynamic_composed_unit`,
+  `indexed_primitive_storage`, `structural_control_cases`) plus
+  `tests/unit_plan_omissions.rs` ×3 panic at `src/tests.rs:82` /
+  `tests/unit_plan_omissions.rs:16` on the same source check:
+  ``field `console`/`runtime`/`output` on data `Main`/`Carrier` names
+  bare boundary trait `Console`/`Output`/`TaskRuntime` in value
+  position; the intrinsic `Service<R>` carrier is the only service value
+  spelling``. The check in
+  `typed-trees-to-checked-trees/src/checking/program_validation.rs` landed
+  in 32f5182254 (2026-09-20) with fixture migration in the same-day
+  0e1977994b; these fixtures still spell `console: Console` in value
+  position. This is the ENTRY-CONTENT-ROOTS residual recorded on the board:
+  unmigrated raw fixtures migrate to `&'s mut <boundary trait>` receivers or
+  get `service.omg` injected, and fixtures that need service-activation
+  semantics stay red until the receiver-lifecycle leg lands. Fixture fences:
+  `src/tests` is under the PROOF-CERTIFICATION-BRIDGE claim and
+  `checked-trees-to-lowered-psi/tests` under WRITE-ONLY-BORROW's
+  integer-entry-ranges claim.
+- Missing checked transitive machine plan (16 tests).
+  `provider_attachment_source` ×6 stop at `signature` and
+  `unit_state_graph::provider_attachments` ×9 plus
+  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`
+  stop at `state graph: state signature: parameter signature: attached data
+  shape, state 0`, all surfacing as `InvalidUnitMachinePlan` "attached Unit
+  closure is missing a checked transitive machine plan" / `` `X` has no
+  admitted body (local construction stopped at <phase>) ``. The `signature`
+  phase site is `execution/unit/control/checked_machine.rs` and the
+  attached-data-shape guard is `execution/unit/calls/signatures.rs`, both in
+  typed-trees-to-checked-trees unit construction; the fixtures pass source
+  checking (already migrated in 0e1977994b) and stop while admitting the
+  attached closure's bodies. Fences: `execution/unit/{control,state_graph,composed_control}`
+  is under GENERAL-CYCLIC-EXECUTION and `execution/unit/{mod.rs,candidate_closure,calls}`
+  plus `checked-trees-to-lowered-psi/src/unit` under UEFI-OS-HANDOFF. This is
+  the continuing "provider attachment and results" group from the 9d0d864656
+  reading.
+- Crash predicate outside the selected scalar namespace (3 tests).
+  `exact_affine_sibling_source::landed_affine_sibling_custody_crosses_source_codec_and_independent_verification`,
+  `exact_shift_left_certificate_source::bounded_exact_left_shift_uses_only_its_canonical_certificate`,
+  and `mixed_shift_source::erased_arithmetic_prefix_still_requires_its_own_certificate`
+  each fail lowering with ``Unsupported("crash predicate value position is
+  outside the selected scalar namespace")`` from
+  `src/proofs/crash_routes/scalar_terms.rs`. On the `crash.site_guard` path
+  (`scalar_graph/scalar_graph_module/state_emission.rs`,
+  `lower_checked_crash_predicates(&crash.site_guard, self.parameters)`)
+  predicate `Parameter`/`Local` positions index past the lowered `values`
+  roster and that path supplies no erased roster
+  (`checked_boolean_scalar_term(expression, values, &[])`), so positions
+  moved into the proof-only erased lane by the erased-formal term work
+  (294b6cfbf4, 2026-09-19) reject — consistent with the PROOF-RELEVANCE
+  item's erased-binding namespace rule, not bisected; the identity-less
+  crash-route discharge change ebef2636d8 (2026-09-20) is the adjacent
+  suspect. `src/scalar_graph` is under the WRITE-ONLY-BORROW
+  integer-entry-ranges claim.
+- Scalar-return custody (4 tests, `tests/owned_record_return_source.rs`).
+  `discarded_scalar_invocation_precedes_whole_owned_return`: the checked
+  `facts.flow.terminal_unit_effects.for_machine` returns `None` for the
+  record-returning `retain` after `_ = identity(mask); record` — no
+  unit-effects plan is catalogued. `effectful_discarded_call_writes_before_return_across_fuel`:
+  ``Lowering(Unsupported("composed Unit scalar call requires structural call
+  custody"))`` at `src/unit/attached_unit/composed_control/admission.rs` for
+  the `stamp(&mut output, ...)` out-parameter — structural call-custody
+  territory (`validation/machine_calls/structural_call_custody.rs` and
+  `src/unit/attached_unit*` are under the WRITE-ONLY-BORROW
+  integer-entry-ranges claim). `source_replay_rejects_return_parameter_and_carrier_substitution`
+  unwraps `plan.structural_result` at `tests/owned_record_return_source.rs:392`
+  on `None` — the negative control finds no structural-result plan to
+  tamper. `source_replay_requires_the_exact_affine_return_transfer`:
+  `Record: changed return transfer 0` — mutating the return transfer's
+  `machine_symbol` is not rejected by
+  `terminal_production::TerminalProductionRequest::produce_artifact`, a
+  source-replay verification gap. This is the continuing "scalar-return
+  pure source custody" group.
+- `established by` call-result qualification (1 test).
+  `registered_callback_lifetime::interpreted_register_unregister_round_trip_drives_the_ledger`
+  fails at source check with ``cannot establish call-result qualification
+  `Registration::Live`: the exact invocation, authorized route or consumed
+  qualified claims, and result correspondence are not proved`` from
+  `typed-trees-to-checked-trees/src/checks/content/call_results.rs` — the
+  fixture's `domain Registration::Live established by Registrar::register`
+  route is the ENTRY-CONTENT-ROOTS documented residual ("`established by`
+  establishment routes ... stay red until the receiver lifecycle leg
+  lands"). `src/checks/content` is under the BOUNDARY-ISSUANCE claim.
+- Proof-search blowup (1 test, SIGTERM).
+  `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+  was killed after ~1300s at ~573% CPU inside `lower_machine` on this host;
+  the fixture (an 18-formal machine carrying ~60 requires conjuncts) is
+  unchanged since August, so the cost is proof search, plausibly
+  interacting with the bound-closure/premise relaxations of 2026-09-19/20
+  (20ceb1e0a4, e37e1a8afc, a9f1a8aa8b, ebef2636d8) — not bisected, and
+  kernel hardening on this host (`ptrace_scope=1`,
+  `perf_event_paranoid=4`) blocked stack sampling. PROOF-SEARCH-MEASUREMENT
+  owns `proof/src/checker.rs` and the per-plan measurement work
+  (0750f6a18b); rerun alone via
+  `cargo nextest run -p checked-trees-to-lowered-psi --test nominal_affine_source`
+  to time it.
 
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
-macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed, of
-which the row above is one. The failing names group as boundary byte
-buffers, scalar-return pure source custody, the ordered-boolean guarantees
-above, crash-member byte entries, provider attachment and results, and one
-attached-unit borrowed-self case; rerun the command for the exact set rather
-than trusting this count, which moved from 25 to 20 within a day as other
-lanes landed. With the
+macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the
 `validation/affine_cleanup/continuation.rs` repair recorded in the
 terminal-verifier section it is 1999 passed, 24 failed: that repair also
 restores `unit_state_graph::bindings::structural_successors_reject_missing_and_surplus_arguments`,
-which asserts the arity diagnostic from the producer side. The other 24 are
-not attributed here.
+which asserts the arity diagnostic from the producer side.
 
 ## compiler build-target activation
 
