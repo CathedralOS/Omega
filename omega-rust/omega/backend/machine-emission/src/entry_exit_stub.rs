@@ -207,7 +207,7 @@ pub fn emit_x86_64_deriver_entry_exit_stub(
         footprint: plan.footprint(),
     };
     Ok(ValidatedX86_64DeriverStubEmission {
-        non_authoritative_report_fingerprint: emission_fingerprint(&emission),
+        non_authoritative_report_fingerprint: emission_report_fingerprint(&emission),
         emission,
     })
 }
@@ -1000,7 +1000,7 @@ impl StubCursor<'_> {
     }
 }
 
-fn emission_fingerprint(emission: &X86_64DeriverStubEmission) -> u64 {
+fn emission_report_fingerprint(emission: &X86_64DeriverStubEmission) -> u64 {
     let mut hash = 0xcbf2_9ce4_8422_2325_u64;
     let mut mix = |value: u64| {
         hash ^= value;
@@ -1024,15 +1024,22 @@ fn emission_fingerprint(emission: &X86_64DeriverStubEmission) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        X86_64DeriverStubEmissionError, X86_64DeriverStubMemberCall,
+        emit_x86_64_deriver_entry_exit_stub, resolve_x86_64_deriver_stub_member_call,
+        validate_x86_64_deriver_entry_exit_stub, validate_x86_64_resolved_deriver_stub,
+    };
     use calling_conventions::{
         ArrivalContextId, BoundaryEntryPlan, CallSignature, CallingPolicy, EntryControl,
-        EntryStack, MachineRegime, MachineState, MachineStateSet, StatePlan,
-        X86_64ArrivalMechanism, X86_64HardwareStackSelection, X86_64InstalledArrivalContext,
+        EntryStack, InstalledEntryFactIdentity, MachineRegister, MachineRegime, MachineState,
+        MachineStateSet, Preemption, RegisterSet, StatePlan, ValidatedBoundaryEntryPlan,
+        ValidatedX86_64DeriverStub, X86_64ArrivalMechanism, X86_64GateKind,
+        X86_64HardwareStackSelection, X86_64InstalledArrivalContext,
         X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity,
         derive_x86_64_entry_exit_stub, evaluate_ordinary_boundary_entry_plan,
         validate_boundary_entry_plan, validate_x86_64_installed_hardware_entry_facts,
     };
+    use semantic_vocabulary::MachineId;
 
     /// The member's clobber set stays GPR-only so it fits under the
     /// permitted transitive-use ceiling — the deriver declares no vector save
