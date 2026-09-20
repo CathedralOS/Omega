@@ -2,6 +2,9 @@
 //! the surviving guarantee to surviving AssignedValue provenance, then compare
 //! predicates under exact declaration/call substitution. Never replay a local
 //! initializer or identify repeated calls by their printed arguments.
+//! Machine entries and requirement signatures share this substitution, but
+//! `callable` retains their distinct declaration-owned parameter/result scopes.
+//! A public requirement guarantee is not a proof of its provider's body.
 //!
 //! This consumes the existing flow evidence rather than copying predicates at
 //! each assignment. Storage dependencies retire changed inputs; assignment
@@ -18,16 +21,16 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
-use typed_trees::state::State;
 
 mod arithmetic;
+pub(in crate::checks) mod callable;
+use callable::Callable;
 mod availability;
 pub(in crate::checks) use availability::{AvailableGuarantee, available};
 
 struct Invocation<'program> {
     site: CallSite<'program>,
-    machine: &'program Machine,
-    state: &'program State,
+    callable: Callable<'program>,
     caller_state: SymbolHandle,
     statement: usize,
     ordinal: usize,
@@ -130,8 +133,8 @@ fn capture_preserved(
     let Some(call) = borrow.calls.span_or_empty(state.calls).iter().find(|call| {
         call.statement_index == supplied.statement
             && call.call_ordinal == supplied.ordinal
-            && (call.target_symbol == supplied.state.symbol
-                || call.target_symbol == supplied.machine.symbol)
+            && (call.target_symbol == supplied.callable.target_symbol()
+                || call.target_symbol == supplied.callable.owner_symbol())
     }) else {
         return false;
     };
@@ -156,7 +159,7 @@ fn capture_preserved(
     );
     occurrences.into_iter().all(|occurrence| {
         if validation::reserved_result_place(program, occurrence)
-            .is_some_and(|result| result.machine_symbol == supplied.machine.symbol)
+            .is_some_and(|result| result.machine_symbol == supplied.callable.owner_symbol())
             || bound_literal(program, supplied, occurrence).is_some()
         {
             return true;
@@ -203,18 +206,10 @@ fn invocation<'program>(
         CallSite::Statement(call) => call.target_symbol,
         CallSite::TransitionNamed { .. } => return None,
     };
-    let machine = program.machines().iter().find(|machine| {
-        machine.symbol == target
-            || program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|state| state.symbol == target)
-    })?;
-    let state = program.machine_states(machine).first()?;
+    let callable = Callable::resolve(program, target)?;
     Some(Invocation {
         site,
-        machine,
-        state,
+        callable,
         caller_state: caller.state_symbol,
         statement,
         ordinal,
@@ -222,7 +217,7 @@ fn invocation<'program>(
 }
 
 fn stable_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool {
-    let parameters = program.state_parameters(invocation.state);
+    let parameters = invocation.callable.parameters(program);
     let arguments =
         crate::semantic_calls::call_site_argument_expressions(program, &invocation.site);
     // Receiver, static and evidence substitution retain their own owners.
@@ -302,12 +297,7 @@ fn builtin_predicate(
     expression: ExpressionHandle,
 ) -> bool {
     super::has_builtin_operators(program, operators, expression)
-        && validation::has_builtin_bound_expression_meaning(
-            program,
-            invocation.machine,
-            Some(invocation.state),
-            expression,
-        )
+        && invocation.callable.builtin_meaning(program, expression)
 }
 
 fn predicates_match(
@@ -425,19 +415,8 @@ fn same_scalar_type(
     right_owner: &Invocation<'_>,
     right: ExpressionHandle,
 ) -> bool {
-    let reference = |owner: &Invocation<'_>, expression| {
-        validation::reserved_result_place(program, expression)
-            .filter(|place| place.machine_symbol == owner.machine.symbol)
-            .map(|place| place.type_reference)
-            .or_else(|| {
-                validation::expression_result_type_reference(
-                    program,
-                    owner.machine,
-                    owner.state,
-                    expression,
-                )
-            })
-    };
+    let reference =
+        |owner: &Invocation<'_>, expression| owner.callable.scalar_reference(program, expression);
     match (reference(left_owner, left), reference(right_owner, right)) {
         (Some(left), Some(right)) => {
             program.primitive_type_reference(left).is_some()
@@ -457,7 +436,7 @@ fn actual_projection(
     direct_place(program, expression)?;
     crate::semantic_places::call_contract_argument_projection(
         program,
-        program.state_parameters(invocation.state),
+        invocation.callable.parameters(program),
         crate::semantic_calls::call_site_argument_expressions(program, &invocation.site),
         expression,
     )
@@ -483,7 +462,7 @@ fn bound_place(
     expression: ExpressionHandle,
 ) -> Option<CanonicalPlace> {
     if let Some(result) = validation::reserved_result_place(program, expression) {
-        if result.machine_symbol != invocation.machine.symbol {
+        if result.machine_symbol != invocation.callable.owner_symbol() {
             return None;
         }
         let CallSite::Expression { expression, .. } = invocation.site else {

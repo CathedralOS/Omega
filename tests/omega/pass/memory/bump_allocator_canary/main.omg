@@ -24,10 +24,11 @@
 // the exact capacity requirement.
 //
 // Carrying the count is necessary, not cosmetic:
-// - `split`'s conservation law fixes only the union of the two parts'
-//   content and never `result.taken.length`, so the residual left after an
-//   allocation is not derivable through `separate` and cannot be discharged
-//   against `tail.length`.
+// - `split` declares `result.taken.length == length` beside its content
+//   conservation law. `allocate` consumes that exact invocation's guarantee
+//   through `check_extent_length`; `separate` alone supplies no scalar law.
+//   The remaining tail length and reset capacity still need their own
+//   published geometry relations and exact captured-value transport.
 // - `allocate` publishes the decrement as `result.strategy.remaining ==
 //   strategy.remaining - length`. Exit checking proves that nested field's
 //   exact computation, and `check_remaining` consumes the relation from the
@@ -151,6 +152,7 @@ data Split {
 boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     ensures
+        result.taken.length == length,
         Granted::content(old(&whole))
         == separate(
             Granted::content(&result.taken),
@@ -209,6 +211,7 @@ reaches ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
     let parts: Split = partition.split(tail, length);
+    check_extent_length(&parts.taken, length);
     Issued {
         strategy: Bump {
             tail: parts.rest,
@@ -225,6 +228,12 @@ machine check_remaining(remaining: u64, previous: u64, length: u64)
 requires
     length <= previous;
     remaining == previous - length
+{}
+
+// The split's exact returned extent carries the requested length. This scalar
+// fact grants no storage authority; the separate content law carries custody.
+machine check_extent_length(extent: &Extent in Granted & Vacant, expected: u64)
+requires extent.length == expected
 {}
 
 // Reset after full return. `lower` was issued before `upper`, so the original
