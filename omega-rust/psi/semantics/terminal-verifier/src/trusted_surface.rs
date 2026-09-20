@@ -12,7 +12,9 @@
 //! - `premises` / `conclusion`: the exact rule shape the implementation is
 //!   trusted to check, stated at the level the code enforces.
 //! - `dependencies`: other ledger entries whose own status this rule needs;
-//!   a proved row may not hide an unproved composition theorem.
+//!   a proved row may not hide an unproved composition theorem, so an entry
+//!   that establishes a claim must not depend on an `Unfinished` entry — the
+//!   gap poisons every dependent, not only its direct dependers.
 //! - `implementation`: registered [`ImplementationSite`] paths whose recorded
 //!   content digest pins the implementing code. Changing an implementation
 //!   changes its digest and fails coverage until the entry's justification is
@@ -251,6 +253,14 @@ pub enum LedgerFailure {
     DependencyCycle {
         entry: &'static str,
     },
+    DuplicateDependency {
+        entry: &'static str,
+        dependency: &'static str,
+    },
+    UnfinishedDependency {
+        entry: &'static str,
+        dependency: &'static str,
+    },
     TrustedEntryMissingRoot {
         entry: &'static str,
     },
@@ -322,6 +332,14 @@ impl std::fmt::Display for LedgerFailure {
             Self::DependencyCycle { entry } => write!(
                 formatter,
                 "ledger entry `{entry}` participates in a dependency cycle; the trust graph must be acyclic"
+            ),
+            Self::DuplicateDependency { entry, dependency } => write!(
+                formatter,
+                "ledger entry `{entry}` lists dependency `{dependency}` more than once"
+            ),
+            Self::UnfinishedDependency { entry, dependency } => write!(
+                formatter,
+                "ledger entry `{entry}` establishes a claim but depends on Unfinished entry `{dependency}`; an Unfinished row establishes no independent claim, so only Unfinished entries may depend on one"
             ),
             Self::TrustedEntryMissingRoot { entry } => write!(
                 formatter,
@@ -455,16 +473,7 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
         }
     }
     let index = entry_index();
-    for entry in all_entries() {
-        for &dependency in entry.dependencies {
-            if !index.contains_key(dependency) && !root_ids.contains(dependency) {
-                failures.push(LedgerFailure::UnknownDependency {
-                    entry: entry.id,
-                    dependency,
-                });
-            }
-        }
-    }
+    check_dependency_edges(all_entries(), &index, &root_ids, &mut failures);
     // The trust graph is closed: dependencies resolve to entries or roots and
     // entry-to-entry edges must be acyclic. A cycle exists exactly when an
     // entry can reach itself through entry dependencies.
@@ -647,5 +656,162 @@ fn collect_unclaimed_sources(
                 }
             }
         }
+    }
+}
+
+/// Dependency-edge well-formedness over one entry set: every edge resolves to
+/// an entry or trust root, no entry lists the same dependency twice, and no
+/// claim-bearing entry depends on an `Unfinished` entry. An `Unfinished` row
+/// establishes no independent claim, so a claim established through one would
+/// hide the unproved composition gap inside an apparently-sound row; only an
+/// `Unfinished` entry may name one as a dependency.
+fn check_dependency_edges<'a>(
+    entries: impl Iterator<Item = &'a TrustedSurfaceEntry>,
+    index: &BTreeMap<&'a str, &'a TrustedSurfaceEntry>,
+    root_ids: &BTreeSet<&'a str>,
+    failures: &mut Vec<LedgerFailure>,
+) {
+    for entry in entries {
+        let mut seen = BTreeSet::new();
+        for &dependency in entry.dependencies {
+            if !seen.insert(dependency) {
+                failures.push(LedgerFailure::DuplicateDependency {
+                    entry: entry.id,
+                    dependency,
+                });
+            }
+            if let Some(target) = index.get(dependency) {
+                if !matches!(entry.soundness, SoundnessStatus::Unfinished { .. })
+                    && matches!(target.soundness, SoundnessStatus::Unfinished { .. })
+                {
+                    failures.push(LedgerFailure::UnfinishedDependency {
+                        entry: entry.id,
+                        dependency,
+                    });
+                }
+            } else if !root_ids.contains(dependency) {
+                failures.push(LedgerFailure::UnknownDependency {
+                    entry: entry.id,
+                    dependency,
+                });
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    static UNFINISHED: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:unfinished-row",
+        family: LedgerFamily::SharedFormation,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion the row does not yet establish",
+        dependencies: &[],
+        implementation: &[],
+        soundness: SoundnessStatus::Unfinished {
+            gap: "the underlying rule is not yet proved",
+        },
+    };
+    static PROVED_DEPENDENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:proved-dependent",
+        family: LedgerFamily::SharedFormation,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["test:unfinished-row"],
+        implementation: &[],
+        soundness: SoundnessStatus::Proved {
+            evidence: "witness",
+        },
+    };
+    static TRUSTED_DEPENDENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:trusted-dependent",
+        family: LedgerFamily::SharedFormation,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["test:unfinished-row"],
+        implementation: &[],
+        soundness: SoundnessStatus::ExplicitlyTrusted {
+            root: "root:verification-contract",
+            rationale: "justification",
+        },
+    };
+    static UNFINISHED_DEPENDENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:unfinished-dependent",
+        family: LedgerFamily::SharedFormation,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["test:unfinished-row"],
+        implementation: &[],
+        soundness: SoundnessStatus::Unfinished {
+            gap: "the row and its dependency are both open",
+        },
+    };
+    static DUPLICATE_DEPENDENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:duplicate-dependent",
+        family: LedgerFamily::SharedFormation,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["root:test-root", "root:test-root"],
+        implementation: &[],
+        soundness: SoundnessStatus::ExplicitlyTrusted {
+            root: "root:test-root",
+            rationale: "justification",
+        },
+    };
+
+    fn fixture() -> (
+        Vec<&'static TrustedSurfaceEntry>,
+        BTreeMap<&'static str, &'static TrustedSurfaceEntry>,
+        BTreeSet<&'static str>,
+    ) {
+        let entries = vec![
+            &UNFINISHED,
+            &PROVED_DEPENDENT,
+            &TRUSTED_DEPENDENT,
+            &UNFINISHED_DEPENDENT,
+            &DUPLICATE_DEPENDENT,
+        ];
+        let index = entries.iter().map(|entry| (entry.id, *entry)).collect();
+        let root_ids = BTreeSet::from(["root:test-root", "root:verification-contract"]);
+        (entries, index, root_ids)
+    }
+
+    #[test]
+    fn claim_bearing_entries_cannot_depend_on_unfinished_rows() {
+        let (entries, index, root_ids) = fixture();
+        let mut failures = Vec::new();
+        check_dependency_edges(entries.into_iter(), &index, &root_ids, &mut failures);
+        let unfinished_edges: Vec<_> = failures
+            .iter()
+            .filter_map(|failure| match failure {
+                LedgerFailure::UnfinishedDependency { entry, .. } => Some(*entry),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            unfinished_edges,
+            ["test:proved-dependent", "test:trusted-dependent"],
+            "a Proved or ExplicitlyTrusted row may not stand on an Unfinished \
+             row — the unproved composition would be hidden inside an \
+             apparently-established claim"
+        );
+    }
+
+    #[test]
+    fn dependency_edges_must_be_distinct() {
+        let (entries, index, root_ids) = fixture();
+        let mut failures = Vec::new();
+        check_dependency_edges(entries.into_iter(), &index, &root_ids, &mut failures);
+        assert!(failures.contains(&LedgerFailure::DuplicateDependency {
+            entry: "test:duplicate-dependent",
+            dependency: "root:test-root",
+        }));
     }
 }

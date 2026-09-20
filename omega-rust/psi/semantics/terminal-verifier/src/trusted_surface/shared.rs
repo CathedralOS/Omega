@@ -277,7 +277,7 @@ rows! {
         "a call operation's callee signature, argument substitution, and the callee's verified contract",
         "parameter equalities, instantiated requires obligations, and imported ensures propositions composed into the caller frame",
         &["scope:call-frame-rewrite", "formation:contract-validation", "scope:field-value-snapshots"],
-        &[tv!( "verification/call_composition.rs"), ts!( "call_composition.rs")]
+        &[tv!( "verification/call_composition.rs"), ts!( "call_composition.rs"), ts!( "static_path.rs")]
     );
     COMP_CALL_ROW_VALIDATION => (
         "composition:call-row-validation",
@@ -301,7 +301,7 @@ rows! {
         "a boundary call's declared suspension plan and external contract",
         "the boundary requires obligations and ensured effects composed through the fixed byte view of the suspension semantics",
         &["composition:call-instantiation", "formation:suspension-call-plan"],
-        &[tv!( "validation/suspension_call_plan.rs"), ts!( "call_composition/fixed_byte_view.rs")]
+        &[tv!( "validation/suspension_call_plan.rs"), ts!( "call_composition/fixed_byte_view.rs"), ts!( "static_path.rs")]
     );
     COMP_IMPORTED_ENSURES => (
         "composition:imported-ensures-trust",
@@ -577,7 +577,7 @@ rows! {
         "the machine's primitive locals, stores, and reads",
         "primitive storage operations validate exact relevant-field/fixed-index paths, root access and initialization before facts are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/primitive_storage.rs"), ts!( "primitive_place.rs")]
+        &[tv!( "validation/primitive_storage.rs"), ts!( "primitive_place.rs"), ts!( "static_path.rs")]
     );
     FORM_SCALAR_ARRAY => (
         "formation:scalar-array",
