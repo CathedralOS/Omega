@@ -10320,7 +10320,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     here once main is green again: run the suite on windows_x86_64,
     macos_arm64, linux_arm64 hosts — host-gated, none producible on this
     machine.
-- **SCALAR-SCAN-AND-DISPATCH** — mined candidate; verify scope then implement.
+- **SCALAR-SCAN-AND-DISPATCH.** Mined candidate — scope verified, already
+  landed; decomposes the same Squalr-Omega `43329a3` commit as resolved
+  sibling SCAN-SCALAR-DISPATCH (scalar scan + run-length encoder +
+  element-scan dispatch leg). Re-verified at `9f48bb2a594`: the recorded
+  gitlink has advanced to `5b0307c35` and still carries every scalar
+  surface — `squalr-engine-scanning/src/scanners/
+  element_scan_dispatcher.omg`, `scalar/scanner_scalar_iterative.omg`,
+  `scalar/scanner_scalar_single_element.omg`,
+  `structures/snapshot_region_filter_run_length_encoder.omg`, plus the
+  api-side `scan_function_scalar.omg`,
+  `planned_scan_type_scalar.omg`,
+  `snapshot_filter_element_scan_plan.omg` (confirmed via `git ls-tree` on
+  the recorded pin). The sibling's `omega --check` witness at
+  `9e3edc7be9` (scanning 29 files + api 30 files clean) stands — the
+  pin's file inventory is what that check consumed. Remaining sibling
+  stubs on the same commit: SCAN-SCALAR-COMPARISON-DISPATCH;
+  SCAN-SCALAR-SCAN's re-opened note is stale per the sibling's merge
+  analysis (`251699c4669d` joined the republished lineage back over
+  `43329a3`).
 - **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-DISPATCH** — mined candidate; scope verified, already landed. The stub decomposes Squalr-Omega `43329a3` ("squalr: port scalar scan, run-length encoder, and element-scan dispatch"), whose element-scan dispatch leg names `element_scan_dispatcher.omg` + the scalar scanners. SCAN-SCALAR-SCAN's re-opened note (written when the recorded gitlink sat on the republished `5ea4a17f3b` lineage) is stale: the recorded gitlink `251699c4669d` is merge `db64d58`'s join of that lineage back over `43329a3`, which is its ancestor — `git log` confirms `43329a3` and `251699c` ("merge: adopt wire-schema NormalizedRegion…") carry `squalr-engine-scanning`. Present on the recorded pin: `squalr-engine-scanning/src/scanners/element_scan_dispatcher.omg`, `scalar/scanner_scalar_iterative.omg`, `scalar/scanner_scalar_single_element.omg`, `structures/snapshot_region_filter_run_length_encoder.omg`, plus the api-side `scan_function_scalar.omg` / `planned_scan_type_scalar.omg` / `snapshot_filter_element_scan_plan.omg` surfaces. Verified on linux-x86_64 at `9e3edc7be9` (gitlink 251699c4669d): `omega --check` clean — squalr-engine-scanning 29 files, squalr-engine-api 30 files. Siblings SCALAR-SCAN-AND-DISPATCH, SCAN-SCALAR-COMPARISON-DISPATCH, SCAN-SCALAR-SCAN decompose the same commit and share this state.
 - **SCAN-SCALAR-SCAN** — verified e0927237: landed via the squalr
