@@ -7317,7 +7317,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-RERECORD** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-LEDGER-REFRESH** — mined candidate; verify scope then implement.
-- **TRUSTED-SURFACE-LEDGER-RERECORD** — mined candidate; verify scope then implement.
+- **TRUSTED-SURFACE-LEDGER-RERECORD** — mined candidate; scope verified, resolved — the trusted-surface digest ledger is current on main: BASELINE-VERIFIER-DIGEST-LEDGER re-recorded the drifted rows and registered `proof-admission/src/classicality.rs`, and `terminal-verifier`'s trusted_surface suite passes 15/15 on linux x86-64 including `recorded_digests_match_the_working_tree` (re-run at f1e9a3733d). The ledger self-audits: any future drift fails that test, so no standing re-record task remains.
 - **TV-BOUNDARY-SETTLEMENTS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; verify scope then implement.
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
