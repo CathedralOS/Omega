@@ -854,5 +854,12 @@ impl Fnv1a {
     }
 }
 
+mod entry_exit_stub;
+
+pub use entry_exit_stub::{
+    ValidatedX86_64DeriverStub, X86_64DeriverStub, X86_64DeriverStubContext,
+    X86_64ErrorCodeDisposition, derive_x86_64_entry_exit_stub,
+};
+
 #[cfg(test)]
 mod tests;
