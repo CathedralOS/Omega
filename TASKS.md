@@ -5669,7 +5669,6 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 Language/semantic gaps:
 
 - **FUZZ-CLUSTER-ZERO-BYTE-ARRAY.** Canonical item for the zero/empty fixed byte-array admission question (covers all ZERO-*-BYTE-ARRAY-* mining aliases).
-- **DUPLICATE-OVERLOAD-AND-VISIBILITY-ADMISSION.** Duplicate named-machine overloads and recursive-argument name collisions — pin admission rules with fail-canaries. Distinct visible imported declarations must still reject when ambiguous; repeated selection of one exact declaration is legal under [import scope](wiki/spec/language/modules.md#import-scope-and-exposure).
 - **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Dynamic receiver/evidence loan origin across package boundaries.
 
 - **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics.
