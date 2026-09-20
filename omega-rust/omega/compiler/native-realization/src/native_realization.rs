@@ -72,14 +72,29 @@ pub fn realize_native_artifact(
     artifact: terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,
 ) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
-    realize_image(
+    realize_native_artifact_with_behavior_exclusions(
         artifact,
-        &request,
+        request,
         &build_evaluation::BehaviorExclusions::default(),
     )
-    .map_err(|diagnostics| RequestedNativeArtifactError {
-        image_request: request.image_request,
-        diagnostics,
+}
+
+/// Realize one Terminal artifact honoring the retained behavior-exclusion
+/// union its production carried. The physical-authority axis is adjudicated
+/// against the mechanism-closure review inside `realize_image`, so a
+/// requested absence holds whether or not the request carries a receiver
+/// permission policy; a violated exclusion publishes no product. Failure
+/// returns the exact image request; no product is silently substituted.
+pub fn realize_native_artifact_with_behavior_exclusions(
+    artifact: terminal_codec::CanonicalTerminalArtifact,
+    request: NativeRealizationRequest<'_>,
+    behavior_exclusions: &build_evaluation::BehaviorExclusions,
+) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
+    realize_image(artifact, &request, behavior_exclusions).map_err(|diagnostics| {
+        RequestedNativeArtifactError {
+            image_request: request.image_request,
+            diagnostics,
+        }
     })
 }
 

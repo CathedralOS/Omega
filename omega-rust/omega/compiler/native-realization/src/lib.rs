@@ -80,6 +80,7 @@ pub use native_realization::{
     filesystem_release_mechanism_row, normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations,
     prepare_native_realization_input, realize_native_artifact,
+    realize_native_artifact_with_behavior_exclusions,
     realize_native_artifact_with_callback_custody, realize_program_entry_native_artifact,
     settled_filesystem_cohort, terminal_authority_permission_policy_with_rows,
     terminal_authority_policy_with_rows,
