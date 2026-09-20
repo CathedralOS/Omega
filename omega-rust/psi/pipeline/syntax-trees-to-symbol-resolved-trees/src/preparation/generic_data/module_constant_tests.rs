@@ -879,3 +879,90 @@ fn open_template_range_endpoint_substitutes_on_the_closed_instance() {
     crate::resolve(crate::ResolutionRequest::new(&syntax))
         .expect("the closed range endpoint resolves");
 }
+
+#[test]
+fn bounded_carrier_domain_discharges_satisfied_copy_bound() {
+    // `u64` is unrestricted, so the `copy` bound is application evidence the
+    // declaration site can check; the marker domain has no `self` facts left.
+    let source = "module mine; domain<T [copy]> T::Marked; const X: u64 in u64::Marked = 7;";
+    normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect("a satisfied carrier bound discharges the marker domain");
+}
+
+#[test]
+fn bounded_carrier_domain_discharges_carrier_independent_facts() {
+    // The bound checks against the concrete carrier while `self` stays
+    // unbound; a closed fact that never reads `self` still replays.
+    let source =
+        "module mine; domain<T [copy]> T::Small requires 7 > 0; const X: u64 in u64::Small = 7;";
+    normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect("satisfied bound plus carrier-independent fact discharges");
+}
+
+#[test]
+fn bounded_carrier_domain_discharges_satisfied_carry_bound() {
+    // A builtin scalar rides the permissive carry policy, so any authored
+    // `carry(...)` bound holds of it.
+    let source = "module mine; domain<T [carry(suspension: allowed, cpu: any, thread: any, address: movable)]> T::Anywhere; const X: u64 in u64::Anywhere = 7;";
+    normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect("a satisfied carry bound discharges the marker domain");
+}
+
+#[test]
+fn bounded_carrier_domain_keeps_an_unsatisfied_linear_bound_fenced() {
+    // `u64` is not linear, so the bound's application evidence cannot be
+    // proven and the constraint keeps the declaration-site fence.
+    let source = "module mine; domain<T [linear]> T::Marked; const X: u64 in u64::Marked = 7;";
+    let errors = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect_err("an unsatisfiable carrier bound keeps the fence");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("declaration-site proof checking")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn bounded_carrier_domain_keeps_self_dependent_facts_fenced() {
+    // Satisfying the bound does not bind the abstract `self`: a fact that
+    // reads it still needs typed application checking and keeps the fence.
+    let source =
+        "module mine; domain<T [copy]> T::Pos requires self > 0; const X: u64 in u64::Pos = 3;";
+    let errors = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect_err("self-dependent facts still need typed checking");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("declaration-site proof checking")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn compiler_carry_atom_in_alias_names_its_evidence_class() {
+    // `Carry::*` atoms are grant evidence, not domains: instead of bouncing
+    // off domain selection the constraint names what a const cannot supply.
+    let source = "module mine; domain u64::Pos requires self > 0; domain u64::Alias = u64::Pos & Carry::Portable; const X: u64 in u64::Alias = 3;";
+    let errors = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect_err("a const cannot supply carry-grant evidence");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("compiler carry permission")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn compiler_carry_atom_direct_constraint_names_its_evidence_class() {
+    let source = "module mine; const X: u64 in Carry::AnyCpu = 3;";
+    let errors = normalize_generic_data(GenericDataRequest::new(parse_multiple_sources(&[source])))
+        .expect_err("a const cannot supply carry-grant evidence");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("compiler carry permission")),
+        "{errors:?}"
+    );
+}
