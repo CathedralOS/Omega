@@ -8355,7 +8355,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   slice exists inside the current matrix fence; the promotion decision is
   a milestone statement, not a lane task.
 - **ENCODER-CANDIDATE-CONTINUATION** — mined candidate; verify scope then implement.
-- **ENCODER-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
+- **ENCODER-DEFINITION-PACKAGE.** Resolved — re-mines the landed
+  BETA-ENCODER-DEFINITION-PACKAGE surface: `6e8dd6fa33` committed the
+  owner-fixed 116,900-byte encoder definition package as
+  `bootstrap/proofs/beta_encoding/definition_package.bin`
+  (sha256 6bbdd15a...), bound by
+  `require_beta_encoding_definition_package_identity` in
+  `tools/bootstrap/proofs/sources_env.sh`, with
+  `tests/bootstrap/proofs-identity.sh` covering the canonical check, a
+  one-byte-corruption refusal, and the README record pins. Re-witnessed
+  green on linux x86-64 at `d1299d3992`: `sh
+  tests/bootstrap/proofs-identity.sh` passes all legs including package
+  corruption refusal. No independent slice remains under this name —
+  certificate production through the selected chain stays
+  upstream-blocked per BETA-ENCODING-SELECTED-CHAIN-PRODUCTION's
+  annotation (owner decision `beta-encoding-certificate-admission`,
+  provisions pending the Alpha extent-supply leg).
 - **ENTRY-MECHANICS-RUNTIME-CONSOLIDATION.** Mined candidate — resolved,
   covered. Named sibling alias on the settled
   STARTUP-ENTRY-MECHANICS-OWNERSHIP surface (resolved by audit at
