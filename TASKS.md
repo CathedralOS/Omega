@@ -3310,10 +3310,6 @@ Owners include
     operand type owns the family), and only that home's owning package may
     publish it; an unauthorized declaration rejects at its declaration, not at
     a use.
-    `validation/src/value_custody/expression_types/operator_validation.rs`
-    must query the complete operand tuple: `Wrapped + u64` with only a
-    `(Wrapped, Wrapped)` binding reports a builtin overflow obligation instead
-    of a missing operator.
   - Native execution. `expressions/declared_operator_match_result` and
     `expressions/token_bound_machine_operand_selection` stay in
     `CHECKED_ONLY_PASS_CANARIES` because native admission rejects borrowed and

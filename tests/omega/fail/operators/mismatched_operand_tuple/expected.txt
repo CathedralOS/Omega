@@ -1,0 +1,1 @@
+no such operator is declared for these operand types
