@@ -13,6 +13,7 @@
 
 use cathedral::interrupt_roots;
 use cathedral::interrupt_table;
+use cathedral::interrupt_validation;
 
 data Main {
 }
@@ -20,10 +21,15 @@ data Main {
 machine Main::main(&mut self) {
 }
 
-// Keeping the gate and table in an ordinary parameter/result position is
-// what binds the module's declarations into this program's checked
-// surface; the layout policies themselves are invoked by build-time
-// evaluation, not by authored call sites.
-machine Main::retain(&mut self, table: InterruptDescriptorTable) -> InterruptDescriptorTable {
+// Keeping the gate, table, membership and verdict types in an ordinary
+// parameter/result position is what binds the modules' declarations into
+// this program's checked surface; the layout policies and the validator
+// itself are invoked by build-time evaluation, not by authored call sites.
+machine Main::retain(
+    &mut self,
+    table: InterruptDescriptorTable,
+    membership: InterruptTableMembership,
+    verdict: TableVerdict
+) -> InterruptDescriptorTable {
     table
 }

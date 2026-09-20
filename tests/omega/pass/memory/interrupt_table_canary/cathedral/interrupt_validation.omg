@@ -1,0 +1,325 @@
+// INTERRUPT-TABLE-CANARY: the descriptor-table leg's authored validator.
+// `interrupt_table.omg` authors the wire layout; this module authors the
+// two semantic halves the compiler test used to spell by hand: the
+// table's DECLARED MEMBERSHIP (which vectors are members, what each
+// member's gate must carry, and which dedicated critical stack class its
+// declared IST slot must resolve to) and the VALIDATOR that accepts or
+// rejects a produced table image against that declaration.
+//
+// The validator consumes decoded facts, never byte offsets: the compiler
+// decodes each produced slot through the validated `InterruptGate` plan
+// and hands this machine the 33 gate records beside the raw image (the
+// raw bytes exist only for the unplaced reserved ranges the record has no
+// field for -- byte 4 bits 3..=7, byte 5 bit 4, and bytes 12..16, which
+// must still read the staged image's zero base). A member slot must
+// carry a resolved entry, the member's declared selector/IST/gate-kind/
+// privilege/present constants, and clean reserved ranges; an undeclared
+// vector must remain all-zero; and each member's declared IST slot must
+// join through the installed IST bindings to the member's dedicated
+// critical stack class. On acceptance the compiler mints
+// `EstablishedInterruptTable` for the checked `lidt` publication edge --
+// the authored verdict is the established value's semantic warrant, and
+// the publication path cannot run without it.
+//
+// `TableVerdict::Rejected` carries a small reason code, not a diagnostic
+// string: the package does not own a text channel at install time.
+// Reason 0 is fuel exhaustion (a validator defect, not a table verdict);
+// per-vector reasons 1..=9 carry the offending vector; declared-row
+// reasons 10..=11 carry the member's index inside `members`.
+
+use cathedral::interrupt_table;
+
+// One declared member row: the vector the table routes, the dedicated
+// critical stack class the member's arrivals must be accounted onto, the
+// settlement obligation (`fatal_exception` selects the never-resume
+// contract; the acknowledged-interrupt obligation is the timer member's
+// shape), and the descriptor constants the produced gate bytes must carry.
+pub data TableMemberDeclaration {
+    vector: u64;
+    dedicated_stack_class: u16;
+    fatal_exception: bool;
+    selector: u16;
+    privilege: u8 [0..=3];
+    ist_slot: u8 [0..=7];
+    gate_kind: u8 [0..=15];
+}
+
+// One installed IST binding: the slot a gate may name and the dedicated
+// critical stack class the installed realization provisions for it. The
+// validator joins each member's declared slot through these rows.
+pub data IstBinding {
+    slot: u8 [0..=7];
+    dedicated_class: u16;
+}
+
+// The package's complete table declaration: the member rows the writer's
+// produced image must satisfy and the IST bindings the installed task
+// state segment must realize. `declare` is evaluated at build time, so
+// the declaration is ordinary authored source, not compiler-held fixture.
+pub data InterruptTableMembership {
+    members: [TableMemberDeclaration; 4];
+    ist: [IstBinding; 4];
+}
+
+pub machine InterruptTableMembership::declare() -> InterruptTableMembership {
+    let mut rows: [TableMemberDeclaration; 4];
+    // The fatal-exception members: vectors 0, 13 and 14 on dedicated
+    // critical stack classes 11, 12 and 13, each arriving through its own
+    // IST slot. Gate kind 0x0f is the trap-gate wire code.
+    rows[0] = TableMemberDeclaration {
+        vector: 0, dedicated_stack_class: 11, fatal_exception: true,
+        selector: 8, privilege: 0, ist_slot: 1, gate_kind: 15,
+    };
+    rows[1] = TableMemberDeclaration {
+        vector: 13, dedicated_stack_class: 12, fatal_exception: true,
+        selector: 8, privilege: 0, ist_slot: 2, gate_kind: 15,
+    };
+    rows[2] = TableMemberDeclaration {
+        vector: 14, dedicated_stack_class: 13, fatal_exception: true,
+        selector: 8, privilege: 0, ist_slot: 3, gate_kind: 15,
+    };
+    // The timer member: vector 0x20 on class 14 through IST slot 4; gate
+    // kind 0x0e is the interrupt-gate wire code, so arrivals mask further
+    // interrupts until the entry settles.
+    rows[3] = TableMemberDeclaration {
+        vector: 32, dedicated_stack_class: 14, fatal_exception: false,
+        selector: 8, privilege: 0, ist_slot: 4, gate_kind: 14,
+    };
+    let mut bindings: [IstBinding; 4];
+    bindings[0] = IstBinding { slot: 1, dedicated_class: 11 };
+    bindings[1] = IstBinding { slot: 2, dedicated_class: 12 };
+    bindings[2] = IstBinding { slot: 3, dedicated_class: 13 };
+    bindings[3] = IstBinding { slot: 4, dedicated_class: 14 };
+    InterruptTableMembership { members: rows, ist: bindings }
+}
+
+// The validator's terminal value: `Accepted` mints the established table
+// value; `Rejected` names the failing vector (or member index) and reason.
+pub data TableVerdict {
+    case Accepted;
+    case Rejected(vector: u8, reason: u8);
+}
+
+pub data DescriptorTableValidation {
+}
+
+pub machine DescriptorTableValidation::validate(
+    image: [[u8; 16]; 33],
+    gates: [InterruptGate; 33],
+    members: [TableMemberDeclaration; 4],
+    ist: [IstBinding; 4]
+) -> TableVerdict {
+    DescriptorTableValidation::run(image, gates, members, ist, 768)
+}
+
+// The bounded scan: every state carries `fuel`, and every edge that keeps
+// working decrements it, so the validator's termination witness is the
+// budget itself. `declared` first refuses membership rows no 33-slot table
+// can honor; `vector` then walks the produced slots, `member_probe` finds
+// the declared member for the slot (or `absent` demands it stay zero),
+// `member_fields` checks the produced constants against the declaration,
+// and `ist_probe`/`ist_match` join the member's declared IST slot through
+// the installed bindings to its dedicated stack class.
+machine DescriptorTableValidation::run(
+    image: [[u8; 16]; 33],
+    gates: [InterruptGate; 33],
+    members: [TableMemberDeclaration; 4],
+    ist: [IstBinding; 4],
+    fuel: u64 [1..=768]
+) -> TableVerdict
+terminates by fuel;
+{
+    transition { _ -> declared(image, gates, members, ist, fuel, 0) }
+
+    state declared(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        row: u64 [0..=4]
+    ) -> TableVerdict {
+        transition {
+            fuel > 1 && row < 4 -> declared_row(image, gates, members, ist, fuel - 1, row)
+            row < 4 -> reject_index(row, 0)
+            fuel > 1 -> vector(image, gates, members, ist, fuel - 1, 0)
+            _ -> reject_index(row, 0)
+        }
+    }
+
+    state declared_row(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        row: u64 [0..=3]
+    ) -> TableVerdict {
+        transition {
+            members[row].vector >= 33 -> reject_index(row, 10)
+            members[row].ist_slot == 0 -> reject_index(row, 11)
+            fuel > 1 -> declared(image, gates, members, ist, fuel - 1, row + 1)
+            _ -> reject_index(row, 0)
+        }
+    }
+
+    state vector(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        at: u64 [0..=33]
+    ) -> TableVerdict {
+        transition {
+            fuel > 1 && at < 33 -> member_probe(image, gates, members, ist, fuel - 1, at, 0)
+            at < 33 -> reject(at, 0)
+            _ -> TableVerdict::Accepted
+        }
+    }
+
+    state member_probe(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        at: u64 [0..=32],
+        row: u64 [0..=4]
+    ) -> TableVerdict {
+        transition {
+            fuel > 1 && row < 4 -> member_row(image, gates, members, ist, fuel - 1, at, row)
+            row < 4 -> reject(at, 0)
+            fuel > 1 -> absent(image, gates, members, ist, fuel - 1, at)
+            _ -> reject(at, 0)
+        }
+    }
+
+    state member_row(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        at: u64 [0..=32],
+        row: u64 [0..=3]
+    ) -> TableVerdict {
+        transition {
+            fuel > 1 && members[row].vector == at -> member_fields(image, gates, members, ist, fuel - 1, at, row)
+            fuel > 1 -> member_probe(image, gates, members, ist, fuel - 1, at, row + 1)
+            _ -> reject(at, 0)
+        }
+    }
+
+    state member_fields(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        at: u64 [0..=32],
+        row: u64 [0..=3]
+    ) -> TableVerdict {
+        transition {
+            gates[at].entry == 0 -> reject(at, 1)
+            gates[at].selector != members[row].selector -> reject(at, 2)
+            gates[at].ist != members[row].ist_slot -> reject(at, 3)
+            gates[at].gate_kind != members[row].gate_kind -> reject(at, 4)
+            gates[at].privilege != members[row].privilege -> reject(at, 5)
+            gates[at].present == false -> reject(at, 6)
+            image[at][4] >= 8 -> reject(at, 7)
+            image[at][5] % 32 >= 16 -> reject(at, 7)
+            image[at][12] != 0 -> reject(at, 7)
+            image[at][13] != 0 -> reject(at, 7)
+            image[at][14] != 0 -> reject(at, 7)
+            image[at][15] != 0 -> reject(at, 7)
+            fuel > 1 -> ist_probe(image, gates, members, ist, fuel - 1, at, row, 0)
+            _ -> reject(at, 0)
+        }
+    }
+
+    state ist_probe(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        at: u64 [0..=32],
+        row: u64 [0..=3],
+        binding: u64 [0..=4]
+    ) -> TableVerdict {
+        transition {
+            fuel > 1 && binding < 4 -> ist_match(image, gates, members, ist, fuel - 1, at, row, binding)
+            binding < 4 -> reject(at, 0)
+            _ -> reject(at, 8)
+        }
+    }
+
+    state ist_match(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        at: u64 [0..=32],
+        row: u64 [0..=3],
+        binding: u64 [0..=3]
+    ) -> TableVerdict {
+        transition {
+            ist[binding].slot == members[row].ist_slot
+                && ist[binding].dedicated_class != members[row].dedicated_stack_class
+                -> reject(at, 8)
+            fuel > 1 && ist[binding].slot == members[row].ist_slot -> advance(image, gates, members, ist, fuel - 1, at)
+            fuel > 1 -> ist_probe(image, gates, members, ist, fuel - 1, at, row, binding + 1)
+            _ -> reject(at, 0)
+        }
+    }
+
+    state absent(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        at: u64 [0..=32]
+    ) -> TableVerdict {
+        transition {
+            gates[at].entry != 0 -> reject(at, 9)
+            gates[at].selector != 0 -> reject(at, 9)
+            gates[at].ist != 0 -> reject(at, 9)
+            gates[at].gate_kind != 0 -> reject(at, 9)
+            gates[at].privilege != 0 -> reject(at, 9)
+            gates[at].present -> reject(at, 9)
+            image[at][4] != 0 -> reject(at, 9)
+            image[at][5] != 0 -> reject(at, 9)
+            image[at][12] != 0 -> reject(at, 9)
+            image[at][13] != 0 -> reject(at, 9)
+            image[at][14] != 0 -> reject(at, 9)
+            image[at][15] != 0 -> reject(at, 9)
+            fuel > 1 -> advance(image, gates, members, ist, fuel - 1, at)
+            _ -> reject(at, 0)
+        }
+    }
+
+    state advance(
+        image: [[u8; 16]; 33],
+        gates: [InterruptGate; 33],
+        members: [TableMemberDeclaration; 4],
+        ist: [IstBinding; 4],
+        fuel: u64 [1..=768],
+        at: u64 [0..=32]
+    ) -> TableVerdict {
+        transition {
+            fuel > 1 -> vector(image, gates, members, ist, fuel - 1, at + 1)
+            _ -> reject(at, 0)
+        }
+    }
+
+    state reject(at: u64, reason: u8) -> TableVerdict {
+        TableVerdict::Rejected { vector: at as u8, reason: reason }
+    }
+
+    state reject_index(row: u64, reason: u8) -> TableVerdict {
+        TableVerdict::Rejected { vector: row as u8, reason: reason }
+    }
+}
