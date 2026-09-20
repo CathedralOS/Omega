@@ -6963,7 +6963,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   INTEGER-COMPARISON-OCCURRENCE-* family — the residual surface they name
   (provider coverage for genuinely selected occurrences, std-wide
   verification) is what the publication test pins.
-- **BENCHMARK-CROSS-HOST-ROWS** — mined candidate; verify scope then implement.
+- **BENCHMARK-CROSS-HOST-ROWS.** Mined candidate; verify scope then implement.
   Verified scope: re-mines the host-row matrix's runtime legs in
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md#host-row-matrix) —
   one committed `tools/benchmark/records/` row per catalogued deployment
@@ -6982,6 +6982,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BENCHMARK-CROSS-TARGET-COMPILE-ROWS, BENCHMARK-LINUX-ARM64-ROW,
   BENCHMARK-LINUX-X64-ROW-REFRESH, BENCHMARK-MACOS-ARM64-ROW,
   BENCHMARK-PRIME-COUNTER-ROW, BENCHMARK-HOST-ROW-MATRIX.
+  Re-verified at `a51cb805cc` on linux x86-64: the staged w9 records
+  have since landed — `tools/benchmark/records/` now carries
+  `wrapping_square_sum` rows for `linux_arm64`, `macos_arm64`, and
+  `windows_x86_64`, but all three are `--no-run` compile legs measured
+  on a linux x86_64 host (`host.os=linux`, `host.machine=x86_64`,
+  `runtime_ms` unmeasured), so the host-native runtime legs this row
+  names remain unconsumed: `macos_arm64` and `windows_x86_64` (peak-RSS
+  leg stays `unavailable` — no `os.wait4`) still need their own hosts,
+  `linux_arm64` needs an arm64 runner, `uefi_x86_64` needs
+  QEMU/hardware. Producing surfaces now fenced by
+  BENCHMARK-ROW-RESUMPTION (03:42Z) and BENCHMARK-PRIME-COUNTER-ROW
+  (05:19Z); the named sibling fences have expired.
 - **BENCHMARK-CROSS-TARGET-COMPILE-LEGS.** Scope verified — re-mine of
   BENCHMARK-COMPILE-ONLY-ROWS (~line 6395), which owns this exact deliverable:
   committed `tools/benchmark/records/` rows for the cross-target compile legs
