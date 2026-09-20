@@ -9200,7 +9200,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-PORTABLE-PSI-ENVELOPE, RC-PORTABLE-PSI-GATE. The gate remains a
   release-matrix row — release closure still needs all eight gates, one
   clean commit, four required hosts.
-- **RC-RELEASE-CLOSURE-RUN** — mined candidate; verify scope then implement.
+- **RC-RELEASE-CLOSURE-RUN.** Mined candidate; scope verified at
+  797e99ead7 — re-mines the release-record run clause covered by
+  RC-RELEASE-RECORD-AND-CLOSURE's verified row. The substrate exists
+  (`tools/release/release_record.py`, landed `210ffe3c93`: eight-gate
+  manifest, one runner row per `--target`, `omega-release-record/1`
+  records under `records/`, `check` re-validates committed records); a
+  bounded linux_x86_64 record already exists at
+  `wiki/drafts/release_record_e12b9e8e06.md` (RC-PORTABLE-PSI green,
+  RC-REPOSITORY + RC-DIAGNOSTICS red). A fresh run on this host is
+  unfenced in code terms but `tools/release/` + `records/` are
+  claim-held, and a new committed record would only re-measure gates the
+  board already records red. Closure remains correctly open: eight gates
+  green on one clean commit plus all four required hosts. Sibling
+  re-mines: RC-RELEASE-RECORD, RC-RELEASE-RECORD-RUN,
+  RC-RELEASE-RECORD-AND-CLOSURE, RC-RELEASE-RECORD-SUBSTRATE.
 - **RC-RELEASE-RECORD** — mined candidate; scope verified at `e12b9e8e06`:
   re-mines the release-record clause (see RC-RELEASE-RECORD-AND-CLOSURE's
   verified row). Bounded linux_x86_64 record written at
