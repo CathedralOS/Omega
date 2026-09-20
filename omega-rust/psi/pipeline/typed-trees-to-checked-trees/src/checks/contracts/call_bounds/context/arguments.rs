@@ -113,6 +113,9 @@ fn operand_effects_are_known(
                         operand_effects_are_known(program, facts, owner, parameters, *argument)
                     })
         }
+        ExpressionNode::Cast(_) => {
+            primitive_type(program, facts, owner, parameters, expression).is_some()
+        }
         ExpressionNode::Binary(_) => {
             primitive_type(program, facts, owner, parameters, expression).is_some()
                 || comparison_is_supported(program, facts, owner, parameters, expression)
@@ -153,6 +156,34 @@ fn meaning(
                 primitive,
                 domain: literal.landing()?.domain,
                 type_reference: None,
+            })
+        }
+        ExpressionNode::Cast(cast) => {
+            if cast.form.is_recast()
+                || cast.domain != ArithmeticDomain::Exact
+                || !cast.semantic_domain.is_empty()
+                || !cast.semantic_domain_arguments.is_empty()
+                || cast.semantic_domain_symbol.is_valid()
+                || cast.semantic_domain_id.is_valid()
+                || (cast.result_type.is_valid() && cast.result_type != cast.target_type)
+                || !matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(cast.target_type),
+                    typed_trees::types::TypeReferenceNode::Named { .. }
+                )
+            {
+                return None;
+            }
+            let source = meaning(program, facts, owner, parameters, cast.value)?;
+            let primitive = program.primitive_type_reference(cast.target_type)?;
+            // Widen the value, not the arithmetic inside its operand. Recursing
+            // through meaning keeps wrapping/selected computations out of the
+            // mathematical substitution even when the final carrier is Exact.
+            validation::integer_widen_is_total(source.primitive, primitive).then_some(Meaning {
+                primitive,
+                domain: ArithmeticDomain::Exact,
+                type_reference: Some(cast.target_type),
             })
         }
         ExpressionNode::Binary(binary) => {

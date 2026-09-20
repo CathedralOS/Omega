@@ -1,4 +1,5 @@
 mod mutable;
+mod widening;
 
 #[test]
 fn named_call_anonymous_literal_uses_its_exact_formal_destination() {

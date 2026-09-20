@@ -76,7 +76,7 @@ pub fn strict_arithmetic_expression_implication_with_arguments(
     arguments: &[StrictArithmeticExpressionBinding],
 ) -> StrictArithmeticImplicationJudgment {
     let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, bindings);
-    if !engine.strict_symbol_bindings_are_valid() || !engine.bind_strict_arguments(arguments) {
+    if !engine.strict_symbol_bindings_are_valid() || !engine.bind_exact_arguments(arguments) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
     let mut comparisons = Vec::new();

@@ -48,6 +48,61 @@ fn relation(left: ScalarTerm, right: ScalarTerm, strict: bool) -> Proposition {
 }
 
 #[test]
+fn carrier_extrema_close_impossible_root_bounds_without_definition_edges() {
+    for sign in [IntegerSign::Unsigned, IntegerSign::Signed] {
+        for bits in [8, 16, 32, 64] {
+            let integer_type = IntegerType::new(sign, bits).unwrap();
+            let identity = ValueId::new(1).unwrap();
+            let context = PropositionContext::from_value_types([(
+                identity,
+                ScalarType::Integer(integer_type),
+            )])
+            .unwrap();
+            let subject = ScalarTerm::value(identity, ScalarType::Integer(integer_type));
+            let minimum = ScalarTerm::integer(integer_type, integer_type.minimum_value()).unwrap();
+            let maximum = ScalarTerm::integer(integer_type, integer_type.maximum_value()).unwrap();
+            for (left, right) in [(subject.clone(), minimum), (maximum, subject.clone())] {
+                let assumption = Proposition::LessThan(left.clone(), right.clone());
+                let proof = super::prove(
+                    &context,
+                    std::slice::from_ref(&assumption),
+                    &[],
+                    &mut DefinitionIndex::new(&[]),
+                )
+                .expect("carrier bounds contradict values beyond either extremum");
+                check_certificate(
+                    &context,
+                    &Proposition::Falsehood,
+                    std::slice::from_ref(&assumption),
+                    &[],
+                    &proof,
+                )
+                .unwrap();
+                let reachable = Proposition::LessOrEqual(left, right);
+                assert!(
+                    super::prove(
+                        &context,
+                        std::slice::from_ref(&reachable),
+                        &[],
+                        &mut DefinitionIndex::new(&[]),
+                    )
+                    .is_none(),
+                    "equality at the extremum remains reachable"
+                );
+                assert!(check_certificate(
+                    &context, &Proposition::Falsehood, &[reachable], &[], &proof,
+                ).is_err(), "the contradiction must retain its strict premise");
+                assert!(
+                    check_certificate(&context, &Proposition::Falsehood, &[], &[], &proof,)
+                        .is_err(),
+                    "carrier membership alone is not a contradiction"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn incompatible_integer_bounds_retain_exact_projected_premises() {
     let goal = Proposition::Equal(value(2), literal(42));
     for (lower, upper) in [(3, 3), (5, 4)] {
