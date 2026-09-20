@@ -10867,6 +10867,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SQUALR-TARGETS-AND-THROUGHPUT (+ SQUALR-CLONE-SERIALIZATION file
   fences). A Linux `--target windows_x86_64` emit leg does not satisfy
   the run-based acceptance. Owning parent: SQUALR-GEOMETRY-PARITY.
+  Re-verified at `7110606f46` under claim e0188317 (exp 05:49Z): the
+  submodule gitlink now pins `5b0307c352` (was `4b1f7a6` at the sibling
+  audit), so the Windows leg must additionally re-run against the moved
+  pin; the host gate is unchanged — still no Windows host in this lane.
 - **STAGE-ANCESTRY-DIRECT-READS.** Resolved — re-mine of the settled
   selected-instructions ancestry surface, already closed under sibling
   SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL: `83766d57bf` moved custody reads
