@@ -7075,7 +7075,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CONCURRENT-PROTOCOL-EXTRACTION** — mined candidate; scope verified, authorization gate recorded. Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION** — mined candidate; scope verified, authorization gate recorded. Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-EXTRACTION (gate recorded), CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
 - **CONCURRENT-WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION and CONCURRENT-PROTOCOL-WHOLE-COMPOSITION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. No implementation slice exists to claim.
-- **CONNECTED-ROUTE-GATE** — mined candidate; verify scope then implement.
+- **CONNECTED-ROUTE-GATE.** Resolved — re-mine of the landed connected-route
+  gate `50bf7b17a78` ("architecture: pin the connected pipeline route").
+  `tests/architecture/representation_ownership.rs::connected_pipeline_route_covers_every_stage_crate`
+  pins the canonical program route as a connected `X-to-Y`/`Y-to-Y`/`Y-to-Z`
+  chain — each stage's input must equal the preceding stage's output, X-to-X
+  legs sit inline at their node, and the route must cover every pipeline
+  crate on disk ("connected routes differ from the on-disk pipeline stage
+  crates" fails an unlinked or renamed stage). The gate covers both the
+  18-stage Terminal route and the omega frontend
+  (source-files-to-assembled-syntax → assembled-syntax-to-checked-
+  compilation → checked-compilation-to-terminal-artifact). Re-verified
+  green at `d32183a35cc` (linux x86-64):
+  `cargo nextest run -p omega-architecture-test --test
+  representation_ownership -E 'test(~connected_pipeline_route)'` — 1/1
+  PASS. No independent slice exists.
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE** — mined candidate; verify scope then implement.
 - **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
 - **CONSTANT-LEAF-EXACT-CARRIER** — mined candidate; verify scope then implement.
