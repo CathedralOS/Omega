@@ -8430,7 +8430,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STATEMENT-CALL-RECURSIVE-ARGUMENT-DEDUP** — mined candidate; verify scope then implement.
 - **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
 - **STRUCTURAL-GENERIC-INFERENCE** — mined candidate; verify scope then implement.
-- **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
+- **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
 - **STRUCTURAL-SUCCESSOR-DISCARD-ORDERING** — mined candidate; verify scope then implement.
 - **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
