@@ -547,7 +547,7 @@ pub(crate) fn snapshot_static_argument(
     }
 }
 
-fn expression_span_snapshot(
+pub(crate) fn expression_span_snapshot(
     program: &TypedTrees,
     expressions: arena::HandleSpan<ExpressionHandle>,
 ) -> Vec<ExpressionSnapshot> {

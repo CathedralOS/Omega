@@ -17,9 +17,10 @@ pub use declaration_snapshots::{
     DomainAliasConstituentSnapshot, DomainDefinitionSnapshot, DomainEstablishmentRouteSnapshot,
     DomainSemanticRolesSnapshot, DomainTypeParameterSnapshot, MathematicalBinderSnapshot,
     MathematicalBodySnapshot, MathematicalDefinitionSnapshot, MathematicalParameterSnapshot,
-    MathematicalTypeSnapshot, OperatorDefinitionSnapshot, ProofFactSnapshot,
-    PropositionBinderSnapshot, PropositionBodySnapshot, PropositionFormulaSnapshot,
-    PropositionSnapshot, QuotientDefinitionSnapshot, QuotientEquivalenceSelectionSnapshot,
+    MathematicalTypeSnapshot, MeasureDefinitionSnapshot, OperatorDefinitionSnapshot,
+    ProofFactSnapshot, PropositionBinderSnapshot, PropositionBodySnapshot,
+    PropositionFormulaSnapshot, PropositionSnapshot, QuotientDefinitionSnapshot,
+    QuotientEquivalenceSelectionSnapshot,
 };
 pub use machine_snapshots::{
     ConformanceRowSnapshot, ConformanceSnapshot, GenericConformanceBoundSnapshot, MachineSnapshot,
@@ -42,6 +43,7 @@ use crate::TypedTrees;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::data_definition_snapshot;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::domain_definition_snapshot;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::mathematical_definition_snapshot;
+use crate::typed_trees::inspection::snapshot::declaration_snapshots::measure_snapshot;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::operator_snapshot;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::proposition_snapshot;
 use crate::typed_trees::inspection::snapshot::machine_snapshots::conformance_snapshot;
@@ -123,6 +125,11 @@ impl TypedTreesSnapshot {
                     .iter()
                     .map(|machine| machine_snapshot(program, machine))
                     .collect(),
+                measures: program
+                    .measures()
+                    .iter()
+                    .map(|measure| measure_snapshot(program, measure))
+                    .collect(),
                 mathematical_definitions: program
                     .mathematical_definitions()
                     .iter()
@@ -155,27 +162,45 @@ impl TypedTreesSnapshot {
                     .collect(),
             },
             tables: TypedTableSnapshot {
+                authored_declaration_selection_count: program
+                    .authored_declaration_selections()
+                    .len(),
+                const_declaration_count: program.const_declarations.len(),
                 data_definition_count: program.data_definitions.len(),
                 data_type_parameter_count: program.data_type_parameters.len(),
                 data_member_count: program.data_members.len(),
+                data_payload_field_count: program.data_payload_fields.len(),
                 domain_definition_count: program.domain_definitions.len(),
-                machine_count: program.machines.len(),
-                operator_count: program.operators.len(),
+                proof_fact_count: program.proof_facts.len(),
                 proposition_count: program.propositions.len(),
                 proposition_binder_count: program.proposition_binders.len(),
+                mathematical_definition_count: program.mathematical_definitions.len(),
+                mathematical_parameter_count: program.mathematical_parameters.len(),
+                mathematical_type_count: program.mathematical_types.len(),
+                domain_path_member_count: program.domain_path_members.len(),
+                operator_path_member_count: program.operator_path_members.len(),
+                machine_count: program.machines.len(),
+                measure_count: program.measures.len(),
+                measure_path_member_count: program.measure_path_members.len(),
+                operator_count: program.operators.len(),
                 machine_owned_data_count: program.machine_owned_data.len(),
+                machine_trait_conformance_count: program.machine_trait_conformances.len(),
                 machine_state_count: program.machine_states.len(),
                 state_parameter_count: program.state_parameters.len(),
                 trait_count: program.traits.len(),
                 conformance_count: program.conformances.len(),
                 trait_requirement_count: program.trait_requirements.len(),
                 trait_machine_signature_count: program.trait_machine_signatures.len(),
+                signature_invoke_count: program.signature_invokes.len(),
+                signature_contract_count: program.signature_contracts.len(),
                 expression_count: program.expression_table.expression_count(),
                 expression_struct_field_count: program.expression_table.struct_field_count(),
                 statement_count: program.statement_table.statement_count(),
                 transition_target_count: program.statement_table.transition_target_count(),
                 type_reference_count: program.type_reference_table.type_reference_count(),
                 type_constraint_count: program.type_reference_table.constraint_count(),
+                wire_schema_count: program.wire_schemas.len(),
+                wire_member_count: program.wire_members.len(),
             },
             external_bindings: program
                 .external_bindings
@@ -280,6 +305,8 @@ pub struct TypedRootsSnapshot {
     pub domain_definitions: Vec<DomainDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub measures: Vec<MeasureDefinitionSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub mathematical_definitions: Vec<MathematicalDefinitionSnapshot>,
     pub operators: Vec<OperatorDefinitionSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -291,25 +318,41 @@ pub struct TypedRootsSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TypedTableSnapshot {
+    pub authored_declaration_selection_count: usize,
+    pub const_declaration_count: usize,
     pub data_definition_count: usize,
     pub data_type_parameter_count: usize,
     pub data_member_count: usize,
+    pub data_payload_field_count: usize,
     pub domain_definition_count: usize,
-    pub machine_count: usize,
-    pub operator_count: usize,
+    pub proof_fact_count: usize,
     pub proposition_count: usize,
     pub proposition_binder_count: usize,
+    pub mathematical_definition_count: usize,
+    pub mathematical_parameter_count: usize,
+    pub mathematical_type_count: usize,
+    pub domain_path_member_count: usize,
+    pub operator_path_member_count: usize,
+    pub machine_count: usize,
+    pub measure_count: usize,
+    pub measure_path_member_count: usize,
+    pub operator_count: usize,
     pub machine_owned_data_count: usize,
+    pub machine_trait_conformance_count: usize,
     pub machine_state_count: usize,
     pub state_parameter_count: usize,
     pub trait_count: usize,
     pub conformance_count: usize,
     pub trait_requirement_count: usize,
     pub trait_machine_signature_count: usize,
+    pub signature_invoke_count: usize,
+    pub signature_contract_count: usize,
     pub expression_count: usize,
     pub expression_struct_field_count: usize,
     pub statement_count: usize,
     pub transition_target_count: usize,
     pub type_reference_count: usize,
     pub type_constraint_count: usize,
+    pub wire_schema_count: usize,
+    pub wire_member_count: usize,
 }

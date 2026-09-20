@@ -5,12 +5,15 @@ use crate::TypedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::domain::{DomainDefinition, ProofFact};
 use crate::mathematical::{MathematicalBody, MathematicalType};
+use crate::measure::MeasureDefinition;
 use crate::operator::OperatorDefinition;
 use crate::proposition::{
     PropositionBinderKind, PropositionBody, PropositionDefinition, PropositionFormula,
 };
 use crate::typed_trees::inspection::snapshot::machine_snapshots::state_parameter_snapshot;
-use crate::typed_trees::inspection::snapshot::statement_and_expression_snapshots::expression_snapshot;
+use crate::typed_trees::inspection::snapshot::statement_and_expression_snapshots::{
+    expression_snapshot, expression_span_snapshot,
+};
 use crate::typed_trees::inspection::snapshot::type_snapshots::type_reference_snapshot;
 use crate::typed_trees::inspection::snapshot::{
     ExpressionSnapshot, StateParameterSnapshot, TypeReferenceSnapshot,
@@ -705,5 +708,38 @@ pub(crate) fn mathematical_definition_snapshot(
                 term: expression_snapshot(program, *term),
             },
         },
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MeasureDefinitionSnapshot {
+    pub has_symbol: bool,
+    pub name: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameter: Option<StateParameterSnapshot>,
+    pub return_type: TypeReferenceSnapshot,
+    pub lexicographic: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub body: Vec<ExpressionSnapshot>,
+}
+
+pub(crate) fn measure_snapshot(
+    program: &TypedTrees,
+    measure: &MeasureDefinition,
+) -> MeasureDefinitionSnapshot {
+    MeasureDefinitionSnapshot {
+        has_symbol: measure.symbol.is_valid(),
+        name: program
+            .measure_path_members(measure.name)
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        parameter: measure
+            .parameter
+            .as_ref()
+            .map(|parameter| state_parameter_snapshot(program, parameter)),
+        return_type: type_reference_snapshot(program, measure.return_type),
+        lexicographic: measure.lexicographic,
+        body: expression_span_snapshot(program, measure.body),
     }
 }
