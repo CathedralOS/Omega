@@ -39,10 +39,10 @@ use layout_plans::{EntryStubId, RelocationTarget};
 /// lifecycle gates.
 #[derive(Debug, PartialEq, Eq)]
 pub struct EntryReferenceAuthority {
-    installed: InstalledCodeEvidence,
-    entry: EntryStubId,
-    contract: EntryContractDigest,
-    required_facts: BTreeSet<EntryReferenceFactDigest>,
+    pub(crate) installed: InstalledCodeEvidence,
+    pub(crate) entry: EntryStubId,
+    pub(crate) contract: EntryContractDigest,
+    pub(crate) required_facts: BTreeSet<EntryReferenceFactDigest>,
 }
 
 impl EntryReferenceAuthority {

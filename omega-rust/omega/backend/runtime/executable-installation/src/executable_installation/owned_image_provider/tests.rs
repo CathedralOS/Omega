@@ -5,13 +5,15 @@ use crate::executable_installation::test_support::{
 };
 use crate::executable_installation::{
     AdmittedArtifact, Artifact, ArtifactEntry, ArtifactId, ArtifactRelocationKind,
-    DecodedArtifactRelocation, EntrySetId, InstallAuthority, InstallationFactDigest, InstalledCode,
-    InstalledCodeId, MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
+    DecodedArtifactRelocation, EntryContractDigest, EntryReferenceAuthority,
+    EntryReferenceFactDigest, EntryReferenceReceipt, EntrySetId, InstallAuthority,
+    InstallationFactDigest, InstalledCode, InstalledCodeId, InstalledEntryReference,
+    MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
     ReplacementAuthority, ReplacementFactDigest, ReplacementOutcome, RetirementAuthority,
     RetirementReceipt, ValidatedPlacement, install_validated, replace_installed,
     validate_final_placement,
 };
-use layout_plans::RelocationTarget;
+use layout_plans::{EntryStubId, RelocationTarget};
 use target::Architecture;
 
 /// A two-site artifact: entries at byte offsets 8 and 32 over a 64-byte image,
@@ -394,6 +396,266 @@ fn patch_refuses_when_the_provider_holds_no_resident_successor() {
     let error = provider
         .patch(&superseded, &foreign_successor, &authority)
         .expect_err("a nonresident successor refuses");
+
+    assert!(error.0.contains("no resident image"));
+}
+
+/// The contract identity every seal test demands; open vocabulary, so any
+/// canonical bytes name a contract.
+const SEAL_CONTRACT_BYTES: &[u8] = b"omega.test.entry-contract.sealed-call.v1";
+
+fn seal_contract() -> EntryContractDigest {
+    EntryContractDigest::from_canonical_bytes(SEAL_CONTRACT_BYTES)
+}
+
+/// Drive the contracted entry-sealing join through the provider: the
+/// receiver demands the provider's published fact set, the provider performs
+/// the operation, and `InstalledCode::seal_entry_reference` consumes the
+/// resulting receipt.
+fn seal_through_provider<'installed>(
+    provider: &OwnedImageProvider,
+    installed: &'installed InstalledCode,
+    entry: EntryStubId,
+) -> InstalledEntryReference<'installed> {
+    let authority =
+        EntryReferenceAuthority::from_admitted_provider(installed, entry, seal_contract())
+            .with_required_facts(OwnedImageProvider::seal_facts());
+    let receipt = provider
+        .seal_entry(installed, &authority)
+        .expect("provider performs the entry-sealing operation");
+    installed
+        .seal_entry_reference(authority, receipt)
+        .expect("the provider's receipt seals")
+}
+
+/// Patch one declared site of a provider-resident realization with a
+/// position-independent fragment.
+fn patch_through_provider(
+    provider: &mut OwnedImageProvider,
+    superseded: &InstalledCode,
+    successor: &InstalledCode,
+    site: EntryStubId,
+    fragment_bytes: Vec<u8>,
+) {
+    let fragment = admit(&relocatable_artifact(
+        71,
+        Architecture::X86_64,
+        fragment_bytes,
+        Vec::new(),
+    ));
+    let authority = ReplacementAuthority::from_admitted_provider(
+        superseded,
+        successor,
+        [(site, fragment)],
+        OwnedImageProvider::patch_facts(),
+    );
+    provider
+        .patch(superseded, successor, &authority)
+        .expect("provider patches the demanded site");
+}
+
+#[test]
+fn seal_entry_mints_a_receipt_the_gate_seals() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+
+    let reference = seal_through_provider(&provider, &installed, entry_id(1041));
+
+    assert_eq!(reference.entry(), entry_id(1041));
+    assert_eq!(reference.contract(), seal_contract());
+    assert_eq!(reference.installed_code(), installed_id);
+}
+
+#[test]
+fn seal_entry_replays_the_committed_fragment_content_after_patch() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_superseded_id, superseded) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let (_successor_id, successor) =
+        install_through_provider(&mut provider, &artifact(42), 42, 0x8000);
+    patch_through_provider(
+        &mut provider,
+        &superseded,
+        &successor,
+        entry_id(1041),
+        vec![0xCC; 6],
+    );
+
+    // The resident extent no longer equals the bytes the artifact was
+    // installed with — the seal replays the committed patch content.
+    let reference = seal_through_provider(&provider, &superseded, entry_id(1041));
+
+    assert_eq!(reference.entry(), entry_id(1041));
+}
+
+#[test]
+fn seal_entry_refuses_a_demand_for_facts_it_did_not_perform() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let authority = EntryReferenceAuthority::from_admitted_provider(
+        &installed,
+        entry_id(1041),
+        seal_contract(),
+    )
+    .with_required_facts([EntryReferenceFactDigest::from_canonical_bytes(
+        b"omega.other-provider.unperformed-step.v1",
+    )]);
+
+    let error = provider
+        .seal_entry(&installed, &authority)
+        .expect_err("a demand beyond the performed set refuses");
+
+    assert!(error.0.contains("cannot establish"));
+}
+
+#[test]
+fn seal_entry_refuses_an_authority_scoped_to_another_realization() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let (_other_id, other) =
+        install_through_provider(&mut provider, &two_site_artifact(42), 42, 0x8000);
+    let authority =
+        EntryReferenceAuthority::from_admitted_provider(&other, entry_id(1042), seal_contract())
+            .with_required_facts(OwnedImageProvider::seal_facts());
+
+    let error = provider
+        .seal_entry(&installed, &authority)
+        .expect_err("an authority scoped to another realization refuses");
+
+    assert!(error.0.contains("not scoped"));
+}
+
+#[test]
+fn seal_entry_refuses_when_the_provider_holds_no_resident_image() {
+    let provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    // A realization installed by a different provider (here: the test support
+    // path, not this provider) is not resident in this provider's custody.
+    let admitted = admit(&two_site_artifact(41));
+    let installed = installed_code(&admitted, 41, 0x4000);
+    let authority = EntryReferenceAuthority::from_admitted_provider(
+        &installed,
+        entry_id(1041),
+        seal_contract(),
+    )
+    .with_required_facts(OwnedImageProvider::seal_facts());
+
+    let error = provider
+        .seal_entry(&installed, &authority)
+        .expect_err("a nonresident realization refuses");
+
+    assert!(error.0.contains("no resident image"));
+}
+
+#[test]
+fn seal_entry_refuses_an_undeclared_entry() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let authority = EntryReferenceAuthority::from_admitted_provider(
+        &installed,
+        entry_id(9999),
+        seal_contract(),
+    )
+    .with_required_facts(OwnedImageProvider::seal_facts());
+
+    let error = provider
+        .seal_entry(&installed, &authority)
+        .expect_err("an undeclared entry refuses");
+
+    assert!(error.0.contains("not a declared entry"));
+}
+
+#[test]
+fn call_hands_the_resident_entry_extent_to_the_sealed_call() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let reference = seal_through_provider(&provider, &installed, entry_id(1041));
+
+    let call = provider
+        .call(&installed, &reference)
+        .expect("the sealed reference invokes");
+
+    assert_eq!(call.installed_code(), installed_id);
+    assert_eq!(call.entry(), entry_id(1041));
+    assert_eq!(call.contract(), seal_contract());
+    // Entry 1041's extent spans its offset 8 up to the next declared entry
+    // at 32: 24 bytes of the resident image.
+    assert_eq!(call.code(), &[0x41; 24]);
+}
+
+#[test]
+fn call_enters_the_committed_fragment_content_after_patch() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_superseded_id, superseded) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let (_successor_id, successor) =
+        install_through_provider(&mut provider, &artifact(42), 42, 0x8000);
+    patch_through_provider(
+        &mut provider,
+        &superseded,
+        &successor,
+        entry_id(1041),
+        vec![0xCC; 6],
+    );
+    let reference = seal_through_provider(&provider, &superseded, entry_id(1041));
+
+    let call = provider
+        .call(&superseded, &reference)
+        .expect("the sealed reference invokes the patched entry");
+
+    // The patched extent replays the committed fragment head plus the
+    // retained tail, not the superseded pre-patch bytes.
+    let mut expected = vec![0xCC; 6];
+    expected.extend_from_slice(&[0x41; 18]);
+    assert_eq!(call.code(), expected.as_slice());
+}
+
+#[test]
+fn call_refuses_a_reference_sealing_another_occurrence() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_first_id, first) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let (_second_id, second) =
+        install_through_provider(&mut provider, &two_site_artifact(42), 42, 0x8000);
+    let reference = seal_through_provider(&provider, &first, entry_id(1041));
+
+    let error = provider
+        .call(&second, &reference)
+        .expect_err("a reference sealing another occurrence refuses");
+
+    assert!(error.0.contains("does not seal"));
+}
+
+#[test]
+fn call_refuses_when_the_provider_holds_no_resident_image() {
+    let provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let admitted = admit(&two_site_artifact(41));
+    let installed = installed_code(&admitted, 41, 0x4000);
+    // A sealed reference can come from any provider's operation; the test
+    // support path mints the receipt directly.
+    let authority = EntryReferenceAuthority::from_admitted_provider(
+        &installed,
+        entry_id(1041),
+        seal_contract(),
+    );
+    let receipt = EntryReferenceReceipt::from_provider(
+        &installed,
+        entry_id(1041),
+        seal_contract(),
+        true,
+        true,
+    );
+    let reference = installed
+        .seal_entry_reference(authority, receipt)
+        .expect("the hand-minted receipt seals");
+
+    let error = provider
+        .call(&installed, &reference)
+        .expect_err("a nonresident realization refuses");
 
     assert!(error.0.contains("no resident image"));
 }
