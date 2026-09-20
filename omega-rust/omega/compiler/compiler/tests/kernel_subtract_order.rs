@@ -131,7 +131,7 @@ fn source_rank_decrease_has_checked_subtraction_evidence() {
             // Primitive Two supplies Boolean vocabulary without assumptions.
             assert_eq!(
                 closure,
-                (0..48)
+                (0..45)
                     .filter(|position| ![5, 7, 8].contains(position))
                     .collect::<BTreeSet<_>>()
             );
@@ -197,12 +197,12 @@ fn source_non_decreasing_rank_rejects() {
 
 #[test]
 fn source_subtraction_operation_has_a_derived_nonnegative_bound() {
-    check_source_subtraction_bound("pass/proofs/kernel_integer_subtract_order", 33);
+    check_source_subtraction_bound("pass/proofs/kernel_integer_subtract_order", 32);
 }
 
 #[test]
 fn source_subtraction_bound_composes_with_a_larger_guard_and_decrement() {
-    check_source_subtraction_bound("pass/proofs/kernel_integer_subtract_bound", 20);
+    check_source_subtraction_bound("pass/proofs/kernel_integer_subtract_bound", 19);
 }
 
 fn check_source_subtraction_bound(relative: &str, declarations: u32) {

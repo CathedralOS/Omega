@@ -1910,12 +1910,21 @@ Owners include
     substitutes a checked numeral-operation equation `add n r = e` —
     interned once per evaluated operand triple — for the applicative
     cancellation step. An already admitted open expression stays opaque
-    if composing a child would introduce a resource refusal. Still to do:
-    other bound-witness forms, transport through opaque operations, nested
+    if composing a child would introduce a resource refusal. The remaining
+    fixed-integer scalar operations — multiply, divide, remainder, bitwise,
+    shifts, casts and the value-level integer comparisons — denote one
+    uninterpreted `Π Int.Π Int.Int` (or `Π Int.Π Int.Two`) function per
+    constructor and machine type, applied to the denoted operands, so
+    equality transport's `J` rewrites reach inside `x * s`: the guarded
+    remainder `w % (x * s)` under the arm fact `x * t >= 1` and entry
+    `s == t` derives its nonzero divisor through identity elimination in
+    `compiler/tests/kernel_equality_transport.rs` instead of an admitted
+    rule instance. Still to do:
+    other bound-witness forms, nested
     canonical identity reversal, and Boolean identities requiring case analysis
-    rather than structural correspondence. Other operations remain
-    opaque; unsupported arithmetic derivations, including `x + 0 = x`, still
-    assume their conclusions.
+    rather than structural correspondence. The uninterpreted operations
+    carry no arithmetic laws; unsupported arithmetic derivations, including
+    `x + 0 = x`, still assume their conclusions.
   - Check indexed-scheme applications produced from source declarations, per
     [declaration correspondence](wiki/spec/proofs/inductive_profile.md#declaration-correspondence-and-strict-logic):
     exact parameters, indices, payloads, case constraints and recursive uses.
@@ -1957,9 +1966,11 @@ Owners include
   terms by exact evaluated value. Subtraction order, the correlated
   unsigned subtraction lower bound and correlated addition bounds with
   open right addends use fixed arithmetic laws. Remaining bound-witness forms,
-  opaque or noncompositional transport and construction-budget fallback still
+  nested canonical identity reversal, Boolean identities needing case
+  analysis, and construction-budget fallback still
   use per-instance `rule_axiom`s. Addition and subtraction retain their operands;
-  other open arithmetic remains opaque. Fixed laws still require exact
+  other open arithmetic denotes uninterpreted per-operation functions. Fixed
+  laws still require exact
   assumption admission and do not establish arithmetic consistency.
 
   Resume transport coverage with `cargo nextest run --release -p compiler
