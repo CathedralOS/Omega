@@ -8534,10 +8534,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   memberships, and fixpoint certificates. Pinned cases: `cases/reference.json`
   positive plus seven negatives. Verified:
   `python3 tools/tests/test_matching_logic_sort_encoding.py -v` — 8/8 green
-  on linux x86-64. Remaining acceptance: wire the emitted clauses and
-  evidence into the bounded comparison harness — fenced to
-  MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice/`, live claim);
-  no encoding-to-checker translation is admitted authority.
+  on linux x86-64. The comparison-metrics leg landed here (Zergling-50):
+  `route.matching_logic_encoding` in `tools/matching-logic-metrics` is
+  measured when the bounded slice is present — checker/translation source
+  inventories (`*.py`), theory (`checkerRules` from the slice record plus
+  `encodingClauses` summed over the sort-encoding corpus with per-case
+  diagnostics), certificate bytes, and slice-corpus check timings with
+  polarity matching; `validate` checks the measured shape and `measure`
+  exits nonzero on encoding mismatches (test_matching_logic_metrics.py
+  16/16 green on linux x86-64 at `7176821bc6b`). Remaining acceptance:
+  wire the emitted clauses and evidence into the bounded comparison
+  harness — fenced to MATCHING-LOGIC-BOUNDED-SLICE
+  (`tools/matching-logic-slice/`, `tools/matching-logic-slice-comparison/`,
+  live claim); no encoding-to-checker translation is admitted authority.
 - **MATCHING-LOGIC-VERTICAL-SLICE.** Landed — re-mines the pending
   candidate-side deliverable of MATCHING-LOGIC-BOUNDED-SLICE (the
   `tools/matching-logic-slice/` checker the slice-comparison record was
