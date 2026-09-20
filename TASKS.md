@@ -6257,7 +6257,26 @@ Platform/cross-host (structurally gated — document host limits):
   HOSTILE-SHARED-MEMORY-REMAPPING and HOSTILE-SHARED-MEMORY-PLACEMENT record the
   same landing; Cathedral-side page-table revocation policy belongs to
   Cathedral's gap_register per the ownership boundary, not this item.
-- **DEVICE-EXTENT-ACCESS.** Device extent access.
+- **DEVICE-EXTENT-ACCESS.** Scope verified at d32183a35c — device extent
+  access is `wiki/spec/resources/device_access.md` on
+  `psi/foundation/extents`. Landed: the external-loan machinery
+  (`external_loans/mod.rs`) carries DMA borrows end to end — grant binds
+  borrower/direction/space/provenance/rights/completion obligations,
+  direction check (DeviceReads→shared loan, DeviceWrites→exclusive),
+  exact confinement `ExternalReachReceipt`, and `complete()` binding the
+  live loan + receipt + borrower + direction + range. Missing: the
+  "Ordering roles" section — publication, cache maintenance,
+  notification, completion, and acquisition as distinct protocol roles
+  whose discriminant participates in canonical event identity ("equal
+  payloads for different roles are not interchangeable"), each event
+  binding its exact ranges, mappings, stable device instance, and
+  runtime queue/session scope. No ordering-role carrier exists in the
+  crate — that is the implementable slice (a `DeviceOrderingRole`
+  discriminant + bound event identity alongside `external_loans`).
+  Shared-memory IPC and proven-release CPU-view restoration also remain
+  spec-only. Claim attempt exited 2: RUNTIME-SIZED-ACTIVATION-STORAGE
+  holds `omega-rust/psi/foundation/extents` until 01:34Z
+  (Devin / z139-runtime-sized-activation-storage, e3f1f55b).
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** External data schema conversion.
   Landed: `require_wire_compatibility` CompleteMigration now certifies only a
   uniquely bound conversion route — a `FormatMigration` lineage edge bound by
