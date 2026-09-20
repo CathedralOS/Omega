@@ -5926,7 +5926,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CANDIDATE-REVALIDATION-AT-SEARCH-SCALE** — mined candidate; verify scope then implement.
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
 - **CERTIFICATE-ADMISSION-RECORD-BINDING** — mined candidate; verify scope then implement.
-- **CHAIN-CERTIFICATE-ADMISSION-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
