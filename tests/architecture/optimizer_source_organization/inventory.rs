@@ -83,9 +83,7 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
             "omega-rust/psi/semantics/terminal-verifier/src/optimization.rs",
         ],
         output_marker: "run_psi_optimization",
-        consumers: &[
-            "omega-rust/psi/compiler/terminal-production/src/terminal_production.rs",
-        ],
+        consumers: &["omega-rust/psi/compiler/terminal-production/src/terminal_production.rs"],
     },
     RuleStageDescriptor {
         entrance: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/mod.rs",
@@ -137,9 +135,7 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
             "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/validation.rs",
         ],
         output_marker: "stage_optimized_x86_branch_relaxation",
-        consumers: &[
-            "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase.rs",
-        ],
+        consumers: &["omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase.rs"],
     },
 ];
 
