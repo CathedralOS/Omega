@@ -6952,7 +6952,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-PLATFORM-RUN-RECORDS** — mined candidate; verify scope then implement.
 - **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-CLOSURE** — mined candidate; verify scope then implement.
-- **RC-PORTABLE-PSI-ENVELOPE** — mined candidate; verify scope then implement.
+- **RC-PORTABLE-PSI-ENVELOPE.** Resolved — re-mines the release-matrix gate
+  `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md), already
+  discharged by the landed PORTABLE-TERMINAL-RELOAD work and re-verified
+  green here at `e4afe9659b`: `compiler::canary_suite
+  portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary`
+  spawns producer/consumer legs per `RELOAD_CANARIES` fixture — the
+  producer publishes a source-free Terminal Psi envelope and exits, the
+  consumer reconstructs, verifies, and interprets it — plus truncated,
+  mutated-section, and trailing-byte refusal legs (26.7s, 1/1 PASS on
+  linux x86-64). The envelope surface specifically is the artifact written
+  by the produce stage and refused tampered by the consume stage — the
+  same row, not an independent slice; sibling re-mines: RC-PORTABLE-PSI,
+  RC-PORTABLE-PSI-CLOSURE, RC-PORTABLE-PSI-GATE, RC-PORTABLE-PSI-RELOAD.
+  The release contract still requires all eight matrix gates on one clean
+  commit across the four required hosts (matrix row, not standalone
+  completion).
 - **RC-PORTABLE-PSI-GATE.** Resolved — re-mines the release-matrix gate
   `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md): the gate
   exists and passes. `compiler::canary_suite
