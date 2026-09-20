@@ -12,7 +12,7 @@ Do not infer one section's identity from another section's current version.
 
 Start at `encode_module` and `decode_module` in [lib.rs](src/lib.rs). Everything
 the semantic module's bytes need lives under
-[semantic_module.rs](src/semantic_module.rs): one `*_wire` file per section,
+[semantic_module.rs](src/sections/semantic_module.rs): one `*_wire` file per section,
 `module_foundation_validation.rs` for the pre-encoding shape checks,
 `structural_place_wire.rs` for the place encoders several sections share, and
 `wire.rs` for byte cursors. The remaining root files each own one separately
@@ -21,11 +21,11 @@ vocabulary.
 
 Current markers live with their owners: semantic format in [lib.rs](src/lib.rs),
 vocabulary in [VocabularyMarker](../../representations/terminal-psi/src/terminal_module/identity/vocabulary.rs),
-proof format in [proof_bundle.rs](src/proof_bundle.rs), envelope in
+proof format in [proof_bundle.rs](src/sections/proof_bundle.rs), envelope in
 [canonical_artifact.rs](src/canonical_artifact.rs), and manifest in
-[artifact_manifest.rs](src/artifact_manifest.rs). The image-emission owner
+[artifact_manifest.rs](src/sections/artifact_manifest.rs). The image-emission owner
 maintains the separate [installation format](../../../omega/backend/images/image-emission/src/installation_record.rs).
-Codec-owned [current-format tests](src/semantic_module/current_format_tests.rs) pin canonical
+Codec-owned [current-format tests](src/sections/semantic_module/current_format_tests.rs) pin canonical
 bytes and incompatible-marker rejection. Source-lowering tests check semantic
 round trips without duplicating a transient wire-version number.
 
@@ -56,7 +56,7 @@ range obligations before treating the constructed payload as valid.
 
 ## Observation-profile implementation
 
-[terminal_trace_v1_profile.rs](src/terminal_trace_v1_profile.rs) implements
+[terminal_trace_v1_profile.rs](src/sections/terminal_trace_v1_profile.rs) implements
 canonical profile encoding and module-bound acceptance for
 [TerminalTraceV1](../../../../wiki/spec/terminal-psi/observations.md). Acceptance
 validates the module, derives its complete identity and site roster independently,
