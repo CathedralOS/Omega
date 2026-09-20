@@ -1,11 +1,13 @@
 //!
 //! `plan.rs` is the plan and its carriers, `collection.rs` builds one from a
 //! program, `program_queries.rs` answers what the program declares,
-//! `constraints.rs` derives what an expression proves and `ranges.rs` turns
+//! `constraints.rs` derives what an expression proves, `identity.rs` renders
+//! an obligation's canonical semantic identity and `ranges.rs` turns
 //! constraints back into ranges.
 
 mod collection;
 mod constraints;
+mod identity;
 mod plan;
 mod program_queries;
 #[cfg(test)]
@@ -15,6 +17,7 @@ mod ranges;
 pub use collection::build_proof_plan;
 pub(crate) use collection::declared_integer_range;
 pub(crate) use constraints::expression_constraints;
+pub use identity::{KEY_SCHEMA, ProofObligationKey, proof_obligation_key};
 pub(crate) use plan::FloatRange;
 pub use plan::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedCallArgumentObligation,
