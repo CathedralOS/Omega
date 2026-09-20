@@ -235,29 +235,62 @@ fn term_has_complete_substitution(program: &TypedTrees, term: &StructuralTerm) -
         StructuralTerm::BoundValue(_)
         | StructuralTerm::BoundProjection { .. }
         | StructuralTerm::Projection { .. }
-        | StructuralTerm::Opaque(_)
-        | StructuralTerm::CallProjection { .. } => false,
+        | StructuralTerm::Opaque(_) => false,
         StructuralTerm::Application {
             target,
             selections,
             arguments,
             ..
+        }
+        | StructuralTerm::CallProjection {
+            target,
+            selections,
+            arguments,
+            ..
         } => {
-            selections.is_empty()
-                && super::structural_terms::selected_application_machine(program, *target)
-                    .is_some_and(|machine| {
-                        machine.attached_data.is_none()
-                            && program.machine_type_parameters(machine).is_empty()
-                            && program
-                                .machine_states(machine)
-                                .first()
-                                .is_some_and(|state| {
-                                    program.state_parameters(state).len() == arguments.len()
-                                })
-                    })
-                && arguments
-                    .iter()
-                    .all(|argument| term_has_complete_substitution(program, argument))
+            let Some(machine) =
+                super::structural_terms::selected_application_machine(program, *target)
+            else {
+                return false;
+            };
+            let Some(state) = program.machine_states(machine).first() else {
+                return false;
+            };
+            if !selections.is_empty()
+                || machine.attached_data.is_some()
+                || !program.machine_type_parameters(machine).is_empty()
+                || program.state_parameters(state).len() != arguments.len()
+            {
+                return false;
+            }
+            if let StructuralTerm::CallProjection {
+                result_type,
+                field,
+                field_name,
+                ..
+            } = term
+            {
+                // The fact-projection validator independently checks denotational
+                // eligibility. Substitution must retain this entry's exact result
+                // and field, never a namesake's value.
+                if state.return_type != *result_type {
+                    return false;
+                }
+                let Some(data) =
+                    crate::value_custody::places::data_definition_for_type(program, *result_type)
+                else {
+                    return false;
+                };
+                if !program.data_members(data).iter().any(|member| {
+                    matches!(member, typed_trees::data::DataMember::Field(candidate)
+                        if candidate.symbol == *field && candidate.name.as_str() == field_name)
+                }) {
+                    return false;
+                }
+            }
+            arguments
+                .iter()
+                .all(|argument| term_has_complete_substitution(program, argument))
         }
         StructuralTerm::ScalarBinary { left, right, .. } => {
             term_has_complete_substitution(program, left)
