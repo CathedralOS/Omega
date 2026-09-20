@@ -72,6 +72,12 @@ impl<'text> Reader<'text> {
         Self { remaining }
     }
 
+    /// Peek at the next record without consuming it; canonical readers use
+    /// this for optional ordered blocks.
+    pub(super) fn starts_with(&self, prefix: &str) -> bool {
+        self.remaining.starts_with(prefix)
+    }
+
     pub(super) fn line(&mut self) -> Result<&'text str, Error> {
         let (line, remaining) = self
             .remaining

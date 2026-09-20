@@ -4,6 +4,7 @@ use super::{
     PackagePolicyPackageChange, PackagePolicyReplacementSite,
 };
 use crate::declarations::PackageKey;
+use crate::declarations::dependencies::DependencyPurpose;
 use crate::lock::PackageAcceptanceRow;
 use crate::lock::PackageLockTarget;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
@@ -63,13 +64,18 @@ pub(super) fn finish_package(
 ) {
     let mut hash = Sha256::new();
     field(&mut hash, b"OMEGA-PACKAGE-POLICY-PACKAGE-CHANGE\0");
-    hash.update(1_u16.to_le_bytes());
+    // Version 2 binds each side's authorized occurrence purposes; version 1
+    // fingerprints predated the roster join.
+    hash.update(2_u16.to_le_bytes());
     field(&mut hash, &context.digest());
     field(&mut hash, &package.key.identity().digest());
     // The context contains both exact immutable source resolutions, including
-    // absence. Paths and flags are also bound explicitly for report consumers.
+    // absence. Paths, purposes, and flags are also bound explicitly for
+    // report consumers.
     path(&mut hash, package.baseline_path.as_ref());
     path(&mut hash, package.candidate_path.as_ref());
+    purpose_set(&mut hash, package.baseline_occurrence_purposes.as_deref());
+    purpose_set(&mut hash, package.candidate_occurrence_purposes.as_deref());
     hash.update([
         u8::from(package.source_changed),
         u8::from(package.source_association_changed),
@@ -97,6 +103,16 @@ pub(super) fn finish_package(
             }
         }
         delta.fingerprint = PackagePolicyChangeFingerprint(hash.finalize().into());
+    }
+}
+
+fn purpose_set(hash: &mut Sha256, purposes: Option<&[DependencyPurpose]>) {
+    hash.update([u8::from(purposes.is_some())]);
+    if let Some(purposes) = purposes {
+        hash.update((purposes.len() as u64).to_le_bytes());
+        for purpose in purposes {
+            hash.update([u8::from(!purpose.is_product())]);
+        }
     }
 }
 

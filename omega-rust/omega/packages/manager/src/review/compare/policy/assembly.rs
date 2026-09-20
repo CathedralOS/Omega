@@ -2,7 +2,7 @@ use super::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyPackageChange,
     fingerprints, limits::Budget, merge, paths, projection,
 };
-use crate::lock::PackageLockTarget;
+use crate::lock::{PackageLockTarget, PackageOccurrenceRoster};
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::CompilerIssuedPackageReview;
 use sha2::Sha256;
@@ -18,6 +18,13 @@ pub(super) fn packages(
         .map(|old| paths::Paths::new(old.source(), budget))
         .transpose()?;
     let new_paths = paths::Paths::new(source, budget)?;
+    // The recorded baseline and the candidate each join to their own source
+    // graph's occurrence roster; a package's authorized purposes can change
+    // without any consent row moving.
+    let old_roster = accepted
+        .map(|old| PackageOccurrenceRoster::derive(old.source()))
+        .transpose()?;
+    let new_roster = PackageOccurrenceRoster::derive(source)?;
     let old_sources = accepted.map_or(&[][..], |old| old.source().packages());
     let new_sources = source.packages();
     let shared_count = old_sources
@@ -96,9 +103,21 @@ pub(super) fn packages(
                     || old.source().package_dependency_projection(key)
                         != source.package_dependency_projection(key)
             });
+        let baseline_occurrence_purposes = old.and_then(|_| {
+            old_roster
+                .as_ref()
+                .expect("old package implies baseline roster")
+                .purposes(key)
+                .map(<[_]>::to_vec)
+        });
+        let candidate_occurrence_purposes =
+            new.and_then(|_| new_roster.purposes(key).map(<[_]>::to_vec));
+        let occurrence_purposes_changed =
+            baseline_occurrence_purposes != candidate_occurrence_purposes;
         let audit_recommended = audit_present
             || rows.iter().any(|row| row.audit_recommended)
-            || (accepted.is_some() && (source_changed || source_association_changed));
+            || (accepted.is_some()
+                && (source_changed || source_association_changed || occurrence_purposes_changed));
         packages.push(PackagePolicyPackageChange {
             key: key.clone(),
             baseline_resolution: old.map(|value| value.resolution().clone()),
@@ -108,6 +127,8 @@ pub(super) fn packages(
             restricted_build_requests: review.map_or_else(Vec::new, |review| {
                 review.restricted_build_requests().to_vec()
             }),
+            baseline_occurrence_purposes,
+            candidate_occurrence_purposes,
             source_changed,
             source_association_changed,
             audit_recommended,

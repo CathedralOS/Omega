@@ -1,4 +1,5 @@
 use crate::declarations::PackageKey;
+use crate::lock::PackageOccurrenceRosterError;
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
 use package_evidence::encoding::PackageReviewEncodingError;
 use std::fmt;
@@ -18,6 +19,7 @@ pub enum PackagePolicyChangeError {
     InvalidSourcePath {
         package: Box<PackageKey>,
     },
+    OccurrenceRoster,
     LimitExceeded {
         resource: &'static str,
         maximum: usize,
@@ -45,6 +47,9 @@ impl fmt::Display for PackagePolicyChangeError {
                 formatter,
                 "source subject has no bounded path to {package:?}"
             ),
+            Self::OccurrenceRoster => {
+                formatter.write_str("source subject does not yield a complete occurrence roster")
+            }
             Self::LimitExceeded { resource, maximum } => write!(
                 formatter,
                 "normalized policy comparison exceeds {resource} limit {maximum}"
@@ -56,3 +61,13 @@ impl fmt::Display for PackagePolicyChangeError {
     }
 }
 impl std::error::Error for PackagePolicyChangeError {}
+
+impl From<PackageOccurrenceRosterError> for PackagePolicyChangeError {
+    fn from(error: PackageOccurrenceRosterError) -> Self {
+        match error {
+            PackageOccurrenceRosterError::AllocationFailed => Self::AllocationFailed,
+            PackageOccurrenceRosterError::UnknownPackage
+            | PackageOccurrenceRosterError::UnreachablePackage => Self::OccurrenceRoster,
+        }
+    }
+}

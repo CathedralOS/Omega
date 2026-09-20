@@ -6,8 +6,8 @@ use super::format::{
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{
-    PackageSourceClosureLimits, ResolvedPackageClosure, ResolvedPackageSourceClosure,
-    resolve_external_local_package_closure_from_hardened_base,
+    CanonicalSourceClosureSubject, PackageSourceClosureLimits, ResolvedPackageClosure,
+    ResolvedPackageSourceClosure, resolve_external_local_package_closure_from_hardened_base,
 };
 use crate::review::ReviewOnlySourceConsumptionCommitment;
 use crate::review::candidate::PackageReviewEvidence;
@@ -310,4 +310,181 @@ fn candidate_closure_binds_the_exact_root_role() {
     );
     let _ = std::fs::remove_dir_all(root);
     let _ = std::fs::remove_dir_all(cache);
+}
+
+#[test]
+fn package_changes_join_both_sides_to_the_occurrence_roster() {
+    let parent = temp_root("occurrence-roster");
+    let baseline_root = parent.join("baseline").join("root");
+    let dep = parent.join("dep");
+    let candidate_root = parent.join("candidate").join("root");
+    write_package(&dep, "occurrence-dep", None);
+    std::fs::create_dir_all(&baseline_root).expect("create baseline root");
+    std::fs::write(
+        baseline_root.join("build.omg"),
+        concat!(
+            "machine build(builder: &mut Build) {\n",
+            "    builder.package(\"baseline-root\");\n",
+            "    builder.depend(Source::Path { location: \"../../dep\" });\n",
+            "}\n"
+        ),
+    )
+    .expect("write baseline root");
+    std::fs::write(
+        baseline_root.join("main.omg"),
+        "pub machine value() -> u64 { 1 }\n",
+    )
+    .expect("write baseline root source");
+    std::fs::create_dir_all(&candidate_root).expect("create candidate root");
+    std::fs::write(
+        candidate_root.join("build.omg"),
+        concat!(
+            "machine build(builder: &mut Build) {\n",
+            "    builder.package(\"candidate-root\");\n",
+            "    builder.depend(Source::Path { location: \"../../dep\" });\n",
+            "    builder.build_depend_as(\"dep_build\", Source::Path { location: \"../../dep\" });\n",
+            "}\n"
+        ),
+    )
+    .expect("write dual-purpose candidate root");
+    std::fs::write(
+        candidate_root.join("main.omg"),
+        "pub machine value() -> u64 { 2 }\n",
+    )
+    .expect("write candidate root source");
+
+    let target = target::TargetProfile::CrossPlatformCli;
+    let baseline_closure = resolve_external_local_package_closure_from_hardened_base(
+        &baseline_root,
+        ExternalSourceContext::derive(b"occurrence-roster-context"),
+        parent.join("baseline-cache"),
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve baseline closure");
+    let baseline_target = baseline_closure.for_exact_target(target);
+    let baseline_reviews = crate::review::compile_resolved_package_reviews(
+        &baseline_target,
+        &parent.join("baseline-build"),
+        crate::review::SemanticBindingReview::Discover,
+    )
+    .expect("compile baseline reviews");
+    let initial = crate::review::compare_package_policy_changes(
+        None,
+        &baseline_reviews,
+        &baseline_target,
+        super::PackagePolicyChangeLimits::default(),
+    )
+    .expect("initial comparison");
+    let choices = initial
+        .packages()
+        .iter()
+        .flat_map(|package| package.rows())
+        .filter(|row| row.requires_decision())
+        .map(|row| crate::review::PackagePolicyDecision {
+            subject: crate::review::PackagePolicyDecisionSubject::Row(row.fingerprint().digest()),
+            disposition: crate::review::ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+        })
+        .collect::<Vec<_>>();
+    let resolution = crate::review::resolve_package_policy_decisions(
+        &initial,
+        initial.fingerprint().digest(),
+        &choices,
+    )
+    .expect("resolve initial choices");
+    let baseline_source = CanonicalSourceClosureSubject::from_resolved(
+        &baseline_target,
+        crate::resolution::graph::CanonicalSourceClosureSubjectLimits::default(),
+    )
+    .expect("baseline subject");
+    let baselines = baseline_source
+        .packages()
+        .iter()
+        .map(|package| {
+            baseline_reviews
+                .review(package.key())
+                .expect("baseline review")
+                .policy()
+                .clone()
+        })
+        .collect();
+    let history = crate::lock::HistoricalPackagePolicyDecisions::capture_policy(
+        &baseline_source,
+        &initial,
+        &resolution,
+        crate::lock::HistoricalPackagePolicyLimits::default(),
+    )
+    .expect("capture initial choices");
+    let accepted = crate::lock::PackageLockTarget::from_parts(baseline_source, baselines, history)
+        .expect("accepted baseline");
+
+    // The unchanged closure keeps one product occurrence per package.
+    let stable = crate::review::compare_package_policy_changes(
+        Some(&accepted),
+        &baseline_reviews,
+        &baseline_target,
+        super::PackagePolicyChangeLimits::default(),
+    )
+    .expect("stable comparison");
+    let stable_dep = stable
+        .packages()
+        .iter()
+        .find(|change| change.key().name().as_str() == "occurrence-dep")
+        .expect("dep change row");
+    assert_eq!(
+        stable_dep.baseline_occurrence_purposes(),
+        Some(&[crate::declarations::dependencies::DependencyPurpose::Product][..])
+    );
+    assert_eq!(
+        stable_dep.candidate_occurrence_purposes(),
+        stable_dep.baseline_occurrence_purposes()
+    );
+    assert!(!stable_dep.occurrence_purposes_changed());
+
+    let candidate_closure = resolve_external_local_package_closure_from_hardened_base(
+        &candidate_root,
+        ExternalSourceContext::derive(b"occurrence-roster-context"),
+        parent.join("candidate-cache"),
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve candidate closure");
+    let candidate_target = candidate_closure.for_exact_target(target);
+    let candidate_reviews = crate::review::compile_resolved_package_reviews(
+        &candidate_target,
+        &parent.join("candidate-build"),
+        crate::review::SemanticBindingReview::Discover,
+    )
+    .expect("compile candidate reviews");
+    let changes = crate::review::compare_package_policy_changes(
+        Some(&accepted),
+        &candidate_reviews,
+        &candidate_target,
+        super::PackagePolicyChangeLimits::default(),
+    )
+    .expect("dual-purpose comparison");
+    let dep_change = changes
+        .packages()
+        .iter()
+        .find(|change| change.key().name().as_str() == "occurrence-dep")
+        .expect("dep still shares custody");
+    assert_eq!(
+        dep_change.baseline_occurrence_purposes(),
+        Some(&[crate::declarations::dependencies::DependencyPurpose::Product][..])
+    );
+    assert_eq!(
+        dep_change.candidate_occurrence_purposes(),
+        Some(
+            &[
+                crate::declarations::dependencies::DependencyPurpose::Product,
+                crate::declarations::dependencies::DependencyPurpose::Build
+            ][..]
+        )
+    );
+    assert!(dep_change.occurrence_purposes_changed());
+    assert!(
+        dep_change.audit_recommended(),
+        "gaining a build occurrence recommends audit"
+    );
+    let _ = std::fs::remove_dir_all(parent);
 }

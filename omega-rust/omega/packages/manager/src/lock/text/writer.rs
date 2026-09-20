@@ -36,6 +36,21 @@ impl PackageLock {
             drop(budget.source(&source)?);
             writer.section("source", &source)?;
             drop(source);
+            // The recorded roster join: which occurrences each positional
+            // baseline answers. Recovery re-derives and compares it.
+            writer.row(
+                "occurrences",
+                target
+                    .occurrence_purposes
+                    .iter()
+                    .map(Vec::len)
+                    .sum::<usize>(),
+            )?;
+            for (index, purposes) in target.occurrence_purposes.iter().enumerate() {
+                for purpose in purposes {
+                    writer.row("occurrence", format!("{index} {}", purpose.name()))?;
+                }
+            }
             writer.row("acceptances", target.baselines.len())?;
             budget.entries::<PackagePolicyAcceptance>(target.baselines.len())?;
             for policy in &target.baselines {

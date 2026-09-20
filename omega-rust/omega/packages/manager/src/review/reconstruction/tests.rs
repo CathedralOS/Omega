@@ -1,4 +1,7 @@
 use super::{outgoing_product_requests, reachable_source_packages};
+use crate::declarations::dependencies::DependencyPurpose;
+use crate::lock::PackageOccurrenceRoster;
+use crate::lock::occurrences::purpose_mask_bit;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, PackageSourceClosureLimits,
     resolve_external_local_package_closure,
@@ -162,8 +165,26 @@ fn shared_product_graph_and_single_emission_preserve_reference_bytes_and_limits(
     )
     .unwrap();
 
+    let roster = PackageOccurrenceRoster::derive(&subject).unwrap();
+    for entry in question.entries() {
+        assert_eq!(
+            entry.occurrence_purposes(),
+            roster.purposes(entry.package()).unwrap(),
+            "each entry's review covers the exact roster occurrences"
+        );
+        assert_eq!(
+            entry.occurrence_purposes(),
+            if entry.package().name().as_str() == "tool" {
+                &[DependencyPurpose::Build]
+            } else {
+                &[DependencyPurpose::Product]
+            }
+            .as_ref()
+        );
+    }
+
     let mut reference = b"OMEGA-PACKAGE-RECONSTRUCTION-QUESTION\0".to_vec();
-    reference.extend_from_slice(&1u16.to_le_bytes());
+    reference.extend_from_slice(&2u16.to_le_bytes());
     let append = |output: &mut Vec<u8>, bytes: &[u8]| {
         output.extend_from_slice(&u32::try_from(bytes.len()).unwrap().to_le_bytes());
         output.extend_from_slice(bytes);
@@ -180,7 +201,15 @@ fn shared_product_graph_and_single_emission_preserve_reference_bytes_and_limits(
         let bytes = encode_ordinary_package_obligation_ledger(entry.obligations()).unwrap();
         total_bytes += bytes.len();
         maximum_bytes = maximum_bytes.max(bytes.len());
-        append(&mut reference, &bytes);
+        let mut frame = Vec::with_capacity(bytes.len() + 1);
+        frame.push(
+            entry
+                .occurrence_purposes()
+                .iter()
+                .fold(0u8, |mask, purpose| mask | purpose_mask_bit(*purpose)),
+        );
+        frame.extend_from_slice(&bytes);
+        append(&mut reference, &frame);
     }
     assert_eq!(question.canonical_bytes(), reference);
     let exact = CanonicalPackageReconstructionQuestionLimits {
