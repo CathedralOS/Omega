@@ -1168,18 +1168,25 @@ pub(super) fn fingerprint_entry_stack(hash: &mut Fnv1a, stack: EntryStack) {
 
 #[cfg(test)]
 mod deriver_stub_tests {
-    use super::*;
+    use std::collections::BTreeSet;
+
+    use super::{
+        ProviderStackSummary, X86_64DeriverStubEntryEmission,
+        bind_installed_deriver_stub_entry_stack, bind_installed_entry_stack,
+    };
     use crate::tests::{installed_code_in_placement, root_id};
     use crate::{
-        ArrivalStackRealizationOrigin, NestingRelationId, StackDomain, StackNestingRelation,
-        X86_64GateProfileValidationReceiptId, bind_x86_64_target_direct_entry_stack_realization,
-        compose_bound_entry_stack_epochs, produce_x86_64_installed_hardware_entry_facts,
+        ArrivalStackRealizationOrigin, ExternalRootId, NestingRelationId, RootProviderId,
+        StackDomain, StackNestingRelation, X86_64GateProfileValidationReceiptId,
+        bind_x86_64_target_direct_entry_stack_realization, compose_bound_entry_stack_epochs,
+        produce_x86_64_installed_hardware_entry_facts,
         validate_x86_64_installed_gate_profile_roster,
     };
     use calling_conventions::{
         ArrivalContextId, BoundaryEntryPlan, CallSignature, CallingPolicy, EntryControl,
         EntryStack, MachineRegime, MachineState, MachineStateSet, Preemption, RegisterSet,
-        StatePlan, ValueShape, X86_64ArrivalMechanism, X86_64GateKind, X86_64InstalledGateArrival,
+        StatePlan, ValidatedBoundaryEntryPlan, ValidatedX86_64DeriverStub, ValueShape,
+        X86_64ArrivalMechanism, X86_64GateKind, X86_64InstalledGateArrival,
         X86_64InstalledGateRealization, X86_64InstalledGateTssRealization,
         X86_64InstalledInterruptStack, X86_64InstalledPrivilegeStack,
         X86_64InstalledTaskStateSegmentRealization, derive_x86_64_entry_exit_stub,
@@ -1187,6 +1194,7 @@ mod deriver_stub_tests {
     };
     use executable_installation::InstalledCode;
     use installation_evidence::{ObjectEvidence, StackDemandEvidence};
+    use layout_plans::EntryStubId;
 
     const MEMBER_CEILING: u64 = 64;
     const STUB_OFFSET: u64 = 16;
