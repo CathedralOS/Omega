@@ -6891,7 +6891,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (4) `optimized_semantic_wrapper_object/codec` moves only after
   PIPELINE-OWNER-CONSOLIDATION resolves whether native-realization retains
   that owner — skip it while undecided.
-- **DYNAMIC-CALL-OCCURRENCE-SPANS** — mined candidate; verify scope then implement.
+- **DYNAMIC-CALL-OCCURRENCE-SPANS** — mined candidate; scope verified,
+  resolved — landed at `95019d341a9` ("omega: dynamic-call occurrences bind
+  dispatch parents and span custody"): every surviving `CallDynamic*`
+  produces a coverage occurrence joining the emitted call instruction's
+  span, dispatch-parent identity, and role
+  (`native-artifact/src/physical/operator_applications.rs`
+  `derive_dynamic_call_span` covers direct, stored, forwarded-parameter and
+  forwarded-descriptor calls with single-record rejoin, non-empty/non-
+  relocated span, and exact-relocation checks). Witness green at
+  `28a3cc7fea`: `dynamic_call_occurrence_binds_its_dispatch_role_and_
+  parent_identity`. Cross-references that cited this item's fence are now
+  historical: TRANSLATION-VALIDATION and TV-INTRINSIC-SPAN-ARMS rows (this
+  file) describe CallDynamic* occurrences as absent — they predate the
+  landing; occurrence-replay residual for the remaining families stays on
+  **TV-OPERATOR-APPLICATIONS-REPLAY** per those rows. Sibling stubs naming
+  the same surface: DYNAMIC-CALL-PHYSICAL-EVIDENCE,
+  DYNAMIC-DISPATCH-ROW-MAPS.
 - **DYNAMIC-CALL-PHYSICAL-EVIDENCE** — mined candidate; verify scope then implement.
 - **DYNAMIC-DISPATCH-ROW-MAPS** — mined candidate; verify scope then implement.
 - **DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
