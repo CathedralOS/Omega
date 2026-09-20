@@ -148,6 +148,9 @@ pub fn validate_native_program_entry_settlement(
         physical_calling_application: program_entry.physical_calling_application.cloned(),
         storage_entry: program_entry.storage_entry.cloned(),
         fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
+        // Placed-view loans are executable-input custody, not program-entry
+        // declaration custody: they attach only when a bound input reopens.
+        placed_view_establishments: Vec::new(),
     })
 }
 

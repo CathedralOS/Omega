@@ -1245,17 +1245,23 @@ Owners include
   established referent — equal path or prefix containment — rejects as
   aliasing, and disjoint sub-paths or shared-borrow overlap admit. Rows on
   non-entry machines still fail closed at both boundaries — call-bound
-  custody arrives through the caller, a route neither carries. Continue from
-  `terminal-psi-to-abstract-operations/src/artifact_admission.rs`,
-  `compiler/native-realization` — where the ProgramEntry settlement's fused
-  service establishments are the analog to extend, now with the bound
-  establishments riding inside `NativeRealizationInput` — and the Terminal
-  interpreter's `placed_view_establishments` channel. Carry the bound
-  establishments through native-realization input preparation to the entry
-  settlement so the realized entry boundary can lend each referent, keeping
-  unsupported consumers rejecting until they carry it; a roster or pointer
-  is not this authority. Preserve the verified native-input boundary enforced
-  by architecture checks.
+  custody arrives through the caller, a route neither carries. The executable
+  boundary now carries the loans one step further:
+  `prepare_native_realization_input_with_placed_view_establishments` binds
+  the supply inside the reusable prepared input, `realize_image` reopens the
+  exact bound set, and `validate_executable_entry_receiver` attaches it to
+  the `ValidatedNativeProgramEntrySettlement` the object binder must satisfy —
+  while receiverless admissions (free entries and erased receivers) reject a
+  nonempty bound set rather than publish an entry whose custody was never
+  supplied. The emitted entry boundary does not lend yet:
+  `emit_optimized_fragments` fails closed on a settlement carrying bound
+  establishments until `bind_hosted_receiver` extends its shim to receive
+  each referent. Continue from `compiler/native-realization`'s
+  `native_realization/optimized_fragment_projection.rs` and
+  `hosted_receiver.rs`: teach the hosted bridge to lend each bound referent
+  for the invocation's duration, keeping unsupported consumers rejecting
+  until they carry it; a roster or a pointer is not this authority. Preserve
+  the verified native-input boundary enforced by architecture checks.
 
   Extend `compiler/tests/access_plans/source_access_policies.rs`'s
   `direct_placed_view_input_survives_codec_and_native_replay` into a source

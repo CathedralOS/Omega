@@ -50,6 +50,16 @@ pub(super) fn emit_optimized_fragments(
     // entry metadata. Bind before capture; later equality must still reject
     // any replacement, omission or mutation of that checked binding.
     if let Some(entry) = request.hosted_receiver {
+        // The settlement is the boundary that would lend each bound
+        // placed-view referent; the hosted receiver bridge does not carry
+        // that custody yet, so a nonempty bound set fails closed here rather
+        // than publishing an entry whose loans nobody emits.
+        if !entry.placed_view_establishments().is_empty() {
+            return Err(super::realization_diagnostics::realization_error(
+                "ProgramEntry placed-view custody",
+                "bound placed-view establishments require the hosted entry boundary to lend each referent; this bridge does not carry them yet",
+            ));
+        }
         let contract = entry
             .storage_entry()
             .and_then(|storage| storage.physical_contract())
