@@ -29,11 +29,7 @@ fi
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "diamond-py SKIP — no python3"; exit 0; }
 . "${OMEGA_REPO_ROOT}/tools/bootstrap/alpha/seed_env.sh"
-case "$(uname -s)-$(uname -m)" in
-  Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-  *) echo "seed diamond: requires macOS arm64 or Windows x64" >&2
-     exit 2 ;;
-esac
+require_seed_execution_host "seed diamond"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0

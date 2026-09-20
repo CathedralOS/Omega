@@ -5,6 +5,7 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/proofs/sources_env.sh"
 
@@ -12,11 +13,7 @@ command -v python3 >/dev/null 2>&1 || {
     echo "Derivation formation: skipped (python3 absent)"
     exit 0
 }
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Derivation formation: unsupported host; needs macOS arm64 or Windows x64" >&2
-       exit 2 ;;
-esac
+require_seed_execution_host "Derivation formation"
 
 FORMATION_TMP=$(mktemp -d)
 trap 'rm -rf -- "$FORMATION_TMP"' EXIT HUP INT TERM
