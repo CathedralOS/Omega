@@ -1,0 +1,20 @@
+// A `Granted`-only extent carries no `Vacant` evidence, so constructing a
+// record field declared `Extent in Granted & Vacant` from it must be
+// rejected: the write would mint dormant-content custody the value never
+// established. `Resident` removal in the same position already requires an
+// explicit `as`; the `Vacant` side must not drop silently either.
+use omega::language::core::extent;
+
+data Weak {
+    e: Extent in Granted & Vacant;
+}
+
+machine sneak(whole: Extent in Granted) -> Extent
+{
+    let weak: Weak = Weak { e: whole };
+    weak.e as Extent
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

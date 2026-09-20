@@ -2,18 +2,22 @@
 //!
 //! Predicate-only knowledge may be forgotten implicitly. Static semantic
 //! meaning, routed provenance, and arithmetic policy may not: an author must
-//! spell an `as` whose result type omits the atom. This checker operates on
-//! binding qualifications, not flow-proved membership, so stronger prover
-//! knowledge never changes expression meaning.
+//! spell an `as` whose result type omits the atom. The mirror rule holds for
+//! the atoms no checker can discharge after the fact — a declared domain with
+//! no predicate body and no establishment route is assumed, not proved, so a
+//! store may not introduce one that the value does not already carry. This
+//! checker operates on binding qualifications, not flow-proved membership, so
+//! stronger prover knowledge never changes expression meaning.
 
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
+use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone)]
 enum DomainAtom {
@@ -134,7 +138,7 @@ fn validate_implicit_domain_weakening_with_policy_retention(
     append_type_atoms(program, target_type, &mut target, &mut Vec::new());
 
     let dropped = source
-        .into_iter()
+        .iter()
         .filter(|atom| !(retain_arithmetic_policy && matches!(atom, DomainAtom::Arithmetic(_))))
         .filter(|atom| atom_requires_explicit_removal(program, atom))
         // PDI3 same-family indexed mismatches are equality obligations, not
@@ -151,21 +155,169 @@ fn validate_implicit_domain_weakening_with_policy_retention(
                 .iter()
                 .any(|candidate| atoms_equivalent(program, atom, candidate))
         })
-        .map(|atom| atom_label(&atom))
+        .map(atom_label)
         .collect::<Vec<_>>();
-    if dropped.is_empty() {
-        return;
-    }
 
-    diagnostics.push(Diagnostic::error(format!(
-        "implicit domain weakening in {owner} drops {}; semantic meaning, routed provenance, \
-         and arithmetic policy may be removed only by an explicit `as` to the intended target",
-        dropped
+    // The mirror direction: a target atom no checker can discharge (no
+    // predicate body, no establishment route) must be carried by the value,
+    // not minted by the store. The carrier set adds a call's own `ensures`
+    // result domains — the declared return type alone does not name them.
+    let mut carried = source.clone();
+    append_call_ensured_domain_atoms(program, value, &mut carried);
+    let assumed = target
+        .iter()
+        .filter(|atom| atom_requires_carried_evidence(program, atom))
+        .filter(|atom| {
+            !carried
+                .iter()
+                .any(|candidate| atoms_equivalent(program, atom, candidate))
+        })
+        .filter(|atom| {
+            !carried
+                .iter()
+                .any(|candidate| is_deferred_index_compatibility(atom, candidate))
+        })
+        .map(atom_label)
+        .collect::<Vec<_>>();
+
+    if !dropped.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "implicit domain weakening in {owner} drops {}; semantic meaning, routed provenance, \
+             and arithmetic policy may be removed only by an explicit `as` to the intended target",
+            dropped
+                .iter()
+                .map(|label| format!("`{label}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
+        )));
+    }
+    if !assumed.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "implicit domain strengthening in {owner} assumes {}; a qualification with no \
+             predicate or establishment route may be introduced only by an explicit `as` to \
+             the intended target",
+            assumed
+                .iter()
+                .map(|label| format!("`{label}`"))
+                .collect::<Vec<_>>()
+                .join(", "),
+        )));
+    }
+}
+
+/// A declared atom with no predicate body and no establishment route is an
+/// assumption, not a provable obligation: no checker downstream can discharge
+/// it from the store itself, so the value must already carry it. Indexed
+/// atoms are still eligible — their carried source atom may differ only by
+/// instance, which `is_deferred_index_compatibility` leaves to checked
+/// lowering. Arithmetic policy is an operand property, never a target's
+/// assumption, so only declared atoms participate.
+fn atom_requires_carried_evidence(program: &TypedTrees, atom: &DomainAtom) -> bool {
+    let DomainAtom::Declared { family: symbol, .. } = atom else {
+        return false;
+    };
+    program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == *symbol)
+        .is_some_and(|domain| {
+            !domain.predicate_body.is_present() && domain.establishment_routes.is_empty()
+        })
+}
+
+/// A value-position call's result is what its signature and contract row say
+/// it is: an `ensures result in D` row carries `D` the way a declared return
+/// type would, even though `call_return_type` surfaces only the declared
+/// type. Reference- and atomic-wrapped calls unwrap to the same call; a cast
+/// stays a fresh explicit result surface and never consults the callee's
+/// ensures.
+fn append_call_ensured_domain_atoms(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+    atoms: &mut Vec<DomainAtom>,
+) {
+    let mut inner = value;
+    let call = loop {
+        match program.expression_table.expression(inner) {
+            ExpressionNode::Borrow(borrow) => inner = borrow.target,
+            ExpressionNode::Atomic(atomic) => inner = atomic.value,
+            ExpressionNode::Call(call) => break call,
+            _ => return,
+        }
+    };
+    let Some(contracts) = call_signature_contracts(program, call) else {
+        return;
+    };
+    for contract in contracts {
+        if !matches!(contract.kind, SignatureContractKind::Ensures) {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+                continue;
+            };
+            // Only the whole reserved `result` names the call's result; a
+            // projection such as `result.storage` belongs to that field's
+            // declared type.
+            if crate::proof_contracts::contract_results::reserved_result_owner(
+                program,
+                membership.value,
+            )
+            .is_none()
+            {
+                continue;
+            }
+            append_declared_atom(
+                program,
+                membership.domain_symbol,
+                membership.semantic_domain,
+                !membership.domain_arguments.is_empty(),
+                None,
+                atoms,
+                &mut Vec::new(),
+            );
+        }
+    }
+}
+
+/// The contract rows of the callable a value-position call resolves to,
+/// mirroring `resolved_call_result_type`'s resolution: a machine body's
+/// states and their machine-level rows, or the closed requirement signature a
+/// boundary call targets.
+fn call_signature_contracts<'program>(
+    program: &'program TypedTrees,
+    call: &TableCallExpression,
+) -> Option<Vec<&'program typed_trees::signature::SignatureContract>> {
+    if let Some((machine, state)) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
+    {
+        return Some(
+            program
+                .state_contracts(state)
+                .iter()
+                .chain(program.machine_contracts(machine).iter())
+                .collect(),
+        );
+    }
+    let target = call.target_symbol;
+    if !target.is_valid() {
+        return None;
+    }
+    let parent = program.symbols.get(target).parent;
+    let definition = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == parent)?;
+    let signature = program
+        .trait_machine_signatures(definition)
+        .iter()
+        .find(|signature| signature.symbol == target)?;
+    Some(
+        program
+            .state_signature_contracts(signature)
             .iter()
-            .map(|label| format!("`{label}`"))
-            .collect::<Vec<_>>()
-            .join(", "),
-    )));
+            .collect(),
+    )
 }
 
 fn is_deferred_index_compatibility(left: &DomainAtom, right: &DomainAtom) -> bool {
