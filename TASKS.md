@@ -7744,7 +7744,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-GATE-STABILITY-REPAIR** — mined candidate; verify scope then implement.
 - **RC-HOST-RUNNER-LANES** — mined candidate; verify scope then implement.
 - **RC-LINUX-ARM64-NATIVE-ROW** — mined candidate; verify scope then implement.
-- **RC-LINUX-X86-64-GATE-LEDGER** — mined candidate; verify scope then implement.
+- **RC-LINUX-X86-64-GATE-LEDGER** — mined candidate; ledger refreshed.
+  Re-ran all 38 legs of the linux_x86_64 row at `6ef64f6dd6` and updated
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md`: verdict unchanged
+  (24 pass / 14 fail — every sysv failure is the ENTRY-CONTENT-ROOTS
+  param-carrying boundary-entry residual). Row-gap sampling grew:
+  `program_entries_and_image_validation` is now 9/14 with two new
+  distinct failure shapes (terminal-authority provider-requirement
+  custody; missing `05_capability_manifest.json` artifact) recorded in
+  the doc.
 - **RC-MATRIX-RUNNER** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; verify scope then implement.
@@ -7765,11 +7773,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-NATIVE-MATRIX, -CLOSURE, -GATE, -HOST-EXECUTION, -HOST-LEGS,
   -HOST-RUNS, -HOSTS.
 - **RC-NATIVE-MATRIX-LINUX-X86-64** — recorded at
-  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision 8ae40607a3,
-  linux-x86_64): 15 pass / 23 fail across 38 legs; all failures are the
-  Service<R>-carrier spelling and entry-binding/ownership fixture-migration
-  residuals owned by ENTRY-CONTENT-ROOTS. Re-run the row when those families
-  close.
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision 6ef64f6dd6,
+  linux-x86_64): 24 pass / 14 fail across 38 legs; all 14 sysv failures
+  share the param-carrying boundary-entry selection residual owned by
+  ENTRY-CONTENT-ROOTS. Re-run the row when that family closes.
 - **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
