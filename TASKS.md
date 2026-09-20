@@ -7005,22 +7005,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Open surface left to siblings: more *selection* rows (contrast/variant)
   and the unfilled host legs.
 - **BENCHMARK-SELECTION-MATRIX** — mined candidate; verify scope then implement.
-- **BENCHMARK-SELECTION-ROW-COVERAGE.** Mined candidate; scope verified,
-  coverage landed — `tools/benchmark/records/` now holds three committed
-  rows, up from the lone `cli_mvp/linux_x86_64/default` row this stub named:
-  `wrapping_square_sum__linux_x86_64__sel-885944b13b84` (non-default
-  selection, `CopyPropagation` disabled, compile+runtime measured at
-  `7ec604d7ef`, recorded 2026-09-20T17:08Z) and
-  `wrapping_square_sum__linux_arm64__default` (cross-compile row, runtime
-  leg skipped per contract). The remaining gap — a re-measured
-  `linux_x86_64` default-selection row at a newer revision — is
-  BENCHMARK-LINUX-X64-ROW-REFRESH's named leg, and record production needs
-  `tools/benchmark` (claimed by BENCHMARK-COMPARISON-OCCURRENCE-GATE until
-  22:09Z) plus `wiki/drafts/benchmarks.md`/`tools/tests/test_benchmark.py`
-  (BENCHMARK-HOST-ROW-MATRIX until 22:11Z). No independent slice exists
-  here. Sibling re-mines of the same coverage: BENCHMARK-SELECTION-MATRIX,
-  BENCHMARK-SELECTION-ROW-MATRIX, BENCHMARK-SELECTION-VARIANT-ROWS,
-  BENCHMARK-SELECTION-CONTRAST-ROWS.
+- **BENCHMARK-SELECTION-ROW-COVERAGE.** Resolved — `tools/benchmark/records/`
+  holds six committed rows: `cli_mvp__linux_x86_64__default`,
+  `wrapping_square_sum` on `linux_x86_64` under two non-default selections
+  (`sel-885944b13b84` at `7ec604d7ef`, `sel-9c09e32a82fb` at `0969a3ea96a`),
+  and cross-compile rows for `linux_arm64`, `macos_arm64`, and
+  `windows_x86_64` (`52ceeeabb7b`, runtime legs `skipped` per contract). The
+  cross-target landings drifted the host-row matrix pins past the stubs'
+  recorded state; repaired under this row: `test_unmeasured_host_legs_stay_
+  explicit` now pins `cross_platform_cli`/`local_unchecked` (the remaining
+  unrecorded build-host legs) instead of the now-measured `windows_x86_64`
+  row, and the embedded matrix in `wiki/drafts/benchmarks.md` is regenerated
+  to the current six-row census. `python3 tools/tests/test_benchmark.py`
+  21/21 green on linux x86-64. The remaining gap — a re-measured
+  `linux_x86_64` default-selection row at a newer revision — stays with
+  BENCHMARK-LINUX-X64-ROW-REFRESH. Sibling re-mines of the same coverage:
+  BENCHMARK-SELECTION-MATRIX, BENCHMARK-SELECTION-ROW-MATRIX,
+  BENCHMARK-SELECTION-VARIANT-ROWS, BENCHMARK-SELECTION-CONTRAST-ROWS.
 - **BENCHMARK-SELECTION-ROW-MATRIX** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-VARIANT-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-STANDALONE-SUBJECT.** Depend-free benchmark subject. Verified scope: a subject with no `depend()` skips the shared std plumbing and is the only compile reaching a published artifact at this revision — `samples/cli/basics/standalone` landed: empty `Main::main` bound to all hosted `ProgramEntry` roots, ~25 s end-to-end compile on w9 Linux x86-64. Runtime leg stays `skipped` (`--no-run`): `ProcessExit` provider authority is bound to the std package identity and a subject-local boundary machine produces no provider plan, so the artifact cannot exit cleanly. Re-verified on 97eeaf222a: `benchmark.py measure --target linux_x86_64 --no-run --print` publishes an 8192-byte artifact, median compile 27.6 s, peak RSS ~146 MB, runtime `skipped`; no committed record row yet. Remaining: the committed record row under `tools/benchmark/records/` and the `wiki/drafts/benchmarks.md` coverage entry are fenced to sibling claims this wave.
