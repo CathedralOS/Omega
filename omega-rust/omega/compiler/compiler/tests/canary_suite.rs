@@ -324,6 +324,11 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // Cathedral gate/table layout is a checked-only surface; materialization
     // and validation are witnessed in compiler/tests/layout_plans.
     "memory/interrupt_table_canary",
+    // The authored-route leg of secondary-processor startup: the contract,
+    // calling policies, roster, and envelope representation are a checked-only
+    // surface; the ledger drive is witnessed in
+    // compiler/tests/secondary_processor_startup.rs.
+    "memory/secondary_processor_canary",
     "operators/operand_requires_after_effects",
     "dependent/valuation_order_cycle",
     "expressions/match_float_patterns",
