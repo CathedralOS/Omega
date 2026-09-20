@@ -7151,7 +7151,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   member symbols (suspects 39e156c73a0 / 143636cec8a, unbisected). Residual:
   the two new families want a single-test bisect by their owning lanes;
   sibling stub CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET remains open.
-- **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET** — mined candidate; verify scope then implement.
+- **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET** — scope verified and
+  bisected at `c267df86acb8` (linux x86-64): the unattributed set is the
+  three members the 6ef64f6dd6 reading opened as two new families, now
+  fully attributed —
+  1. **Ranked safe-point segment bounds** (2 tests, still red):
+     `structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
+     (per-edge segments read `0x600000000` instead of 3 at
+     src/tests/structural_control_cases.rs:1497) and
+     `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64`
+     (`BoundOverflow` at :1890). First-bad commit **7591b2607c77**
+     ("bound segments through ranked cyclic components") — green at its
+     parent, red at the commit; the recorded prime suspect `39e156c73a0`
+     is green at itself, cleared by test. The break is the derivation
+     rewrite's own component-scale charging (`natural_component_geometry`
+     in terminal-fixed-fuel `fuel_certification/outcome_bounds.rs`), not
+     its inputs. Owning lane: ranked-cycle/fuel (the commit's lane).
+  2. **Closed-projection replay admission** (1 test, already closed):
+     `expression_preparation::bindings::tests::closed_record_projections_replay_exact_sources_carriers_and_all_siblings`
+     — first-bad **090802e8a790** ("evaluate member-read leaves of
+     computed aggregate constants in constant position"), green at both
+     recorded suspects (`39e156c73a0`, `143636cec8a`); **fixed by**
+     **7af30a1f839a** ("replay the complete closed record projection for
+     scalar member sources") — green at `c267df86acb8`.
+  Residual: family 1 stays red under the ranked-cycle/fuel lane;
+  recording the attributions into `wiki/drafts/known_baseline_failures.md`
+  is fenced to that doc's live claims (LOWERED-UNIT-FAILURE-ATTRIBUTION,
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **CLI-COMMANDS** — mined candidate; verify scope then implement.
 - **COMMON-ROUTE-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
