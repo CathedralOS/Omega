@@ -6421,7 +6421,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SELECTED-REWRITE-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
 - **SELECTED-REWRITES-CATALOG-OR-DELETE** — mined candidate; verify scope then implement.
 - **SELECTED-STAGE-RULE-CATALOG** — mined candidate; verify scope then implement.
-- **SELECTIVE-ARITHMETIC-EXPANSION** — mined candidate; verify scope then implement.
+- **SELECTIVE-ARITHMETIC-EXPANSION** — scope verified 2026-09-20: this mined
+  stub re-covers open work already owned by **MATCH-SELECTIVE-LOWERING**. Its
+  mining source is
+  [chapter 6](wiki/language_guide/chapter_6_pattern_matching_dispatch.md)'s
+  note that the parser's arithmetic-shaped `match` expansion does not
+  implement general selective evaluation; the
+  [source processing note](omega-rust/psi/pipeline/README.md#lexing-and-parsing)
+  records the gap (Boolean/integer subjects, Boolean/integer/float results,
+  structural/domain/payload patterns as explicit limitations). Every leg of
+  that expansion — owned/nonnumeric results, structural/case/domain patterns,
+  and parameter/projected/borrowed custody — is an enumerated remaining-work
+  row of MATCH-SELECTIVE-LOWERING, whose named owners are
+  `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
+  the checked scalar continuations, and Terminal production. No independent
+  slice exists here: expanding the arithmetic-shaped subset is the owner
+  item's work and must not proceed through a parallel claim on the same
+  files. Sibling re-mines of the same surface: SELECTIVE-EVALUATION-EXPANSION,
+  SELECTIVE-EVALUATION-PARSER, SELECTIVE-EVALUATION-SOURCE-EXPANSION.
 - **SELECTIVE-EVALUATION-EXPANSION** — mined candidate; verify scope then implement.
 - **SELECTIVE-EVALUATION-PARSER** — mined candidate; verify scope then implement.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION** — mined candidate; verify scope then implement.
