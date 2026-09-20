@@ -194,13 +194,12 @@ ceilings of about 9.22e18 and 2.15e9, which no return range can discharge.
 Each now assembles in the unsigned carrier of the field's own width, where
 every shifted byte is representable, and reinterprets once at the landing.
 
-`tests/omega/pass/filesystem/windows_set_file_time_exit` carries the same
-`widen_u8_to_i64(byte) << 56` idiom and was not repaired: its canary is
-Windows-gated, so neither its failure nor its repair can be measured on this
-host. The obligation is target-independent, so it should refuse the same way
-there, and the same unsigned-carrier re-spelling should close it. As of the
-2026-09-20 wave that leg is owned by **WINDOWS-SET-FILE-TIME-RESPELL**
-(in flight); this row retires the fixture from the pass-canary cluster.
+`tests/omega/pass/filesystem/windows_set_file_time_exit` carried the same
+`widen_u8_to_i64(byte) << 56` idiom; the **WINDOWS-SET-FILE-TIME-RESPELL**
+leg repaired it at ff782bdf21 — `st_mtime` now assembles in the unsigned
+`u64` carrier like the eight native stat/metadata siblings. Its canary is
+Windows-gated, so native execution there remains unmeasured on this host;
+this row retires the fixture from the pass-canary cluster.
 
 `proofs/proof_inductive_climbing_sum` left this set when its accumulator
 was bounded; the other four tests in the command pass, so the roster,
