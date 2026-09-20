@@ -6953,7 +6953,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CHAIN-OCREQ-ENTRY-BINDING, D-OCREQ-ENTRY-BINDING, OCREQ-ENTRY-BINDING,
   OCREQ-REQUEST-BINDING.
 - **CHAIN-MANIFEST-OCREQ-BINDING** — mined candidate; verify scope then implement.
-- **CHAIN-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
+- **CHAIN-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a re-mine of
+  the CHAIN-MANIFEST OCREQ-entry surface already bound on main (siblings
+  CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING and
+  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING name this stub): re-verified at
+  `201d58c591`, `tools/bootstrap/omega/compiler_env.sh` pins
+  `OMEGA_REQUEST_ENTRY_SIZE=4115` / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…`,
+  the sealed-request fixture pair (132 bytes / `ab2e980a…`), and
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19253` /
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256=9573d734…`, recorded in
+  `tests/bootstrap/omega-request/README.md`; the gate asserts the
+  `coverage_request_semantics` frame through the sealed boundary
+  (gate.py:130) and `tests/bootstrap/omega-identity.sh` refuses a mutated
+  entry (`require_omega_request_entry_identity`). Provisions
+  `coverage_request_semantics`/`request_staging_bytes` sit in
+  `wiki/spec/build/compiler_request.md:453-454` and drive the entry's
+  Incomplete/resource refusals (main.epsilon header). Executable-chain
+  legs stay host-gated per the frontier. No unbound residual. Sibling
+  stubs: CHAIN-MANIFEST-OCREQ-BINDING, D-OCREQ-ENTRY-BINDING,
+  OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING.
 - **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.** Resolved — re-mine of the
   PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION surface, implemented at `1fc01bb690`:
   `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
