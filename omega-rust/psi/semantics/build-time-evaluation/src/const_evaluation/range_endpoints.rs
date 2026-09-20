@@ -26,9 +26,8 @@
 //! entry and receiver classification, then evaluate that exact machine symbol;
 //! rebuilding a name could select an unrelated same-spelled machine. Calls with
 //! runtime receivers or unresolved arguments remain outside this closed route.
-//! An explicit static application `identity<256>()` is admitted only when
-//! every binder is supplied by a closed const spelling: the prepared program's
-//! ordinary static specialization (its all-expression scan covers calls in
+//! An explicit type/const application is admitted only when its tuple closes.
+//! Ordinary static specialization (its all-expression scan covers calls in
 //! type positions) rewrites the call to a concrete instance, and the endpoint
 //! then resolves that instance from the prepared tree. Its signature types
 //! live in the prepared tree, so their positions and original argument
@@ -558,13 +557,20 @@ fn selected_endpoint_machine(
     {
         return None;
     }
-    // Only closed const spellings are static arguments here: a literal or a
-    // const declaration. Type, machine, evidence and nested applications keep
-    // ordinary call validation.
+    // Discover explicit type/const applications, not a second specialization
+    // rule. Preparation validates types in the caller's scope and resolves the
+    // complete tuple; resolve_endpoint_callee then requires its concrete
+    // instance. The instance's substituted signature owns scalar admission.
+    // Machine/evidence applications still need their full dispatch context.
     if !call.machine_arguments.iter().all(|argument| {
         argument.application.is_none()
             && argument.evidence_projection.is_none()
-            && (argument.const_literal.is_some()
+            && (argument.type_reference.is_valid()
+                || matches!(
+                    typed.symbols.get(argument.symbol).kind,
+                    symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data
+                )
+                || argument.const_literal.is_some()
                 || typed
                     .const_declarations()
                     .iter()

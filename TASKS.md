@@ -3492,7 +3492,11 @@ Owners include
   - Endpoint invocation admission for nominal parameters, already-landed policy
     arguments, Trapping parameters and policy-qualified results,
     trait-operator owners (owner-sensitive typed operations), and applications
-    that need inference or carry type/machine/evidence binders. Extend the
+    that need inference, retained structural-type caller contexts, or
+    machine/evidence binders. Closed named type/const applications use ordinary
+    specialization; `compiler --test bounded_slice_selectors` exercises a
+    computed bound driving declared-range inference through source-free Terminal
+    and native execution, with an out-of-range store rejection. Extend the
     existing whole-expression scalar evaluator and shared admission plan;
     retain exact computed-result types and original selection custody. Do not
     add an arithmetic evaluator, infer layout from flow bounds, or use the i64

@@ -20,6 +20,61 @@ fn typed(source: &str) -> TypedTrees {
 }
 
 #[test]
+fn named_type_arguments_cannot_reorder_the_authored_binder_tuple() {
+    for argument in ["u8", "Marker"] {
+        for body in [
+            "bound<7, TYPE>()",
+            "let result: u64 = bound<7, TYPE>(); result",
+        ] {
+            let mut program = typed(&format!(
+                "data Marker {{}}
+                 machine bound<T, const N: u64>() -> u64 {{ N }}
+                 machine main() -> u64 {{ {} }}",
+                body.replace("TYPE", argument),
+            ));
+            let errors = crate::specialize_static_machine_calls(&mut program)
+                .expect_err("grouping proposals by kind cannot reorder their authored slots");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("declared binder kind")),
+                "{errors:?}"
+            );
+        }
+        let mut program = typed(&format!(
+            "data Marker {{}}
+             machine bound<T, const N: u64>() -> u64 {{ N }}
+             machine main() -> u64 {{ bound<{argument}, 7>() }}"
+        ));
+        crate::specialize_static_machine_calls(&mut program)
+            .expect("correctly ordered type/const tuple specializes");
+    }
+}
+
+#[test]
+fn unused_named_type_argument_cannot_erase_unsupplied_data_binders() {
+    for declaration in [
+        "data Marker<T> { value: T; }",
+        "data Marker<const N: u64> { value: [u8; N]; }",
+        "data Marker<'a> { value: &'a u8; }",
+    ] {
+        let mut program = typed(&format!(
+            "{declaration}
+             machine bound<T, const N: u64>() -> u64 {{ N }}
+             machine main() -> u64 {{ bound<Marker, 7>() }}"
+        ));
+        let errors = crate::specialize_static_machine_calls(&mut program)
+            .expect_err("every static type argument must be formed, including an unused binder");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("complete type/lifetime arguments")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn detached_const_recipe_keeps_its_tuple_until_executable_probe_specialization() {
     let mut program = typed(
         "machine identity<T [copy]>(value: T) -> T { value }
@@ -138,6 +193,7 @@ fn explicit_static_argument_overflow_rejects_before_specialization() {
                     || diagnostic
                         .message
                         .contains("no const parameter for extra argument")
+                    || diagnostic.message.contains("declared binder kind")
             }),
             "{source}: {diagnostics:?}"
         );
