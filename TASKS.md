@@ -9674,7 +9674,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **WINDOWS-FILE-TIME-CARRIER-RESPELL** — mined candidate; verify scope then implement.
 - **WINDOWS-FILE-TIME-UNSIGNED-RESPELL** — mined candidate; verify scope then implement.
 - **WINDOWS-PEAK-MEMORY-MEASUREMENT** — mined candidate; verify scope then implement.
-- **WINDOWS-SET-FILE-TIME-CARRIER** — mined candidate; verify scope then implement.
+- **WINDOWS-SET-FILE-TIME-CARRIER** — mined candidate; scope verified, landed.
+  The stub re-mines the unsigned-carrier clause of
+  WINDOWS-SET-FILE-TIME-RESPELL (merged with
+  FILESYSTEM-WINDOWS-FILETIME-RESPELL), which landed at `ff782bdf21` —
+  the `windows_set_file_time_exit` fixture now assembles the `st_mtime`
+  nanos-through-100ns conversion through the u64 carrier
+  (`widen_u8_to_u64`/`narrow_u64_to_i64_wrapping`) instead of the
+  overflowing `widen_u8_to_i64(byte) << 56` idiom, with the carrier note
+  kept verbatim. `wiki/drafts/known_baseline_failures.md` names the same
+  respelling and records that the fixture is Windows-gated, so neither
+  its failure nor its repair can be measured on a non-Windows host. The
+  parent row owns the residual bookkeeping; no independent slice exists
+  here. Sibling stubs resolved on the same clause:
+  WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-FILE-TIME-UNSIGNED-RESPELL,
+  WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
 - **WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL** — mined candidate; scope verified, covered — the stub is the "unsigned carrier" clause of WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with FILESYSTEM-WINDOWS-FILETIME-RESPELL): `known_baseline_failures.md` already names the respelling — `widen_u8_to_i64(byte) << 56` intermediates (about 1.84e19/4.28e9 against the i64/i32 ceilings) assemble in the unsigned carrier of the field's own width and reinterpret once at landing — and records that `tests/omega/pass/filesystem/windows_set_file_time_exit` is Windows-gated, so neither its failure nor its repair can be measured on a non-Windows host. The parent item owns the leg; no independent slice exists here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER.
 - **WORKLOAD-CORPUS** — mined candidate; scope verified, authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg (the versioned workload corpus that GRAPH-COST-MODEL-STUDY's `predicted_cost_delta` comparison is missing). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records. Same verdict already recorded on sibling GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
 - **WORKLOAD-MULTIVERSIONING.** Scope verified, authorization gate recorded (re-verified at `2e1db3ba3e2`; source doc unchanged since `f3be428d4ae`). Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's multiversioning leg (specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: multiversing is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE — still in flight under a live claim) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. Same verdict already recorded on siblings WORKLOAD-CORPUS and GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
