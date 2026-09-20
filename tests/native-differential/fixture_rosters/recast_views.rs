@@ -19,6 +19,8 @@ pub(crate) const RUNTIME_AGGREGATE_SLICE_REPRESENTATION_RECAST_EXIT: &str =
     "recast/runtime_aggregate_slice_representation_recast_exit";
 pub(crate) const RUNTIME_INTERIOR_SLICE_VIEW_MUTABLE_WRITE_EXIT: &str =
     "recast/runtime_interior_slice_view_mutable_write_exit";
+pub(crate) const RUNTIME_INTERIOR_SLICE_CONGRUENT_OFFSET_EXIT: &str =
+    "recast/runtime_interior_slice_congruent_offset_exit";
 
 #[allow(
     dead_code,
@@ -34,4 +36,5 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_MUTABLE_EQUIVALENT_RECORD_RECAST_EXIT,
     RUNTIME_AGGREGATE_SLICE_REPRESENTATION_RECAST_EXIT,
     RUNTIME_INTERIOR_SLICE_VIEW_MUTABLE_WRITE_EXIT,
+    RUNTIME_INTERIOR_SLICE_CONGRUENT_OFFSET_EXIT,
 ];

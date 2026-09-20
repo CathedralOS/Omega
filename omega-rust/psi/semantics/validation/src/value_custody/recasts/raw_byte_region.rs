@@ -123,8 +123,21 @@ pub(super) fn interior_byte_region_source(
                 let high = interval.high()?;
                 (interval.low().is_none_or(|low| low >= 0) && high >= 0).then_some(high)
             });
-            declared_high
-                .or_else(|| incoming_guard_offset_bound(program, machine, state, indexed.index))
+            // A composite offset (`k * 2`) bounds through the structural
+            // walk over its own operands; where a declared range also
+            // resolves, the tighter of the two upper bounds is the sound
+            // one.
+            let composite_high = super::offset_bounds::composite_offset_upper_bound(
+                program,
+                machine,
+                state,
+                indexed.index,
+            );
+            let upper = match (declared_high, composite_high) {
+                (Some(declared), Some(composite)) => Some(declared.min(composite)),
+                (declared, composite) => declared.or(composite),
+            };
+            upper.or_else(|| incoming_guard_offset_bound(program, machine, state, indexed.index))
         }
     };
     match offset {
