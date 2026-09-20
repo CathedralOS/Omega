@@ -1288,7 +1288,13 @@ Owners include
   `ImportBindingSlot` rows over the IAT — and replays each Coff thunk's
   decoded `disp32` binding against exactly one placed slot whose address,
   symbol, byte count and section-relative offset match, and vice versa
-  (`image-pe::validate_pe_x86_64_import_binding_pairing`). That still
+  (`image-pe::validate_pe_x86_64_import_binding_pairing`). The dynamic ELF
+  writer emits the same custody shape: its `.got.plt` enters
+  `final_import_data_bytes` with one `ImportBindingSlot` row per bound
+  import, each offset grounded in the applied `.rela.plt` `r_offset`
+  binding write and each symbol naming the versioned locator's dynsym
+  spelling; Mach-O's slots already ride the data inventory and the static
+  ELF lane still refuses imports outright. That still
   establishes custody and thunk
   realization only, which is why the sidecar offers
   `omega.native-placed-image-coverage.v1` rather than a behavioral guarantee,

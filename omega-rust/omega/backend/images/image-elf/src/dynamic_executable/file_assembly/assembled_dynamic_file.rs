@@ -10,15 +10,19 @@
 //! the retained `FinalImage`, publish bytes, or grant loader or
 //! runnable-image authority.
 
-use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::ValidatedElfResolvedProcedureLinkage;
+use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
+    ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget,
+    ValidatedElfResolvedProcedureLinkage,
+};
 use crate::dynamic_executable::load_placement::load_layout::{
     ElfPlacedDynamicSectionKind, ValidatedElfDynamicLoadLayout,
 };
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
+use crate::imports::ElfImportLocator;
 use diagnostics::Diagnostic;
 use image::{
-    ExecutableImageOutput, FinalImage, PlacedDataRegionInventory, place_data_regions,
-    place_executable_regions,
+    ExecutableImageOutput, FinalDataRegion, FinalDataRegionOrigin, FinalImage,
+    PlacedDataRegionInventory, place_data_extent, place_data_regions, place_executable_regions,
 };
 use target::TargetProfile;
 
@@ -281,12 +285,14 @@ fn derive_executable_output(
     let format = dynamic_executable_format(load.target())?;
     let executable_regions = place_executable_regions(image, load.final_image_layout())?;
     let data_regions = place_data_regions(image, load.final_image_layout())?;
+    let (final_import_data_bytes, import_data_regions) =
+        procedure_got_import_custody(&assembled.resolved_linkage, load)?;
     Ok(ExecutableImageOutput {
         bytes: assembled.bytes().to_vec(),
         final_image_layout: load.final_image_layout(),
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
-        final_import_data_bytes: Vec::new(),
+        final_import_data_bytes,
         file_name: "omega-program".to_owned(),
         format: format.to_owned(),
         text_bytes: image.memory.text.len(),
@@ -297,8 +303,112 @@ fn derive_executable_output(
         relocations: image.relocation_table.relocations.len(),
         executable_regions,
         data_regions,
-        import_data_regions: PlacedDataRegionInventory::empty(),
+        import_data_regions,
     })
+}
+
+/// Declare the writer-owned `.got.plt` import-slot custody the assembled file
+/// already carries. Unlike the static lane — which refuses an import rather
+/// than emit a slot it cannot bind — the dynamic lane writes one reserved
+/// word per bound import under the section's three-word header, so the emitted
+/// output surfaces the same evidence shape the PE writer's `.rdata` leg does:
+/// the exact extent bytes plus one `ImportBindingSlot` row per slot. The
+/// header words stay `unclassified_gaps` under `place_data_extent`.
+///
+/// Each slot's symbol spelling comes from its canonical versioned locator —
+/// the spelling the dynamic linker binds, as `.dynsym`/`.dynstr` carry it —
+/// and each slot's section-relative offset comes from the applied `.rela.plt`
+/// `r_offset` write that committed the slot's absolute address, so a custody
+/// row is grounded in the exact binding the loader consumes rather than in a
+/// re-derived layout guess.
+fn procedure_got_import_custody(
+    resolved_linkage: &ValidatedElfResolvedProcedureLinkage,
+    load: &ValidatedElfDynamicLoadLayout,
+) -> Result<(Vec<u8>, PlacedDataRegionInventory), Diagnostic> {
+    let extent = resolved_linkage.procedure_got_bytes();
+    let section = load
+        .sections()
+        .iter()
+        .find(|section| section.kind() == ElfPlacedDynamicSectionKind::ProcedureGot)
+        .ok_or_else(|| Diagnostic::error("dynamic ELF load layout has no procedure GOT section"))?;
+    require(
+        checked_u64(extent.len(), "dynamic ELF procedure GOT extent")? == section.byte_size(),
+        "dynamic ELF procedure GOT extent drifted from its placed section",
+    )?;
+    let base = section.virtual_address().ok_or_else(|| {
+        Diagnostic::error("dynamic ELF procedure GOT section has no allocated address")
+    })?;
+
+    // Walk the retained custody chain back to the validated linkage plan and
+    // the canonical import requests, so a slot row names the exact binding a
+    // .rela.plt `JUMP_SLOT` row resolves.
+    let linkage = load
+        .relative()
+        .payloads()
+        .section_headers()
+        .roster()
+        .section_names()
+        .dynamic_table()
+        .payload()
+        .plan()
+        .descriptors()
+        .templates()
+        .linkage();
+    let imports = linkage.descriptors().payloads().plan().inputs().imports();
+
+    let mut slot_bindings = std::collections::BTreeMap::new();
+    for fixup in resolved_linkage.applied_fixups() {
+        if fixup.storage() != ElfAppliedProcedureLinkageStorage::ProcedureRelocation {
+            continue;
+        }
+        let ElfAppliedProcedureLinkageTarget::ProcedureGotSlot { logical_ordinal } = fixup.target()
+        else {
+            continue;
+        };
+        if slot_bindings
+            .insert(
+                logical_ordinal,
+                (fixup.target_address(), fixup.byte_width()),
+            )
+            .is_some()
+        {
+            return Err(Diagnostic::error(
+                "dynamic ELF relocation ledger binds one GOT slot twice",
+            ));
+        }
+    }
+
+    let mut regions = Vec::with_capacity(linkage.contents().slots.len());
+    for slot in &linkage.contents().slots {
+        let &(slot_address, byte_width) =
+            slot_bindings.get(&slot.logical_ordinal).ok_or_else(|| {
+                Diagnostic::error("dynamic ELF procedure GOT slot has no binding relocation")
+            })?;
+        let section_offset = usize::try_from(slot_address.checked_sub(base).ok_or_else(|| {
+            Diagnostic::error("dynamic ELF procedure GOT binding lies below its section base")
+        })?)
+        .map_err(|_| {
+            Diagnostic::error("dynamic ELF procedure GOT slot offset exceeds host address space")
+        })?;
+        let request = imports.get(slot.request_index).ok_or_else(|| {
+            Diagnostic::error("dynamic ELF slot names an import outside the canonical requests")
+        })?;
+        let ElfImportLocator::Versioned { symbol, .. } = &request.locator else {
+            return Err(Diagnostic::error(
+                "dynamic ELF slot binds a non-versioned import locator",
+            ));
+        };
+        let symbol = String::from_utf8(symbol.clone())
+            .map_err(|_| Diagnostic::error("dynamic ELF import symbol spelling is not UTF-8"))?;
+        regions.push(FinalDataRegion {
+            origin: FinalDataRegionOrigin::ImportBindingSlot,
+            section_offset,
+            byte_count: usize::from(byte_width),
+            symbol,
+        });
+    }
+    let inventory = place_data_extent(extent, regions, base, "dynamic ELF .got.plt")?;
+    Ok((extent.to_vec(), inventory))
 }
 
 fn validate_executable_output(
@@ -311,6 +421,8 @@ fn validate_executable_output(
     let expected_format = dynamic_executable_format(load.target())?;
     let expected_regions = place_executable_regions(image, load.final_image_layout())?;
     let expected_data_regions = place_data_regions(image, load.final_image_layout())?;
+    let (expected_import_data, expected_import_regions) =
+        procedure_got_import_custody(&assembled.resolved_linkage, load)?;
     require(
         image.target == load.target().native_target()
             && image.memory.text == assembled.resolved_linkage.source_text_bytes()
@@ -325,7 +437,9 @@ fn validate_executable_output(
             && output.imports == image.symbol_table.imports.len()
             && output.relocations == image.relocation_table.relocations.len()
             && output.executable_regions == expected_regions
-            && output.data_regions == expected_data_regions,
+            && output.data_regions == expected_data_regions
+            && output.final_import_data_bytes == expected_import_data
+            && output.import_data_regions == expected_import_regions,
         "admitted dynamic ELF output drifted from exact assembled-file custody",
     )?;
     require(
