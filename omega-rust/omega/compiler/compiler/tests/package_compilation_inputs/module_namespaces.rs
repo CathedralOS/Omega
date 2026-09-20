@@ -652,3 +652,81 @@ fn qualified_module_selection_requires_a_direct_dependency() {
     })
     .expect("explicit direct dependency admits the public module machine");
 }
+
+// The root binding carries identity as a symbol resolved under its lexical
+// package; another package may declare a machine with the same bare spelling.
+// Interpretation must dispatch on that symbol, not the name.
+#[test]
+fn selected_program_entry_dispatches_by_exact_symbol_not_spelling() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+    // The dependency's `combat::launch` is the bound entry and exits 0. The
+    // root's reachable `launch(dummy)` is a decoy: spelling-based dispatch
+    // reaches it first and would exit 7.
+    TempTree::write(
+        root.join("main.omg"),
+        "use dep::combat; machine launch(dummy: u8) -> i32 { 7 }",
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) {\n\
+         \x20   builder.application(\"entry-symbol-exactness\");\n\
+         \x20   builder.roots.bind(windows_x86_64::ProgramEntry, dep::combat::launch);\n\
+         }",
+    );
+    TempTree::write(
+        dependency.join("combat.omg"),
+        "module combat; pub machine launch() {\n\
+         \x20   let marker: u8 = 42;\n\
+         }",
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("one direct dependency");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect("a dependency-aliased root binding compiles");
+    let entry = checked
+        .selected_program_entry()
+        .expect("the root binding selects the dependency's exact entry");
+    let bound_symbol = entry.source_signature().machine_symbol();
+    let same_named: Vec<_> = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.name.as_str() == "launch")
+        .collect();
+    assert_eq!(
+        same_named.len(),
+        2,
+        "both packages retain a machine named `launch`"
+    );
+    assert_ne!(
+        same_named[0].symbol, bound_symbol,
+        "spelling dispatch must not reach the same machine the binding selected"
+    );
+    let outcome = checked_interpreter::interpret_entry_symbol(
+        &checked,
+        bound_symbol,
+        &[],
+        checked_interpreter::InterpretOptions::default(),
+    );
+    assert_eq!(outcome.error, None);
+    assert_eq!(
+        outcome.exit_code, 0,
+        "the bound dependency machine runs, not its same-named root twin"
+    );
+}

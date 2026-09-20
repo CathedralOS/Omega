@@ -9034,7 +9034,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (exhaustive whole-tree verifier-callsite audit) is recorded there,
   not here.
 - **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
-- **PROGRAM-ENTRY-SELECTION-EXACTNESS** — mined candidate; verify scope then implement.
+- **PROGRAM-ENTRY-SELECTION-EXACTNESS** — mined candidate; residual slice
+  implemented on branch `zergling/z161-program-entry-selection-exactness`.
+  Scope verified: per-slot/per-schema selection already resolves the bound
+  machine to its exact symbol under the binding occurrence's lexical package
+  (`selected_program_entry_machine` + `source_signature().machine_symbol()`);
+  the last spelling-based hop was `omega run`'s interpret leg — `interpret_checked`
+  passed the machine's bare name to `interpret_entry`, whose
+  `find_machine_by_name` returns the FIRST same-named machine in program order,
+  so a dependency's same-spelled `launch` could shadow the bound one (or vice
+  versa). Fix: `checked_interpreter::interpret_entry_symbol` dispatches on the
+  binding's `machine_symbol` through `BuildMachineEntry::Symbol`, mirroring the
+  evaluator's existing symbol arm. Witness: `module_namespaces::
+  selected_program_entry_dispatches_by_exact_symbol_not_spelling` (root
+  `launch(dummy)->i32{7}` decoy vs bound dependency `launch()`); end-to-end
+  `omega run --both` on a scratch two-package project — name dispatch printed
+  `DIVERGENCE: native 0 vs interp 7`, symbol dispatch agrees at exit 0.
+  Note: the `compiler` test binary currently requires a local stub for the
+  sibling half-landed `ComponentEraJournalRoster` consumer (`2d8c5136cc9`
+  after `20bd592af14`) — unrelated to this change; stub kept uncommitted.
 - **PROMOTION-REJOIN-EVIDENCE** — mined candidate; verify scope then implement.
 - **PROOF-AUTOMATION-WIDENING.** Verified `ac4e4eee9b`, re-verified
   `1edade1a480`: this names widening
