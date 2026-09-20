@@ -4813,22 +4813,26 @@ Owners include
     (**BOUNDED-INSTALLATION-REACH-ROWS**).
     [Interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)
     names this item for that selection and lineage integration.
-  - External satisfiers. `satisfies Owner::name via <binding>` leaves now
-    carry the demand: `selected_requirement_provider_evidence` admits
-    `Import`/`Syscall` bindings alongside `CompilerIntrinsic`,
-    `reject_unselected_direct_requirement_calls` early-returns for them, and
-    the requirement seam is retained through lowering, Terminal and
-    abstract-operation boundary ledgers via the `target_machine ==
-    target_state` / `attachment.is_none()` discriminants
-    (`pass/providers/external_boundary_requirement_via_exit`, seam asserted in
-    `canary_suite/providers_float_and_console/provider_adapters.rs`; verified
-    on Linux x86-64 at this commit via `omega --check` plus the named harness
-    tests). The interpreter fails closed on the bodyless requirement and the
-    native route reaches terminal-authority classification — installed
-    execution still needs `NormalizedForeignCall` construction emission in
-    `target-operations-to-selected-instructions` (held by a live sibling
-    claim) plus a classified normalized-foreign mechanism per
-    **EVALUATED-FOREIGN-BINDINGS**.
+  - External satisfiers still need interpreter provider execution and
+    structural-argument composition. Native scalar-returning imports are no
+    longer blocked on foreign-call emission: retain
+    `compiler --test efb3_flat_record_probe
+    top_level_external_requirement_returns_and_reuses_its_result_natively`
+    as the macOS ARM64 control, including its exact requirement identity,
+    selected import, returned value and second-call reuse. Other hosts remain
+    unverified by that test. Missing import settlement must keep rejecting in
+    `external_boundary_requirement_via_exit_canary_keeps_requirement_seam`;
+    its ordinary foreign `exit_with` is not canonical ProcessExit evidence.
+    The borrowed-record counterpart remains a frontend dependency: at
+    `4752d94c3f6` on macOS ARM64, replace the mixed-argument probe's trait with
+    `pub data Move {}` and
+    `pub boundary requirement Move::shift(delta: i32, p: &Point, bias: i32) -> i32;`,
+    remove its Service field, provider selection and `reaches Move` clause,
+    and use `Move::shift` for the same two calls. Terminal production rejects `Main::main` at
+    `statement sequence: call: call operation, statement 2` in checked
+    `execution/unit/`, before native lowering. Preserve the record and its
+    initialized fields when completing that join; the scalar control does
+    not close it.
   - Terminal identity and era replay. Conformance rows in
     `terminal_module/boundary/conformances.rs` are trait-keyed, and the
     `..._terminal_exit` harness test asserts that the requirement is absent

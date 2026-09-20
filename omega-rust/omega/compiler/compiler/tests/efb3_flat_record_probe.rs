@@ -205,7 +205,7 @@ impl ProviderExecutionEvidence for ProbeExecution {
 #[test]
 fn flat_record_via_call_native_realization_probe() {
     let probe = Probe::new();
-    let (artifact, execution, same_stack) = realize_probe(&probe, 64);
+    let (artifact, execution, same_stack) = realize_probe(&probe, 64, &[]);
     let plan_report_identity = execution.plan_report_identity;
     let requirement = execution.requirement;
     assert_flat_record_custody(&artifact, plan_report_identity, &requirement, &same_stack);
@@ -214,6 +214,7 @@ fn flat_record_via_call_native_realization_probe() {
 fn realize_probe(
     probe: &Probe,
     provider_stack_bytes: u64,
+    provider_authority: &[effects::TerminalAuthorityClass],
 ) -> (
     native_artifact::NativeArtifact,
     ProbeExecution,
@@ -286,7 +287,9 @@ fn realize_probe(
                         row.boundary_entry_plan.as_ref()?,
                     )
                     .expect("canonical mechanism"),
-                    effects::TerminalAuthorityDisposition::from_classes([]),
+                    effects::TerminalAuthorityDisposition::from_classes(
+                        provider_authority.iter().copied(),
+                    ),
                 ))
             })
             .collect(),
@@ -305,7 +308,9 @@ fn realize_probe(
                         native_realization::TerminalAuthorityPermissionPolicyRow::new(
                             plan.schema.identity_digest(),
                             row.requirement_identity.clone(),
-                            effects::TerminalAuthorityDisposition::from_classes([]),
+                            effects::TerminalAuthorityDisposition::from_classes(
+                                provider_authority.iter().copied(),
+                            ),
                         )
                     })
             })
@@ -499,7 +504,11 @@ fn realize_mixed_arguments_probe() -> (Probe, native_artifact::NativeArtifact) {
     fs::write(&probe.main, source).unwrap();
     // The native oracle calls libc to report its observations. Its admitted
     // stack contribution must include those calls, not only the leaf arithmetic.
-    let (artifact, _, _) = realize_probe(&probe, 64 * 1024);
+    let (artifact, _, _) = realize_probe(
+        &probe,
+        64 * 1024,
+        &[effects::TerminalAuthorityClass::ProcessOutput],
+    );
     assert_eq!(artifact.image().foreign_calls().len(), 2);
     for call in artifact.image().foreign_calls() {
         assert_eq!(call.scalar_arguments.len(), 2);
@@ -737,6 +746,85 @@ fn returning_foreign_call_restores_floating_controls_before_the_next_call() {
     execute_mixed_arguments_probe(true);
 }
 
+#[test]
+fn top_level_external_requirement_returns_and_reuses_its_result_natively() {
+    // Unlike a trait service, this requirement is selected without a Service
+    // field or adapter rewrite. Both normal returns must preserve its exact
+    // boundary identity and the second call must consume the first result.
+    let probe = Probe::new();
+    fs::write(
+        &probe.main,
+        r#"use omega::language::core::external_binding;
+pub data ForeignMath {}
+pub boundary requirement ForeignMath::shift(value: i32) -> i32;
+macos_arm64 machine shift_binding() -> Binding<31, 6, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "@executable_path/libshift.dylib",
+            symbol: "_shift",
+        },
+    }
+}
+data Provider {}
+machine Provider::shift(value: i32) -> i32
+satisfies ForeignMath::shift via shift_binding();
+data Main {}
+machine Main::main(&mut self) {
+    let first: i32 = ForeignMath::shift(42);
+    let second: i32 = ForeignMath::shift(first);
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        probe.root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("returning-requirement");
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
+"#,
+    )
+    .unwrap();
+    let (artifact, execution, _) = realize_probe(
+        &probe,
+        64 * 1024,
+        &[effects::TerminalAuthorityClass::ProcessOutput],
+    );
+    assert_eq!(artifact.image().foreign_calls().len(), 2);
+    let module = terminal_codec::decode_module(artifact.psi_artifact().semantic_bytes()).unwrap();
+    let [requirement] = module.boundary_machines.as_slice() else {
+        panic!("the top-level requirement must retain its own boundary declaration");
+    };
+    assert_eq!(requirement.identity, execution.requirement);
+    assert!(requirement.identity.contains("ForeignMath::shift"));
+    assert!(matches!(
+        artifact.image().foreign_calls()[1].scalar_arguments[0].source,
+        machine_code::InternalUnitScalarArgumentSourceRecord::Home(_)
+    ));
+    execute_foreign_probe(
+        &probe,
+        &artifact,
+        r#"
+#include <stdint.h>
+#include <stdio.h>
+static unsigned calls = 0;
+int32_t shift(int32_t value) {
+    if ((calls == 0 && value == 42) || (calls == 1 && value == 45)) {
+        calls += 1;
+        if (calls == 2) puts("returning requirement: PASS");
+    } else {
+        puts("returning requirement: FAIL");
+        fflush(stdout);
+        return 0;
+    }
+    fflush(stdout);
+    return value + 3;
+}
+"#,
+        b"returning requirement: PASS\n",
+    );
+}
+
 /// An incoming parameter crosses one boundary call, then a ranked block value
 /// crosses another four times. The oracle checks every value and their order;
 /// a valid image or one successful call does not establish changing transport.
@@ -789,7 +877,11 @@ machine Main::main(&mut self) {
 "#,
     )
     .unwrap();
-    let (artifact, _, _) = realize_probe(&probe, 64 * 1024);
+    let (artifact, _, _) = realize_probe(
+        &probe,
+        64 * 1024,
+        &[effects::TerminalAuthorityClass::ProcessOutput],
+    );
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let ranked_machines = module
         .machines
