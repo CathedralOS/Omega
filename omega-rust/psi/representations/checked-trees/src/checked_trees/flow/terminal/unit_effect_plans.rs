@@ -136,6 +136,10 @@ pub enum CheckedUnitEffectOperationPlan {
         result: CheckedUnitStructuralResultBindingPlan,
         value: crate::CheckedStructuralValueHandle,
         calls: Vec<CheckedStructuralValueCall>,
+        /// `Some` when the value is an inline operand of a call statement,
+        /// naming the consuming call coordinate and authored formal position;
+        /// absent for statement-level constructions such as local bindings.
+        operand_source: Option<crate::CheckedArrayConstructionSource>,
         discard_result_on_return: bool,
     },
     /// Construct an unrestricted primitive fixed array in authored row-major

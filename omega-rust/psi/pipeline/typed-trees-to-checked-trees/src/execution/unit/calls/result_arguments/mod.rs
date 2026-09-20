@@ -423,6 +423,38 @@ pub(super) fn argument(
                 return None;
             }
         }
+        // An inline case construction is established as a state-local value at
+        // the consuming statement itself; the binding replays like an
+        // anonymous result but carries no producer call.
+        facts::PlaceRoot::Expression(source)
+            if source == value_expression
+                && !projected
+                && !matches!(
+                    program.expression_table.expression(source),
+                    ExpressionNode::Call(_)
+                ) =>
+        {
+            if usize::try_from(result.statement_index).ok()? != call.statement_index {
+                return None;
+            }
+            let root = facts.values.structural_values.root_for_expression(
+                state,
+                u32::try_from(call.statement_index).ok()?,
+                source,
+            )?;
+            if root.machine != machine
+                || !matches!(
+                    facts.values.structural_values.nodes.get(root.root).kind,
+                    checked_trees::CheckedStructuralValueKind::Case(_)
+                )
+                || program
+                    .normalized_type_identity(root.type_reference)
+                    .as_str()
+                    != result.type_identity
+            {
+                return None;
+            }
+        }
         // Ordinary and boundary affine producers own anonymous results.
         // Rejoin their exact captured
         // preorder coordinate; the shared sequencer executes it in postorder.
