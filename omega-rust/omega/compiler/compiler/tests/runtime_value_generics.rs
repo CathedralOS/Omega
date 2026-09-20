@@ -1272,6 +1272,82 @@ fn runtime_value_generic_rejections_keep_their_diagnostics() {
     }
 }
 
+/// `fail/generics/value_generic_runtime_static_length` pins the literal
+/// `[u8; Count]` local; the same runtime-bound binder must not reach
+/// activation storage through instantiated data or contract positions either.
+/// A `const`-data application sized by a runtime subject keeps the
+/// static-layout rejection, and a runtime binder occurring in a return or
+/// parameter type keeps the specialization-tuple rejection — no specialization
+/// may size an activation from a runtime subject.
+#[test]
+fn runtime_bound_binders_cannot_size_activation_storage() {
+    let diagnostics = check_source(
+        "const-data-local",
+        r#"
+data Box<const Count: u64> {
+    items: [u8; Count];
+}
+
+machine ident<Count: u64>() -> u64 {
+    let a: Box<Count>;
+    Count
+}
+
+machine Main::main(&mut self) {
+    let n: u64 = 3;
+    let a: u64 = ident<n>();
+}
+"#,
+    )
+    .expect_err("a const-data local sized by a runtime subject must reject");
+    assert!(
+        diagnostics.contains("cannot determine a static type or layout"),
+        "const-data local rejected without the static-layout diagnostic:
+{diagnostics}"
+    );
+
+    for (name, source) in [
+        (
+            "return-type",
+            r#"
+data Box<const Count: u64> {
+    items: [u8; Count];
+}
+
+machine ident<Count: u64>() -> Box<Count> {
+}
+
+machine Main::main(&mut self) {
+    let n: u64 = 3;
+    let a: Box<3> = ident<n>();
+}
+"#,
+        ),
+        (
+            "parameter-type",
+            r#"
+machine ident<Count: u64>(items: [u8; Count]) -> u64 {
+    Count
+}
+
+machine Main::main(&mut self) {
+    let n: u64 = 3;
+    let arr: [u8; 3] = [1, 2, 3];
+    let a: u64 = ident<n>(arr);
+}
+"#,
+        ),
+    ] {
+        let diagnostics = check_source(name, source)
+            .expect_err("a runtime binder in a contract position must reject");
+        assert!(
+            diagnostics.contains("specialization tuple cannot be derived"),
+            "{name} rejected without the specialization-tuple diagnostic:
+{diagnostics}"
+        );
+    }
+}
+
 /// Exact initialized backing for the entry receiver's sole fixed byte-array
 /// field, supplied as opaque host contents so the interpreter's primitive
 /// store/read operations have established storage to replace and observe.
