@@ -19,6 +19,7 @@
 //! `admission/` the evidence routes.
 
 mod admission;
+mod classicality;
 mod integer_rules;
 mod kernel;
 mod mathematical_core;
@@ -42,6 +43,7 @@ pub use admission::recursion::{
     RecursiveEdgeObligation, verify_recursive_component,
     verify_recursive_component_with_machine_parameters,
 };
+pub use classicality::ProofRuleFoundation;
 pub use integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, ClosedIntegerEvaluator, compare_integer_math_terms,
 };
