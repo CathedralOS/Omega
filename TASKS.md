@@ -1080,12 +1080,20 @@ Owners include
   need one separated supply relation, and transferred input is not fresh supply.
   Preserve the existing rejection of construction that lacks an issuance witness.
 
-  Audit installation, retirement, startup, interrupt and callback receipt ingress
-  in `backend/runtime/external-roots`. Trace each accepted record to checked
-  execution or the exact selected admitted provider contract. Public Rust
-  constructors are neither proof of source forgeability nor evidence that this
-  source-to-runtime join exists; do not solve the task by changing visibility alone.
-  `AP-BRINGUP` owns its concrete arrival/cancellation state repair.
+  Ingress audit of installation, retirement, startup, interrupt and callback
+  receipt edges in `backend/runtime/external-roots` completed at `8973814b6a`
+  on Linux x86-64 (`cargo nextest run -p external-roots --no-fail-fast`: 246/246
+  pass): every accepted record traces to checked execution or the exact selected
+  admitted provider contract — install/remove/teardown replay retained root
+  evidence, interrupt entry/turn/finish rejoins the admitted arrival context and
+  declared nesting, mask save/restore is LIFO-exact, table member admission,
+  descriptor replay and publication replay the sealed member set, callback
+  registration consumes linear `Arc`-provenance capacity, secondary-processor
+  lifecycle binds the verified trampoline and account custody, and program-local
+  cohort seals re-derive the enumerable set. No record traces to neither; the
+  `platform_bringup/uefi_bootstrap` subtree audited read-only under
+  `UEFI-PHYSICAL-SEMANTIC-ENTRY`'s claim. The open frontier is the source-issued
+  leg above. `AP-BRINGUP` owns its concrete arrival/cancellation state repair.
 
   Acceptance: source-issued content retains geometry, backing, issuer, lineage,
   route and exact occurrence through independent replay. Reject forged source
