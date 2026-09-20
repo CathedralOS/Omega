@@ -14,6 +14,8 @@ mod fragment_container;
 mod hosted_exit_runtime;
 #[path = "artifacts/hosted_receiver.rs"]
 mod hosted_receiver;
+#[path = "artifacts/installation_field_substitution_fields.rs"]
+mod installation_field_substitution_fields;
 #[path = "artifacts/installation_field_substitutions.rs"]
 mod installation_field_substitutions;
 #[path = "artifacts/installation_function_nested_custody.rs"]
