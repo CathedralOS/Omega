@@ -506,9 +506,12 @@ fn operand_type_at_depth(
         {
             builtin_type_reference(program, symbols::BuiltinTypeAtom::U64)
         }
-        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) | ExpressionNode::Call(_) => {
-            declared_place_type_raw(program, machine, state, expression)
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            declared_place_type_raw(program, machine, state, expression).or_else(|| {
+                operand_place_projection_type(program, machine, state, expression, depth + 1)
+            })
         }
+        ExpressionNode::Call(_) => declared_place_type_raw(program, machine, state, expression),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
         ExpressionNode::Binary(binary) => {
@@ -580,6 +583,90 @@ fn operand_type_at_depth(
         .type_reference_table
         .contains_type_reference(reference)
         .then_some(reference)
+}
+
+/// The declared carrier of a place whose root resolves through operand typing
+/// rather than the state-scoped place table — the machine-signature parameter
+/// case a machine-level contract fact reaches with no `State`. An element
+/// read still requires the retained builtin `[]` selection and no authored
+/// index overload, and a member read the exact declaration field, so an
+/// overloaded projection never borrows the element's or field's carrier.
+/// Children recurse through [`operand_type_at_depth`], which retries the
+/// state-scoped place table first on every level.
+fn operand_place_projection_type(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Option<TypeReferenceHandle> {
+    if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => {
+            operand_place_projection_type(program, machine, state, borrow.target, depth + 1)
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = crate::value_custody::places::unwrapped_type_reference(
+                program,
+                operand_type_at_depth(program, machine, state, member.receiver, depth + 1)?,
+            )?;
+            let owner = match program.type_reference_table.type_reference(receiver) {
+                TypeReferenceNode::Named { symbol, .. } => *symbol,
+                TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+                _ => return None,
+            };
+            let data = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == owner)?;
+            crate::value_custody::places::exact_data_member_field(
+                program,
+                data,
+                member.member_symbol,
+                member.member.as_str(),
+                member.case_variant.as_ref().map(|case| case.as_str()),
+            )
+            .map(|field| field.type_reference)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            // A range denotes a window, not one element; element reads keep
+            // the builtin `[]` contract only when no authored index overload
+            // selected these operands.
+            if matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            ) {
+                return None;
+            }
+            let collection_type =
+                operand_type_at_depth(program, machine, state, indexed.collection, depth + 1)?;
+            let operands = [
+                Some(collection_type),
+                operand_type_at_depth(program, machine, state, indexed.index, depth + 1),
+            ];
+            if !crate::value_custody::places::has_retained_builtin_index_meaning(
+                program, expression,
+            ) || !typed_trees::operator::resolve_indexed_spelling_for_operands(
+                program,
+                OperatorSpelling::Index,
+                &operands,
+            )
+            .is_empty()
+            {
+                return None;
+            }
+            let collection =
+                crate::value_custody::places::unwrapped_type_reference(program, collection_type)?;
+            match program.type_reference_table.type_reference(collection) {
+                TypeReferenceNode::FixedArray { element_type, .. }
+                | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 fn builtin_type_reference(
