@@ -65,7 +65,7 @@ pub(super) fn all(
 /// the constant-supplied unconditional incoming edges; when every incoming
 /// edge qualifies, fusing them all would orphan the dispatch state, so the
 /// plan is reported with no edges.
-pub(super) fn plan(
+pub(crate) fn plan(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     dispatch: BlockId,

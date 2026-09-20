@@ -43,8 +43,8 @@ use crate::{
 
 mod apply;
 mod model;
-mod propose;
-mod validate;
+pub(crate) mod propose;
+pub(crate) mod validate;
 
 pub use model::{
     AppliedStateArgumentSpecialization, SpecializedStateEdge, StateArgumentSpecializationCandidate,

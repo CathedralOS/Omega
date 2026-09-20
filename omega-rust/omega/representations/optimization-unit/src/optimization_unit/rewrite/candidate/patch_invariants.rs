@@ -382,6 +382,33 @@ pub(super) fn validate(
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
         }
+        PsiRewritePatch::SpecializeStateArgument(patch) => {
+            if patch.edges.is_empty()
+                || patch
+                    .edges
+                    .windows(2)
+                    .any(|pair| pair[0].incoming_edge >= pair[1].incoming_edge)
+                || patch.edges.iter().any(|row| {
+                    row.predecessor.machine != patch.machine
+                        || !affected_blocks.contains(&row.predecessor.block)
+                })
+                || !affected_blocks.contains(&patch.dispatch)
+                || provenance.is_empty()
+                || provenance.iter().any(|row| {
+                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                        return true;
+                    };
+                    site.machine() != patch.machine
+                        || site
+                            .node()
+                            .is_some_and(|location| !affected_blocks.contains(&location.block))
+                })
+                || !substitutions.is_empty()
+                || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+            {
+                return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+            }
+        }
         PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
             let pruned = patch
                 .machines

@@ -358,6 +358,22 @@ pub(super) fn encode_candidate(
                 TotalScalarIdentityKind::IntegerBitwiseOrAllOnesRight => 26,
             });
         }
+        PsiRewritePatch::SpecializeStateArgument(patch) => {
+            bytes.push(17);
+            bytes.extend_from_slice(&patch.machine.get().to_le_bytes());
+            bytes.extend_from_slice(&patch.dispatch.get().to_le_bytes());
+            encode_len(&mut bytes, patch.edges.len());
+            for row in &patch.edges {
+                bytes.extend_from_slice(&row.incoming_edge.get().to_le_bytes());
+                encode_location(&mut bytes, row.predecessor);
+                bytes.extend_from_slice(&row.parameter.get().to_le_bytes());
+                bytes.extend_from_slice(&row.argument.get().to_le_bytes());
+                bytes.push(u8::from(row.constant));
+                bytes.extend_from_slice(&row.taken_edge.get().to_le_bytes());
+                bytes.extend_from_slice(&row.rejected_edge.get().to_le_bytes());
+                bytes.extend_from_slice(&row.resolved_target.get().to_le_bytes());
+            }
+        }
     }
     bytes
 }

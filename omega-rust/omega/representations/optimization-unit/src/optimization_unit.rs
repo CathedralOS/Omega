@@ -60,7 +60,8 @@ pub use rewrite::{
     PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
     ScalarConstantValue, ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow,
     SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedJumpFusionRewrite,
-    TotalScalarIdentityKind, TotalScalarIdentityRewrite, UnreachablePrivateMachinesRewrite,
+    SpecializedStateEdgeRow, StateArgumentSpecializationRewrite, TotalScalarIdentityKind,
+    TotalScalarIdentityRewrite, UnreachablePrivateMachinesRewrite,
     derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
 };
 

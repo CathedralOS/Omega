@@ -14,6 +14,7 @@ use super::passes::{
     dead_scalar_elimination_rule_registrations, global_value_numbering_rule_registrations,
     proof_check_elision_rule_registrations,
     sparse_conditional_constant_propagation_rule_registrations,
+    state_specialization_rule_registrations,
 };
 
 type RuleCatalog = fn() -> Vec<BuiltInRuleRegistration>;
@@ -61,7 +62,7 @@ impl PsiPassCatalogEntry {
 }
 
 /// The single built-in Psi enable/disable and ordering table.
-pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 6] = [
+pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 7] = [
     PsiPassCatalogEntry::new(
         PsiOptimization::SparseConditionalConstantPropagation,
         sparse_conditional_constant_propagation_rule_registrations,
@@ -86,16 +87,21 @@ pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 6] = [
         PsiOptimization::DeadPureScalarElimination,
         dead_scalar_elimination_rule_registrations,
     ),
+    PsiPassCatalogEntry::new(
+        PsiOptimization::StateSpecialization,
+        state_specialization_rule_registrations,
+    ),
 ];
 
 /// Compatibility view derived from [`PSI_PASS_CATALOG`], never a second table.
-pub const ORDERED_PSI_PASSES: [PsiOptimization; 6] = [
+pub const ORDERED_PSI_PASSES: [PsiOptimization; 7] = [
     PSI_PASS_CATALOG[0].optimization(),
     PSI_PASS_CATALOG[1].optimization(),
     PSI_PASS_CATALOG[2].optimization(),
     PSI_PASS_CATALOG[3].optimization(),
     PSI_PASS_CATALOG[4].optimization(),
     PSI_PASS_CATALOG[5].optimization(),
+    PSI_PASS_CATALOG[6].optimization(),
 ];
 
 pub(crate) fn registry_for_optimization(

@@ -190,10 +190,10 @@ impl std::error::Error for StateArgumentSpecializationError {}
 /// identity. Proposal and validation both recompute this plan; the candidate
 /// is accepted only when its claimed rows equal the replayed plan exactly.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct DispatchSpecializationPlan {
-    pub(super) machine: MachineId,
-    pub(super) dispatch: BlockId,
-    pub(super) edges: Vec<SpecializedStateEdge>,
+pub(crate) struct DispatchSpecializationPlan {
+    pub(crate) machine: MachineId,
+    pub(crate) dispatch: BlockId,
+    pub(crate) edges: Vec<SpecializedStateEdge>,
 }
 
 pub(super) fn candidate_identity(

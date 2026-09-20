@@ -7,7 +7,7 @@ use crate::{
     proof_check_elision, sparse_conditional_constant_propagation,
 };
 use lowered_psi::LoweredPsi;
-use optimization::{PsiOptimization, PsiOptimizationSelections};
+use optimization::{PRETERMINAL_PSI_PASS_CATALOG, PsiOptimization, PsiOptimizationSelections};
 use terminal_codec::PsiOptimizationExecutionRecord;
 use terminal_codec::{
     ProofBundleFingerprint, proof_bundle_fingerprint, terminal_psi_identity, validate_debug_map,
@@ -21,7 +21,11 @@ use terminal_verifier::validate_module_for_optimization;
 /// The empty selection deliberately validates both sides of the identity
 /// transformation. Selected passes execute in canonical order; the catalog is
 /// exhaustive, so a future selection added without an implementation fails to
-/// compile rather than being recorded as an executed identity.
+/// compile rather than being silently recorded as an executed identity — every
+/// member's preterminal semantics must be stated here explicitly.
+/// `StateSpecialization` rewrites the abstract-operations unit produced only
+/// after this stage, so it executes in the post-terminal stage and is left out
+/// of this stage's execution record.
 pub fn run_psi_optimization(
     mut lowered: LoweredPsi,
     selections: PsiOptimizationSelections,
@@ -47,12 +51,21 @@ pub fn run_psi_optimization(
             PsiOptimization::ProofCheckElision => {
                 lowered = proof_check_elision::elide(lowered)?;
             }
+            PsiOptimization::StateSpecialization => {}
         }
     }
 
     let (output_semantic, output_proof) = validate_carrier(&lowered)?;
+    let executed = PsiOptimizationSelections::new(
+        selections
+            .as_slice()
+            .iter()
+            .copied()
+            .filter(|selected| PRETERMINAL_PSI_PASS_CATALOG.contains(selected)),
+    )
+    .expect("a filtered selection subset stays duplicate-free");
     let execution = PsiOptimizationExecutionRecord::new(
-        selections.clone(),
+        executed,
         input_semantic,
         input_proof,
         output_semantic,

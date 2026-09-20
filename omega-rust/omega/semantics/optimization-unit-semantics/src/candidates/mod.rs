@@ -9,6 +9,7 @@ mod observation;
 mod proof_check_elision;
 mod rewrite_accounting;
 mod sparse_conditional_constant_propagation;
+mod state_specialization;
 
 pub use control_flow_cleanup::*;
 pub use copy_propagation::*;
@@ -18,6 +19,7 @@ pub use global_value_numbering::*;
 pub use observation::*;
 pub use proof_check_elision::*;
 pub use sparse_conditional_constant_propagation::*;
+pub use state_specialization::*;
 
 pub(crate) use copy_propagation::rewrite_block_parameter_operation;
 pub(crate) use global_value_numbering::{
