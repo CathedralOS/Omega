@@ -1013,6 +1013,9 @@ mod unranked_unit_calls;
 #[path = "ranked_scc/unranked_scalar_calls.rs"]
 mod unranked_scalar_calls;
 
+#[path = "ranked_scc/ranked_calls.rs"]
+mod ranked_calls;
+
 #[path = "ranked_scc/scalar_block_invariants.rs"]
 mod scalar_block_invariants;
 

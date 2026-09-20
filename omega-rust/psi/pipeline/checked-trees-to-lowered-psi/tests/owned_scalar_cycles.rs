@@ -5,7 +5,10 @@ mod mutations;
 #[path = "owned_scalar_cycles/support.rs"]
 mod support;
 
-use terminal_psi::{OperationKind, TerminalNaturalRankComparison, TerminalRankedScc};
+use terminal_psi::{
+    CrashCause, CrashRouteBucket, CrashRouteGuard, OperationKind, TerminalNaturalRankComparison,
+    TerminalRankedScc,
+};
 
 // Exact rankflow customer, including its ordinary affine data declaration.
 const CUSTOMER: &str = r#"machine reset(value: &mut u64) -> u64 { value = 0; 0 }
@@ -127,6 +130,68 @@ fn authored_walk_publishes_a_natural_cycle_with_a_loop_carried_rank() {
             );
         }
     }
+}
+
+#[test]
+fn cycle_member_call_carries_its_exact_crash_continuations() {
+    let crashing = CUSTOMER
+        .replace(
+            "machine reset(value: &mut u64) -> u64 { value = 0; 0 }",
+            "machine reset(value: &mut u64) -> u64 crashes Abort { value = 0; 0 }",
+        )
+        .replace(
+            "machine walk(remaining: u64 [0..=5], limits: Limits, marker: u64)",
+            "machine walk(remaining: u64 [0..=5], limits: Limits, marker: u64) crashes Abort",
+        );
+    // `publish` already replays the module through `verify_module`, so the
+    // artifact's ranked cycle and its in-cycle call were independently checked.
+    let (module, _, _, _) = support::publish(&crashing);
+    let walk = support::walk(&module);
+    let expected = vec![CrashRouteBucket {
+        cause: CrashCause::Abort,
+        alternatives: vec![CrashRouteGuard::Truth],
+    }];
+    assert_eq!(
+        walk.contract.crash_routes, expected,
+        "the cyclic caller publishes the callee's substituted ceiling"
+    );
+    let call = support::operation(walk, |kind| {
+        matches!(
+            kind,
+            OperationKind::Call { .. }
+                | OperationKind::CallUnit { .. }
+                | OperationKind::CallStructuralScalar { .. }
+                | OperationKind::CallStructural { .. }
+                | OperationKind::CallStructuralWithScalarArguments { .. }
+        )
+    });
+    let continuations = match &call.kind {
+        OperationKind::Call {
+            crash_continuations,
+            ..
+        }
+        | OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            crash_continuations,
+            ..
+        }
+        | OperationKind::CallStructural {
+            crash_continuations,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            crash_continuations,
+            ..
+        } => crash_continuations,
+        _ => unreachable!(),
+    };
+    assert_eq!(
+        *continuations, expected,
+        "the in-cycle call keeps its exact substituted continuation roster"
+    );
 }
 
 #[test]
