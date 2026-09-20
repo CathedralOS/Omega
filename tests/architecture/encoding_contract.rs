@@ -181,6 +181,13 @@ fn code_tags(path: &str, function: &str, prefix: &str) -> BTreeMap<u8, String> {
             continue;
         }
         let arm = &body[position + arrow + 2..];
+        // An arm is bounded by the next `Prefix::` pattern, so an arm that
+        // returns or aborts before writing a tag cannot absorb the following
+        // arm's tag.
+        let arm = match arm.find(&needle) {
+            Some(end) => &arm[..end],
+            None => arm,
+        };
         // Inner-match entry form: `Prefix::Name(..) => <literal>`.
         let literal: String = arm
             .trim_start()
@@ -1251,6 +1258,10 @@ const ENVELOPE_SOURCES: &[(&str, &str)] = &[
         "optimization execution",
         "omega-rust/psi/semantics/terminal-codec/src/sections/optimization_execution.rs",
     ),
+    (
+        "mathematical certificate",
+        "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/mathematical_certificate_wire.rs",
+    ),
 ];
 
 /// The envelope contract is what a receiver reads first: an eight-byte magic
@@ -1738,5 +1749,150 @@ fn pcc_product_kind_table_matches_codec() {
             "encode",
             "Self",
         ),
+    );
+}
+
+const CERTIFICATE_WIRE: &str = "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/mathematical_certificate_wire.rs";
+
+/// `(spec field, encode sentinels, decode sentinels)` pinning the
+/// certificate's framing order — what a receiver splits before it can replay
+/// the judgment in the kernel.
+const CERTIFICATE_FRAMING_ORDER: &[(&str, &[&str], &[&str])] = &[
+    (
+        "level arity",
+        &["writer.u32(certificate.level_arity)"],
+        &["let level_arity = reader.u32()?;"],
+    ),
+    (
+        "term table",
+        &["writer.u32(count)", "writer.bytes(&nodes.finish())"],
+        &[
+            "let node_count = usize::try_from(reader.count()?)",
+            "decode_term(&mut reader, &handles, &depths)",
+        ],
+    ),
+    (
+        "declaration signature",
+        &["\"mathematical certificate signature\""],
+        &[
+            "let signature_count",
+            "reader.boolean()?",
+            "signature.push(Declaration {",
+        ],
+    ),
+    (
+        "context",
+        &["\"mathematical certificate context\""],
+        &["let context_count", "context.push(decode_root"],
+    ),
+    (
+        "judgment roots",
+        &[
+            "writer.u32(by_handle[&certificate.term])",
+            "writer.u32(by_handle[&certificate.expected])",
+        ],
+        &["let term = decode_root", "let expected = decode_root"],
+    ),
+];
+
+/// One shared postorder term table serves the signature, the context, and the
+/// judgment roots: the framing order is the receiver's reconstruction order.
+#[test]
+fn certificate_framing_matches_codec() {
+    let rows = spec_data_rows("<!-- certificate-framing -->");
+    let expected: Vec<&str> = CERTIFICATE_FRAMING_ORDER.iter().map(|row| row.0).collect();
+    assert_eq!(
+        rows.len(),
+        expected.len(),
+        "spec certificate framing count changed"
+    );
+    for (index, cells) in rows.iter().enumerate() {
+        let number: u8 = cells[1].parse().expect("certificate framing row number");
+        assert_eq!(
+            number as usize,
+            index + 1,
+            "certificate framing numbering breaks"
+        );
+        assert_eq!(
+            cells[2],
+            expected[index],
+            "spec certificate framing row {} renamed",
+            index + 1
+        );
+    }
+    let source = strip_line_comments(&read_workspace_file(CERTIFICATE_WIRE));
+    for (function, column, direction) in [
+        ("encode_mathematical_certificate", 1usize, "encode"),
+        ("decode_mathematical_certificate", 2usize, "decode"),
+    ] {
+        let body = function_body(&source, function);
+        let mut cursor = 0usize;
+        for (field, encode_sentinels, decode_sentinels) in CERTIFICATE_FRAMING_ORDER {
+            let sentinels = if column == 1 {
+                encode_sentinels
+            } else {
+                decode_sentinels
+            };
+            for sentinel in *sentinels {
+                let offset = body[cursor..].find(sentinel).unwrap_or_else(|| {
+                    panic!(
+                        "{direction} order for certificate field '{field}' ({sentinel}) is missing or out of order"
+                    )
+                });
+                cursor += offset + sentinel.len();
+            }
+        }
+    }
+}
+
+/// The certificate is receiver-replayed evidence: decoding must enforce the
+/// table's postorder (a child index names an earlier row), refuse unreachable
+/// or duplicated nodes through byte-for-byte re-encoding, and reject trailing
+/// bytes — otherwise a producer can smuggle an alternate table for the same
+/// judgment.
+#[test]
+fn certificate_decode_rederives_and_reencodes() {
+    let source = strip_line_comments(&read_workspace_file(CERTIFICATE_WIRE));
+    let body = function_body(&source, "decode_mathematical_certificate");
+    for required in [
+        "let level_arity = reader.u32()?;",
+        "reader.remaining() != 0",
+        "CodecError::TrailingBytes",
+        "encode_mathematical_certificate(&arena, &certificate)? != bytes",
+        "CodecError::NonCanonicalEncoding",
+    ] {
+        assert!(
+            body.contains(required),
+            "decode_mathematical_certificate no longer contains {required}"
+        );
+    }
+    let term_body = function_body(&source, "decode_term");
+    assert!(
+        term_body.contains("term child does not precede its parent"),
+        "decode_term no longer enforces the postorder child-index rule"
+    );
+}
+
+#[test]
+fn certificate_term_table_matches_codec() {
+    assert_table_matches(
+        "<!-- certificate-term-tags -->",
+        code_tags(CERTIFICATE_WIRE, "encode_term", "Term"),
+    );
+}
+
+#[test]
+fn certificate_sort_table_matches_codec() {
+    assert_table_matches(
+        "<!-- certificate-sort-tags -->",
+        code_tags(CERTIFICATE_WIRE, "encode_sort", "Sort"),
+    );
+}
+
+#[test]
+fn certificate_level_table_matches_codec() {
+    assert_table_matches(
+        "<!-- certificate-level-tags -->",
+        code_tags(CERTIFICATE_WIRE, "encode_level", "Level"),
     );
 }
