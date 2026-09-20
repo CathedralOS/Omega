@@ -7589,7 +7589,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `decode`) collide workspace-wide and need qualified identities to be
   machine-attributable.
 - **POC-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
-- **POC-SELECTED-REWRITE-CATALOG** — mined candidate; verify scope then implement.
+- **POC-SELECTED-REWRITE-CATALOG.** Mined candidate — scope verified,
+  covered. Re-mines the catalog-execution leg already scoped by
+  SELECTED-REWRITE-CATALOG-EXECUTION (which folds into
+  EXACT-MACHINE-SIMPLIFICATIONS): each `Orphaned` module in
+  `rewrites/module_catalog.rs` needs a catalog entry executed by the
+  stage entrance, with destination-point derivation plus the
+  hazard/dead-path/commutation audits applied once — PoC (pair-rule
+  widening / composable-pair descriptor rows) is one owned slice of
+  that partition, not an independent slice. Implementing surfaces sit
+  under live sibling claims at verification time (`rewrites/mod.rs` +
+  `module_catalog.rs` under ORPHAN-REWRITE-MODULES-CATALOG until
+  22:38Z; pair descriptors under COMPOSABLE-PAIR-DESCRIPTORS until
+  23:57Z). Sibling cluster rows:
+  SELECTED-REWRITE-CATALOG-{DISPOSITION,EXECUTION,OR-DELETE,ROUTE,WIRING},
+  SELECTED-REWRITES-CATALOG-OR-DELETE (delete leg landed),
+  PIPELINE-REWRITE-CATALOG-WIRING, REWRITE-CATALOG-ADMISSION.
 - **POC-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
 - **POC-SPILL-FAMILY-SEQUENCING** — mined candidate; verify scope then implement.
 - **POC-WRAPPER-OBJECT-PLACEMENT** — mined candidate; verify scope then implement.
