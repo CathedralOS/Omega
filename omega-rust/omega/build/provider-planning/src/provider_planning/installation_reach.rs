@@ -81,6 +81,9 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 .typed
                 .traits()
                 .iter()
+                .filter(|owner| {
+                    crate::service_schema::is_product_declaration(&checked.typed, owner.symbol)
+                })
                 .flat_map(|owner| {
                     checked
                         .typed
@@ -112,6 +115,9 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 .typed
                 .machines()
                 .iter()
+                .filter(|machine| {
+                    crate::service_schema::is_product_declaration(&checked.typed, machine.symbol)
+                })
                 .filter(|machine| {
                     machine
                         .attached_data

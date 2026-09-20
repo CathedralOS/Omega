@@ -326,16 +326,14 @@ pub(crate) fn realization_machine_identity(typed: &TypedTrees, machine_name: &st
 pub(crate) fn provider_boundary_arguments(
     typed: &TypedTrees,
     boundary: &typed_trees::trait_definition::TraitDefinition,
-    provider_type: &str,
+    provider_symbol: Option<symbols::SymbolHandle>,
 ) -> Vec<typed_trees::types::TypeReferenceHandle> {
     typed
         .conformances()
         .iter()
         .find(|conformance| {
-            conformance
-                .carrier_name()
-                .is_some_and(|carrier| same_semantic_name(carrier.as_str(), provider_type))
-                && same_semantic_name(conformance.trait_name.as_str(), boundary.name.as_str())
+            Some(conformance.carrier_symbol) == provider_symbol
+                && conformance.trait_symbol == boundary.symbol
         })
         .map(|conformance| {
             typed

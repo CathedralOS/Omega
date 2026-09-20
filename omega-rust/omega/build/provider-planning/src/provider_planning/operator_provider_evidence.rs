@@ -785,10 +785,9 @@ pub(crate) fn provider_type_symbol(
     machine: &typed_trees::machine::Machine,
 ) -> Option<symbols::SymbolHandle> {
     let attached_data = machine.attached_data.as_ref()?;
-    let mut owners = typed
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name == *attached_data);
+    let mut owners = typed.data_definitions().iter().filter(|definition| {
+        definition.symbol == machine.attached_data_symbol && definition.name == *attached_data
+    });
     let owner = owners.next()?;
     owners.next().is_none().then_some(owner.symbol)
 }

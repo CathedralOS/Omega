@@ -70,13 +70,17 @@ pub(crate) fn exact_boundary_trait<'typed>(
             "selected checked-adapter {role} has no canonical identity",
         )));
     }
-    // Trait names are package-blind; the retained package identity is the
-    // only exact join against same-spelled declarations in other packages.
+    // Package and checked purpose both matter: the build copy of a product
+    // dependency has the same nominal name but supplies no product dispatch.
     let definitions = typed
         .traits()
         .iter()
         .filter(|definition| {
             definition.is_boundary
+                && provider_planning::service_schema::is_product_declaration(
+                    typed,
+                    definition.symbol,
+                )
                 && definition.name.as_str() == name
                 && typed.symbols.symbol_package_identity(definition.symbol) == package_identity
         })

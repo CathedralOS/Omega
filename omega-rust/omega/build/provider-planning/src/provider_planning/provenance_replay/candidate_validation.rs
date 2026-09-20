@@ -323,7 +323,8 @@ fn exact_provenance_schema(
                     definitions.len(),
                 )));
             };
-            let arguments = provider_boundary_arguments(typed, definition, &plan.provider_type);
+            let arguments =
+                provider_boundary_arguments(typed, definition, provenance.provider_type);
             crate::service_schema::from_typed_instance(typed, definition, &arguments).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` provenance did not reconstruct exact boundary trait `{}`",

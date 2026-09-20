@@ -179,7 +179,10 @@ pub(crate) fn exact_canonical_provider_schema(
                     conformance
                         .carrier_name()
                         .is_some_and(|carrier| carrier.as_str() == plan.provider_type)
-                        && conformance.trait_name.as_str() == definition.name.as_str()
+                        && conformance.trait_symbol == definition.symbol
+                        && crate::service_schema::is_product_declaration(typed, conformance.carrier_symbol)
+                        && typed.symbols.symbol_package_identity(conformance.carrier_symbol)
+                            == plan.provider_type_package_identity
                 })
                 .collect::<Vec<_>>();
             let arguments = match argument_matches.as_slice() {
@@ -300,9 +303,10 @@ pub fn exact_checked_adapter<'typed>(
         .machines()
         .iter()
         .filter(|candidate| {
-            typed
-                .normalized_machine_overload_identity(candidate)
-                .is_some_and(|identity| identity.identity() == *machine_identity)
+            crate::service_schema::is_product_declaration(typed, candidate.symbol)
+                && typed
+                    .normalized_machine_overload_identity(candidate)
+                    .is_some_and(|identity| identity.identity() == *machine_identity)
         })
         .collect::<Vec<_>>();
     let matches = identity_matches
@@ -639,6 +643,7 @@ pub(crate) fn exact_checked_adapter_invocations(
             && typed
                 .normalized_machine_overload_identity(requirement)
                 .is_some_and(|identity| identity.identity() == method.requirement_identity)
+            && crate::service_schema::is_product_declaration(typed, requirement.symbol)
             && typed.symbols.symbol_package_identity(requirement.symbol)
                 == method.requirement_owner_package_identity
     });
@@ -647,6 +652,7 @@ pub(crate) fn exact_checked_adapter_invocations(
         .iter()
         .filter(|definition| {
             definition.is_boundary
+                && crate::service_schema::is_product_declaration(typed, definition.symbol)
                 && definition.name.as_str() == method.requirement_owner
                 && typed.symbols.symbol_package_identity(definition.symbol)
                     == method.requirement_owner_package_identity
@@ -661,6 +667,7 @@ pub(crate) fn exact_checked_adapter_invocations(
                 .iter()
                 .filter(|operator| {
                     operator.is_boundary
+                        && crate::service_schema::is_product_declaration(typed, operator.symbol)
                         && typed_trees::operator::boundary_operator_requirement_identity(
                             typed, operator,
                         ) == method.requirement_owner

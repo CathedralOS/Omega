@@ -71,6 +71,59 @@ fn typed(source: &str) -> TypedTrees {
         .expect("type evaluated-via replay fixture")
 }
 
+#[test]
+fn product_binding_evaluation_excludes_build_checked_leaves() {
+    for source in replay_sources() {
+        for scope in [
+            source::DependencyScope::Build,
+            source::DependencyScope::Product,
+        ] {
+            let mut sources = source::SourceMap::default();
+            let source_id = sources
+                .add_checked_instance(
+                    "helper/shared.omg".into(),
+                    source.to_owned(),
+                    "helper".into(),
+                    Some(semantic_vocabulary::PackageKeyIdentity::from_digest([4; 32]).unwrap()),
+                    source::SourceOrigin::User,
+                    source::SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(source)
+                .tokenize()
+                .unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax: &syntax,
+                    sources: Some(std::sync::Arc::new(sources)),
+                    top_level_bindings: Vec::new(),
+                },
+            )
+            .unwrap();
+            let typed =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .unwrap();
+            let result =
+                super::evaluate_via_bindings(&typed, Some(TargetProfile::WindowsX64), None);
+            if scope == source::DependencyScope::Build {
+                let table = result.expect("host leaves must not run in product binding evaluation");
+                assert!(table.rows().is_empty());
+                table
+                    .validate_against_typed(&typed)
+                    .expect("replay uses the same product frontier");
+            } else {
+                // This fixture deliberately returns u8 rather than an admitted
+                // Binding. Product leaves still evaluate and reject; scope
+                // filtering must not silently erase the real product demand.
+                assert!(result.is_err(), "invalid product binding cannot disappear");
+            }
+        }
+    }
+}
+
 fn retained_import(
     typed: &TypedTrees,
     producer: &typed_trees::machine::Machine,
