@@ -9442,7 +9442,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   remaining named residual is the native-route corpus pin, which the
   resolved row assigns to the ACTIVE_FAIL roster — not this stub.
 - **ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE** — mined candidate; verify scope then implement.
-- **ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE** — mined candidate; verify scope then implement.
+- **ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE** — mined candidate; scope verified,
+  resolved — re-mines the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row
+  (TASKS.md:5804). `[u8; 0]` admits at check in every value position,
+  constructed exactly by `[]`/`""` (`pass/collections/
+  zero_length_byte_array_admission`, `zero_length_byte_array_is_admitted_
+  at_check`); the use-site fences are pinned — unprovable `x[0]` index and
+  non-exact fixed literals reject at check (`fail/data/
+  zero_length_byte_array_{index_rejected,literal_arity_rejected}` +
+  `zero_length_byte_literal_length_rejected`, driven by
+  `zero_length_byte_array_use_fences_reject_at_check`), and the
+  non-scalar-leaf `[T; 0]` fence sits in the terminal verifier as
+  `InvalidStructuralArrayLength` (BASELINE-VERIFIER-ZERO-BYTE-ARRAY-FENCE).
+  The only named residual — a native-route corpus pin — belongs to the
+  ACTIVE_FAIL roster per the landed row, not this stub. Sibling re-mines
+  already resolved with this same record: ZERO-BYTE-ARRAY-FENCE-PLACEMENT,
+  ZERO-EXTENT-BYTE-ARRAY-ADMISSION, ZERO-EXTENT-BYTE-ARRAY-FENCE;
+  remaining stubs: FIXED-ARRAY-ZERO-EXTENT-FENCE,
+  ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE.
 
 ## Platform-gated verification
 
