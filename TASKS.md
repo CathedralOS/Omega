@@ -4820,6 +4820,16 @@ Owners include
   - Checked target realization does not exist yet; a weaker acquire remains
     unauthorized without its protocol proof.
 
+  Gate verified on 1fc01bb690: no atomic operation type exists in
+  `target-operations`, `selected-instructions`, or
+  `abstract-operations-to-target-operations` — with no Terminal Psi
+  producer there is no realization input, so checked target realization
+  cannot start ahead of the concurrent-execution route. The serial legs
+  stand as recorded (`atomics/atomic_global_order_operations` still
+  compiles clean under `--check`), and TR3-TR8 itself still lacks a real
+  selected runtime. Nothing implementable remains ahead of that route;
+  re-dispatch only once TR3-TR8 publishes it.
+
 - **BLOCKEXEC.** Implement a package-level blocking executor with bounded
   queues, moved custody, linear completion claims, suspension, and provider
   selection. Hung-worker recovery requiring termination must use process
