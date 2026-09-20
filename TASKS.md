@@ -6685,7 +6685,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tape, assertions, theory identity, rule ids/clauses, substitution,
   premises, sorts, arities, partition joints, endpoints, final-root
   selection, and rejection after a valid prefix — each carrying the exact
-  expected checker diagnostic. Witnessed on linux x86-64:
+  expected checker diagnostic. Witnessed on linux x86-64 (re-witnessed at
+  `62c502f9f6`, 31.7s):
   `sh run.sh --mutations-self-test` reproduced the full-subject derivation
   (24s) and constructed 18 mutated requests over the 135,485,028-byte
   certificate request, verifying each patch lands at its claimed field.
