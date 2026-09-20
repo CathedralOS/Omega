@@ -1,0 +1,23 @@
+// PASS canary: a by-value pass of a copy-eligible fixed array does not move the
+// owner place. `[u32; 2]` derives Unrestricted multiplicity from its scalar
+// element type, so `consume(self.items)` copies the value while `self.items`
+// stays established; the live shared view `view` therefore remains valid and
+// its later read is admitted. This pins the allowance the wave-9 fuzz leg
+// reported: copyable arrays under a live view are a copy, not a move -- the
+// owner-invalidation fence only applies to values that actually leave their
+// place (affine arrays reject; see fail/borrow/affine_array_move_under_live_view).
+
+data Main {
+    items: [u32; 2];
+}
+
+machine consume(items: [u32; 2]) {
+    let first: u32 = items[0];
+}
+
+machine Main::main(&mut self) {
+    self.items = [3, 4];
+    let view: &[u32] = self.items.as_slice();
+    consume(self.items);
+    let first: u32 = view[0];
+}
