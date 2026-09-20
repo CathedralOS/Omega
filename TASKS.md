@@ -681,15 +681,16 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   (`build-evaluation/src/admission/behavior_exclusions.rs`,
   `native-realization/src/native_realization/behavior_exclusions.rs`;
   linux-x86_64). The same union stays retained on the realization proposal and is
-  replayed there; no second classifier exists.
+  replayed there; no second classifier exists. Both product routes now forward
+  it: `realize_native_artifact_with_behavior_exclusions` is the crate's
+  exclusion-taking entry point (re-exported from `lib.rs`);
+  `native_product/realization.rs` resolves the authored rows into the canonical
+  union against the produced module and forwards it, and
+  `retained_native_product.rs` forwards the proposal's retained union
+  (linux-x86_64, exercised end-to-end by
+  `native_product::realization::tests::forwarded_exclusion_union_reaches_mechanism_adjudication`).
 
   Remaining work:
-
-  - Forward the proposal's retained union into `realize_image` from
-    `retained_native_product.rs` / `native_product/realization.rs` and re-export
-    the exclusion-taking entry point from the crate `lib.rs`; those call sites
-    sit under a live `native-realization` blanket claim (CORPUS-RED-FAMILY,
-    ticket 0a2579a8), so this leg needs a coordinator handoff.
   - Authoring surface: an `AuthoredBehaviorExclusionKind` physical-class row plus
     `builder.exclude_*` syntax and the source/protocol fields the contract
     requires before portable support can be claimed; until then the axis is
