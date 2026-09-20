@@ -2869,7 +2869,9 @@ Owners include
 
 ## P5 - Cathedral over general Omega primitives
 
-- **BUMP-ALLOCATOR-CANARY.** Build a package-level allocator over one qualified
+- **BUMP-ALLOCATOR-CANARY.** Resolved — substrate landed and green; no unowned slice remains (verified 1edade1a48, linux-x86_64). `tests/omega/pass/memory/bump_allocator_canary` (944-line checked-only fixture: two allocations, tail-ward `release`, fallible `Attempt` consume, `BumpVec` retained-slot growth, full-capacity reset, one resident place/read/retire) plus all twelve `fail/memory/bump_allocator_*` controls re-verify green on the documented selectors (`RUST_MIN_STACK=67108864`, pass + fail canary filters). Every remaining acceptance leg is routed to a named owner: the container/element route to PLAN-LAID-VIEWS (placed-access ops; PLACED-ACCESS-NATIVE-OPS holds its crates), partition theorems to CONSERVATION-CONTRACT/TERMINAL-CONTENT-CLAIMS, the strategy borrow to BORROWED-STORAGE-RESTORATION, and joined retained-storage custody to the machine_lowering demand-exit work; interpreter/native execution additionally needs a selected backing provider and a seed host. Original text follows for the routed legs.
+
+  Build a package-level allocator over one qualified
   `Extent` under the [allocation contract](wiki/spec/resources/allocation.md):
   two coexisting allocations, exact cleanup/recomposition, and reset only after
   full return. Use it to discover the real `Vec<T>` contract; do not add
