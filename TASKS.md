@@ -2156,6 +2156,23 @@ Owners include
   `GAMMA-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md`; it is not a prerequisite
   and must not force general mathematics into the Gamma checker.
 
+  Frontier (z105 audit, origin/main `dcfb595098`): all three legs remain open
+  and each is its own multi-session leg, not a bounded slice — moving proof
+  search out of verification (the named `entry_requirements.rs` 4096-step
+  search still runs verifier-side); `ExplicitlyTrusted`→`Proved` conversions
+  each need a bespoke total certifying procedure replayed by proof-admission
+  (the four landed rows' shape: `boolean_polarity::implications` fixes the
+  derivation shape and checker rejection fails generation closed); the total
+  canonical-byte generator waits on the inductive profile's unfinished
+  soundness/encoding proofs, which are dependencies, not permission to trust
+  success. The ledger file itself is under RC-REPOSITORY-BASELINE-GREEN's
+  glob-leg-2 claim (`trusted_surface.rs`, expires 23:46Z); PROOF-KERNEL-CORE
+  claims `semantics/proof` core files (21:39Z) and PROOF-QUANTIFIER-AUTOMATION
+  claims `lemmas.rs` (22:37Z). A minimal next slice would be one
+  `ExplicitlyTrusted`→`Proved` conversion on the thinnest dependency row
+  (`fact:scalar-carrier-bounds` depends only on `primitive:integer-carrier-bound`),
+  sequenced after the baseline-green leg releases the ledger.
+
 - **PROOF-RELEVANCE-MIGRATION.** Finish `[erased]` noninterference and
   erased-stripped layout under
   [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
