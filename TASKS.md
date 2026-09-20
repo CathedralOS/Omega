@@ -2766,11 +2766,28 @@ Owners include
     the interrupt-return exit realization. Every member candidate's
     `machine_state` column in the compiler test — including the authored
     divide-error member — now carries that derived envelope, which
-    `validate_external_root` ceiling-checks against the plan. Remaining on
-    this leg: the emitted stub bytes and their sealed entry targets still
-    need machine-emission/image-emission code that consumes this contract;
-    the stack column still rides the opaque-adapter shape until
-    `produce_x86_64_installed_hardware_entry_facts` +
+    `validate_external_root` ceiling-checks against the plan. The
+    machine-emission half of the stub-byte leg now exists:
+    `machine-emission/src/entry_exit_stub.rs` consumes
+    `ValidatedX86_64DeriverStub` plus the exact admitted boundary plan
+    (commitment + fingerprint match, uniform per-context error-code
+    disposition, GPR-only save roster) and a positional
+    `X86_64DeriverStubMemberCall` into emitted bytes — optional `cli` for a
+    `Masked` ceiling on trap gates, the synthesized error-code word, the
+    save-area pushes, an anchored 16-aligned frame staging member parameters
+    (movabs immediates into declared register and stack locations), the
+    member `call rel32` left unresolved behind `X86_64DeriverStubRelocation`,
+    restores, and `iretq`. Emission self-replays through a grammar decoder;
+    `validate_x86_64_deriver_entry_exit_stub` independently replays and
+    `resolve_x86_64_deriver_stub_member_call` + its validator seal the field
+    once image emission assigns section coordinates. Remaining on this leg:
+    image-emission's artifact join still must place the bytes at
+    `identity.entry_offset` and seal the relocation (image-emission is
+    fenced); `Indirect` copies, stack pieces not a multiple of eight bytes
+    and non-GPR saves reject as deferred seams; the byte recipe lives in
+    machine-emission until a second x86-64 deriver emission moves it into
+    the ISA crate; the stack column still rides the opaque-adapter shape
+    until `produce_x86_64_installed_hardware_entry_facts` +
     `bind_x86_64_target_direct_entry_stack_realization` get emitted
     Terminal-body evidence; provider-admitted resource columns and
     fuel/state receipts remain test-admitted shapes; the multi-resolution
@@ -2790,7 +2807,7 @@ Owners include
     granted plans, and the authored `TimerRoot` + acknowledge/record/wake
     member still needs declaring in `interrupt_table_canary` plus the
     compiler-side `admit_interrupt_table_member` drive; emitted-image
-    machine-state evidence still needs the stub-byte leg.
+    machine-state evidence still needs the image-emission join above.
   - Descriptor table. The authored half now exists:
     `tests/omega/pass/memory/interrupt_table_canary` is a Cathedral-side
     package whose `InterruptGate` layout splits the entry-offset fields into
