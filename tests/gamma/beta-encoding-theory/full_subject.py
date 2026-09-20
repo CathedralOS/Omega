@@ -31,6 +31,7 @@ the mode runs on any host with python3:
 
 import hashlib
 import os
+import struct
 import sys
 import threading
 import time
@@ -43,6 +44,7 @@ sys.path.append(str(GATE_DIR.parent / "derivation-layout"))
 import identity  # noqa: E402
 from lexical import certificate, envelope, proposition, record  # noqa: E402
 from stepper import Stepper, Theory  # noqa: E402
+from wire import MAGIC  # noqa: E402
 
 # Subject identities pinned by tools/bootstrap/gamma/evaluator_env.sh.
 SOURCE_IDENTITY = (47_756,
@@ -79,7 +81,60 @@ RECORDED = {
     "unfolding": 1_018_733,
     "max_premise_depth": 204,
     "request_bytes": 135_485_028,
+    "request_sha256":
+        "7c0e3bf230a2675a170ea77dc6962ef6aa7c03ce15248b27475c7c6a3e592908",
 }
+
+
+def wire_table(data, offset):
+    """Decode a u32-count-prefixed record table; return rows and end offset."""
+    (count,) = struct.unpack_from("<I", data, offset)
+    offset += 4
+    rows = []
+    for _ in range(count):
+        (length,) = struct.unpack_from("<I", data, offset)
+        offset += 4
+        rows.append(struct.unpack_from(f"<{length}I", data, offset))
+        offset += 4 * length
+    return rows, offset
+
+
+def check_wire(request, owner_rows, left_ref, right_ref,
+               witness_rows, proof_rows):
+    """Re-parse the emitted request from the wire, independently of the
+    encoder helpers: framing, section magics, and every term/proof row must
+    decode to exactly the rows the stepper produced."""
+    if request[:8] != MAGIC:
+        raise SystemExit("full subject: request magic mismatch")
+    lengths = struct.unpack_from("<4I", request, 8)
+    if lengths[3] != 0:
+        raise SystemExit("full subject: nonzero envelope trailer")
+    offset = 8 + 4 * len(lengths)
+    sections = []
+    for length in lengths[:3]:
+        sections.append(request[offset:offset + length])
+        if len(sections[-1]) != length:
+            raise SystemExit("full subject: truncated request section")
+        offset += length
+    if offset != len(request):
+        raise SystemExit("full subject: request has trailing bytes")
+    _, owner_section, certificate_section = sections
+    if owner_section[:4] != b"GPR1":
+        raise SystemExit("full subject: proposition magic mismatch")
+    owners, cursor = wire_table(owner_section, 4)
+    if owners != owner_rows:
+        raise SystemExit("full subject: owner table drift")
+    roots = struct.unpack_from("<2I", owner_section, cursor)
+    if roots != (left_ref, right_ref) or cursor + 8 != len(owner_section):
+        raise SystemExit("full subject: proposition roots/length mismatch")
+    if certificate_section[:4] != b"GCE1":
+        raise SystemExit("full subject: certificate magic mismatch")
+    witnesses, cursor = wire_table(certificate_section, 4)
+    if witnesses != witness_rows:
+        raise SystemExit("full subject: witness table drift")
+    proofs, cursor = wire_table(certificate_section, cursor)
+    if proofs != proof_rows or cursor != len(certificate_section):
+        raise SystemExit("full subject: proof table drift")
 
 
 def bound_subject(env, expected):
@@ -187,12 +242,14 @@ def produce():
     certificate_section = certificate(witness_records, proof_records)
     request = envelope((theory_bytes, owner_section, certificate_section))
     request_digest = hashlib.sha256(request).hexdigest()
+    check_wire(request, owners, left_ref, right_ref, witnesses, proofs)
 
     rule_counts, clause_summary, unused_functions, unused_ctors = (
         census(stepper, stepper.proofs, theory))
     depths = premise_depths(stepper.proofs)
 
     measured = {
+        "request_sha256": request_digest,
         "owner_bytes": len(owner_section),
         "owner_terms": len(owners),
         "witness_terms": len(witnesses),
