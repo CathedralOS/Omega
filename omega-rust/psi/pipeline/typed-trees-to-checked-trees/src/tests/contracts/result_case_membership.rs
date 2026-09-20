@@ -1,7 +1,9 @@
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
+use crate::tests::parse_typed_trees_with_core_service;
 
 const DATA: &str = "data Message { case Empty; case Data(value: u8); }";
+const PUB_DATA: &str = "pub data Message { case Empty; case Data(value: u8); }";
 
 fn check(machine: &str, accepted: bool) {
     let source = format!("{DATA}\n{machine}");
@@ -141,9 +143,9 @@ fn boundary_call_results_carry_their_declaring_case_owner() {
     // symbol, not a machine-body state. The declared result still supplies the
     // exact case owner, so transition patterns and `in` membership observe it.
     let source = format!(
-        "{DATA}
-        boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
-        data Probe {{ input: Input; buffer: [u8; 4]; }}
+        "{PUB_DATA}
+        pub boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
+        data Probe {{ input: Service<Input>; buffer: [u8; 4]; }}
         machine Probe::run(&mut self) reaches Input {{
             transition self.input.read(&mut self.buffer) {{
                 Message::Empty -> done()
@@ -157,22 +159,22 @@ fn boundary_call_results_carry_their_declaring_case_owner() {
             self.input.read(&mut self.buffer) in Message::Empty
         }}"
     );
-    lower_typed_trees(parse_typed_trees(&source))
+    lower_typed_trees(parse_typed_trees_with_core_service(&source))
         .expect("boundary call results keep their exact declaring data type");
 }
 
 #[test]
 fn boundary_call_results_still_reject_a_foreign_case_owner() {
     let source = format!(
-        "{DATA}
+        "{PUB_DATA}
         data Other {{ case Empty; }}
-        boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
-        data Probe {{ input: Input; buffer: [u8; 4]; }}
+        pub boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
+        data Probe {{ input: Service<Input>; buffer: [u8; 4]; }}
         machine Probe::peek(&mut self) -> bool reaches Input {{
             self.input.read(&mut self.buffer) in Other::Empty
         }}"
     );
-    let diagnostics = lower_typed_trees(parse_typed_trees(&source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_core_service(&source))
         .expect_err("a foreign case owner is not evidence about the call result");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic

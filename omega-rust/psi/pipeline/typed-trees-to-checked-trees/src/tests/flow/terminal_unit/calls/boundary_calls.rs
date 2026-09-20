@@ -1,3 +1,4 @@
+use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment, Multiplicity, PrimitiveType,
@@ -600,16 +601,16 @@ fn retains_short_circuit_scalar_local_after_boundary_result() {
 
 #[test]
 fn retains_provider_attached_boundary_scalar_result_and_exact_requirements() {
-    let checked = checked(
+    let checked = checked_with_service(
         r#"
-        boundary trait Console {
+        pub boundary trait Console {
             machine read_code() -> i32
             reaches Console;
             machine exit_process(return_code: i32)
             reaches Console;
         }
 
-        data Main { console: Console; }
+        data Main { console: Service<Console>; }
 
         machine Main::main(&mut self)
         reaches Console

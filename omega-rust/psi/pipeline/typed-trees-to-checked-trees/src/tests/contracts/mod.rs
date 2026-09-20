@@ -56,6 +56,14 @@ fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
+/// Same prelude as `parse_typed_trees`, with the toolchain `core/service.omg`
+/// resident so fixtures can spell the intrinsic `Service<R>` carrier.
+fn parse_typed_trees_with_service(source: &str) -> typed_trees::TypedTrees {
+    crate::tests::parse_typed_trees_with_core_service(&format!(
+        "boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}"
+    ))
+}
+
 #[test]
 fn outcome_specific_guarantee_reaches_separate_checked_carrier() {
     let typed = parse_typed_trees(

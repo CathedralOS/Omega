@@ -1,13 +1,14 @@
 use crate::lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
+use crate::tests::parse_typed_trees_with_core_service;
 
 #[test]
 fn output_predicates_survive_read_only_boundary_arguments() {
-    for receiver in ["console: Console", "console: &mut Console"] {
+    for receiver in ["console: Service<Console>", "console: &mut Console"] {
         let source = format!(
             r#"
             domain [u8; 4]::Utf8 requires valid_utf8(self);
-            boundary trait Console {{ machine write(text: &[u8]); }}
+            pub boundary trait Console {{ machine write(text: &[u8]); }}
             machine fill({receiver}, output: &mut [u8; 4]) reaches Console
             ensures output in Utf8 {{
                 output = "okay";
@@ -15,7 +16,7 @@ fn output_predicates_survive_read_only_boundary_arguments() {
             }}
         "#
         );
-        lower_typed_trees(parse_typed_trees(&source))
+        lower_typed_trees(parse_typed_trees_with_core_service(&source))
             .unwrap_or_else(|diagnostics| panic!("{receiver}: {diagnostics:#?}"));
     }
 }

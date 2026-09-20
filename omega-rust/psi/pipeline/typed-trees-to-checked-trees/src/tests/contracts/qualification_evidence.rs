@@ -1,5 +1,6 @@
 use crate::flow::check_against_whole_pass as lower_typed_trees;
 use crate::tests::contracts::parse_typed_trees;
+use crate::tests::parse_typed_trees_with_core_service;
 use facts::{FactOrigin, FactPayload};
 use language_semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 
@@ -233,27 +234,27 @@ machine bad(outcome: Outcome) -> u64 in Secret { outcome.value }
 #[test]
 fn checked_boundary_adapter_defers_issuance_to_the_boundary_call() {
     let source = r#"
-data Token { value: u64; }
-domain Token::Issued established by TokenIssuer::issue;
-boundary trait TokenIssuer {
+pub data Token { value: u64; }
+pub domain Token::Issued established by TokenIssuer::issue;
+pub boundary trait TokenIssuer {
     machine issue(token: Token) -> Token ensures result in Token::Issued;
 }
 data Adapter {}
 machine Adapter::issue(token: Token) -> Token satisfies TokenIssuer::issue { token }
-data Main { issuer: TokenIssuer; }
+data Main { issuer: Service<TokenIssuer>; }
 machine consume(token: Token in Issued) -> Token { token as Token }
 machine Main::run(&self, token: Token) -> Token reaches TokenIssuer { let issued: Token = self.issuer.issue(token); consume(issued) }
 "#;
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_core_service(source))
         .expect("issuance belongs to the admitted boundary, not the adapter body");
     let delegated = source.replace(
         "satisfies TokenIssuer::issue { token }",
         "satisfies TokenIssuer::issue { transition { _ -> done(token) } state done(token: Token) -> Token { token } }",
     );
-    lower_typed_trees(parse_typed_trees(&delegated))
+    lower_typed_trees(parse_typed_trees_with_core_service(&delegated))
         .expect("the boundary result is admitted even when the adapter returns from a named state");
     let direct = source.replace("self.issuer.issue(token)", "Adapter::issue(token)");
-    let diagnostics = lower_typed_trees(parse_typed_trees(&direct))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_core_service(&direct))
         .expect_err("a direct adapter call must not originate the boundary qualification");
     assert!(
         diagnostics
@@ -265,7 +266,7 @@ machine Main::run(&self, token: Token) -> Token reaches TokenIssuer { let issued
         "satisfies TokenIssuer::issue { token }",
         "satisfies TokenIssuer::issue ensures result in Token::Issued { token }",
     );
-    let diagnostics = lower_typed_trees(parse_typed_trees(&explicit))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_core_service(&explicit))
         .expect_err("an authored adapter guarantee still requires proof");
     assert!(
         diagnostics
@@ -278,21 +279,21 @@ machine Main::run(&self, token: Token) -> Token reaches TokenIssuer { let issued
 #[test]
 fn exclusive_boundary_receiver_establishes_its_exact_routed_result() {
     let source = r#"
-data Guard [linear] {
+pub data Guard [linear] {
     identity: u64;
 }
 
-domain Guard::Active
+pub domain Guard::Active
 established by MaskControl::save;
 
-boundary trait MaskControl {
+pub boundary trait MaskControl {
     machine save(&mut self) -> Guard in Active
     ensures
         result in Guard::Active;
 }
 
 data Main {
-    control: MaskControl;
+    control: Service<MaskControl>;
 }
 
 machine Main::run(&mut self) -> Guard in Active reaches MaskControl {
@@ -300,7 +301,7 @@ machine Main::run(&mut self) -> Guard in Active reaches MaskControl {
 }
 "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees_with_core_service(source))
         .expect("an exclusive boundary receiver should establish its routed result");
     let control = checked
         .traits()
@@ -350,21 +351,21 @@ machine Main::run(&mut self) -> Guard in Active reaches MaskControl {
 #[test]
 fn boundary_result_authorization_retains_requirement_identity() {
     let source = r#"
-data Token {
+pub data Token {
     value: u64;
 }
 
-domain Token::Issued
+pub domain Token::Issued
 established by TokenIssuer::issue;
 
-boundary trait TokenIssuer {
+pub boundary trait TokenIssuer {
     machine issue(value: u64) -> Token
     ensures
         result in Token::Issued;
 }
 
 data Main {
-    issuer: TokenIssuer;
+    issuer: Service<TokenIssuer>;
 }
 
 machine Main::run(&mut self) reaches TokenIssuer {
@@ -372,7 +373,7 @@ machine Main::run(&mut self) reaches TokenIssuer {
 }
 "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees_with_core_service(source))
         .expect("an exact boundary result qualification should lower");
     let issuer = checked
         .traits()
@@ -434,18 +435,18 @@ machine Main::run(&mut self) reaches TokenIssuer {
 #[test]
 fn boundary_carry_permission_is_admitted_and_transfers_by_exact_atom() {
     let source = r#"
-data Token [linear] {
+pub data Token [linear] {
     value: u64;
 }
 
-boundary trait TokenIssuer {
+pub boundary trait TokenIssuer {
     machine issue(value: u64) -> Token
     ensures
         result in Carry::MovableAddress;
 }
 
 data Main {
-    issuer: TokenIssuer;
+    issuer: Service<TokenIssuer>;
 }
 
 machine Main::consume(&self, token: Token in Carry::MovableAddress) -> Token {
@@ -459,7 +460,7 @@ machine Main::run(&mut self) -> Token reaches TokenIssuer {
 }
 "#;
 
-    let checked = lower_typed_trees(parse_typed_trees(source))
+    let checked = lower_typed_trees(parse_typed_trees_with_core_service(source))
         .expect("an exact boundary result may admit one compiler carry permission");
     let issuer = checked
         .traits()

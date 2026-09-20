@@ -68,8 +68,8 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 fn a_routed_requirement_call_retains_its_derived_specialization() {
     let checked = check(&format!(
         "{ROUTED_TASK_START_DECLS}
-         data Main {{
-             runtime: TaskRuntime;
+         data Main<'s> {{
+             runtime: &'s mut TaskRuntime;
          }}
          machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
              let task: Task<Token> = self.runtime.start<Worker::run>(token);

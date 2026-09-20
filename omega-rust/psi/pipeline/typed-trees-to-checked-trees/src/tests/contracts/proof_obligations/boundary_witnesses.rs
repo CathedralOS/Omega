@@ -1,16 +1,16 @@
 use crate::lower_typed_trees;
-use crate::tests::contracts::parse_typed_trees;
+use crate::tests::contracts::{parse_typed_trees, parse_typed_trees_with_service};
 
 #[test]
 fn boundary_witness_survives_disjoint_internal_call_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             other: u32;
             small: u32 [0..=8];
@@ -27,20 +27,20 @@ fn boundary_witness_survives_disjoint_internal_call_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("a disjoint internal frame should preserve the boundary range witness");
 }
 
 #[test]
 fn boundary_witness_survives_disjoint_recast_local_call_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             other: u32;
             small: u32 [0..=8];
@@ -58,20 +58,20 @@ fn boundary_witness_survives_disjoint_recast_local_call_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("an exact mutable-recast frame should preserve a disjoint boundary range witness");
 }
 
 #[test]
 fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -88,7 +88,7 @@ fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("an overlapping mutable-recast frame must invalidate the range witness");
     assert!(
         diagnostics
@@ -101,13 +101,13 @@ fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
 #[test]
 fn boundary_witness_survives_disjoint_local_alias_call_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             other: u32;
             small: u32 [0..=8];
@@ -129,7 +129,7 @@ fn boundary_witness_survives_disjoint_local_alias_call_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
         "an exact named-transition alias frame should preserve the disjoint boundary range witness",
     );
 }
@@ -137,13 +137,13 @@ fn boundary_witness_survives_disjoint_local_alias_call_frame() {
 #[test]
 fn boundary_witness_dies_when_internal_call_frame_writes_place() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -159,7 +159,7 @@ fn boundary_witness_dies_when_internal_call_frame_writes_place() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("an overlapping internal frame must invalidate the range witness");
     assert!(
         diagnostics
@@ -172,13 +172,13 @@ fn boundary_witness_dies_when_internal_call_frame_writes_place() {
 #[test]
 fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -199,7 +199,7 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source)).expect_err(
         "an overlapping named-transition alias frame must invalidate the range witness",
     );
     assert!(
@@ -213,7 +213,7 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
 #[test]
 fn boundary_witness_survives_disjoint_projected_alias_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
@@ -224,7 +224,7 @@ fn boundary_witness_survives_disjoint_projected_alias_frame() {
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             cell: Cell;
             small: u32 [0..=8];
         }
@@ -242,14 +242,14 @@ fn boundary_witness_survives_disjoint_projected_alias_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("an exact projected-alias frame should preserve a witness on a disjoint sibling");
 }
 
 #[test]
 fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
@@ -260,7 +260,7 @@ fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             cell: Cell;
             small: u32 [0..=8];
         }
@@ -278,7 +278,7 @@ fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("an overlapping projected-alias frame must invalidate the range witness");
     assert!(
         diagnostics
@@ -291,7 +291,7 @@ fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
 #[test]
 fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
@@ -302,7 +302,7 @@ fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             group: Group;
             small: u32 [0..=8];
         }
@@ -320,7 +320,7 @@ fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
         "the indexed projection should retain its intermediate collection and preserve a sibling witness",
     );
 }
@@ -328,7 +328,7 @@ fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
 #[test]
 fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
@@ -339,7 +339,7 @@ fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             group: Group;
             small: u32 [0..=8];
         }
@@ -357,7 +357,7 @@ fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source)).expect_err(
         "the retained intermediate collection must invalidate an overlapping indexed witness",
     );
     assert!(
@@ -371,7 +371,7 @@ fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
 #[test]
 fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
@@ -381,7 +381,7 @@ fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             cells: [Cell; 2];
             other: u32;
             small: u32 [0..=8];
@@ -399,7 +399,7 @@ fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
         "a direct member-after-index frame should preserve a witness outside its collection",
     );
 }
@@ -407,7 +407,7 @@ fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
 #[test]
 fn boundary_witness_dies_under_direct_member_after_index_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
@@ -417,7 +417,7 @@ fn boundary_witness_dies_under_direct_member_after_index_frame() {
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             cells: [Cell; 2];
             small: u32 [0..=8];
         }
@@ -434,7 +434,7 @@ fn boundary_witness_dies_under_direct_member_after_index_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source)).expect_err(
         "the direct member-after-index frame must invalidate an overlapping collection witness",
     );
     assert!(
@@ -448,13 +448,13 @@ fn boundary_witness_dies_under_direct_member_after_index_frame() {
 #[test]
 fn boundary_witness_survives_caller_isolated_local_collection_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -472,7 +472,7 @@ fn boundary_witness_survives_caller_isolated_local_collection_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
         "writes through a reference-free local collection must not invalidate caller facts",
     );
 }
@@ -480,13 +480,13 @@ fn boundary_witness_survives_caller_isolated_local_collection_frame() {
 #[test]
 fn boundary_witness_survives_transparently_forwarded_local_collection() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -509,20 +509,20 @@ fn boundary_witness_survives_transparently_forwarded_local_collection() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("a transparent helper preserves the caller-isolated origin of a local collection");
 }
 
 #[test]
 fn boundary_witness_survives_transparent_call_result_alias_chain() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             values: [u32; 2];
             small: u32 [0..=8];
@@ -546,7 +546,7 @@ fn boundary_witness_survives_transparent_call_result_alias_chain() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
         "a direct identity-result chain should preserve a witness outside its argument origin",
     );
 }
@@ -554,13 +554,13 @@ fn boundary_witness_survives_transparent_call_result_alias_chain() {
 #[test]
 fn boundary_witness_survives_transparent_result_with_pure_call_scratch() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             values: [u32; 2];
             small: u32 [0..=8];
@@ -587,7 +587,7 @@ fn boundary_witness_survives_transparent_result_with_pure_call_scratch() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
         "a complete empty call frame for isolated scratch must preserve the returned origin",
     );
 }
@@ -595,13 +595,13 @@ fn boundary_witness_survives_transparent_result_with_pure_call_scratch() {
 #[test]
 fn boundary_witness_dies_when_transparent_result_scratch_call_writes_it() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             values: [u32; 2];
             small: u32 [0..=8];
@@ -633,7 +633,7 @@ fn boundary_witness_dies_when_transparent_result_scratch_call_writes_it() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("a nonempty scratch-call frame must invalidate its written witness");
     assert!(
         diagnostics
@@ -646,13 +646,13 @@ fn boundary_witness_dies_when_transparent_result_scratch_call_writes_it() {
 #[test]
 fn boundary_witness_survives_disjoint_projected_call_result_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             n: u32;
             values: [u32; 2];
             small: u32 [0..=8];
@@ -674,7 +674,7 @@ fn boundary_witness_survives_disjoint_projected_call_result_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
         "a direct projected call result should preserve a witness outside its argument origin",
     );
 }
@@ -682,13 +682,13 @@ fn boundary_witness_survives_disjoint_projected_call_result_frame() {
 #[test]
 fn boundary_witness_dies_under_projected_call_result_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             values: [u32; 2];
             small: u32 [0..=8];
         }
@@ -709,7 +709,7 @@ fn boundary_witness_dies_under_projected_call_result_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source)).expect_err(
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source)).expect_err(
         "a projected indexed call result must invalidate an overlapping collection witness",
     );
     assert!(
@@ -723,13 +723,13 @@ fn boundary_witness_dies_under_projected_call_result_frame() {
 #[test]
 fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             cells: [u32; 2];
             other: u32;
             small: u32 [0..=8];
@@ -747,7 +747,7 @@ fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source)).expect(
+    lower_typed_trees(parse_typed_trees_with_service(source)).expect(
         "a collection-coarse indexed alias frame should preserve a witness on disjoint storage",
     );
 }
@@ -755,13 +755,13 @@ fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
 #[test]
 fn boundary_witness_dies_under_indexed_alias_collection_frame() {
     let source = r#"
-        boundary trait Firmware {
+        pub boundary trait Firmware {
             machine get_size(size: &mut u32)
             ensures size <= 8;
         }
 
         data Main {
-            fw: Firmware;
+            fw: Service<Firmware>;
             cells: [u32; 2];
             small: u32 [0..=8];
         }
@@ -778,7 +778,7 @@ fn boundary_witness_dies_under_indexed_alias_collection_frame() {
         }
     "#;
 
-    let diagnostics = lower_typed_trees(parse_typed_trees(source))
+    let diagnostics = lower_typed_trees(parse_typed_trees_with_service(source))
         .expect_err("the whole collection frame must invalidate an indexed boundary witness");
     assert!(
         diagnostics
@@ -996,20 +996,20 @@ fn incoming_guard_dies_under_the_consuming_assignment_value_call() {
 #[test]
 fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
     let source = r#"
-        boundary trait Sink {
+        pub boundary trait Sink {
             machine write(text: [u8] in Utf8);
         }
 
-        domain [u8]::Utf8
+        pub domain [u8]::Utf8
         requires
             valid_utf8(self);
 
-        domain [u8; 4]::Utf8
+        pub domain [u8; 4]::Utf8
         requires
             valid_utf8(self);
 
         data Main {
-            sink: Sink;
+            sink: Service<Sink>;
             text: [u8; 4] in Utf8;
         }
 
@@ -1019,27 +1019,27 @@ fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(source))
+    lower_typed_trees(parse_typed_trees_with_service(source))
         .expect("a bounded Utf8 carrier should carry Utf8 through its slice projection");
 }
 
 #[test]
 fn bounded_byte_domain_projection_proves_the_requested_predicate_independently() {
     let source = r#"
-        boundary trait Sink {
+        pub boundary trait Sink {
             machine write(text: [u8] in Text);
         }
 
-        domain [u8]::Text
+        pub domain [u8]::Text
         requires
             no_nul(self);
 
-        domain [u8; 4]::Text
+        pub domain [u8; 4]::Text
         requires
             valid_utf8(self);
 
         data Main {
-            sink: Sink;
+            sink: Service<Sink>;
             text: [u8; 4] in Text;
         }
 
@@ -1049,9 +1049,11 @@ fn bounded_byte_domain_projection_proves_the_requested_predicate_independently()
         }
     "#;
 
-    lower_typed_trees(parse_typed_trees(&source.replace(r"G\x00te", "Gate")))
-        .expect("known bytes may independently establish both domain predicates");
-    let Err(diagnostics) = lower_typed_trees(parse_typed_trees(source)) else {
+    lower_typed_trees(parse_typed_trees_with_service(
+        &source.replace(r"G\x00te", "Gate"),
+    ))
+    .expect("known bytes may independently establish both domain predicates");
+    let Err(diagnostics) = lower_typed_trees(parse_typed_trees_with_service(source)) else {
         panic!("a carrier projection must not conflate different domain theories");
     };
     assert!(
