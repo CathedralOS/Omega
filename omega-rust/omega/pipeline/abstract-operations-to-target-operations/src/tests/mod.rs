@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group.
 
 mod dynamic_parameters;
+mod indexed_field_reads;
 mod native_boundaries;
 mod native_callback_arguments;
 mod normalized_foreign_calls;

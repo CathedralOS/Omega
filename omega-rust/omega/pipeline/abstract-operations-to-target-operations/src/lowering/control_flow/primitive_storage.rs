@@ -214,27 +214,49 @@ pub(super) fn lower(
             };
             let mut carrier = structural_type;
             let mut runtime_path = Vec::with_capacity(path.len());
-            for segment in path {
-                let semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) = segment
-                else {
-                    return Err(invalid());
-                };
-                let StructuralTypeShape::Record { fields } =
-                    &types.get(&carrier).ok_or_else(invalid)?.shape
-                else {
-                    return Err(invalid());
-                };
-                let selected = fields
-                    .iter()
-                    .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
-                    .ok_or_else(invalid)?;
-                let StructuralFieldType::Structural(child) = selected.field_type else {
-                    return Err(invalid());
-                };
-                runtime_path.push(terminal_psi::StructuralPathSegment::Field(
-                    selected.identity.clone(),
-                ));
-                carrier = child;
+            for (position, segment) in path.iter().enumerate() {
+                match segment {
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
+                        let StructuralTypeShape::Record { fields } =
+                            &types.get(&carrier).ok_or_else(invalid)?.shape
+                        else {
+                            return Err(invalid());
+                        };
+                        let selected = fields
+                            .iter()
+                            .find(|candidate| {
+                                candidate.id == *field && !candidate.relevance.is_erased()
+                            })
+                            .ok_or_else(invalid)?;
+                        let StructuralFieldType::Structural(child) = selected.field_type else {
+                            return Err(invalid());
+                        };
+                        runtime_path.push(terminal_psi::StructuralPathSegment::Field(
+                            selected.identity.clone(),
+                        ));
+                        carrier = child;
+                    }
+                    // The bounded carrier grammar ends with at most one
+                    // literal index: the fixed-array element is the record
+                    // owning the observed field. The bound is rechecked
+                    // against the declared extent rather than trusted from
+                    // the producer.
+                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
+                        if position + 1 == path.len() =>
+                    {
+                        let StructuralTypeShape::FixedArray { element, length } =
+                            &types.get(&carrier).ok_or_else(invalid)?.shape
+                        else {
+                            return Err(invalid());
+                        };
+                        if index >= length {
+                            return Err(invalid());
+                        }
+                        runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
+                        carrier = *element;
+                    }
+                    _ => return Err(invalid()),
+                }
             }
             if !types.get(&carrier).is_some_and(|declaration|
                 matches!(&declaration.shape, StructuralTypeShape::Record { fields }
