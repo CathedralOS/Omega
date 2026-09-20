@@ -9474,7 +9474,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   of the same row: RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
   RC-PORTABLE-PSI-ENVELOPE, RC-PORTABLE-PSI-GATE. The gate remains a
   release-matrix row — release closure still needs all eight gates, one
-  clean commit, four required hosts.
+  clean commit, four required hosts. Re-verified w180 at `23392bc467`:
+  `canary_suite/portable_terminal_reload.rs` unchanged at HEAD (latest
+  touch `f5b72d2f56` — tampered-product refusal pins intact), but the
+  filtered witness cannot build at this revision — `external-roots`
+  fails to compile mid-drift (unresolved
+  `effects::ComponentEraJournalRoster` import; dir under live sibling
+  claims, unrelated to this surface).
 - **RC-RELEASE-CLOSURE-RUN.** Mined candidate; scope verified at
   797e99ead7, re-verified at `9e3edc7be9` — re-mines the release-record
   run clause covered by RC-RELEASE-RECORD-AND-CLOSURE's verified row. The
