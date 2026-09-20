@@ -622,20 +622,30 @@ fn resolve_float_operation_result_source(
 /// checked source stayed transitional; the row takes the exact
 /// `SemanticApplication` carrier here, before surviving transitional
 /// fallbacks renumber in the caller. Re-applying the same application is
-/// idempotent; a row that already names any other source fails.
+/// idempotent; a row that already names any other source fails, as does a
+/// row whose projection format disagrees with the application's declared
+/// result format — the carrier's format is the row's source format, so the
+/// verifier would reject the mismatch as a cross-format substitution, and
+/// the producer refuses it here by name instead of emitting it. Every
+/// refusal names the result row it concerns.
 pub(crate) fn rejoin_float_semantic_applications(
     applications: &[CheckedFloatSemanticApplication],
     projections: &mut [FloatMeaningProjection],
 ) -> Result<(), FloatMeaningProjectionLoweringError> {
     for application in applications {
-        application
-            .validate()
-            .map_err(FloatMeaningProjectionLoweringError::InvalidSemanticApplication)?;
-        let index = usize::try_from(application.result.0)
-            .map_err(|_| FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow)?;
-        let Some(row) = projections.get_mut(index) else {
-            return Err(FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow);
-        };
+        let result = application.result.0;
+        application.validate().map_err(|error| {
+            FloatMeaningProjectionLoweringError::InvalidSemanticApplication { result, error }
+        })?;
+        let row = usize::try_from(result)
+            .ok()
+            .and_then(|index| projections.get_mut(index))
+            .ok_or(FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow { result })?;
+        if row.source.format() != application.format {
+            return Err(
+                FloatMeaningProjectionLoweringError::SemanticApplicationFormatMismatch { result },
+            );
+        }
         let expected = FloatSemanticApplication {
             contract: FloatSemanticContractIdentity {
                 row: application.contract.row,
@@ -662,7 +672,9 @@ pub(crate) fn rejoin_float_semantic_applications(
             }
             FloatMeaningSource::SemanticApplication(existing) if *existing == expected => {}
             _ => {
-                return Err(FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow);
+                return Err(
+                    FloatMeaningProjectionLoweringError::InvalidSemanticApplicationRow { result },
+                );
             }
         }
     }
@@ -672,8 +684,22 @@ pub(crate) fn rejoin_float_semantic_applications(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FloatMeaningProjectionLoweringError {
     InvalidCheckedProjection(CheckedFloatMeaningProjectionError),
-    InvalidSemanticApplication(CheckedFloatSemanticApplicationError),
-    InvalidSemanticApplicationRow,
+    /// The checked application producing proof value `result` failed exact
+    /// catalog replay, so no Terminal carrier can express it.
+    InvalidSemanticApplication {
+        result: u32,
+        error: CheckedFloatSemanticApplicationError,
+    },
+    /// The checked application names a proof value with no projection row,
+    /// or a row that already carries a different source.
+    InvalidSemanticApplicationRow {
+        result: u32,
+    },
+    /// The claimed row projects a different IEEE format than the
+    /// application's declared result format.
+    SemanticApplicationFormatMismatch {
+        result: u32,
+    },
     InvalidSourceCarrier,
 }
 
