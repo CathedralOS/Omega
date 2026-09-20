@@ -7321,7 +7321,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   residual. Sibling stubs: CHAIN-MANIFEST-OCREQ-BINDING,
   CHAIN-OCREQ-ENTRY-BINDING, D-OCREQ-ENTRY-BINDING, OCREQ-ENTRY-BINDING,
   OCREQ-REQUEST-BINDING.
-- **CHAIN-MANIFEST-OCREQ-BINDING** — mined candidate; verify scope then implement.
+- **CHAIN-MANIFEST-OCREQ-BINDING.** Mined candidate — resolved as a
+  re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
+  main (same resolution as siblings CHAIN-MANIFEST-D-OCREQ-REQUEST-
+  BINDING, CHAIN-MANIFEST-OCREQ-ENTRY-BINDING, CHAIN-OCREQ-ENTRY-
+  BINDING): re-verified at `bde84d1765`, `tools/bootstrap/omega/
+  compiler_env.sh` still pins `OMEGA_REQUEST_ENTRY_SIZE=4115` /
+  `OMEGA_REQUEST_ENTRY_SHA256=0d612813…` and `OMEGA_EXECUTABLE_OCREQ_
+  ENTRY_*` (19,253 bytes), gate.py asserts the `coverage_request_
+  semantics` frame and `omega-identity.sh` refuses a mutated entry.
+  Executable-chain legs stay host-gated per the frontier. No unbound
+  residual.
 - **CHAIN-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a re-mine of
   the CHAIN-MANIFEST OCREQ-entry surface already bound on main (siblings
   CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING and
