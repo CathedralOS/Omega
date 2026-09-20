@@ -5,7 +5,7 @@ use crate::review::candidate::PackageReviewEvidence;
 use package_evidence::record::PackageReviewCanonicalRowSource;
 
 #[derive(Default)]
-pub(super) struct ComparisonInputBudget {
+pub(crate) struct ComparisonInputBudget {
     packages: usize,
     rows: usize,
     row_key_bytes: usize,
@@ -14,7 +14,7 @@ pub(super) struct ComparisonInputBudget {
     source_location_path_bytes: usize,
 }
 
-pub(super) fn account_review_resources(
+pub(crate) fn account_review_resources(
     reviews: &[impl PackageReviewEvidence],
     limits: ReviewOnlyCapabilityConflictLimits,
     budget: &mut ComparisonInputBudget,

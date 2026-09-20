@@ -8,12 +8,13 @@ use super::{
     RECONSTRUCTION_QUESTION_MAGIC,
 };
 use crate::declarations::dependencies::DependencyPurpose;
-use crate::lock::occurrences::purpose_mask_bit;
+use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use package_evidence::ledger::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
 };
 use sha2::{Digest, Sha256};
+use target::TargetProfile;
 
 impl CanonicalPackageReconstructionQuestion {
     /// Strictly recover canonical association bytes.
@@ -46,8 +47,18 @@ impl CanonicalPackageReconstructionQuestion {
                     )
                 },
             )?;
-        let entry_count = decoder.count(limits.maximum_packages)?;
-        if entry_count != source_closure.packages().len() {
+        if source_closure.packages().len() > limits.maximum_packages {
+            return Err(CanonicalPackageReconstructionQuestionError::new(
+                "package reconstruction exceeds its package-count ceiling",
+            ));
+        }
+        let roster = PackageOccurrenceRoster::derive(&source_closure).map_err(|_| {
+            CanonicalPackageReconstructionQuestionError::new(
+                "could not derive source occurrence roster",
+            )
+        })?;
+        let entry_count = decoder.count(limits.maximum_packages.saturating_mul(2))?;
+        if entry_count != roster.occurrence_count() {
             return Err(CanonicalPackageReconstructionQuestionError::new(
                 "source closure and obligation ledger count are not bijective",
             ));
@@ -60,38 +71,50 @@ impl CanonicalPackageReconstructionQuestion {
             )
         })?;
         let mut total_ledger_bytes = 0usize;
-        for selected in source_closure.packages() {
-            // One byte of occurrence-purpose mask heads each entry frame.
-            let frame = decoder.bytes(limits.maximum_ledger_bytes.saturating_add(1))?;
-            let (mask, ledger_bytes) = frame.split_first().ok_or_else(|| {
-                CanonicalPackageReconstructionQuestionError::new(
-                    "truncated package reconstruction question",
-                )
-            })?;
-            let occurrence_purposes = decode_purpose_mask(*mask)?;
-            total_ledger_bytes = total_ledger_bytes
-                .checked_add(ledger_bytes.len())
-                .ok_or_else(|| {
-                    CanonicalPackageReconstructionQuestionError::new(
-                        "package reconstruction ledger-byte accounting overflowed",
-                    )
-                })?;
-            if total_ledger_bytes > limits.maximum_total_ledger_bytes {
-                return Err(CanonicalPackageReconstructionQuestionError::new(
-                    "package reconstruction question exceeds its total ledger-byte ceiling",
-                ));
+        for coverage in roster.coverages() {
+            for _ in coverage.purposes() {
+                let purpose = match decoder.u16()? {
+                    0 => DependencyPurpose::Product,
+                    1 => DependencyPurpose::Build,
+                    _ => {
+                        return Err(CanonicalPackageReconstructionQuestionError::new(
+                            "unknown reconstruction occurrence purpose",
+                        ));
+                    }
+                };
+                let target = decode_profile(decoder.bytes(256)?)?;
+                let execution_bytes = decoder.bytes(256)?;
+                let execution = if execution_bytes.is_empty() {
+                    None
+                } else {
+                    Some(decode_profile(execution_bytes)?)
+                };
+                let context = PackageCheckedContext::new(purpose, target, execution);
+                let ledger_bytes = decoder.bytes(limits.maximum_ledger_bytes)?;
+                total_ledger_bytes = total_ledger_bytes
+                    .checked_add(ledger_bytes.len())
+                    .ok_or_else(|| {
+                        CanonicalPackageReconstructionQuestionError::new(
+                            "package reconstruction ledger-byte accounting overflowed",
+                        )
+                    })?;
+                if total_ledger_bytes > limits.maximum_total_ledger_bytes {
+                    return Err(CanonicalPackageReconstructionQuestionError::new(
+                        "package reconstruction question exceeds its total ledger-byte ceiling",
+                    ));
+                }
+                let obligations =
+                    decode_ordinary_package_obligation_ledger(ledger_bytes).map_err(|_| {
+                        CanonicalPackageReconstructionQuestionError::new(
+                            "package reconstruction question contains an invalid obligation ledger",
+                        )
+                    })?;
+                entries.push(CanonicalPackageReconstructionEntry {
+                    package: coverage.package().clone(),
+                    context,
+                    obligations,
+                });
             }
-            let obligations =
-                decode_ordinary_package_obligation_ledger(ledger_bytes).map_err(|_| {
-                    CanonicalPackageReconstructionQuestionError::new(
-                        "package reconstruction question contains an invalid obligation ledger",
-                    )
-                })?;
-            entries.push(CanonicalPackageReconstructionEntry {
-                package: selected.key().clone(),
-                occurrence_purposes,
-                obligations,
-            });
         }
         decoder.finish()?;
 
@@ -140,31 +163,34 @@ pub(super) fn encode_question(
                 "package reconstruction question exceeds its total ledger-byte ceiling",
             ));
         }
-        let mask = entry
-            .occurrence_purposes
-            .iter()
-            .fold(0u8, |mask, purpose| mask | purpose_mask_bit(*purpose));
-        encoder.count(ledger_bytes.len() + 1)?;
-        encoder.fixed(&[mask])?;
-        encoder.fixed(&ledger_bytes)?;
+        encoder.u16(if entry.context().purpose().is_product() {
+            0
+        } else {
+            1
+        })?;
+        encoder.bytes(entry.context().target().identity().as_str().as_bytes())?;
+        encoder.bytes(
+            entry
+                .context()
+                .build_execution_profile()
+                .map_or(&[][..], |profile| profile.identity().as_str().as_bytes()),
+        )?;
+        encoder.bytes(&ledger_bytes)?;
     }
     encoder.finish()
 }
 
-fn decode_purpose_mask(
-    mask: u8,
-) -> Result<Vec<DependencyPurpose>, CanonicalPackageReconstructionQuestionError> {
-    let known = (1u8 << DependencyPurpose::ALL.len()) - 1;
-    if mask == 0 || mask & !known != 0 {
-        return Err(CanonicalPackageReconstructionQuestionError::new(
-            "package reconstruction entry carries an empty or unknown purpose mask",
-        ));
-    }
-    Ok(DependencyPurpose::ALL
-        .iter()
-        .copied()
-        .filter(|purpose| mask & purpose_mask_bit(*purpose) != 0)
-        .collect())
+fn decode_profile(
+    bytes: &[u8],
+) -> Result<TargetProfile, CanonicalPackageReconstructionQuestionError> {
+    TargetProfile::ALL
+        .into_iter()
+        .find(|profile| profile.identity().as_str().as_bytes() == bytes)
+        .ok_or_else(|| {
+            CanonicalPackageReconstructionQuestionError::new(
+                "unknown reconstruction checked profile",
+            )
+        })
 }
 
 pub(super) fn fingerprint(bytes: &[u8]) -> CanonicalPackageReconstructionQuestionFingerprint {

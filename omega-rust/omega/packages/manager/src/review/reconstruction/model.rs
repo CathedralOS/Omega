@@ -1,5 +1,5 @@
 use crate::declarations::PackageKey;
-use crate::declarations::dependencies::DependencyPurpose;
+use crate::lock::PackageCheckedContext;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
 };
@@ -107,10 +107,7 @@ impl fmt::Display for CanonicalPackageReconstructionQuestionFingerprint {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalPackageReconstructionEntry {
     pub(super) package: PackageKey,
-    /// The authorized occurrences this entry's review answered, in canonical
-    /// purpose order. Today one package-keyed review covers every occurrence;
-    /// the field names the join so per-occurrence evidence can narrow it.
-    pub(super) occurrence_purposes: Vec<DependencyPurpose>,
+    pub(super) context: PackageCheckedContext,
     pub(super) obligations: OrdinaryPackageObligationLedger,
 }
 
@@ -119,10 +116,8 @@ impl CanonicalPackageReconstructionEntry {
         &self.package
     }
 
-    /// The occurrences this ledger's review stands in for, matching the
-    /// source-graph roster exactly.
-    pub fn occurrence_purposes(&self) -> &[DependencyPurpose] {
-        &self.occurrence_purposes
+    pub const fn context(&self) -> PackageCheckedContext {
+        self.context
     }
 
     pub const fn obligations(&self) -> &OrdinaryPackageObligationLedger {
@@ -165,6 +160,6 @@ impl CanonicalPackageReconstructionQuestion {
     }
 
     pub fn target_name(&self) -> &'static str {
-        self.entries[0].obligations.target().target_name()
+        self.source_closure.target_profile().target_name()
     }
 }

@@ -197,10 +197,11 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     let dangerous_authorities = composed
         .root_open_dangerous_authorities()
         .collect::<Vec<_>>();
-    let [(owner, authority)] = dangerous_authorities.as_slice() else {
+    let [(owner, context, authority)] = dangerous_authorities.as_slice() else {
         panic!("graph-workbench must propagate one dependency-owned dangerous authority")
     };
     assert_eq!(owner.name().as_str(), "file-journal");
+    assert!(context.purpose().is_product());
     assert_eq!(
         authority.status(),
         OrdinaryPackageObligationStatus::OpenRootAdmission
@@ -251,7 +252,13 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         Some(&accepted_policy),
     )
     .expect("every exact graph-workbench blocker is accepted");
-    assert_eq!(accepted.conflicts(), &conflicts);
+    assert_eq!(
+        accepted
+            .obligations()
+            .root_open_dangerous_authorities()
+            .count(),
+        1
+    );
     assert!(!accepted.policy_changes().requires_decision());
     assert_eq!(
         accepted.obligations().question(),
@@ -355,7 +362,6 @@ machine build(builder: &mut Build) {
     )
     .expect("claim-free closure reuses project acceptance");
     assert!(!accepted.policy_changes().requires_decision());
-    assert!(accepted.conflicts().is_empty());
     assert!(
         accepted
             .obligations()

@@ -15,7 +15,7 @@ mod locked_policy;
 mod model;
 mod policy;
 mod render_error;
-mod resources;
+pub(crate) mod resources;
 mod risk;
 
 pub use capabilities::{

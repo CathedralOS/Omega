@@ -8,10 +8,9 @@ use crate::lock::PackageLockTarget;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackagePolicyChangeError,
-    PackagePolicyChangeLimits, PackagePolicyChangeSet, ReviewOnlyCapabilityConflictChange,
-    ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits,
-    ReviewOnlyCapabilityConflictSet, compare_package_policy_changes,
-    compare_review_only_initial_capabilities, render_package_policy_review,
+    PackagePolicyChangeLimits, PackagePolicyChangeSet, ReviewOnlyCapabilityConflictError,
+    ReviewOnlyCapabilityConflictLimits, compare_package_policy_changes,
+    render_package_policy_review,
 };
 use package_evidence::record::{PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk};
 use std::fmt;
@@ -25,17 +24,12 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FreshPackageRootPolicyAcceptance {
     obligations: LocallyComposedPackageObligationResults,
-    conflicts: ReviewOnlyCapabilityConflictSet,
     policy_changes: PackagePolicyChangeSet,
 }
 
 impl FreshPackageRootPolicyAcceptance {
     pub const fn obligations(&self) -> &LocallyComposedPackageObligationResults {
         &self.obligations
-    }
-
-    pub const fn conflicts(&self) -> &ReviewOnlyCapabilityConflictSet {
-        &self.conflicts
     }
 
     /// Fresh comparison against the project's accepted policy, including source
@@ -90,11 +84,11 @@ impl fmt::Display for FreshPackageRootPolicyError {
             ),
             Self::OpenObligationConflictShapeMismatch(kind) => write!(
                 formatter,
-                "fresh {kind:?} conflict is not an added blocking row against the empty admission baseline",
+                "fresh {kind:?} row has the wrong obligation kind or risk",
             ),
             Self::OpenObligationConflictSetMismatch(kind) => write!(
                 formatter,
-                "fresh {kind:?} conflicts are not bijective with reconstructed open obligations",
+                "fresh {kind:?} rows are not bijective with reconstructed occurrence-local open obligations",
             ),
             Self::AllocationFailed => {
                 formatter.write_str("fresh package root-policy association allocation failed")
@@ -121,8 +115,8 @@ impl std::error::Error for FreshPackageRootPolicyError {
 /// Reconstruct a fresh candidate and check its current requirements against
 /// the project's accepted policy.
 ///
-/// The conflict set is deliberately rederived here. A caller cannot pair
-/// obligations from one source closure with policy compared for another.
+/// Obligations and policy are derived from the same exact occurrence reviews.
+/// A caller cannot pair obligations from one context with policy for another.
 pub fn bind_fresh_package_root_policy(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     reviews: &CompilerIssuedPackageReviewSet,
@@ -176,14 +170,10 @@ pub(crate) fn bind_root_policy_with_associated_reviews<'reviews>(
             PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation,
         ));
     }
-    let conflicts =
-        compare_review_only_initial_capabilities(reviews, target_closure, conflict_limits)
-            .map_err(FreshPackageRootPolicyError::ConflictComparison)?;
-
-    validate_open_obligation_conflicts(&obligations, &conflicts)?;
+    validate_open_obligation_rows(&obligations, &associated_reviews, conflict_limits)?;
 
     // Both projections belong to the same immutable compiler-issued reviews.
-    // Initial conflicts witness the obligation bijection only; project intent
+    // Canonical rows witness the occurrence-local obligation bijection; project intent
     // comes from the retained complete policy and the ordinary comparison.
     let policy_changes = compare_package_policy_changes(
         accepted,
@@ -199,154 +189,142 @@ pub(crate) fn bind_root_policy_with_associated_reviews<'reviews>(
     Ok((
         FreshPackageRootPolicyAcceptance {
             obligations,
-            conflicts,
             policy_changes,
         },
         associated_reviews,
     ))
 }
 
-type OpenObligationCoordinate<'a> = (&'a crate::declarations::PackageKey, &'a [u8], &'a [u8]);
-
-fn validate_open_obligation_conflicts(
+/// Check each occurrence independently: equal row bytes from another role are
+/// not a witness for this occurrence's open obligations.
+fn validate_open_obligation_rows(
     obligations: &LocallyComposedPackageObligationResults,
-    conflicts: &ReviewOnlyCapabilityConflictSet,
+    reviews: &[&CompilerIssuedPackageReview],
+    limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<(), FreshPackageRootPolicyError> {
-    validate_open_obligation_kind(
-        obligations,
-        conflicts,
-        PackageReviewCanonicalRowKind::AcceptedClaim,
-        PackageReviewCanonicalRowRisk::Blocking,
-    )?;
-    validate_open_obligation_kind(
-        obligations,
-        conflicts,
-        PackageReviewCanonicalRowKind::ExternalExecutableSupply,
-        PackageReviewCanonicalRowRisk::OpaqueBlocking,
-    )?;
-    validate_open_obligation_kind(
-        obligations,
-        conflicts,
-        PackageReviewCanonicalRowKind::DangerousAuthority,
-        PackageReviewCanonicalRowRisk::Blocking,
-    )?;
-    validate_open_obligation_kind(
-        obligations,
-        conflicts,
-        PackageReviewCanonicalRowKind::TerminalAuthorityPermission,
-        PackageReviewCanonicalRowRisk::Blocking,
-    )
-}
-
-fn validate_open_obligation_kind<'a>(
-    obligations: &'a LocallyComposedPackageObligationResults,
-    conflicts: &'a ReviewOnlyCapabilityConflictSet,
-    kind: PackageReviewCanonicalRowKind,
-    expected_risk: PackageReviewCanonicalRowRisk,
-) -> Result<(), FreshPackageRootPolicyError> {
-    let open_count = match kind {
-        PackageReviewCanonicalRowKind::AcceptedClaim => {
-            obligations.root_open_accepted_claims().len()
-        }
-        PackageReviewCanonicalRowKind::ExternalExecutableSupply => {
-            obligations.root_open_external_executable_supplies().len()
-        }
-        PackageReviewCanonicalRowKind::DangerousAuthority => {
-            obligations.root_open_dangerous_authorities().len()
-        }
-        PackageReviewCanonicalRowKind::TerminalAuthorityPermission => {
-            obligations.root_open_terminal_authority_permissions().len()
-        }
-        _ => 0,
-    };
-    let conflict_count = conflicts
-        .packages()
-        .iter()
-        .flat_map(|package| package.conflicts())
-        .filter(|conflict| conflict.kind() == kind)
-        .count();
-
-    let mut open_obligations = Vec::new();
-    open_obligations
-        .try_reserve_exact(open_count)
-        .map_err(|_| FreshPackageRootPolicyError::AllocationFailed)?;
-    match kind {
-        PackageReviewCanonicalRowKind::AcceptedClaim => {
-            for (package, claim) in obligations.root_open_accepted_claims() {
-                open_obligations.push((
-                    package,
-                    claim.row().key_bytes(),
-                    claim.row().canonical_bytes(),
-                ));
-            }
-        }
-        PackageReviewCanonicalRowKind::ExternalExecutableSupply => {
-            for (package, supply) in obligations.root_open_external_executable_supplies() {
-                open_obligations.push((
-                    package,
-                    supply.row().key_bytes(),
-                    supply.row().canonical_bytes(),
-                ));
-            }
-        }
-        PackageReviewCanonicalRowKind::DangerousAuthority => {
-            for (package, authority) in obligations.root_open_dangerous_authorities() {
-                open_obligations.push((
-                    package,
-                    authority.row().key_bytes(),
-                    authority.row().canonical_bytes(),
-                ));
-            }
-        }
-        PackageReviewCanonicalRowKind::TerminalAuthorityPermission => {
-            for (package, permission) in obligations.root_open_terminal_authority_permissions() {
-                open_obligations.push((
-                    package,
-                    permission.row().key_bytes(),
-                    permission.row().canonical_bytes(),
-                ));
-            }
-        }
-        _ => return Ok(()),
+    use crate::review::compare::resources::{ComparisonInputBudget, account_review_resources};
+    let mut input_budget = ComparisonInputBudget::default();
+    for review in reviews {
+        account_review_resources(std::slice::from_ref(*review), limits, &mut input_budget)
+            .map_err(FreshPackageRootPolicyError::ConflictComparison)?;
     }
-
-    let mut matching_conflicts = Vec::new();
-    matching_conflicts
-        .try_reserve_exact(conflict_count)
-        .map_err(|_| FreshPackageRootPolicyError::AllocationFailed)?;
-    for package in conflicts.packages() {
-        for conflict in package
-            .conflicts()
-            .iter()
-            .filter(|conflict| conflict.kind() == kind)
-        {
-            if !package.baseline().is_empty_admission()
-                || conflict.change() != ReviewOnlyCapabilityConflictChange::Added
-                || conflict.risk() != expected_risk
-                || conflict.baseline_row().is_some()
-            {
-                return Err(FreshPackageRootPolicyError::OpenObligationConflictShapeMismatch(kind));
-            }
-            let candidate_row = conflict
-                .candidate_row()
-                .ok_or(FreshPackageRootPolicyError::OpenObligationConflictShapeMismatch(kind))?;
-            matching_conflicts.push((package.key(), conflict.row_key(), candidate_row));
+    let mut remaining_rows = limits.maximum_conflicts();
+    let mut remaining_bytes = limits.maximum_changed_row_bytes();
+    for (entry, review) in obligations.entries().iter().zip(reviews) {
+        if entry.package() != review.key() || entry.context() != review.checked_context() {
+            return Err(FreshPackageRootPolicyError::Reconstruction(
+                CanonicalPackageReconstructionQuestionError::new(
+                    "open obligation occurrence association differs",
+                ),
+            ));
         }
-    }
-
-    sort_open_obligation_coordinates(&mut open_obligations);
-    sort_open_obligation_coordinates(&mut matching_conflicts);
-    if open_obligations != matching_conflicts {
-        return Err(FreshPackageRootPolicyError::OpenObligationConflictSetMismatch(kind));
+        let results = entry.results();
+        validate_kind_rows(
+            review,
+            PackageReviewCanonicalRowKind::AcceptedClaim,
+            PackageReviewCanonicalRowRisk::Blocking,
+            results
+                .open_accepted_claims()
+                .iter()
+                .map(|value| value.row()),
+            &mut remaining_rows,
+            &mut remaining_bytes,
+        )?;
+        validate_kind_rows(
+            review,
+            PackageReviewCanonicalRowKind::ExternalExecutableSupply,
+            PackageReviewCanonicalRowRisk::OpaqueBlocking,
+            results
+                .open_external_executable_supplies()
+                .iter()
+                .map(|value| value.row()),
+            &mut remaining_rows,
+            &mut remaining_bytes,
+        )?;
+        validate_kind_rows(
+            review,
+            PackageReviewCanonicalRowKind::DangerousAuthority,
+            PackageReviewCanonicalRowRisk::Blocking,
+            results
+                .open_dangerous_authorities()
+                .iter()
+                .map(|value| value.row()),
+            &mut remaining_rows,
+            &mut remaining_bytes,
+        )?;
+        validate_kind_rows(
+            review,
+            PackageReviewCanonicalRowKind::TerminalAuthorityPermission,
+            PackageReviewCanonicalRowRisk::Blocking,
+            results
+                .open_terminal_authority_permissions()
+                .iter()
+                .map(|value| value.row()),
+            &mut remaining_rows,
+            &mut remaining_bytes,
+        )?;
     }
     Ok(())
 }
 
-fn sort_open_obligation_coordinates(coordinates: &mut [OpenObligationCoordinate<'_>]) {
-    coordinates.sort_unstable_by(|left, right| {
-        left.0
-            .cmp(right.0)
-            .then_with(|| left.1.cmp(right.1))
-            .then_with(|| left.2.cmp(right.2))
-    });
+fn validate_kind_rows<'row>(
+    review: &'row CompilerIssuedPackageReview,
+    kind: PackageReviewCanonicalRowKind,
+    expected_risk: PackageReviewCanonicalRowRisk,
+    open: impl ExactSizeIterator<Item = &'row package_evidence::ledger::OrdinaryPackageObligationRow>,
+    remaining_rows: &mut usize,
+    remaining_bytes: &mut usize,
+) -> Result<(), FreshPackageRootPolicyError> {
+    let count = review
+        .canonical_rows()
+        .iter()
+        .filter(|row| row.kind() == kind)
+        .count();
+    if count != open.len() {
+        return Err(FreshPackageRootPolicyError::OpenObligationConflictSetMismatch(kind));
+    }
+    *remaining_rows = remaining_rows
+        .checked_sub(count)
+        .ok_or(FreshPackageRootPolicyError::AllocationFailed)?;
+    let mut expected = Vec::new();
+    let mut actual = Vec::new();
+    expected
+        .try_reserve_exact(count)
+        .map_err(|_| FreshPackageRootPolicyError::AllocationFailed)?;
+    actual
+        .try_reserve_exact(count)
+        .map_err(|_| FreshPackageRootPolicyError::AllocationFailed)?;
+    for row in review
+        .canonical_rows()
+        .iter()
+        .filter(|row| row.kind() == kind)
+    {
+        if row.risk() != expected_risk {
+            return Err(FreshPackageRootPolicyError::OpenObligationConflictShapeMismatch(kind));
+        }
+        let bytes = row
+            .key_bytes()
+            .len()
+            .checked_add(row.canonical_bytes().len())
+            .ok_or(FreshPackageRootPolicyError::AllocationFailed)?;
+        *remaining_bytes = remaining_bytes
+            .checked_sub(bytes)
+            .ok_or(FreshPackageRootPolicyError::AllocationFailed)?;
+        expected.push((row.key_bytes(), row.canonical_bytes()));
+    }
+    for row in open {
+        if row.kind() != kind || row.risk() != expected_risk {
+            return Err(FreshPackageRootPolicyError::OpenObligationConflictShapeMismatch(kind));
+        }
+        actual.push((row.key_bytes(), row.canonical_bytes()));
+    }
+    expected.sort_unstable();
+    actual.sort_unstable();
+    if expected.windows(2).any(|pair| pair[0].0 == pair[1].0)
+        || actual.windows(2).any(|pair| pair[0].0 == pair[1].0)
+        || expected != actual
+    {
+        return Err(FreshPackageRootPolicyError::OpenObligationConflictSetMismatch(kind));
+    }
+    Ok(())
 }

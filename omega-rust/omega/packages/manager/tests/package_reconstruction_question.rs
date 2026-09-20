@@ -152,22 +152,32 @@ fn split_question(bytes: &[u8]) -> (u16, Vec<u8>, Vec<Vec<u8>>) {
     let version = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
     offset += 2;
     let source = take_frame(bytes, &mut offset).to_vec();
-    let ledger_count = take_u32(bytes, &mut offset) as usize;
-    let ledgers = (0..ledger_count)
-        .map(|_| take_frame(bytes, &mut offset).to_vec())
+    assert_eq!(version, 3);
+    let entry_count = take_u32(bytes, &mut offset) as usize;
+    let entries = (0..entry_count)
+        .map(|_| {
+            // Keep the checked context attached when testing row removal,
+            // replacement or reordering: purpose, target, execution, ledger.
+            let start = offset;
+            offset += 2;
+            take_frame(bytes, &mut offset);
+            take_frame(bytes, &mut offset);
+            take_frame(bytes, &mut offset);
+            bytes[start..offset].to_vec()
+        })
         .collect::<Vec<_>>();
     assert_eq!(offset, bytes.len());
-    (version, source, ledgers)
+    (version, source, entries)
 }
 
-fn join_question(version: u16, source: &[u8], ledgers: &[Vec<u8>]) -> Vec<u8> {
+fn join_question(version: u16, source: &[u8], entries: &[Vec<u8>]) -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(QUESTION_MAGIC);
     bytes.extend_from_slice(&version.to_le_bytes());
     push_frame(&mut bytes, source);
-    bytes.extend_from_slice(&(ledgers.len() as u32).to_le_bytes());
-    for ledger in ledgers {
-        push_frame(&mut bytes, ledger);
+    bytes.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+    for entry in entries {
+        bytes.extend_from_slice(entry);
     }
     bytes
 }

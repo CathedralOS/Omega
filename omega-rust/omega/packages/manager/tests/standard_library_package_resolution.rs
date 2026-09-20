@@ -528,6 +528,7 @@ fn real_filesystem_host_schema_accepts_settled_portable_facet_rows() {
         &tree.0.join("filesystem-policy-build"),
         SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
             root.clone(),
+            root_review.checked_context(),
             binding,
         )]),
     )

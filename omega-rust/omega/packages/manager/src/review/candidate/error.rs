@@ -85,6 +85,10 @@ pub enum CompileResolvedPackageReviewsError {
         consumer: PackageKey,
         role: AcceptedSemanticBindingRole,
     },
+    SemanticBindingContextMismatch {
+        consumer: PackageKey,
+        role: AcceptedSemanticBindingRole,
+    },
     DuplicateConsumerSemanticBindingRole {
         consumer: PackageKey,
         role: AcceptedSemanticBindingRole,
@@ -145,6 +149,11 @@ pub enum CompileResolvedPackageReviewsError {
 impl fmt::Display for CompileResolvedPackageReviewsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::SemanticBindingContextMismatch { consumer, role } => write!(
+                formatter,
+                "semantic binding {role:?} for package `{}` names an unrequested checked occurrence",
+                consumer.name().as_str()
+            ),
             Self::UnsupportedBuildActivation { package, reason } => write!(
                 formatter,
                 "cannot schedule build activation for package `{}`: {reason}",

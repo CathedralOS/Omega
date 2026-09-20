@@ -823,6 +823,18 @@ impl PackageCompilationInputs {
         instances
     }
 
+    /// Checked dependency occurrences required by this compilation. Product
+    /// imports inherit the root's purpose; build imports always select Build.
+    /// Producers use the same roster that validates the complete handoff.
+    pub fn required_dependency_source_instances(
+        &self,
+    ) -> BTreeSet<(PackageKeyIdentity, DependencyPurpose)> {
+        self.dependency_source_instances()
+            .into_iter()
+            .map(|(package, scope)| (package, self.instance_purpose(scope)))
+            .collect()
+    }
+
     /// Product-scope edges only. Build-purpose edges are compilation-local
     /// nameability for the root's build entry and never join the durable
     /// closure projections produced from this iterator.
@@ -914,11 +926,7 @@ impl PackageCompilationInputs {
         bundles: Vec<PackageGeneratedSourceBundle>,
     ) -> Result<Self, Vec<PackageCompilationInputError>> {
         let mut errors = Vec::new();
-        let required = self
-            .dependency_source_instances()
-            .into_iter()
-            .map(|(package, scope)| (package, self.instance_purpose(scope)))
-            .collect::<BTreeSet<_>>();
+        let required = self.required_dependency_source_instances();
         let mut generated = BTreeMap::new();
         for bundle in bundles {
             let package = bundle.package();

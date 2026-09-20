@@ -12,7 +12,7 @@ use package_evidence::ledger::{
 };
 use package_source::{ImmutableSourceResolution, SourceResolveError};
 
-pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 5;
+pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 6;
 
 /// Closed identity for the exact accepted-evidence vocabulary represented by
 /// this module. This is distinct from the obligation schema and any future
@@ -34,7 +34,7 @@ impl AcceptedOrdinaryEvidenceSchemaIdentity {
     }
 }
 
-/// One exact package artifact and its local derivation provenance.
+/// One exact checked package occurrence and its local derivation provenance.
 ///
 /// Construction is private to the complete closure gate. The ordinary
 /// artifact is the complete locally reconstructed obligation ledger, not a
@@ -108,7 +108,7 @@ impl AcceptedOrdinaryPackageEvidence {
 /// closure.
 ///
 /// The only public construction path reruns source custody, obligation
-/// reconstruction, transitive composition, conflict derivation, and project-policy
+/// reconstruction, transitive composition, occurrence-local row matching, and project-policy
 /// comparison. This value has no codec, lock mutation route, audit receipt, or
 /// `PackageInstance` constructor.
 #[derive(Debug, Clone, PartialEq, Eq)]

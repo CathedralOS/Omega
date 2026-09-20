@@ -270,14 +270,27 @@ fn compile_pass(
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let execution_profile = target::TargetProfile::host_if_supported();
-    let package_purposes =
-        package_pass::checked_package_purposes(target_closure, execution_profile)?;
-    let bindings = semantic_bindings_by_consumer(closure, bindings)?;
+    let source = crate::resolution::graph::CanonicalSourceClosureSubject::from_resolved(
+        target_closure,
+        Default::default(),
+    )
+    .map_err(|error| CompileResolvedPackageReviewsError::Projection {
+        package: closure.graph().root().clone(),
+        diagnostics: vec![diagnostics::Diagnostic::error(error.to_string())],
+    })?;
+    let roster = crate::lock::PackageOccurrenceRoster::derive(&source).map_err(|error| {
+        CompileResolvedPackageReviewsError::Projection {
+            package: closure.graph().root().clone(),
+            diagnostics: vec![diagnostics::Diagnostic::error(error.to_string())],
+        }
+    })?;
+    let bindings =
+        semantic_bindings_by_consumer(target_closure, execution_profile, &roster, bindings)?;
     let session = ReviewBuildSession::create(build_root)?;
     let result = package_pass::compile_dependency_closure(
         target_closure,
         execution_profile,
-        &package_purposes,
+        &roster,
         session.root(),
         session.filesystem_sponsor(),
         session.evaluation_sponsor(),

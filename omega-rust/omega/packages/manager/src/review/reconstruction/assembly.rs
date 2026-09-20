@@ -51,16 +51,26 @@ impl CanonicalPackageReconstructionQuestion {
             )
         })?;
 
+        if source_closure.packages().len() > limits.maximum_packages
+            || reviews.reviews().len() != roster.occurrence_count()
+        {
+            return Err(CanonicalPackageReconstructionQuestionError::new(
+                "source packages exceed the limit or reviews do not cover the occurrence roster",
+            ));
+        }
         let closure = target_closure.source_closure();
         let mut reviews_by_package = BTreeMap::new();
         for review in reviews.reviews() {
-            if reviews_by_package.insert(review.key(), review).is_some() {
+            if reviews_by_package
+                .insert((review.key(), review.checked_context().purpose()), review)
+                .is_some()
+            {
                 return Err(CanonicalPackageReconstructionQuestionError::new(
-                    "package review set contains a duplicate package",
+                    "package review set contains a duplicate checked occurrence",
                 ));
             }
         }
-        if reviews_by_package.len() != source_closure.packages().len() {
+        if reviews_by_package.len() != roster.occurrence_count() {
             return Err(CanonicalPackageReconstructionQuestionError::new(
                 "source closure and package review set are not bijective",
             ));
@@ -68,7 +78,7 @@ impl CanonicalPackageReconstructionQuestion {
 
         let mut entries = Vec::new();
         entries
-            .try_reserve_exact(source_closure.packages().len())
+            .try_reserve_exact(roster.occurrence_count())
             .map_err(|_| {
                 CanonicalPackageReconstructionQuestionError::new(
                     "package reconstruction entry allocation failed",
@@ -76,67 +86,82 @@ impl CanonicalPackageReconstructionQuestion {
             })?;
         let mut associated_reviews = Vec::new();
         associated_reviews
-            .try_reserve_exact(source_closure.packages().len())
+            .try_reserve_exact(roster.occurrence_count())
             .map_err(|_| {
                 CanonicalPackageReconstructionQuestionError::new(
                     "package review association allocation failed",
                 )
             })?;
         for selected in source_closure.packages() {
-            let review = reviews_by_package.remove(selected.key()).ok_or_else(|| {
-                CanonicalPackageReconstructionQuestionError::new(
-                    "source package has no matching package review",
-                )
-            })?;
-            if review.resolution() != selected.resolution() {
-                return Err(CanonicalPackageReconstructionQuestionError::new(
-                    "package review immutable resolution does not match source custody",
-                ));
-            }
-            let expected_dependency_closure =
-                package_compilation_inputs_for(closure, selected.key())
-                    .map_err(|_| {
+            for purpose in roster.purposes(selected.key()).ok_or_else(|| {
+                CanonicalPackageReconstructionQuestionError::new("source package has no occurrence")
+            })? {
+                let review = reviews_by_package
+                    .remove(&(selected.key(), *purpose))
+                    .ok_or_else(|| {
                         CanonicalPackageReconstructionQuestionError::new(
-                            "could not independently reconstruct the package dependency closure",
+                            "source package has no matching package review",
                         )
-                    })?
-                    .dependency_closure();
-            if review.obligations().dependency_closure() != &expected_dependency_closure {
-                return Err(CanonicalPackageReconstructionQuestionError::new(
-                    "package review dependency closure does not match current source custody",
-                ));
-            }
-            // Where the review carried a build observation, its activation must
-            // name this exact package occurrence and the closure's target, not
-            // another package's build or a different target's admission.
-            if let Some(summary) = review.build_observation_summary() {
-                let activation = summary.activation();
-                if activation
-                    .root_package_identity()
-                    .is_some_and(|root| root != review.key().identity())
-                {
+                    })?;
+                if review.resolution() != selected.resolution() {
                     return Err(CanonicalPackageReconstructionQuestionError::new(
-                        "package review build activation names a different package occurrence",
+                        "package review immutable resolution does not match source custody",
                     ));
                 }
-                if activation
-                    .selected_target_profile()
-                    .is_some_and(|target| target != target_closure.target_profile())
-                {
+                let expected_dependency_closure = package_compilation_inputs_for(
+                    closure,
+                    selected.key(),
+                )
+                .map_err(|_| {
+                    CanonicalPackageReconstructionQuestionError::new(
+                        "could not independently reconstruct the package dependency closure",
+                    )
+                })?
+                .with_compilation_purpose(*purpose)
+                .map_err(|_| {
+                    CanonicalPackageReconstructionQuestionError::new(
+                        "could not reconstruct the checked occurrence dependency context",
+                    )
+                })?
+                .dependency_closure();
+                if review.obligations().dependency_closure() != &expected_dependency_closure {
                     return Err(CanonicalPackageReconstructionQuestionError::new(
-                        "package review build activation names a different target",
+                        "package review dependency closure does not match current source custody",
                     ));
                 }
+                // Where the review carried a build observation, its activation must
+                // name this exact package occurrence and its checked target, not
+                // another package's build or a different target's admission.
+                if let Some(summary) = review.build_observation_summary() {
+                    let activation = summary.activation();
+                    if activation.root_package_identity() != Some(review.key().identity()) {
+                        return Err(CanonicalPackageReconstructionQuestionError::new(
+                            "package review build activation names a different package occurrence",
+                        ));
+                    }
+                    if activation.selected_target_profile()
+                        != Some(review.checked_context().target())
+                    {
+                        return Err(CanonicalPackageReconstructionQuestionError::new(
+                            "package review build activation names a different target",
+                        ));
+                    }
+                }
+                if review.build_observation_summary().is_some_and(|summary| {
+                    summary.activation().build_execution_profile()
+                        != review.checked_context().build_execution_profile()
+                }) {
+                    return Err(CanonicalPackageReconstructionQuestionError::new(
+                        "package review build activation names a different execution profile",
+                    ));
+                }
+                entries.push(CanonicalPackageReconstructionEntry {
+                    package: selected.key().clone(),
+                    context: review.checked_context(),
+                    obligations: review.obligations().clone(),
+                });
+                associated_reviews.push(review);
             }
-            entries.push(CanonicalPackageReconstructionEntry {
-                package: selected.key().clone(),
-                occurrence_purposes: roster
-                    .purposes(selected.key())
-                    .expect("validated source package has an occurrence")
-                    .to_vec(),
-                obligations: review.obligations().clone(),
-            });
-            associated_reviews.push(review);
         }
         if !reviews_by_package.is_empty() {
             return Err(CanonicalPackageReconstructionQuestionError::new(

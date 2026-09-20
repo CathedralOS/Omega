@@ -1,6 +1,7 @@
 use super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet};
-use crate::declarations::PackageKey;
-use crate::resolution::graph::ResolvedPackageSourceClosure;
+use crate::declarations::{DependencyPurpose, PackageKey};
+use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
+use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use compiler::CheckedCompilation;
 use effects::provider_plan::ServiceSchema;
 use effects::{
@@ -49,22 +50,35 @@ impl SemanticBindingReviewCandidate {
 
 /// One consumer-scoped semantic-binding policy input for candidate review.
 ///
-/// The consumer is an exact package key in the resolver-owned closure. The
-/// binding is policy authority supplied to that consumer's compilation; this
+/// The consumer and checked context name an exact occurrence in the resolver-owned
+/// closure. The binding is policy authority supplied only to that compilation; this
 /// input is not proof of an audit, an audit receipt, or package admission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConsumerScopedSemanticBindingReviewInput {
     consumer: PackageKey,
+    checked_context: PackageCheckedContext,
     binding: AcceptedSemanticBinding,
 }
 
 impl ConsumerScopedSemanticBindingReviewInput {
-    pub fn new(consumer: PackageKey, binding: AcceptedSemanticBinding) -> Self {
-        Self { consumer, binding }
+    pub fn new(
+        consumer: PackageKey,
+        checked_context: PackageCheckedContext,
+        binding: AcceptedSemanticBinding,
+    ) -> Self {
+        Self {
+            consumer,
+            checked_context,
+            binding,
+        }
     }
 
     pub fn consumer(&self) -> &PackageKey {
         &self.consumer
+    }
+
+    pub const fn checked_context(&self) -> PackageCheckedContext {
+        self.checked_context
     }
 
     pub fn binding(&self) -> &AcceptedSemanticBinding {
@@ -73,12 +87,21 @@ impl ConsumerScopedSemanticBindingReviewInput {
 }
 
 pub(super) fn semantic_bindings_by_consumer(
-    closure: &ResolvedPackageSourceClosure,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    execution_profile: Option<target::TargetProfile>,
+    roster: &PackageOccurrenceRoster,
     inputs: &[ConsumerScopedSemanticBindingReviewInput],
-) -> Result<BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>, CompileResolvedPackageReviewsError>
-{
-    let mut seen_roles = BTreeSet::<(PackageKey, AcceptedSemanticBindingRole)>::new();
-    let mut bindings_by_consumer = BTreeMap::<PackageKey, Vec<AcceptedSemanticBinding>>::new();
+) -> Result<
+    BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
+    CompileResolvedPackageReviewsError,
+> {
+    let mut seen_roles = BTreeSet::new();
+    let mut bindings_by_consumer =
+        BTreeMap::<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>::new();
+    if inputs.is_empty() {
+        return Ok(bindings_by_consumer);
+    }
+    let closure = target_closure.source_closure();
     for input in inputs {
         let consumer = input.consumer();
         let role = input.binding().role();
@@ -90,7 +113,23 @@ pub(super) fn semantic_bindings_by_consumer(
                 },
             );
         }
-        if !seen_roles.insert((consumer.clone(), role)) {
+        let context = input.checked_context();
+        let expected_target = match context.purpose() {
+            DependencyPurpose::Product => Some(target_closure.target_profile()),
+            DependencyPurpose::Build => execution_profile,
+        };
+        if !roster.is_occurrence(consumer, context.purpose())
+            || Some(context.target()) != expected_target
+            || context.build_execution_profile() != execution_profile
+        {
+            return Err(
+                CompileResolvedPackageReviewsError::SemanticBindingContextMismatch {
+                    consumer: consumer.clone(),
+                    role,
+                },
+            );
+        }
+        if !seen_roles.insert((consumer.clone(), context.purpose(), role)) {
             return Err(
                 CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole {
                     consumer: consumer.clone(),
@@ -99,7 +138,7 @@ pub(super) fn semantic_bindings_by_consumer(
             );
         }
         bindings_by_consumer
-            .entry(consumer.clone())
+            .entry((consumer.clone(), context.purpose()))
             .or_default()
             .push(input.binding().clone());
     }
@@ -142,6 +181,7 @@ pub(super) fn candidate_semantic_binding_inputs(
         for candidate in &review.semantic_binding_candidates {
             let mut binding = candidate.binding().clone();
             if review.key() == root
+                && review.checked_context().purpose() == DependencyPurpose::Product
                 && binding.role() == AcceptedSemanticBindingRole::FilesystemHostService
             {
                 binding = binding
@@ -165,6 +205,7 @@ pub(super) fn candidate_semantic_binding_inputs(
             }
             inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
                 review.key().clone(),
+                review.checked_context(),
                 binding,
             ));
         }
@@ -203,7 +244,8 @@ pub(super) fn candidate_semantic_binding_inputs(
             provider.selected_plan_digest(),
         )
         .map_err(|_| invalid())?;
-        if review.key() == root {
+        if review.key() == root && review.checked_context().purpose() == DependencyPurpose::Product
+        {
             binding = binding
                 .with_terminal_authority_permissions(
                     candidate_console_permissions(provider).ok_or_else(invalid)?,
@@ -212,6 +254,7 @@ pub(super) fn candidate_semantic_binding_inputs(
         }
         inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
             review.key().clone(),
+            review.checked_context(),
             binding,
         ));
     }
@@ -479,4 +522,226 @@ fn is_package_console_intrinsic_candidate(provider: &CheckedPackageProviderRevie
         && provider
             .compiler_intrinsic_methods()
             .any(|method| method.name == "exit_process")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        AcceptedSemanticBinding, AcceptedSemanticBindingRole, CompileResolvedPackageReviewsError,
+        ConsumerScopedSemanticBindingReviewInput, DependencyPurpose,
+        ExactTargetPackageSourceClosure, PackageCheckedContext, PackageKey,
+        PackageOccurrenceRoster, semantic_bindings_by_consumer,
+    };
+    use crate::resolution::graph::{
+        CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits,
+        PackageSourceClosureLimits, ResolvedPackageSourceClosure,
+        resolve_external_local_package_closure,
+    };
+    use package_source::{
+        ExternalSourceContext, LocalSourceLimits, PrimaryGitChoices, SourceResolverStorage,
+    };
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use target::TargetProfile;
+
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    struct Fixture(PathBuf);
+
+    impl Fixture {
+        fn new() -> Self {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir().join(format!(
+                "omega-binding-context-{}-{stamp}-{}",
+                std::process::id(),
+                SEQUENCE.fetch_add(1, Ordering::Relaxed)
+            ));
+            for (name, dependencies) in [
+                (
+                    "root",
+                    "builder.depend_as(\"product_shared\", Source::Path { location: \"../shared\" }); builder.build_depend_as(\"build_shared\", Source::Path { location: \"../shared\" });",
+                ),
+                ("shared", ""),
+            ] {
+                let package = root.join(name);
+                std::fs::create_dir_all(&package).unwrap();
+                std::fs::write(package.join("build.omg"), format!("machine build(builder: &mut Build) {{ builder.package(\"{name}\"); {dependencies} }}\n")).unwrap();
+                std::fs::write(package.join("main.omg"), "pub const VALUE: u64 = 1;\n").unwrap();
+            }
+            Self(root)
+        }
+
+        fn closure(&self) -> ResolvedPackageSourceClosure {
+            let storage = SourceResolverStorage::for_hardened_base(
+                self.0.join("cache"),
+                PrimaryGitChoices::default(),
+            )
+            .unwrap();
+            resolve_external_local_package_closure(
+                self.0.join("root"),
+                ExternalSourceContext::derive(b"binding-context-tests"),
+                &storage,
+                LocalSourceLimits::default(),
+                PackageSourceClosureLimits::default(),
+            )
+            .unwrap()
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn binding(package: &PackageKey, marker: u8) -> AcceptedSemanticBinding {
+        AcceptedSemanticBinding::new_service(
+            AcceptedSemanticBindingRole::FilesystemHostService,
+            package.identity(),
+            "FilesystemHost",
+            effects::provider_plan::ServiceSchemaDigest::from_digest([marker; 32]),
+        )
+        .unwrap()
+    }
+
+    fn roster(target: &ExactTargetPackageSourceClosure<'_>) -> PackageOccurrenceRoster {
+        let source = CanonicalSourceClosureSubject::from_resolved(
+            target,
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .unwrap();
+        PackageOccurrenceRoster::derive(&source).unwrap()
+    }
+
+    #[test]
+    fn same_package_binding_roles_remain_separate_across_checked_contexts() {
+        let fixture = Fixture::new();
+        let closure = fixture.closure();
+        let target = closure.for_exact_target(TargetProfile::WindowsX64);
+        let roster = roster(&target);
+        let package = roster
+            .coverages()
+            .iter()
+            .find(|coverage| coverage.package().name().as_str() == "shared")
+            .unwrap()
+            .package();
+        let execution = Some(TargetProfile::LinuxX64);
+        let product = ConsumerScopedSemanticBindingReviewInput::new(
+            package.clone(),
+            PackageCheckedContext::new(
+                DependencyPurpose::Product,
+                TargetProfile::WindowsX64,
+                execution,
+            ),
+            binding(package, 1),
+        );
+        let build = ConsumerScopedSemanticBindingReviewInput::new(
+            package.clone(),
+            PackageCheckedContext::new(
+                DependencyPurpose::Build,
+                TargetProfile::LinuxX64,
+                execution,
+            ),
+            binding(package, 2),
+        );
+        let grouped = semantic_bindings_by_consumer(
+            &target,
+            execution,
+            &roster,
+            &[product.clone(), build.clone()],
+        )
+        .unwrap();
+        assert_eq!(grouped.len(), 2);
+        assert_eq!(
+            grouped[&(package.clone(), DependencyPurpose::Product)],
+            vec![product.binding().clone()]
+        );
+        assert_eq!(
+            grouped[&(package.clone(), DependencyPurpose::Build)],
+            vec![build.binding().clone()]
+        );
+        assert!(matches!(
+            semantic_bindings_by_consumer(&target, execution, &roster, &[product.clone(), product]),
+            Err(CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole { .. })
+        ));
+    }
+
+    #[test]
+    fn bindings_reject_wrong_target_execution_profile_and_unauthorized_purpose() {
+        let fixture = Fixture::new();
+        let closure = fixture.closure();
+        let target = closure.for_exact_target(TargetProfile::WindowsX64);
+        let roster = roster(&target);
+        let execution = Some(TargetProfile::LinuxX64);
+        let shared = roster
+            .coverages()
+            .iter()
+            .find(|coverage| coverage.package().name().as_str() == "shared")
+            .unwrap()
+            .package();
+        for (package, context) in [
+            (
+                shared,
+                PackageCheckedContext::new(
+                    DependencyPurpose::Product,
+                    TargetProfile::LinuxX64,
+                    execution,
+                ),
+            ),
+            (
+                shared,
+                PackageCheckedContext::new(
+                    DependencyPurpose::Build,
+                    TargetProfile::WindowsX64,
+                    execution,
+                ),
+            ),
+            (
+                shared,
+                PackageCheckedContext::new(
+                    DependencyPurpose::Product,
+                    TargetProfile::WindowsX64,
+                    None,
+                ),
+            ),
+            (
+                shared,
+                PackageCheckedContext::new(
+                    DependencyPurpose::Product,
+                    TargetProfile::WindowsX64,
+                    Some(TargetProfile::MacosArm64),
+                ),
+            ),
+            (
+                closure.graph().root(),
+                PackageCheckedContext::new(
+                    DependencyPurpose::Build,
+                    TargetProfile::LinuxX64,
+                    execution,
+                ),
+            ),
+        ] {
+            let input = ConsumerScopedSemanticBindingReviewInput::new(
+                package.clone(),
+                context,
+                binding(package, 1),
+            );
+            assert!(matches!(
+                semantic_bindings_by_consumer(&target, execution, &roster, &[input]),
+                Err(CompileResolvedPackageReviewsError::SemanticBindingContextMismatch { .. })
+            ));
+        }
+        let input = ConsumerScopedSemanticBindingReviewInput::new(
+            shared.clone(),
+            PackageCheckedContext::new(DependencyPurpose::Build, TargetProfile::LinuxX64, None),
+            binding(shared, 1),
+        );
+        assert!(matches!(
+            semantic_bindings_by_consumer(&target, None, &roster, &[input]),
+            Err(CompileResolvedPackageReviewsError::SemanticBindingContextMismatch { .. })
+        ));
+    }
 }
