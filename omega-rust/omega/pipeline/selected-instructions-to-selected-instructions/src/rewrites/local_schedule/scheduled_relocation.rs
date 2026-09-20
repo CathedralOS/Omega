@@ -9,25 +9,33 @@
 //! window the families share: given a contiguous run of members in one
 //! block's body and a destination position in a different block, it derives
 //! every simple control-flow path between them, and from those paths the
-//! crossed positions (the run's own block tail, each traversed block's
-//! whole stream, and the destination block's prefix), the crossed edges,
-//! the skipped edges that begin the traversals the run no longer executes
-//! on, and the traversals that would gain the run — which this admission
-//! refuses outright by requiring the member's block to dominate the
-//! destination's. The hazard, dead-path, and settlement audits then apply
-//! once to that derived window, independent of which shape realized it.
+//! crossed positions (the tail or head of the run's own block, each
+//! traversed block's whole stream, and the destination block's share on
+//! the far side of the landing index), the crossed edges, the skipped
+//! edges that begin the traversals a sink no longer executes on, and the
+//! traversals that would gain or lose the run — refused outright by the
+//! once-per-traversal bound in either direction: sinking requires the
+//! member's block to dominate the destination's, hoisting mirrors it —
+//! the destination's block must dominate the member's, the member's
+//! block must not be re-enterable without crossing the destination
+//! again, and every continuation off the destination must reach the
+//! member's block before it can exit or cycle. The hazard, dead-path,
+//! and settlement audits then apply once to that derived window,
+//! independent of which shape realized it.
 //!
 //! A window any per-shape family locates — the single `Jump` edge, the
 //! fork's landing arm, the diamond's join — is a special case of the
 //! derived region; windows the families cannot name, such as a run sinking
 //! through a chain of sole-successor blocks or through one arm of a fork
-//! into a deeper dominated block, are the shapes this admission exists to
-//! cover. Upstream moves (hoists), moves that gain the run on some
-//! traversal, and in-block interchanges remain with the existing families
-//! and `super::admission`.
+//! into a deeper dominated block, or a run hoisting out of a join back
+//! through its predecessors, are the shapes this admission exists to
+//! cover. Moves where neither block dominates the other — across an
+//! inflow or a branch the run would gain or lose on some traversal — and
+//! in-block interchanges remain with the existing families and
+//! `super::admission`.
 //!
 //! The member run must be pure register and condition-state work whose
-//! written locations die on every path the move abandons, the window's
+//! written locations die on every path a sink abandons, the window's
 //! crossed positions must be schedulable and uncoupled from every member,
 //! every crossed edge must be a plain semantic successor the run does not
 //! interfere with, no boundary settlement may observe a changed executed
@@ -110,16 +118,18 @@ pub enum ScheduledRelocationError {
     UnsupportedInstruction,
     /// The named run and destination do not bound an admissible window:
     /// the run is empty, non-contiguous, or shares the destination's
-    /// block; the destination names no position, or sits in a block not
-    /// dominated by the run's block, reachable from its own successors, or
-    /// unreachable from the run's block; a block on a crossing path is not
-    /// a plain `Source` block; a crossed edge is not a plain semantic
-    /// successor or carries case, fuel, or structural transfers; a
-    /// register or condition-state hazard couples a member with a crossed
-    /// position or a crossed edge's transports; a boundary settlement
-    /// observes a changed executed prefix; or the dead-path audit finds a
-    /// location a member writes still live at a reader on a path the run
-    /// no longer executes on.
+    /// block; the destination names no position, or neither block
+    /// dominates the other; the destination (sinking) is reachable from
+    /// its own successors, or the run's block (hoisting) is re-enterable
+    /// without crossing the destination again, or a continuation off the
+    /// destination can exit or cycle before reaching the run's block; a
+    /// block on a crossing path is not a plain `Source` block; a crossed
+    /// edge is not a plain semantic successor or carries case, fuel, or
+    /// structural transfers; a register or condition-state hazard couples
+    /// a member with a crossed position or a crossed edge's transports; a
+    /// boundary settlement observes a changed executed prefix; or the
+    /// dead-path audit finds a location a member writes still live at a
+    /// reader on a path the run no longer executes on.
     UnsupportedPair,
     WorkBudgetExceeded,
     IdentityOverflow,
