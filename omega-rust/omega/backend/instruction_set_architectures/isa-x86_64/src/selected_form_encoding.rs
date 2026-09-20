@@ -15,7 +15,7 @@ mod branch_forms;
 mod byte_view_address_tests;
 mod copy_bytes;
 pub(crate) mod crash;
-mod decoding;
+pub(crate) mod decoding;
 mod float_bits;
 pub(crate) mod floating_control;
 pub use floating_control::{

@@ -482,6 +482,7 @@ dependencies = [
  "image",
  "image-macho",
  "image-pe",
+ "isa-x86_64",
  "lowered-psi",
  "lowered-psi-to-terminal-psi",
  "native-artifact",

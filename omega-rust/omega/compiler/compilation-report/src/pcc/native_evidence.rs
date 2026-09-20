@@ -192,19 +192,16 @@ fn declared_extent<'a>(
 
 /// The closed import-thunk form a declared target realizes, when it has one:
 /// the fixed byte extent and the exact machine-state footprint of the emitted
-/// thunk sequence. `(x86_64, Coff)` realizes `jmp [rip+disp32]` — six bytes
-/// writing only the instruction pointer; `(aarch64, MachO)` realizes the
-/// twelve-byte `ADRP X16, page; LDR X16, [X16, #imm]; BR X16` — X16 as sole
-/// scratch plus the instruction pointer. Any other declared target emits no
-/// thunk regions, so a row claiming one is not a checkable claim.
+/// thunk sequence. `(x86_64, Coff)` realizes `jmp [rip+disp32]` — the ISA
+/// crate owns that form's extent and footprint; `(aarch64, MachO)` realizes
+/// the twelve-byte `ADRP X16, page; LDR X16, [X16, #imm]; BR X16` — X16 as
+/// sole scratch plus the instruction pointer. Any other declared target emits
+/// no thunk regions, so a row claiming one is not a checkable claim.
 fn import_thunk_form(target: target::NativeTarget) -> Option<(usize, StateFootprintEvidence)> {
     match (target.architecture, target.object_format) {
         (target::Architecture::X86_64, target::ObjectFormat::Coff) => Some((
-            6,
-            StateFootprintEvidence::new(
-                RegisterSet::default(),
-                MachineStateSet::new([MachineState::InstructionPointer]),
-            ),
+            isa_x86_64::X86_64_IMPORT_THUNK_BYTE_COUNT,
+            isa_x86_64::x86_64_import_thunk_footprint(),
         )),
         (target::Architecture::Aarch64, target::ObjectFormat::MachO) => Some((
             12,
@@ -639,16 +636,16 @@ impl NativePlacedImageEvidence {
             match (self.target.architecture, self.target.object_format) {
                 (target::Architecture::X86_64, target::ObjectFormat::Coff) => {
                     let bytes = text_bytes
-                        .get(region.section_offset..region.section_offset + 6)
+                        .get(region.section_offset..region.section_offset + region.byte_count)
                         .ok_or_else(|| {
                             format!(
                                 "Coff import thunk `{}` is out of the declared text extent",
                                 region.symbol
                             )
                         })?;
-                    if bytes[..2] != [0xff, 0x25] {
+                    if isa_x86_64::decode_x86_64_import_thunk(bytes).is_none() {
                         return Err(format!(
-                            "Coff import thunk `{}` does not match jmp [rip+disp32]",
+                            "Coff import thunk `{}` does not decode to jmp [rip+disp32]",
                             region.symbol
                         ));
                     }

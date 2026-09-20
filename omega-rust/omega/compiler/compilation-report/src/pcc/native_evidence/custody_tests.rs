@@ -2389,6 +2389,74 @@ fn import_data_inventory_decodes_only_binding_slots_on_coff() {
     );
 }
 
+/// The Coff thunk leg decodes the committed bytes through the target's
+/// closed form table, not a byte-prefix guess: another indirect-jump ModRM
+/// is a different realized form and must reject the same way foreign bytes
+/// do. The seals stay honest — the lie is only the instruction form.
+#[test]
+fn coff_thunk_rejects_indirect_jumps_outside_the_closed_form() {
+    // `jmp qword ptr [rsp]` is a real FF /4 indirect jump but not the closed
+    // `jmp [rip+disp32]` thunk form.
+    let mut text = vec![0xabu8; 12];
+    text.extend_from_slice(&[0xff, 0x24, 0x24, 0x78, 0x56, 0x34]);
+    let target = target::NativeTarget::windows_x64();
+    let (extent, footprint) = super::import_thunk_form(target).expect("Coff realizes a thunk");
+    let mut image = FinalImage::with_capacity(
+        target,
+        FinalImageMemory {
+            text: text.clone(),
+            ..FinalImageMemory::default()
+        },
+        Default::default(),
+        0,
+        0,
+        0,
+    );
+    image.executable_regions.extend([
+        FinalExecutableRegion {
+            origin: FinalExecutableRegionOrigin::CompilerFunction,
+            section_offset: 0,
+            byte_count: 12,
+            symbol: "entry".into(),
+            footprint: None,
+        },
+        FinalExecutableRegion {
+            origin: FinalExecutableRegionOrigin::ImportThunk,
+            section_offset: 12,
+            byte_count: extent,
+            symbol: "host_call".into(),
+            footprint: Some(footprint),
+        },
+    ]);
+    let layout = FinalImageLayout::default();
+    let mut executable = vec![0xffu8; TEXT_FILE_OFFSET as usize];
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target,
+        TEXT_FILE_OFFSET,
+        image::place_executable_regions(&image, layout).expect("the fixture places"),
+        0,
+        image::place_data_regions(&image, layout).expect("the fixture places"),
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    let sidecar = native_sidecar_with_profile(
+        &executable,
+        native_semantic_profile_identity(target),
+        evidence.to_bytes(),
+    );
+    assert_eq!(
+        rejecting_subject(verify_native_proof_sidecar(
+            &executable,
+            &sidecar.to_bytes(),
+            &offered_policy(&sidecar)
+        )),
+        "native executable inventory",
+        "a Coff thunk whose bytes decode to a different indirect jump must reject"
+    );
+}
+
 // ---------------------------------------------------------------------
 // Container-declared entry custody: the entry point a container declares
 // to its loader is re-derived from the published bytes and must land on

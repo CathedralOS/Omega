@@ -8,6 +8,7 @@ mod fma;
 mod frame_protocol;
 mod hosted_linux_encoding;
 mod ieee_float;
+mod import_thunk;
 mod machine_effects;
 mod post_handoff_writer;
 mod preservation_storage;
@@ -54,6 +55,9 @@ pub use ieee_float::{
     OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,
     encode_ldmxcsr_rsp_displacement, encode_stmxcsr_rsp_displacement,
     encode_store_mxcsr_constant_rsp_displacement,
+};
+pub use import_thunk::{
+    X86_64_IMPORT_THUNK_BYTE_COUNT, decode_x86_64_import_thunk, x86_64_import_thunk_footprint,
 };
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
