@@ -6852,7 +6852,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOF-DERIVATION-STORE** — mined candidate; verify scope then implement.
 - **PROOF-DERIVED-LOAN-COMPATIBILITY** — mined candidate; verify scope then implement.
 - **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC** — mined candidate; verify scope then implement.
-- **PROOF-INTERCHANGE-INDUCTION-CERTIFICATE** — mined candidate; verify scope then implement.
+- **PROOF-INTERCHANGE-INDUCTION-CERTIFICATE** — mined candidate; scope verified, merged alias of PROOF-INTERCHANGE-IMPORT, which already names this clause verbatim ("External proof interchange: sort encoding, induction certificate, arithmetic import (3 mined aliases merged)"). Per the matching-logic lane's settled reading, an external induction certificate carries a translation or foreign-theorem admission with no independently checked translation, so any route runs through MATCHING-LOGIC-BOUNDED-SLICE's bounded comparison before a concrete design; `terminal-codec/tests/mathematical_certificate.rs` already covers the internal W-induction certificate end to end. No independent slice exists here. Sibling alias stub: PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC.
 - **PROOF-OBLIGATION-SEMANTIC-IDENTITY** — mined candidate; verify scope then implement.
 - **PROOF-OBLIGATION-SEMANTIC-KEY** — mined candidate; verify scope then implement.
 - **PROOF-QUANTIFIER-AUTOMATION** — mined candidate; verify scope then implement.
