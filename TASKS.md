@@ -5823,7 +5823,15 @@ rejection, native-route `InvalidStructuralArrayLength` pin) green at
 - **STRUCTURAL-UNIT-LOWERING.** Structural-unit lowering gaps in checked-trees-to-lowered-psi.
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
 - **STAGED-LOCAL-SEQUENCE-LOWERING.** Staged-local sequence lowering attribution and order.
-- **TERMINAL-SOURCE-CUSTODY-ORDER.** Terminal source-custody gate ordering.
+- **TERMINAL-SOURCE-CUSTODY-ORDER.** Resolved — the frontend-drop custody
+  family is already repaired on `origin/main`: the two terminal_psi_source
+  typed-erasure probes repinned at `27f345e527` to the program-level
+  `validate_direct_unit_parameter_custody` gate, which deliberately runs
+  ahead of per-machine scalar source custody (`machine_lowering.rs` carries
+  the ordering contract at the call site; `expression_preparation/source_custody`
+  fires after). Both tests pass at `5b839c31ab` (omega-native-differential-test
+  terminal_psi_source, linux x86-64). The mined alias
+  TERMINAL-SOURCE-CUSTODY-GATE-ORDER names the same row.
 - **SUCCESSOR-DISCARD-ORDER.** Resolved — same terminal-verifier cleanup-order
   row as EDGE-CLEANUP-ERROR-PRECEDENCE, already repaired on `origin/main`:
   edge validation consumes owned successor sources before the residual and
