@@ -7677,7 +7677,31 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   plus the rest of the scalar coverage families (codes 15–24: comparisons,
   paths, `!`/`-`, locals, assignments, remaining transition forms)
   — tracked under the OMEGA-D-REQUEST-* / OMEGA-D-SCALAR-* sibling rows.
-- **OMEGA-D-REQUEST-OUTCOME-TABLES** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-OUTCOME-TABLES.** Scope verified at `8a37f82686`. The
+  clause's canonical member is `bootstrap/5_omega/outcome.epsilon`: the
+  assigned OCOUT V1 header, outcome-code, coordinate-space, phase, and
+  scalar-resource tables are embedded as projections alongside the
+  canonical 40/48-byte failure-frame encoder (landed `c86a3d4a02`; Reject
+  codes 1–12 projected through the scalar paths at `8be6b3eea4` —
+  `malformed_request`, the eight lexical refusals, `duplicate_name`,
+  `missing_entry`, `integer_literal_out_of_range` — and `encode` refuses
+  every unassigned or noncanonical tuple). The
+  `tests/bootstrap/omega-outcome/` gate exercises the embedded tables,
+  exact and refused frame encodings, bounded arithmetic, recorded scalar
+  outcome tuples, and the phase-1 declared-extent provision through the
+  selected evaluator; it requires a macOS arm64 or Windows x64 seed, so
+  Linux x86-64 evidence is the recorded run. The remaining clause legs are
+  producer wiring rather than table work: the syntax `Reject` inventory
+  (codes 13–89), checking codes 90–97, and `Incomplete` coverage
+  provisions (15–24) are assigned in the contract but producers still
+  record the unassigned marker, and the semantic phases over the decoded
+  request fields (package keys, ordering, graph, snapshot, admission,
+  commitment) remain unimplemented. No bounded leg exists inside the
+  available fence: `bootstrap/5_omega` is claimed by OMEGA-D (Zergling-112,
+  expires 2026-09-20T22:27Z), `outcome.epsilon` plus
+  `tests/bootstrap/omega-outcome` by OMEGA-D-REQUEST-V1-TABLES (expires
+  2026-09-21T01:24Z), and `tests/epsilon` by DELTA-COMPILER (expires
+  2026-09-20T21:48Z).
 - **OMEGA-D-REQUEST-ROUTE-ENTRY** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-TABLE-COMPLETION** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-TABLES** — mined candidate; verify scope then implement.
