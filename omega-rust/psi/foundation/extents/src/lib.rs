@@ -15,8 +15,10 @@
 //! identities and rights, `roots` the two ways a fresh root enters,
 //! `loans` the borrow-carrying subranges, `external_loans` lending to
 //! borrowers the checker cannot see, `mapping` translation activation and
-//! release.
+//! release, `activation_claims` runtime-sized bounds an activation claims
+//! inside its own provisioned storage.
 
+mod activation_claims;
 mod extent;
 mod external_loans;
 mod identities;
@@ -26,6 +28,12 @@ mod roots;
 #[cfg(test)]
 mod tests;
 
+pub use activation_claims::{
+    ActivationClaim, ActivationClaimBranch, ActivationClaimId, ActivationClaimLedger,
+    ActivationClaimProvenance, ActivationClaimRequest, ActivationClaimSiteId, ClaimBoundRow,
+    ClaimDrainError, ClaimEstablishmentError, compose_claim_bounds,
+    validate_committed_within_bound,
+};
 pub use extent::diagnostic::ExtentDiagnostic;
 pub use extent::{
     AttenuationError, Extent, ExtentSharingMode, MergeError, OwnedExtentPartition,
