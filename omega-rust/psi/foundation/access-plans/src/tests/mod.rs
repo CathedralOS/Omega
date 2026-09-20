@@ -4,6 +4,7 @@
 mod atomic_specialization;
 mod device_operations;
 mod external_specialization;
+mod owned_external_correspondence;
 mod placed_views;
 mod placement_admission;
 mod plan_validation;
@@ -569,6 +570,10 @@ fn primitive_request_snapshot(
         ),
         PlacementAuthorityRef::EstablishedOwnedAtomic(established) => (
             "established-owned-atomic",
+            std::ptr::from_ref(established).cast::<()>(),
+        ),
+        PlacementAuthorityRef::OwnedCorrespondedExternal(established) => (
+            "owned-corresponded-external",
             std::ptr::from_ref(established).cast::<()>(),
         ),
     };
