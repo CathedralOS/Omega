@@ -1,12 +1,9 @@
-// FAIL CANARY (task #45's V1 gate): a guarded arm's value call rewrites
-// to a synthesized continuation state ONLY when every argument is a bare
-// NAME of an enclosing state parameter (the synthesized state's parameter
-// types copy over). A computed argument (`dbl(x + 1)`) remains beyond the
-// supported lowering: the original emission fence (`reached emission as an
-// unclassified zero-width row`) was retired upstream, checked semantics now
-// admits this shape, and the native route still refuses it at lowering --
-// the arm's spliced continuation carries an operation proof obligation the
-// current backend cannot discharge (`OperationProofUnavailable`).
+// PASS CANARY: a guarded arm's value call rewrites to a synthesized
+// continuation state only when every argument is a bare NAME of an
+// enclosing state parameter. The computed argument (`dbl(x + 1)`) shape
+// also compiles end to end on the native route: the checked-stage fence
+// and the lowering-time operation-proof obligation that once refused it
+// were both retired upstream.
 use omega::language::std::console;
 use omega::language::core::service;
 data Main { console: Service<Console>; }
