@@ -6835,7 +6835,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   --target linux_x86_64 --expected-exit 8` and commit the record plus the
   coverage row. Sibling re-mine name: PRIME-COUNTER-BENCHMARK-ROW.
 - **BENCHMARK-PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
-- **BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
+- **BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION.** Resolved — the
+  checked-call-selection blockage that failed `math_proofs` (named on the
+  sibling BENCHMARK-PROOF-SUBJECT-SELECTION row) is fixed. Contract-position
+  calls whose spelled callee names no declaration (`Bag(items)`/`Bag(before)`
+  atoms) get no Call occurrence from the resolver — the
+  `unbound_contract_call` gate deliberately skips them — so the checked
+  collector had nothing to bind. `collect_checked_proof_view_call_selections`
+  now walks each fact's root subtree as a group, inherits the clause's
+  authored exposure from any sibling occurrence (fallback
+  PrivateImplementation), and reports such unbound receiverless calls that
+  carry no Call-kind occurrence; checked finalization mints one finalized
+  ProofView ledger row per exact (span, exposure) call site and attaches it
+  as the expression's occurrence — explicit compiler-owned custody instead
+  of an unbound hole. Verified at `1f7301b710` + slice, linux x86-64:
+  `undeclared_contract_view_calls_finalize_as_proof_view_intrinsics` green;
+  resolver pin
+  `contract_clause_calls_naming_no_declaration_skip_call_selection` green;
+  `-p typed-trees-to-checked-trees --lib` 5038/5038; end-to-end
+  `omega --check` on `samples/cli/proofs/{math_proofs,structural_proofs}`
+  compiles. Residual: none for the ledger route — the remaining benchmark
+  legs (build.omg + ProgramEntry, tools/benchmark record) stay on the
+  owning sibling rows. Sibling re-mine names: MATH-PROOFS-CHECKED-CALL-
+  SELECTION, PROOFS-SUBJECT-CHECKED-CALL-SELECTION.
 - **BENCHMARK-PROOF-SUBJECT-SELECTION.** Mined candidate; scope verified at
   `1a772e4ae1`, owned — re-mines the proof-subject leg of the benchmarks
   frontier (wiki/drafts/benchmarks.md 'no measurable subject'): the only
