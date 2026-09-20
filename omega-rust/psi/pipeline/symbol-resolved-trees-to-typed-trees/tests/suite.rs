@@ -9,3 +9,4 @@ mod ordinary_member_identity;
 mod quotient_theorem_selection;
 mod service_reach_source_spans;
 mod trait_machine_identity;
+mod transparent_refinement_reaches;

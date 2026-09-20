@@ -225,6 +225,40 @@ pub(crate) fn lower_trait_definition(
                     base.name.as_str(),
                 )));
             }
+            for reach in &clause.service_reaches {
+                // `reaches _;` is the independent abstract row bounded by the
+                // inherited row; the clause-location row variant is pending.
+                if reach.as_str() == "_" {
+                    continue;
+                }
+                let service = lowerer
+                    .source_trees
+                    .symbols
+                    .find_top_level_by_name_and_kinds_from_source(
+                        reach.as_str(),
+                        &[symbols::SymbolKind::Trait],
+                        reach.source_span(),
+                    )
+                    .and_then(|symbol| lowerer.source_trees.service_reaches.id_for_symbol(symbol));
+                let Some(service) = service else {
+                    return Err(Diagnostic::error(format!(
+                        "refinement clause `reaches` names `{reach}`, which is not a boundary service",
+                    )));
+                };
+                if let Some(machine) = covered.iter().find(|machine| {
+                    !lowerer
+                        .source_trees
+                        .service_reach_rows
+                        .services(machine.service_reach_row)
+                        .contains(&service)
+                }) {
+                    return Err(Diagnostic::error(format!(
+                        "refinement clause narrows `reaches` to `{reach}`, but `{}` of base trait `{}` does not reach it — a refinement narrows, it cannot add a reach",
+                        machine.name.as_str(),
+                        base.name.as_str(),
+                    )));
+                }
+            }
             typed_trait
                 .refinement_clauses
                 .push(typed::trait_definition::TraitRefinementClause {
