@@ -83,6 +83,69 @@ fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     lower_typed_trees(typed).expect("check")
 }
 
+/// The toolchain core service declaration, resident so raw-pipeline fixtures
+/// can spell `Service<R>` against the real core declaration. These unit
+/// harnesses build a bare `SourceMap` with no package scope, so `use
+/// omega::language::core::service` cannot resolve; installing the source with
+/// `SourceOrigin::Toolchain` gives the service classifier the exact identity
+/// it requires.
+const CORE_SERVICE_OMG: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../source/library/core/service.omg"
+));
+
+/// Check `source` with `core/service.omg` resident as a Toolchain source and
+/// one fused-service erasure authorization bound per declared boundary trait —
+/// the settled-state input `build_evaluation` produces before checking when a
+/// Fused provider is selected. Fixtures exercising service-carrier semantics
+/// spell `Service<R>` fields; the requirement trait they close over must be
+/// `pub`. The digest is a stand-in; nothing here compares it against a
+/// realized plan.
+fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees {
+    let mut sources = SourceMap::default();
+    let service_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/service.omg"),
+            CORE_SERVICE_OMG.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let user_source_id = sources
+        .add(PathBuf::from("tests/main.omg"), source.to_owned())
+        .source_id;
+    let service_tokens = Lexer::new(CORE_SERVICE_OMG)
+        .tokenize()
+        .expect("tokenize service.omg");
+    let mut syntax =
+        parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse service.omg");
+    let user_tokens = Lexer::new(source).tokenize().expect("tokenize");
+    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve");
+    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let authorizations = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .map(
+            |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
+                requirement: definition.symbol,
+                provider_plan_digest: [0x5a; 32],
+            },
+        )
+        .collect();
+    typed
+        .bind_fused_service_erasures(authorizations)
+        .expect("fixture boundary traits admit fused service authorizations");
+    lower_typed_trees(typed).expect("check")
+}
+
 fn checked_scalar_suspension_fixture() -> checked_trees::CheckedTrees {
     checked_source(
         r#"
