@@ -112,6 +112,9 @@ pub(super) struct MachineEmission<'a> {
     next_call_obligation: u64,
     operations: OperationBuffer,
     evaluation: argument_evaluation::Evaluation,
+    /// Open borrowed-storage repair windows on the current emission path.
+    /// Empty for bodies without move-out/restore statements.
+    borrowed_windows: crate::emission::borrowed_window::BorrowedWindowLedger,
     scalar_result_values: Vec<ValueDeclaration>,
     primitive_local_places: Vec<primitive_locals::PrimitiveLocal>,
     structural_result_places: Vec<(StructuralPlaceDeclaration, bool)>,
@@ -427,6 +430,7 @@ pub(super) fn emit(
         scalar_parameter_count,
         claim_bindings: claim_bindings.clone(),
         next_claim: dense_identity(claim_bindings.len())?,
+        borrowed_windows: Default::default(),
         structural_types,
         type_ids,
         domain_ids,
@@ -484,8 +488,10 @@ pub(super) fn emit(
         literal_places,
         next_literal_argument,
         subslice_places,
+        borrowed_windows,
         ..
     } = emission;
+    borrowed_windows.require_closed()?;
 
     if next_literal_argument != call_literal_count {
         return unsupported("byte-sequence literal argument consumption is incomplete");
@@ -1163,6 +1169,12 @@ impl MachineEmission<'_> {
             }
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore { .. } => {
                 self.structural_scalar_field_store(operation)?
+            }
+            CheckedUnitEffectOperationPlan::MoveStructuralField { .. } => {
+                self.move_structural_field(operation)?
+            }
+            CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {
+                self.store_structural_field(operation)?
             }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {
