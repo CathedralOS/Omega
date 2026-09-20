@@ -34,6 +34,10 @@ pub(in crate::preparation::generic_data) enum CanonicalConstNode {
         value: i128,
     },
     Boolean(bool),
+    Float {
+        format: numerics::literals::FloatFormat,
+        bits: u64,
+    },
     Array {
         type_name: String,
         values: Vec<CanonicalConstNode>,
@@ -56,6 +60,10 @@ impl CanonicalConstNode {
                 framed("integer", [type_name.clone(), value.to_string()])
             }
             Self::Boolean(value) => framed("boolean", [if *value { "true" } else { "false" }]),
+            Self::Float { format, bits } => match format {
+                numerics::literals::FloatFormat::F32 => format!("float:f32:{bits:08x}"),
+                numerics::literals::FloatFormat::F64 => format!("float:f64:{bits:016x}"),
+            },
             Self::Array { type_name, values } => framed(
                 "array",
                 std::iter::once(type_name.as_str().to_owned())
@@ -88,6 +96,12 @@ impl CanonicalConstNode {
         match self {
             Self::Integer { value, .. } => value.to_string(),
             Self::Boolean(value) => value.to_string(),
+            Self::Float { format, bits } => match format {
+                numerics::literals::FloatFormat::F32 => {
+                    format!("{:?}f32", f32::from_bits(*bits as u32))
+                }
+                numerics::literals::FloatFormat::F64 => format!("{:?}f64", f64::from_bits(*bits)),
+            },
             Self::Array { values, .. } => format!(
                 "[{}]",
                 values
@@ -629,6 +643,12 @@ pub(in crate::preparation::generic_data) fn validate_const_index_type(
     )
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConstValuePurpose {
+    Declaration,
+    Index,
+}
+
 fn validate_selected_const_index_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
@@ -636,18 +656,72 @@ fn validate_selected_const_index_type(
     selection: Option<&ConstantSelection>,
     substitution: &GenericApplicationSubstitution,
 ) -> Result<(), String> {
+    validate_selected_const_type(
+        syntax,
+        type_reference,
+        visiting,
+        selection,
+        substitution,
+        ConstValuePurpose::Index,
+    )
+}
+
+pub(in crate::preparation::generic_data) fn canonicalize_selected_declaration_value(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&ConstantSelection>,
+) -> Result<CanonicalConstValue, String> {
+    // Materializable declaration values and structural static indices are
+    // different cohorts. Retain all recursive eligibility fences, but only an
+    // index request excludes determined floating leaves.
+    let substitution = GenericApplicationSubstitution::new();
+    validate_selected_const_type(
+        syntax,
+        definition.type_reference,
+        &mut Vec::new(),
+        selection,
+        &substitution,
+        ConstValuePurpose::Declaration,
+    )?;
+    let node = canonicalize_const_expression(
+        syntax,
+        definition.type_reference,
+        definition.value,
+        selection,
+        &substitution,
+    )?;
+    let required = selected_type_label(syntax, definition.type_reference, selection)?;
+    if required == "Rat" {
+        validate_canonical_rat(&node)?;
+    }
+    Ok(CanonicalConstValue::new(
+        required,
+        node.encoding(),
+        node.display(),
+    ))
+}
+
+fn validate_selected_const_type(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<source::SourceSpan>,
+    selection: Option<&ConstantSelection>,
+    substitution: &GenericApplicationSubstitution,
+    purpose: ConstValuePurpose,
+) -> Result<(), String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
     if let TypeReferenceNode::Named(name) =
         syntax.tables.type_references.type_reference(type_reference)
         && let Some(argument) = substitution.get(name.as_str())
     {
-        return validate_selected_const_index_type(
+        return validate_selected_const_type(
             syntax,
             *argument,
             visiting,
             selection,
             substitution,
+            purpose,
         );
     }
     // A rewritten `Named` instance spelling validates through its retained
@@ -656,12 +730,13 @@ fn validate_selected_const_index_type(
         .type_references
         .generic_application_origin(type_reference);
     if origin.is_valid() && origin != type_reference {
-        return validate_selected_const_index_type(
+        return validate_selected_const_type(
             syntax,
             origin,
             visiting,
             selection,
             substitution,
+            purpose,
         );
     }
     let no_bindings = GenericApplicationSubstitution::new();
@@ -672,6 +747,11 @@ fn validate_selected_const_index_type(
                 "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
                     | "addr"
             ) {
+                return Ok(());
+            }
+            if purpose == ConstValuePurpose::Declaration
+                && matches!(name.as_str(), "f32" | "f64")
+            {
                 return Ok(());
             }
             if matches!(name.as_str(), "f32" | "f64" | "string") {
@@ -708,16 +788,14 @@ fn validate_selected_const_index_type(
             // whatever `T` resolves to in this declaration's own scope.
             for member in syntax.tables.items.data_members(definition.members) {
                 match member {
-                    DataMember::Field(field) => validate_selected_const_index_type(
-                        syntax,
+                    DataMember::Field(field) => validate_selected_const_type(syntax,
                         field.type_reference,
                         visiting,
                         selection,
-                        &no_bindings,
-                    )?,
+                        &no_bindings, purpose)?,
                     DataMember::Variant(variant) => {
                         for field in syntax.tables.items.data_payload_fields(variant.payload) {
-                            validate_selected_const_index_type(syntax, field.type_reference, visiting, selection, &no_bindings)?;
+                            validate_selected_const_type(syntax, field.type_reference, visiting, selection, &no_bindings, purpose)?;
                         }
                     }
                     DataMember::Retired(_) => {}
@@ -749,24 +827,20 @@ fn validate_selected_const_index_type(
                 visiting.push(declaration);
                 for member in syntax.tables.items.data_members(definition.members) {
                     match member {
-                        DataMember::Field(field) => validate_selected_const_index_type(
-                            syntax,
+                        DataMember::Field(field) => validate_selected_const_type(syntax,
                             field.type_reference,
                             visiting,
                             selection,
-                            &no_bindings,
-                        )?,
+                            &no_bindings, purpose)?,
                         DataMember::Variant(variant) => {
                             for field in
                                 syntax.tables.items.data_payload_fields(variant.payload)
                             {
-                                validate_selected_const_index_type(
-                                    syntax,
+                                validate_selected_const_type(syntax,
                                     field.type_reference,
                                     visiting,
                                     selection,
-                                    &no_bindings,
-                                )?;
+                                    &no_bindings, purpose)?;
                             }
                         }
                         DataMember::Retired(_) => {}
@@ -817,16 +891,14 @@ fn validate_selected_const_index_type(
             }
             for member in syntax.tables.items.data_members(definition.members) {
                 match member {
-                    DataMember::Field(field) => validate_selected_const_index_type(
-                        syntax,
+                    DataMember::Field(field) => validate_selected_const_type(syntax,
                         field.type_reference,
                         visiting,
                         selection,
-                        &next_substitution,
-                    )?,
+                        &next_substitution, purpose)?,
                     DataMember::Variant(variant) => {
                         for field in syntax.tables.items.data_payload_fields(variant.payload) {
-                            validate_selected_const_index_type(syntax, field.type_reference, visiting, selection, &next_substitution)?;
+                            validate_selected_const_type(syntax, field.type_reference, visiting, selection, &next_substitution, purpose)?;
                         }
                     }
                     DataMember::Retired(_) => {}
@@ -872,16 +944,14 @@ fn validate_selected_const_index_type(
                     );
                 }
             }
-            validate_selected_const_index_type(
-                syntax,
+            validate_selected_const_type(syntax,
                 *element_type,
                 visiting,
                 selection,
-                substitution,
-            )
+                substitution, purpose)
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
-            validate_selected_const_index_type(syntax, *base_type, visiting, selection, substitution)
+            validate_selected_const_type(syntax, *base_type, visiting, selection, substitution, purpose)
         }
         TypeReferenceNode::Unit => Ok(()),
         TypeReferenceNode::Reference { .. }
@@ -958,6 +1028,44 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
                 return Err("expected a boolean literal for `bool`".to_owned());
             };
             Ok(CanonicalConstNode::Boolean(*value))
+        }
+        TypeReferenceNode::Named(type_name) if matches!(type_name.as_str(), "f32" | "f64") => {
+            use numerics::literals::{FloatFormat, FloatLiteral};
+            let format = if type_name.as_str() == "f32" {
+                FloatFormat::F32
+            } else {
+                FloatFormat::F64
+            };
+            let literal = match syntax.expressions.expression(expression) {
+                ExpressionNode::Float(text) => FloatLiteral::parse(text.as_str()),
+                ExpressionNode::Integer(integer) if integer.landing().is_none() => integer
+                    .value_bignum()
+                    .and_then(|value| FloatLiteral::parse(&value.to_string())),
+                _ => None,
+            }
+            .ok_or_else(|| {
+                format!("initializer conflicts with declared floating carrier `{type_name}`")
+            })?;
+            if literal.landing().is_some_and(|landing| landing != format) {
+                return Err(format!(
+                    "initializer conflicts with declared floating carrier `{type_name}`"
+                ));
+            }
+            // Round directly from exact literal meaning into the declared format;
+            // an f64 intermediate would round binary32 midpoint cases twice.
+            let bits = match format {
+                FloatFormat::F32 if !literal.value_f32().is_nan() => {
+                    u64::from(literal.value_f32().to_bits())
+                }
+                FloatFormat::F64 if !literal.value_f64().is_nan() => literal.value_f64().to_bits(),
+                _ => {
+                    return Err(
+                        "floating declaration identity requires explicit NaN representation bits"
+                            .into(),
+                    );
+                }
+            };
+            Ok(CanonicalConstNode::Float { format, bits })
         }
         TypeReferenceNode::Named(type_name) => {
             canonicalize_data_const_expression(syntax, type_name, expression, selection)

@@ -269,12 +269,7 @@ pub(crate) fn canonicalize_selected_declared_const_definition(
     definition: &ConstDefinition,
     selection: Option<&constant_selection::ConstantSelection>,
 ) -> Result<CanonicalConstValue, String> {
-    let value = canonicalize_selected_const_definition(
-        syntax,
-        definition,
-        definition.type_reference,
-        selection,
-    )?;
+    let value = canonicalize_selected_declaration_value(syntax, definition, selection)?;
     if let TypeReferenceNode::Constrained { constraints, .. } = syntax
         .tables
         .type_references

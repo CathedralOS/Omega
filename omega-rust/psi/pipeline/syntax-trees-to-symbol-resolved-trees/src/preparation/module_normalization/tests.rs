@@ -132,20 +132,26 @@ fn structural_integer_encoding_retains_exact_landing_domain() {
 }
 
 #[test]
-fn module_arrays_with_unchecked_leaf_types_remain_fenced() {
+fn module_float_arrays_are_declarations_but_text_arrays_remain_fenced() {
     for source in [
         "module settings; const SIZE: [f32; 0] = [];",
-        "module settings; const SIZE: [string; 0] = [];",
+        "module settings; const VALUES: [f64; 2] = [1.5f64, -0.0f64];",
     ] {
-        assert!(
-            crate::preparation::generic_data::normalize_generic_data(
-                crate::preparation::generic_data::GenericDataRequest::new(parse(&[source]))
-            )
-            .expect_err("array shape cannot bypass missing namespace or value owners")[0]
-                .message
-                .contains("runtime floating/text identity")
-        );
+        crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(parse(&[source])),
+        )
+        .expect("floating declarations have determined representation bits");
     }
+    assert!(
+        crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(parse(&[
+                "module settings; const SIZE: [string; 0] = [];"
+            ]))
+        )
+        .expect_err("array shape cannot bypass missing text value ownership")[0]
+            .message
+            .contains("runtime floating/text identity")
+    );
 }
 
 #[test]

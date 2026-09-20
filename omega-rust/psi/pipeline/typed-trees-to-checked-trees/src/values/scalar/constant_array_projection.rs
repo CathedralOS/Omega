@@ -67,7 +67,7 @@ pub(super) fn selected_leaf(
     }
     matches!(
         program.expression_table.expression(selected),
-        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_)
     )
     .then_some(selected)
 }

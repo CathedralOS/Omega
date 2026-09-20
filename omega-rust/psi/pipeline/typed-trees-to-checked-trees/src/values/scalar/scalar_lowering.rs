@@ -192,18 +192,6 @@ pub(crate) fn lower_return_expression(
         )
         .map(|expression| CheckedScalarExpression::Boolean(Box::new(expression)));
     }
-    if let ExpressionNode::Float(literal) = program.expression_table.expression(expression) {
-        let value = match (result_type, literal.landing()) {
-            (PrimitiveType::F32, Some(numerics::literals::FloatFormat::F32)) => {
-                semantic_vocabulary::IeeeFloatValue::Binary32(literal.f32_bits())
-            }
-            (PrimitiveType::F64, Some(numerics::literals::FloatFormat::F64)) => {
-                semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
-            }
-            _ => return None,
-        };
-        return Some(CheckedScalarExpression::IeeeFloatLiteral { value });
-    }
     let (expression, _) = lower_scalar_expression(
         program,
         operators,
@@ -294,6 +282,23 @@ pub(crate) fn lower_scalar_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    // A landed floating leaf has the same bits whether it is the whole return
+    // or selected from a closed constructor. The caller still checks its exact
+    // destination carrier; this does not choose meaning for float operations.
+    if let ExpressionNode::Float(literal) = program.expression_table.expression(expression) {
+        let value = match literal.landing()? {
+            numerics::literals::FloatFormat::F32 => {
+                semantic_vocabulary::IeeeFloatValue::Binary32(literal.f32_bits())
+            }
+            numerics::literals::FloatFormat::F64 => {
+                semantic_vocabulary::IeeeFloatValue::Binary64(literal.value_f64().to_bits())
+            }
+        };
+        return Some((
+            CheckedScalarExpression::IeeeFloatLiteral { value },
+            ArithmeticDomain::Exact,
+        ));
+    }
     if let Some(read) = primitive_reference_read::declared(program, authored_parameters, expression)
     {
         return Some(read);

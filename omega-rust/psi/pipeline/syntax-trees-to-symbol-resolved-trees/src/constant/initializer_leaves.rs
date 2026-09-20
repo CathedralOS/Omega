@@ -580,6 +580,12 @@ fn pending_aggregate_placeholder_at(
         }
         TypeReferenceNode::Named(name) => match selection.builtin_type(name) {
             Some(symbols::BuiltinTypeAtom::Bool) => ExpressionNode::Boolean(false),
+            Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64) => {
+                ExpressionNode::Float(source::SourceText::new(
+                    format!("0.0{}", name.as_str()),
+                    reference,
+                ))
+            }
             Some(
                 symbols::BuiltinTypeAtom::I8
                 | symbols::BuiltinTypeAtom::I16

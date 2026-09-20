@@ -3258,9 +3258,9 @@ Owners include
     transitive-exposure controls for each.
   - Complete declaration evaluation, including unused initializers:
     specialized provider applications, target-dependent declarations, and
-    selected floating operations/NaN identities and aggregate floating values,
+    selected floating operations/NaN identities,
     which need determined bits through ordinary typed floating provider
-    applications and recursive materialization. Constrained constants
+    applications. Constrained constants
     still fence aggregate values and indices, open applications, non-domain
     constraints and unprovable facts. Carrier-polymorphic scalar constants
     discharge carrier-independent closed predicates; carrier-property bounds
@@ -3308,6 +3308,10 @@ Owners include
   Its `generic_constants::nested_generic_record_tables_execute_after_source_removal`
   control preserves mixed field/index projections over closed record tables;
   this does not establish dynamic indexing or runtime aggregate storage.
+  `compiler --test constant_float_tables` covers exact floating array and
+  record-table projections, transitive copies, source-free four-target
+  publication and matching-host execution; floating generic indices and
+  invalid unused initializers must still reject.
   Preserve the `qualified_declarations`, `qualified_constants`,
   `match_constant_indices`, `nominal_constant_bodies` and
   `module_array_constant_indices` customers. Under

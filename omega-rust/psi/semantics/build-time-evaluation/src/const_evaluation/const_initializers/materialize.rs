@@ -58,7 +58,7 @@ pub(super) fn literal(
         }
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some(primitive) =
-                crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+                crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                     program,
                     destination,
                 )
@@ -83,6 +83,21 @@ pub(super) fn literal(
                             )
                             .map_err(str::to_owned)?,
                         )
+                    }
+                    (
+                        primitive @ (PrimitiveType::F32 | PrimitiveType::F64),
+                        BuildTimeValue::Float(value),
+                    ) => {
+                        let (format, bits) = floating_bits(primitive, *value)?;
+                        let spelling = match format {
+                            numerics::literals::FloatFormat::F32 => {
+                                format!("{:?}f32", f32::from_bits(bits as u32))
+                            }
+                            numerics::literals::FloatFormat::F64 => {
+                                format!("{:?}f64", f64::from_bits(bits))
+                            }
+                        };
+                        ExpressionNode::Float(source::SourceText::new(spelling, reference))
                     }
                     _ => {
                         return Err(
@@ -281,7 +296,7 @@ pub(super) fn canonical_value(
         }
         TypeReferenceNode::Named { symbol, .. } => {
             if let Some(primitive) =
-                crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+                crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                     program,
                     destination,
                 )
@@ -301,6 +316,13 @@ pub(super) fn canonical_value(
                                 i128::from(*value as u64)
                             },
                         })
+                    }
+                    (
+                        primitive @ (PrimitiveType::F32 | PrimitiveType::F64),
+                        BuildTimeValue::Float(value),
+                    ) => {
+                        let (format, bits) = floating_bits(primitive, *value)?;
+                        Ok(DecodedCanonicalConstValue::Float { format, bits })
                     }
                     _ => {
                         Err("evaluated leaf does not match its declared scalar carrier".to_owned())
@@ -397,7 +419,10 @@ fn nominal_value(
 /// encoding: the declared simple name for nominal carriers, the builtin
 /// spelling for scalars, and `[element; length]` for fixed arrays — matching
 /// the syntax-side `selected_type_label`/`syntax_type_identity` contract.
-fn type_label(program: &TypedTrees, destination: TypeReferenceHandle) -> Result<String, String> {
+pub(super) fn type_label(
+    program: &TypedTrees,
+    destination: TypeReferenceHandle,
+) -> Result<String, String> {
     match program.type_reference_table.type_reference(destination) {
         TypeReferenceNode::Named { symbol, name } => {
             if program.symbols.builtin_type_atom(*symbol).is_some() {
@@ -425,5 +450,49 @@ fn type_label(program: &TypedTrees, destination: TypeReferenceHandle) -> Result<
         TypeReferenceNode::Constrained { base_type, .. } => type_label(program, *base_type),
         TypeReferenceNode::Unit => Ok("()".to_owned()),
         _ => Err("aggregate leaf carrier has no canonical label".to_owned()),
+    }
+}
+
+/// Interpreter storage is f64, not permission to round an f32 leaf again.
+/// NaN needs explicit realization custody; an arbitrary interpreter payload
+/// cannot become a declaration's stable bits. Bit equality also retains -0.
+fn floating_bits(
+    primitive: PrimitiveType,
+    value: f64,
+) -> Result<(numerics::literals::FloatFormat, u64), String> {
+    use numerics::literals::FloatFormat;
+    if value.is_nan() {
+        return Err("constant result is NaN without an exact raw-NaN realization".into());
+    }
+    match primitive {
+        PrimitiveType::F32 if f64::from(value as f32).to_bits() == value.to_bits() => {
+            Ok((FloatFormat::F32, u64::from((value as f32).to_bits())))
+        }
+        PrimitiveType::F64 => Ok((FloatFormat::F64, value.to_bits())),
+        _ => Err("constant result does not retain one exact binary32 value".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PrimitiveType, floating_bits};
+
+    #[test]
+    fn floating_snapshot_cannot_round_again_or_choose_nan_bits() {
+        assert_eq!(
+            floating_bits(PrimitiveType::F32, -0.0).unwrap().1,
+            0x80000000
+        );
+        assert_eq!(
+            floating_bits(PrimitiveType::F64, -0.0).unwrap().1,
+            0x8000000000000000
+        );
+        assert!(floating_bits(PrimitiveType::F32, 0.1).is_err());
+        assert!(floating_bits(PrimitiveType::F32, f64::NAN).is_err());
+        assert!(floating_bits(PrimitiveType::F64, f64::NAN).is_err());
+        assert_eq!(
+            floating_bits(PrimitiveType::F32, f64::INFINITY).unwrap().1,
+            0x7f800000
+        );
     }
 }

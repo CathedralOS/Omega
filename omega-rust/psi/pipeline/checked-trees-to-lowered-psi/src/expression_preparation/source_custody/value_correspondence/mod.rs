@@ -993,7 +993,7 @@ impl Context<'_> {
         }
         matches!(
             self.checked.expression_table.expression(selected),
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
+            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_)
         )
         .then_some(selected)
     }

@@ -1,4 +1,4 @@
-//! Canonical, compiler-generated const-generic value atoms.
+//! Canonical constant declaration values and compiler-generated index atoms.
 //!
 //! Generic arguments historically carry integer values as unnameable decimal
 //! `Named` leaves. Structured const values use the same erased carrier, but a
@@ -7,6 +7,12 @@
 //! trace, is semantic identity. `display` is canonical diagnostic text and is
 //! included in the atom only so every downstream tree can render the value
 //! without retaining the pre-resolution expression arena.
+//!
+//! Declarations may additionally retain determined floating bits. That does not
+//! make IEEE values structural generic indices: ordinary decoding rejects a
+//! floating leaf at any depth. Only declaration replay opts into that extension.
+
+use numerics::literals::FloatFormat;
 
 const PREFIX: &str = "#omega-const:";
 const MAX_ENCODING_BYTES: usize = 64 * 1024;
@@ -25,6 +31,10 @@ pub enum DecodedCanonicalConstValue {
         value: i128,
     },
     Boolean(bool),
+    Float {
+        format: FloatFormat,
+        bits: u64,
+    },
     Array {
         type_name: String,
         values: Vec<Self>,
@@ -69,7 +79,13 @@ impl CanonicalConstIdentity {
     }
 
     pub fn decode_encoding(&self) -> Option<DecodedCanonicalConstValue> {
-        decode_canonical_encoding(self.encoding.as_str())
+        decode_canonical_encoding(self.encoding.as_str(), false)
+    }
+
+    /// Decode a declaration receipt, including determined floating leaves.
+    /// This does not establish eligibility for a generic or domain index.
+    pub fn decode_declaration_encoding(&self) -> Option<DecodedCanonicalConstValue> {
+        decode_canonical_encoding(self.encoding.as_str(), true)
     }
 }
 
@@ -128,16 +144,19 @@ impl CanonicalConstValue {
     /// Decode the canonical inner encoding, failing closed on malformed or
     /// non-canonical framing and on values outside the fixed resource bounds.
     pub fn decode_encoding(&self) -> Option<DecodedCanonicalConstValue> {
-        decode_canonical_encoding(self.encoding.as_str())
+        decode_canonical_encoding(self.encoding.as_str(), false)
     }
 }
 
-fn decode_canonical_encoding(encoding: &str) -> Option<DecodedCanonicalConstValue> {
+fn decode_canonical_encoding(
+    encoding: &str,
+    declaration: bool,
+) -> Option<DecodedCanonicalConstValue> {
     if encoding.len() > MAX_ENCODING_BYTES {
         return None;
     }
     let mut decoded_nodes = 0;
-    decode_node(encoding, 0, &mut decoded_nodes)
+    decode_node(encoding, 0, &mut decoded_nodes, declaration)
 }
 
 fn framed(tag: &str, pieces: impl IntoIterator<Item = impl AsRef<str>>) -> String {
@@ -155,11 +174,34 @@ fn decode_node(
     encoding: &str,
     depth: usize,
     decoded_nodes: &mut usize,
+    declaration: bool,
 ) -> Option<DecodedCanonicalConstValue> {
     if depth >= MAX_DECODE_DEPTH || *decoded_nodes >= MAX_DECODED_NODES {
         return None;
     }
     *decoded_nodes += 1;
+
+    if let Some(rest) = encoding.strip_prefix("float:") {
+        if !declaration {
+            return None;
+        }
+        let (format, spelling) = rest.split_once(':')?;
+        let bits = u64::from_str_radix(spelling, 16).ok()?;
+        let format = match format {
+            "f32"
+                if bits <= u64::from(u32::MAX)
+                    && spelling == format!("{bits:08x}")
+                    && !f32::from_bits(bits as u32).is_nan() =>
+            {
+                FloatFormat::F32
+            }
+            "f64" if spelling == format!("{bits:016x}") && !f64::from_bits(bits).is_nan() => {
+                FloatFormat::F64
+            }
+            _ => return None,
+        };
+        return Some(DecodedCanonicalConstValue::Float { format, bits });
+    }
 
     if let Some(mut rest) = encoding.strip_prefix("integer") {
         let type_name = take_canonical_piece(&mut rest)?;
@@ -197,7 +239,7 @@ fn decode_node(
         let mut values = Vec::new();
         while !rest.is_empty() {
             let child = take_canonical_piece(&mut rest)?;
-            let value = decode_node(child, depth + 1, decoded_nodes)?;
+            let value = decode_node(child, depth + 1, decoded_nodes, declaration)?;
             values.try_reserve_exact(1).ok()?;
             values.push(value);
         }
@@ -212,7 +254,7 @@ fn decode_node(
         if type_name.is_empty() {
             return None;
         }
-        let fields = decode_fields(&mut rest, depth, decoded_nodes)?;
+        let fields = decode_fields(&mut rest, depth, decoded_nodes, declaration)?;
         return Some(DecodedCanonicalConstValue::Record {
             type_name: type_name.to_owned(),
             fields,
@@ -225,7 +267,7 @@ fn decode_node(
         if type_name.is_empty() || case_name.is_empty() {
             return None;
         }
-        let fields = decode_fields(&mut rest, depth, decoded_nodes)?;
+        let fields = decode_fields(&mut rest, depth, decoded_nodes, declaration)?;
         return Some(DecodedCanonicalConstValue::Variant {
             type_name: type_name.to_owned(),
             case_name: case_name.to_owned(),
@@ -240,6 +282,7 @@ fn decode_fields(
     rest: &mut &str,
     depth: usize,
     decoded_nodes: &mut usize,
+    declaration: bool,
 ) -> Option<Vec<(String, DecodedCanonicalConstValue)>> {
     let mut fields = Vec::new();
     while !rest.is_empty() {
@@ -248,7 +291,7 @@ fn decode_fields(
             return None;
         }
         let child = take_canonical_piece(rest)?;
-        let value = decode_node(child, depth + 1, decoded_nodes)?;
+        let value = decode_node(child, depth + 1, decoded_nodes, declaration)?;
         fields.try_reserve_exact(1).ok()?;
         fields.push((field_name.to_owned(), value));
     }
@@ -456,6 +499,58 @@ mod tests {
             framed("variant", ["V", ""]),
         ] {
             assert!(decode(encoding).is_none());
+        }
+    }
+
+    #[test]
+    fn declaration_floats_do_not_become_structural_indices() {
+        for (scalar, format, bits) in [
+            (
+                "float:f32:80000000",
+                numerics::literals::FloatFormat::F32,
+                0x80000000,
+            ),
+            (
+                "float:f64:8000000000000000",
+                numerics::literals::FloatFormat::F64,
+                0x8000000000000000,
+            ),
+        ] {
+            let record = framed("record", ["Cell", "value", scalar]);
+            let array = framed("array", ["[Cell; 1]", record.as_str()]);
+            for encoding in [scalar.to_owned(), record, array] {
+                let value = CanonicalConstValue::new("encoded claim", &encoding, "display");
+                assert!(value.decode_encoding().is_none());
+                assert!(value.identity().decode_encoding().is_none());
+                let forged = CanonicalConstValue::from_atom(&value.atom()).unwrap();
+                assert!(forged.decode_encoding().is_none());
+                assert!(value.identity().decode_declaration_encoding().is_some());
+            }
+            assert_eq!(
+                CanonicalConstValue::new("", scalar, "")
+                    .identity()
+                    .decode_declaration_encoding(),
+                Some(DecodedCanonicalConstValue::Float { format, bits }),
+            );
+        }
+        for encoding in [
+            "float:f32:7fc00000",
+            "float:f64:7ff8000000000000",
+            "float:f32:0",
+            "float:f32:000000000",
+            "float:f32:0000000A",
+            "float:f32:100000000",
+            "float:f64:0000000000000000x",
+            "float:f16:0000",
+        ] {
+            let nested = framed("array", ["[f32; 1]", encoding]);
+            assert!(
+                CanonicalConstValue::new("", nested, "")
+                    .identity()
+                    .decode_declaration_encoding()
+                    .is_none(),
+                "{encoding}"
+            );
         }
     }
 
