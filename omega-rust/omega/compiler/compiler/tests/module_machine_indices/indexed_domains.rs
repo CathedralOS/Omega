@@ -22,6 +22,122 @@ fn package_inputs(root: &Path, library: &Path) -> PackageCompilationInputs {
 }
 
 #[test]
+fn scalar_constant_aliases_discharge_every_constituent_through_terminal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("policy.omg"),
+        "module policy;
+         pub domain u64::Positive requires self > 0;
+         pub domain u64::Small requires self < 10;
+         pub domain u64::Both = u64::Positive & u64::Small;
+         pub domain u64::Alias = u64::Both & u64::Positive;",
+    );
+    Sources::write(
+        library.join("settings.omg"),
+        "module settings; use policy; pub const VALUE: u64 in policy::u64::Alias = 7;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::settings; machine read() -> u64 { settings::VALUE as u64 }",
+    );
+    assert_source_free_seven(compile(&root, package_inputs(&root, &library)));
+
+    // Equal logical alias paths in two packages are distinct declarations,
+    // not a cycle. The root alias selects the library's entire conjunction.
+    Sources::write(
+        root.join("policy.omg"),
+        "module policy; use library::policy;
+         pub domain u64::Alias = library::policy::u64::Alias;
+         pub const VALUE: u64 in Alias = 7;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use policy; machine read() -> u64 { policy::VALUE as u64 }",
+    );
+    assert_source_free_seven(compile(&root, package_inputs(&root, &library)));
+}
+
+#[test]
+fn scalar_constant_aliases_reject_false_and_unestablished_constituents() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (declaration, expected) in [
+        (
+            "domain<T> T::Alias = u64::Atom; domain u64::Atom;",
+            "classify different types",
+        ),
+        (
+            "domain u64::Atom; pub domain u64::Alias = u64::Atom;",
+            "private constituent",
+        ),
+        (
+            "domain u64::Atom requires self < 7; domain u64::Alias = u64::Atom;",
+            "Atom",
+        ),
+        (
+            "domain u32::Atom; domain u64::Alias = u32::Atom;",
+            "carrier",
+        ),
+        (
+            "domain u64::Atom established by Issuer::issue; domain u64::Alias = u64::Atom;
+          trait Issuer { machine issue() -> u64 in Atom; }",
+            "declaration-site proof checking",
+        ),
+        (
+            "domain u64::Atom = u64::Alias; domain u64::Alias = u64::Atom;",
+            "declaration-site proof checking",
+        ),
+    ] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!("{declaration} const UNUSED: u64 in Alias = 7; machine read() -> u64 {{ 7 }}"),
+        );
+        let error = rejection(&root, super::root_inputs(&root));
+        assert!(error.contains(expected), "{declaration}: {error}");
+    }
+}
+
+#[test]
+fn scalar_constant_aliases_cannot_select_private_foreign_constituents() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let library = tree.package("library");
+    Sources::write(
+        library.join("policy.omg"),
+        "module policy; domain u64::Atom;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use library::policy; domain u64::Alias = library::policy::u64::Atom;
+         const UNUSED: u64 in Alias = 7; machine read() -> u64 { 7 }",
+    );
+    let error = rejection(&root, package_inputs(&root, &library));
+    assert!(
+        error.contains("selects private domain `policy::u64::Atom`"),
+        "{error}"
+    );
+}
+
+#[test]
+fn false_alias_membership_retains_ordinary_boolean_meaning() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for fact in ["(self in Alias) == false", "(self in Alias) || true"] {
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "domain u64::Never requires false; domain u64::Alias = u64::Never;
+             domain u64::Gate requires {fact}; const VALUE: u64 in Gate = 7;
+             machine read() -> u64 {{ VALUE as u64 }}"
+            ),
+        );
+        assert_source_free_seven(compile(&root, super::root_inputs(&root)));
+    }
+}
+
+#[test]
 fn scalar_constants_in_carrier_polymorphic_domains_reach_terminal() {
     let tree = Sources::new();
     let root = tree.package("root");
