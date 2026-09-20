@@ -8919,8 +8919,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   EXACT-MACHINE-SIMPLIFICATIONS; no independent slice (see sibling
   SELECTED-REWRITE-CATALOG-DISPOSITION's owner-chain routing).
 - **SELECTED-STAGE-RULE-CATALOG** — mined candidate; verify scope then implement.
-- **SELECTIVE-ARITHMETIC-EXPANSION** — scope verified 2026-09-20: this mined
-  stub re-covers open work already owned by **MATCH-SELECTIVE-LOWERING**. Its
+- **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`:
+  this mined stub re-covers open work already owned by
+  **MATCH-SELECTIVE-LOWERING** (live claim through 2026-09-20T22:31Z on the
+  `expression_types` owners below). Its
   mining source is
   [chapter 6](wiki/language_guide/chapter_6_pattern_matching_dispatch.md)'s
   note that the parser's arithmetic-shaped `match` expansion does not
