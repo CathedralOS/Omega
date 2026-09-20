@@ -6507,7 +6507,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CONSTRUCTIVE-REAL-FOUNDATIONS** — mined candidate; verify scope then implement.
 - **COORDINATOR-OVEROWNERSHIP-AUDIT** — mined candidate; verify scope then implement.
 - **CRATE-ROOT-RESPONSIBILITY-AUDIT** — mined candidate; verify scope then implement.
-- **CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
+- **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
+  alias of CROSS-COMPILER-DIFFERENTIAL-LANE (scope verified at
+  `36ffc8af87`), which names this row verbatim. Re-verified on linux
+  x86-64 at `a0cf9e5e82`: the gate is unchanged —
+  `selected-dispatch/src/service_custody/root.rs` still emits "selected
+  ProgramEntry establishment rejoins {} Terminal attachment identities;
+  expected one", the pin at
+  `compiler/tests/source_evaluated_native_realization/linux_dynamic_realization.rs`
+  still asserts the unattached-Service stop, and the
+  OMEGA-PRODUCT-COMPILER-SOURCE row still records the parser gate and
+  `source/omega/main.omg` stopping at the same service-custody frontier.
+  The lane's only entrypoint, `source/psi/test-parser.sh`, cannot mint
+  the artifact it drives until that gate clears; no independent slice
+  exists here. Remaining sibling alias: RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL.
 - **CROSS-COMPILER-DIFFERENTIAL-LANE.** Mined candidate; scope verified at
   `36ffc8af87`. The lane is the cross-check between the maintained Rust
   compiler and the Omega-written product compiler: `omega-rust/README.md`
