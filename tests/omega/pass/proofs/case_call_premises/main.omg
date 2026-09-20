@@ -41,3 +41,29 @@ terminates;
         transition { _ -> (empty_only(known)) }
     }
 }
+
+machine make_empty(marked: bool) -> Tree
+ensures result in Tree::Empty;
+terminates;
+{ transition { _ -> Tree::Empty { marked: marked } } }
+
+machine preserve_empty(value: Tree) -> Tree
+requires value in Tree::Empty;
+ensures result in Tree::Empty;
+terminates;
+{ value }
+
+// Only the declared tag is transported; marked remains unconstrained.
+machine completed_calls() -> Tree
+terminates;
+{
+    let first: Tree = make_empty(true);
+    let second: Tree = preserve_empty(first);
+    transition { _ -> next(second) }
+    state next(known: Tree) -> Tree {
+        transition known {
+            Tree::Empty -> (empty_only(known))
+            Tree::Node { child } -> child
+        }
+    }
+}

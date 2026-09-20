@@ -2,7 +2,8 @@
 
 use super::call_requirements::{CallRequirement, establish_citation};
 use crate::proof_contracts::contract_entailment::citations::{
-    citation_call_in_statement, instantiate_citation, is_citation_statement, machine_requires_facts,
+    CitationFacts, CitationTarget, citation_call_in_statement, instantiate_citation,
+    is_citation_statement, machine_requires_facts,
 };
 use crate::proof_contracts::contract_entailment::is_arm_pattern_marker;
 use crate::proof_contracts::contract_entailment::self_induction::intake_available_self_induction_hypotheses;
@@ -199,7 +200,7 @@ fn guard_expressions_equal(
     }
 }
 
-type PendingStructuralCitation = (typed_trees::name::Identifier, Vec<StructuralTerm>);
+type PendingStructuralCitation = (CitationTarget, Vec<StructuralTerm>);
 
 /// Recognize a proof machine as a tree of structural case states. Each named
 /// state can either terminate in a value or refine another subject and hand
@@ -268,7 +269,7 @@ pub(super) fn recognize_structural_case_arms_with_requirement(
         &mut path,
         &mut fresh,
         &mut requirement,
-        Vec::new(),
+        CitationFacts::default(),
     )?;
     (!arms.is_empty() || requirement.is_some()).then_some(arms)
 }
@@ -292,7 +293,7 @@ fn recognize_structural_state_leaves(
     path: &mut Vec<SymbolHandle>,
     fresh: &mut usize,
     requirement: &mut Option<&mut CallRequirement<'_>>,
-    mut established_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
+    mut established_guarantees: CitationFacts,
 ) -> Option<Vec<StructuralCaseArm>> {
     if !state.symbol.is_valid() || path.contains(&state.symbol) {
         return None;
@@ -349,13 +350,13 @@ fn recognize_structural_state_leaves(
                     &case_hypotheses,
                     &case_equations,
                     &mut established_guarantees,
-                    target,
+                    &target,
                     &arguments,
                 );
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let term = judge.callee_term(local.initial_value, &environment, 0)?;
+                    let term = judge.local_term(local, &environment)?;
                     if collect_citations
                         && let Some((target, argument_handles)) =
                             citation_call_in_statement(program, statement)
@@ -482,7 +483,7 @@ fn recognize_structural_state_leaves(
                     StructuralTerm::Variable(subject) => {
                         branch_hypotheses.push((subject, constructor.clone()));
                     }
-                    StructuralTerm::Application { .. } => {
+                    StructuralTerm::Application { .. } | StructuralTerm::BoundValue(_) => {
                         branch_equations.push((subject, constructor.clone()));
                     }
                     _ => return None,
@@ -629,21 +630,18 @@ fn finalize_structural_case_arm(
     let mut citations = Vec::new();
     if !vacuous {
         for (target, arguments) in pending_citations {
-            let before = citations.len();
-            instantiate_citation(
+            let established = instantiate_citation(
                 program,
                 classification,
                 machine,
                 &target,
                 &arguments,
                 diagnostics,
-                &mut citations,
                 Some(&arm_judge),
                 true,
             );
-            for (left, right) in &citations[before..] {
-                arm_judge.intake_equation(left.clone(), right.clone(), 0);
-            }
+            established.intake(&mut arm_judge);
+            citations.extend(established.equations);
             // An earlier citation may establish a recursive application's
             // requires, making its conditional IH available to later
             // citations in the same authored statement order.

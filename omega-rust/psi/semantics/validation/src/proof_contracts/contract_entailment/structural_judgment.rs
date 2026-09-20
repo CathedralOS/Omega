@@ -16,9 +16,24 @@ pub(super) enum StructuralJudgment {
     Unknown,
 }
 
+#[derive(Clone)]
+pub(super) struct CaseGuarantee {
+    subject: StructuralTerm,
+    data: SymbolHandle,
+    case: SymbolHandle,
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(super) enum StructuralTerm {
     Variable(String),
+    /// A completed call's exact local result. Its contract may classify this
+    /// value, but neither its spelling nor its callee's body defines it here.
+    BoundValue(SymbolHandle),
+    /// A field path on the same completed value, never a callee-local spelling.
+    BoundProjection {
+        subject: SymbolHandle,
+        path: String,
+    },
     /// Exact literal value, independent of radix or authored spelling.
     Integer(numerics::bignum::BigInt),
     /// Data name, case name, and complete common/payload fields (sorted by
@@ -65,6 +80,43 @@ mod case_premise_tests {
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn completed_result_projection_substitution_keeps_its_binding() {
+        let tokens = Lexer::new("machine caller() {}")
+            .tokenize()
+            .expect("tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("symbols");
+        let program = lower_symbol_resolved_trees(&resolved).expect("types");
+        let subject = program.machines()[0].symbol;
+        let field = StructuralTerm::Opaque("value.marked".to_owned());
+        let substituted = StructuralJudge::substitute_term(
+            &field,
+            &[("value".to_owned(), StructuralTerm::BoundValue(subject))],
+        );
+        assert_ne!(
+            substituted, field,
+            "a callee-local field cannot survive substitution unchanged"
+        );
+        assert_eq!(
+            substituted,
+            StructuralTerm::BoundProjection {
+                subject,
+                path: "marked".to_owned()
+            }
+        );
+        assert_eq!(
+            StructuralJudge::substitute_term(
+                &StructuralTerm::Opaque("alias.child.marked".to_owned()),
+                &[("alias".to_owned(), StructuralTerm::BoundValue(subject),)]
+            ),
+            StructuralTerm::BoundProjection {
+                subject,
+                path: "child.marked".to_owned()
+            }
+        );
+    }
 
     #[test]
     fn case_premises_do_not_inherit_legacy_application_resolution() {
@@ -387,6 +439,10 @@ impl<'program> StructuralJudge<'program> {
         Self::from_requires_with_resolution(program, judged_machine, requires, false)
     }
 
+    pub(super) fn has_exact_case_subjects(&self) -> bool {
+        !self.resolve_applications
+    }
+
     fn from_requires_with_resolution(
         program: &'program TypedTrees,
         judged_machine: &Machine,
@@ -633,7 +689,10 @@ impl<'program> StructuralJudge<'program> {
                     }
                     return resolved;
                 }
-                StructuralTerm::Opaque(_) | StructuralTerm::Integer(_) => return term,
+                StructuralTerm::Opaque(_)
+                | StructuralTerm::Integer(_)
+                | StructuralTerm::BoundValue(_)
+                | StructuralTerm::BoundProjection { .. } => return term,
             }
         }
         term
@@ -987,6 +1046,27 @@ impl<'program> StructuralJudge<'program> {
         self.callee_term_with_machines(expression, environment, &[], depth)
     }
 
+    pub(super) fn local_term(
+        &self,
+        local: &typed_trees::statement::TableLocalData,
+        environment: &[(String, StructuralTerm)],
+    ) -> Option<StructuralTerm> {
+        if !self.resolve_applications
+            && matches!(
+                self.program
+                    .expression_table
+                    .expression(local.initial_value),
+                ExpressionNode::Call(_)
+            )
+        {
+            return local
+                .symbol
+                .is_valid()
+                .then_some(StructuralTerm::BoundValue(local.symbol));
+        }
+        self.callee_term(local.initial_value, environment, 0)
+    }
+
     fn callee_term_with_machines(
         &self,
         expression: ExpressionHandle,
@@ -1093,6 +1173,16 @@ impl<'program> StructuralJudge<'program> {
                         "{inner}.{}",
                         member.member.as_str()
                     ))),
+                    StructuralTerm::BoundValue(subject) => Some(StructuralTerm::BoundProjection {
+                        subject,
+                        path: member.member.as_str().to_owned(),
+                    }),
+                    StructuralTerm::BoundProjection { subject, path } => {
+                        Some(StructuralTerm::BoundProjection {
+                            subject,
+                            path: format!("{path}.{}", member.member.as_str()),
+                        })
+                    }
                     StructuralTerm::Integer(_)
                     | StructuralTerm::Application { .. }
                     | StructuralTerm::CallProjection { .. } => None,
@@ -1160,7 +1250,9 @@ impl<'program> StructuralJudge<'program> {
         map: &[(String, StructuralTerm)],
     ) -> StructuralTerm {
         match term {
-            StructuralTerm::Integer(_) => term.clone(),
+            StructuralTerm::Integer(_)
+            | StructuralTerm::BoundValue(_)
+            | StructuralTerm::BoundProjection { .. } => term.clone(),
             StructuralTerm::Variable(name) => map
                 .iter()
                 .find(|(variable, _)| variable == name)
@@ -1217,6 +1309,16 @@ impl<'program> StructuralJudge<'program> {
                     };
                     return match replacement {
                         StructuralTerm::Integer(_) => term.clone(),
+                        StructuralTerm::BoundValue(subject) => StructuralTerm::BoundProjection {
+                            subject: *subject,
+                            path: suffix.to_owned(),
+                        },
+                        StructuralTerm::BoundProjection { subject, path } => {
+                            StructuralTerm::BoundProjection {
+                                subject: *subject,
+                                path: format!("{path}.{suffix}"),
+                            }
+                        }
                         StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
@@ -1402,6 +1504,62 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
+    /// Import a checked selected callee's tag guarantee under its own scope.
+    /// The receiver supplies only post-call bindings and has already proved
+    /// the invocation's premises. A tag never contributes a value equation.
+    pub(super) fn instantiated_case_guarantees(
+        &self,
+        callee: &Machine,
+        fact: ExpressionHandle,
+        map: &[(String, StructuralTerm)],
+        guarantees: &mut Vec<CaseGuarantee>,
+    ) {
+        if !self.has_exact_case_subjects() {
+            return;
+        }
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(fact) else {
+            return;
+        };
+        if binary.operator == BinaryOperator::And {
+            self.instantiated_case_guarantees(callee, binary.left, map, guarantees);
+            self.instantiated_case_guarantees(callee, binary.right, map, guarantees);
+            return;
+        }
+        if !super::structural_terms::is_case_observation(self.program, fact)
+            || !crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                self.program,
+                callee,
+                None,
+                fact,
+                binary,
+            )
+        {
+            return;
+        }
+        let Some((definition, variant)) =
+            super::structural_terms::case_classifier(self.program, binary.right)
+        else {
+            return;
+        };
+        let Some(subject) = structural_term(self.program, binary.left) else {
+            return;
+        };
+        let Some(subject) = self.resolve_case_subject(Self::substitute_term(&subject, map), 0)
+        else {
+            return;
+        };
+        guarantees.push(CaseGuarantee {
+            subject,
+            data: definition.symbol,
+            case: variant.symbol,
+        });
+    }
+
+    pub(super) fn intake_case_guarantee(&mut self, guarantee: &CaseGuarantee) {
+        self.case_facts
+            .push((guarantee.subject.clone(), guarantee.data, guarantee.case));
+    }
+
     fn judge_case(
         &self,
         subject: StructuralTerm,
@@ -1445,7 +1603,10 @@ impl<'program> StructuralJudge<'program> {
         }
         // Opaque text and legacy application unfolding are not exact subject
         // identity. Keep those outside this predicate route until repaired.
-        if !matches!(subject, StructuralTerm::Variable(_)) {
+        if !matches!(
+            subject,
+            StructuralTerm::Variable(_) | StructuralTerm::BoundValue(_)
+        ) {
             return StructuralJudgment::Unknown;
         }
         for (known_subject, known_data, known_case) in &self.case_facts {
@@ -1541,9 +1702,10 @@ impl<'program> StructuralJudge<'program> {
                         .collect::<Option<Vec<_>>>()?,
                 })
             }
-            StructuralTerm::Integer(_) => Some(term),
+            StructuralTerm::Integer(_) | StructuralTerm::BoundValue(_) => Some(term),
             StructuralTerm::Application { .. }
             | StructuralTerm::CallProjection { .. }
+            | StructuralTerm::BoundProjection { .. }
             | StructuralTerm::Opaque(_) => None,
         }
     }

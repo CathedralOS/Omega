@@ -3196,12 +3196,17 @@ Owners include
     and imports core cancellation and `sub_le`. Ordinary statement calls retain
     the exact-site `call_requirements.rs` judgment and separate induction descent.
     Remaining owners: abstract signatures, domain/default-domain predicates,
-    explicit static callable/evidence substitution, citation/induction transport
-    of case-membership guarantees, and nominal/propositional premises.
-    `proofs/case_call_premises` covers application-free concrete and symbolic tag premises
-    through contract formation and ordinary state-forwarded calls;
-    `case_call_wrong_subject` rejects a different argument. Tag predicates retain
-    exact classifier identities and must never become zero-valued field equations.
+    explicit static callable/evidence substitution, conditional/induction and
+    general postcondition transport of case-membership guarantees, and
+    nominal/propositional premises.
+    `proofs/case_call_premises` covers concrete and symbolic tag premises,
+    completed concrete-call guarantees, matching and named-state forwarding;
+    `case_call_wrong_subject` and `case_citation_wrong_result` reject different
+    subjects. Concrete citations use exact target/result bindings and discharge
+    their own premises before later calls consume a tag. Extending this to
+    abstract callable contracts or induction must preserve that ordering,
+    independently establish descent, and never import private strengthening.
+    Tag predicates retain exact classifier identities without field equations.
     Structural application/projection
     premises still fail closed:
     `structural_judgment.rs::callee_term_with_machines` can turn a binary body
