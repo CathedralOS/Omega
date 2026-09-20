@@ -9407,7 +9407,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   resolves. Remaining promotion evidence axes stay owned by
   RULE-PROMOTION-EVIDENCE (measurement waits on the BENCHMARKS
   native-realization failure; owner approval is a product decision).
-- **RUNTIME-CAPABLE-BINDERS** — mined candidate; verify scope then implement.
+- **RUNTIME-CAPABLE-BINDERS.** Mined candidate — scope verified, covered:
+  re-mines the runtime-capable-versus-const binder contract
+  ([generics](wiki/spec/language/generics.md#value-binders-and-const-requirements):
+  `N: u64` runtime-capable vs `const N: u64` static; dependent_values.md's
+  "Runtime-capable generic index" row), which is exactly the surface owned
+  by open item RUNTIME-VALUE-GENERICS (TASKS.md:3914). Verified at
+  `d8041919add`: the landed half is in place — `TypeParameterKind::Value`
+  flows through syntax/symbol-resolved/typed trees, `<Count: u32>` parses
+  on machine and trait signatures, runtime arguments become one trailing
+  ordinary parameter of the shared specialization under
+  `typed-trees-to-checked-trees/src/monomorphization/`, and
+  `compiler/tests/runtime_value_generics.rs` replays the captured /
+  forwarded / reassigned / guard-established / structural subject legs.
+  No independent slice exists: the remaining legs are the parent's own
+  named bullets — guard-derived parameter qualifications and the native
+  call/storage routes owned by STATE-LOCAL-VALUE-FRONTIER and
+  ENTRY-CONTENT-ROOTS — plus the runtime-capable family-call leg owned by
+  FINITE-GENERIC-DISPATCH (`execution/unit/dynamic_scalar_calls/`).
+  Sibling re-mine on the same contract: GENERAL-SOURCE-BINDER-SYNTAX
+  (resolved, PROOF-CONTRACT-MIGRATION surface, distinct). 
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Scope verified at `e12b9e8e06` —
   this names the contract half of the runtime-sized activation storage
   chapter (`wiki/spec/resources/activation_storage.md`): bounded-claim
