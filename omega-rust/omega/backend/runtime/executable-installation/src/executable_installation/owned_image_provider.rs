@@ -12,9 +12,11 @@
 //! `InstalledCode::seal_entry_reference` contracts for, and `call` is the
 //! provider's call path — the only route that turns a sealed
 //! `InstalledEntryReference` into the resident entry content a physical call
-//! enters. Receipts are minted only for steps actually performed, and a
-//! demand for facts outside this provider's performed set is refused before
-//! any mutation.
+//! enters; `retire` unwinds the write-to-execute transition for a drained
+//! realization, reporting executor quiescence the `&mut self` receiver
+//! establishes structurally. Receipts are minted only for steps actually
+//! performed, and a demand for facts outside this provider's performed set
+//! is refused before any mutation.
 //!
 //! Honest boundaries: an owned buffer cannot be hardware-protected, so this
 //! provider reports `WxEnforcement::ConventionOnly` — write authority is the
@@ -31,9 +33,12 @@
 //! bytes under seal, not a runnable address: the physical control transfer
 //! remains the consuming platform executor's obligation, and holding the
 //! returned `ResidentEntryCall` keeps the image borrowed so no `patch` or
-//! `release` can run while a call is in flight. Retirement, quiescence, and
-//! quarantine remain separate provider obligations; `release` merely drops
-//! resident storage once the caller holds that evidence.
+//! `release` can run while a call is in flight — and that same exclusive
+//! borrow is the executor-quiescence evidence `retire` reports. Retirement
+//! clears the image's execute-enabled flag and restores write authority;
+//! `release` merely drops resident storage once the caller holds the
+//! lifecycle's retired or quarantined outcome, and quarantine itself stays a
+//! caller obligation this provider cannot establish.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -44,7 +49,8 @@ use crate::executable_installation::{
     EntryReferenceFactDigest, EntryReferenceReceipt, InstallAuthority, InstallationDiagnostic,
     InstallationFactDigest, InstallationReceipt, InstalledCode, InstalledCodeId,
     InstalledEntryReference, ReplacementAuthority, ReplacementFactDigest, ReplacementReceipt,
-    ValidatedPlacement, WxEnforcement,
+    RetirementAuthority, RetirementFactDigest, RetirementReceipt, ValidatedPlacement,
+    WxEnforcement,
 };
 use layout_plans::EntryStubId;
 use target::Architecture;
@@ -96,16 +102,35 @@ pub const OWNED_IMAGE_SEAL_COMMITTED_CONTENT: &[u8] =
 pub const OWNED_IMAGE_SEAL_FETCH_VISIBILITY: &[u8] =
     b"omega.owned-image-provider.seal-entry.fetch-visibility-readback.v1";
 
+/// Canonical fact bytes: no call is in flight at retirement — the `&mut self`
+/// receiver is the quiescence evidence, since a live `ResidentEntryCall`
+/// borrows the provider and would make this invocation impossible.
+pub const OWNED_IMAGE_RETIRE_EXECUTORS_QUIESCED: &[u8] =
+    b"omega.owned-image-provider.retire.executors-quiesced.v1";
+/// Canonical fact bytes: the provider cleared the image's execute-enabled
+/// convention flag, so `call` and `seal_entry` refuse the realization — an
+/// owned buffer's execute authority is the flag, never a hardware mapping.
+pub const OWNED_IMAGE_RETIRE_EXECUTE_DISABLED: &[u8] =
+    b"omega.owned-image-provider.retire.execute-disabled.v1";
+/// Canonical fact bytes: the provider's custody write flag was restored,
+/// returning the realization's convention to writeable-not-executable.
+pub const OWNED_IMAGE_RETIRE_WRITE_AUTHORITY_RESTORED: &[u8] =
+    b"omega.owned-image-provider.retire.write-authority-restored.v1";
+
 /// One installed realization's resident image under this provider's custody.
 /// `write_suspended` is the provider's convention-enforced write authority:
 /// mutation happens only inside a provider operation that deliberately
-/// resumes it. `patched_sites` retains the exact bytes each patch committed
+/// resumes it. `execute_enabled` is the matching execute authority: install
+/// sets it with the write suspension, `retire` clears it and restores write
+/// authority — the W+NX transition in reverse — and `call`/`seal_entry`
+/// consult it. `patched_sites` retains the exact bytes each patch committed
 /// at a declared entry, so `seal_entry` replays committed content rather
 /// than the superseded pre-patch bytes.
 #[derive(Debug)]
 struct OwnedImage {
     bytes: Vec<u8>,
     write_suspended: bool,
+    execute_enabled: bool,
     patched_sites: BTreeMap<EntryStubId, Vec<u8>>,
 }
 
@@ -233,6 +258,18 @@ impl OwnedImageProvider {
         .collect()
     }
 
+    /// The retirement facts this provider can truthfully establish.
+    pub fn retire_facts() -> BTreeSet<RetirementFactDigest> {
+        [
+            OWNED_IMAGE_RETIRE_EXECUTORS_QUIESCED,
+            OWNED_IMAGE_RETIRE_EXECUTE_DISABLED,
+            OWNED_IMAGE_RETIRE_WRITE_AUTHORITY_RESTORED,
+        ]
+        .into_iter()
+        .map(RetirementFactDigest::from_canonical_bytes)
+        .collect()
+    }
+
     /// The resident bytes of one realization installed through this provider,
     /// including every committed patch. A read-only verification view: the
     /// provider's custody flag, not this accessor, is the write authority.
@@ -247,6 +284,14 @@ impl OwnedImageProvider {
         self.images
             .get(&installed)
             .map(|image| image.write_suspended)
+    }
+
+    /// Whether execute authority over one resident image is currently held.
+    /// Cleared by `retire`; `call` and `seal_entry` refuse without it.
+    pub fn execute_enabled(&self, installed: InstalledCodeId) -> Option<bool> {
+        self.images
+            .get(&installed)
+            .map(|image| image.execute_enabled)
     }
 
     /// Drop the resident image of a drained realization. This is storage
@@ -297,6 +342,7 @@ impl OwnedImageProvider {
         let mut image = OwnedImage {
             bytes,
             write_suspended: false,
+            execute_enabled: true,
             patched_sites: BTreeMap::new(),
         };
         if image.bytes.as_slice() != source {
@@ -487,6 +533,11 @@ impl OwnedImageProvider {
                 "provider holds no resident image for the installed realization".into(),
             )
         })?;
+        if !image.execute_enabled {
+            return Err(InstallationDiagnostic(
+                "cannot seal an entry after the realization's execute authority was removed".into(),
+            ));
+        }
         if !image.write_suspended {
             return Err(InstallationDiagnostic(
                 "cannot seal an entry while the provider holds write authority over the image"
@@ -553,6 +604,12 @@ impl OwnedImageProvider {
                     "provider holds no resident image for the sealed realization".into(),
                 )
             })?;
+        if !image.execute_enabled {
+            return Err(InstallationDiagnostic(
+                "cannot invoke an entry after the realization's execute authority was removed"
+                    .into(),
+            ));
+        }
         if !image.write_suspended {
             return Err(InstallationDiagnostic(
                 "cannot invoke an entry while the provider holds write authority over the image"
@@ -577,6 +634,47 @@ impl OwnedImageProvider {
             contract: reference.contract(),
             code: &image.bytes[start..end],
         })
+    }
+
+    /// Perform the contracted retirement operation over the resident image:
+    /// remove the realization's execute authority and restore its write
+    /// authority — the write-to-execute transition unwound — then mint the
+    /// [`RetirementReceipt`] reporting executor quiescence, execute removal,
+    /// and restored write authority. Quiescence is structural, not reported
+    /// on faith: `retire` takes `&mut self`, and a live [`ResidentEntryCall`]
+    /// borrows the provider, so no call can be in flight here. Retired
+    /// storage stays resident until the caller, holding the lifecycle's
+    /// retired or quarantined outcome, invokes `release`.
+    pub fn retire(
+        &mut self,
+        installed: &InstalledCode,
+        authority: &RetirementAuthority,
+    ) -> Result<RetirementReceipt, InstallationDiagnostic> {
+        let established = Self::retire_facts();
+        if !authority.required_facts.is_subset(&established) {
+            return Err(InstallationDiagnostic(
+                "owned-image provider cannot establish the demanded retirement facts".into(),
+            ));
+        }
+        if authority.installed != InstalledCodeEvidence::from_installed(installed) {
+            return Err(InstallationDiagnostic(
+                "retirement authority is not scoped to the handed installed code".into(),
+            ));
+        }
+        let image = self.images.get_mut(&installed.identity()).ok_or_else(|| {
+            InstallationDiagnostic(
+                "provider holds no resident image for the installed realization".into(),
+            )
+        })?;
+        image.execute_enabled = false;
+        image.write_suspended = false;
+        Ok(RetirementReceipt::from_provider(
+            installed,
+            true,
+            true,
+            true,
+            established,
+        ))
     }
 
     fn next_installed_identity(&mut self) -> InstalledCodeId {

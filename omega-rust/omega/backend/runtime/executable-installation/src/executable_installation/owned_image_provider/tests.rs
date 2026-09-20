@@ -9,9 +9,9 @@ use crate::executable_installation::{
     EntryReferenceFactDigest, EntryReferenceReceipt, EntrySetId, InstallAuthority,
     InstallationFactDigest, InstalledCode, InstalledCodeId, InstalledEntryReference,
     MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
-    ReplacementAuthority, ReplacementFactDigest, ReplacementOutcome, RetirementAuthority,
-    RetirementReceipt, ValidatedPlacement, install_validated, replace_installed,
-    validate_final_placement,
+    ReplacementAuthority, ReplacementFactDigest, ReplacementOutcome, RetiredInstallation,
+    RetirementAuthority, RetirementFactDigest, ValidatedPlacement, install_validated,
+    replace_installed, retire_installed, validate_final_placement,
 };
 use layout_plans::{EntryStubId, RelocationTarget};
 use target::Architecture;
@@ -166,10 +166,13 @@ fn patch_splices_admitted_fragments_at_declared_sites_and_the_receipt_replaces()
     assert_eq!(&image[14..32], &[0x41; 18]);
     assert_eq!(provider.write_suspended(superseded_id), Some(true));
 
-    let retirement_authority =
-        RetirementAuthority::from_admitted_provider(&superseded, std::iter::empty());
-    let retirement =
-        RetirementReceipt::from_provider(&superseded, true, true, true, std::iter::empty());
+    let retirement_authority = RetirementAuthority::from_admitted_provider(
+        &superseded,
+        OwnedImageProvider::retire_facts(),
+    );
+    let retirement = provider
+        .retire(&superseded, &retirement_authority)
+        .expect("provider performs the retirement the drain consumes");
     let outcome = replace_installed(
         superseded,
         &successor,
@@ -658,6 +661,146 @@ fn call_refuses_when_the_provider_holds_no_resident_image() {
         .expect_err("a nonresident realization refuses");
 
     assert!(error.0.contains("no resident image"));
+}
+
+/// Drive the contracted retirement join through the provider: the receiver
+/// demands the provider's published fact set, the provider performs the
+/// operation, and `retire_installed` consumes the resulting receipt.
+fn retire_through_provider(
+    provider: &mut OwnedImageProvider,
+    installed: InstalledCode,
+) -> RetiredInstallation {
+    let authority =
+        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
+    let receipt = provider
+        .retire(&installed, &authority)
+        .expect("provider performs the retirement");
+    retire_installed(installed, authority, receipt).expect("the provider's receipt retires")
+}
+
+#[test]
+fn retire_unwinds_the_write_to_execute_transition_and_the_receipt_retires() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let reference = seal_through_provider(&provider, &installed, entry_id(1041));
+    let call = provider
+        .call(&installed, &reference)
+        .expect("the sealed reference invokes before retirement");
+    assert_eq!(call.code(), &[0x41; 24]);
+    // The in-flight call borrows the provider and `reference` borrows
+    // `installed`; neither is used again, so the exclusive retirement
+    // receiver and the move below are reachable — that reachability is the
+    // executor-quiescence evidence the provider reports.
+
+    let authority =
+        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
+    let receipt = provider
+        .retire(&installed, &authority)
+        .expect("provider performs the retirement");
+
+    // Execute authority removed, write authority restored: the W+NX state
+    // the write-to-execute transition entered is unwound, in reverse.
+    assert_eq!(provider.execute_enabled(installed_id), Some(false));
+    assert_eq!(provider.write_suspended(installed_id), Some(false));
+    let seal_authority = EntryReferenceAuthority::from_admitted_provider(
+        &installed,
+        entry_id(1041),
+        seal_contract(),
+    );
+    let error = provider
+        .seal_entry(&installed, &seal_authority)
+        .expect_err("sealing an entry after retirement refuses");
+    assert!(error.0.contains("execute authority"));
+
+    retire_installed(installed, authority, receipt)
+        .expect("the provider's receipt passes the retirement gate");
+}
+
+#[test]
+fn call_refuses_after_the_realization_is_retired() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_installed_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let reference = seal_through_provider(&provider, &installed, entry_id(1041));
+    let authority =
+        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
+    provider
+        .retire(&installed, &authority)
+        .expect("provider performs the retirement");
+
+    let error = provider
+        .call(&installed, &reference)
+        .expect_err("a call into a retired realization refuses");
+
+    assert!(error.0.contains("execute authority"));
+}
+
+#[test]
+fn retire_refuses_a_demand_for_facts_it_did_not_perform() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+    let authority = RetirementAuthority::from_admitted_provider(
+        &installed,
+        [RetirementFactDigest::from_canonical_bytes(
+            b"omega.other-provider.unperformed-step.v1",
+        )],
+    );
+
+    let error = provider
+        .retire(&installed, &authority)
+        .expect_err("a demand beyond the performed set refuses");
+
+    assert!(error.0.contains("cannot establish"));
+    assert_eq!(provider.execute_enabled(installed_id), Some(true));
+}
+
+#[test]
+fn retire_refuses_an_authority_scoped_to_another_realization() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_id, installed) = install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+    let (_other_id, other) = install_through_provider(&mut provider, &artifact(42), 42, 0x8000);
+    let authority =
+        RetirementAuthority::from_admitted_provider(&other, OwnedImageProvider::retire_facts());
+
+    let error = provider
+        .retire(&installed, &authority)
+        .expect_err("an authority scoped to another realization refuses");
+
+    assert!(error.0.contains("not scoped"));
+    assert_eq!(provider.execute_enabled(installed.identity()), Some(true));
+}
+
+#[test]
+fn retire_refuses_when_the_provider_holds_no_resident_image() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    // A realization installed by a different provider (here: the test support
+    // path, not this provider) is not resident in this provider's custody.
+    let admitted = admit(&two_site_artifact(41));
+    let installed = installed_code(&admitted, 41, 0x4000);
+    let authority =
+        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
+
+    let error = provider
+        .retire(&installed, &authority)
+        .expect_err("a nonresident realization refuses");
+
+    assert!(error.0.contains("no resident image"));
+}
+
+#[test]
+fn retire_leaves_the_image_resident_until_the_caller_releases() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+
+    let retired = retire_through_provider(&mut provider, installed);
+
+    assert!(provider.installed_image(installed_id).is_some());
+    assert!(provider.release(installed_id));
+    assert_eq!(provider.installed_image(installed_id), None);
+    drop(retired);
 }
 
 #[test]
