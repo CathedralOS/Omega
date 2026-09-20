@@ -23,11 +23,11 @@ use crate::{
     DeviceOrderingScopeId, DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId,
     DormantOwnedAtomicResident, EffectFootprint, EffectiveFieldSupply, EffectiveSupplyKind,
     EstablishedOwnedPlacement, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
-    FieldAccessDescriptor, LogicalFieldExtent, ObservationModel, PlacedOccurrenceId,
-    PlacementAdmission, PlacementAdmissionId, PlacementPlan, PlacementPlanId, PlacementRejection,
-    PrimitiveAccessRequest, ProviderAssertedDeviceOperationClaim, ResourceProfile,
-    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
-    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
+    FieldAccessDescriptor, LogicalFieldExtent, ObservationModel, PeerWritability,
+    PlacedOccurrenceId, PlacementAdmission, PlacementAdmissionId, PlacementPlan, PlacementPlanId,
+    PlacementRejection, PrimitiveAccessRequest, ProviderAssertedDeviceOperationClaim,
+    ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion,
+    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
     SchemaDeviceCorrespondenceReceiptContext, StableCapability, StableDeviceInstanceId,
     TransferRule, ValidatedAccessPlan, ValidatedPlacementPlan, admit_owned_placement,
     admit_placement, adopt_owned_atomic, adopt_owned_stable, validate_access_plan,
@@ -259,6 +259,7 @@ fn uart_resource_profile_data(length: u64, reach: &BoundaryReach) -> ResourcePro
         regions: vec![ResourceRegion {
             offset: 0,
             length,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
@@ -317,6 +318,7 @@ fn stable_word_profile(extent: &Extent) -> AdmittedResourceProfile {
         regions: vec![ResourceRegion {
             offset: 0,
             length: extent.length(),
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::ReadWrite,
             external: ExternalCapability::None,
             atomic: AtomicCapability::None,
@@ -341,6 +343,7 @@ fn stable_uart_resource_profile(
         regions: vec![ResourceRegion {
             offset: 0,
             length: loan.length(),
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::ReadWrite,
             external: ExternalCapability::None,
             atomic: AtomicCapability::None,
@@ -393,6 +396,7 @@ fn destructive_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
         regions: vec![ResourceRegion {
             offset: 0,
             length: loan.length(),
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Destructive,
@@ -475,6 +479,7 @@ fn atomic_word_profile(loan: &ExtentLoan<'_>) -> AdmittedResourceProfile {
         regions: vec![ResourceRegion {
             offset: 0,
             length: loan.length(),
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::None,
             atomic: AtomicCapability::Access {

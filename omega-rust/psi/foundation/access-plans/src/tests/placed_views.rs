@@ -6,7 +6,7 @@ use crate::{
     AccessExposure, AccessOperation, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
     AtomicTransferRule, BorrowPolarity, BoundaryReach, EffectFootprint, EffectiveSupplyKind,
     ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, ObservationModel,
-    PlacementAdmissionId, PlacementPlan, ResourceProfile, ResourceProfileGrant,
+    PeerWritability, PlacementAdmissionId, PlacementPlan, ResourceProfile, ResourceProfileGrant,
     ResourceProfileReceiptId, ResourceRegion, StableCapability, TransferRule, admit_placement,
     place, validate_access_plan, validate_placement_plan,
 };
@@ -178,6 +178,7 @@ fn placed_projection_exposes_only_granular_authorized_events() {
             ResourceRegion {
                 offset: 0,
                 length: 4,
+                peer: PeerWritability::Exclusive,
                 stable: StableCapability::ReadWrite,
                 external: ExternalCapability::None,
                 atomic: AtomicCapability::None,
@@ -186,6 +187,7 @@ fn placed_projection_exposes_only_granular_authorized_events() {
             ResourceRegion {
                 offset: 4,
                 length: 4,
+                peer: PeerWritability::Exclusive,
                 stable: StableCapability::None,
                 external: ExternalCapability::Access {
                     read: ExternalReadBehavior::Destructive,
@@ -201,6 +203,7 @@ fn placed_projection_exposes_only_granular_authorized_events() {
             ResourceRegion {
                 offset: 8,
                 length: 4,
+                peer: PeerWritability::Exclusive,
                 stable: StableCapability::None,
                 external: ExternalCapability::None,
                 atomic: AtomicCapability::Access {
