@@ -95,10 +95,57 @@ impl ResolvedRootServiceReach {
         Self::from_root_service_reach(&module.root_service_reach, &module.services, selected)
     }
 
+    /// `from_module` scoped to the root's own selected provider plan. Root
+    /// traits inheriting a shared requirement (every `InterruptEntry` heir
+    /// carries the same `enter` identity) each retain a resolution row under
+    /// their own plan, so the root's plan — not the requirement identity
+    /// alone — addresses its row.
+    pub fn from_module_for_plan(
+        module: &TerminalModule,
+        selected: &SelectedProviderPlanFacts,
+        provider_plan_report_identity: u64,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        Self::from_root_service_reach_for_plan(
+            &module.root_service_reach,
+            &module.services,
+            selected,
+            provider_plan_report_identity,
+        )
+    }
+
     pub fn from_root_service_reach(
         root_reach: &TerminalRootServiceReach,
         services: &[ServiceDeclaration],
         selected: &SelectedProviderPlanFacts,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        Self::root_service_reach_inner(root_reach, services, selected, None)
+    }
+
+    /// `from_root_service_reach` scoped to the root's own selected provider
+    /// plan. A requirement the root's plan realized binds that plan's row;
+    /// a requirement realized by exactly one other selected plan still
+    /// resolves unscoped; any other multiplicity rejects — the same rule
+    /// `SelectedProviderPlanFacts::resolve_installation_reach_for_plan`
+    /// applies to the closure's effective reach.
+    pub fn from_root_service_reach_for_plan(
+        root_reach: &TerminalRootServiceReach,
+        services: &[ServiceDeclaration],
+        selected: &SelectedProviderPlanFacts,
+        provider_plan_report_identity: u64,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        Self::root_service_reach_inner(
+            root_reach,
+            services,
+            selected,
+            Some(provider_plan_report_identity),
+        )
+    }
+
+    fn root_service_reach_inner(
+        root_reach: &TerminalRootServiceReach,
+        services: &[ServiceDeclaration],
+        selected: &SelectedProviderPlanFacts,
+        provider_plan_report_identity: Option<u64>,
     ) -> Result<Self, ExternalRootDiagnostic> {
         let service_identity = |service| {
             services
@@ -125,14 +172,17 @@ impl ResolvedRootServiceReach {
                 .collect::<Result<Vec<_>, _>>()?;
             terminal_bound.sort();
             terminal_bound.dedup();
-            let resolution = selected
-                .installation_reach_resolution(&dependency.requirement_identity)
-                .ok_or_else(|| {
-                    ExternalRootDiagnostic(format!(
-                        "installation reach requirement `{}` remains unresolved at final admission",
-                        dependency.requirement_identity
-                    ))
-                })?;
+            let resolution = Self::closure_resolution(
+                selected,
+                provider_plan_report_identity,
+                &dependency.requirement_identity,
+            )
+            .ok_or_else(|| {
+                ExternalRootDiagnostic(format!(
+                    "installation reach requirement `{}` remains unresolved at final admission",
+                    dependency.requirement_identity
+                ))
+            })?;
             if resolution.upper_bound != terminal_bound {
                 return Err(ExternalRootDiagnostic(format!(
                     "installation reach requirement `{}` changed its published upper bound before final admission",
@@ -141,13 +191,65 @@ impl ResolvedRootServiceReach {
             }
             requirements.push(dependency.requirement_identity.clone());
         }
-        Self::from_selected_provider_closure(concrete, requirements, selected)
+        match provider_plan_report_identity {
+            Some(identity) => Self::from_selected_provider_closure_for_plan(
+                concrete,
+                requirements,
+                selected,
+                identity,
+            ),
+            None => Self::from_selected_provider_closure(concrete, requirements, selected),
+        }
+    }
+
+    /// One requirement's resolution row addressed the way
+    /// `resolve_installation_reach_for_plan` resolves it: the root's own
+    /// plan's row first, then the globally unique row, never an ambiguous
+    /// pick.
+    fn closure_resolution<'a>(
+        selected: &'a SelectedProviderPlanFacts,
+        provider_plan_report_identity: Option<u64>,
+        requirement: &str,
+    ) -> Option<&'a InstallationReachResolution> {
+        match provider_plan_report_identity {
+            Some(identity) => selected
+                .installation_reach_resolution_for_plan(identity, requirement)
+                .or_else(|| selected.installation_reach_resolution(requirement)),
+            None => selected.installation_reach_resolution(requirement),
+        }
     }
 
     pub fn from_selected_provider_closure(
+        concrete: Vec<String>,
+        installation_requirements: Vec<String>,
+        selected: &SelectedProviderPlanFacts,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        Self::provider_closure_inner(concrete, installation_requirements, selected, None)
+    }
+
+    /// `from_selected_provider_closure` scoped to the root's own selected
+    /// provider plan, so a requirement identity realized by several selected
+    /// plans binds the root's own row instead of failing closed on
+    /// ambiguity.
+    pub fn from_selected_provider_closure_for_plan(
+        concrete: Vec<String>,
+        installation_requirements: Vec<String>,
+        selected: &SelectedProviderPlanFacts,
+        provider_plan_report_identity: u64,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        Self::provider_closure_inner(
+            concrete,
+            installation_requirements,
+            selected,
+            Some(provider_plan_report_identity),
+        )
+    }
+
+    fn provider_closure_inner(
         mut concrete: Vec<String>,
         mut installation_requirements: Vec<String>,
         selected: &SelectedProviderPlanFacts,
+        provider_plan_report_identity: Option<u64>,
     ) -> Result<Self, ExternalRootDiagnostic> {
         if concrete.iter().any(String::is_empty) {
             return Err(ExternalRootDiagnostic(
@@ -172,14 +274,19 @@ impl ResolvedRootServiceReach {
             ));
         }
 
-        let effective = selected
-            .resolve_installation_reach(&concrete, &installation_requirements)
-            .map_err(ExternalRootDiagnostic)?;
+        let effective = match provider_plan_report_identity {
+            Some(identity) => selected.resolve_installation_reach_for_plan(
+                &concrete,
+                &installation_requirements,
+                identity,
+            ),
+            None => selected.resolve_installation_reach(&concrete, &installation_requirements),
+        }
+        .map_err(ExternalRootDiagnostic)?;
         let resolutions = installation_requirements
             .iter()
             .map(|requirement| {
-                selected
-                    .installation_reach_resolution(requirement)
+                Self::closure_resolution(selected, provider_plan_report_identity, requirement)
                     .cloned()
                     .ok_or_else(|| {
                         ExternalRootDiagnostic(format!(
