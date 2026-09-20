@@ -2,16 +2,18 @@ use super::artifacts::RetainedContainerProof;
 use super::{
     AdmissionReceiptId, Architecture, Artifact, ArtifactAdmissionEvidence, ArtifactEntry,
     ArtifactId, ArtifactRelocationKind, CodePlacement, CodePlacementAuthority, CodePlacementId,
-    DecodedArtifactRelocation, EntrySetId, FinalValidationCertificate, FinalValidationId,
-    InstallAuthority, InstallationAudience, InstallationFactDigest, InstallationReceipt,
-    InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId, MachineFootprintId,
-    MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt, MaterializationReceipt,
-    PlacementConstraints, PlacementPlanId, RelocationSetId, RelocationTarget, ReplacementAuthority,
-    ReplacementFactDigest, ReplacementOutcome, ReplacementReceipt, RetirementAuthority,
-    RetirementFactDigest, RetirementReceipt, UninstallOutcome, ValidatedPlacement, WxEnforcement,
-    admit_executable, install_validated, materialize_admitted_artifact, materialize_and_freeze,
-    normalized_proof_payload_digest, quarantine_installed, replace_installed, retire_installed,
-    uninstall_installed, validate_final_placement,
+    DecodedArtifactRelocation, EntryContractDigest, EntryReferenceAuthority,
+    EntryReferenceFactDigest, EntryReferenceReceipt, EntrySetId, FinalValidationCertificate,
+    FinalValidationId, InstallAuthority, InstallationAudience, InstallationFactDigest,
+    InstallationReceipt, InstallationScopeId, InstalledCode, InstalledCodeId, MachineContractSetId,
+    MachineFootprintId, MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt,
+    MaterializationReceipt, PlacementConstraints, PlacementPlanId, RelocationSetId,
+    RelocationTarget, ReplacementAuthority, ReplacementFactDigest, ReplacementOutcome,
+    ReplacementReceipt, RetirementAuthority, RetirementFactDigest, RetirementReceipt,
+    UninstallOutcome, ValidatedPlacement, WxEnforcement, admit_executable, install_validated,
+    materialize_admitted_artifact, materialize_and_freeze, normalized_proof_payload_digest,
+    quarantine_installed, replace_installed, retire_installed, uninstall_installed,
+    validate_final_placement,
 };
 use extents::{Extent, ExtentLineageId, ExtentRootGrant, MappingEraId};
 use layout_plans::{ArtifactInstallationScopeId, EntryStubId, PlacementPhase};
@@ -2369,4 +2371,244 @@ fn installed_realization_rejects_every_one_field_substitution() {
     assert!(CodePlacementId::from_normalized_identity(0).is_err());
     assert!(InstallationScopeId::from_normalized_identity(0).is_err());
     assert!(AdmissionReceiptId::from_normalized_identity(0).is_err());
+}
+
+fn entry_contract() -> EntryContractDigest {
+    EntryContractDigest::from_canonical_bytes(b"omega.test.boundary-entry-contract")
+}
+
+fn entry_fact(canonical: &[u8]) -> EntryReferenceFactDigest {
+    EntryReferenceFactDigest::from_canonical_bytes(canonical)
+}
+
+#[test]
+fn entry_gate_seals_a_declared_entry_into_a_requirement_compatible_reference() {
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let entry = entry_id(spec.entry);
+    let contract = entry_contract();
+    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract)
+        .with_required_facts([
+            entry_fact(b"provider cache-order completion"),
+            entry_fact(b"provider fetch-domain completion"),
+        ]);
+    let receipt = EntryReferenceReceipt::from_provider(&installed, entry, contract, true, true)
+        .with_established_facts([
+            entry_fact(b"provider cache-order completion"),
+            entry_fact(b"provider fetch-domain completion"),
+            entry_fact(b"provider additional observation"),
+        ]);
+    let reference = installed
+        .seal_entry_reference(authority, receipt)
+        .expect("an established superset seals");
+    assert_eq!(reference.entry(), entry);
+    assert_eq!(reference.contract(), contract);
+    assert_eq!(reference.installed_code(), installed.identity());
+    assert_eq!(reference.artifact(), installed.artifact());
+    assert_eq!(reference.occurrence_digest(), installed.occurrence_digest());
+    assert_eq!(reference.installed_context(), installed.receipt_context());
+    assert_eq!(reference.selected_target(), RelocationTarget::Entry(entry));
+}
+
+#[test]
+fn entry_gate_rejects_an_undeclared_entry() {
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let foreign = entry_id(5555);
+    let contract = entry_contract();
+    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, foreign, contract);
+    let receipt = EntryReferenceReceipt::from_provider(&installed, foreign, contract, true, true);
+    let error = installed
+        .seal_entry_reference(authority, receipt)
+        .expect_err("an undeclared entry cannot seal");
+    assert!(
+        error.diagnostic().0.contains("not a declared entry"),
+        "unexpected rejection: {}",
+        error.diagnostic().0
+    );
+}
+
+#[test]
+fn entry_gate_rejects_an_authority_scoped_to_another_realization() {
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let other = realize(&replacement_successor_spec());
+    let entry = entry_id(spec.entry);
+    let contract = entry_contract();
+    let authority = EntryReferenceAuthority::from_admitted_provider(&other, entry, contract);
+    let receipt = EntryReferenceReceipt::from_provider(&installed, entry, contract, true, true);
+    let error = installed
+        .seal_entry_reference(authority, receipt)
+        .expect_err("an authority scoped to another realization rejects");
+    assert!(
+        error.diagnostic().0.contains("not scoped"),
+        "unexpected rejection: {}",
+        error.diagnostic().0
+    );
+}
+
+#[test]
+fn entry_gate_rejects_a_receipt_binding_another_entry_or_contract() {
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let entry = entry_id(spec.entry);
+    let contract = entry_contract();
+
+    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract);
+    let wrong_contract = EntryReferenceReceipt::from_provider(
+        &installed,
+        entry,
+        EntryContractDigest::from_canonical_bytes(b"omega.test.other-contract"),
+        true,
+        true,
+    );
+    let error = installed
+        .seal_entry_reference(authority, wrong_contract)
+        .expect_err("a receipt naming another contract rejects");
+    assert!(
+        error.diagnostic().0.contains("does not bind"),
+        "unexpected rejection: {}",
+        error.diagnostic().0
+    );
+
+    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract);
+    let receipt =
+        EntryReferenceReceipt::from_provider(&other_realization(), entry, contract, true, true);
+    let error = installed
+        .seal_entry_reference(authority, receipt)
+        .expect_err("a receipt naming another realization rejects");
+    assert!(
+        error.diagnostic().0.contains("does not bind"),
+        "unexpected rejection: {}",
+        error.diagnostic().0
+    );
+
+    fn other_realization() -> InstalledCode {
+        realize(&replacement_successor_spec())
+    }
+}
+
+#[test]
+fn entry_gate_rejects_incompatible_or_invisible_receipts() {
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let entry = entry_id(spec.entry);
+    let contract = entry_contract();
+
+    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract);
+    let receipt = EntryReferenceReceipt::from_provider(&installed, entry, contract, false, true);
+    let error = installed
+        .seal_entry_reference(authority, receipt)
+        .expect_err("an incompatible entry rejects");
+    assert!(
+        error.diagnostic().0.contains("requirement compatibility"),
+        "unexpected rejection: {}",
+        error.diagnostic().0
+    );
+
+    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract);
+    let receipt = EntryReferenceReceipt::from_provider(&installed, entry, contract, true, false);
+    let error = installed
+        .seal_entry_reference(authority, receipt)
+        .expect_err("an entry without instruction-fetch visibility rejects");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("instruction-fetch visibility"),
+        "unexpected rejection: {}",
+        error.diagnostic().0
+    );
+}
+
+#[test]
+fn entry_gate_rejects_missing_required_facts() {
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let entry = entry_id(spec.entry);
+    let contract = entry_contract();
+    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract)
+        .with_required_facts([
+            entry_fact(b"provider cache-order completion"),
+            entry_fact(b"provider fetch-domain completion"),
+        ]);
+    let receipt = EntryReferenceReceipt::from_provider(&installed, entry, contract, true, true)
+        .with_established_facts([entry_fact(b"provider cache-order completion")]);
+    let error = installed
+        .seal_entry_reference(authority, receipt)
+        .expect_err("a receipt that omits a demanded fact rejects");
+    assert!(
+        error
+            .diagnostic()
+            .0
+            .contains("lacks required completion facts"),
+        "unexpected rejection: {}",
+        error.diagnostic().0
+    );
+}
+
+#[test]
+fn failed_entry_seal_returns_the_authority_and_receipt() {
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let entry = entry_id(spec.entry);
+    let contract = entry_contract();
+    let authority = EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract)
+        .with_required_facts([entry_fact(b"provider cache-order completion")]);
+    let receipt = EntryReferenceReceipt::from_provider(&installed, entry, contract, true, true);
+    let expected_receipt =
+        EntryReferenceReceipt::from_provider(&installed, entry, contract, true, true);
+    let error = installed
+        .seal_entry_reference(authority, receipt)
+        .expect_err("the unestablished receipt rejects");
+    let (authority, receipt) = error.into_parts();
+    assert_eq!(receipt, expected_receipt);
+    let reference = installed
+        .seal_entry_reference(
+            authority,
+            receipt.with_established_facts([entry_fact(b"provider cache-order completion")]),
+        )
+        .expect("returned inputs reseal once the demanded fact is established");
+    assert_eq!(reference.entry(), entry);
+}
+
+#[test]
+fn entry_reference_releases_custody_when_it_drops() {
+    // The sealed reference holds a borrow of the installed realization, so a
+    // consuming retirement cannot even be expressed while it lives; once it
+    // drops, the same realization drains normally.
+    let spec = authentic_spec();
+    let installed = realize(&spec);
+    let entry = entry_id(spec.entry);
+    let contract = entry_contract();
+    {
+        let reference = installed
+            .seal_entry_reference(
+                EntryReferenceAuthority::from_admitted_provider(&installed, entry, contract),
+                EntryReferenceReceipt::from_provider(&installed, entry, contract, true, true),
+            )
+            .expect("established entry seal");
+        assert_eq!(reference.installed_code(), installed.identity());
+    }
+    let outcome = uninstall_installed(
+        installed,
+        RetirementAuthority::from_admitted_provider(
+            &installed_spec_peer(&spec),
+            std::iter::empty(),
+        ),
+        RetirementReceipt::from_provider(
+            &installed_spec_peer(&spec),
+            true,
+            true,
+            true,
+            std::iter::empty(),
+        ),
+        None,
+    )
+    .expect("a complete drain still retires after the reference drops");
+    assert!(matches!(outcome, UninstallOutcome::Retired(_)));
+
+    fn installed_spec_peer(spec: &RealizationSpec) -> InstalledCode {
+        realize(spec)
+    }
 }
