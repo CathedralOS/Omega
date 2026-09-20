@@ -1,13 +1,14 @@
+use omega::language::core::service;
 // Compiler-owned carry permissions are admitted only through the selected
 // owner-authorized requirement. The resulting claim is born strict, so this
 // contract relaxes suspension without relaxing CPU, thread, or address.
-data Token [linear] {
+pub data Token [linear] {
     id: u64;
 }
 
-domain Token::SuspensionSafe = Carry::AcrossSuspend;
+pub domain Token::SuspensionSafe = Carry::AcrossSuspend;
 
-boundary trait ClaimProvider {
+pub boundary trait ClaimProvider {
     machine grant(token: Token) -> Token
     ensures
         result in Token::SuspensionSafe;
@@ -25,13 +26,13 @@ machine forward_claim(token: Token) -> Token {
     token
 }
 
-boundary trait Scheduler {
+pub boundary trait Scheduler {
     machine park() suspends;
 }
 
 data Harness {
-    provider: ClaimProvider;
-    scheduler: Scheduler;
+    provider: Service<ClaimProvider>;
+    scheduler: Service<Scheduler>;
 }
 
 machine Harness::forward(&self, raw: Token) -> Token suspends; reaches ClaimProvider + Scheduler {

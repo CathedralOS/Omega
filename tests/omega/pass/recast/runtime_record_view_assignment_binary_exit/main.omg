@@ -3,10 +3,11 @@
 // nested projected u16 read, widening cast, and bitmask mirror the portable
 // filesystem copy path's `StatView.value.mode` permission decode.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data StatValue { mode: u16; }
 data StatView { tag: u32; value: StatValue; }
-data Main { console: Console; bytes: [u8; 8]; mode: u32; }
+data Main { console: Service<Console>; bytes: [u8; 8]; mode: u32; }
 
 machine Main::main(&mut self) reaches Console {
     self.bytes[4] = 255;

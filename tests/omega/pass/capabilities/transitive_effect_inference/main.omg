@@ -1,17 +1,18 @@
-domain [u8]::Utf8
+use omega::language::core::service;
+pub domain [u8]::Utf8
 requires
     valid_utf8(self);
 // The direct boundary caller declares Console. Ordinary wrappers propagate
 // that reach without repeating the declaration.
 
-boundary trait Console {
+pub boundary trait Console {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Console;
 }
 
 data App {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine App::greet(&mut self) {

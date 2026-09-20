@@ -1,6 +1,7 @@
 // RANGE ESTABLISHMENT AT THE WIRE BOUNDARY: hostile 200 must not enter the
 // declared `u32 [0..=100]` field; a later in-range 50 must establish it.
 use omega_language_std::console;
+use omega::language::core::service;
 data Msg {
     #0 v: u32;
     #1 delta: i32;
@@ -15,7 +16,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 32];
     bad_read: u64;
     bad_verdict: WireVerdict;

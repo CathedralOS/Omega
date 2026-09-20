@@ -2,8 +2,9 @@
 // represented as recursive value operands before the final result-scratch
 // write. The Unit entry consumes that result before exiting explicitly.
 use omega_language_std::console;
+use omega::language::core::service;
 
-data Main { console: Console; a: i32; b: i32; c: i32; }
+data Main { console: Service<Console>; a: i32; b: i32; c: i32; }
 
 machine Main::computed(&mut self) -> i32 {
     self.a = 10;

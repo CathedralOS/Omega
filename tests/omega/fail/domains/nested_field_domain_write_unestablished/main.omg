@@ -8,13 +8,14 @@ domain [u8]::Ascii
 requires
     ascii_only(self);
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Inner {
     tag: &[u8] in Ascii;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     inner: Inner;
 }
 

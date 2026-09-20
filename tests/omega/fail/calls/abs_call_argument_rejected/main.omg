@@ -1,4 +1,5 @@
 use omega::language::std::console;
+use omega::language::core::service;
 machine pick(x: i32) -> i32 {
     transition {
         x > 0 -> 100
@@ -6,7 +7,7 @@ machine pick(x: i32) -> i32 {
     }
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32 in Wrapping;
 }
 machine Main::main(&mut self) {

@@ -15,9 +15,10 @@
 // Exit 17 = 3 (direct n) + 5 (forwarded source) + 5 (bounded source)
 //         + 4 (closed static specialization).
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine prefix_count<Count: i32>(base: i32) -> i32 in Wrapping {

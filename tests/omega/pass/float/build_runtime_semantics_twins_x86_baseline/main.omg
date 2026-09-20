@@ -5,6 +5,7 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 machine baseline_classifies_subnormal32(value: f32) -> bool {
     let class: FloatClass = F32::classify(value);
@@ -117,7 +118,7 @@ machine x86_baseline_float_twin_code() -> u64 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     slots: [u8; x86_baseline_float_twin_code()];
 }
 

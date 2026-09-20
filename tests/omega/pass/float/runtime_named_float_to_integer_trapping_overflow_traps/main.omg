@@ -2,8 +2,9 @@
 // result is outside the destination interval.
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
-data Main { console: Console; value: f64; }
+data Main { console: Service<Console>; value: f64; }
 
 machine Main::main(&mut self) reaches Console {
     self.value = 256.0;

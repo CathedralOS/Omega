@@ -3,9 +3,10 @@ use dungeon::dungeon;
 use platform::console;
 use rooms::map;
 use view::game_view;
+use omega::language::core::service;
 
 data Game {
-    console: Console;
+    console: Service<Console>;
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;

@@ -8,9 +8,10 @@
 // default) are exercised at runtime; exits 70 only when all are correct.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
     low: i32;
 }

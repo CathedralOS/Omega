@@ -14,6 +14,7 @@
 // slot). Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Pt {
     x: i32 in Wrapping;
@@ -21,7 +22,7 @@ data Pt {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::dbl(&self, n: i32 in Wrapping) -> i32 in Wrapping {

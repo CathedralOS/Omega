@@ -1,7 +1,8 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     current_room: u32;
     fountain_used: bool;
     bat_defeated: bool;

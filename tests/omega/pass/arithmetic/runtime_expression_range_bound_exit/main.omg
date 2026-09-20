@@ -4,9 +4,10 @@
 // literal bounds: this valid store of 40 compiles and runs -> exit 40. (The
 // out-of-range store and the non-constant bound are the fail-canary twins.)
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32 [0 - 1..=40];
 }
 

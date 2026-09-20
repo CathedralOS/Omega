@@ -19,9 +19,10 @@
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 3] in Trapping;
     i: i32 in Trapping;
     acc: i32 in Trapping;

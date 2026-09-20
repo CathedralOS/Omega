@@ -1,9 +1,10 @@
+use omega::language::core::service;
 // Only a public, receiver-free top-level boundary requirement may be called
 // directly through its selected provider. A private requirement is a symbol
 // for contracts, not an executable declaration: the ordinary bodyless
 // boundary symbol fence keeps rejecting the call even though an adapter
 // satisfies it.
-boundary trait Console {
+pub boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
@@ -19,7 +20,7 @@ satisfies CheckedMath::offset_zero
     transition { _ -> (input + 0) }
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self)
 reaches Console

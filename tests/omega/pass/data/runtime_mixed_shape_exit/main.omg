@@ -12,6 +12,7 @@
 // Exits 70 only when every step observes the right value.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data RoomEvent {
     consumed: bool;
@@ -22,7 +23,7 @@ data RoomEvent {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     event: RoomEvent;
 }
 

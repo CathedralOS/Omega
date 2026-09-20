@@ -2,10 +2,11 @@
 // sibling through an explicit argument and bind to that sibling's parameter.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Light { case Off; case On; }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let signal: Light = On; // bare enum-case constant -- must be accepted

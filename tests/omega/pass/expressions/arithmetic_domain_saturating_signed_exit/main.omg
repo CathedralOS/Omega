@@ -7,9 +7,10 @@
 // same range so the differential oracle agrees.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: i8 in Saturating;
     b: i8 in Saturating;
 }

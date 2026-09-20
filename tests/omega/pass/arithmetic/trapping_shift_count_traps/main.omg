@@ -10,7 +10,8 @@
 // exits: 71 = in-range << wrong; 72 = in-range >> wrong; 7 = SAILED PAST
 // the count trap (the failure the suite asserts against).
 use omega_language_std::console;
-data Main { console: Console; n: u32 in Trapping; }
+use omega::language::core::service;
+data Main { console: Service<Console>; n: u32 in Trapping; }
 machine Main::main(&mut self) reaches Console {
     let a: i32 in Trapping = (3 as i32 in Trapping);
     let c: i32 in Trapping = (3 as i32 in Trapping);

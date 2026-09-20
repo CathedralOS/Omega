@@ -7,9 +7,10 @@
 // enforces the same cross-class guard via the shared report_cross_class_store.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) {

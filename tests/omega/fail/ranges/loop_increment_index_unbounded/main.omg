@@ -6,9 +6,10 @@
 // is rejected.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 4] in Trapping;
     i: i32 in Trapping;
     acc: i32 in Trapping;

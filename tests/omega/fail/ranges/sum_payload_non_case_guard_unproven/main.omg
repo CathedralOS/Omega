@@ -7,8 +7,9 @@
 // `Equal(self.p, P::Case)` conjunct, so the argument stays unproven. MUST reject
 // with the expected fragment.
 use omega::language::std::console;
+use omega::language::core::service;
 data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=1000]); }
-data Main { console: Console; flag: bool; p: P; }
+data Main { console: Service<Console>; flag: bool; p: P; }
 machine Main::main(&mut self) {
     self.p = P::Two { w: 900 };
     self.flag = true;

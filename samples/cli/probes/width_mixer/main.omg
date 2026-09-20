@@ -26,6 +26,7 @@
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Readings [copy] {
     flags: u8;
@@ -34,7 +35,7 @@ data Readings [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     data: Readings;
     pause: [u8; 256];
 }

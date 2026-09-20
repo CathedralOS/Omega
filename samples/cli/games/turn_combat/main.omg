@@ -10,6 +10,7 @@
 // Expected exit: 1.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Fighter {
     hp: i32 [-100..=100];
@@ -17,7 +18,7 @@ data Fighter {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     hero: Fighter;
     monster: Fighter;
     pause: [u8; 256];

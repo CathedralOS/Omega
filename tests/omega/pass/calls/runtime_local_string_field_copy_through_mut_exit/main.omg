@@ -6,6 +6,7 @@
 // string-descriptor write selection.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
@@ -20,7 +21,7 @@ data Holder {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     line: [u8; 32] in Utf8;
 }
 

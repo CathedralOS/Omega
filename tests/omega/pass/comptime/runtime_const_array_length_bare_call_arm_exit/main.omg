@@ -10,9 +10,10 @@
 // the value lands.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     slots: [i64; table_size()];
 }
 

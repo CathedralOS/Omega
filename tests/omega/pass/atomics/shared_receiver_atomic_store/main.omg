@@ -10,6 +10,7 @@
 // 71 = wrong fetch_or prior, 72 = wrong stored value.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell {
     value: AtomicU32;
@@ -25,7 +26,7 @@ machine Cell::mark(&self, bits: u32) -> u32 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cell: Cell;
 }
 

@@ -14,6 +14,7 @@
 // Expected exit: 56.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Adder {
     bytes: [i32 in Wrapping; 6];
@@ -32,7 +33,7 @@ machine Adder::fletcher(
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     adder: Adder;
     pause: [u8; 256];
 }

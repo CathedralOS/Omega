@@ -11,6 +11,7 @@
 // the result-slot write was lost and the false arm ran.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data RandomState {
     seed: u64 in Wrapping;
@@ -25,7 +26,7 @@ data Roller {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     roller: Roller;
 }
 

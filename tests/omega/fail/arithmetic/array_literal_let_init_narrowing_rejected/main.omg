@@ -5,9 +5,10 @@
 // also guards struct-field and call-argument array literals.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) {

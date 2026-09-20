@@ -44,6 +44,7 @@
 // ====================================================================
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);
@@ -61,7 +62,7 @@ data Alarm [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     alarm: Alarm;
     pause: [u8; 256];
 }

@@ -17,6 +17,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // Events that change player scores.
 data Event {
@@ -30,7 +31,7 @@ data Tracker [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     scores: [i32 in Saturating; 2];
     tracker: Tracker;
     pause: [u8; 256];

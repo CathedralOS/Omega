@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Player {
     health: i32;
@@ -9,7 +10,7 @@ requires
     self.health > 0;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     alive: Player;
     fallen: Player;
 }

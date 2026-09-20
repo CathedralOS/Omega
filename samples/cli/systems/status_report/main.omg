@@ -12,6 +12,7 @@
 // Expected output contains: ALERT temp
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
@@ -24,7 +25,7 @@ requires
     valid_utf8(self);
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     label: [u8; 8] in Utf8;
     message: [u8; 32] in Utf8;
     reading: i32;

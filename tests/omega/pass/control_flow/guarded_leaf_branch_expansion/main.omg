@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // COMPILE CANARY: a nested OWNED field's declared ZII-admitting domain remains
 // a valid write source after the enclosing record crosses a mutable
 // out-parameter call. Alias invalidation may discard transient facts, but it
@@ -5,7 +6,7 @@
 // Persistent room/line text uses bounded ownership; a borrowed view would need
 // an explicit outlives relation and retained loan, which this canary does not
 // exercise.
-domain [u8; 8]::Utf8
+pub domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 data CellId {
@@ -23,12 +24,12 @@ data CellLine {
     text: [u8; 8] in Utf8;
 }
 
-boundary trait Console {
+pub boundary trait Console {
     machine write_line(text: [u8; 8] in Utf8);
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     selected: Cell;
     line: CellLine;
     first: Cell;

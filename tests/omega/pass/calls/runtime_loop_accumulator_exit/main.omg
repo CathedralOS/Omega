@@ -5,8 +5,9 @@
 // binary/cast argument operands, so the transition stages through scratch.
 // sum(5,0) -> 15 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 machine Main::sum(&mut self, n: u64, acc: u64 in Wrapping)
 terminates by n;

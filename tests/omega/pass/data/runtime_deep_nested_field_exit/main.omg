@@ -3,6 +3,7 @@
 // the read. Two leaf fields (v, w) plus a decoy `tag` at a sibling level discriminate the offsets.
 // v + w = 30 + 40 = 70. Exits 70 iff the deep access resolves to the right storage.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data L4 { v: i32 in Wrapping; w: i32 in Wrapping; }
 data L3 { l4: L4; tag: i32 in Wrapping; }
@@ -10,7 +11,7 @@ data L2 { l3: L3; }
 data L1 { l2: L2; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     l1: L1;
     s: i32 in Wrapping;
 }

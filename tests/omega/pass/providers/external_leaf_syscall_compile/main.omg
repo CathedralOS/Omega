@@ -1,7 +1,8 @@
+use omega::language::core::service;
 // PRV4d: a target-scoped external leaf using Binding::Syscall reaches the
 // selected target syscall mechanism. The x86 structural test pins the final
 // number and instruction; this source also joins the general pass corpus.
-boundary trait RawProcess {
+pub boundary trait RawProcess {
     machine process_id() -> i64;
     machine process_group(id: i64) -> i64;
     machine exit(code: i32);
@@ -31,7 +32,7 @@ linux_arm64 machine exit_leaf(code: i32)
     satisfies RawProcess::exit
     via Binding::Syscall(93);
 
-data Main { process: RawProcess; pid: i64; pgid_zero: i64; pgid: i64; exit_code: i32; }
+data Main { process: Service<RawProcess>; pid: i64; pgid_zero: i64; pgid: i64; exit_code: i32; }
 machine Main::main(&mut self)
 reaches RawProcess
 {

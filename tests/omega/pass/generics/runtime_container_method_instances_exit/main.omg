@@ -8,6 +8,7 @@
 // surfaces (stdlib Vec<T>) stay type-check-only; generic TEMPLATE machines
 // are skipped by the layout builder.
 use omega_language_std::console;
+use omega::language::core::service;
 data Evidence { case Only; }
 data Box<T> {
     value: T;
@@ -17,7 +18,7 @@ machine Box::stored<T>(&self) -> T {
     transition { _ -> (self.value) }
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Box<i32>;
     b: Box<bool>;
 }

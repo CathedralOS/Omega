@@ -10,7 +10,8 @@
 // (WriteRuntimeStorageAddressToRuntimeFrame carries the source REGION, so
 // machine and frame arrays both relocate). Differential.
 use omega_language_std::console;
-data Main { console: Console; nums: [i32; 4]; picked: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; nums: [i32; 4]; picked: i32; }
 machine Main::pick(&mut self, s: &[i32], i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32

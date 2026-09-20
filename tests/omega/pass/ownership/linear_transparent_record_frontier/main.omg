@@ -1,6 +1,7 @@
 // A transparent affine record contributes no nominal claim of its own. Its
 // two contained linear fields remain independent path-indexed obligations.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Receipt [linear] {
     code: i32;
@@ -13,7 +14,7 @@ data Pair {
     right: Receipt;
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let left: Receipt = Receipt { code: 1 };

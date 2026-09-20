@@ -4,6 +4,7 @@
 // of rearrange rung A: the carrier is INFERRED from the signature and must
 // be consistent across every Self position).
 use omega::language::std::console;
+use omega::language::core::service;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps {
     machine add(a: Self, b: Self) -> Self;
@@ -17,5 +18,5 @@ terminates by a;
         Peano::Succ { pred } -> Peano::Succ { pred: badsig(pred, b) }
     }
 }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

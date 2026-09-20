@@ -4,9 +4,10 @@
 // Proves `open` handles write/append flags, not just O_RDONLY. Prints PASS.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     append_flags: i32;
     read_flags: i32;

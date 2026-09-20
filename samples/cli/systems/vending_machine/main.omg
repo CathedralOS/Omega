@@ -15,6 +15,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Change {
     quarters: i32 in Wrapping;
@@ -22,7 +23,7 @@ data Change {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     sales_count: i32 in Wrapping;
     a: i32 in Wrapping;
     b: i32 in Wrapping;

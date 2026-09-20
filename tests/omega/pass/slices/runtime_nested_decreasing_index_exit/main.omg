@@ -15,9 +15,10 @@
 //   total = 10 + 24 = 34.  Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 4] in Trapping;
     i: i32 in Trapping;
     j: i32 in Trapping;

@@ -1,5 +1,6 @@
 use omega::language::std::console;
-data Main { console: Console; f: f64; r: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; f: f64; r: i32; }
 machine Main::main(&mut self) {
     self.f = 5.5;
     self.r = self.f as i32 in Wrapping;

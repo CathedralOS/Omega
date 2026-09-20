@@ -15,7 +15,8 @@
 // negative operand.
 
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let a: u32 in Wrapping = (3000000000 as u32 in Wrapping);
     let c: u32 in Wrapping = (40 as u32 in Wrapping);

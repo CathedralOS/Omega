@@ -6,6 +6,7 @@
 // p1 = {30, 40} (p1.x still 30, p1.y still 40); an aliasing bug would show p1.x = 99.
 // Both fields correct -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Point {
     x: i32;
@@ -13,7 +14,7 @@ data Point {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     p1: Point;
     p2: Point;
 }

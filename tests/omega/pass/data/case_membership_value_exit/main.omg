@@ -5,6 +5,7 @@
 // the match and exits 71. Exits 70 only when the tag test hits.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Command {
     case None;
@@ -12,7 +13,7 @@ data Command {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cmd: Command;
 }
 

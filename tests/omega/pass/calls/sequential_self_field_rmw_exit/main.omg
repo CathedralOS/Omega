@@ -14,6 +14,7 @@
 // Interpreter and native x64 both exit 70 (total == 5 after 5 increments).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data S [copy] {
     // Wrapping DECLARED: an unbounded counter increment is overflow-capable and
@@ -23,7 +24,7 @@ data S [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     s: S;
 }
 

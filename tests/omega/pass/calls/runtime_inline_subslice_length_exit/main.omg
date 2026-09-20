@@ -6,9 +6,10 @@
 // the receiver as a value (the subslice view) and reads `.len` off it. Both engines
 // agree -> `n == 3` matches -> exit 3.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5];
 }
 

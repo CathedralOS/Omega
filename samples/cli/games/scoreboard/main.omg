@@ -10,6 +10,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Player {
     id: i32;
@@ -17,7 +18,7 @@ data Player {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     players: [Player; 3];
     total: i32;
     pause: [u8; 256];

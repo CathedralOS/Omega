@@ -1,6 +1,7 @@
 // A direct effect-free `machine(self)` integer-domain fact is evaluated
 // at build time for the concrete const-generic instance.
 use omega_language_std::console;
+use omega::language::core::service;
 
 machine is_positive(value: u64) -> bool {
     value > 0
@@ -27,7 +28,7 @@ where
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: FixedBuffer<4>;
 }
 

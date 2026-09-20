@@ -2,9 +2,10 @@
 // truncates to 5, then seeks to end to confirm the size is 5. Prints PASS.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     new_len: i64;
     zero_off: i64;

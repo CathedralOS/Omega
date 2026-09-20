@@ -5,12 +5,13 @@
 // whole struct at root size (silent for <=8-byte structs, the loud 16-byte
 // fence otherwise). make(3500) -> {35, 7} -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Pair8 {
     a: u32;
     b: u32;
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     p: Pair8;
 }
 machine Pair8::make(n: u32 [0..=10000]) -> Pair8 {

@@ -2,8 +2,9 @@
 // and value is TOTAL, so the dispatch provably closes without `_` (the
 // dungeon's resolve_navigation shape). Exits 70 through the `!=` arm.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32;
 }
 machine Main::main(&mut self) reaches Console {

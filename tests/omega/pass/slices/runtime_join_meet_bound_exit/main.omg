@@ -7,9 +7,10 @@
 // arr[2] == 30 -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4] in Trapping;
     idx: u64;
     flag: bool;

@@ -3,5 +3,6 @@
 // elements. Rejected now (numeric/bool receivers; struct/array/slice left
 // to their own resolution).
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { let x: i32 = 42; let y: i32 = x.field; self.console.exit_process(y); }

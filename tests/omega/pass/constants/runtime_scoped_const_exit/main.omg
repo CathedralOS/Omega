@@ -5,6 +5,7 @@
 // constructed into a field and read back. 60 + 10 == 70 on both engines.
 // Expected exit: 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Limits [copy] {
     ceiling: i32 [0..=100];
@@ -14,7 +15,7 @@ const Limits::CEILING: i32 = 60;
 const Limits::DEFAULTS: Limits = Limits { ceiling: 10 };
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     limits: Limits;
     total: i32;
 }

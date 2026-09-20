@@ -1,9 +1,10 @@
 // A zero-excluding ELEMENT range gates the containing array and therefore the
 // machine data. Consuming Main before establishing its cells is rejected.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cells: [i32 [1..=7]; 4];
 }
 

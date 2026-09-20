@@ -3,8 +3,9 @@ use omega::language::core::float_operations;
 // F4: Exact float-to-int accepts a declared finite range and a sole incoming
 // guard that proves non-NaN plus both range bounds.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     bounded: f64 [0.0..=100.0];
     unbounded: f64;
     a: i32;

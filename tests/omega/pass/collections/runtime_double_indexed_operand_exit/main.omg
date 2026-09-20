@@ -3,8 +3,9 @@
 // element level per Indexed layer (nested collections used to yield an
 // untypeable Unit temp). 37 + 5 = 42 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [[i32 in Wrapping; 4]; 3];
     i: u64 [0..=2];
     j: u64 [0..=3];

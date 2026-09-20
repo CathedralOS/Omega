@@ -4,9 +4,10 @@
 // unavailable; callers and the selected entry lose theirs, so the closure
 // check reports `missing a checked transitive machine plan` rather than
 // the retired `SIDE-EFFECTING arm state` emission fence.
-use omega::language::std::console;
+
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
-data Main { console: Console; d: i32; hits: i32 in Wrapping; vec: Vec2; }
+data Main {
+    d: i32; hits: i32 in Wrapping; vec: Vec2; }
 machine Main::delta(&mut self, d: i32) -> Vec2 {
     transition d == 1 { true -> pos() _ -> neg() }
     state pos(&mut self) -> Vec2 {
@@ -18,7 +19,7 @@ machine Main::delta(&mut self, d: i32) -> Vec2 {
         Vec2 { x: 7, y: 9 }
     }
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) {
     self.d = 1;
     self.vec = self.delta(self.d);
     transition self.vec.x == 3 { true -> chk_y() _ -> bad(71) }
@@ -28,6 +29,6 @@ machine Main::main(&mut self) reaches Console {
     state chk_hits(&mut self) {
         transition self.hits == 1 { true -> good() _ -> bad(73) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(&mut self) { }
+    state bad(&mut self, code: i32) { }
 }

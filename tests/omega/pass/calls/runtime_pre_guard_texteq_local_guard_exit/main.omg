@@ -9,6 +9,7 @@ domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 data Store { name: [u8; 8] in Utf8; }
 machine Store::check(&mut self, idx: i32) -> bool {
     transition idx == 0 {
@@ -24,7 +25,7 @@ machine Store::check(&mut self, idx: i32) -> bool {
     }
     state arm_b(&mut self) -> bool { transition { _ -> (false) } }
 }
-data Main { console: Console; s: Store; }
+data Main { console: Service<Console>; s: Store; }
 machine Main::main(&mut self) reaches Console {
     self.s.name = "omega";
     let r: bool = self.s.check(0);

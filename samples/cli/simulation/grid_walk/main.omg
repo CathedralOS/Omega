@@ -9,6 +9,7 @@
 // Expected exit: 32.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Dir {
     case N;
@@ -23,7 +24,7 @@ data Vec2 [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     px: i32 in Saturating;
     py: i32 in Saturating;
     pause: [u8; 256];

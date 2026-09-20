@@ -1,4 +1,5 @@
-domain [u8]::Utf8
+use omega::language::core::service;
+pub domain [u8]::Utf8
 requires
     valid_utf8(self);
 // A single boundary machine may declare more than one service identity; the
@@ -8,7 +9,7 @@ requires
 boundary trait Allocator {
 }
 
-boundary trait Net {
+pub boundary trait Net {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Net
@@ -16,7 +17,7 @@ boundary trait Net {
 }
 
 data Client {
-    net: Net;
+    net: Service<Net>;
 }
 
 machine Client::run(&mut self) reaches Net + Allocator {

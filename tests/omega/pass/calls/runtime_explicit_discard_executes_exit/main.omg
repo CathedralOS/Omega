@@ -4,6 +4,7 @@
 // calls == 41 -> exit 70 (executed once); 40 -> exit 10 (discard dropped the
 // call entirely); 42 -> exit 3 (executed twice).
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Tally {
     calls: u64;
@@ -11,7 +12,7 @@ data Tally {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     tally: Tally;
 }
 

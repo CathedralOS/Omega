@@ -11,9 +11,10 @@
 // over the long branch chain), and a new column value is computed into a field before the
 // array write (a computed value can't be the inline write source). Exits 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cols: [i32; 4] in Wrapping; // cols[r] = column of (or column being tried for) row r
     r: i32 in Wrapping;         // current row
     cr: i32 in Wrapping;        // cols[r] read into a field

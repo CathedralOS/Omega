@@ -10,6 +10,7 @@
 // agrees.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 trait Equatable {
     machine equals(&self, rhs: &Self) -> bool;
@@ -34,7 +35,7 @@ data Tagged [copy] {
 TaggedEquatable: Tagged satisfies Equatable;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Certified;
     b: Certified;
     c: Certified;

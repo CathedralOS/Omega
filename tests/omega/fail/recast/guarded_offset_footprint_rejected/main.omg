@@ -4,7 +4,8 @@
 // (not advisory), so the recast refuses exactly as a declared
 // `[0..=9]` interval would.
 use omega::language::std::console;
-data Main { console: Console; buf: [u8; 12]; k: u32; out: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; buf: [u8; 12]; k: u32; out: i32; }
 machine Main::main(&mut self) {
     self.buf[4] = 1;
     self.buf[5] = 2;

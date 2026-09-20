@@ -16,11 +16,12 @@
 use omega_language_std::time;
 
 use omega_language_std::console;
-boundary trait Clock { machine sleep(milliseconds: u32); }
+use omega::language::core::service;
+pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {
-    console: Console;
-    clock: Clock;
+    console: Service<Console>;
+    clock: Service<Clock>;
     time: Time;
     now_keep: SystemTime;
     epoch_2026: SystemTime;

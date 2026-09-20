@@ -5,7 +5,8 @@
 // range" check, so the malformed bound can never silently accept a value
 // the way it used to (100, 7, 3, -50 all "passed" `[10..=5]`).
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) {
     let y: i32 [10..=5] = 7; // empty range -- no store can satisfy it
     self.console.exit_process(0);

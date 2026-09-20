@@ -4,7 +4,8 @@
 // recasts.rs mirrors the D14 literal gate: blessed roots first, then a
 // whole-table sweep refuses strays.
 use omega::language::std::console;
-data Main { console: Console; bits: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; bits: i32; }
 machine Main::main(&mut self) {
     self.bits = 1078530011;
     transition (&self.bits as &f32) > 3.14 { true -> good() _ -> bad() }

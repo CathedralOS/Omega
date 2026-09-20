@@ -5,9 +5,10 @@
 // signed (jl/jg) or unsigned (jb/ja) conditional branches accordingly.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     ua: u32;
     ub: u32;
     sa: i32;

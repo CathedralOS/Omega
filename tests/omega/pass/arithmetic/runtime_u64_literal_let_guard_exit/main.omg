@@ -6,6 +6,7 @@
 // deliver the full bit pattern (18446744073709551615) and the floor 7.
 // This unblocks the saturating_* Instant/SystemTime twins (TASKS_TIME).
 use omega_language_std::console;
+use omega::language::core::service;
 data Calc { }
 machine Calc::pick(&mut self, saturate: bool) -> u64 in Wrapping {
     transition saturate {
@@ -21,7 +22,7 @@ machine Calc::pick(&mut self, saturate: bool) -> u64 in Wrapping {
         transition { _ -> (floor) }
     }
 }
-data Main { console: Console; calc: Calc; }
+data Main { console: Service<Console>; calc: Calc; }
 machine Main::main(&mut self) reaches Console {
     let ceiling: u64 in Wrapping = self.calc.pick(true);
     let floor: u64 in Wrapping = self.calc.pick(false);

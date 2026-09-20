@@ -3,7 +3,8 @@
 // a 4-byte view at offset 9 reads past the 12-byte region and the
 // footprint refuses with the offending bound named.
 use omega::language::std::console;
-data Main { console: Console; buf: [u8; 12]; k: u32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; buf: [u8; 12]; k: u32; }
 machine Main::main(&mut self) {
     self.k = 4;
     transition self.k <= 9 { true -> read(self.k) _ -> seed() }

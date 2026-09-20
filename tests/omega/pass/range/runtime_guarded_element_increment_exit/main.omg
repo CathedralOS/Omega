@@ -8,8 +8,9 @@
 // operand hoist renames the element read (`__hoist_N`), so the guard cannot
 // match it (documented follow-up). ZII tallies[1]=0 -> +1 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     tallies: [i32 [0..=16]; 4];
 }
 machine Main::main(&mut self) reaches Console {

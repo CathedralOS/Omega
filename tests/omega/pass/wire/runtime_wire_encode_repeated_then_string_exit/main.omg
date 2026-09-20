@@ -24,6 +24,7 @@ requires
 
 use omega::language::core::fixed_vec;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Report {
     #0 samples: FixedVec<i32, 4>;
@@ -36,7 +37,7 @@ data ReportValue {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

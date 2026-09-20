@@ -6,8 +6,9 @@
 // the u64 fields; the interpreter takes the same u64 witness (eval_min_max).
 // Expected exit: 88
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     big: u64;
     five: u64;
     mx: u64;

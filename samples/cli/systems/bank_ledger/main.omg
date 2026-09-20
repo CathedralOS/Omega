@@ -23,6 +23,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Ledger [copy] {
     txns: [i32 in Saturating; 8];
@@ -31,7 +32,7 @@ data Ledger [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     ledger: Ledger;
     pause: [u8; 256];
 }

@@ -3,9 +3,10 @@
 // OFFSET at 64, not the next descriptor's END. A 16-byte view may therefore
 // begin at 64 in a 64-byte buffer, and must refuse at the recast.
 use omega::language::std::console;
+use omega::language::core::service;
 data Desc { kind: u64; pages: u64; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     buf: [u8; 64];
     descriptor_size: u32 in Wrapping;
     map_size: u32 in Wrapping;

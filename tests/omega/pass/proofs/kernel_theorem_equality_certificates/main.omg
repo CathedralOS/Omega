@@ -13,7 +13,8 @@
 // interprets, natively runs, and cross-compiles this fixture to exit 70.
 // False twin: fail/proofs/kernel_theorem_equality_false_twin.
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 
 machine equal_symmetric(a: u64, b: u64)
 requires

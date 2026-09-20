@@ -5,9 +5,10 @@
 // a==b false, a!=b true. Exits 70 iff all hold. (Both the leaf-guard and dispatch-loop paths were
 // verified; this locks the leaf-guard form, which uses the same unsigned setcc selection.)
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: u32 in Wrapping;
     b: u32 in Wrapping;
 }

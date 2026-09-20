@@ -7,9 +7,10 @@
 // enforces the shared cross-class guard.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::produce(&mut self) -> i32 {

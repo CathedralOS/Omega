@@ -1,9 +1,10 @@
 // A completed mutable statement call precedes the following transition. Its
 // scalar writes must therefore be visible while transition args materialize.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Loader {
-    console: Console;
+    console: Service<Console>;
     line: [u8; 8];
     tags: [u8; 16384] in Trapping;
     firsts: [u8; 16384] in Trapping;

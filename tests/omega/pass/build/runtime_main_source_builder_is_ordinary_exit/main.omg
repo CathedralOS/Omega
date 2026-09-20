@@ -1,16 +1,17 @@
+use omega::language::core::service;
 // RUN CANARY (exit 70) -- BUILD-MACHINE IDENTITY IS FILE-BASED
 // (2026-07-11m, owner answer #3: build.omg is the home): a machine
 // literally named `Maker::build(b: &mut Build)` in MAIN source is an
 // ORDINARY machine -- called at runtime like any other, never hijacked
 // for compile-time evaluation. The build hook must be declared at a
 // build.omg root (pinned by tests/build_config_granted.rs).
-boundary trait Console { machine exit_process(return_code: i32); }
+pub boundary trait Console { machine exit_process(return_code: i32); }
 data Build { flag: i32 in Wrapping; }
 data Maker { count: i32 in Wrapping; }
 machine Maker::build(&mut self, b: &mut Build) {
     b.flag = 7;
 }
-data Main { console: Console; maker: Maker; b: Build; }
+data Main { console: Service<Console>; maker: Maker; b: Build; }
 machine Main::main(&mut self) reaches Console {
     self.maker.build(&mut self.b);
     transition self.b.flag == 7 { true -> good() _ -> bad() }

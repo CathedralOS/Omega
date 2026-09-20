@@ -4,9 +4,10 @@
 // on real macOS syscalls. Prints PASS iff read_link returns the target.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     cap: u64;
     rc: i32;
     got: i64;

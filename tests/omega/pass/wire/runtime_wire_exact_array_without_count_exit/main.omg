@@ -2,6 +2,7 @@
 // `<name>_count` sibling is required or consulted.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Telemetry {
     #0 readings: [u32; 4];
@@ -12,7 +13,7 @@ data TelemetryValue {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

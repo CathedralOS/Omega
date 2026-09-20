@@ -8,15 +8,16 @@
 // standalone-app gap. The interpreter's virtual window system mints live handle tokens and
 // mirrors the same liveness answers. Exit 70. Differential.
 use omega_language_std::console;
-boundary trait Gui {
+use omega::language::core::service;
+pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 6], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine msg_peek(message: [u64; 6]) -> u32;
     machine is_window(window: u64) -> u32;
     machine window_destroy(window: u64) -> u32;
 }
 data Main {
-    console: Console;
-    gui: Gui;
+    console: Service<Console>;
+    gui: Service<Gui>;
     cls: [u8; 7];
     title: [u8; 6];
     message: [u64; 6];

@@ -10,8 +10,9 @@
 // lower_statement_into_pending). The guarded-arm flavor is exercised by
 // samples/cli/collections/matrix_multiply.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32 in Wrapping; 4];
     grid: [[i32 in Wrapping; 3]; 3];
     got: i32 in Wrapping;

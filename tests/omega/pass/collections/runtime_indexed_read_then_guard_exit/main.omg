@@ -7,9 +7,10 @@
 // nums[0] = 1 -> 1 > 5 false -> 71, so this discriminates the correct runtime-indexed read. The
 // u32 index gives the non-negative lower bound; the `i < 3` guard gives the upper bound.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 3] in Wrapping;
     i: u32 in Wrapping;
     v: i32 in Wrapping;

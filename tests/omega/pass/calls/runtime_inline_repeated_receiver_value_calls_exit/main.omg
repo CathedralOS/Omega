@@ -2,6 +2,7 @@
 // argument must read their own ordinal result slots, including a nested
 // occurrence. Aliasing the nested call to its identical sibling exits 69.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Gauge { value: i32 in Wrapping; }
 
@@ -10,7 +11,7 @@ machine Gauge::next(&mut self, delta: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> (self.value + delta) }
 }
 
-data Main { console: Console; gauge: Gauge; }
+data Main { console: Service<Console>; gauge: Gauge; }
 
 machine Main::main(&mut self) reaches Console {
     self.gauge.value = 0;

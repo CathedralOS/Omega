@@ -11,7 +11,8 @@
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
-data Main { console: Console; fs: Filesystem; unit_result: UnitResult; present: bool; exists_result: ExistsResult; }
+use omega::language::core::service;
+data Main { console: Service<Console>; fs: Filesystem; unit_result: UnitResult; present: bool; exists_result: ExistsResult; }
 machine Main::main(&mut self) reaches Console {
     // absent: exists false
     self.present = self.fs.exists("omega_wexists_probe.txt");

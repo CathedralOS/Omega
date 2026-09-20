@@ -9,9 +9,10 @@
 // program exited 71; now it clamps to u8 max (255) and the guard takes `good`.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: u8 in Saturating;
 }
 

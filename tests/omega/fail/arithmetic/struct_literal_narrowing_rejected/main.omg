@@ -8,13 +8,14 @@
 // stays fine.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Small {
     v: i8 in Wrapping;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     s: Small;
     big: i64 in Wrapping;
 }

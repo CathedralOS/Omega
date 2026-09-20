@@ -9,9 +9,10 @@
 //   empty stdin -> 70 (the Eof-first path; what the suite + differential run)
 //   "AB"        -> 70 + 65 + 66 = 201, stdout "AB" (the suite pipes this)
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     sum: i32 in Wrapping;
 }
 

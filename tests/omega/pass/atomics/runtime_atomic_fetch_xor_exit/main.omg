@@ -3,9 +3,10 @@
 // has no direct fetch-XOR instruction; AArch64 uses ordering-selected LDEOR.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     counter: AtomicU32;
 }
 

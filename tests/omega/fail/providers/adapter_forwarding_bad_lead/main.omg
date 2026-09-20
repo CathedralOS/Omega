@@ -1,17 +1,18 @@
+use omega::language::core::service;
 // The self-forwarding admission is EXACT: the one extra leading parameter
 // must be the requirement's OWN trait. A leading parameter of any other
 // type keeps the strict positional match and refuses on parameter count --
 // no silent forwarding of a non-capability lead. This fixture owns a minimal
 // requirement so the standard Console adapter cannot mask the signature error
 // with a duplicate-adapter diagnostic.
-boundary trait TestConsole {
+pub boundary trait TestConsole {
     machine write_line(text: &[u8])
     reaches
         TestConsole;
 }
 
 data Main {
-    console: TestConsole;
+    console: Service<TestConsole>;
 }
 
 data TestConsoleProvider {}

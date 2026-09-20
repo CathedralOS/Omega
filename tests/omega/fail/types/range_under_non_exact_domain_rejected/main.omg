@@ -7,7 +7,8 @@
 // param, and local. Keep the range (Exact enforces it) or keep the domain
 // (defined overflow, full type range), never both.
 use omega::language::std::console;
-data Main { console: Console; i: u8 [0..=4] in Wrapping; }
+use omega::language::core::service;
+data Main { console: Service<Console>; i: u8 [0..=4] in Wrapping; }
 machine Main::main(&mut self) {
     self.i = 100;
     self.console.exit_process(70);

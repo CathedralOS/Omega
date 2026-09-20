@@ -4,9 +4,10 @@
 // with no guard. Both `y = c/26` alone and the `% K` chain used to reject
 // ("cannot prove assignment value"). c=259 -> 259/26=9 -> 9%5=4 -> exit 4.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     c: i32 [0..=259];
     y: i32 [0..=4];
 }

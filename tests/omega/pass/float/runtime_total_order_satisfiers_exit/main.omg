@@ -9,6 +9,7 @@ use omega::language::core::float_operations;
 // float `<` as a partial order (false on NaN).
 use omega::language::core::float_order;
 use omega_language_std::console;
+use omega::language::core::service;
 
 machine selected_before<T, machine Before>(left: T, right: T) -> bool
 where machine Before(left: T, right: T) -> bool;
@@ -17,7 +18,7 @@ where machine Before(left: T, right: T) -> bool;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     f32_negative_nan_large: u32;
     f32_negative_nan_small: u32;
     f32_negative_infinity: u32;

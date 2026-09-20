@@ -2,9 +2,10 @@
 // with `i: u64 [0..=4]` and no dominating guard. The ZII i=0 writes arr[0];
 // the read-back confirms -> exit 30.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5];
     i: u64 [0..=4];
 }

@@ -6,9 +6,10 @@
 // Each call increments `hits`; exit 70 proves both returned values and exactly
 // two executions in the interpreter and native runtime.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     hits: u64 in Wrapping;
     expected: u32;
 }

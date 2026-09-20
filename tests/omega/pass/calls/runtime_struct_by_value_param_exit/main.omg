@@ -10,6 +10,7 @@
 // narrower -- forwarding an ELEMENT of a by-value struct param whose field is itself an array
 // (got(container.items[0])) to a nested value-call.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Coeffs {
     a: i32 in Wrapping;
@@ -25,7 +26,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 // takes a record by value and reads every field

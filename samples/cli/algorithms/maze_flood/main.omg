@@ -9,6 +9,7 @@
 // Expected output contains: 16
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
@@ -17,7 +18,7 @@ domain [u8; 16]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Console;
+    console: Service<Console>;
     wall: [i32; 25] in Wrapping;
     dist: [i32; 25] in Wrapping;
     queue: [i32; 32] in Wrapping;

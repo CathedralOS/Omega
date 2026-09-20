@@ -1,4 +1,5 @@
-domain [u8]::Utf8
+use omega::language::core::service;
+pub domain [u8]::Utf8
 requires
     valid_utf8(self);
 // Chapter 18 "Capabilities And Authority Flow" (Acquires, nested): a helper
@@ -9,13 +10,13 @@ requires
 // up the call graph with the helper recorded as provenance
 // (`Backup::stage acquires via Vault::pick`).
 
-data Folder {
+pub data Folder {
 }
 
-domain Folder::Writable
+pub domain Folder::Writable
 established by Desktop::choose_folder;
 
-boundary trait Desktop {
+pub boundary trait Desktop {
     machine choose_folder(prompt: &[u8] in Utf8) -> Folder
     ensures
         result in Folder::Writable
@@ -24,7 +25,7 @@ boundary trait Desktop {
 }
 
 data Vault {
-    desktop: Desktop;
+    desktop: Service<Desktop>;
 }
 
 machine Vault::pick(&mut self) -> Folder

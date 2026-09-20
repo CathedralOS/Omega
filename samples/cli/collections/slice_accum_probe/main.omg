@@ -18,6 +18,7 @@
 // Exit 71 = probe A wrong; 72 = probe B wrong.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Entry {
     value: i32 in Wrapping;
@@ -26,7 +27,7 @@ data Entry {
 data Walker {}
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     ints: [i32 in Wrapping; 7];
     entries: [Entry; 7];
     walker: Walker;

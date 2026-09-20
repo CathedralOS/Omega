@@ -14,7 +14,8 @@
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
-data Main { console: Console; fs: Filesystem; unit_result: UnitResult; open_result: OpenResult; rc: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; fs: Filesystem; unit_result: UnitResult; open_result: OpenResult; rc: i32; }
 machine Main::main(&mut self) reaches Console {
     // ensure absent
     self.unit_result = self.fs.remove("omega_cnew_probe.txt");

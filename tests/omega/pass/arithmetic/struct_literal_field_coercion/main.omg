@@ -7,8 +7,9 @@
 // eval_struct_literal field coercion. exit 71 = the field carried the raw 300.
 
 use omega_language_std::console;
+use omega::language::core::service;
 data Point { x: u8 in Wrapping; }
-data Main { console: Console; a: u8 in Wrapping; b: u8 in Wrapping; }
+data Main { console: Service<Console>; a: u8 in Wrapping; b: u8 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.a = 200;
     self.b = 100;

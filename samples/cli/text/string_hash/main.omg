@@ -18,9 +18,10 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     text: [u8; 8] in Utf8;
     // Exact ranged index: the byte read is bounded by the `.len` guard, and the
     // increment is guard-proven by the `i < 8` edge into bump() (the carrier's

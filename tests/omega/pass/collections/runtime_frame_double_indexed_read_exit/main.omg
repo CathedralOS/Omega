@@ -20,10 +20,11 @@ domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 data Room { description: &[u8] in Utf8; }
 data Label { text: [u8; 8] in Utf8; }
 data Triple { first: i32; second: i32; third: i32; }
-data Main { console: Console; got: i32; index: u64 [0..=1]; }
+data Main { console: Service<Console>; got: i32; index: u64 [0..=1]; }
 machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i32 {
     transition { _ -> (m[i][j]) }
 }

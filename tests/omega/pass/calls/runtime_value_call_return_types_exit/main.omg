@@ -14,6 +14,7 @@
 // The sound pattern is to bind the inner call to a local first. Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Point {
     x: i32 in Trapping;
@@ -26,7 +27,7 @@ data Tag {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::add(&self, a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {

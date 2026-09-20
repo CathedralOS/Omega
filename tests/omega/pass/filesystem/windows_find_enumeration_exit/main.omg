@@ -21,10 +21,11 @@
 use omega_language_std::filesystem_host;
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
-    raw: FilesystemHost;
+    console: Service<Console>;
+    raw: Service<FilesystemHost>;
     data_buf: [u8; 320];
     handle: i64;
     fd: i32;

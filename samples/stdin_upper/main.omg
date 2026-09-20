@@ -15,9 +15,10 @@
 //   "a z." -> 3
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     n: i32 in Wrapping;
 }
 

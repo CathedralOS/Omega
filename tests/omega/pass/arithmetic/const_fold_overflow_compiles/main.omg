@@ -5,7 +5,8 @@
 // EXACT domain is caught earlier by decision-17). Exits a fixed 0, robust to the
 // wrapped values.
 use omega_language_std::console;
-data Main { console: Console; a: i64 in Wrapping; b: i64 in Wrapping; c: i64 in Wrapping; }
+use omega::language::core::service;
+data Main { console: Service<Console>; a: i64 in Wrapping; b: i64 in Wrapping; c: i64 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.a = 9000000000000000000 + 9000000000000000000; // add overflow
     self.b = 4000000000 * 4000000000;                   // multiply overflow

@@ -13,20 +13,12 @@
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
 
-use omega::language::std::console;
-
 data Main {
-    console: Console;
     fs: Filesystem;
-    raw: FilesystemHost;
-    fd: i32;
-    rc: i32;
     res: MetadataResult;
 }
 
-machine Main::main(&mut self) reaches Console + FilesystemHost {
-    self.fd = self.raw.create("omega_param_recv.txt", 438);
-    self.rc = self.raw.close(self.fd);
+machine Main::main(&mut self) reaches FilesystemHost {
     self.res = self.fs.metadata_path("omega_param_recv.txt");
     transition self.res {
         MetadataResult::Ok { meta } -> got(meta)
@@ -36,6 +28,6 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
         let f: bool = meta.is_file();
         transition f { true -> good() _ -> bad() }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(&mut self) { }
+    state bad(&mut self) { }
 }

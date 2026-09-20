@@ -8,6 +8,7 @@
 // verifiable end to end (expected: 70).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // A coin or a button press. `Insert` carries how many cents arrived; `Press`
 // carries which slot was chosen. Tag zero selects the first case, so a zeroed
@@ -27,7 +28,7 @@ data Register [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     register: Register;
     pause: [u8; 256];
 }

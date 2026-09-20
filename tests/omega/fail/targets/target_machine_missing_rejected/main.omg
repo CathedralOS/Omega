@@ -9,6 +9,7 @@
 // inert on every host. That target-selection discipline makes this canary
 // host-portable.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Helper { seed: i32; }
 
@@ -20,7 +21,7 @@ demo_target2 machine Helper::pick(&self) -> i32 {
     transition { _ -> 64 }
 }
 
-data Main { console: Console; helper: Helper; }
+data Main { console: Service<Console>; helper: Helper; }
 
 machine Main::main(&mut self) {
     let a: i32 = self.helper.pick();

@@ -12,6 +12,7 @@
 // Loud-edge siblings: fail/traits/ring_requirement_unknown_rejected,
 // ring_requirement_signature_rejected, free_machine_bare_satisfies_rejected.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Peano {
     case Zero;
@@ -58,7 +59,7 @@ satisfies RingOps::mul as Standard32
     a * b
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let s: i32 in Wrapping = add32(2, 1);
     let p: i32 in Wrapping = mul32(s, 2);

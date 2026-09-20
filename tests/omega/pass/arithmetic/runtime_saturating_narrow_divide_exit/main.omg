@@ -7,9 +7,10 @@
 // lives in its own state (divide into a local, compared immediately). Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a8: i8 in Saturating;
     b8: i8 in Saturating;
     a16: i16 in Saturating;

@@ -11,9 +11,10 @@
 // seed is ZII (0): r=0, d=0, s=70 -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     seed: i32;
 }
 

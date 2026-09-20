@@ -1,6 +1,7 @@
 // A trait machine body supplies a missing attached method for a standalone
 // conformance. A written method of the same name overrides the default.
 use omega_language_std::console;
+use omega::language::core::service;
 
 trait Resettable {
     machine set(&mut self, value: i32);
@@ -35,7 +36,7 @@ machine OverrideCounter::reset(&mut self) {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     default_counter: DefaultCounter;
     override_counter: OverrideCounter;
 }

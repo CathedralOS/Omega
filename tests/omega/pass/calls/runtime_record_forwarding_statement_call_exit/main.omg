@@ -3,6 +3,7 @@
 // Native lowering must substitute the complete caller place before applying
 // member suffixes; leaving the callee parameter unbound reads its ZII storage.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Pair {
     first: i32;
@@ -30,7 +31,7 @@ machine Worker::forward(&mut self, pair: Pair) -> i32 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     worker: Worker;
 }
 

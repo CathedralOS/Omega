@@ -15,9 +15,10 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     out: [u8; 4] in Utf8;
     n: i32 in Trapping;
     digit: i32 in Trapping;

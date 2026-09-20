@@ -9,9 +9,10 @@ use omega::language::core::float_operations;
 // sequence executes without faulting and codegen is clean (no stub/NoOp).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     accumulator: f64;
     addend: f64;
 }

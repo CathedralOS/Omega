@@ -4,7 +4,8 @@
 // miscompile (44 != 300). Rejected at check now (decision-17 explicit-width
 // sibling of the out-of-range comparison literal). Convert one operand with `as`.
 use omega::language::std::console;
-data Main { console: Console; small: i8; big: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; small: i8; big: i32; }
 machine Main::main(&mut self) {
     self.small = 44;
     self.big = 300;

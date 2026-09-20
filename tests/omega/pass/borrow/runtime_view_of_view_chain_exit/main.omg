@@ -7,6 +7,7 @@
 // reached the machine-owned array element (exit 70).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell {
     value: i32;
@@ -31,7 +32,7 @@ machine narrow(cell: &mut Cell) -> &mut i32 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bag: Bag;
 }
 

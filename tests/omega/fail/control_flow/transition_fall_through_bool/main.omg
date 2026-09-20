@@ -3,8 +3,9 @@
 // the guard is false -- before the rule, the process exited with a leftover
 // register value (probed: garbage, value-dependent).
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32;
 }
 machine Main::main(&mut self) {

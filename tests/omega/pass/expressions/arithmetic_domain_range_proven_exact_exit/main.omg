@@ -10,9 +10,10 @@
 // 40 + 30 = 70, exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32 [0..=100];
     y: i32 [0..=100];
 }

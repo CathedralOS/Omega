@@ -8,9 +8,10 @@
 // (unlike `>>`, which needs operand-signedness threading -- a follow-up).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     flags: i32;
 }
 

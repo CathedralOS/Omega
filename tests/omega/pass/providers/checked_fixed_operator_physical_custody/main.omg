@@ -2,6 +2,7 @@
 // beside the independent nonreturning Console settlement. The result is not
 // passed into that first immediate-only settlement lane.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data CheckedMath {}
 
@@ -15,7 +16,7 @@ satisfies CheckedMath::select_left
     transition { _ -> left }
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self)
 reaches Console

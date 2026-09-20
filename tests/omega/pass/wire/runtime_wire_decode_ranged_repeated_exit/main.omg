@@ -4,6 +4,7 @@
 // must establish and store both elements.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Samples {
     #0 values: [i32; 2];
@@ -19,7 +20,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bad_read: u64;
     bad_verdict: WireVerdict;
     good_read: u64;

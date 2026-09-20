@@ -1,9 +1,10 @@
 // A runtime-indexed slice element stages through host-argument scratch before
 // the platform marshaller reads the scalar value.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     values: [i32; 2];
     index: u64 [0..2];
 }

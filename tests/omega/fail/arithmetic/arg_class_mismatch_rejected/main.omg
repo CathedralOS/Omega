@@ -10,9 +10,10 @@
 // an `i32` param) are untouched.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     b: bool;
 }
 

@@ -8,6 +8,7 @@
 // numeric field values (`x: self.i8_field`) are untouched.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Point {
     x: i32 in Wrapping;
@@ -15,7 +16,7 @@ data Point {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     p: Point;
 }
 

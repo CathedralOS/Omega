@@ -24,6 +24,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Board [copy] {
     cells: [i32; 9];
@@ -34,7 +35,7 @@ data Board [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     board: Board;
     pause: [u8; 256];
 }

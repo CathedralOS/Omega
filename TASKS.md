@@ -872,6 +872,19 @@ Owners include
     and `Service<R> in Bound` to the intrinsic carrier; reject bare fields during
     source checking rather than after native bridge planning. Preserve negative
     controls. Epsilon's separately specified sealed Console is not this surface.
+    Resume evidence (w9, `swarm-w9-entry-content-roots-2`): the rejection is
+    implemented in `typed-trees-to-checked-trees`' `validate_typed_program`
+    (`checking/program_validation.rs`) — data fields, variant payloads, machine
+    parameters and returns, and trait signature parameters/returns that name a
+    bare boundary trait in value position reject as non-carriers at source
+    checking; the one admitted spelling left is a `satisfies` adapter's leading
+    self-forwarding receiver slot, which conformance slicing removes before
+    arity and which names the satisfied boundary trait itself. The corpus
+    (library, canaries, samples) is migrated to `Service<R>`; negative controls
+    in `tests/omega/fail` still reject, and fixtures whose signatures required
+    public slot contracts promote those declarations rather than weakening the
+    gate. Squalr remains the coordinator-scoped surface in the bullet above and
+    is untouched here.
   - Complete receiver nominal-cleanup and callback/signal occupancy through actual
     activation/completion. Reuse `receiver_eligibility.rs`,
     `image-emission/src/hosted_receiver.rs` and

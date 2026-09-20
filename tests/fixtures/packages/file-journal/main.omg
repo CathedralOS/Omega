@@ -1,8 +1,9 @@
 // Public reach of one exact ordinary-package filesystem boundary.
 use host_services::filesystem_host;
+use omega::language::core::service;
 
 pub data Journal {
-    files: FilesystemHost;
+    files: Service<FilesystemHost>;
     written: i64;
 }
 

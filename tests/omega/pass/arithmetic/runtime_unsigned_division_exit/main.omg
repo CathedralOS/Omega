@@ -4,9 +4,10 @@
 // 3_000_000_000 as negative and produce garbage.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: u32;
     b: u32;
     quotient: u32;

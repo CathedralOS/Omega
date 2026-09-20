@@ -10,7 +10,8 @@
 // scratch list (the hardcoded-x17 clobber lesson). Exit 70; differential-
 // pinned; the frame twin is runtime_local_array_element_value_operand_exit.
 use omega_language_std::console;
-data Main { console: Console; arr: [i32; 3]; idx: u64; k: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; arr: [i32; 3]; idx: u64; k: i32; }
 machine Main::pick(&mut self, v: i32 [0..=100]) -> i32 { v + 1 }
 machine Main::main(&mut self) reaches Console {
     self.arr = [10, 20, 30];

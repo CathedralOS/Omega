@@ -6,6 +6,7 @@
 // holds field 0 and a u32 follows at field 1 -- rejected.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
@@ -22,7 +23,7 @@ data LabelSample {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

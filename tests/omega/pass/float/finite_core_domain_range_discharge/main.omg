@@ -4,9 +4,10 @@ use omega::language::core::float_operations;
 // carrier domain. A finite literal discharges it directly, while a float range
 // carries Finite implicitly into a bounded transition argument.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     direct: f64 in Finite;
     ranged: f32 [0.0..=1.0];
 }

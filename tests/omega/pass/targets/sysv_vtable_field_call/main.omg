@@ -1,4 +1,5 @@
 use omega::language::core::float_operations;
+use omega::language::core::service;
 
 // Source-to-ELF pin for normalized SysV AMD64 indirect field dispatch. The
 // ordinary receiver is the first wire argument (rdi), while a MEMORY-class
@@ -47,7 +48,7 @@ linux_x86_64 machine NativeVtable::nest_leaf(this: addr, value: NestedMixedPair)
 linux_x86_64 machine NativeVtable::array_mix_leaf(this: addr, value: ArrayMixedPair) -> ArrayMixedPair satisfies FieldDispatch::array_mix via Binding::VtableField(array_mix);
 linux_x86_64 machine NativeVtable::wrap_leaf(this: addr, value: WrappedFloat) -> WrappedFloat satisfies FieldDispatch::wrap via Binding::VtableField(wrap);
 pub data Main {
-    dispatch: FieldDispatch; receiver: addr;
+    dispatch: Service<FieldDispatch>; receiver: addr;
     input: Triple; output: Triple;
     float_input: FloatPair; float_output: FloatPair;
     packed_input: FloatTriple; packed_output: FloatTriple;

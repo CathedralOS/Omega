@@ -2,6 +2,7 @@ domain [u8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 
 data CommandParser {}
 
@@ -56,7 +57,7 @@ machine Dungeon::enter_room(
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;

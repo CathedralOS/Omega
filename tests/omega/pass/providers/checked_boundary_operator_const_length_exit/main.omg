@@ -4,6 +4,7 @@
 // `left | right` = 7 where builtin `%` would fold 1, so the byte-6 write below
 // only type-checks when the selected provider body actually ran.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Math {}
 
@@ -24,7 +25,7 @@ machine length() -> u64 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; length()];
 }
 

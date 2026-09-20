@@ -12,9 +12,10 @@
 // pass/comptime/runtime_const_array_length_bare_call_arm_exit.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     slots: [i64; table_size()];
 }
 

@@ -8,11 +8,12 @@
 // and the program exited 71. With the keystone, count returns the slice length 5,
 // `n == 5` holds, and it exits 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data M {}
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5];
     m: M;
 }

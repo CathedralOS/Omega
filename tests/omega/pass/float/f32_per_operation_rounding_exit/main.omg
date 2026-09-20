@@ -10,9 +10,10 @@ use omega::language::core::float_operations;
 // operands. The third uses a field-backed chain, pinning the interpreter's
 // expression-width propagation and per-op rounding against native runtime f32.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     value: f32;
 }
 

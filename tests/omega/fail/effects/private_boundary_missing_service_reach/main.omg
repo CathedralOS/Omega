@@ -1,3 +1,4 @@
-boundary trait Readable { machine read() -> u64; }
-data Worker { reader: Readable; }
+use omega::language::core::service;
+pub boundary trait Readable { machine read() -> u64; }
+data Worker { reader: Service<Readable>; }
 machine Worker::read(&mut self) -> u64 { self.reader.read() }

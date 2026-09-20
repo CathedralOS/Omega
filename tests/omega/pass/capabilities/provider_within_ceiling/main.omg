@@ -2,7 +2,8 @@
 // requirement's ceiling (and reaching nothing beyond) conforms and the
 // program RUNS exit 70.
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 
 boundary trait Clock {
 }

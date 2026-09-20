@@ -3,6 +3,7 @@
 // stays legal), but a proof-only pointee never materializes, so there
 // is nothing to point at.
 use omega::language::std::console;
+use omega::language::core::service;
 data Nat { case Zero; case Succ(prev: Nat); }
-data Main { console: Console; view: &Nat; }
+data Main { console: Service<Console>; view: &Nat; }
 machine Main::main(&mut self) { self.console.exit_process(0); }

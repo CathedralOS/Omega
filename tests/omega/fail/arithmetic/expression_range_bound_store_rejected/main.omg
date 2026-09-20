@@ -3,9 +3,10 @@
 // bound. Before the const-eval, the expression bound silently behaved
 // UNBOUNDED and this compiled.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32 [0 - 1..=40];
 }
 

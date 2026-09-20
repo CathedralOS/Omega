@@ -10,13 +10,14 @@
 // by the operand arm. A bounded 3× loop (guard-before-increment keystone) drives it.
 
 use omega::language::std::console;
-boundary trait Clock {
+use omega::language::core::service;
+pub boundary trait Clock {
     machine sleep(milliseconds: u32);
 }
 
 data Main {
-    console: Console;
-    clock: Clock;
+    console: Service<Console>;
+    clock: Service<Clock>;
     ticks: i32 [0..=3];
 }
 

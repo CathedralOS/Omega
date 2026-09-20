@@ -7,7 +7,8 @@
 // proving frontier). This canary pins the unmeasured refusal, naming
 // the measure and the bare-loop alternative.
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::sum(&mut self, n: i32, acc: i32)
 -> i32
 {

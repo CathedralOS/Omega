@@ -1,17 +1,18 @@
+use omega::language::core::service;
 // Chapter 18 authority flow: a boundary trait machine's `requires` is the
 // caller's proof obligation, discharged here by the caller's own `requires`
 // carrying the same fact for the forwarded argument. Companion to
 // fail/domains/call_requires_boundary_trait_unproven.
 
-data Item {
+pub data Item {
     value: i32;
 }
 
-domain Item::Ready
+pub domain Item::Ready
 requires
     self.value > 0;
 
-boundary trait Console {
+pub boundary trait Console {
     machine show(item: &Item)
     requires
         item in Item::Ready
@@ -20,7 +21,7 @@ boundary trait Console {
 }
 
 data Worker {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Worker::run(&self, item: &Item)

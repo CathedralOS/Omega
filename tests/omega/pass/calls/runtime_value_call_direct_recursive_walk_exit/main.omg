@@ -5,7 +5,8 @@
 // replaced the fence; this canary pins the capability: count the '/'
 // separators of "a/b/c" through the recursive walk. Exit 70.
 use omega_language_std::console;
-data Main { console: Console; n: i32 in Wrapping; r: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; n: i32 in Wrapping; r: i32; }
 machine Main::walk(&mut self, path: &[u8], i: u64, acc: i32)
 terminates by (i, path.len) -> Nat::BoundedDistance;
 -> i32

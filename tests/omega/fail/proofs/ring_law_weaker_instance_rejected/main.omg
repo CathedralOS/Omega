@@ -1,6 +1,7 @@
 // NEGATIVE 2: a WEAKER-INSTANCE ensures (two law params proven at ONE
 // variable: assoc specialized to b == a) must NOT license the law.
 use omega::language::std::console;
+use omega::language::core::service;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2 {
     machine add(a: Self, b: Self) -> Self;
@@ -32,5 +33,5 @@ ensures
         narrow_assoc(pred, b, c);
     }
 }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // FAIL canary: decision-17 exact-arithmetic overflow at the TRANSITION-VALUE
 // return boundary. `machine sum -> i32 { transition { _ -> (x + y) } }` with
 // full-range i32 params can overflow, and this boundary used to SKIP the
@@ -7,14 +8,14 @@
 // binding boundary. Domained operands (`in Wrapping`/`Saturating`/`Trapping`), an
 // `as` widen, or a dominating bound make it provable and stay fine.
 
-boundary trait Console {
+pub boundary trait Console {
     machine exit_process(code: i32)
     reaches
         Console;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::sum(&mut self, x: i32, y: i32) -> i32 {

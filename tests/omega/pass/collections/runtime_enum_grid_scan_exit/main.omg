@@ -8,6 +8,7 @@
 // locks the direct form. grid = [Wall, Door, Floor, Door, Wall] -> 2 Doors. Exits 70 iff the scan
 // counts 2. Differential (native must match the interpreter).
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell {
     case Wall;
@@ -16,7 +17,7 @@ data Cell {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [Cell; 5];
     i: u32 in Wrapping;
     doors: i32 in Wrapping;

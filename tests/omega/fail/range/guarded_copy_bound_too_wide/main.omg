@@ -2,9 +2,10 @@
 // y: [0..=9] must still reject -- the guard narrows the copy, but only to
 // its own bounds.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     yv: i32;
     y: i32 [0..=9];
 }

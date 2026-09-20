@@ -4,9 +4,10 @@
 // store must reject (without the gate, `self.yv = 100; self.y = self.yv`
 // would "prove" through the stale guard).
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     yv: i32;
     y: i32 [0..=9];
 }

@@ -13,6 +13,7 @@
 // decodes the single required element.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Ping {
     #0 code: [u32; 1];
@@ -32,7 +33,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 32];
     written: u64;
     read: u64;

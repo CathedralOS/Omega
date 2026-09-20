@@ -6,9 +6,10 @@
 // of 64 land inside, so the estimate 400*inside/64 = 331 (i.e. pi ~= 3.31). Both the count
 // and the scaled estimate are checked -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     state: u32 in Wrapping;  // xorshift state
     sc: u32 in Wrapping;     // shift scratch
     px: u32 in Wrapping;

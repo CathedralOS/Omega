@@ -5,9 +5,10 @@
 // a-c is a computed value formed into a field (a computed index is refused in a subscript),
 // and the two dp reads are taken into fields before the comparison. Exits 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     coins: [i32; 3] in Wrapping;
     dp: [i32; 7] in Wrapping;  // dp[0..6]; 99 = "infinity"
     a: i32 in Wrapping;

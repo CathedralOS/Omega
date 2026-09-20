@@ -12,6 +12,7 @@ requires
 // `true` arm -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Tag {
     name: &[u8] in Utf8;
@@ -25,7 +26,7 @@ trait Equatable {
 TagEquatable: Tag satisfies Equatable;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     left: Tag;
     right: Tag;
 }

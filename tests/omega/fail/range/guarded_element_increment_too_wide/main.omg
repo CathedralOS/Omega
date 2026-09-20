@@ -1,8 +1,9 @@
 // The guarded element increment's soundness twin: a `< 17` guard admits 16,
 // and 16 + 1 = 17 exceeds the element range [0..=16] -- must reject.
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     tallies: [i32 [0..=16]; 4];
 }
 machine Main::main(&mut self) {

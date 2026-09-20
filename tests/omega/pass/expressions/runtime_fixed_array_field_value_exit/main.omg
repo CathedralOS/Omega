@@ -13,6 +13,7 @@
 // index reads element 0's `depth` (11) and exits 71.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Room {
     id: i32;
@@ -20,7 +21,7 @@ data Room {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     rooms: [Room; 4];
 }
 

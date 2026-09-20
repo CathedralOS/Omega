@@ -4,9 +4,10 @@
 // its complete carrier is one contiguous bit set even though crossing signed
 // zero initially describes it as two adjacent intervals.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     value: i32 [0..=100];
     whole: i8 [-128..=127];
 }

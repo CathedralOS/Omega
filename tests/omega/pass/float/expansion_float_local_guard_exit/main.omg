@@ -11,13 +11,14 @@ use omega::language::core::float_operations;
 // pending/calls/float_value_call_*_divergence), and this canary isolates
 // the guard face from those.
 use omega_language_std::console;
+use omega::language::core::service;
 machine finite_probe(x: f64) -> bool {
     let d: f64 = x - x;
     transition d == 0.0 { true -> yes() _ -> no() }
     state yes() -> bool { true }
     state no() -> bool { false }
 }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let ok: bool = finite_probe(3.5);
     transition ok == true { true -> good() _ -> bad() }

@@ -2,13 +2,14 @@
 // `Derived` is the default and the only implemented grammar; an explicit
 // `Packed` names the honest gap.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data CounterMessage {
     #0 counter: u32;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     view: &[u8] in OmegaLayout<CounterMessage, Packed>;
 }
 

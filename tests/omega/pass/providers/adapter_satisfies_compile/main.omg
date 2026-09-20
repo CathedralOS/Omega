@@ -4,6 +4,7 @@
 // the requirement's declared ceiling: an effect-free body under an
 // effect-free requirement here).
 use omega_language_std::console;
+use omega::language::core::service;
 boundary trait Echo {
     machine echo(x: i32) -> i32;
 }
@@ -13,7 +14,7 @@ machine EchoProvider::echo_adapter(x: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (x) }
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     self.console.exit_process(70);
 }

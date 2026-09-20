@@ -10,6 +10,7 @@
 // every value written through the plan placement survives the copy and reads
 // back intact.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
@@ -104,7 +105,7 @@ data Gdtish [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     gdt: Spread16<Gdtish>;
     twin: Spread16<Gdtish>;
     v: i32;

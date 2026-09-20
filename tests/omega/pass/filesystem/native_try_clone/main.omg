@@ -5,9 +5,10 @@
 // shared offset (0). Proves the dup op lowers and runs on real macOS syscalls.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     rdonly: i32;
     cap: u64;

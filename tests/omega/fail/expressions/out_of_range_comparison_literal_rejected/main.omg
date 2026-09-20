@@ -4,7 +4,8 @@
 // miscompile. Rejected at check now (decision-17 narrowing sibling for comparison
 // operands). In-range comparisons (`b == 200`, `n == 300` for i32) stay valid.
 use omega::language::std::console;
-data Main { console: Console; b: u8; }
+use omega::language::core::service;
+data Main { console: Service<Console>; b: u8; }
 machine Main::main(&mut self) {
     self.b = 44;
     transition self.b == 300 { true -> hit() _ -> miss() }

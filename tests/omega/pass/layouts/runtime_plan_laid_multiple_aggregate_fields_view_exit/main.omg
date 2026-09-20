@@ -3,6 +3,7 @@
 // authored entry order does not replace their compiler-issued keys.
 use omega_language_std::console;
 use omega::language::core::layout;
+use omega::language::core::service;
 
 data MultipleAggregateFields { }
 
@@ -45,7 +46,7 @@ machine make_samples() -> Samples {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 28];
     index: u64;
     observed_value: u16;

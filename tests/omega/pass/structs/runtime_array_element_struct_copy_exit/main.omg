@@ -6,6 +6,7 @@
 // discriminates both ways: the array element keeps its original (5, 6) AND the copy holds the
 // mutated values (50, 60). Exits 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Point {
     x: i32 in Wrapping;
@@ -13,7 +14,7 @@ data Point {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [Point; 3];
     f: Point;
 }

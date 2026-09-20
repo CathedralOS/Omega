@@ -10,6 +10,7 @@
 // Expected exit: 0.
 // Expected output contains: #
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
@@ -20,7 +21,7 @@ requires
 domain [u8; 3]::Utf8
 requires
     valid_utf8(self);
-boundary trait Clock { machine sleep(milliseconds: u32); }
+pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 // FULLY EXACT -- no overflow domain anywhere: every counter carries a range and
 // every increment is guard-proven on its DIRECT incoming edge (re-guard hops added
@@ -28,8 +29,8 @@ boundary trait Clock { machine sleep(milliseconds: u32); }
 // (vj/vk/val) are plain i32: they are only copied and compared, never used in
 // arithmetic, so they carry no obligation.
 data Main {
-    console: Console;
-    clock: Clock;
+    console: Service<Console>;
+    clock: Service<Clock>;
     arr: [i32; 8];
     home: [u8; 3] in Utf8;
     line: [u8; 8] in Utf8;

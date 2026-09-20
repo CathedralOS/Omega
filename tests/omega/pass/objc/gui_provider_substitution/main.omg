@@ -1,8 +1,8 @@
 // PROVES the darwin GUI-provider SUBSTITUTION (render fire 24, task #57): this file
-// declares the UNCHANGED Win32-shaped `boundary trait Gui` and holds a `gui: Gui`
+// declares the UNCHANGED Win32-shaped `boundary trait Gui` and holds a `gui: Service<Gui>`
 // FIELD — exactly like samples/gui/window_demo, with NO `use` of any macOS module.
 // On darwin the compiler injects the bundled `MacosGui` provider and rewrites the
-// `gui: Gui` field's type to `MacosGui`, so `self.gui.window_create(..)` dispatches
+// `gui: Service<Gui>` field's type to `MacosGui`, so `self.gui.window_create(..)` dispatches
 // to the objc/Cocoa-composing MacosGui machine as an ordinary value-call. A non-null
 // window + get_dc echo -> exit 7. This is the source-transparent wiring that lets the
 // samples run natively without touching their traits.
@@ -11,7 +11,8 @@
 // SUBSTITUTION in isolation, independent of the large-offset encoder gap (task #59).
 
 use omega::language::std::console;
-boundary trait Gui {
+use omega::language::core::service;
+pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine get_dc(window: u64) -> u64;
     machine is_window(window: u64) -> u32;
@@ -19,8 +20,8 @@ boundary trait Gui {
 }
 
 data Main {
-    console: Console;
-    gui: Gui;
+    console: Service<Console>;
+    gui: Service<Gui>;
     win: u64;
     dc: u64;
     alive: u32;

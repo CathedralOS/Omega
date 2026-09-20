@@ -2,6 +2,7 @@
 // with an evaluable domain body fact, discharge once for the concrete generic
 // instance. They are not runtime invariants on the synthesized record.
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain u64::Positive
 requires
@@ -22,7 +23,7 @@ where
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: FixedBuffer<4>;
 }
 

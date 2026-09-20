@@ -8,8 +8,9 @@
 // wrong value; 73 = the saturating element did not clamp.
 
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     wrap: [u8; 2];
     sat: [u8; 2] in Saturating;
     a: u8 in Wrapping;

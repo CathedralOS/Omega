@@ -14,6 +14,7 @@
 // correct -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Entity {
     hp: i32 in Trapping;
@@ -21,7 +22,7 @@ data Entity {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     entities: [Entity; 4];
     idx: u64;
 }

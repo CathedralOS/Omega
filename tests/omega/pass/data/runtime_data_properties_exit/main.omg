@@ -5,6 +5,7 @@
 // only because `Point` declares the properties itself.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Point [copy] {
     x: i32;
@@ -17,7 +18,7 @@ data Holder [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     h: Holder;
 }
 

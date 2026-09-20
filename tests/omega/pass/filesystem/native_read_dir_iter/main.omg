@@ -8,9 +8,10 @@
 // lowers correctly on aarch64. Prints PASS iff exactly 4 entries are walked.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     dirmode: i32;
     filemode: i32;
     rdonly: i32;

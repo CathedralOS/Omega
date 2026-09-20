@@ -1,9 +1,10 @@
 // Scalar builtins are pure value operations, so a direct host-boundary
 // argument can materialize through the same scratch writer as binary values.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     low: i32;
     high: i32;
 }

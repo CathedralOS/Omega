@@ -19,6 +19,7 @@
 
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data RandomState {
     seed: u64 in Wrapping;
@@ -35,7 +36,7 @@ machine Random::step(
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     rng: Random;
 }
 

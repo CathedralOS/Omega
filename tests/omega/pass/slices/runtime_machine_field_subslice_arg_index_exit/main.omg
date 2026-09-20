@@ -8,9 +8,10 @@
 // Exits 70 when the passed view has len 3 and data[i] reads the right bytes.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     source: [u8; 4];
 }
 

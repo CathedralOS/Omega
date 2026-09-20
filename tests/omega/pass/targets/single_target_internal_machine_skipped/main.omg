@@ -7,6 +7,7 @@
 // `demo_target` resolves to no real target, so the internal is inert on every
 // host and nothing portable may call it.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Helper { seed: i32; }
 
@@ -14,7 +15,7 @@ demo_target machine Helper::paradigm_internal(&self) -> i32 {
     transition { _ -> 63 }
 }
 
-data Main { console: Console; helper: Helper; }
+data Main { console: Service<Console>; helper: Helper; }
 
 machine Main::main(&mut self) reaches Console {
     let a: i32 = self.helper.seed;

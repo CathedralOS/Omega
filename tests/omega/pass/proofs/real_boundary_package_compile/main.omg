@@ -3,8 +3,9 @@
 
 use omega::language::core::real;
 use omega::language::std::console;
+use omega::language::core::service;
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine commute_real_add(a: Real, b: Real)
 ensures Real::add(a, b) == Real::add(b, a)

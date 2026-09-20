@@ -1,8 +1,9 @@
 // The named Trapping overload must reject NaN before producing an integer.
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let nan: f64 = 0.0f64 / 0.0;

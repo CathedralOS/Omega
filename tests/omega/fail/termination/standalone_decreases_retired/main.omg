@@ -1,7 +1,8 @@
 // TPR1 (decision 23): a standalone `decreases` clause is RETIRED -- the
 // witness attaches to the guarantee as `terminates by ...;`.
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine countdown(n: u64) -> u64
 decreases n
 {

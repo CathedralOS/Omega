@@ -1,7 +1,8 @@
 // A free constant and machine cannot declare the same namespace member.
 use omega::language::std::console;
+use omega::language::core::service;
 const helper: u32 = 7;
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine helper() -> u32 {
     transition { _ -> (7) }
 }

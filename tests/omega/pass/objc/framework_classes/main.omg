@@ -14,14 +14,15 @@ domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
+use omega::language::core::service;
 
-boundary trait ObjectiveC {
+pub boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;
 }
 
 data Main {
-    console: Console;
-    objc: ObjectiveC;
+    console: Service<Console>;
+    objc: Service<ObjectiveC>;
     ns_string: u64;
     ns_app: u64;
     ns_window: u64;

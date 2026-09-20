@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Evidence { case Only; }
 data Mixed<T> {
@@ -9,7 +10,7 @@ data Mixed<T> {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     value: Mixed<i32 in Wrapping>;
 }
 

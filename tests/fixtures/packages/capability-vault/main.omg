@@ -1,17 +1,18 @@
+use omega::language::core::service;
 // Capability acquisition/return fixture.
 pub boundary trait SecretLease {
     machine read_word() -> u64 reaches SecretLease;
 }
 
 pub boundary trait SecretHost {
-    machine open(name: &[u8]) -> SecretLease reaches SecretHost;
+    machine open(name: &[u8]) -> Service<SecretLease> reaches SecretHost;
 }
 
 pub data Vault {
-    host: SecretHost;
+    host: Service<SecretHost>;
 }
 
-pub machine Vault::open_secret(&mut self, name: &[u8]) -> SecretLease
+pub machine Vault::open_secret(&mut self, name: &[u8]) -> Service<SecretLease>
 reaches SecretHost
 invokes SecretHost;
 {

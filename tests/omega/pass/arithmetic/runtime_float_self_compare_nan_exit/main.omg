@@ -7,8 +7,9 @@ use omega::language::core::float_operations;
 // ucomis* runtime compare, whose NaN parity handling the sibling canary
 // runtime_float_nan_comparison_exit pins for distinct operands.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: f64;
 }
 machine Main::main(&mut self) reaches Console {

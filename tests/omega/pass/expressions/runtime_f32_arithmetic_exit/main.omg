@@ -12,9 +12,10 @@ use omega::language::core::float_operations;
 // the literal still resolves to f64 bits. Field/var arithmetic is covered here.)
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: f32;
     b: f32;
     r: f32;

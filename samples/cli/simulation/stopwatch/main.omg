@@ -23,6 +23,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Command {
     case Tick(n: i32 in Saturating);
@@ -38,7 +39,7 @@ data Watch [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     watch: Watch;
     pause: [u8; 256];
 }

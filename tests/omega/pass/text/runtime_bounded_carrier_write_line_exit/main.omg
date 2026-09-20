@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // The owned `[u8; N] in Utf8` carrier through host output, native: build a
 // carrier by concat, then `write_line` it. The carrier is passed to a
 // `&[u8] in Utf8` view parameter -- the host-call path reads the carrier with
@@ -14,13 +15,13 @@ requires
 domain [u8; 16]::Utf8
 requires
     valid_utf8(self);
-boundary trait Console {
+pub boundary trait Console {
     machine write_line(text: &[u8] in Utf8);
     machine exit_process(return_code: i32);
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     label: [u8; 4] in Utf8;
     text: [u8; 16] in Utf8;
 }

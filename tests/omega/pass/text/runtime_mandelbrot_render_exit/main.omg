@@ -1,11 +1,12 @@
 use omega::language::core::float_operations;
+use omega::language::core::service;
 
 // Compact Mandelbrot renderer (40x18) -- a per-pixel f64 escape-time renderer over
 // a 1D carrier framebuffer, exercising floats, nested loops, runtime-indexed carrier
 // byte writes, and write_line together. Self-checks by counting in-set (non-escaped)
 // pixels against a known value, so the EXIT CODE verifies the render; the differential
 // oracle additionally checks native==interpreter stdout. All correct -> exit 70.
-boundary trait Console {
+pub boundary trait Console {
     machine exit_process(return_code: i32);
     machine write_line(text: [u8] in Utf8);
 }
@@ -20,7 +21,7 @@ domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Console;
+    console: Service<Console>;
     row: [u8; 40] in Utf8;
     palette: [u8; 8] in Utf8;
     x: i32 in Trapping;

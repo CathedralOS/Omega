@@ -12,6 +12,7 @@
 //   (double execution per evaluation),
 // - one eager evaluation PER ARM (double execution for a two-arm subject).
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Tally {
     calls: u64;
@@ -19,7 +20,7 @@ data Tally {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     tally: Tally;
 }
 

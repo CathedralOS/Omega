@@ -1,8 +1,9 @@
 // Proves aarch64 SATURATING signed divide/modulo: normal cases + the TYPE_MIN/-1
 // corner (i32::MIN / -1 saturates to i32::MAX; i32::MIN % -1 == 0).
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: i32 in Saturating;
     b: i32 in Saturating;
     q: i32 in Saturating;

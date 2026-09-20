@@ -14,7 +14,8 @@ use omega::language::core::float_operations;
 // no divergence, but both imprecise; needs per-op f32 rounding. See TASKS/memory.)
 
 use omega_language_std::console;
-data Main { console: Console; a: f32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; a: f32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 16777216.0;
     self.a = self.a + 1.0;   // true f32: below the ULP, rounds back to 16777216

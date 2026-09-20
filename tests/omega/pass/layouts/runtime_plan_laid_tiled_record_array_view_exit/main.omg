@@ -4,6 +4,7 @@
 // and field offsets remain compiler-derived inside each destination extent.
 use omega_language_std::console;
 use omega::language::core::layout;
+use omega::language::core::service;
 
 data TiledRecordArray { }
 
@@ -42,7 +43,7 @@ machine make_samples() -> Samples {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 24];
     index: u64;
     observed_low: u16;

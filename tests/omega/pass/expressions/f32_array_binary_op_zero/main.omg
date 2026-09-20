@@ -13,9 +13,10 @@ use omega::language::core::float_operations;
 // add instead of addss.  Fixed together with the f64 variant.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     vals: [f32; 2];
 }
 

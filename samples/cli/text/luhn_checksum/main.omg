@@ -10,9 +10,10 @@
 // so the number is valid. Exits 70 on valid, 71 on invalid.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     pause: [u8; 256];
     digits: [i32; 11];
     r: i32 [-1..=10];

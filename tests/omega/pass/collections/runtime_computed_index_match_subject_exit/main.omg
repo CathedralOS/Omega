@@ -9,9 +9,10 @@
 // direct spelling). Bounds discharge through the dominating compound
 // guard, same as read/write positions.
 use omega_language_std::console;
+use omega::language::core::service;
 data Cell { case Empty; case Wall; case Goal; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [Cell; 6];
     r: u32 in Wrapping;
     c: u32 in Wrapping;

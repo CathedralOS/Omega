@@ -5,6 +5,7 @@
 // instead of silently mis-encoding.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data SampleMessage {
     #0 count: u32;
@@ -17,7 +18,7 @@ data SampleValue {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

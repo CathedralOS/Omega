@@ -6,6 +6,7 @@
 // selected adapter in both checked interpretation and target-selected Terminal
 // production, exactly as the `boundary operator` spelling did.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data CheckedMath {}
 
@@ -19,7 +20,7 @@ satisfies CheckedMath::select_left
     transition { _ -> left }
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self)
 reaches Console

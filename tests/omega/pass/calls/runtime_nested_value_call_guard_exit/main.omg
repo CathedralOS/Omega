@@ -19,9 +19,10 @@
 use omega_language_std::time;
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Duration;
     b: Duration;
     elapsed: Duration;

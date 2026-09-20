@@ -10,6 +10,7 @@
 // Expected exit: 13.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // FULLY EXACT -- no overflow domain: `n` and `d` carry ranges, so the guard
 // arithmetic `d * d` (<= 40000) and `n % d` are verifiably bounded, and the
@@ -20,7 +21,7 @@ data Trial [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     trial: Trial;
     pause: [u8; 256];
 }

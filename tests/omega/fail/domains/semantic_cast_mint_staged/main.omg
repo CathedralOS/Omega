@@ -3,7 +3,8 @@
 // keeps the staged fence pointing at validating calls/guards until the
 // flow-integration rung lands.
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 
 domain i64::Km
 requires

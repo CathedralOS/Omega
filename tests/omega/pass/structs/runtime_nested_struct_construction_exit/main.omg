@@ -12,6 +12,7 @@
 // and height -- all correct -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Point {
     x: i32 in Trapping;
@@ -24,7 +25,7 @@ data Rect {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     r: Rect;
     w: i32 in Trapping;
     h: i32 in Trapping;

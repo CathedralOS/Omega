@@ -4,7 +4,8 @@
 // never the decrease itself; `terminates by n` stays unproven and refuses.
 // (Deleting the base-case exit refuses identically: nothing to refute.)
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
 terminates by n;
 {

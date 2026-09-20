@@ -3,8 +3,9 @@
 // register. The Unit entry consumes that result before exiting explicitly.
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
+use omega::language::core::service;
 
-data Main { console: Console; value: u8; }
+data Main { console: Service<Console>; value: u8; }
 
 machine Main::converted(&mut self) -> i32 {
     self.value = 70;

@@ -3,6 +3,7 @@
 // silently read a ZII 0; the nested walker attributes the failure to the first
 // missing hop on its resolved container.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Inner {
     value: i32;
@@ -13,7 +14,7 @@ data Outer {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     o: Outer;
 }
 

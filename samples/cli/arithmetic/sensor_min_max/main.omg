@@ -18,9 +18,10 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [f64; 6];
     i: i32 [0..=6];
     cur: f64;

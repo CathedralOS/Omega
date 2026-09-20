@@ -3,9 +3,10 @@
 // machine and the failure. `missing_size` does not exist anywhere in the
 // program.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     slots: [i64; missing_size()];
 }
 

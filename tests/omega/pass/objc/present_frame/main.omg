@@ -22,8 +22,9 @@ domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
+use omega::language::core::service;
 
-boundary trait ObjectiveC {
+pub boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;
     machine register_selector(name: &[u8] in CString) -> u64;
     machine send(recv: u64, sel: u64) -> u64;
@@ -32,16 +33,16 @@ boundary trait ObjectiveC {
     machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64;
 }
 
-boundary trait CoreGraphics {
+pub boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;
     machine bitmap_context(data: &mut [i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
     machine bitmap_context_image(ctx: u64) -> u64;
 }
 
 data Main {
-    console: Console;
-    objc: ObjectiveC;
-    cg: CoreGraphics;
+    console: Service<Console>;
+    objc: Service<ObjectiveC>;
+    cg: Service<CoreGraphics>;
     pixels: [i32; 16];
     space: u64;
     ctx: u64;

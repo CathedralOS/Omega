@@ -13,6 +13,7 @@
 // Native x64:  exits 70 after the LocalStorage fold-block fix.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data S [copy] {
     arr: [i32; 4];
@@ -22,7 +23,7 @@ data S [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     s: S;
 }
 

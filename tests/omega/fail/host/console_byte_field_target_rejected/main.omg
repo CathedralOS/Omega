@@ -5,9 +5,10 @@
 // nothing generic for byte ops; the alternative is a silently-ZII field,
 // the cardinal sin). Remove when field-target byte reads gain a lowering.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     r: ByteRead;
 }
 

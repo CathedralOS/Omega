@@ -16,9 +16,10 @@
 // The program exits with that count. Expected exit: 4.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     pause: [u8; 256];
     samples: [u64; 8];
     // Wrapping DECLARED: the tallies accumulate values read back OUT of the

@@ -5,7 +5,8 @@
 // declared type. Domain is not part of the check (suffixes land the TYPE;
 // the destination's arithmetic domain stays contextual).
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) {
     let x: u32 = 5i8;
     self.console.exit_process(70);

@@ -1,5 +1,6 @@
 // A struct literal naming an UNDEFINED type (`Nonexistent { a: 1 }`) used to
 // compile silently. Rejected now as an unknown data type.
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { let x: i32 = Nonexistent { a: 1 }; self.console.exit_process(0); }

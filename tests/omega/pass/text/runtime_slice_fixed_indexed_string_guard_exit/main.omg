@@ -13,13 +13,14 @@ requires
 // taken unconditionally -- an empty field "equalled" any literal. (The
 // runtime-index sibling is runtime_slice_indexed_string_guard_exit.)
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Room {
     label: &[u8] in Utf8;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     rooms: [Room; 3];
 }
 

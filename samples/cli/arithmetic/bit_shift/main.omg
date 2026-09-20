@@ -7,9 +7,10 @@
 // Expected exit: 64.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     kibibytes: i32 in Wrapping;
     bytes: i32 in Wrapping;
     recovered: i32 in Wrapping;

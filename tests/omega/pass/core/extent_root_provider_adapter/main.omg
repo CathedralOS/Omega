@@ -1,4 +1,5 @@
 use omega::language::core::extent;
+use omega::language::core::service;
 
 // A checked adapter may realize the owner-authored provider requirement, but
 // it does not mint `Granted` when called directly. The selected boundary slot
@@ -16,7 +17,7 @@ machine consume_granted(root: Extent in Granted) -> Extent {
 }
 
 data Harness {
-    provider: ExtentRootProvider;
+    provider: Service<ExtentRootProvider>;
 }
 
 machine Harness::forward(&self, root: Extent) -> Extent

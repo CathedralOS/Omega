@@ -6,6 +6,7 @@
 // arg, is deliberate: a host-call argument must be a simple value, see
 // fail/calls/value_call_as_host_arg_rejected.)
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Shape {
     case Circle(r: i32 in Wrapping);
@@ -13,7 +14,7 @@ data Shape {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::run(&mut self, s: Shape) reaches Console {

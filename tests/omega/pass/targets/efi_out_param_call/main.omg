@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // M2-LADDER #1: `&mut` OUT-PARAMS through a field-model vtable call, MS-x64.
 // GetMemoryMap's shape -- the callee returns its results by WRITING THROUGH
 // caller-supplied pointers: six arguments total, so args 5 and 6 spill to the
@@ -38,7 +39,7 @@ pub data EfiSystemTable {
     runtime_services: addr; boot_services: addr;
 }
 pub data Main {
-    bs: BootServices;
+    bs: Service<BootServices>;
     map_size: u64;
     key: u64;
     desc_size: u64;

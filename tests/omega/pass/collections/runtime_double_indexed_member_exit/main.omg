@@ -8,6 +8,7 @@
 // m3: suffix read boards[i][j].x    m4: suffix write boards[i][j].y = v
 // Neighbor/other-row validation throughout.
 use omega_language_std::console;
+use omega::language::core::service;
 data Row {
     tag: i32;
     data: [i32; 2];
@@ -17,7 +18,7 @@ data Cell {
     y: i32;
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     rows: [Row; 3];
     boards: [[Cell; 2]; 2];
     i: u64 [0..=2];

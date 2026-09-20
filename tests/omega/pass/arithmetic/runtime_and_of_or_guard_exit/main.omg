@@ -6,9 +6,10 @@
 // different operands). Differential-checked native==interpreter.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: i32 in Wrapping;
     b: i32 in Wrapping;
     c: i32 in Wrapping;

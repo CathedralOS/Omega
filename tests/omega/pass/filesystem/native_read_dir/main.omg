@@ -7,9 +7,10 @@
 // PASS iff read_dir returns 104.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     dirmode: i32;
     filemode: i32;
     rdonly: i32;

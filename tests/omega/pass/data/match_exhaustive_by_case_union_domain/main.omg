@@ -8,6 +8,7 @@
 // exits 71.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Command {
     case None;
@@ -20,7 +21,7 @@ domain Command::Interactive
 requires
     self in Command::Move | Command::Say;
 data Main {
-    console: Console;
+    console: Service<Console>;
     cmd: Command;
 }
 

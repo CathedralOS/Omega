@@ -8,9 +8,10 @@
 // of the narrowing checks. Complements unknown_field_{read,write}_rejected.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     n: i32 in Wrapping;
 }
 

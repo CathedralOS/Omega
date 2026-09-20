@@ -2,9 +2,10 @@
 // self-transition; the looped accumulator must be delivered back to `n`.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5];
 }
 

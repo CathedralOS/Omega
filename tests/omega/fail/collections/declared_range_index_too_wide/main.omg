@@ -2,9 +2,10 @@
 // `[i32; 5]` (high == length) must still reject -- the range only discharges
 // the upper bound when high < length.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5];
     i: u64 [0..=5];
 }

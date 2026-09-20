@@ -8,6 +8,7 @@
 // frame-fixed-indexed READ, so the operand-relocation offsets are
 // exercised too. exit 71 = the RMW missed the element (stale 30).
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Exit {
     count: i32;
@@ -18,7 +19,7 @@ data Room {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

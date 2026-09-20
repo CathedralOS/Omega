@@ -12,6 +12,7 @@
 // Exits 70 only when BOTH writes reach the caller's `found`.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Item {
     key: i32;
@@ -33,7 +34,7 @@ machine Store::find(&mut self, key: i32, out: &mut Item) {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     store: Store;
 }
 

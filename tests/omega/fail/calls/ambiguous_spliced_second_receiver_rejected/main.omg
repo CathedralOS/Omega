@@ -12,7 +12,7 @@
 // callee's plan, the caller and the selected entry lose theirs, and the
 // closure check rejects with `missing a checked transitive machine plan`
 // before any dispatch lowering runs.
-use omega::language::std::console;
+
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }
@@ -27,10 +27,10 @@ machine Holder::run(&mut self) -> i32 in Wrapping {
     transition true { true -> done(a, b) }
     state done(&mut self, a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping { b }
 }
-data Main { console: Console; holder: Holder; flag: i32 in Wrapping; }
-machine Main::main(&mut self) reaches Console {
+data Main { holder: Holder; flag: i32 in Wrapping; }
+machine Main::main(&mut self) {
     self.flag = self.holder.run();
     transition self.flag == 9 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(&mut self) { }
+    state bad(&mut self) { }
 }

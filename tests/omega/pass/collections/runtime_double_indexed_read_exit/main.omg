@@ -8,8 +8,9 @@
 // Still fenced (clean errors): writes, `rows[i].data[j]` (member between the
 // indices), 3+ runtime levels, local/param 2D arrays.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [[i32; 4]; 3];
     cube: [[[i32; 2]; 2]; 2];
     i: u64 [0..=2];

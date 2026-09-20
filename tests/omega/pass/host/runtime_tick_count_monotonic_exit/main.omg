@@ -5,8 +5,9 @@
 // across a sleep): native ticks are nondeterministic, while the interpreter advances a deterministic
 // virtual clock. Both must exit 70 with matching behavior.
 use omega_language_std::console;
-boundary trait Clock { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
-data Main { console: Console; clock: Clock; t1: u64; t2: u64; }
+use omega::language::core::service;
+pub boundary trait Clock { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
+data Main { console: Service<Console>; clock: Service<Clock>; t1: u64; t2: u64; }
 machine Main::main(&mut self)
 reaches Clock, Console
 {

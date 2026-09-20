@@ -7,9 +7,10 @@
 // slot retain that one frame root, then repeat with the index in machine
 // storage and its exact second root.
 use omega_language_std::console;
+use omega::language::core::service;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4];
     index: u64 [0..=3];
 }

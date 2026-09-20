@@ -7,9 +7,10 @@
 // and the program exits it -- 50 proves the copy read element j (the historic
 // bug exits 10; a no-op also exits 10).
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 5] in Trapping;
     i: i32 in Trapping;
     j: i32 in Trapping;

@@ -14,9 +14,10 @@
 
 use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     dir_mode: i32;
     ro_mode: u32;

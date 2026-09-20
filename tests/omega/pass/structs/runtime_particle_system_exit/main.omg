@@ -7,6 +7,7 @@
 //   p0: (0,0)+3*(2,1) = (6,3)   p1: (10,20)+3*(-1,-2) = (7,14)
 // Self-checks three of those cells -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Particle {
     x: i32 in Wrapping;
@@ -16,7 +17,7 @@ data Particle {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     ps: [Particle; 2] in Wrapping;
     step: i32 in Wrapping;
     i: i32 in Wrapping;

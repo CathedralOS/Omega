@@ -6,9 +6,10 @@
 // value-call-aware overflow hint.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     s: i32 in Wrapping;
 }
 

@@ -17,6 +17,7 @@
 // fail/targets/target_machine_missing_rejected and
 // fail/targets/target_machine_duplicate_rejected.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Helper { seed: i32; }
 
@@ -37,7 +38,7 @@ linux_arm64 machine Helper::delta(&self) -> i32 {
     transition { _ -> 7 }
 }
 
-data Main { console: Console; helper: Helper; }
+data Main { console: Service<Console>; helper: Helper; }
 
 machine Main::main(&mut self) reaches Console {
     let a: i32 = self.helper.pick();

@@ -7,9 +7,10 @@ use omega::language::core::float_operations;
 // negative (truncation toward zero: -2.7 -> -2), and negative float multiply
 // (-2.0 * 3.0 == -6.0). Exits 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: f64; // -2.0
     g: f64; // -1.0
     h: f64; // scratch

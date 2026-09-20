@@ -8,12 +8,13 @@
 // holds. (Destructuring never sees the stale region; whole-value equality
 // is the only reader that could.) exit 72 = stale bytes leaked into ==.
 use omega_language_std::console;
+use omega::language::core::service;
 trait Equatable {
     machine equals(&self, other: &Self) -> bool;
 }
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 MsgEquatable: Msg satisfies Equatable;
-data Main { console: Console; a: Msg; b: Msg; }
+data Main { console: Service<Console>; a: Msg; b: Msg; }
 machine Main::main(&mut self) {
     self.a = Msg::Pong { y: 7, z: 9 };
     self.a = Msg::Ping { x: 1 };

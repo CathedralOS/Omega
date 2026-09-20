@@ -5,9 +5,10 @@
 // guards the loop form of the unsigned shift. popcount(0xDEADBEEF) == 24.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: u32 in Wrapping;
     bit: u32 in Wrapping;
     count: u32 in Wrapping;

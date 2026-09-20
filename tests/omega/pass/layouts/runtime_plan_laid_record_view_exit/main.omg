@@ -8,6 +8,7 @@
 use omega_language_std::console;
 use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Spread {
 }
@@ -43,7 +44,7 @@ data ForeignView {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 32];
 }
 

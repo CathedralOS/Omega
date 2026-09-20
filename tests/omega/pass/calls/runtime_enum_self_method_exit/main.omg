@@ -10,6 +10,7 @@
 // leg guards against always-first-arm coincidence.
 // exit 70 = all legs right; 71..74 name the leg.
 use omega_language_std::console;
+use omega::language::core::service;
 data Evidence { case Only; }
 data Signal { proof [erased]: Evidence; case Red; case Amber; case Green; }
 machine Signal::go_value(&self) -> i32 {
@@ -27,7 +28,7 @@ machine Signal::is_green(&self) -> bool {
     state yes(&self) -> bool { true }
     state no(&self) -> bool { false }
 }
-data Main { console: Console; s: Signal; v1: i32; v2: i32; v3: i32; flag: bool; }
+data Main { console: Service<Console>; s: Signal; v1: i32; v2: i32; v3: i32; flag: bool; }
 machine Main::main(&mut self) reaches Console {
     self.s = Signal::Green;
     self.v1 = self.s.go_value();

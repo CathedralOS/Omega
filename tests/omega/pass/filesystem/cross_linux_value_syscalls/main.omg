@@ -6,11 +6,12 @@
 use omega_language_std::filesystem_host;
 use omega_language_std::filesystem;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     semantic_fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;

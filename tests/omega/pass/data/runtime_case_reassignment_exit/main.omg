@@ -6,6 +6,7 @@
 // only when the second construction fully replaces the first.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Mode {
     case Stand;
@@ -14,7 +15,7 @@ data Mode {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     mode: Mode;
 }
 

@@ -16,8 +16,9 @@ use omega::language::core::float_operations;
 // runtime-offset recasts).
 // exits: 71 = float pun read wrong; 72 = sign pun read wrong.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     bits: i32;
     wide: u32;
 }

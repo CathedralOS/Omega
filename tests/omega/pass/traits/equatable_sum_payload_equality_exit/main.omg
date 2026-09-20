@@ -9,6 +9,7 @@
 // argument. Exits 70 only when all six compares are right.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 trait Equatable {
     machine equals(&self, other: &Self) -> bool;
@@ -29,7 +30,7 @@ data Switch {
 SwitchEquatable: Switch satisfies Equatable;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Command;
     b: Command;
     c: Command;

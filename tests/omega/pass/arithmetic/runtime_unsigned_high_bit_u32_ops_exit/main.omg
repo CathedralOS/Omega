@@ -7,9 +7,10 @@
 // the unsigned compare. Differential-checked native==interpreter.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: u32 in Wrapping;
     g: u32 in Wrapping;
     r: u32 in Wrapping;

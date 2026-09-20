@@ -9,8 +9,9 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
-boundary trait FloatingEnvironment {
+pub boundary trait FloatingEnvironment {
     machine set_rounding(mode: i32) -> i32;
 }
 
@@ -27,8 +28,8 @@ macos_arm64 machine set_rounding(mode: i32) -> i32 satisfies FloatingEnvironment
     via fesetround_binding();
 
 data Main {
-    console: Console;
-    environment: FloatingEnvironment;
+    console: Service<Console>;
+    environment: Service<FloatingEnvironment>;
 }
 
 machine Main::main(&mut self) reaches Console {

@@ -11,10 +11,11 @@
 
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
     fs: Filesystem;
-    out: FilesystemHost;
+    out: Service<FilesystemHost>;
     wrote: UnitResult;
     got: IoResult;
     gone: UnitResult;

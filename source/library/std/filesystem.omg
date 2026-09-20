@@ -34,6 +34,7 @@ use targets::windows_x86_64::filesystem_impl;
 use targets::macos_arm64::filesystem_impl;
 use targets::linux_x86_64::filesystem_impl;
 use targets::linux_arm64::filesystem_impl;
+use omega::language::core::service;
 
 // An open file handle. ZII: a zero-initialized `File` is Closed. `[copy]` lets
 // it pass by value into read/write/close.
@@ -364,7 +365,7 @@ pub data MetadataResult {
 // largest selected `struct stat` carrier; the target `StatLayout` supplies the
 // live extent and field encodings.
 pub data Filesystem {
-    host: FilesystemHost;
+    host: Service<FilesystemHost>;
     create_mode: i32;
     dir_mode: i32;
     read_flags: i32;

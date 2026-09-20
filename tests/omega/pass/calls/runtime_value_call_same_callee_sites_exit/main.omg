@@ -8,8 +8,9 @@
 // Every site must hold ITS call's result -- a shared slot delivers the LAST
 // result to all sites. exit 70 = all nine values right; 71..79 name the site.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: i32 in Wrapping;
     g: i32 in Wrapping;
     h: i32 in Wrapping;

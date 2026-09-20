@@ -15,9 +15,10 @@
 // Expected exit: 50
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 data Desc { kind: u32; pages: u64; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     buf: [u8; 48];
     descriptor_size: u32 [0..=16];
     total: u32 in Wrapping;

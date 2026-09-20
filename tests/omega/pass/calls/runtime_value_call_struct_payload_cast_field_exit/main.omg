@@ -15,6 +15,7 @@
 
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Big [copy] {
     len: i64;
@@ -72,7 +73,7 @@ machine Probe::make(&mut self) -> BigResult {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     probe: Probe;
     res: BigResult;
 }

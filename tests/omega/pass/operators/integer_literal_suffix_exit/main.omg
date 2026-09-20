@@ -3,9 +3,10 @@
 // compare equal to the same suffixed literal.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     wide: i64;
     small: u32;
     size: u64;

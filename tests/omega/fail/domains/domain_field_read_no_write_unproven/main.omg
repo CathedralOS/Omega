@@ -8,12 +8,13 @@
 // surfaced -- see pass canary utf8_field_read_carries_domain_exit.)
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 domain [u8]::NonEmpty
 requires
     non_empty(self);
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: &[u8] in NonEmpty;
 }
 

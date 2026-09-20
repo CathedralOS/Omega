@@ -7,6 +7,7 @@
 // cells[2], then 63 directly into `other` (sum 70).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell {
     value: i32;
@@ -25,7 +26,7 @@ machine Bag::pick(&mut self) -> &mut Cell {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bag: Bag;
 }
 

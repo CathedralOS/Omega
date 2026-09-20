@@ -7,6 +7,7 @@
 // roots, and non-data hops are all skipped, so only a provably-missing field on
 // a provably-plain container rejects.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Inner {
     value: i32;
@@ -17,7 +18,7 @@ data Outer {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     o: Outer;
 }
 

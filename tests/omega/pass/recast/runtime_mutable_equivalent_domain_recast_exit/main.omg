@@ -4,13 +4,14 @@
 // that merely LOOK equal remain fenced until their bit-pattern sets can be
 // proved equivalent. Other canaries independently pin mutable write-through.
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain u32::Small
 requires
     self <= 100;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     value: u32 in Small;
 }
 

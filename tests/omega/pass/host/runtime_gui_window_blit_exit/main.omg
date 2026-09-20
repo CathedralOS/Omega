@@ -8,14 +8,15 @@
 // lowering. Handles are opaque: branch on != 0 only (native = real pointers, interpreter = the
 // virtual token 1). Blit reports the copied scanline count == height. Exit 70. Differential.
 use omega_language_std::console;
-boundary trait Gui {
+use omega::language::core::service;
+pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 6], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine get_dc(window: u64) -> u64;
     machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [u32; 64], info: [u32; 11]) -> u32;
 }
 data Main {
-    console: Console;
-    gui: Gui;
+    console: Service<Console>;
+    gui: Service<Gui>;
     cls: [u8; 7];
     title: [u8; 6];
     pixels: [u32; 64];

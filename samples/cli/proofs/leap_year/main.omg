@@ -9,9 +9,10 @@
 // Expected exit: 1.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     year: i32;
     pause: [u8; 256];
 }

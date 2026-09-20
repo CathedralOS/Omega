@@ -13,9 +13,10 @@
 //  - a runtime-indexed ARRAY value can't be a guard SUBJECT directly (`used[s] == 1`),
 //    so the slot's `used`/`keys` are read into fields first, then guarded.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     keys: [i32; 8] in Wrapping;
     vals: [i32; 8] in Wrapping;
     used: [i32; 8] in Wrapping; // 0 = empty, 1 = occupied

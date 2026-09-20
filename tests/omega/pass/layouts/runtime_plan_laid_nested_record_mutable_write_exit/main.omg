@@ -3,6 +3,7 @@
 // projections inside that extent.
 use omega_language_std::console;
 use omega::language::core::layout;
+use omega::language::core::service;
 
 data SpreadRecord { }
 
@@ -38,7 +39,7 @@ data RecordWithPair {
 data RecordView { value: SpreadRecord<RecordWithPair>; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 32];
 }
 

@@ -6,6 +6,7 @@
 // reads its fields. The two fields are independent computations (a+b and a-b) so a swapped
 // or dropped field is caught: stats(7, 3) yields sum 10 and diff 4 -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Stats {
     sum: i32 in Wrapping;
@@ -13,7 +14,7 @@ data Stats {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 // a function that returns a freshly computed record

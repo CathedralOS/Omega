@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Room {
     id: i32;
@@ -11,7 +12,7 @@ data Lookup {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     lookup: Lookup;
 }
 

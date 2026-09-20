@@ -11,9 +11,10 @@
 // 71 instead of 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
     a: i32;
     b: i32;

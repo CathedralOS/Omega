@@ -7,9 +7,10 @@
 // the chain silently computes the wrong result (e.g. `10 - 3 == 7`).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
 }
 

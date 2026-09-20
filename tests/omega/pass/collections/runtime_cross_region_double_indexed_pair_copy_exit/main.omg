@@ -2,9 +2,10 @@
 // arrays in both directions. Each walk mixes one machine-held and one
 // frame-held runtime index.
 use omega_language_std::console;
+use omega::language::core::service;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     values: [[Triple; 2]; 2];
     index: u64 [0..=1];
 }

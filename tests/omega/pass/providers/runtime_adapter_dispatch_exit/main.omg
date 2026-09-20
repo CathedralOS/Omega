@@ -3,14 +3,15 @@
 // before checking -- to the checked adapter retained by the selected nominal
 // provider plan, and runs as ordinary Omega.
 use omega_language_std::console;
-boundary trait Echo {
+use omega::language::core::service;
+pub boundary trait Echo {
     machine echo(x: i32) -> i32;
 }
 data EchoProvider {}
 machine EchoProvider::echo_adapter(x: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (x) }
 }
-data Main { console: Console; e: Echo; }
+data Main { console: Service<Console>; e: Service<Echo>; }
 machine Main::main(&mut self)
 reaches Console, Echo
 {

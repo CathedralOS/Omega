@@ -13,8 +13,9 @@
 // terminal runs (invisible from Finder). No stdin — a windowed app must never
 // block on a console.
 use omega_language_std::console;
-boundary trait Clock { machine sleep(milliseconds: u32); }
-boundary trait Gui {
+use omega::language::core::service;
+pub boundary trait Clock { machine sleep(milliseconds: u32); }
+pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine get_dc(window: u64) -> u64;
     machine msg_peek(message: [u64; 6]) -> u32;
@@ -30,9 +31,9 @@ boundary trait Gui {
 // whole expression is verifiably bounded and the intermediates stay plain
 // Exact i32).
 data Main {
-    console: Console;
-    clock: Clock;
-    gui: Gui;
+    console: Service<Console>;
+    clock: Service<Clock>;
+    gui: Service<Gui>;
     cls: [u8; 7];
     title: [u8; 11];
     pixels: [i32; 4096];

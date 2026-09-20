@@ -7,9 +7,10 @@
 // Each is chained; exits 70 iff all hold.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32 in Wrapping;
     y8: i8 in Wrapping;
     yu8: u8 in Wrapping;

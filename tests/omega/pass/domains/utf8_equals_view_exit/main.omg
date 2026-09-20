@@ -7,9 +7,10 @@ domain [u8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::cmp(&self, a: &[u8] in Utf8, b: &[u8] in Utf8) reaches Console {

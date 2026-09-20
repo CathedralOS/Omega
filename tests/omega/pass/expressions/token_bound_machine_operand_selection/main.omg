@@ -12,6 +12,7 @@
 // misses, 72 when the named route misses.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 pub data Wrapped { value: u8; }
 
@@ -28,7 +29,7 @@ machine by_name(left: &Wrapped, right: &Wrapped) -> u64 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     high: u8;
     low: u8;
 }

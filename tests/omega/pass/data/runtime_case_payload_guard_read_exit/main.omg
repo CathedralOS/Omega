@@ -9,6 +9,7 @@
 // when both payload fields read correctly.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Attack {
     case Idle;
@@ -16,7 +17,7 @@ data Attack {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     attack: Attack;
 }
 

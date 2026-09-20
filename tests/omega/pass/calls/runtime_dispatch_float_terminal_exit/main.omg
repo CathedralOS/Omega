@@ -8,7 +8,8 @@ use omega::language::core::float_operations;
 // 1.5 out through the frame result slot). Float BINARY terminals
 // (`-> acc + 0.5`) remain the bail row (the binary serve is integer-only).
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::pick(&mut self, n: i32, acc: f64)
 terminates by n -> Nat::Descending;
 -> f64

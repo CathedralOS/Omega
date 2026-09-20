@@ -3,6 +3,7 @@
 // sees two fields and places `right` at byte 16. Interpreter and native reads
 // must agree after a whole-value copy.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
@@ -73,7 +74,7 @@ data Certified [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     value: Spread16<Certified>;
     twin: Spread16<Certified>;
 }

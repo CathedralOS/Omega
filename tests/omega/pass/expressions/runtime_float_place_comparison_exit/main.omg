@@ -7,9 +7,10 @@ use omega::language::core::float_operations;
 // 70 only if every field-to-field comparison evaluates correctly.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     left: f64;
     right: f64;
 }

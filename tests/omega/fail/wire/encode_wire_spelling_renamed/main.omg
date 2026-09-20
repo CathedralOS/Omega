@@ -1,6 +1,7 @@
 // The pre-rename codec spellings are retired (2026-07-02): the synthesized
 // entries are `Schema::encode` / `Schema::decode`.
 use omega::language::std::console;
+use omega::language::core::service;
 data Msg {
     #0 v: u32;
 }
@@ -8,7 +9,7 @@ data Val {
     v: u32;
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 32];
     written: u64;
 }

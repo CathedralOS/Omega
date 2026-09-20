@@ -6,8 +6,9 @@
 // Storage into the parameter's frame slot -- the read-side twin of the
 // machine-indexed write machinery. arr[2]=9, k=2 -> v==9 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4];
     k: u64 [0..=3];
 }

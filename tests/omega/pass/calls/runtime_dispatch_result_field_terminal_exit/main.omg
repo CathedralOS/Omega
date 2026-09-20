@@ -6,7 +6,8 @@
 // the open-work #7 return-write matrix, 2026-07-08o). Fixed: the copy uses
 // the resolved place's REGION. Differential.
 use omega_language_std::console;
-data Main { console: Console; base: i32 in Wrapping; }
+use omega::language::core::service;
+data Main { console: Service<Console>; base: i32 in Wrapping; }
 machine Main::count(&mut self, i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32 in Wrapping

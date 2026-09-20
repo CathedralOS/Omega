@@ -10,9 +10,10 @@ domain [u8]::Path
 requires
     no_nul(self);
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     k: u64;
 }
 

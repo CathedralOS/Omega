@@ -3,8 +3,9 @@ use omega::language::core::float_operations;
 // F4: Saturating float-to-integer casts clamp at the TARGET width on both
 // native ISAs and in the interpreter; NaN maps to zero.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     huge: f64;
     negative: f64;
     nan: f64;

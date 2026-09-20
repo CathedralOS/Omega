@@ -6,7 +6,8 @@
 // (Named without `_canary_runs` so the differential drift guard does not treat it
 // as a clean-exit run canary -- a trap aborts, it does not exit cleanly.)
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let a: i32 in Trapping = 2000000000;
     let b: i32 in Trapping = a + a;   // 4e9 overflows i32 -> MUST trap here

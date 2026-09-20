@@ -9,6 +9,7 @@
 // Expected output contains: Hello, Ada!
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
@@ -21,7 +22,7 @@ requires
     valid_utf8(self);
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     name: [u8; 8] in Utf8;
     greeting: [u8; 32] in Utf8;
     pause: [u8; 256];

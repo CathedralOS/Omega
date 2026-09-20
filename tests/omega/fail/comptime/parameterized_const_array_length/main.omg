@@ -4,9 +4,10 @@
 // purity predicate). `sized(n: i32)` takes a parameter; the const site must
 // reject with the stage boundary spelled out.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     slots: [i64; sized()];
 }
 

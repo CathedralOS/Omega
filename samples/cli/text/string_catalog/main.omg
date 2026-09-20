@@ -36,6 +36,7 @@ domain [u8; 16]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Entry {
     name: [u8; 5] in Utf8;
@@ -53,7 +54,7 @@ data Catalog {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     catalog: Catalog;
     pause: [u8; 256];
 }

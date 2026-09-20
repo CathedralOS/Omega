@@ -4,8 +4,9 @@
 // no facts under either label -- and the diagnostic names the USER's spelling
 // (`self.k + 1`), not the synthesized temp.
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5] in Trapping;
     k: i32 in Trapping;
     acc: i32 in Trapping;

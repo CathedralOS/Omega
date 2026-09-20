@@ -4,9 +4,10 @@
 // semantic binding survives checking but whose storage is erased. Exit 70 via the material payload.
 // Differential (native must match the interpreter).
 use omega_language_std::console;
+use omega::language::core::service;
 data Evidence { case Only; }
 data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
-data Main { console: Console; m: Maybe<i32 in Wrapping>; }
+data Main { console: Service<Console>; m: Maybe<i32 in Wrapping>; }
 machine Main::main(&mut self) reaches Console {
     self.m = Maybe::Some { value: 70 };
     transition self.m {

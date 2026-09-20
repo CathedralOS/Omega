@@ -2,6 +2,7 @@
 // construction and ordinary case dispatch replace hidden era numbers.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data CounterV1 { counter: i32; }
 data CounterV2 { counter: i64; flags: i32; }
@@ -15,7 +16,7 @@ data CounterHistory {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     raw: CounterHistory;
 }
 

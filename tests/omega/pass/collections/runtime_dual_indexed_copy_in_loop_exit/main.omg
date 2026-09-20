@@ -5,9 +5,10 @@
 // CopyRuntimeMachineIndexedToRuntimeMachineIndexed. b=[10,20,40] copies into
 // a=[0,0,0]; the sum of a afterwards is 70 (a no-op loop exits 0).
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: [i32; 3] in Wrapping;
     b: [i32; 3] in Wrapping;
     i: i32 in Wrapping;

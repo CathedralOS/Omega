@@ -7,9 +7,10 @@
 // binary_search_viz idiom). Reads arr[3] = 70 -> exit 70. (Reassigning x mid-chain still
 // drops the bound -- the survives-check keeps it sound.)
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 10] in Trapping;
     x: i32 in Trapping;
     d: i32 in Trapping;

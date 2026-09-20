@@ -6,6 +6,7 @@
 // exit 70 = both right; 71 = first tag; 72 = first hp; 73 = second tag;
 // 74 = second hp STALE (the bug).
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Shaped {
     hp: i32;
@@ -23,7 +24,7 @@ machine Probe::make(&mut self, alive: bool) -> Shaped {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     probe: Probe;
     first: Shaped;
     second: Shaped;

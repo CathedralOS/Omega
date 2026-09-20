@@ -8,9 +8,10 @@
 // in later stages.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: u8 in Wrapping;
     b: u8 in Wrapping;
 }

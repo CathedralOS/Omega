@@ -10,9 +10,10 @@
 // declaration-level diagnostic; types/range_under_non_exact_domain_rejected
 // pins the store-context flavor of the same rule.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5];
     i: u64 [0..=4] in Wrapping;
 }

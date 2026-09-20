@@ -6,6 +6,7 @@
 // "no finite size" refusal; declaration itself now passes -- see
 // pass/data/proof_only_recursive_data_declared.)
 use omega::language::std::console;
+use omega::language::core::service;
 data Node { value: i32; next: Node; } // Node is proof-only: recursive
-data Main { console: Console; n: Node; }
+data Main { console: Service<Console>; n: Node; }
 machine Main::main(&mut self) { self.console.exit_process(0); }

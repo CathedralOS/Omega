@@ -9,9 +9,10 @@
 // shortest distance from cell 0 to cell 24 is exactly 16 (verified against a reference
 // BFS). Exits 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     wall: [i32; 25] in Wrapping;  // 5x5, 1 = wall
     dist: [i32; 25] in Wrapping;  // BFS distance, -1 = unvisited
     queue: [i32; 32] in Wrapping;

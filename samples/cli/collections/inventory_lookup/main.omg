@@ -13,6 +13,7 @@ domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Item {
     id: i32;
@@ -20,7 +21,7 @@ data Item {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     items: [Item; 3];
     pause: [u8; 256];
 }

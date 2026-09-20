@@ -3,7 +3,8 @@
 // `hp[9]` is out of bounds. The loop-invariant seeds `i < 10`, which does NOT prove `i < 5`,
 // so the index check must REJECT (never accept a bound looser than the capacity).
 use omega::language::std::console;
-data Main { console: Console; hp: [i32 in Wrapping; 5]; i: i32 in Wrapping; sum: i32 in Wrapping; }
+use omega::language::core::service;
+data Main { console: Service<Console>; hp: [i32 in Wrapping; 5]; i: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.i = 0;
     transition { _ -> fill() }

@@ -8,7 +8,8 @@
 // (20 | 1)=21, (20 ^ 4)=16 -> sum 41; +29 = 70. A miscompile that read the
 // operands as 0 would give 0+0+0+29 = 29 -> bad. Native must match the interpreter.
 use omega_language_std::console;
-data Main { console: Console; arr: [i32; 3]; i: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; arr: [i32; 3]; i: i32; }
 machine Main::main(&mut self) reaches Console {
     self.arr[0] = 10;
     self.arr[1] = 20;

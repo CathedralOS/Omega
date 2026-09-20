@@ -4,9 +4,10 @@
 // the default are exercised at runtime (not constant-folded).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
     positive: i32;
     negative: i32;

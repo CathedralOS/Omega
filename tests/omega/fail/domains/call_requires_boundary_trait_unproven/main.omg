@@ -1,18 +1,19 @@
+use omega::language::core::service;
 // Chapter 18 makes a boundary trait machine's `requires` the CALLER's proof
 // obligation (`Filesystem::write_bytes requires folder in Folder::Writable`).
 // Calls through trait-typed receivers never produced a call obligation (the
 // trait signature target was invisible to borrow/contract collection), so the
 // boundary contract was vacuous; it must reject.
 
-data Item {
+pub data Item {
     value: i32;
 }
 
-domain Item::Ready
+pub domain Item::Ready
 requires
     self.value > 0;
 
-boundary trait Console {
+pub boundary trait Console {
     machine show(item: &Item)
     requires
         item in Item::Ready
@@ -21,7 +22,7 @@ boundary trait Console {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     item: Item;
 }
 

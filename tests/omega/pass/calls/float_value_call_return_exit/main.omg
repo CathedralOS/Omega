@@ -9,10 +9,11 @@ use omega::language::core::float_operations;
 // bits. The RUNTIME-float-local ARG twin is still pinned pending
 // (float_local_value_call_arg_divergence).
 use omega_language_std::console;
+use omega::language::core::service;
 machine passthru(x: f64) -> f64 {
     transition { _ -> (x) }
 }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let out: f64 = passthru(3.5);
     transition out == 3.5 { true -> good() _ -> bad() }

@@ -1,17 +1,18 @@
-// #66: a contained command-loop over an owned `[u8; N] in Utf8` carrier (no
+use omega::language::core::service;
+// #66: a contained command-loop over an owned `[u8; N] in LineUtf8` carrier (no
 // `String`). Each prompt reads a line into the carrier, borrows it as a
-// `&[u8] in Utf8` view to resolve a Command, and loops until `quit`. The parser
+// `&[u8] in LineUtf8` view to resolve a Command, and loops until `quit`. The parser
 // returns the Command enum directly (the value-call splices its enum result into
 // the caller's branch each iteration).
-domain [u8]::Utf8
+pub domain [u8]::LineUtf8
 requires
     valid_utf8(self);
-domain [u8; 16]::Utf8
+pub domain [u8; 16]::LineUtf8
 requires
     valid_utf8(self);
-boundary trait Console {
-    machine write_line(text: &[u8] in Utf8);
-    machine read_line(out_line: &mut [u8; 16] in Utf8);
+pub boundary trait Console {
+    machine write_line(text: &[u8] in LineUtf8);
+    machine read_line(out_line: &mut [u8; 16] in LineUtf8);
     machine exit_process(return_code: i32);
 }
 
@@ -24,7 +25,7 @@ data Command {
 data Parser {
 }
 
-machine Parser::resolve(&mut self, line: &[u8] in Utf8) -> Command {
+machine Parser::resolve(&mut self, line: &[u8] in LineUtf8) -> Command {
     transition {
         line == "look" -> Command::Look
         line == "quit" -> Command::Quit
@@ -33,8 +34,8 @@ machine Parser::resolve(&mut self, line: &[u8] in Utf8) -> Command {
 }
 
 data Game {
-    console: Console;
-    line: [u8; 16] in Utf8;
+    console: Service<Console>;
+    line: [u8; 16] in LineUtf8;
     parser: Parser;
     command: Command;
     health: i32;

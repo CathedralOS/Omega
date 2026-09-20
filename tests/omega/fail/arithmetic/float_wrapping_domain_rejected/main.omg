@@ -6,8 +6,9 @@
 // declared policy was a lie. Saturating/Trapping are real float policies pinned
 // by the F5 pass canaries; integer `in Wrapping` stays legal (decision 17).
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     speed: f32 in Wrapping;
 }
 machine Main::main(&mut self) {

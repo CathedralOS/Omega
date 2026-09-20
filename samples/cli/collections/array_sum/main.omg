@@ -13,9 +13,10 @@
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 2];
     i: i32 [0..=2];
     sum: i64 in Wrapping; // Wrapping DECLARED: sums array elements, which carry no range facts yet.

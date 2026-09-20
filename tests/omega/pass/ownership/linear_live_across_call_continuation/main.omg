@@ -4,6 +4,7 @@
 // the obligation across the synthesized continuation edge.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self, marker: bool) -> i32 { self.code }
@@ -14,7 +15,7 @@ machine Helper::ping(&mut self) {
     state done(&mut self) {}
 }
 
-data Main { helper: Helper; console: Console; }
+data Main { helper: Helper; console: Service<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let receipt: Receipt = Receipt { code: 7 };

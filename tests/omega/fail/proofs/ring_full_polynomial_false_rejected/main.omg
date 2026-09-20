@@ -3,7 +3,8 @@
 // judge must remain fenced rather than treating distributivity as a wildcard.
 use omega::language::core::nat;
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine missing_term(a: Nat, b: Nat, c: Nat, d: Nat)
 ensures

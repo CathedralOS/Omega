@@ -10,6 +10,7 @@
 // (a build segment -> carve_room -> room_mut chain).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data CellId { case R00; case R01; case R02; case R03; }
 
@@ -52,7 +53,7 @@ machine Builder::build(&mut self, level: &mut Level) {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     builder: Builder;
     level: Level;
 }

@@ -17,6 +17,7 @@
 // Exit 70 only when BOTH decodes report failure.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Burst {
     #0 samples: [i32; 2];
@@ -34,7 +35,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     read_overflow: u64;
     verdict_overflow: WireVerdict;
     read_hostile: u64;

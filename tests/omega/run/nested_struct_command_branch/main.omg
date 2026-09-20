@@ -1,4 +1,5 @@
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Command {
     case Look;
@@ -42,7 +43,7 @@ machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navi
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     line: [u8; 256];
     parser: Parser;
     navigation: Navigation;

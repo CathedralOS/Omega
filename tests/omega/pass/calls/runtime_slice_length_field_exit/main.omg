@@ -5,9 +5,10 @@
 // i32 target (an 8-byte read does not) -- matching the carrier `.len` convention.
 // arr has 5 elements -> exit 5.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5];
     count: i32;
 }

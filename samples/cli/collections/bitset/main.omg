@@ -6,9 +6,10 @@
 // primitives a flag set or a Bloom-filter word uses. Exits 70 iff all three checks pass.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     vals: [u32 in Wrapping; 3];
     bits: u32 in Wrapping;
     i: u32 in Wrapping;

@@ -5,9 +5,10 @@
 // side). Same scoping: direct `self.<field>` against top-level data fields.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     count: i32 in Wrapping;
     r: i32 in Wrapping;
 }

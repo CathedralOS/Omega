@@ -5,9 +5,10 @@
 // MAX + 1 wraps to exactly 0 only if every bit was set.
 // Expected exit: 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     mask: u64 in Wrapping;
 }
 
