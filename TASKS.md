@@ -7980,7 +7980,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   evidence into the bounded comparison harness — fenced to
   MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice/`, live claim);
   no encoding-to-checker translation is admitted authority.
-- **MATCHING-LOGIC-VERTICAL-SLICE** — mined candidate; verify scope then implement.
+- **MATCHING-LOGIC-VERTICAL-SLICE.** Landed — re-mines the pending
+  candidate-side deliverable of MATCHING-LOGIC-BOUNDED-SLICE (the
+  `tools/matching-logic-slice/` checker the slice-comparison record was
+  waiting on). `tools/matching-logic-slice/slice_checker.py` is a
+  certificate checker for the one-sorted finitary basic fragment (no
+  fixpoints — the fragment the draft's completeness citation covers):
+  scalar propositions, equality with substitution, quantification with
+  definedness and eigenvariable discipline, a declared Terminal state
+  transition, and the refinement obligation reconstructed from the
+  canonical subject (a producer cannot supply a weaker question).
+  `check` verifies a case's derivation tree and reports the axiom
+  admissions it consumed; `record` writes the candidate-side columns
+  (`omega-matching-logic-slice-record/1`). Pinned cases:
+  `cases/reference.json` positive (`exists s'. step(s0,s') /\
+  in(counter(s'),Nat)` via transition + membership transport) plus
+  seven negatives (weaker goal, undeclared axiom, undefined witness,
+  eigenvariable escape, wrong-side equality substitution, half-proven
+  membership body, reversed transition). Verified at `c267df86ac`
+  (linux x86-64): `python3 tools/tests/test_matching_logic_slice.py` —
+  13/13 green. Remaining for the lane: `matching-logic-metrics`
+  `route.matching_logic_encoding` flips off `pending` and the
+  slice-comparison's candidate columns fill once those records
+  regenerate under their own rows.
 - **MATH-PROOFS-CALL-SELECTION-OCCURRENCE.** Mined candidate — scope
   verified, covered. The name re-covers two already-owned surfaces: the
   math-proofs checked-call-selection/occurrence leg, resolved with
