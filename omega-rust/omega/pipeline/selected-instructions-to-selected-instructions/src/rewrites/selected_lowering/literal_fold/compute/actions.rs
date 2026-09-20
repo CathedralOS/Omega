@@ -9,7 +9,7 @@ use crate::{
     PairResultDisposition, RecoveryClassification, RecoveryVictimRole,
 };
 
-use super::constraints::{effect_declaration, AdmittedPairs};
+use super::constraints::{AdmittedPairs, effect_declaration};
 
 pub(super) fn derive_action(
     function_index: usize,
