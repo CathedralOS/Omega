@@ -7975,6 +7975,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
 - **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF** — mined candidate; verify scope then implement.
 - **PACKAGE-INPUTS-PSI-FAILURES** — mined candidate; verify scope then implement.
+- **PACKAGE-LOCK-SOURCE-IDENTITY.** Resolved — scope verified, already landed;
+  the name re-covers the lock's canonical source-subject identity and
+  fingerprint binding (`manager/src/lock/` v3 line-oriented codec: each
+  `PackageLockTarget` carries the full `CanonicalSourceClosureSubject` —
+  package keys, immutable resolutions, root request, dependency projections —
+  hashed into a domain-separated SHA-256 `fingerprint`; target sections must
+  agree on the target-independent graph via `same_source_graph`
+  (`SourceGraphMismatch`), decisions bind the subject fingerprint
+  (`DecisionSourceMismatch`), and `check_locked_sources` reacquires at the
+  recorded pins with the whole fresh graph required to match — no newer-revision
+  fallback). Coverage already pinned: `capability_conflicts/transaction/
+  package_lock.rs` (cross-target `same_source_graph`, distinct fingerprints,
+  `DecisionSourceMismatch`/`TargetOrder`/`SourceGraphMismatch`/`EmptyTargets`/
+  `TargetMismatch`/`OccurrenceCoverage` rejections, byte-exact canonical-text
+  roundtrip), `tests/locked_source_checking/` (changed-source rejection before
+  a new compiler run), spec clauses in `locks.md` (root `omega.lock`/
+  `admissions` excluded from source identity; publication cannot change the
+  recorded identity). Witness on Linux x86-64 at `cdee121ee9`: `cargo nextest
+  run -p package-manager --lib -E 'test(~lock) or test(~review)'` — 82/86
+  PASS, identical to the PORTABLE-REVIEW-LOCK row's record at `b28abc01fe`;
+  the same 4 failures are the attributed stale `Service<R>` fixture-spelling
+  family owned by ENTRY-CONTENT-ROOTS. No independent slice remains.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-REVIEW-HOTSPOT-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PACKAGE-REVIEW-ROUTE-ATTRIBUTION.** Mined candidate; scope verified at
