@@ -7740,7 +7740,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DYNAMIC-RECEIVER-LOAN-ORIGIN (01:47Z); sibling row
   LIFETIME-SOURCE-CORRESPONDENCE is the same clause family and is itself
   claimed (01:51Z).
-- **LIFETIME-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
+- **LIFETIME-SOURCE-CORRESPONDENCE.** Scope verified on `8ccd793fa8` — re-mine
+  of the same clause family as sibling GENERIC-RETURNED-VIEW-LIFETIMES
+  (annotated dispatch above). `borrow/view_link.rs` ("Lifetimes stage 2")
+  resolves an explicit result lifetime to exactly one input parameter and its
+  complete matching structural leaves — reusing one lifetime across multiple
+  inputs rejects, as the README's lifetime-source-correspondence section
+  records; that rejection is the deliberate boundary, not a gap. The residual
+  is: multi-source leg — every parameter carrying the selected lifetime
+  contributes leaves as possible sources, each supporting the returned access;
+  outlives leg — no authored syntax exists (lifetimes.md spells binders only,
+  conformances.md states whole-conformance applications do not gain
+  outlives/variance/subtyping), so it waits on a spec decision, not a checker
+  gap. Every implementing surface is live-fenced this wave: `view_link.rs`,
+  `view_link/`, `loans.rs`, `loans/`, `checks/borrows/elision*`,
+  `tests/multi_source_view_lifetimes.rs` and the crate README are claimed
+  under GENERIC-RETURNED-VIEW-LIFETIMES (exp 22:27Z). No independent unclaimed
+  slice exists here.
 - **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-MEASUREMENT-AUDIT** — mined candidate; verify scope then implement.
 - **LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES.** Resolved — the mined failure
