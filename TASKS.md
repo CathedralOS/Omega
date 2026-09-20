@@ -6511,7 +6511,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   umbrella is also under live claim (SQUALR-HEADLESS, Codex). Real start
   condition: SUPPLIED-BYTES-SCAN lands its engine-api/scanning port, then
   this row ports the command model on top.
-- **SQUALR-ALIGNMENT-STRING-PARSING.** Alignment string parsing.
+- **SQUALR-ALIGNMENT-STRING-PARSING.** Scope verified at `949c153acd73` — the gap is
+  real and narrow, and it is an alias of a named parity gap on the sample's own board.
+  `samples/apps/squalr/TASKS.md` lists it among four remaining porting gaps ("Rust
+  debug-only assertions, alignment string parsing, the set_alignment call-site gate
+  ... and named trait operators") beside the recorded evidence that all 12 authored
+  geometry checks pass natively on macOS ARM64.
+  Measured in the ported source: `squalr-engine-api/src/structures/memory/memory_alignment.omg`
+  declares `pub data MemoryAlignment [copy]` with `MemoryAlignment::default()`,
+  `MemoryAlignment::from(size: i32)` and `get_size_in_bytes`, and
+  `structures/memory/normalized_region.omg` declares `NormalizedRegion::set_alignment`.
+  There is no string entry point at all — zero `parse`/`from_str`/`from_string` over
+  any alignment type in `samples/apps/squalr/**/*.omg`. So the port can build an
+  alignment from an integer but not from authored text, which is what a CLI argument
+  needs. The residue is one parse machine plus its rejection cases, not a structural
+  port.
+  NOTE for anyone picking this up: `samples/apps/squalr` is a git submodule
+  (`https://github.com/CathedralOS/Squalr-Omega.git`) and is NOT initialized in a
+  fresh checkout — it reads as an empty directory and every SQUALR row looks
+  unverifiable until `git submodule update --init samples/apps/squalr` runs. The
+  sibling SQUALR-REGION-ALIGNMENT-EXPANSION row shares that precondition.
 - **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity. Scope
   verified at `10d93dd448`, fenced — the residual the app board lists under
   GEOMETRY-PARITY ("clone/serialization", samples/apps/squalr/TASKS.md):
