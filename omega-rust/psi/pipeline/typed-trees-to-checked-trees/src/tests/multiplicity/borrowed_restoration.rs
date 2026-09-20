@@ -16,6 +16,176 @@ fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnos
 }
 
 #[test]
+fn evaluation_order_observes_a_field_before_its_owner_is_extracted() {
+    let source = "data Inventory { slots: i32; }
+        data Saved { observed: i32; inventory: Inventory; }
+        data Main { inventory: Inventory; }
+        machine Main::replace(&mut self) {
+            let saved: Saved = Saved {
+                observed: self.inventory.slots,
+                inventory: self.inventory,
+            };
+            self.inventory = move saved.inventory;
+        }";
+    check_source(source).expect("the scalar read precedes the extraction");
+    let reversed = source.replace(
+        "observed: self.inventory.slots,\n                inventory: self.inventory,",
+        "inventory: self.inventory,\n                observed: self.inventory.slots,",
+    );
+    let diagnostics = check_source(&reversed).expect_err("reading the absent subtree must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("absent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn evaluation_order_fences_only_boundary_calls_after_extraction() {
+    let source = "boundary machine sample() -> i32 ensures true;
+        data Inventory { slots: i32; }
+        data Saved { observed: i32; inventory: Inventory; }
+        data Main { inventory: Inventory; }
+        machine Main::replace(&mut self) {
+            let saved: Saved = Saved {
+                observed: sample(),
+                inventory: self.inventory,
+            };
+            self.inventory = move saved.inventory;
+        }";
+    check_source(source).expect("the boundary completes before storage becomes absent");
+    let reversed = source.replace(
+        "observed: sample(),\n                inventory: self.inventory,",
+        "inventory: self.inventory,\n                observed: sample(),",
+    );
+    assert_boundary_window_rejection(&reversed);
+}
+
+#[test]
+fn evaluation_order_detaches_call_operands_before_later_arguments() {
+    let source = "data Inventory { slots: i32; }
+        machine preserve(observed: i32, inventory: Inventory) -> Inventory { inventory }
+        data Main { inventory: Inventory; }
+        machine Main::replace(&mut self) {
+            self.inventory = preserve(self.inventory.slots, self.inventory);
+        }";
+    check_source(source).expect("the first argument finishes before the second moves");
+    let reversed = source
+        .replace(
+            "observed: i32, inventory: Inventory",
+            "inventory: Inventory, observed: i32",
+        )
+        .replace(
+            "preserve(self.inventory.slots, self.inventory)",
+            "preserve(self.inventory, self.inventory.slots)",
+        );
+    let diagnostics = check_source(&reversed).expect_err("the later argument reads absent content");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("absent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn evaluation_order_borrowed_call_observes_only_established_storage() {
+    let source = "data Inventory { slots: i32; }
+        machine observe(inventory: &Inventory) -> i32 { inventory.slots }
+        data Saved { observed: i32; inventory: Inventory; }
+        data Main { inventory: Inventory; }
+        machine Main::replace(&mut self) {
+            let saved: Saved = Saved {
+                observed: observe(&self.inventory),
+                inventory: self.inventory,
+            };
+            self.inventory = move saved.inventory;
+        }";
+    check_source(source).expect("a completed observation precedes the move");
+    let reversed = source.replace(
+        "observed: observe(&self.inventory),\n                inventory: self.inventory,",
+        "inventory: self.inventory,\n                observed: observe(&self.inventory),",
+    );
+    assert!(
+        check_source(&reversed).is_err(),
+        "a later borrow cannot observe detached storage"
+    );
+}
+
+#[test]
+fn evaluation_order_retains_effects_inside_a_computed_projection() {
+    let source = "pub data Inventory { slots: i32; }
+        pub data Saved { inventory: Inventory; }
+        machine wrap(inventory: Inventory) -> Saved { Saved { inventory: inventory } }
+        data Main { inventory: Inventory; }
+        machine Main::replace(&mut self) {
+            self.inventory = wrap(self.inventory).inventory;
+        }";
+    check_source(source).expect("a quiet wrapper returns the detached content");
+    let exposed = source.replace(
+        "machine wrap(inventory: Inventory) -> Saved { Saved { inventory: inventory } }",
+        "boundary machine wrap(inventory: Inventory) -> Saved ensures true;",
+    );
+    assert_boundary_window_rejection(&exposed);
+}
+
+#[test]
+fn evaluation_order_selected_index_uses_its_collection_operand() {
+    check_source(
+        "data Buffer { value: i32; }
+         machine [] Buffer::index(self, index: u64) -> i32 { self.value }
+         data Main { buffer: Buffer; }
+         machine Main::replace(&mut self) {
+             let reading: i32 = self.buffer[0];
+             self.buffer = Buffer { value: reading };
+         }",
+    )
+    .expect("the selected collection operand detaches before invocation and is restored");
+
+    let diagnostics = check_source(
+        "data Inventory { slots: i32; }
+         data Buffer { inventory: Inventory; value: i32; }
+         machine [] Buffer::index(&self, index: u64) -> i32 { self.value }
+         data Main { buffer: Buffer; }
+         machine Main::replace(&mut self) {
+             let taken: Inventory = self.buffer.inventory;
+             let reading: i32 = self.buffer[0];
+             self.buffer.inventory = move taken;
+         }",
+    )
+    .expect_err("selected indexing cannot observe an incomplete whole collection");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("absent")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn evaluation_order_replay_rejects_a_substituted_invocation_occurrence() {
+    let checked = check_source(
+        "machine identity(value: i32) -> i32 { value }
+         data Inventory { slots: i32; }
+         data Main { inventory: Inventory; }
+         machine Main::replace(&mut self) {
+             let taken: Inventory = self.inventory;
+             let value: i32 = identity(7);
+             self.inventory = move taken;
+         }",
+    )
+    .expect("quiet calls can run between extraction and repair");
+    let mut facts = checked.facts.clone();
+    facts.flow.control.calls.for_each_mut(|_, call| {
+        call.authored_expression = Default::default();
+        call.service_reach = Default::default();
+    });
+    crate::checks::check_checked_facts(&checked.typed, &facts)
+        .expect_err("moving the call row must not hide its unknown access during restoration");
+}
+
+#[test]
 fn move_out_and_exact_restore_compiles() {
     check_source(
         r#"

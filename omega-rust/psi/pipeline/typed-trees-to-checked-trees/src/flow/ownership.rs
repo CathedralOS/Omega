@@ -81,7 +81,7 @@ pub(super) fn append_statement_ownership_events(
                     assignment.target,
                 )
             {
-                append_move_event_for_place(program, sink, place, source);
+                append_move_event_for_place(program, sink, place, source, Default::default());
             }
         }
         StatementNode::LocalData(local_data) => {
@@ -115,7 +115,7 @@ pub(super) fn append_statement_ownership_events(
                 if initializer_produces_owned_value(program, local_data.initial_value)
                     && let Some(place) = canonical_place_from_symbol(local_data.symbol)
                 {
-                    append_move_event_for_place(program, sink, place, source);
+                    append_move_event_for_place(program, sink, place, source, Default::default());
                 }
             }
         }

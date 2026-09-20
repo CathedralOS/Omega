@@ -270,6 +270,15 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             constraints,
             borrowed_call,
         );
+        // Evaluation consumers need this occurrence before the later package
+        // source-custody binding pass. The authored ordinal identifies a call;
+        // this coordinate places it after its evaluated operands.
+        call.authored_expression = match site {
+            InvocationSite::Expression(expression) => expression,
+            InvocationSite::Statement | InvocationSite::Transition(_) => {
+                ExpressionHandle::invalid()
+            }
+        };
         self.operand_writes.push(writes);
         // A by-value argument is not the storage value after a later operand
         // changed it. Do not republish that substitution through callee ensures.

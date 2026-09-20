@@ -86,7 +86,7 @@ pub(super) fn append_move_events_for_expression(
             statement_index,
             expression,
         ) {
-            append_move_event_for_place(program, sink, place, source);
+            append_move_event_for_place(program, sink, place, source, expression);
         }
         return;
     }
@@ -428,7 +428,7 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
         && policy.receiver_transfers()
         && let Some(place) = canonical_place_from_symbol(call.receiver_symbol)
     {
-        append_move_event_for_place(program, sink, place, source);
+        append_move_event_for_place(program, sink, place, source, Default::default());
     }
 
     for (ordinal, argument) in arguments.iter().enumerate() {

@@ -3004,8 +3004,10 @@ Owners include
     `typed-trees-to-checked-trees --lib` filtered by `borrowed_restoration`,
     `checked-interpreter --test suite` with the same filter, and compiler fail
     canary `ownership/borrowed_storage_boundary_call` (macOS ARM64). Within one
-    statement, moves are still processed before calls rather than in evaluation
-    order. Contained-loan transport and recoverable-failure paths have no regression.
+    statement, conditional extraction still requires a branch-specific restoration
+    join; unmatched or conditionally evaluated moves remain rejected rather than
+    treating one path as unconditional. Contained-loan transport and
+    recoverable-failure paths have no regression.
 
   Acceptance: a consuming transform followed by replacement executes with
   caller-visible updated contents and exact-once custody in the Terminal

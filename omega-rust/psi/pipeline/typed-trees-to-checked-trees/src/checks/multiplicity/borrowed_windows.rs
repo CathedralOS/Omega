@@ -19,6 +19,13 @@
 //! the moved place's prefixes (the `self` receiver for machine-rooted places,
 //! a `&mut` parameter root, or a `&mut` field/local inside the path) must be
 //! `&mut`. Shared and write-only links keep the existing plain rejection.
+//!
+//! Replay observes each evaluated place before applying its exact discovered
+//! move, then checks invocations after their operands. Grouping all moves at
+//! statement entry rejects earlier reads and calls; exempting all mentions of
+//! a moved place hides later stale uses. The occurrence retained by discovery
+//! distinguishes those cases without reclassifying ownership from syntax.
+//! A repair store runs only after its value and destination selectors finish.
 
 use super::owned_selection::place_paths_overlap;
 use crate::flow::CanonicalPlace;
@@ -184,20 +191,16 @@ impl BorrowedStorageWindows {
         )));
     }
 
-    /// Check one in-body statement's place observations against the open
-    /// windows, then apply its assignment (if any) as a repair. `moved` holds
-    /// the statement's own resolved move places: the extractions the event
-    /// pass already handled, not separate stale observations.
+    /// Inspect the invocation only after its operands have evaluated. An
+    /// earlier operand may already have detached borrowed content; a later
+    /// move must not retroactively fence this call.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_statement(
-        &mut self,
+    pub(super) fn check_invocation(
+        &self,
         program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
-        statements: &[StatementNode],
         statement_index: usize,
-        statement: &StatementNode,
-        moved: &[(facts::PlaceRoot, Vec<facts::PlaceSegment>)],
+        expression: ExpressionHandle,
         control: &checked_trees::FlowControlFacts,
         state_calls: &[checked_trees::FlowCallFact],
         service_reaches: &checked_trees::ServiceReachFacts,
@@ -207,13 +210,9 @@ impl BorrowedStorageWindows {
         if self.open.is_empty() {
             return;
         }
-        // Use checked call envelopes, not the statement's syntax or authored
-        // acknowledgement: initializers, assignment values and nested operands
-        // can also park the invocation. Without carried restoration custody the
-        // window cannot span any such call. Check before applying a repair,
-        // since its value must finish evaluation before the store closes it.
         if state_calls.iter().any(|call| {
             call.statement_index == statement_index
+                && call.authored_expression == expression
                 && !control.is_retired(state.symbol, call)
                 && (call.suspension.direct_may_suspend
                     || call.suspension.transitive_may_suspend
@@ -231,6 +230,7 @@ impl BorrowedStorageWindows {
         }
         if state_calls.iter().any(|call| {
             call.statement_index == statement_index
+                && call.authored_expression == expression
                 && !control.is_retired(state.symbol, call)
                 && call_may_enter_boundary(
                     program,
@@ -246,6 +246,7 @@ impl BorrowedStorageWindows {
             operators,
             state.symbol,
             Some(statement_index),
+            Some(expression),
         ) {
             for absent in &self.open {
                 diagnostics.push(Diagnostic::error(format!(
@@ -256,53 +257,52 @@ impl BorrowedStorageWindows {
                 )));
             }
         }
-        for use_place in statement_use_places(program, machine, state, statement_index, statement) {
-            let facts::PlaceRoot::Symbol(root_symbol) = use_place.root else {
-                continue;
-            };
-            let (root, storage_path) = resolve_storage_place(
-                program,
-                machine,
-                state,
-                statements,
-                statement_index,
-                root_symbol,
-                &use_place.segments,
-            );
-            if moved.iter().any(|(event_root, event_path)| {
-                *event_root == root && event_path.as_slice() == storage_path.as_slice()
-            }) {
-                continue;
-            }
-            let Some(absent) = self.open.iter().find(|absent| {
-                absent.root == root && place_paths_overlap(&storage_path, &absent.path)
-            }) else {
-                continue;
-            };
-            let spelling = place_spelling(program, machine, state, root, &storage_path);
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot use `{spelling}` while `{}` is absent from borrowed storage: the \
+    }
+
+    pub(super) fn check_use(
+        &self,
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        statements: &[StatementNode],
+        statement_index: usize,
+        use_place: &CanonicalPlace,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        if self.open.is_empty() {
+            return;
+        }
+        let facts::PlaceRoot::Symbol(root_symbol) = use_place.root else {
+            return;
+        };
+        let (root, storage_path) = resolve_storage_place(
+            program,
+            machine,
+            state,
+            statements,
+            statement_index,
+            root_symbol,
+            &use_place.segments,
+        );
+        let Some(absent) = self
+            .open
+            .iter()
+            .find(|absent| absent.root == root && place_paths_overlap(&storage_path, &absent.path))
+        else {
+            return;
+        };
+        let spelling = place_spelling(program, machine, state, root, &storage_path);
+        diagnostics.push(Diagnostic::error(format!(
+            "cannot use `{spelling}` while `{}` is absent from borrowed storage: the \
                  value moved out at statement {} must be restored first",
-                absent.spelling, absent.opened_statement,
-            )));
-        }
-        if let StatementNode::Assignment(assignment) = statement {
-            self.check_repair(
-                program,
-                machine,
-                state,
-                statements,
-                statement_index,
-                assignment,
-                diagnostics,
-            );
-        }
+            absent.spelling, absent.opened_statement,
+        )));
     }
 
     /// A store whose target is the absent place — or a whole enclosing owner —
     /// discharges the obligation when the stored value carries the hole's
     /// exact type. Any other overlapping store touches absent storage.
-    fn check_repair(
+    pub(super) fn check_repair(
         &mut self,
         program: &typed_trees::TypedTrees,
         machine: &typed_trees::machine::Machine,
@@ -403,39 +403,41 @@ impl BorrowedStorageWindows {
             )));
         }
     }
+}
 
-    /// Resolved storage places moved by this statement's events — the exact
-    /// extractions the event pass handled, exempted from the stale-use scan.
-    pub(super) fn statement_moved_places(
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statements: &[StatementNode],
-        statement_index: usize,
-        moves: &[crate::flow::DiscoveredMoveEvent],
-        segments: &arena::Arena<facts::PlaceSegment>,
-    ) -> Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)> {
-        moves
-            .iter()
-            .filter(|event| {
-                crate::checks::multiplicity::linear_validation::event_statement_index(event.source)
-                    == Some(statement_index)
-            })
-            .filter_map(|event| {
-                let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
-                    return None;
-                };
-                Some(resolve_storage_place(
-                    program,
-                    machine,
-                    state,
-                    statements,
-                    statement_index,
-                    root_symbol,
-                    segments.span_or_empty(event.segments),
-                ))
-            })
-            .collect()
+/// The expression coordinate is checked evidence, not permission to relocate
+/// an invocation outside a restoration window. Rejoin it to the authored call
+/// ordinal before occurrence-ordered replay uses the row. Retired calls belong
+/// to their selected replacements and are not executed again here.
+pub(super) fn check_call_occurrences(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    calls: &[checked_trees::FlowCallFact],
+    control: &checked_trees::FlowControlFacts,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for call in calls {
+        if control.is_retired(state.symbol, call) {
+            continue;
+        }
+        let expected = crate::semantic_calls::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )
+        .map(|site| match site {
+            crate::semantic_calls::CallSite::Expression { expression, .. } => expression,
+            _ => ExpressionHandle::invalid(),
+        });
+        if expected != Some(call.authored_expression) {
+            diagnostics.push(Diagnostic::error(format!(
+                "borrowed-storage call occurrence does not match statement {} invocation {} in `{}`",
+                call.statement_index, call.call_ordinal, machine.name.as_str(),
+            )));
+        }
     }
 }
 
@@ -504,7 +506,7 @@ fn call_may_enter_boundary(
             return true;
         };
         for state in service_reaches.states_for(reach) {
-            if state_has_boundary_operator(program, control, operators, state.state, None) {
+            if state_has_boundary_operator(program, control, operators, state.state, None, None) {
                 return true;
             }
             pending.extend(service_reaches.calls_for(state));
@@ -522,18 +524,28 @@ fn state_has_boundary_operator(
     operators: &checked_trees::CheckedOperatorFacts,
     state: SymbolHandle,
     statement: Option<usize>,
+    expression: Option<ExpressionHandle>,
 ) -> bool {
     control.operator_invocations.iter().any(|(_, invocation)| {
-        let (origin, target) = if invocation.named_use.is_valid() {
+        let (origin, target, occurrence) = if invocation.named_use.is_valid() {
             let usage = operators.named_uses.get(invocation.named_use);
-            (usage.origin, usage.selected_operator_symbol)
+            (
+                usage.origin,
+                usage.selected_operator_symbol,
+                usage.expression,
+            )
         } else {
             let usage = operators.uses.get(invocation.operator_use);
-            (usage.origin, usage.selected_operator_symbol)
+            (
+                usage.origin,
+                usage.selected_operator_symbol,
+                usage.expression,
+            )
         };
         matches!(origin, checked_trees::CheckedValueOrigin::StateStatement {
             state_symbol, statement_index, ..
         } if state_symbol == state && statement.is_none_or(|expected| expected == statement_index))
+            && expression.is_none_or(|expected| expected == occurrence)
             && typed_trees::operator::declaration_by_symbol(program, target)
                 .is_some_and(|operator| operator.is_boundary)
     })
@@ -769,230 +781,267 @@ fn place_spelling(
     spelling
 }
 
-/// The maximal place-valued observations a statement's expressions perform:
-/// the outermost place of each projection chain is the use, and non-place
-/// children (call receivers and arguments, index selectors, match subjects
-/// and arms, aggregate fields) are descended as their own uses. An
-/// assignment target is not a read; only its index selectors are.
-fn statement_use_places(
+/// Window checks replay evaluated occurrences, not a set of mentioned places.
+/// This is scratch ordering for the existing ownership events, not a second
+/// ownership classifier. Each observation precedes its exact move; invocations
+/// follow their operands, and the caller applies the repair after these steps.
+pub(super) enum WindowStep {
+    Observe(CanonicalPlace),
+    Move { event: usize, conditional: bool },
+    Invoke(ExpressionHandle),
+}
+
+pub(super) fn statement_steps(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
     statement: &StatementNode,
-) -> Vec<CanonicalPlace> {
-    let mut uses = Vec::new();
+    moves: &[crate::flow::DiscoveredMoveEvent],
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> Vec<WindowStep> {
+    let mut order = WindowOrder {
+        program,
+        state: state.symbol,
+        statement_index,
+        operators,
+        remaining: moves
+            .iter()
+            .enumerate()
+            .filter(|(_, event)| {
+                crate::checks::multiplicity::linear_validation::event_statement_index(event.source)
+                    == Some(statement_index)
+            })
+            .collect(),
+        steps: Vec::new(),
+    };
     match statement {
-        StatementNode::LocalData(local) => collect_use_places(
-            program,
-            state.symbol,
-            statement_index,
-            local.initial_value,
-            &mut uses,
-        ),
-        StatementNode::Expression(expression) => collect_use_places(
-            program,
-            state.symbol,
-            statement_index,
-            *expression,
-            &mut uses,
-        ),
+        StatementNode::LocalData(local) => order.expression(local.initial_value, false),
+        StatementNode::Expression(expression) => order.expression(*expression, false),
         StatementNode::Assignment(assignment) => {
-            collect_use_places(
-                program,
-                state.symbol,
-                statement_index,
-                assignment.value,
-                &mut uses,
-            );
-            collect_target_selector_uses(
-                program,
-                state.symbol,
-                statement_index,
-                assignment.target,
-                &mut uses,
-            );
+            order.expression(assignment.value, false);
+            order.selectors(assignment.target, false);
         }
         StatementNode::Call(call) => {
-            let call_site = crate::semantic_calls::CallSite::Statement(call);
             if let Some(receiver) = crate::flow::canonical_receiver_place_for_call_site(
                 program,
                 machine.symbol,
                 state.symbol,
-                &call_site,
+                &crate::semantic_calls::CallSite::Statement(call),
                 statement_index,
             ) {
-                uses.push(receiver);
+                order.steps.push(WindowStep::Observe(receiver));
             }
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_use_places(program, state.symbol, statement_index, *argument, &mut uses);
+            // A statement receiver has no expression handle. Its extraction
+            // still precedes the first positional argument.
+            order.complete_moves(ExpressionHandle::invalid(), false);
+            for argument in program.statement_table.expression_handles(call.arguments) {
+                order.expression(*argument, false);
             }
+            order
+                .steps
+                .push(WindowStep::Invoke(ExpressionHandle::invalid()));
         }
         StatementNode::RootBinding(binding) => {
-            collect_use_places(
-                program,
-                state.symbol,
-                statement_index,
-                binding.receiver,
-                &mut uses,
-            );
-            if binding.implementation_operand.is_valid() {
-                collect_use_places(
-                    program,
-                    state.symbol,
-                    statement_index,
-                    binding.implementation_operand,
-                    &mut uses,
-                );
-            }
+            order.expression(binding.receiver, false);
+            order.expression(binding.implementation_operand, false);
         }
-        StatementNode::AssemblyFact(fact) => collect_use_places(
-            program,
-            state.symbol,
-            statement_index,
-            fact.expression,
-            &mut uses,
-        ),
-        // Edge values and guard/argument reads evaluate at dispatch; the
-        // carried moves are already exempted through `moved`, so only genuine
-        // observations of absent storage are reported here.
+        StatementNode::AssemblyFact(fact) => order.expression(fact.expression, false),
         StatementNode::Transition(transition) => {
             if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                collect_use_places(program, state.symbol, statement_index, guard, &mut uses);
+                order.expression(guard, false);
             }
-            for handle in [transition.target, transition.continuation] {
-                if !handle.is_valid() {
+            for target in [transition.target, transition.continuation] {
+                if !target.is_valid() {
                     continue;
                 }
-                match program.statement_table.transition_target(handle) {
+                match program.statement_table.transition_target(target) {
                     typed_trees::statement::TransitionTargetNode::Value(value) => {
-                        collect_use_places(
-                            program,
-                            state.symbol,
-                            statement_index,
-                            *value,
-                            &mut uses,
-                        );
+                        order.expression(*value, true)
                     }
                     typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
                         for argument in program.expression_table.expression_handles(*arguments) {
-                            collect_use_places(
-                                program,
-                                state.symbol,
-                                statement_index,
-                                *argument,
-                                &mut uses,
-                            );
+                            order.expression(*argument, true);
                         }
+                        order
+                            .steps
+                            .push(WindowStep::Invoke(ExpressionHandle::invalid()));
                     }
                     _ => {}
                 }
             }
         }
     }
-    uses
+    // Production destinations have no evaluated source. Their existing caller
+    // classification skips them. Any other unmatched move lacks ordering
+    // custody and must not gain a borrowed-storage window.
+    for (event, _) in order.remaining {
+        order.steps.push(WindowStep::Move {
+            event,
+            conditional: true,
+        });
+    }
+    order.steps
 }
 
-fn collect_use_places(
-    program: &typed_trees::TypedTrees,
-    state_symbol: SymbolHandle,
+struct WindowOrder<'a> {
+    program: &'a typed_trees::TypedTrees,
+    state: SymbolHandle,
     statement_index: usize,
-    expression: ExpressionHandle,
-    uses: &mut Vec<CanonicalPlace>,
-) {
-    let mut pending = vec![expression];
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() {
-            continue;
+    operators: &'a checked_trees::CheckedOperatorFacts,
+    remaining: Vec<(usize, &'a crate::flow::DiscoveredMoveEvent)>,
+    steps: Vec<WindowStep>,
+}
+
+impl WindowOrder<'_> {
+    fn complete_moves(&mut self, expression: ExpressionHandle, conditional: bool) {
+        let mut position = 0;
+        while position < self.remaining.len() {
+            if self.remaining[position].1.expression == expression {
+                let (event, _) = self.remaining.remove(position);
+                self.steps.push(WindowStep::Move { event, conditional });
+            } else {
+                position += 1;
+            }
         }
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-                if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    expression,
-                ) {
-                    uses.push(place);
-                }
+    }
+
+    fn expression(&mut self, expression: ExpressionHandle, conditional: bool) {
+        if !self
+            .program
+            .expression_table
+            .expression_is_valid(expression)
+        {
+            return;
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Indexed(indexed) if self.selected_index(expression) => {
+                self.expression(indexed.collection, conditional);
+                self.expression(indexed.index, conditional);
             }
-            ExpressionNode::Indexed(indexed) => {
+            ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_)
+            | ExpressionNode::Borrow(_) => {
+                // Reading a projection observes its maximal selected place,
+                // not every enclosing owner. Computed receivers and selectors
+                // still execute before that observation.
+                self.selectors(expression, conditional);
                 if let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
+                    self.program,
+                    self.state,
+                    self.statement_index,
                     expression,
                 ) {
-                    uses.push(place);
-                }
-                pending.push(indexed.index);
-            }
-            ExpressionNode::Borrow(borrow) => {
-                match crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    expression,
-                ) {
-                    Some(place) if matches!(place.root, facts::PlaceRoot::Symbol(_)) => {
-                        uses.push(place)
-                    }
-                    _ => pending.push(borrow.target),
+                    self.steps.push(WindowStep::Observe(place));
                 }
             }
             ExpressionNode::Call(call) => {
-                pending.push(call.receiver);
-                pending
-                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
-            }
-            ExpressionNode::Match(dispatch) => {
-                pending.push(dispatch.subject);
-                for (_, arm) in super::owned_selection::reachable_arms(program, dispatch.arms) {
-                    if let MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                    pending.push(arm.value);
+                self.expression(call.receiver, conditional);
+                for argument in self
+                    .program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                {
+                    self.expression(*argument, conditional);
                 }
             }
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
-            ExpressionNode::ArrayLiteral(values) => {
-                pending.extend_from_slice(program.expression_table.expression_handles(*values))
+            ExpressionNode::Match(dispatch) => {
+                self.expression(dispatch.subject, conditional);
+                for (_, arm) in super::owned_selection::reachable_arms(self.program, dispatch.arms)
+                {
+                    if let MatchPattern::Value(pattern) = arm.pattern {
+                        self.expression(pattern, true);
+                    }
+                    self.expression(arm.value, true);
+                }
             }
-            ExpressionNode::StructLiteral(literal) => pending.extend(
-                program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .map(|field| field.value),
-            ),
-            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
+            ExpressionNode::Binary(binary) => {
+                self.expression(binary.left, conditional);
+                if matches!(
+                    binary.operator,
+                    typed_trees::expression::BinaryOperator::And
+                        | typed_trees::expression::BinaryOperator::Or
+                ) {
+                    let evaluate_when =
+                        binary.operator == typed_trees::expression::BinaryOperator::And;
+                    // Only closed selected values can skip a subtree here.
+                    // Runtime bindings may have changed during earlier operands.
+                    let left = crate::values::evaluate_closed_boolean_expression(
+                        self.program,
+                        self.operators,
+                        binary.left,
+                        &[],
+                    );
+                    if left != Some(!evaluate_when) {
+                        self.expression(binary.right, conditional || left.is_none());
+                    }
+                } else {
+                    self.expression(binary.right, conditional);
+                }
+            }
+            ExpressionNode::Unary(unary) => self.expression(unary.operand, conditional),
+            ExpressionNode::Cast(cast) => self.expression(cast.value, conditional),
+            ExpressionNode::Atomic(atomic) => self.expression(atomic.value, conditional),
+            ExpressionNode::ArrayLiteral(values) => {
+                for value in self.program.expression_table.expression_handles(*values) {
+                    self.expression(*value, conditional);
+                }
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in self.program.expression_table.struct_fields(literal.fields) {
+                    self.expression(field.value, conditional);
+                }
+            }
+            ExpressionNode::Range(range) => {
+                self.expression(range.start, conditional);
+                self.expression(range.end, conditional);
+            }
             _ => {}
         }
+        // Ordinary calls and selected operators use their retained exact
+        // invocation rows; syntax alone cannot invent an executed boundary.
+        self.steps.push(WindowStep::Invoke(expression));
+        self.complete_moves(expression, conditional);
     }
-}
 
-/// Index selectors inside an assignment target are genuine reads; the
-/// remaining member/collection chain forms the written place, not a use.
-fn collect_target_selector_uses(
-    program: &typed_trees::TypedTrees,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    expression: ExpressionHandle,
-    uses: &mut Vec<CanonicalPlace>,
-) {
-    let mut expression = expression;
-    loop {
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Member(member) => expression = member.receiver,
-            ExpressionNode::Indexed(indexed) => {
-                collect_use_places(program, state_symbol, statement_index, indexed.index, uses);
-                expression = indexed.collection;
-            }
-            ExpressionNode::Borrow(borrow) => expression = borrow.target,
-            _ => return,
+    fn selectors(&mut self, expression: ExpressionHandle, conditional: bool) {
+        if !self
+            .program
+            .expression_table
+            .expression_is_valid(expression)
+        {
+            return;
         }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Indexed(_) if self.selected_index(expression) => {
+                self.expression(expression, conditional);
+            }
+            ExpressionNode::Name(_) => {}
+            ExpressionNode::Member(member) => self.selectors(member.receiver, conditional),
+            ExpressionNode::Indexed(indexed) => {
+                self.selectors(indexed.collection, conditional);
+                self.expression(indexed.index, conditional);
+            }
+            ExpressionNode::Borrow(borrow) => self.selectors(borrow.target, conditional),
+            _ => self.expression(expression, conditional),
+        }
+    }
+
+    /// A nominal index operator observes or consumes its collection operand;
+    /// only intrinsic place indexing can bypass an enclosing-owner read.
+    fn selected_index(&self, expression: ExpressionHandle) -> bool {
+        self.operators.resolved_uses().any(|usage| {
+            usage.expression == expression
+                && usage.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
+                && matches!(usage.origin, checked_trees::CheckedValueOrigin::StateStatement {
+                    state_symbol, statement_index, ..
+                } if state_symbol == self.state && statement_index == self.statement_index)
+                && typed_trees::operator::declaration_by_symbol(
+                    self.program,
+                    usage.selected_operator_symbol,
+                )
+                .is_some()
+        })
     }
 }
