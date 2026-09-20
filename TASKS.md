@@ -6281,7 +6281,44 @@ Proof/evidence:
   and imported rules must respect the classicality boundary. An
   independently checked translation — not a trusted import — is the only
   sound route, per MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT's verified row.
-- **GAMMA-CERTIFICATE-PRODUCTION.** Gamma certificate production + check (includes GAMMA-CERTIFICATE-CHECK).
+- **GAMMA-CERTIFICATE-PRODUCTION.** Gamma certificate production + check
+  (includes GAMMA-CERTIFICATE-CHECK). Mined candidate — scope verified;
+  every implementable surface is fenced to live claims (measured
+  ~21:30Z Sep 20). The row names the beta-encoding certificate
+  production+check cluster's two open TASKS_BOOTSTRAP.md bullets: (a)
+  produce the certificate through the selected chain — host-blocked,
+  the selected chain needs a seed-execution host (macOS arm64 or
+  Windows x64; the AlphaBootstrapV5 evaluator frames requests inside its
+  128 GiB `M` arena, and the host-side stepper gate
+  `tests/gamma/beta-encoding-theory/run.sh --full-subject` is recorded
+  as diagnostic production, not the selected chain); (b) check the full
+  certificate under the exact profile — the gate
+  `tests/gamma/beta-encoding-check/run.sh` exists and its linux x86-64
+  measurement records the checker refusing `admission_incomplete` code 1
+  at the compiled-in 8,388,608-byte extent, so the bounded
+  implementable leg is landing the selected 136,314,880-byte extent in
+  `implementation/admission/extents.gamma` and re-pinning the checker
+  manifest, packed and diagnostic source identities, and
+  admission-boundary vectors in the derivation gates. All of those
+  surfaces are claimed: `bootstrap/proofs/{beta_encoding,checker}` and
+  `tests/gamma/{beta-encoding-check,beta-encoding-theory,
+  derivation-admission,derivation-checking,derivation-comparison,
+  derivation-substitution,derivation-layout}` plus
+  `tools/bootstrap/proofs` to BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE
+  (Devin/z153, exp ~01:54Z Sep 21), `tests/gamma/beta-encoding-check` +
+  `beta-encoding-theory` additionally to GAMMA-CERTIFICATE-NATIVE-CHECK
+  (Devin/swarm-z99, exp ~05:25Z), `tools/bootstrap/proofs` to
+  CHAIN-CERTIFICATE-ADMISSION-BINDING (Zergling-43, ~05:25Z), and the
+  mutation legs to BETA-ENCODING-MUTATION-REJECTION (zergling-182,
+  ~00:31Z); sibling live claim on the same production surface:
+  GAMMA-CERT-CHAIN-PRODUCTION (zergling-182, ~00:40Z). Frontier once a
+  fence opens: land the extents.gamma re-pin → run the check gate on a
+  seed host and record measured work/time → run the mutation legs the
+  acceptance document lists. The retained-role audit bullet is already
+  resolved on the bootstrap board. The included GAMMA-CERTIFICATE-CHECK
+  name folds into the certificate-check cluster alongside its resolved
+  siblings (GAMMA-CERT-FULL-CHECK, GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE,
+  GAMMA-CERTIFICATE-NATIVE-CHECK, GAMMA-CERTIFICATE-NATIVE-EXECUTION).
 - **PROOF-RULE-CLASSICALITY-AUDIT.** Resolved — audit proof rules for classical/constructive boundary (matching-logic lane). Landed: `wiki/spec/proofs/classicality.md` audits every certificate rule — all are constructive or constructive-by-decidable-domain, `SemanticAxiom` is the only trusted admission, and the proposition grammar cannot express a classical principle. `AcceptedProofRule::foundation` (`proof-admission/src/classicality.rs`) enforces the classification by exhaustive match with tests pinning the boundary. The two remaining legs landed at `d0044250f3`: the spec's obligation-side lemma-library table (`ProofLemma` families, `checker/*` deciders, obligations/boundary/proof_surface rows) and the verifier semantic-axiom reconstruction inventory (`terminal-verifier/src/trusted_surface` rows, certificate-gated vs trusted admissions) are classified there — every row is constructive, constructive-decidable, instrumentation/planning, or an enumerated trusted admission; nothing maps to Classical. This slice also repaired the item's fenced glob-self-import residual (`classicality.rs` `mod tests` now imports `use super::{AcceptedProofRule, ProofRuleFoundation}` explicitly; proof-admission lib 266/266 green).
 - **MATCHING-LOGIC-BOUNDED-SLICE.** Bounded matching-logic slice.
 - **MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT.** External proof import for matching logic. Source docs `wiki/drafts/matching_logic.md` and `wiki/drafts/matching_logic_sort_encoding.md` are exploratory research notes that authorize no implementation: a checked source proof with a trusted translation still carries a translation admission, an imported statement alone is a foreign-theorem admission, and no independently checked translation exists. Any route first needs the doc's bounded comparison (MATCHING-LOGIC-BOUNDED-SLICE), then a concrete design — a kernel replacement additionally requires its own proposal and an end-to-end proved bridge — and imported rules must respect the constructive/classical boundary `AcceptedProofRule::foundation` enforces (`proof-admission/src/classicality.rs`). The merged interchange territory belongs to PROOF-INTERCHANGE-IMPORT (sort encoding, induction certificate, arithmetic import).
