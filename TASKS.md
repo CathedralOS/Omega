@@ -1363,7 +1363,16 @@ Owners include
   `ImageBase + AddressOfEntryPoint`, Mach-O 64 `LC_MAIN` mapped through the
   `__TEXT` segment — from the committed bytes alone and requires it to name
   the start of a placed executable region; a loader-visible entry that lands
-  off a committed boundary rejects. That still
+  off a committed boundary rejects. Replay also re-derives the loadable map
+  the container declares to its loader — ELF64 `PT_LOAD` offsets and
+  `p_flags`, PE32+ section raw ranges and characteristics, Mach-O 64
+  `LC_SEGMENT_64` `fileoff`/`filesize` under `initprot` — and requires the
+  declared extents to be pairwise disjoint, the text extent inside
+  executable coverage, the data extent inside writable coverage, and the
+  import-data extent inside some loadable range; containment is
+  one-directional because the emitted layouts legitimately map bytes past
+  the extents (ELF headers inside `PT_LOAD`, PE raw padding, Mach-O
+  `__TEXT`'s own header). That still
   establishes custody and thunk
   realization only, which is why the sidecar offers
   `omega.native-placed-image-coverage.v1` rather than a behavioral guarantee,

@@ -1699,6 +1699,25 @@ fn windows_thunk_pair_over(
     import_slots: Vec<FinalDataRegion>,
     import_data_address: u64,
 ) -> (NativePlacedImageEvidence, Vec<u8>) {
+    windows_thunk_pair_in(
+        vec![0xffu8; TEXT_FILE_OFFSET as usize],
+        import_data,
+        import_slots,
+        import_data_address,
+    )
+}
+
+/// The Coff thunk fixture inside the caller's container `header`: the
+/// declared text extent lands right after the header bytes and the
+/// import-data extent follows it, so a container carrying a loadable map
+/// decides whether the declared extents find coverage.
+fn windows_thunk_pair_in(
+    mut executable: Vec<u8>,
+    import_data: &[u8],
+    import_slots: Vec<FinalDataRegion>,
+    import_data_address: u64,
+) -> (NativePlacedImageEvidence, Vec<u8>) {
+    let text_file_offset = executable.len() as u64;
     let target = target::NativeTarget::windows_x64();
     let (extent, footprint) = super::import_thunk_form(target).expect("Coff realizes a thunk");
     let mut text = vec![0xabu8; 12];
@@ -1752,15 +1771,14 @@ fn windows_thunk_pair_over(
     let import_data_file_offset = if import_data.is_empty() {
         0
     } else {
-        TEXT_FILE_OFFSET + text.len() as u64
+        text_file_offset + text.len() as u64
     };
-    let mut executable = vec![0xffu8; TEXT_FILE_OFFSET as usize];
     executable.extend_from_slice(&text);
     executable.extend_from_slice(import_data);
     executable.extend_from_slice(&[0x00u8; 32]);
     let evidence = NativePlacedImageEvidence::from_parts(
         target,
-        TEXT_FILE_OFFSET,
+        text_file_offset,
         executable_inventory,
         0,
         data_inventory,
@@ -2667,4 +2685,431 @@ fn container_declared_entry_lands_on_a_committed_region_boundary() {
     evidence
         .replay_against(&executable)
         .expect("a Mach-O container without LC_MAIN declares no checkable entry");
+}
+
+// ---------------------------------------------------------------------
+// Container-declared loadable coverage: the declared extents are custody
+// claims the container itself must ratify — pairwise disjoint, and each
+// inside a loadable file range carrying its role (executable for text,
+// writable for initialized data, any role for import data). The check is
+// one-directional containment because the emitted layouts map bytes past
+// the extents (ELF headers inside the executable `PT_LOAD`, PE raw
+// padding past the extent end, Mach-O `__TEXT` covering its own header).
+// ---------------------------------------------------------------------
+
+/// The file offset the loadable fixtures lay text at: program headers and
+/// section tables live in the header bytes, so the declared extents sit
+/// past them at 0x200.
+const LOADABLE_TEXT_AT: u64 = 0x200;
+
+/// An ELF64 header whose program-header table at `e_phoff` 64 carries the
+/// caller's `PT_LOAD` entries `(flags, file offset, file size)`; the bytes
+/// pad to [`LOADABLE_TEXT_AT`] so the extents sit past the table. `e_entry`
+/// stays null, keeping the entry leg silent.
+fn elf64_loadable_header(loads: &[(u32, u64, u64)]) -> Vec<u8> {
+    let mut header = vec![0u8; LOADABLE_TEXT_AT as usize];
+    header[..4].copy_from_slice(&[0x7f, b'E', b'L', b'F']);
+    header[4] = 2; // ELFCLASS64
+    header[5] = 1; // little-endian
+    header[32..40].copy_from_slice(&64u64.to_le_bytes()); // e_phoff
+    header[54..56].copy_from_slice(&56u16.to_le_bytes()); // e_phentsize
+    header[56..58].copy_from_slice(&(loads.len() as u16).to_le_bytes()); // e_phnum
+    for (index, (flags, offset, size)) in loads.iter().enumerate() {
+        let at = 64 + index * 56;
+        header[at..at + 4].copy_from_slice(&1u32.to_le_bytes()); // PT_LOAD
+        header[at + 4..at + 8].copy_from_slice(&flags.to_le_bytes());
+        header[at + 8..at + 16].copy_from_slice(&offset.to_le_bytes());
+        header[at + 32..at + 40].copy_from_slice(&size.to_le_bytes());
+    }
+    header
+}
+
+/// An honest (x86_64, Elf) pair under the caller's `PT_LOAD` table: the
+/// text extent at [`LOADABLE_TEXT_AT`], the data extent right after it.
+fn elf_loadable_pair(loads: &[(u32, u64, u64)]) -> (NativePlacedImageEvidence, Vec<u8>) {
+    let text: [u8; TEXT_LEN] = std::array::from_fn(|index| (index * 7 + 3) as u8);
+    let data: [u8; DATA_LEN] = std::array::from_fn(|index| (index * 11 + 5) as u8);
+    let mut executable = elf64_loadable_header(loads);
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&data);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target::NativeTarget::linux_x64(),
+        LOADABLE_TEXT_AT,
+        placed_inventory(&text),
+        LOADABLE_TEXT_AT + TEXT_LEN as u64,
+        placed_data_inventory(&data),
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    (evidence, executable)
+}
+
+/// A PE32+ header whose section table carries the caller's sections
+/// `(SizeOfRawData, PointerToRawData, characteristics)` — `num_sections`
+/// and `SizeOfOptionalHeader` stay honest so the walk is real. The table
+/// ends exactly at [`COFF_TEXT_FILE_OFFSET`]; `AddressOfEntryPoint` stays
+/// null, keeping the entry leg silent.
+fn pe32_plus_loadable_header(sections: &[(u32, u32, u32)]) -> Vec<u8> {
+    const PE_OFFSET: usize = 0x80;
+    const OPTIONAL_SIZE: u16 = 0xf0;
+    let mut header = vec![0u8; COFF_TEXT_FILE_OFFSET as usize];
+    header[..2].copy_from_slice(b"MZ");
+    header[0x3c..0x40].copy_from_slice(&(PE_OFFSET as u32).to_le_bytes());
+    header[PE_OFFSET..PE_OFFSET + 4].copy_from_slice(b"PE\0\0");
+    let coff = PE_OFFSET + 4;
+    header[coff + 2..coff + 4].copy_from_slice(&(sections.len() as u16).to_le_bytes());
+    header[coff + 16..coff + 18].copy_from_slice(&OPTIONAL_SIZE.to_le_bytes());
+    let optional = coff + 20;
+    header[optional..optional + 2].copy_from_slice(&0x20bu16.to_le_bytes());
+    let table = optional + OPTIONAL_SIZE as usize;
+    for (index, (raw_size, raw_offset, characteristics)) in sections.iter().enumerate() {
+        let at = table + index * 40;
+        header[at + 16..at + 20].copy_from_slice(&raw_size.to_le_bytes());
+        header[at + 20..at + 24].copy_from_slice(&raw_offset.to_le_bytes());
+        header[at + 36..at + 40].copy_from_slice(&characteristics.to_le_bytes());
+    }
+    header
+}
+
+/// An honest (x86_64, Coff) pair under the caller's section table: the
+/// text extent at [`COFF_TEXT_FILE_OFFSET`], the data extent right after
+/// it, no import-data extent.
+fn pe_loadable_pair(sections: &[(u32, u32, u32)]) -> (NativePlacedImageEvidence, Vec<u8>) {
+    let target = target::NativeTarget::windows_x64();
+    let text: [u8; TEXT_LEN] = std::array::from_fn(|index| (index * 7 + 3) as u8);
+    let data: [u8; DATA_LEN] = std::array::from_fn(|index| (index * 11 + 5) as u8);
+    let mut image = FinalImage::with_capacity(
+        target,
+        FinalImageMemory {
+            text: text.to_vec(),
+            ..FinalImageMemory::default()
+        },
+        Default::default(),
+        0,
+        0,
+        0,
+    );
+    image.executable_regions.push(FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        byte_count: TEXT_LEN,
+        symbol: "entry".into(),
+        footprint: None,
+    });
+    let executable_inventory = image::place_executable_regions(
+        &image,
+        FinalImageLayout {
+            text_address: 0x1_4000_1000,
+            ..FinalImageLayout::default()
+        },
+    )
+    .expect("the Coff loadable fixture places");
+    let mut executable = pe32_plus_loadable_header(sections);
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&data);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target,
+        COFF_TEXT_FILE_OFFSET,
+        executable_inventory,
+        COFF_TEXT_FILE_OFFSET + TEXT_LEN as u64,
+        placed_data_inventory(&data),
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    (evidence, executable)
+}
+
+/// The Coff thunk fixture inside a real PE32+ header carrying `sections`:
+/// the thunk's `.rdata` slot extent lands right after the text extent at
+/// [`COFF_TEXT_FILE_OFFSET`], so the section table decides whether the
+/// import-data extent finds loadable coverage.
+fn windows_loadable_thunk_pair(
+    sections: &[(u32, u32, u32)],
+) -> (NativePlacedImageEvidence, Vec<u8>) {
+    let import_data: [u8; 16] = std::array::from_fn(|index| (index * 13 + 7) as u8);
+    windows_thunk_pair_in(
+        pe32_plus_loadable_header(sections),
+        &import_data,
+        vec![FinalDataRegion {
+            origin: FinalDataRegionOrigin::ImportBindingSlot,
+            section_offset: 8,
+            byte_count: 8,
+            symbol: "host_call".into(),
+        }],
+        COFF_SLOT_ADDRESS - 8,
+    )
+}
+
+/// A Mach-O 64 fixture declaring `__TEXT` and `__DATA` `LC_SEGMENT_64`
+/// commands with the caller's `initprot` bits plus `LC_MAIN`: `__TEXT`
+/// maps the header bytes and the text extent from `fileoff` 0, `__DATA`
+/// covers exactly the declared data extent, and `entryoff` names the text
+/// start so the entry leg stays satisfied under every `initprot` choice.
+fn macho_loadable_pair(
+    text_initprot: u32,
+    data_initprot: u32,
+) -> (NativePlacedImageEvidence, Vec<u8>) {
+    const MACHO_EXECUTABLE_BASE: u64 = 0x1_0000_0000;
+    const SEGMENT_64_SIZE: usize = 72;
+    const MAIN_SIZE: usize = 24;
+    const TEXT_AT: u64 = (32 + 2 * SEGMENT_64_SIZE + MAIN_SIZE) as u64;
+    const DATA_AT: u64 = TEXT_AT + TEXT_LEN as u64;
+    let target = target::NativeTarget::macos_arm64();
+    let text: [u8; TEXT_LEN] = std::array::from_fn(|index| (index * 7 + 3) as u8);
+    let data: [u8; DATA_LEN] = std::array::from_fn(|index| (index * 11 + 5) as u8);
+    let mut image = FinalImage::with_capacity(
+        target,
+        FinalImageMemory {
+            text: text.to_vec(),
+            ..FinalImageMemory::default()
+        },
+        Default::default(),
+        0,
+        0,
+        0,
+    );
+    image.executable_regions.push(FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        byte_count: TEXT_LEN,
+        symbol: "entry".into(),
+        footprint: None,
+    });
+    let executable_inventory = image::place_executable_regions(
+        &image,
+        FinalImageLayout {
+            text_address: MACHO_EXECUTABLE_BASE + TEXT_AT,
+            ..FinalImageLayout::default()
+        },
+    )
+    .expect("the Mach-O loadable fixture places");
+    let data_inventory = placed_data_inventory(&data);
+    let mut executable = vec![0u8; TEXT_AT as usize];
+    executable[..4].copy_from_slice(&0xfeed_facfu32.to_le_bytes());
+    executable[16..20].copy_from_slice(&3u32.to_le_bytes()); // ncmds
+    executable[20..24].copy_from_slice(&((2 * SEGMENT_64_SIZE + MAIN_SIZE) as u32).to_le_bytes());
+    // __TEXT: vmaddr, fileoff 0, filesize covering header and text.
+    executable[32..36].copy_from_slice(&0x19u32.to_le_bytes());
+    executable[36..40].copy_from_slice(&(SEGMENT_64_SIZE as u32).to_le_bytes());
+    executable[40..56].copy_from_slice(b"__TEXT\0\0\0\0\0\0\0\0\0\0");
+    executable[56..64].copy_from_slice(&MACHO_EXECUTABLE_BASE.to_le_bytes());
+    executable[72..80].copy_from_slice(&0u64.to_le_bytes()); // fileoff
+    executable[80..88].copy_from_slice(&DATA_AT.to_le_bytes()); // filesize
+    executable[92..96].copy_from_slice(&text_initprot.to_le_bytes());
+    // __DATA: fileoff covering exactly the declared data extent.
+    let data_segment = 32 + SEGMENT_64_SIZE;
+    executable[data_segment..data_segment + 4].copy_from_slice(&0x19u32.to_le_bytes());
+    executable[data_segment + 4..data_segment + 8]
+        .copy_from_slice(&(SEGMENT_64_SIZE as u32).to_le_bytes());
+    executable[data_segment + 8..data_segment + 24].copy_from_slice(b"__DATA\0\0\0\0\0\0\0\0\0\0");
+    executable[data_segment + 24..data_segment + 32]
+        .copy_from_slice(&(MACHO_EXECUTABLE_BASE + DATA_AT).to_le_bytes());
+    executable[data_segment + 40..data_segment + 48].copy_from_slice(&DATA_AT.to_le_bytes());
+    executable[data_segment + 48..data_segment + 56]
+        .copy_from_slice(&(DATA_LEN as u64).to_le_bytes());
+    executable[data_segment + 60..data_segment + 64].copy_from_slice(&data_initprot.to_le_bytes());
+    let main = 32 + 2 * SEGMENT_64_SIZE;
+    executable[main..main + 4].copy_from_slice(&0x8000_0028u32.to_le_bytes());
+    executable[main + 4..main + 8].copy_from_slice(&(MAIN_SIZE as u32).to_le_bytes());
+    executable[main + 8..main + 16].copy_from_slice(&TEXT_AT.to_le_bytes());
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&data);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target,
+        TEXT_AT,
+        executable_inventory,
+        DATA_AT,
+        data_inventory,
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    (evidence, executable)
+}
+
+fn loadable_rejection(pair: &(NativePlacedImageEvidence, Vec<u8>)) -> String {
+    pair.0
+        .replay_against(&pair.1)
+        .expect_err("a miscovered declared extent must fail custody replay")
+}
+
+/// The loadable-coverage leg across the three emitted container families:
+/// declared extents must be pairwise disjoint and sit inside the loadable
+/// file ranges the container marks for their role — executable text inside
+/// executable coverage, initialized data inside writable coverage, import
+/// data inside any coverage. Containers declaring no loadable ranges, or
+/// not parsing as the declared format, leave the leg silent.
+#[test]
+fn declared_extents_sit_inside_the_container_loadable_roles() {
+    // ELF64: `PT_LOAD` `p_flags` ratify the roles — `R+X` over the header
+    // bytes and the text extent, `R+W` over exactly the data extent.
+    let pair = elf_loadable_pair(&[
+        (5, 0, LOADABLE_TEXT_AT + TEXT_LEN as u64),
+        (6, LOADABLE_TEXT_AT + TEXT_LEN as u64, DATA_LEN as u64),
+    ]);
+    pair.0
+        .replay_against(&pair.1)
+        .expect("an honest ELF loadable map replays");
+    // A program-header table carrying no entries declares no loadable
+    // claim — the leg stays silent.
+    let pair = elf_loadable_pair(&[]);
+    pair.0
+        .replay_against(&pair.1)
+        .expect("a phdr-less ELF declares no loadable coverage");
+    // An executable `PT_LOAD` that ends inside the text extent does not
+    // cover it.
+    let pair = elf_loadable_pair(&[
+        (5, 0, LOADABLE_TEXT_AT + TEXT_LEN as u64 - 4),
+        (6, LOADABLE_TEXT_AT + TEXT_LEN as u64, DATA_LEN as u64),
+    ]);
+    let reason = loadable_rejection(&pair);
+    assert!(
+        reason.contains("executable text extent sits outside every executable loadable range"),
+        "truncated PF_X coverage rejected for the wrong reason: {reason}"
+    );
+    // A `PT_LOAD` over the text extent without PF_X is not executable
+    // coverage.
+    let pair = elf_loadable_pair(&[
+        (4, 0, LOADABLE_TEXT_AT + TEXT_LEN as u64),
+        (6, LOADABLE_TEXT_AT + TEXT_LEN as u64, DATA_LEN as u64),
+    ]);
+    let reason = loadable_rejection(&pair);
+    assert!(
+        reason.contains("executable text extent sits outside every executable loadable range"),
+        "read-only text coverage rejected for the wrong reason: {reason}"
+    );
+    // An executable-but-not-writable `PT_LOAD` is not data coverage.
+    let pair = elf_loadable_pair(&[
+        (5, 0, LOADABLE_TEXT_AT + TEXT_LEN as u64),
+        (5, LOADABLE_TEXT_AT + TEXT_LEN as u64, DATA_LEN as u64),
+    ]);
+    let reason = loadable_rejection(&pair);
+    assert!(
+        reason.contains("initialized data extent sits outside every writable loadable range"),
+        "non-writable data coverage rejected for the wrong reason: {reason}"
+    );
+
+    // Two extents may not double-cover the same bytes: declare the data
+    // extent inside the text extent — both seals stay honest over the
+    // committed bytes, so the overlap check is what refuses it.
+    let text: [u8; TEXT_LEN] = std::array::from_fn(|index| (index * 7 + 3) as u8);
+    let mut executable = elf64_loadable_header(&[
+        (5, 0, LOADABLE_TEXT_AT + TEXT_LEN as u64),
+        (6, LOADABLE_TEXT_AT + 4, DATA_LEN as u64),
+    ]);
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target::NativeTarget::linux_x64(),
+        LOADABLE_TEXT_AT,
+        placed_inventory(&text),
+        LOADABLE_TEXT_AT + 4,
+        placed_data_inventory(&text[4..4 + DATA_LEN]),
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    let reason = evidence
+        .replay_against(&executable)
+        .expect_err("overlapping declared extents must fail custody replay");
+    assert!(
+        reason.contains("executable text and initialized data extents overlap"),
+        "overlapping extents rejected for the wrong reason: {reason}"
+    );
+
+    // PE32+: section characteristics ratify the roles —
+    // `IMAGE_SCN_MEM_EXECUTE` on `.text`, `IMAGE_SCN_MEM_WRITE` on
+    // `.data`.
+    const SCN_EXEC_READ: u32 = 0x6000_0020;
+    const SCN_WRITE_READ: u32 = 0xc000_0040;
+    const SCN_READ_ONLY: u32 = 0x4000_0040;
+    let text_end = COFF_TEXT_FILE_OFFSET + TEXT_LEN as u64;
+    let data_end = text_end + DATA_LEN as u64;
+    let pair = pe_loadable_pair(&[
+        (TEXT_LEN as u32, COFF_TEXT_FILE_OFFSET as u32, SCN_EXEC_READ),
+        (DATA_LEN as u32, text_end as u32, SCN_WRITE_READ),
+    ]);
+    pair.0
+        .replay_against(&pair.1)
+        .expect("an honest PE section table replays");
+    // A section table carrying no sections declares no loadable claim.
+    let pair = pe_loadable_pair(&[]);
+    pair.0
+        .replay_against(&pair.1)
+        .expect("a sectionless PE declares no loadable coverage");
+    // `.text` without `MEM_EXECUTE` is not executable coverage.
+    let pair = pe_loadable_pair(&[
+        (TEXT_LEN as u32, COFF_TEXT_FILE_OFFSET as u32, SCN_READ_ONLY),
+        (DATA_LEN as u32, text_end as u32, SCN_WRITE_READ),
+    ]);
+    let reason = loadable_rejection(&pair);
+    assert!(
+        reason.contains("executable text extent sits outside every executable loadable range"),
+        "read-only .text rejected for the wrong reason: {reason}"
+    );
+    // `.data` without `MEM_WRITE` is not writable coverage.
+    let pair = pe_loadable_pair(&[
+        (TEXT_LEN as u32, COFF_TEXT_FILE_OFFSET as u32, SCN_EXEC_READ),
+        (DATA_LEN as u32, text_end as u32, SCN_READ_ONLY),
+    ]);
+    let reason = loadable_rejection(&pair);
+    assert!(
+        reason.contains("initialized data extent sits outside every writable loadable range"),
+        "read-only .data rejected for the wrong reason: {reason}"
+    );
+    // A populated import-data extent must sit inside some loadable range
+    // (it claims no role of its own): `.rdata` covering it honestly
+    // replays; `.rdata` whose `PointerToRawData` misses the extent does
+    // not.
+    let pair = windows_loadable_thunk_pair(&[
+        (18, COFF_TEXT_FILE_OFFSET as u32, SCN_EXEC_READ),
+        (16, text_end as u32 - 2, SCN_READ_ONLY),
+    ]);
+    pair.0
+        .replay_against(&pair.1)
+        .expect("import data inside a declared .rdata replays");
+    let pair = windows_loadable_thunk_pair(&[
+        (18, COFF_TEXT_FILE_OFFSET as u32, SCN_EXEC_READ),
+        (16, (data_end + 0x200) as u32, SCN_READ_ONLY),
+    ]);
+    let reason = loadable_rejection(&pair);
+    assert!(
+        reason.contains("import-data extent sits outside every loadable range"),
+        "uncovered import data rejected for the wrong reason: {reason}"
+    );
+
+    // Mach-O 64: `LC_SEGMENT_64` `initprot` ratifies the roles.
+    let pair = macho_loadable_pair(5, 3); // `__TEXT` R-X, `__DATA` R+W
+    pair.0
+        .replay_against(&pair.1)
+        .expect("an honest Mach-O loadable map replays");
+    // `__TEXT` without VM_PROT_EXECUTE is not executable coverage.
+    let pair = macho_loadable_pair(1, 3);
+    let reason = loadable_rejection(&pair);
+    assert!(
+        reason.contains("executable text extent sits outside every executable loadable range"),
+        "non-executable __TEXT rejected for the wrong reason: {reason}"
+    );
+    // `__DATA` without VM_PROT_WRITE is not writable coverage.
+    let pair = macho_loadable_pair(5, 5);
+    let reason = loadable_rejection(&pair);
+    assert!(
+        reason.contains("initialized data extent sits outside every writable loadable range"),
+        "read-only __DATA rejected for the wrong reason: {reason}"
+    );
+
+    // The rejection surfaces through the product leg as a named
+    // native-inventory rejection, not an opaque custody failure.
+    let pair = elf_loadable_pair(&[
+        (4, 0, LOADABLE_TEXT_AT + TEXT_LEN as u64),
+        (6, LOADABLE_TEXT_AT + TEXT_LEN as u64, DATA_LEN as u64),
+    ]);
+    let sidecar = native_sidecar(&pair.1, pair.0.to_bytes());
+    let outcome =
+        verify_native_proof_sidecar(&pair.1, &sidecar.to_bytes(), &offered_policy(&sidecar));
+    assert!(
+        rejecting_subject(outcome).contains("native executable inventory"),
+        "uncovered text must reject on the native inventory"
+    );
 }
