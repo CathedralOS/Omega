@@ -1359,3 +1359,248 @@ fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot()
         }
     }
 }
+
+/// `Foreign::leaf(f64, bool, f32) -> f64`: the widened scalar lane admits
+/// boolean and IEEE arguments end to end — a caller parameter, a block
+/// parameter, an IEEE immediate through the relay lane, and a retained f32
+/// home from an earlier foreign result — while replay still re-derives every
+/// declared scalar shape and source coordinate.
+#[test]
+fn normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources() {
+    use abstract_operations::{AbstractParameter, ValueBinding};
+    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
+    use target_operations::TargetUnitScalarArgumentSource;
+
+    let f32_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
+    let f64_type = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
+    let bool_type = ScalarType::Boolean;
+    let incoming = ValueId::new(20).unwrap();
+    let flag_source = ValueId::new(21).unwrap();
+    let flag = ValueId::new(22).unwrap();
+    let relay_in = ValueId::new(23).unwrap();
+    let homed = ValueId::new(24).unwrap();
+    let produced = ValueId::new(25).unwrap();
+    let join = BlockId::new(2).unwrap();
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let mut source = empty_plan(MachineId::new(1).unwrap());
+        source.boundary_machines.push(declaration(
+            vec![f64_type, bool_type, f32_type],
+            Vec::new(),
+            terminal_psi::BoundaryMachineResult::Scalar(f64_type),
+        ));
+        source
+            .boundary_machines
+            .push(terminal_psi::BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(2).unwrap(),
+                ..declaration(
+                    vec![f32_type],
+                    Vec::new(),
+                    terminal_psi::BoundaryMachineResult::Scalar(f32_type),
+                )
+            });
+        let attached = StructuralTypeId::new(9).unwrap();
+        source.functions[0].attachment = Some(attached);
+        source
+            .structural_types
+            .make_mut()
+            .push(StructuralTypeDeclaration {
+                id: attached,
+                identity: "probe::Attached".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            });
+        let function = &mut source.functions[0];
+        function.parameters = vec![AbstractParameter {
+            value: incoming,
+            scalar_type: f64_type,
+        }];
+        function.block_entries.push(AbstractBlockEntry {
+            block: join,
+            parameters: vec![AbstractParameter {
+                value: flag,
+                scalar_type: bool_type,
+            }],
+            structural_parameters: Vec::new(),
+            operation_offset: 3,
+        });
+        function.operations = vec![
+            AbstractOperation::BooleanConstant {
+                psi_operation: OperationId::new(6).unwrap(),
+                result: flag_source,
+                value: true,
+            },
+            AbstractOperation::IeeeFloatConstant {
+                psi_operation: OperationId::new(7).unwrap(),
+                result: relay_in,
+                value: IeeeFloatValue::Binary32(0x3FC0_0000),
+            },
+            AbstractOperation::Jump {
+                psi_edge: EdgeId::new(2).unwrap(),
+                target: join,
+                bindings: vec![ValueBinding {
+                    parameter: flag,
+                    argument: flag_source,
+                    scalar_type: bool_type,
+                }],
+                structural_bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+                residual_affine_discards: Vec::new(),
+            },
+            AbstractOperation::BoundaryCall {
+                psi_operation: OperationId::new(8).unwrap(),
+                result: AbstractBoundaryResult::Scalar(AbstractResult {
+                    value: homed,
+                    scalar_type: f32_type,
+                }),
+                boundary: BoundaryMachineId::new(2).unwrap(),
+                arguments: vec![relay_in],
+                structural_arguments: Vec::new(),
+                completion_claim_sources: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+            AbstractOperation::BoundaryCall {
+                psi_operation: OperationId::new(9).unwrap(),
+                result: AbstractBoundaryResult::Scalar(AbstractResult {
+                    value: produced,
+                    scalar_type: f64_type,
+                }),
+                boundary: BoundaryMachineId::new(1).unwrap(),
+                arguments: vec![incoming, flag, homed],
+                structural_arguments: Vec::new(),
+                completion_claim_sources: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+            AbstractOperation::ReturnUnit {
+                psi_edge: EdgeId::new(3).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        ];
+        let execution = Execution {
+            plan_report: 0xA1,
+            requirement: REQUIREMENT.into(),
+        };
+        let leaf_signature = CallSignature {
+            parameters: vec![
+                ValueShape::float(8),
+                ValueShape::integer(1, 1),
+                ValueShape::float(4),
+            ],
+            result: Some(ValueShape::float(8)),
+        };
+        let relay_signature = CallSignature {
+            parameters: vec![ValueShape::float(4)],
+            result: Some(ValueShape::float(4)),
+        };
+        let leaf_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(native),
+            &leaf_signature,
+        )
+        .expect("leaf entry plan")
+        .plan()
+        .clone();
+        let target = lower(
+            &source,
+            native,
+            &execution,
+            &[
+                (1, binding(native, leaf_signature)),
+                (2, binding(native, relay_signature)),
+            ],
+        );
+        crate::validate_abstract_to_target_translation(&source, native, &target)
+            .expect("boolean and floating foreign arguments replay");
+
+        let TargetUnitOperation::NormalizedForeignCall {
+            scalar_arguments,
+            result_home,
+            binding: row_binding,
+            ..
+        } = normalized_foreign_ref(&target, 9)
+        else {
+            panic!("normalized foreign row")
+        };
+        assert_eq!(row_binding.boundary_entry_plan, leaf_plan);
+        assert_eq!(scalar_arguments.len(), 3);
+        assert_eq!(
+            scalar_arguments[0].source,
+            TargetUnitScalarArgumentSource::Parameter {
+                parameter_index: 0,
+                source_value: incoming,
+                scalar_type: f64_type,
+            }
+        );
+        assert_eq!(
+            scalar_arguments[1].source,
+            TargetUnitScalarArgumentSource::BlockParameter(
+                target_operations::TargetScalarBlockValue {
+                    block: join,
+                    value: flag,
+                    scalar_type: bool_type,
+                }
+            )
+        );
+        let TargetUnitScalarArgumentSource::Home(home) = &scalar_arguments[2].source else {
+            panic!("f32 home argument")
+        };
+        assert_eq!(home.source_value, homed);
+        assert_eq!(home.scalar_type, f32_type);
+        assert_eq!(home.shape, ValueShape::float(4));
+        assert_eq!(home.defining_operation, OperationId::new(8).unwrap());
+        for (argument, destination) in scalar_arguments
+            .iter()
+            .zip(leaf_plan.call.parameters.iter())
+        {
+            assert_eq!(argument.placement, *destination);
+        }
+        let home = result_home.expect("scalar result home");
+        assert_eq!(home.scalar_type, f64_type);
+        assert_eq!(home.shape, ValueShape::float(8));
+        assert_eq!(home.source_value, produced);
+
+        for mutation in 0..4 {
+            let mut changed = target.clone();
+            let TargetUnitOperation::NormalizedForeignCall {
+                scalar_arguments,
+                result_home,
+                ..
+            } = normalized_foreign_mut(&mut changed, 9)
+            else {
+                panic!("normalized foreign row")
+            };
+            match mutation {
+                0 => {
+                    scalar_arguments[0].source = TargetUnitScalarArgumentSource::BooleanImmediate {
+                        defining_operation: OperationId::new(6).unwrap(),
+                        source_value: incoming,
+                        value: true,
+                    }
+                }
+                1 => {
+                    let TargetUnitScalarArgumentSource::BlockParameter(parameter) =
+                        &mut scalar_arguments[1].source
+                    else {
+                        panic!("block parameter source")
+                    };
+                    parameter.block = source.functions[0].entry;
+                }
+                2 => {
+                    let TargetUnitScalarArgumentSource::Home(home) =
+                        &mut scalar_arguments[2].source
+                    else {
+                        panic!("home source")
+                    };
+                    home.defining_operation = OperationId::new(6).unwrap();
+                }
+                _ => result_home.as_mut().unwrap().scalar_type = f32_type,
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "forged scalar source or result home {mutation} on {native:?}"
+            );
+        }
+    }
+}
