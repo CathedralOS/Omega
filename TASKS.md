@@ -2796,20 +2796,38 @@ Owners include
     package whose `InterruptGate` layout splits the entry-offset fields into
     the wired bit placements and whose `InterruptDescriptorTable` layout
     strides 33 gates at 16 bytes; the generic post-handoff writer
-    materializes the authored image with the installed roots' sealed entries,
-    and
-    `compiler/tests/layout_plans/interrupt_descriptor_tables.rs` decodes the
-    written bytes through the authored layout alone, joins each gate's IST
-    slot to the declared dedicated stack class through the staged TSS, mints
-    `EstablishedInterruptTable`, and drives the ledger admission → issued
-    carrier → checked `lidt` provider edge → `PublishedInterruptTable` path
-    end to end. The flag below names the ledger code this replaces.
-    Remaining on this leg: the established value and the profile are still
-    produced by test-shaped Rust on the compiler side — the Cathedral
-    package needs authored validators and root machines so
-    `interrupt_table/`'s member admission, established-record and
-    publication types can relocate into source; the ledger itself (installed
-    roots, `lidt` contract, checked writer) stays compiler-owned.
+    materializes the authored image with the installed roots' sealed
+    entries. The package also authors its declared membership and its
+    validator: `cathedral::interrupt_validation` declares
+    `TableMemberDeclaration` (vector, dedicated stack class, obligation
+    flag and descriptor constants), `IstBinding` (the slot → dedicated
+    class bindings the installed TSS must provide),
+    `InterruptTableMembership::declare` producing the member set, and
+    `DescriptorTableValidation::validate` — a `terminates by fuel` state
+    machine that scans every vector's decoded gate record and raw slot
+    bytes against the declared membership, joins each member's IST slot to
+    its dedicated stack class through the installed TSS, and returns
+    `TableVerdict::Accepted` or `Rejected { vector, reason }`. The
+    compiler test
+    (`layout_plans/interrupt_descriptor_tables.rs`) evaluates both
+    authored machines through `evaluate_build_time_machine`, decodes the
+    written bytes through the authored layout alone, hands the validator
+    the verbatim member array, the decoded gates and the staged TSS's IST
+    rows, and mints `EstablishedInterruptTable` only on `Accepted` — then
+    drives ledger admission → issued carrier → checked `lidt` provider
+    edge → `PublishedInterruptTable` end to end. The `InterruptTableProfile`
+    and member plans now take all their semantic constants (vector, stack
+    class, obligation, descriptor) from the authored declaration; only the
+    sealed entry-stub and external-root identities remain fixture
+    vocabulary. The flag below names the ledger code this replaces.
+    Remaining on this leg: the compiler-owned `interrupt_table/` model's
+    member-admission, established-record and publication types
+    (`EstablishedInterruptTable`, `InterruptTablePublication*`, the
+    admitted-member records) still hold the obligation the authored
+    verdict now warrants — relocating them needs authored record/machine
+    types for admission and publication so the ledger becomes plumbing;
+    the ledger itself (installed roots, `lidt` contract, checked writer)
+    stays compiler-owned.
   - Timer. The device source, tick record and wake are package code. The
     acknowledgement settles through `InterruptAcknowledgement::complete`, whose
     LAPIC/x2APIC reach waits on `BOUNDED-INSTALLATION-REACH-ROWS`.

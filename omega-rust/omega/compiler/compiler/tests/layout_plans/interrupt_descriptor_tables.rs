@@ -15,26 +15,26 @@
 //! and `write_prepared_post_handoff_destination` returns produced bytes
 //! under exact replay.
 //!
-//! The package's validator replays the written destination through the
-//! gate layout — `decode_scalar_layout` reassembles the split `entry`
-//! fragments and the packed flag byte — before minting the
-//! `EstablishedInterruptTable` value the publication carrier consumes. It
-//! mirrors the compiler-owned `interrupt_table` model's checks (declared
-//! constants, IST slot join through the installed TSS, reserved-range
-//! zeros, absent-vector all-zero slots) without any hand-rolled byte
-//! indexing: the authored layout is the only placement vocabulary on this
-//! path.
+//! The package's authored validator replays the written destination
+//! through the gate layout — `decode_scalar_layout` reassembles the split
+//! `entry` fragments and the packed flag byte — before minting the
+//! `EstablishedInterruptTable` value the publication carrier consumes.
+//! `cathedral::interrupt_validation` declares the membership rows itself
+//! and evaluates the checks (declared constants, IST slot join through
+//! the installed TSS, reserved-range zeros, absent-vector all-zero slots)
+//! as an authored state machine over decoded records — the test's Rust
+//! only carries custody evidence in and the verdict out.
 //!
 //! The published leg completes the path: test-shaped installed external
-//! roots fill the compiler-owned member ledger, the validator's
-//! established value issues the exact publication carrier, and the checked
-//! `lidt` provider edge — `execute_checked_publication` — mints the
-//! receipt that publishes the table. The authored layout is the only
-//! placement vocabulary on the whole path; what remains on the seam is
-//! spelled in `TASKS.md` — emitted entry/exit stub bytes against the derived
+//! roots fill the compiler-owned member ledger, the authored validator's
+//! verdict issues the exact publication carrier, and the checked `lidt`
+//! provider edge — `execute_checked_publication` — mints the receipt that
+//! publishes the table. The authored layout is the only placement
+//! vocabulary on the whole path; what remains on the seam is spelled in
+//! `TASKS.md` — emitted entry/exit stub bytes against the derived
 //! contract and the package-side relocation of the Rust model's
-//! published-root records. The machine-state evidence column now carries the
-//! deriver stub's member-body envelope, not a test-admitted shape.
+//! published-root records. The machine-state evidence column now carries
+//! the deriver stub's member-body envelope, not a test-admitted shape.
 //! The divide-error member is now authored: `cathedral::interrupt_roots`
 //! declares `FatalExceptionRoot` plus its `CriticalStackPolicy` calling
 //! policy, and the last test drives that member's candidate through real
@@ -42,21 +42,23 @@
 //! The other members' candidates remain test-constructed shapes.
 
 use build_time_evaluation::compute_layout_plan;
+use calling_conventions::InstalledEntryFactIdentity;
 use calling_conventions::{
     ArrivalContextId, ArrivalContextRealization, BoundaryEntryPlan, CallSignature, CallingPolicy,
     EntryControl, EntryStack, EntryStackEpoch, EntryStackRealization, EntryStackStage,
     MachineRegime, MachineRegister, MachineState, MachineStateSet, Preemption,
-    ProviderExitRealization, RegisterSet, StackDomainRef, StatePlan,
-    ValidatedBoundaryEntryPlan, ValidatedX86_64DeriverStub, ValueShape, X86_64ArrivalMechanism,
-    X86_64GateKind, X86_64HardwareStackSelection, X86_64InstalledArrivalContext,
-    X86_64InstalledHardwareEntryFacts, X86_64InstalledInterruptStack,
-    X86_64InstalledTaskStateSegmentRealization, X86_64TargetProfileIdentity,
-    derive_x86_64_entry_exit_stub, evaluate_ordinary_boundary_entry_plan,
-    validate_boundary_entry_plan, validate_entry_stack_realization,
-    validate_x86_64_installed_hardware_entry_facts,
+    ProviderExitRealization, RegisterSet, StackDomainRef, StatePlan, ValidatedBoundaryEntryPlan,
+    ValidatedX86_64DeriverStub, ValueShape, X86_64ArrivalMechanism, X86_64GateKind,
+    X86_64HardwareStackSelection, X86_64InstalledArrivalContext, X86_64InstalledHardwareEntryFacts,
+    X86_64InstalledInterruptStack, X86_64InstalledTaskStateSegmentRealization,
+    X86_64TargetProfileIdentity, derive_x86_64_entry_exit_stub,
+    evaluate_ordinary_boundary_entry_plan, validate_boundary_entry_plan,
+    validate_entry_stack_realization, validate_x86_64_installed_hardware_entry_facts,
 };
-use calling_conventions::InstalledEntryFactIdentity;
-use compiler::{CheckedCompileRequest, compile_to_checked};
+use checked_interpreter::{
+    BuildMachineEvaluationRequest, BuildTimeValue, evaluate_build_time_machine,
+};
+use compiler::{CheckedCompilation, CheckedCompileRequest, compile_to_checked};
 use executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, CodePlacementAuthority,
     CodePlacementId, DestinationPreparationReceipt, DestinationPreparationReceiptId, EntrySetId,
@@ -162,69 +164,211 @@ fn extent_identity<T>(value: u64, constructor: fn(u64) -> Result<T, ExtentDiagno
     constructor(value).expect("normalized extent identity")
 }
 
-fn declared_members() -> BTreeMap<u8, DeclaredMember> {
-    let fatal = |vector: u8, stack_class: u16, ist: u8, entry: u64, root: u64| DeclaredMember {
-        profile: InterruptTableMemberPlan {
-            vector,
-            dedicated_stack_class: stack_class,
-            obligation: InterruptTableObligation::FatalException,
-            descriptor: InterruptTableGateDescriptor {
-                gate: X86_64GateKind::Trap,
-                selector: SELECTOR,
-                entry_privilege: 0,
-                interrupt_stack_table_slot: Some(ist),
-            },
-        },
-        entry: EntryStubId::from_normalized_identity(entry).expect("entry stub"),
-        root: identity(root, ExternalRootId::from_normalized_identity),
-    };
-    let timer = |vector: u8, stack_class: u16, ist: u8, entry: u64, root: u64| DeclaredMember {
-        profile: InterruptTableMemberPlan {
-            vector,
-            dedicated_stack_class: stack_class,
-            obligation: InterruptTableObligation::AcknowledgedInterrupt,
-            descriptor: InterruptTableGateDescriptor {
-                gate: X86_64GateKind::Interrupt,
-                selector: SELECTOR,
-                entry_privilege: 0,
-                interrupt_stack_table_slot: Some(ist),
-            },
-        },
-        entry: EntryStubId::from_normalized_identity(entry).expect("entry stub"),
-        root: identity(root, ExternalRootId::from_normalized_identity),
-    };
-    [
-        fatal(DIVIDE_ERROR, 11, 1, 0x201, 0x101),
-        fatal(GENERAL_PROTECTION, 12, 2, 0x202, 0x102),
-        fatal(PAGE_FAULT, 13, 3, 0x203, 0x103),
-        timer(TIMER_TICK, 14, 4, 0x204, 0x104),
-    ]
-    .into_iter()
-    .map(|member| (member.profile.vector, member))
-    .collect()
+/// One authored member row exactly as the canary's
+/// `cathedral::interrupt_validation::InterruptTableMembership::declare`
+/// returned it — the package's declared vector, dedicated critical stack
+/// class, settlement obligation, and descriptor constants.
+#[derive(Debug, Clone, Copy)]
+struct AuthoredMember {
+    vector: u8,
+    dedicated_stack_class: u16,
+    fatal_exception: bool,
+    selector: u16,
+    privilege: u8,
+    ist_slot: u8,
+    gate_kind: u8,
 }
 
-fn table_profile(identity_value: u64) -> InterruptTableProfile {
+/// The evaluated authored membership: the parsed member and IST-binding
+/// rows the profile and installed-TSS fixtures read, plus the verbatim
+/// member rows the authored validator consumes back unedited.
+struct AuthoredMembership {
+    members: Vec<AuthoredMember>,
+    members_arg: BuildTimeValue,
+    ist: Vec<(u8, u16)>,
+}
+
+fn struct_field<'a>(fields: &'a [(String, BuildTimeValue)], name: &str) -> &'a BuildTimeValue {
+    fields
+        .iter()
+        .find(|(key, _)| key == name)
+        .map(|(_, value)| value)
+        .unwrap_or_else(|| panic!("authored record carries no field `{name}`"))
+}
+
+fn int_field(fields: &[(String, BuildTimeValue)], name: &str) -> i64 {
+    let BuildTimeValue::Int(value) = struct_field(fields, name) else {
+        panic!("authored field `{name}` is not an integer")
+    };
+    *value
+}
+
+fn bool_field(fields: &[(String, BuildTimeValue)], name: &str) -> bool {
+    let BuildTimeValue::Bool(value) = struct_field(fields, name) else {
+        panic!("authored field `{name}` is not a boolean")
+    };
+    *value
+}
+
+fn record_fields<'a>(value: &'a BuildTimeValue, what: &str) -> &'a [(String, BuildTimeValue)] {
+    let BuildTimeValue::Struct { fields, .. } = value else {
+        panic!("{what} evaluated to {value:?}, not a record")
+    };
+    fields
+}
+
+/// Evaluate the package's authored membership declaration — the member
+/// rows and IST bindings live in source; the compiler reads them back
+/// through the same build-time bridge the layout policies already use.
+fn authored_membership(typed: &typed_trees::TypedTrees) -> AuthoredMembership {
+    let machine = qualified_machine_name(typed, "InterruptTableMembership::declare");
+    let value = evaluate_build_time_machine(
+        typed,
+        BuildMachineEvaluationRequest::named(&machine, Vec::new()),
+    )
+    .unwrap_or_else(|reason| {
+        panic!("the authored membership declaration does not evaluate: {reason}")
+    })
+    .into_value();
+    let membership = record_fields(&value, "InterruptTableMembership::declare");
+    let BuildTimeValue::Array(member_rows) = struct_field(membership, "members") else {
+        panic!("the authored membership carries no member array")
+    };
+    let BuildTimeValue::Array(ist_rows) = struct_field(membership, "ist") else {
+        panic!("the authored membership carries no IST-binding array")
+    };
+    let members = member_rows
+        .iter()
+        .map(|row| {
+            let fields = record_fields(row, "declared member");
+            AuthoredMember {
+                vector: u8::try_from(int_field(fields, "vector")).expect("declared member vector"),
+                dedicated_stack_class: u16::try_from(int_field(fields, "dedicated_stack_class"))
+                    .expect("declared stack class"),
+                fatal_exception: bool_field(fields, "fatal_exception"),
+                selector: u16::try_from(int_field(fields, "selector")).expect("declared selector"),
+                privilege: u8::try_from(int_field(fields, "privilege"))
+                    .expect("declared privilege"),
+                ist_slot: u8::try_from(int_field(fields, "ist_slot")).expect("declared IST slot"),
+                gate_kind: u8::try_from(int_field(fields, "gate_kind"))
+                    .expect("declared gate kind"),
+            }
+        })
+        .collect();
+    let ist = ist_rows
+        .iter()
+        .map(|row| {
+            let fields = record_fields(row, "declared IST binding");
+            (
+                u8::try_from(int_field(fields, "slot")).expect("declared IST slot"),
+                u16::try_from(int_field(fields, "dedicated_class"))
+                    .expect("declared dedicated class"),
+            )
+        })
+        .collect();
+    AuthoredMembership {
+        members,
+        members_arg: BuildTimeValue::Array(member_rows.clone()),
+        ist,
+    }
+}
+
+/// The installed identities the authored declaration deliberately does
+/// not name: entry stubs and external-root records are compiler-ledger
+/// vocabulary, bound per declared vector by this fixture.
+fn member_hardware(vector: u8) -> (EntryStubId, ExternalRootId) {
+    let (entry, root) = match vector {
+        DIVIDE_ERROR => (0x201, 0x101),
+        GENERAL_PROTECTION => (0x202, 0x102),
+        PAGE_FAULT => (0x203, 0x103),
+        TIMER_TICK => (0x204, 0x104),
+        other => panic!(
+            "the authored membership declares vector {other}, which this fixture never installs"
+        ),
+    };
+    (
+        EntryStubId::from_normalized_identity(entry).expect("entry stub"),
+        identity(root, ExternalRootId::from_normalized_identity),
+    )
+}
+
+/// The declared member set, joined with the installed identities the
+/// package never names. Every semantic constant — vector, stack class,
+/// obligation, descriptor — now comes from the evaluated authored
+/// declaration; only the sealed entry and root identities are fixture
+/// vocabulary.
+fn declared_members(
+    typed: &typed_trees::TypedTrees,
+) -> (BTreeMap<u8, DeclaredMember>, AuthoredMembership) {
+    let membership = authored_membership(typed);
+    let members = membership
+        .members
+        .iter()
+        .map(|member| {
+            let (entry, root) = member_hardware(member.vector);
+            (
+                member.vector,
+                DeclaredMember {
+                    profile: InterruptTableMemberPlan {
+                        vector: member.vector,
+                        dedicated_stack_class: member.dedicated_stack_class,
+                        obligation: if member.fatal_exception {
+                            InterruptTableObligation::FatalException
+                        } else {
+                            InterruptTableObligation::AcknowledgedInterrupt
+                        },
+                        descriptor: InterruptTableGateDescriptor {
+                            gate: match u64::from(member.gate_kind) {
+                                GATE_TYPE_TRAP => X86_64GateKind::Trap,
+                                GATE_TYPE_INTERRUPT => X86_64GateKind::Interrupt,
+                                other => panic!(
+                                    "the authored membership declares gate kind {other}, which is no x86-64 gate"
+                                ),
+                            },
+                            selector: member.selector,
+                            entry_privilege: member.privilege,
+                            interrupt_stack_table_slot: if member.ist_slot == 0 {
+                                None
+                            } else {
+                                Some(member.ist_slot)
+                            },
+                        },
+                    },
+                    entry,
+                    root,
+                },
+            )
+        })
+        .collect();
+    (members, membership)
+}
+
+fn table_profile(
+    identity_value: u64,
+    members: &BTreeMap<u8, DeclaredMember>,
+) -> InterruptTableProfile {
     InterruptTableProfile::new(
         identity(
             identity_value,
             InterruptTableProfileId::from_normalized_identity,
         ),
-        declared_members().values().map(|member| member.profile),
+        members.values().map(|member| member.profile),
     )
     .expect("declared interrupt-table profile")
 }
 
-/// The installed TSS the package validator joins through: declared IST
-/// slot i provisions dedicated critical stack class 10+i.
-fn declared_tss() -> X86_64InstalledTaskStateSegmentRealization {
+/// The installed TSS the package validator joins through: the fixture
+/// provisions exactly the IST bindings the authored membership declares —
+/// each row's slot serves its named dedicated critical stack class.
+fn declared_tss(membership: &AuthoredMembership) -> X86_64InstalledTaskStateSegmentRealization {
     X86_64InstalledTaskStateSegmentRealization {
         privilege_stacks: Vec::new(),
-        interrupt_stacks: [1, 2, 3, 4]
-            .into_iter()
-            .map(|slot| X86_64InstalledInterruptStack {
-                slot,
-                dedicated_class: 10 + u16::from(slot),
+        interrupt_stacks: membership
+            .ist
+            .iter()
+            .map(|(slot, dedicated_class)| X86_64InstalledInterruptStack {
+                slot: *slot,
+                dedicated_class: *dedicated_class,
             })
             .collect(),
     }
@@ -274,8 +418,9 @@ fn canary_main() -> PathBuf {
 
 /// Compile the authored canary and compute both validated layout plans:
 /// the gate record's split-offset wire plan and the table's per-vector
-/// repeated-slot plan.
-fn authored_layouts() -> (LayoutPlanReport, LayoutPlanReport) {
+/// repeated-slot plan. The checked program travels with them — the
+/// authored membership and validator evaluate against its typed trees.
+fn authored_layouts() -> (CheckedCompilation, LayoutPlanReport, LayoutPlanReport) {
     let checked = compile_to_checked(CheckedCompileRequest::new(&canary_main(), None))
         .expect("interrupt table canary compiles");
     let gate = layout_plan_for(&checked.typed, "InterruptGate", "InterruptGateLayout::plan");
@@ -284,7 +429,7 @@ fn authored_layouts() -> (LayoutPlanReport, LayoutPlanReport) {
         "InterruptDescriptorTable",
         "DescriptorTableLayout::plan",
     );
-    (gate, table)
+    (checked, gate, table)
 }
 
 /// The member entry addresses the exact installed realization resolves:
@@ -611,16 +756,21 @@ fn staged_table_image(
 /// The package's semantic validator: replay the still-unpublished written
 /// destination against the declared member set and decode every slot
 /// through the gate layout — no byte offset is spelled outside the
-/// validated plan. Rejections are `Err`; success mints the established
-/// table value publication consumes.
+/// validated plan. The semantic policy is authored source:
+/// `cathedral::interrupt_validation`'s `DescriptorTableValidation::validate`
+/// scans the decoded gates and slot bytes against the package's own
+/// declared membership and returns `TableVerdict`; only `Accepted` mints
+/// the established table value publication consumes.
 #[allow(clippy::too_many_arguments)]
 fn validate_descriptor_table_image(
+    typed: &typed_trees::TypedTrees,
     code: &InstalledCode,
     written: &ValidatedWrittenPostHandoffWriterDestination<'_, '_>,
     invocation: &PostHandoffWriterInvocationPlan,
     gate_layout: &LayoutPlanReport,
     profile: &InterruptTableProfile,
     members: &BTreeMap<u8, DeclaredMember>,
+    membership: &AuthoredMembership,
     tss: &X86_64InstalledTaskStateSegmentRealization,
     establishment: InterruptTableEstablishmentId,
     destination: Extent,
@@ -679,67 +829,107 @@ fn validate_descriptor_table_image(
         })
     };
 
+    // Decode every produced slot through the validated gate layout. The
+    // authored validator consumes the decoded gate records for the placed
+    // fields and the slot bytes themselves for the unplaced reserved
+    // ranges no record field reaches; both are `image[at]`-indexed, so no
+    // byte offset is spelled on this side either.
+    let gate_name = qualified_data_name(typed, "InterruptGate");
+    let binding_name = qualified_data_name(typed, "IstBinding");
+    let mut image = Vec::with_capacity(usize::from(TABLE_VECTORS));
+    let mut gates = Vec::with_capacity(usize::from(TABLE_VECTORS));
     for vector in 0..TABLE_VECTORS {
         let start = usize::from(vector) * GATE_BYTES;
         let slot = &written.bytes()[start..start + GATE_BYTES];
         let fields = decode_fields(slot)?;
-        let reserved_clean = slot[12..16].iter().all(|byte| *byte == 0);
-        match members.get(&vector) {
-            Some(member) => {
-                let descriptor = member.profile.descriptor;
-                if fields["entry"] == 0 {
-                    return Err(format!("member vector {vector} carries no resolved entry"));
-                }
-                if fields["selector"] != u64::from(descriptor.selector) {
-                    return Err(format!("member vector {vector} selector mismatch"));
-                }
-                if fields["ist"] != u64::from(descriptor.interrupt_stack_table_slot.unwrap_or(0)) {
-                    return Err(format!("member vector {vector} ist slot mismatch"));
-                }
-                if fields["gate_kind"]
-                    != match descriptor.gate {
-                        X86_64GateKind::Interrupt => GATE_TYPE_INTERRUPT,
-                        X86_64GateKind::Trap => GATE_TYPE_TRAP,
-                    }
-                {
-                    return Err(format!("member vector {vector} gate-kind mismatch"));
-                }
-                if fields["privilege"] != u64::from(descriptor.entry_privilege) {
-                    return Err(format!("member vector {vector} privilege mismatch"));
-                }
-                if fields["present"] != 1 {
-                    return Err(format!("member vector {vector} is not present"));
-                }
-                if !reserved_clean {
-                    return Err(format!("member vector {vector} reserved bytes are nonzero"));
-                }
-                // The declared IST slot must resolve through the installed
-                // TSS to the member's dedicated critical stack class — a
-                // fatal entry may never be accounted onto a stack the TSS
-                // does not provision.
-                let declared_slot = descriptor.interrupt_stack_table_slot.ok_or_else(|| {
-                    format!("member vector {vector} declares no dedicated stack switch")
-                })?;
-                let dedicated = tss
-                    .interrupt_stacks
-                    .iter()
-                    .find(|stack| stack.slot == declared_slot)
-                    .ok_or_else(|| format!("installed TSS provisions no IST slot {declared_slot}"))?
-                    .dedicated_class;
-                if dedicated != member.profile.dedicated_stack_class {
-                    return Err(format!(
-                        "member vector {vector} IST slot {declared_slot} resolves to class {dedicated}, not {}",
-                        member.profile.dedicated_stack_class
-                    ));
-                }
-            }
-            None => {
-                if fields.values().any(|value| *value != 0) || !reserved_clean {
-                    return Err(format!(
-                        "undeclared vector {vector} carries nonzero gate content"
-                    ));
-                }
-            }
+        image.push(BuildTimeValue::Array(
+            slot.iter()
+                .map(|byte| BuildTimeValue::Int(i64::from(*byte)))
+                .collect(),
+        ));
+        gates.push(BuildTimeValue::Struct {
+            type_name: gate_name.clone(),
+            fields: vec![
+                (
+                    "entry".to_owned(),
+                    BuildTimeValue::Int(fields["entry"] as i64),
+                ),
+                (
+                    "selector".to_owned(),
+                    BuildTimeValue::Int(fields["selector"] as i64),
+                ),
+                ("ist".to_owned(), BuildTimeValue::Int(fields["ist"] as i64)),
+                (
+                    "gate_kind".to_owned(),
+                    BuildTimeValue::Int(fields["gate_kind"] as i64),
+                ),
+                (
+                    "privilege".to_owned(),
+                    BuildTimeValue::Int(fields["privilege"] as i64),
+                ),
+                (
+                    "present".to_owned(),
+                    BuildTimeValue::Bool(fields["present"] != 0),
+                ),
+            ],
+        });
+    }
+    // The IST bindings the validator joins through are the installed
+    // TSS's rows — the authored declaration asks for a slot→class binding
+    // and the installed realization must provide it.
+    let installed_ist = tss
+        .interrupt_stacks
+        .iter()
+        .map(|stack| BuildTimeValue::Struct {
+            type_name: binding_name.clone(),
+            fields: vec![
+                (
+                    "slot".to_owned(),
+                    BuildTimeValue::Int(i64::from(stack.slot)),
+                ),
+                (
+                    "dedicated_class".to_owned(),
+                    BuildTimeValue::Int(i64::from(stack.dedicated_class)),
+                ),
+            ],
+        })
+        .collect();
+
+    let validator = qualified_machine_name(typed, "DescriptorTableValidation::validate");
+    let verdict = evaluate_build_time_machine(
+        typed,
+        BuildMachineEvaluationRequest::named(
+            &validator,
+            vec![
+                BuildTimeValue::Array(image),
+                BuildTimeValue::Array(gates),
+                membership.members_arg.clone(),
+                BuildTimeValue::Array(installed_ist),
+            ],
+        ),
+    )
+    .map_err(|reason| format!("the authored validator could not evaluate: {reason}"))?
+    .into_value();
+    match verdict {
+        BuildTimeValue::Case { variant, .. } if variant == "Accepted" => {}
+        BuildTimeValue::Case { variant, payload } if variant == "Rejected" => {
+            let vector = match struct_field(&payload, "vector") {
+                BuildTimeValue::Int(vector) => *vector,
+                value => panic!("authored verdict carries non-integer vector {value:?}"),
+            };
+            let reason = match struct_field(&payload, "reason") {
+                BuildTimeValue::Int(reason) => *reason,
+                value => panic!("authored verdict carries non-integer reason {value:?}"),
+            };
+            return Err(format!(
+                "the authored validator rejects the produced table: vector {vector}, {}",
+                verdict_reason(reason)
+            ));
+        }
+        other => {
+            return Err(format!(
+                "the authored validator returned {other:?}, not a TableVerdict"
+            ));
         }
     }
 
@@ -781,6 +971,27 @@ fn decoded_gate_entry(gate_layout: &LayoutPlanReport, slot: &[u8]) -> u64 {
 
 /// Every gate field's decode schema: the decoder refuses a layout whose
 /// declared fields are not all covered.
+/// The authored validator's reason codes, phrased for diagnostics: the
+/// package's `TableVerdict::Rejected` is a machine-readable code, not a
+/// text channel at install time.
+fn verdict_reason(reason: i64) -> &'static str {
+    match reason {
+        0 => "the validator exhausted its fuel (a validator defect, not a table verdict)",
+        1 => "member gate carries no resolved entry",
+        2 => "member selector mismatch",
+        3 => "member ist slot mismatch",
+        4 => "member gate-kind mismatch",
+        5 => "member privilege mismatch",
+        6 => "member gate is not present",
+        7 => "member reserved bits are nonzero",
+        8 => "member's declared IST slot does not join to its dedicated stack class",
+        9 => "undeclared vector carries nonzero gate content",
+        10 => "declared member vector is outside the table",
+        11 => "declared member carries no dedicated-stack IST slot",
+        _ => "unrecognized validator reason",
+    }
+}
+
 fn gate_field_schemas() -> [ScalarFieldSchema; 6] {
     [
         ScalarFieldSchema::new("entry", 64).expect("entry schema"),
@@ -834,7 +1045,7 @@ fn table_destination_extent(seed: u64, base: u64, length: u64) -> Extent {
 
 #[test]
 fn authored_table_layout_places_the_declared_wire_shape() {
-    let (gate, table) = authored_layouts();
+    let (_checked, gate, table) = authored_layouts();
 
     // The gate policy's plan is exactly the long-mode descriptor encoding:
     // the 64-bit `entry` tiles three disjoint containers and the flag byte
@@ -947,9 +1158,9 @@ fn authored_table_layout_places_the_declared_wire_shape() {
 
 #[test]
 fn authored_descriptor_table_materializes_through_checked_writer() {
-    let (gate_layout, table_layout) = authored_layouts();
-    let members = declared_members();
-    let profile = table_profile(0x600);
+    let (checked, gate_layout, table_layout) = authored_layouts();
+    let (members, membership) = declared_members(&checked.typed);
+    let profile = table_profile(0x600, &members);
     let code = table_installed_code(&members);
 
     // Bind every declared member's sealed entry stub to its vector's
@@ -1055,13 +1266,15 @@ fn authored_descriptor_table_materializes_through_checked_writer() {
     // same produced bytes.
     let destination = table_destination_extent(0x772, TABLE_BASE, TABLE_BYTES as u64);
     let established = validate_descriptor_table_image(
+        &checked.typed,
         &code,
         &written,
         &invocation,
         &gate_layout,
         &profile,
         &members,
-        &declared_tss(),
+        &membership,
+        &declared_tss(&membership),
         identity(
             0x771,
             InterruptTableEstablishmentId::from_normalized_identity,
@@ -1099,9 +1312,9 @@ fn authored_descriptor_table_materializes_through_checked_writer() {
 
 #[test]
 fn descriptor_table_validator_rejects_content_violations() {
-    let (gate_layout, table_layout) = authored_layouts();
-    let members = declared_members();
-    let profile = table_profile(0x600);
+    let (checked, gate_layout, table_layout) = authored_layouts();
+    let (members, membership) = declared_members(&checked.typed);
+    let profile = table_profile(0x600, &members);
     let code = table_installed_code(&members);
     let interior = SymbolicFieldInnerLayout::new_record_array(
         "gates",
@@ -1151,13 +1364,15 @@ fn descriptor_table_validator_rejects_content_violations() {
     image[usize::from(TIMER_TICK) * GATE_BYTES + 5] &= !0x80;
     let written = written_table(&code, &writer, TABLE_BASE, &mut image);
     let error = validate_descriptor_table_image(
+        &checked.typed,
         &code,
         &written,
         &invocation,
         &gate_layout,
         &profile,
         &members,
-        &declared_tss(),
+        &membership,
+        &declared_tss(&membership),
         establishment,
         table_destination_extent(0x773, TABLE_BASE, TABLE_BYTES as u64),
     )
@@ -1188,13 +1403,15 @@ fn descriptor_table_validator_rejects_content_violations() {
     image[7 * GATE_BYTES..8 * GATE_BYTES].copy_from_slice(&foreign);
     let written = written_table(&code, &writer, TABLE_BASE, &mut image);
     let error = validate_descriptor_table_image(
+        &checked.typed,
         &code,
         &written,
         &invocation,
         &gate_layout,
         &profile,
         &members,
-        &declared_tss(),
+        &membership,
+        &declared_tss(&membership),
         establishment,
         table_destination_extent(0x774, TABLE_BASE, TABLE_BYTES as u64),
     )
@@ -1427,8 +1644,8 @@ fn member_deriver_stub(
             X86_64ArrivalMechanism::ExternalInterrupt
         }
     };
-    let installed = validate_x86_64_installed_hardware_entry_facts(
-        X86_64InstalledHardwareEntryFacts {
+    let installed =
+        validate_x86_64_installed_hardware_entry_facts(X86_64InstalledHardwareEntryFacts {
             identity: InstalledEntryFactIdentity {
                 target_profile: X86_64TargetProfileIdentity::LONG_MODE_INTERRUPT_GATES,
                 artifact: code.artifact().normalized_identity(),
@@ -1457,9 +1674,8 @@ fn member_deriver_stub(
                 },
                 nesting: boundary.plan().state.preemption,
             }],
-        },
-    )
-    .expect("the member's installed hardware entry facts validate");
+        })
+        .expect("the member's installed hardware entry facts validate");
     derive_x86_64_entry_exit_stub(&installed, boundary)
         .expect("the deriver stub realizes the member's admitted boundary")
 }
@@ -1673,9 +1889,9 @@ fn descriptor_operand(seed: u64, destination: &Extent) -> InterruptTableDescript
 
 #[test]
 fn established_table_publishes_through_the_checked_lidt_edge() {
-    let (gate_layout, table_layout) = authored_layouts();
-    let members = declared_members();
-    let profile = table_profile(0x600);
+    let (checked, gate_layout, table_layout) = authored_layouts();
+    let (members, membership) = declared_members(&checked.typed);
+    let profile = table_profile(0x600, &members);
     let mut code = table_installed_code(&members);
 
     // Install every member root into the artifact's ledger and admit them
@@ -1734,13 +1950,15 @@ fn established_table_publishes_through_the_checked_lidt_edge() {
     let written = written_table(&code, &writer, TABLE_BASE, &mut image);
     let destination = table_destination_extent(0x881, TABLE_BASE, TABLE_BYTES as u64);
     let established = validate_descriptor_table_image(
+        &checked.typed,
         &code,
         &written,
         &invocation,
         &gate_layout,
         &profile,
         &members,
-        &declared_tss(),
+        &membership,
+        &declared_tss(&membership),
         identity(
             0x771,
             InterruptTableEstablishmentId::from_normalized_identity,
@@ -1762,8 +1980,7 @@ fn established_table_publishes_through_the_checked_lidt_edge() {
         [
             InterruptTablePublicationScope::ProcessorTableControl,
             InterruptTablePublicationScope::TablePublication,
-        ]
-        .into_iter(),
+        ],
     )
     .expect("publication authority");
     let carrier = table
@@ -1947,7 +2164,8 @@ fn authored_fatal_exception_root_installs_through_selected_provider() {
 
     // The candidate's compiler-visible fields are real; only the
     // admitted-provider columns stay test-admitted.
-    let member = declared_members()[&DIVIDE_ERROR];
+    let (all_members, _membership) = declared_members(&checked.typed);
+    let member = all_members[&DIVIDE_ERROR];
     let members = BTreeMap::from([(DIVIDE_ERROR, member)]);
     let mut code = table_installed_code(&members);
     let provider = identity(2, RootProviderId::from_normalized_identity);
@@ -2086,7 +2304,7 @@ fn authored_fatal_exception_root_installs_through_selected_provider() {
     // The table's member admission joins the authored boundary against the
     // declared divide-error profile: dedicated stack class 11 and the fatal
     // obligation's no-acknowledgement shape.
-    let mut table = InterruptTableLedger::new(table_profile(0x600), &ledger);
+    let mut table = InterruptTableLedger::new(table_profile(0x600, &all_members), &ledger);
     let admitted = table
         .admit_interrupt_table_member(&ledger, DIVIDE_ERROR, installed)
         .expect("the authored fatal-exception member admits into the declared table");
