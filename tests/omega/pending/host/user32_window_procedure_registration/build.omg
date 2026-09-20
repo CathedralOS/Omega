@@ -1,0 +1,14 @@
+// FFIVAL canary build root: the pending watcher compiles only `main.omg`
+// (Check product, no target), but the authored declaration is retained so
+// promotion to `pass/host/` needs no new wiring. The window-procedure
+// registration is the authored root on every hosted target; the foreign
+// callback leg itself is exercised only where the provider supplies it —
+// other hosts report the leg unavailable.
+machine build(builder: &mut Build) {
+    builder.application("user32-window-procedure-registration");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

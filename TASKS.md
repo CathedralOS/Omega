@@ -5773,14 +5773,26 @@ Owners include
   Omega window procedure registered with `RegisterClassEx`, entered through
   `CreateWindowEx`/`WM_NCCREATE` and `DispatchMessage`, and released through
   `DestroyWindow` and `UnregisterClass`, with no raw function pointer or
-  Win32-only compiler escape. The canary does not exist yet:
-  `pass/host/runtime_gui_*` and `samples/gui/*` dispatch through predefined
-  window classes, and `fail/capabilities/blocking_beneath_no_block_root` is
-  the only fixture that names this item.
+  Win32-only compiler escape.
 
-  Blocked on **CALLBACK-PRIVATE-MATERIALIZATION** (no callback thunk reaches
-  machine code) and **REGISTERED-CALLBACK-LIFETIME** (no authored registration
-  route). Acceptance: on a Windows host the canary builds from its `build.omg`
+  The canary is authored and parked at
+  `tests/omega/pending/host/user32_window_procedure_registration` (`main.omg`
+  plus its retained `build.omg`), watched by
+  `pending_canaries_reproduce_known_gaps` in
+  `canary_suite/layouts_and_pending.rs`. It pins the first unreached
+  dependency on revision d05ec39a5d: `domain Registration::Live authorizes
+  User32::register_class but that requirement does not name the domain on
+  its exact result or an exact non-self external-root parameter` — the
+  routed domain cannot authorize the
+  `RegisterClassOutcome::Registered(registration: Registration in Live)`
+  case payload, so the observed-rejection sum cannot be written yet.
+  Behind it stand **REGISTERED-CALLBACK-LIFETIME** (the rest of the authored
+  registration route) and **CALLBACK-PRIVATE-MATERIALIZATION** (callback ABI
+  transport in the common instruction pipeline). The pending watcher flips
+  when the authorization gate opens; at that point re-drive the fixture,
+  move it to `pass/host/`, and re-pin whatever surfaces next.
+
+  Acceptance: on a Windows host the canary builds from its `build.omg`
   through the generic [private-callback](wiki/spec/build/private_callbacks.md)
   route, receives a real foreign callback, recovers per-window state without
   an ambient closure, and unregisters before its code lease is released. Other
