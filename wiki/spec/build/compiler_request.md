@@ -7,12 +7,12 @@ algorithms need not match. Rust compiler objects are not a wire specification.
 **Incomplete physical specification:** the outer framing, semantic contents,
 commitment preimage, validation order, publication rules, outcome frame
 layout, coordinate spaces, diagnostic phases, scalar-resource table, the
-subject/invocation field/tag tables, and the assigned `Reject` inventory
-below are settled. The syntax `Reject` inventory — including its distinction
-granularity — and the remaining checking codes still need assignment, the
-named `Incomplete` coverage provisions still need selection, and the semantic
-phases over the decoded fields still need implementation, under
-OMEGA-D/OMEGA-C in the
+subject/invocation field/tag tables, the assigned `Reject` inventory
+below — including the syntax distinction granularity and the checking codes —
+and the named `Incomplete` coverage provisions are settled. The semantic
+phases over the decoded fields still need implementation, and producers still
+need to record the assigned codes before those refusals can publish frames,
+under OMEGA-D/OMEGA-C in the
 [bootstrap board](../../../TASKS_BOOTSTRAP.md#p4---epsilon-to-omega-and-self-hosting).
 Neither implementation may claim a complete interoperable V1 boundary yet.
 
@@ -242,6 +242,91 @@ so far:
 | 1 `Reject` | 10 | `duplicate_name` | 4 canonical source | first byte of the later declaration's name span | zero/zero |
 | 1 `Reject` | 11 | `missing_entry` | 0 none | zero | zero/zero |
 | 1 `Reject` | 12 | `integer_literal_out_of_range` | 4 canonical source | first byte of the refused literal | zero/zero |
+| 1 `Reject` | 13 | `expected_path_member` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 14 | `expected_path_separator_or_semicolon` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 15 | `expected_data_name` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 16 | `expected_data_body` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 17 | `expected_data_property` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 18 | `expected_data_property_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 19 | `expected_data_member_or_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 20 | `expected_data_case_name` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 21 | `expected_data_case_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 22 | `expected_data_payload_field_or_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 23 | `expected_data_field_colon` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 24 | `expected_data_field_type` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 25 | `expected_data_field_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 26 | `expected_type_domain` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 27 | `expected_type_range_operator` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 28 | `expected_type_range_bound` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 29 | `expected_type_range_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 30 | `expected_array_element_type` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 31 | `expected_array_separator_or_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 32 | `expected_array_length` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 33 | `expected_array_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 34 | `expected_reference_lifetime` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 35 | `expected_unit_type_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 36 | `expected_machine_parameter_or_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 37 | `expected_machine_parameter` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 38 | `expected_machine_parameter_colon` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 39 | `expected_machine_parameter_type` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 40 | `expected_machine_parameter_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 41 | `expected_machine_return_type` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 42 | `expected_machine_return_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 43 | `expected_machine_body` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 44 | `expected_machine_body_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 45 | `expected_expression_path_member` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 46 | `expected_call_path_tail` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 47 | `expected_call_argument` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 48 | `expected_call_argument_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 49 | `expected_call_semicolon` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 50 | `expected_assignment_value` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 51 | `expected_assignment_semicolon` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 52 | `expected_static_argument` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 53 | `expected_static_argument_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 54 | `expected_static_call_open` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 55 | `expected_struct_literal_field_or_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 56 | `expected_struct_literal_field_colon` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 57 | `expected_struct_literal_value` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 58 | `expected_struct_literal_field_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 59 | `expected_state_name` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 60 | `expected_state_body` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 61 | `expected_transition_subject` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 62 | `expected_transition_arm` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 63 | `expected_transition_arrow` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 64 | `expected_transition_target` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 65 | `expected_transition_target_open` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 66 | `expected_transition_target_close` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 67 | `expected_satisfies_trait` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 68 | `expected_satisfies_requirement` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 69 | `expected_external_binding` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 70 | `expected_external_leaf_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 71 | `expected_reach_service` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 72 | `expected_termination_by` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 73 | `expected_termination_subject` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 74 | `expected_termination_arrow` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 75 | `expected_termination_view` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 76 | `expected_termination_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 77 | `expected_indexed_index` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 78 | `expected_indexed_range_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 79 | `expected_indexed_tail` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 80 | `expected_local_data_name` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 81 | `expected_local_data_colon` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 82 | `expected_local_data_type` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 83 | `expected_local_data_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 84 | `expected_local_data_initial_value` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 85 | `expected_cast_type` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 86 | `expected_cast_domain` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 87 | `expected_cast_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 88 | `expected_membership_domain` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 89 | `expected_membership_end` | 4 canonical source | first byte of the retained diagnostic span | zero/zero |
+| 1 `Reject` | 90 | `unresolved_call_target` | 4 canonical source | first byte of the call's unresolved target name | zero/zero |
+| 1 `Reject` | 91 | `call_arity_mismatch` | 4 canonical source | first byte of the refused call | zero/zero |
+| 1 `Reject` | 92 | `unresolved_state_target` | 4 canonical source | first byte of the transition's unresolved target name | zero/zero |
+| 1 `Reject` | 93 | `transition_arity_mismatch` | 4 canonical source | first byte of the refused transition row | zero/zero |
+| 1 `Reject` | 94 | `missing_state_terminal` | 4 canonical source | first byte of the state name; the machine declaration start for the generated entry state | zero/zero |
+| 1 `Reject` | 95 | `uncovered_transition_subject` | 4 canonical source | first byte of the transition block | zero/zero |
+| 1 `Reject` | 96 | `arithmetic_result_out_of_range` | 4 canonical source | first byte of the refused operator | zero/zero |
+| 1 `Reject` | 97 | `arithmetic_operand_out_of_domain` | 4 canonical source | first byte of the refused operator | zero/zero |
 | 3 `InternalFailure` | 1 | `invariant_violation` | 3 internal row | implementation-owned row identity | zero/zero |
 
 `Reject` outcomes carry zero limit and requested fields. `InternalFailure`
@@ -250,10 +335,35 @@ implementation-owned internal row, not a source or request offset. The lexical
 inventory above is complete: every lexical refusal names one of codes 2–9 at
 the first byte of its retained diagnostic span under canonical-source
 coordinates, and codes 10–12 name the declaration, entry, and literal
-refusals. The per-diagnostic `Reject` inventory for syntax and the remaining
-checking failures is assigned with the semantic phases over the decoded
-fields, since its coordinates depend on subject package/source-unit binding;
-diagnostics whose codes remain unassigned stay unpublished.
+refusals.
+
+Codes 13–89 are the syntax `Reject` inventory. Its distinction granularity is
+the expected grammar element: each code names the grammar-terminal element the
+input failed to supply — a language-level distinction any conforming parser
+produces, not an implementation's private parse state. Every syntax refusal
+names one of codes 13–89 at the first byte of the retained diagnostic span
+under canonical-source coordinates (source extent for a refusal at end of
+input). The row order groups grammar regions — path; data declaration; type
+syntax; machine declaration; expression and call; assignment and static call;
+struct literal; state and transition; clause and binding; termination;
+indexed expression; local data; cast and membership — it is not an enum-order
+re-encoding.
+
+Codes 90–97 are the remaining checking `Reject` codes: `unresolved_call_target`
+and `call_arity_mismatch` cover machine-call target resolution and argument
+count on both statement calls and terminal calls; `unresolved_state_target`
+and `transition_arity_mismatch` cover the same on transition rows;
+`missing_state_terminal` names a state body that cannot reach the machine's
+declared result; `uncovered_transition_subject` names a subjectful transition
+block whose folded subject matches no arm; `arithmetic_result_out_of_range`
+names a folded operator result unrepresentable in the declared carrier;
+`arithmetic_operand_out_of_domain` names an operand outside the operator's
+domain — a zero divisor or a shift count at or above the carrier width.
+Coordinates follow the selection rule below: declaration start for
+declaration failures, the refused name, call, transition row, or operator for
+these failures, source extent for EOF. Diagnostics beyond this inventory —
+refusals produced by semantic phases the decoded fields do not yet implement —
+stay unpublished until the table assigns them.
 
 Coordinate spaces:
 
@@ -330,6 +440,16 @@ capacity:
 | 12 | `tape_payload_bytes` | 16,777,212 | 2 emitted artifact | payload offset at refusal |
 | 13 | `tape_fixups` | 1,864,134 | 2 emitted artifact | instruction start of the refused fixup |
 | 14 | `tape_labels` | 16,777,212 | 2 emitted artifact | payload offset at allocation |
+| 15 | `coverage_source_forms` | 0 | 4 canonical source | first byte of the unretained source span; source extent at end of input |
+| 16 | `coverage_non_machine_roots` | 0 | 4 canonical source | first byte of the refused root declaration |
+| 17 | `coverage_machine_headers` | 0 | 4 canonical source | first byte of the refused machine declaration |
+| 18 | `coverage_entry_signatures` | 0 | 4 canonical source | first byte of the machine declaration |
+| 19 | `coverage_state_signatures` | 0 | 4 canonical source | first byte of the machine declaration |
+| 20 | `coverage_statement_forms` | 0 | 4 canonical source | first byte of the refused statement |
+| 21 | `coverage_call_forms` | 0 | 4 canonical source | first byte of the refused call |
+| 22 | `coverage_expression_forms` | 0 | 4 canonical source | first byte of the refused expression span |
+| 23 | `coverage_transition_forms` | 0 | 4 canonical source | first byte of the refused transition row |
+| 24 | `coverage_empty_subject` | 0 | 0 none | zero |
 
 The request-extent provisions bound the declared subject and invocation
 section lengths; both sit inside the fixed request header and are checked at
@@ -337,6 +457,20 @@ phase 1 after complete framing, before either section is interpreted. The
 parser capacities are private D budgets over its fixed tables, not Omega source
 limits. The tape capacities bound the emitted artifact's payload and
 relocation records; their coordinates are payload-relative byte offsets.
+Codes 15–24 are coverage provisions, not capacities: each names a
+valid-Omega construct family the current scalar slice does not implement.
+Their limit is 0 — the slice provisions no capacity for the family — and the
+requested amount is the refused occurrence count (one refused construct), or
+zero for `coverage_empty_subject`, which reports a subject with no compilable
+root declaration. `coverage_source_forms` names the parser's unretained source
+shapes; the remaining codes name retained-but-unimplemented checking coverage:
+non-machine roots, machine header forms, entry and authored-state signatures,
+non-call statement kinds, call shapes (receivers, `self`, static arguments),
+expression forms (unsupported operators and literal spellings), and
+transition forms (multi-arm subjectless blocks, non-`Always` subjectless
+guards, guard/subject class mismatches, post-block statements, and mixed
+subjects within a block).
+
 Resource names, limits, and coordinate rules in this table are the same for
 both implementations; a private capacity not yet represented here is added by
 extending the table, never by reusing another resource's code.
