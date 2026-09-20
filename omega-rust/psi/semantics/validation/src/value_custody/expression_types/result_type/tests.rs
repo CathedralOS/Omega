@@ -447,3 +447,21 @@ fn shared_exact_result_reference_preserves_its_predicates_at_join() {
         assert_eq!(query(&program, root), retained);
     }
 }
+
+#[test]
+fn machine_width_integer_arithmetic_keeps_its_carrier() {
+    let program = typed_source(
+        "machine run(flag: bool, count: UInt) -> u64 {
+            (match flag { true -> count + 1, false -> 2 }) as u64
+        }",
+    );
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let count = program.state_parameters(state)[1].type_reference;
+    let result = query(&program, declared_binary_arm(&program));
+    assert_eq!(
+        program.normalized_type_identity(result),
+        program.normalized_type_identity(count),
+        "UInt + literal keeps the machine-width carrier"
+    );
+}
