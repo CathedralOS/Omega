@@ -10209,7 +10209,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RUNTIME-SIZED-ACTIVATION-STORAGE** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT** — mined candidate; scope verified, residual owned — re-mines the activation-storage leg of the state-local value frontier (STATE-LOCAL-VALUE-FRONTIER lane, owner of indexed primitive storage/replacements). On `main`: runtime-extent `Buffer<count>` binders retain a runtime extent but the spec explicitly does NOT authorize runtime-sized inline stack storage (`dependent_values.md`), and scalar-array establishment has no abstract storage realization — `LoweringError::UnsupportedScalarArray` rejects `EstablishScalarArray` in `terminal-psi-to-abstract-operations/src/lowering` (audit-pinned by `scalar_array_without_structural_result_rejects`). No independent slice to carve: the contract's remaining work is the owned frontier's indexed-storage realization, not a separate admission. Sibling stubs: RUNTIME-SIZED-ACTIVATION-CONTRACT, RUNTIME-SIZED-ACTIVATION-STORAGE.
 - **RUST-COMPILER-RELEASE-RECORD** — mined candidate; verify scope then implement.
-- **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
+- **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved,
+  sibling alias of the settled CROSS-COMPILER-DIFFERENTIAL-LANE row
+  (scope verified at `36ffc8af87`, re-verified at `d32183a35c`), which
+  names this row verbatim: the lane is the Rust↔Omega-written
+  cross-check whose only entrypoint, `source/psi/test-parser.sh`, cannot
+  mint the artifact it drives while the Rust check of both the parser
+  gate and `source/omega/main.omg` stops at selected-dispatch service
+  custody — the recorded OMEGA-PRODUCT-COMPILER-SOURCE frontier. The
+  stop remains pinned at `9e3edc7be9`: `service_custody/root.rs` still
+  emits the "selected ProgramEntry establishment rejoins …; expected
+  one" diagnostics and
+  `compiler/tests/source_evaluated_native_realization/linux_dynamic_realization.rs`
+  still asserts the unattached-Service stop ("ProgramEntry establishment
+  rejoins 0 Terminal attachment identities"); `source/psi/test-parser.sh`
+  remains the lane's only driver. No second compiler can produce
+  artifacts yet, so no deeper lane harness can exist — the
+  omega0↔omega self-compile differential is separately tracked under
+  TASKS_BOOTSTRAP's OMEGA-C. No independent slice exists; unblocks when
+  OMEGA-PRODUCT-COMPILER-SOURCE clears the service-custody gate.
+  Sibling aliases (resolved): CROSS-COMPILER-DIFFERENTIAL,
+  CROSS-COMPILER-DIFFERENTIAL-LANE.
 - **RUST-PRODUCER-OMISSION** — mined candidate; scope verified at `8734480a01`, resolved — covered on both faces. The omission gate landed at `a3e094aea4`: `tools/rust_producer_omission.sh` pins the canonical bootstrap input set with `tools/rust_producer_omission.py --require omitted` over every `*.sources` closure manifest under `bootstrap/` and every `*.sh` step under `tools/bootstrap/` (both discovered, so new rungs are audited without edits; an empty set refuses rather than passing). Witnessed green on this host: "omitted (249 members, 932 steps, 0 findings)". The policy face is RUST-PRODUCER-RETENTION-POLICY's resolved row: Rust is a comparator, not bootstrap authority, and OFFLINE-REBUILD requires "no retired rung or undisclosed authority substitute". Sibling stubs on the same clauses: RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
 - **RUST-PRODUCER-RETENTION-POLICY** — mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
 - **RUST-PRODUCER-RETIREMENT-GATE** — mined candidate; verify scope then implement.
