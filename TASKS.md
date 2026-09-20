@@ -6487,7 +6487,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-ENVELOPE** — mined candidate; verify scope then implement.
-- **RC-PORTABLE-PSI-GATE** — mined candidate; verify scope then implement.
+- **RC-PORTABLE-PSI-GATE.** Resolved — re-mines the release-matrix gate
+  `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md): the gate
+  exists and passes. `compiler::canary_suite
+  portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary`
+  spawns producer/consumer child legs per RELOAD_CANARIES fixture — one
+  process publishes a source-free Terminal Psi envelope and exits, the
+  second reconstructs, verifies, and interprets it — plus truncated,
+  mutated, and trailing-byte refusal legs rejecting tampered envelopes.
+  Witnessed green on Linux x86-64 at `72125c7156` (32.7s, 1/1; test file
+  unchanged through `89157bca74`). Sibling
+  re-mines of the same row: RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
+  RC-PORTABLE-PSI-ENVELOPE, RC-PORTABLE-PSI-RELOAD. The gate is a matrix
+  row, not a standalone completion: the release contract still requires
+  all eight gates on one clean commit across the four required hosts, and
+  the test surface is owned by PORTABLE-TERMINAL-RELOAD work.
 - **RC-PORTABLE-PSI-RELOAD** — mined candidate; verify scope then implement.
   Verified scope: re-mines the completed **PORTABLE-TERMINAL-RELOAD** item
   (landed and row-removed at 8ae40607a3, 2026-09-20).
