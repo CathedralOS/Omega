@@ -10636,6 +10636,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **DUPLICATE-OVERLOAD-RESOLUTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.
   2026-09-20T21:52Z).
+- **DIVISION-VALUE-ENTRY-SELECTION.** Mined candidate; scope verified at
+  `d936717fd2d` — covered and fenced. The name re-mines
+  CANARY-EXACT-ENTRY-SELECTION's own text ("exact entry selection for
+  division/value canaries and entry binding"). The binding half is
+  landed: `e5912f303a` added `build.omg` ProgramEntry binds for all four
+  hosted targets to `operators/runtime_integer_division_value`, and
+  sibling DIVISION-CANARY-ENTRY-BINDING's audit confirms every rostered
+  native-execution division/value canary now carries binds. The
+  selection-exactness residual and the fixture paths are both live this
+  wave: PROGRAM-ENTRY-SELECTION-EXACTNESS (Devin / z175, 05:43Z) holds
+  the correctness lane, and DIVISION-CANARY-ENTRY-BINDING (Jarod /
+  swarm-w9-division-entry, 03:05Z) path-claims the division fixture
+  directories. No independent slice exists.
 - **DUPLICATE-NAMED-MACHINE-OVERLOAD** — mined candidate; verify scope then implement.
 - **DUPLICATE-OVERLOAD-RESOLUTION.** Resolved — the duplicate-overload
   resolution rule is landed and pinned. Re-verified at `bbcff399ed7`
