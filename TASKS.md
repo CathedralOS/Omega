@@ -795,23 +795,29 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   `build-evaluation/src/admission/{declarations,behavior_exclusions}.rs` and
   `native-realization/src/{native_product/realization,native_realization/behavior_exclusions,retained_native_product}.rs`.
 
-  Resume evidence (2026-09-20, Linux x86_64, base d05ec39a5d):
-  `cargo test -p compiler --test build_behavior_exclusions` passes 22/23 in
-  ~184s. Covered this round: the exercised-output rejection now runs under a
-  receiver permission policy AND under enabled optimizations
-  (SparseConditionalConstantPropagation + ControlFlowCleanup) on the
-  `macos_arm64` target; a silent `Console` provider composition admits under
-  `ProcessOutput` while swapping in `ConsoleNativeProvider` for the same
-  program rejects; a retained ProcessOutput exclusion replays against the
-  product through `realize_retained_native_artifact` and rejects with the
-  mechanism-closure diagnostic both with and without a receiver permission
-  policy, while a retained ProcessInput exclusion validates. Provider operands
-  use the package-scope spelling (`omega_language_std::ConsoleNativeProvider`,
-  `dep::Decl`); the pre-c103af89b0 unqualified form no longer resolves.
-  An earlier linux_x86_64 `_start` trampoline defect (quiet program emitted
-  `movabs rax,0; ret`, exit 139) was fixed upstream between d05ec39a5d and
-  15fa36812f6; `authored_physical_exclusion_publishes_and_runs_on_the_host`
-  runs green at the landing base.
+  Resume evidence (2026-09-20, Linux x86_64, base a51cb805cc1):
+  `cargo test -p compiler --test build_behavior_exclusions` passes 23/23 in
+  ~260s and `cargo test -p compiler --test behavior_exclusions` passes 7/7
+  in ~163s — every authored-exclusion leg recorded here is now green,
+  including the descriptor-parameter dispatch legs (resolved through
+  retained conformance applications by `492b96d5366`), the physical
+  provider/replay/custody controls (`b6de9e19006`), and the
+  published-and-executed assertion package exclusions (`4fd2e2ceb8f`).
+  Both product routes carry the canonical union to mechanism-closure
+  adjudication: the direct route resolves authored rows in
+  `native_product/realization.rs`, the retained route replays
+  `proposal.behavior_exclusions()` in `retained_native_product.rs`, and the
+  retained proposal's source-free `validate_for_artifact` re-runs the
+  exclusion walk so a substituted product rejects before realization.
+  Earlier rounds added: exercised-output rejection under a receiver
+  permission policy AND enabled optimizations (SCCP + ControlFlowCleanup)
+  on `macos_arm64`; silent `Console` provider admits under `ProcessOutput`
+  while `ConsoleNativeProvider` rejects; retained ProcessOutput exclusion
+  replays and rejects through `realize_retained_native_artifact` with and
+  without a receiver policy, while ProcessInput validates. Provider
+  operands use the package-scope spelling
+  (`omega_language_std::ConsoleNativeProvider`, `dep::Decl`); the
+  pre-c103af89b0 unqualified form no longer resolves.
 
   Next native control: `sink_composition_physical_exclusion_reaches_native_custody_frontier`
   in `build_behavior_exclusions.rs` is a committed sentinel — it compiles the
@@ -828,8 +834,16 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
 
   Remaining work:
   - Envelope custody through rebinding/replacement via COMPONENT-SUBSTRATE and
-    WIRE-RUNTIME-AND-INSTALLATION, and the image-emission and foreign-boundary
-    legs.
+    WIRE-RUNTIME-AND-INSTALLATION, and the image-emission leg.
+  - Foreign-boundary leg: the adjudication seam is pinned — a
+    `NormalizedForeign` mechanism leaf exercising an excluded class rejects
+    identically to an intrinsic leaf
+    (`a_foreign_mechanism_leaf_exercising_an_excluded_class_rejects` in
+    `native_realization/behavior_exclusions/tests.rs`). The end-to-end leg —
+    a real composition whose boundary requirement binds
+    `ProviderBinding::Import` and reaches the mechanism-closure review under
+    an exclusion — needs the source-evaluated import fixtures that live in
+    `compiler/tests` and `package-compilation`, outside this item's owners.
   - Runtime and installation legs on Windows/macOS hosts: this session ran on
     Linux x86_64, so those legs were not exercised; the windows_x86_64
     sentinel leg is compile-time selection only.
