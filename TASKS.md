@@ -10541,6 +10541,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Unrelated roster drift also observed: 6 unregistered fail fixtures under
   `tests/omega/fail` (roster.rs inventory check red at base).
 - **STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
+- **STARTUP-ENTRY-MECHANICS-OWNERSHIP.** Minted-name alias of the surface
+  already resolved by audit at `be03555d17` — see
+  ENTRY-MECHANICS-RUNTIME-CONSOLIDATION's settled row: entry/exit mechanics
+  sit under one owner, `backend/runtime/external-roots/src/root_entry`
+  (validation, admission, provider execution, progress-profile
+  installation, opaque-callback replacement), with `platform_bringup`
+  holding UEFI bootstrap; `program-entry-plan` is data-only and `_start`
+  resolution plus `entry_settlement` are emission detail in
+  `image-elf/src/entry_symbol.rs`, not a second mechanics site. Confirmed
+  at `5b3caaf337c`: the ownership layout is unchanged and
+  `cargo check -p external-roots` is clean (the interim
+  `ComponentEraJournalRoster` break at `2d8c5136cc9` was repaired by
+  `c64b8a2ad3`). Sibling alias rows: STARTUP-ENTRY-MECHANICS,
+  STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS,
+  BACKEND-RUNTIME-STARTUP-*. No independent ownership slice exists.
 - **STARTUP-ENTRY-PLACEHOLDER-SWEEP** — mined candidate; verify scope then implement.
 - **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; scope verified, covered — sibling alias (dispatched this wave as RUNTIME-STARTUP-ENTRY-MECHANICS) on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP surface recorded on the resolved ENTRY-MECHANICS-RUNTIME-CONSOLIDATION row (~TASKS.md:7467, audit at `be03555d17`): entry/exit mechanics sit under one owner, `omega-rust/omega/backend/runtime/external-roots/src/root_entry/` (root_validation, root_admission, provider_execution, progress_profile_installation, opaque_callback_replacement) plus `platform_bringup` for UEFI bootstrap; the runtime leg was settled by BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS — free Unit entries emit process adapters and ELF `e_entry` round-trips through final-image validation (`image-emission/src/hosted_unit_entry.rs:107-149` pins the exact Linux x86-64/ARM64 adapter selection). Re-verified at `9e3edc7be9a` on linux x86-64: `root_entry/` module layout and the `e_entry` settlement pin unchanged. No independent slice exists here. Sibling aliases: STARTUP-ENTRY-MECHANICS, STARTUP-ENTRY-PLACEHOLDER-SWEEP, BACKEND-RUNTIME-STARTUP-MECHANICS, BACKEND-STARTUP-ENTRY-MECHANICS.
 - **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
