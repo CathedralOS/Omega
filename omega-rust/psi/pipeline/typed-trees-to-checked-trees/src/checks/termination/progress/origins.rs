@@ -1181,8 +1181,11 @@ fn shared_bound_operand_root_symbols_agree(
             ExpressionNode::Name(path) => {
                 // `path.symbol` names the root on a single-member spelling;
                 // on a dotted path it may name the leaf instead.
-                let single_member =
-                    program.expression_table.name_path_members(path.members).len() == 1;
+                let single_member = program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1;
                 return [Some(path.head_symbol), single_member.then_some(path.symbol)]
                     .into_iter()
                     .flatten()

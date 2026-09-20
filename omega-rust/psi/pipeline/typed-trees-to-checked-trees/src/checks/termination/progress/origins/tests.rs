@@ -1071,7 +1071,10 @@ fn call_result_argument_derives_the_exact_entry_subject() {
 #[test]
 fn indexed_carrier_argument_demands_the_leaf_referent() {
     for (argument, expected) in [
-        ("boxes[0].view.scheduler", ("context", &[("Context", "scheduler")][..])),
+        (
+            "boxes[0].view.scheduler",
+            ("context", &[("Context", "scheduler")][..]),
+        ),
         (
             "boxes[1].view.scheduler",
             (
