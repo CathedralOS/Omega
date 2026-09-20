@@ -6004,9 +6004,17 @@ Platform/cross-host (structurally gated — document host limits):
   seed too (previously only the host-selected seed was bound), PE32+/Mach-O
   structure, entry in executable code, required loader imports/code signature,
   and the recorded hole offset equal to the tape section's raw extent on
-  pristine, stamped, and cross-stamped copies. Seed execution still requires
-  the native host: macOS arm64 is covered by the conformance gates, Windows
-  x64 by ALPHA-WINDOWS-CONFORMANCE-HOST.
+  pristine, stamped, and cross-stamped copies. Seed execution now covers
+  Linux x86-64 too: `seed_env.sh` binds and selects `alpha_x64_linux`
+  (ELF64, hole offset 12288) under `ALPHA_SEED_EXECUTABLE`, and every
+  seed-executing gate reads the shared `require_seed_execution_host` instead
+  of a stale uname copy, so `tests/bootstrap/alpha-beta-edge.sh` VERIFIES on
+  Linux (conformance 34/34, bounds 78/78, Beta reconstruction + word prefix
+  byte-exact). Remaining: the Windows x64 host leg stays with
+  ALPHA-WINDOWS-CONFORMANCE-HOST, and `tests/bootstrap/omega-request` showed
+  a canonical-OCREQ observation divergence on Linux x86-64 (received
+  `020146850800` vs the pinned frame) to isolate — the receipt stage was
+  byte-identical, so the fault is in the composed evaluator run.
 - **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows
   host. The edge gate's provenance leg now runs the committed forge
   (`tools/bootstrap/alpha/forge.py --check`) on any Python-3 host, including

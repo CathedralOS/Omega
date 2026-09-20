@@ -34,11 +34,7 @@ if [ "$ENCODING_GATE" = "full_subject.py" ] || [ "${MUTATION_MODE:-}" = "--self-
     require_gamma_evaluator_identity
     exec python3 -B "$GATE_DIR/$ENCODING_GATE" ${MUTATION_MODE:-}
 fi
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Beta encoding theory: unsupported host; needs macOS arm64 or Windows x64" >&2
-       exit 2 ;;
-esac
+require_seed_execution_host "Beta encoding theory"
 
 ENCODING_TMP=$(mktemp -d)
 trap 'rm -rf -- "$ENCODING_TMP"' EXIT HUP INT TERM
