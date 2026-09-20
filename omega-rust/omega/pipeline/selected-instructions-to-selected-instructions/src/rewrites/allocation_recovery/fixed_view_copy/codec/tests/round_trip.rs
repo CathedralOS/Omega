@@ -119,6 +119,7 @@ fn artifact_round_trips_every_policy_and_full_transformed_custody() {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
         FixedViewCopyPolicy::ImmediateBeforeFixedUseV1,
+        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
     ] {
         let plan = plan(policy);
         let decoded = FixedViewCopyPlan::decode(&plan.encode()).unwrap();

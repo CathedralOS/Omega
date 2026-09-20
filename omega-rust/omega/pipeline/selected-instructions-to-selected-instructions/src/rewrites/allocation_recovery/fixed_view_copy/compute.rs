@@ -2,8 +2,8 @@
 
 mod apply;
 mod preflight;
-mod shared_entry;
 mod site;
+mod source_exit;
 
 use std::collections::BTreeSet;
 
@@ -29,12 +29,9 @@ use crate::{
     ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges, VirtualFixedConstraintSite,
 };
 
-use apply::{apply_copy, is_u64};
-use preflight::{
-    copy_row, find_leaf_block, next_instruction_id, next_register_id, validate_roots, work_usage,
-};
-use shared_entry::build_shared_entry_copy;
+use preflight::{copy_row, next_instruction_id, next_register_id, validate_roots, work_usage};
 use site::build_site_copies;
+use source_exit::build_source_exit_copies;
 
 pub(crate) fn compute_terminal_fixed_view_copies(
     selected: &ValidatedSelectedInstructions,
@@ -85,24 +82,22 @@ pub(crate) fn compute_terminal_fixed_view_copies(
             .collect::<Vec<_>>();
         let next_instruction = next_instruction_id(function_index, source_function)?;
         let next_register = next_register_id(function_index, source_function)?;
-        if policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 {
-            if let Some(copy) = build_shared_entry_copy(
+        if matches!(
+            policy,
+            FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1
+                | FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1
+        ) {
+            copies.extend(build_source_exit_copies(
                 function_index,
                 source_function,
                 &boundaries,
+                &mut transformed.functions[function_index],
                 copy_row,
                 selected_keys.copy_i64,
+                policy,
                 next_instruction,
                 next_register,
-            )? {
-                apply_copy(
-                    function_index,
-                    &mut transformed.functions[function_index],
-                    &copy,
-                    copy_row,
-                )?;
-                copies.push(copy);
-            }
+            )?);
             continue;
         }
         let leaf_local = policy == FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1;

@@ -1,7 +1,6 @@
-use super::apply::replay_apply;
 use super::leaf_destination::terminator;
-use super::shared_entry::replay_shared_entry_copy;
 use super::site::replay_site_copies;
+use super::source_exit::replay_source_exit_copies;
 
 use register_model::{RegisterInstructionConstraint, TargetRegisterEnvironmentConstraintKeys};
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
@@ -69,19 +68,22 @@ pub(super) fn replay_transformation(
                     function: function_index,
                 }
             })?;
-        if policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 {
-            if let Some(copy) = replay_shared_entry_copy(
+        if matches!(
+            policy,
+            FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1
+                | FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1
+        ) {
+            expected.extend(replay_source_exit_copies(
                 function_index,
                 source_function,
                 &function_boundaries,
+                output_function,
                 row,
                 keys.copy_i64,
+                policy,
                 next_instruction,
                 next_register,
-            )? {
-                replay_apply(function_index, output_function, &copy, row)?;
-                expected.push(copy);
-            }
+            )?);
             continue;
         }
         let leaf_local = policy == FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1;

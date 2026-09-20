@@ -21,6 +21,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => 0,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => 1,
         FixedViewCopyPolicy::ImmediateBeforeFixedUseV1 => 2,
+        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1 => 3,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());

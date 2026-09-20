@@ -32,8 +32,9 @@ impl FixedViewCopyIdentity {
 pub enum FixedViewCopyPolicy {
     /// One copy immediately before each fixed leaf use.
     LeafLocalBeforeFixedUseV1,
-    /// One flag-transparent copy after the entry compare and immediately
-    /// before its conditional branch, shared by both return leaves.
+    /// The declared recovery selection: the shared-exit leg under its
+    /// entry-parameter admission gate — one copy at each shared source
+    /// segment end — refusing any boundary the partition cannot share.
     SharedEntryAfterCompareBeforeBranchV1,
     /// One copy in the fixed-use site's own block immediately before the
     /// instruction, for any operand `Use` site of a source-scalar `u64`
@@ -41,6 +42,12 @@ pub enum FixedViewCopyPolicy {
     /// or leaf, and the boundary's source may be any pinned view of the
     /// register, not only its live-in.
     ImmediateBeforeFixedUseV1,
+    /// Boundaries leaving one source segment end through connectors out of a
+    /// single block's terminator share one copy inserted there — the point
+    /// dominating every member site — while any other boundary keeps a copy
+    /// at its own fixed-use site. Origin admission matches the immediate
+    /// form.
+    SharedSourceExitBeforeFixedUseV1,
 }
 
 /// Authenticated authority used to discover the exact fixed-view boundaries

@@ -5,8 +5,8 @@
 //! admitted recovery rule takes `assignment::recovery`; otherwise legality is
 //! staged and the direct assignment either succeeds into `assignment::baseline`
 //! homes, splits authenticated entry-fixed-view transitions through the
-//! leaf-local fixed/precolored sequence in `assignment::recovery`, or, on
-//! `NoCompatibleHome` pressure, enters `assignment::runtime_spill`.
+//! shared-source-exit fixed/precolored sequence in `assignment::recovery`, or,
+//! on `NoCompatibleHome` pressure, enters `assignment::runtime_spill`.
 //! A declared fixed-view rule whose segment-home probe reports a capacity
 //! decline — segment pressure or front-end work-budget exhaustion — hands
 //! the still-owned legality to `assignment::runtime_spill` before the
@@ -83,10 +83,11 @@ pub fn stage_register_allocation(
         Ok(homes) => homes,
         Err(crate::RegisterHomeError::UnresolvedEntryTransitions { .. }) => {
             // The transitions recorded in legality are exactly the boundaries
-            // the leaf-local fixed-view policy admits; residual pressure after
-            // the copies hands custody to runtime spill inside that sequence.
-            // Any other failure class keeps the direct-assignment surface
-            // below.
+            // the shared-source-exit leg admits — a fan-out of fixed-use
+            // sites leaving one segment end shares one dominating copy; the
+            // rest copy at their sites. Residual pressure after the copies
+            // hands custody to runtime spill inside that sequence. Any other
+            // failure class keeps the direct-assignment surface below.
             return stage_leaf_local_fixed_view_register_allocation_composing(legality);
         }
         Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => {

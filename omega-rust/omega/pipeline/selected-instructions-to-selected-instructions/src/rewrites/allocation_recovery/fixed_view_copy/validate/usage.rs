@@ -1,8 +1,6 @@
 use optimization_core::OptimizationWorkUsage;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use std::collections::BTreeSet;
-
 use crate::{FixedViewCopyError, FixedViewCopyPolicy};
 
 pub(super) fn replay_usage(
@@ -17,13 +15,19 @@ pub(super) fn replay_usage(
     let commits = match policy {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
         | FixedViewCopyPolicy::ImmediateBeforeFixedUseV1 => requirements,
-        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => boundaries
-            .iter()
-            .map(|boundary| boundary.function)
-            .collect::<BTreeSet<_>>()
-            .len()
-            .try_into()
-            .map_err(|_| FixedViewCopyError::WorkOverflow)?,
+        // The shared-exit legs commit one copy per emission the boundary
+        // partition produces — the same partition production commits.
+        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1
+        | FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1 => {
+            let references = boundaries.iter().collect::<Vec<_>>();
+            u64::try_from(
+                crate::rewrites::allocation_recovery::fixed_view_copy::emission::copy_emissions(
+                    &references,
+                )
+                .len(),
+            )
+            .map_err(|_| FixedViewCopyError::WorkOverflow)?
+        }
     };
     Ok(OptimizationWorkUsage {
         rule_evaluations: functions,

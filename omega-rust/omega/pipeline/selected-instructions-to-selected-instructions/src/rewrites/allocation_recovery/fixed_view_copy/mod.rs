@@ -14,6 +14,7 @@ use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 pub(crate) mod codec;
 pub(crate) mod compute;
+mod emission;
 mod evidence;
 pub(crate) mod identity;
 pub(crate) mod model;

@@ -173,7 +173,7 @@ fn leaf_local_default_path_sequence_retains_and_publishes() {
         let copy_custody = homes.custody().source().source();
         assert_eq!(
             copy_custody.policy(),
-            FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
+            FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1
         );
         assert_eq!(copy_custody.copy_count(), 0);
         let retained = RetainedAllocation::try_from(build()).unwrap();

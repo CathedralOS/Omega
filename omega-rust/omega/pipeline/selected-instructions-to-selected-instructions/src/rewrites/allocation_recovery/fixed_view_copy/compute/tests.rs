@@ -1,10 +1,12 @@
 //! Focused fixed-view-copy computation fixtures.
-use super::{FixedViewCopy, FixedViewCopyError, apply_copy, build_shared_entry_copy};
+use super::apply::apply_copy;
+use super::source_exit::build_source_exit_copies;
 use super::{
-    IntegerSign, RegisterInstructionConstraint, RegisterOperandAccess, ScalarType,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualFixedConstraintSite,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    FixedViewCopy, FixedViewCopyError, FixedViewCopyPolicy, IntegerSign,
+    RegisterInstructionConstraint, RegisterOperandAccess, ScalarType, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
+    SelectedTerminator, VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 
 use crate::{
@@ -247,6 +249,54 @@ pub(crate) fn fixture() -> (
     (function, legality, row)
 }
 
+/// Run the shared-exit builder over a fixture under `policy`, discarding the
+/// transformed function.
+pub(crate) fn source_exit_copies(
+    function: &SelectedFunction,
+    references: &[&super::super::evidence::AuthenticatedFixedViewBoundary],
+    row: &RegisterInstructionConstraint,
+    policy: FixedViewCopyPolicy,
+    next_instruction: u32,
+    next_register: u32,
+) -> Result<Vec<FixedViewCopy>, FixedViewCopyError> {
+    let mut transformed = function.clone();
+    build_source_exit_copies(
+        0,
+        function,
+        references,
+        &mut transformed,
+        row,
+        row.key,
+        policy,
+        next_instruction,
+        next_register,
+    )
+}
+
+/// Same driver, returning the transformed function alongside the copies.
+pub(crate) fn source_exit_copies_transformed(
+    function: &SelectedFunction,
+    references: &[&super::super::evidence::AuthenticatedFixedViewBoundary],
+    row: &RegisterInstructionConstraint,
+    policy: FixedViewCopyPolicy,
+    next_instruction: u32,
+    next_register: u32,
+) -> Result<(Vec<FixedViewCopy>, SelectedFunction), FixedViewCopyError> {
+    let mut transformed = function.clone();
+    build_source_exit_copies(
+        0,
+        function,
+        references,
+        &mut transformed,
+        row,
+        row.key,
+        policy,
+        next_instruction,
+        next_register,
+    )
+    .map(|copies| (copies, transformed))
+}
+
 pub(crate) fn computed_shared_fixture() -> (
     SelectedFunction,
     FunctionAllocationLegality,
@@ -257,12 +307,16 @@ pub(crate) fn computed_shared_fixture() -> (
     let (function, legality, row) = fixture();
     let boundaries = boundaries(&legality);
     let references = boundaries.iter().collect::<Vec<_>>();
-    let copy = build_shared_entry_copy(0, &function, &references, &row, row.key, 4, 2)
-        .unwrap()
-        .unwrap();
-    let mut transformed = function.clone();
-    apply_copy(0, &mut transformed, &copy, &row).unwrap();
-    (function, legality, row, copy, transformed)
+    let (mut copies, transformed) = source_exit_copies_transformed(
+        &function,
+        &references,
+        &row,
+        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+        4,
+        2,
+    )
+    .unwrap();
+    (function, legality, row, copies.remove(0), transformed)
 }
 
 pub(crate) fn boundaries(
@@ -302,8 +356,10 @@ pub(crate) fn boundaries(
 }
 
 #[test]
-fn shared_entry_policy_inserts_one_copy_after_compare_and_rewrites_both_returns() {
+fn shared_entry_policy_inserts_one_copy_at_the_source_exit_and_rewrites_both_returns() {
     let (_, _, _, copy, transformed) = computed_shared_fixture();
+    // The member connectors exit the entry block's branch, so the single
+    // copy lands at the end of that block and dominates both leaf sites.
     assert_eq!(copy.insertion_block, SelectedBlockId(0));
     assert_eq!(copy.before_instruction, SelectedInstructionId(1));
     assert_eq!(copy.destinations.len(), 2);
@@ -324,8 +380,11 @@ fn shared_entry_policy_inserts_one_copy_after_compare_and_rewrites_both_returns(
     }
 }
 
+/// The shared-exit leg places the copy by connector evidence, not by the
+/// entry block's shape: a longer entry instruction list no longer refuses,
+/// and the copy still lands before the shared branch terminator.
 #[test]
-fn shared_entry_policy_rejects_noncanonical_compare_copy_branch_shape() {
+fn shared_entry_policy_no_longer_templates_the_entry_block_shape() {
     let (mut function, legality, row) = fixture();
     function.blocks[0].instructions.push(instruction(
         4,
@@ -334,55 +393,205 @@ fn shared_entry_policy_rejects_noncanonical_compare_copy_branch_shape() {
     ));
     let boundaries = boundaries(&legality);
     let references = boundaries.iter().collect::<Vec<_>>();
-    assert!(matches!(
-        build_shared_entry_copy(0, &function, &references, &row, row.key, 5, 2),
-        Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
-    ));
+    let (copies, transformed) = source_exit_copies_transformed(
+        &function,
+        &references,
+        &row,
+        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+        5,
+        2,
+    )
+    .unwrap();
+    assert_eq!(copies.len(), 1);
+    assert_eq!(copies[0].insertion_block, SelectedBlockId(0));
+    assert_eq!(copies[0].before_instruction, SelectedInstructionId(1));
+    assert_eq!(transformed.blocks[0].instructions.len(), 3);
+    assert_eq!(
+        transformed.blocks[0].instructions[2].kind,
+        SelectedInstructionKind::CopyI64
+    );
 }
 
 /// Two derivations over the identical boundary set produce the identical
-/// copy and transformed function; the shared-copy admission window is
-/// exactly the two boundaries covering both branch successors — an empty
-/// set admits no copy while one or three refuse — and the transformed
-/// function is itself terminal: its entry block no longer presents the
-/// canonical compare-only shape, so re-admission refuses a second copy.
+/// copy and transformed function; the declared selection refuses any
+/// boundary the partition cannot share — an empty set emits nothing while a
+/// lone boundary or a member dropped to a site copy refuses — and the
+/// transformed function is terminal: its rewritten site operands no longer
+/// read the source register, so re-admission cannot reconstruct the copy.
 #[test]
 fn shared_entry_copy_is_deterministic_bounded_and_terminal() {
     let (function, legality, row) = fixture();
     let boundaries = boundaries(&legality);
     let references = boundaries.iter().collect::<Vec<_>>();
-    let first = build_shared_entry_copy(0, &function, &references, &row, row.key, 4, 2)
-        .unwrap()
-        .unwrap();
-    let second = build_shared_entry_copy(0, &function, &references, &row, row.key, 4, 2)
-        .unwrap()
-        .unwrap();
+    let declared = FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1;
+    let first = source_exit_copies(&function, &references, &row, declared, 4, 2).unwrap();
+    let second = source_exit_copies(&function, &references, &row, declared, 4, 2).unwrap();
     assert_eq!(first, second);
     let mut transformed_a = function.clone();
-    apply_copy(0, &mut transformed_a, &first, &row).unwrap();
+    apply_copy(0, &mut transformed_a, &first[0], &row).unwrap();
     let mut transformed_b = function.clone();
-    apply_copy(0, &mut transformed_b, &second, &row).unwrap();
+    apply_copy(0, &mut transformed_b, &second[0], &row).unwrap();
     assert_eq!(transformed_a, transformed_b);
-    // Fixed point: the published transformed function is a legal input to
-    // the rule core, and its rewritten entry block admits no second copy.
+    // Fixed point: the member sites were rewritten onto the copy result, so
+    // the same boundary set can no longer find the source register at them.
     assert_eq!(
-        build_shared_entry_copy(0, &transformed_a, &references, &row, row.key, 5, 3),
+        source_exit_copies(&transformed_a, &references, &row, declared, 5, 3),
+        Err(FixedViewCopyError::MissingDestination {
+            function: 0,
+            instruction: 2
+        })
+    );
+    // No boundaries emit no copies; a lone boundary cannot share.
+    assert!(
+        source_exit_copies(&function, &[], &row, declared, 4, 2)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        source_exit_copies(&function, &[references[0]], &row, declared, 4, 2),
         Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
     );
-    // The boundary-count window is exactly two — one per branch successor.
+    // A repeated member site is not a canonical destination set.
+    let duplicated = [references[0], references[1], references[0]];
     assert_eq!(
-        build_shared_entry_copy(0, &function, &[], &row, row.key, 4, 2),
-        Ok(None)
+        source_exit_copies(&function, &duplicated, &row, declared, 4, 2),
+        Err(FixedViewCopyError::NonCanonicalCopies)
     );
-    for narrowed in [
-        vec![references[0]],
-        vec![references[0], references[1], references[0]],
-    ] {
+}
+
+/// The default-path leg emits the same dominating copy over the canonical
+/// fan-out — one copy at the shared exit instead of one per fixed use.
+#[test]
+fn shared_source_exit_policy_shares_one_copy_across_the_fan_out() {
+    let (function, legality, row) = fixture();
+    let boundaries = boundaries(&legality);
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let (copies, transformed) = source_exit_copies_transformed(
+        &function,
+        &references,
+        &row,
+        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+        4,
+        2,
+    )
+    .unwrap();
+    assert_eq!(copies.len(), 1);
+    let copy = &copies[0];
+    assert_eq!(copy.insertion_block, SelectedBlockId(0));
+    assert_eq!(copy.before_instruction, SelectedInstructionId(1));
+    assert_eq!(
+        copy.destinations
+            .iter()
+            .map(|destination| destination.block)
+            .collect::<Vec<_>>(),
+        vec![SelectedBlockId(1), SelectedBlockId(2)]
+    );
+    for leaf in &transformed.blocks[1..] {
+        let SelectedTerminator::Return { instruction, .. } = &leaf.terminator else {
+            panic!()
+        };
         assert_eq!(
-            build_shared_entry_copy(0, &function, &narrowed, &row, row.key, 4, 2),
-            Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 }),
+            instruction.operands[0].virtual_register,
+            VirtualRegisterId(2)
         );
     }
+}
+
+/// A boundary whose fragment entered without connector evidence cannot
+/// share the exit: the default leg falls back to a copy in each site's own
+/// block while the declared selection refuses.
+#[test]
+fn unconnected_boundaries_fall_back_to_site_copies_or_refuse_under_the_declared_leg() {
+    let (function, legality, row) = fixture();
+    let mut boundaries = boundaries(&legality);
+    boundaries[0].incoming = None;
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let (copies, transformed) = source_exit_copies_transformed(
+        &function,
+        &references,
+        &row,
+        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+        4,
+        2,
+    )
+    .unwrap();
+    assert_eq!(copies.len(), 2);
+    assert_eq!(copies[0].insertion_block, SelectedBlockId(1));
+    assert_eq!(copies[0].before_instruction, SelectedInstructionId(2));
+    assert_eq!(copies[1].insertion_block, SelectedBlockId(2));
+    assert_eq!(copies[1].before_instruction, SelectedInstructionId(3));
+    for (leaf, copy) in transformed.blocks[1..].iter().zip(&copies) {
+        assert_eq!(leaf.instructions.len(), 1);
+        assert_eq!(leaf.instructions[0].kind, SelectedInstructionKind::CopyI64);
+        let SelectedTerminator::Return { instruction, .. } = &leaf.terminator else {
+            panic!("leaf still returns")
+        };
+        assert_eq!(
+            instruction.operands[0].virtual_register,
+            copy.result_virtual_register
+        );
+    }
+    assert_eq!(
+        source_exit_copies(
+            &function,
+            &references,
+            &row,
+            FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+            4,
+            2,
+        ),
+        Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
+    );
+}
+
+/// The default leg keeps the immediate form's origin admission: an
+/// instruction-result source with mid-block sites admits — under the
+/// declared selection the same unsharable boundary set refuses first.
+#[test]
+fn shared_source_exit_policy_admits_any_scalar_origin_like_the_immediate_form() {
+    let (function, boundaries, row) = immediate_fixture();
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let (copies, transformed) = source_exit_copies_transformed(
+        &function,
+        &references,
+        &row,
+        FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+        5,
+        1,
+    )
+    .unwrap();
+    assert_eq!(copies.len(), 3);
+    assert_eq!(
+        copies
+            .iter()
+            .map(|copy| copy.before_instruction)
+            .collect::<Vec<_>>(),
+        vec![
+            SelectedInstructionId(1),
+            SelectedInstructionId(2),
+            SelectedInstructionId(4)
+        ]
+    );
+    let block0 = &transformed.blocks[0];
+    assert_eq!(
+        block0.instructions[2].operands[0].virtual_register,
+        VirtualRegisterId(1)
+    );
+    assert_eq!(
+        block0.instructions[4].operands[0].virtual_register,
+        VirtualRegisterId(2)
+    );
+    assert_eq!(
+        source_exit_copies(
+            &function,
+            &references,
+            &row,
+            FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
+            5,
+            1,
+        ),
+        Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
+    );
 }
 
 /// An instruction-result register consumed at three incompatible fixed-use
