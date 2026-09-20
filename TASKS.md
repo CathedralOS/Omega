@@ -5627,7 +5627,18 @@ validation scope.
 
 Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 
-- **BASELINE-T2C-INDEXED-OPERAND-ACCESS.** `indexed_operand_access_preserves_shared_collection_and_owned_index` — `shared_collection_elements` adapts only slice shells; `Buffer` place vs `items: &Buffer` operand mismatch. Implement the settled attached-receiver indexing rule.
+- **BASELINE-T2C-INDEXED-OPERAND-ACCESS.** Resolved — superseded on
+  `origin/main`. `7ec7ee32e8` routes indexed operand zero through the
+  attached-receiver loan (`receiver_self_match` in
+  `typed_trees/declarations/operator/indexing.rs`), so
+  `machine [] Buffer::index(&self, ..)` admits a `Buffer` place exactly as
+  `buffer.at(index)` borrows it, and `b845a7afd7` retains the
+  explicit-parameter control (`ordinary_first_parameter_gains_no_receiver_adaptation`
+  pins an ordinary `items: &Buffer` first parameter as unresolved at
+  `buffer[index]`). Verified: `cargo nextest run -p
+  typed-trees-to-checked-trees --lib borrowed_observations` — 8/8 green on
+  linux x86-64 at `d05ec39a5d`. The stale `known_baseline_failures.md` row
+  remains fenced to the wave's doc owner.
 - **BASELINE-VERIFIER-DIGEST-LEDGER.** Resolved — the original drift (twelve digest rows + unregistered `strict_layer.rs`) was already re-recorded on `origin/main` (`d1179e17f6`, `34dc42ee99`, `309b2c5873`). The live residual after `8e2756c5b9` was a stale `proof-admission/src/lib.rs` digest (cited by `formation:module-structure`; revalidated — the diff only declares/re-exports `classicality`, i.e. module structure) plus new file `proof-admission/src/classicality.rs` unregistered under the trusted root; both fixed in `trusted_surface/sites.rs` (digest updated, new `ImplementationSite` with sha256 `6315f5f7…`). `terminal-verifier` trusted_surface suite 9/9 green on linux x86-64 (cargo nextest).
 - **BASELINE-VERIFIER-ZERO-BYTE-ARRAY-FENCE.** Zero-length fixed byte array: decide whether the type-table fence or presentation rejects; fixture pins the type table (`InvalidStructuralArrayLength`).
 - **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` sees `EdgeAffineDiscardsInvalid` instead of `InvalidStructuralSuccessorArgument` — restore the documented consume-before-cleanup order.
