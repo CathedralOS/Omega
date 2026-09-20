@@ -9482,7 +9482,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **REPLACEMENT-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
 - **REPOSITORY-BASELINE-GATE** — mined candidate; verify scope then implement.
 - **REPRESENTATION-OWNERSHIP** — mined candidate; scope verified, coverage recorded — the stub re-mines the same-named real item on the optimizer board (`TASKS_OPTIMIZER.md`), which owns the `omega-rust/{omega,psi}/representations/` ownership finish. Both stage-ancestry legs are landed there: staged types expose `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`/`ranges`/`legality` directly with per-crate pins (`selected_stages_read_current_data_not_producer_ancestry`, `register_home_stages_read_current_data_not_producer_ancestry`; resolved sibling RO-STAGE-ANCESTRY-ELIMINATION re-verified 2/2 green at 39e156c73a), and `representations/optimization-unit` settled at 11eaa140cb. The only residual on that item is the durable-codec relocation (`post_allocation_manifest/codec`, `rewrites/allocation_recovery/fixed_view_copy/codec`, `optimized_semantic_wrapper_object/codec`), shared with DURABLE-CODEC-RELOCATION — the board's own row, not this stub's slice. Row stays a pointer to the optimizer item; no leg remains here. Re-verified at a1daf35f2e: the optimizer item and its stage-ancestry annotations are current, the per-crate ancestry pins exist (`tests/architecture/representation_ownership.rs:1080`/`:1118` plus the `selected_optimization_stages` extension at `stage_crate_ownership.rs:354`), and all three residual codec sites remain where the row places them (`post_allocation_manifest/codec.rs`, `fixed_view_copy/codec/`, `optimized_semantic_wrapper_object/codec.rs`).
-- **REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE** — mined candidate; verify scope then implement.
+- **REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE.** Resolved — scope verified
+  2026-09-20 (z150): a named sibling re-mine of BUILD-DIR-ALIAS-RACE-DETECTION's
+  race-window residual (which lists this row among its re-mine names). The
+  request-level slice the name suggests is closed by construction: at the CLI
+  boundary the `--build-dir` spelling never reaches `filesystem_scope`'s
+  `ensure_write_roots` overlap fence — on the packaged route the scope's
+  `source_root` is the compiler-minted captured snapshot (unpredictable to the
+  requester), and on the non-package route there is no build machine at all, so
+  `filesystem_reachable` is never true. Witnessed on Linux x86-64 at
+  `d8041919ad`: a filesystem-facet-reaching `builder.application` fixture,
+  locked via `update --offline`, compiles `omega --offline --target
+  linux_x86_64 --build-dir . main.omg` green and publishes into the project
+  root — the publication target is the caller's own choice and sits outside the
+  captured-source custody fence by design. The genuine residual the cluster
+  names (an alias planted between `overlap_key` and the first write) is owned
+  in-fence by siblings: `filesystem_scope.rs` (BUILD-DIRECTORY-ALIAS-COLLISION,
+  23:07Z), `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION,
+  22:28Z), `build-output` (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z),
+  request/options admission (BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION,
+  22:14Z). No independent slice exists on this row.
 - **RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the retained-artifact leg is `CompileReport::publish_retained_native_artifact` in `compilation-report/src/compile_report.rs`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, and self-checks a requested PCC pair pre-install before `executable_publication.rs` commits one staged tree + atomic rename — a failed publish leaves no half-written executable or stale sidecar. Witnessed green at `ea025447fe`: `cargo nextest run -p compilation-report executable_publication` 15/15 and the compiler `activation_identifiers_and_publication` suite 15/15. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-OPERATION, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
 - **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH.** Mined candidate; scope verified
   at `d8041919ad`, owned — names the residual the evidence README already
