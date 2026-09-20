@@ -290,6 +290,26 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
     }
 }
 
+/// Every `.omg` source under a packaged canary root, including member sources
+/// in subdirectories such as `platform/`, except the build declaration itself.
+fn collect_canary_member_sources(root: &Path, sources: &mut Vec<PathBuf>) {
+    let mut entries = fs::read_dir(root)
+        .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|error| panic!("read canary entry in {}: {error}", root.display()));
+    entries.sort_by_key(fs::DirEntry::path);
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_canary_member_sources(&path, sources);
+        } else if path.extension().is_some_and(|extension| extension == "omg")
+            && path.file_name().is_some_and(|name| name != "build.omg")
+        {
+            sources.push(path);
+        }
+    }
+}
+
 fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
     let projection = extract_build_dependency_projection(root).unwrap_or_else(|error| {
         panic!(
@@ -307,12 +327,9 @@ fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
         root.display()
     );
 
-    for source in fs::read_dir(root)
-        .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
-        .map(|entry| entry.expect("read canary source entry").path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
-        .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
-    {
+    let mut sources = Vec::new();
+    collect_canary_member_sources(root, &mut sources);
+    for source in sources {
         let contents = fs::read_to_string(&source)
             .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
         assert!(
@@ -320,11 +337,13 @@ fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
             "packaged canary {} retains a bundled std import",
             source.display()
         );
-        assert!(
-            contents.contains("omega_language_std"),
-            "packaged canary {} does not use its dependency alias",
-            source.display()
-        );
+        if source.parent() == Some(root) {
+            assert!(
+                contents.contains("omega_language_std"),
+                "packaged canary {} does not use its dependency alias",
+                source.display()
+            );
+        }
     }
 }
 
@@ -364,12 +383,9 @@ fn assert_mixed_canary_category_standard_library_edges(
     let mut standard_library_consumers = 0;
     for root in roots {
         let mut uses_dependency_alias = false;
-        for source in fs::read_dir(&root)
-            .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
-            .map(|entry| entry.expect("read canary source entry").path())
-            .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
-            .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
-        {
+        let mut sources = Vec::new();
+        collect_canary_member_sources(&root, &mut sources);
+        for source in sources {
             let contents = fs::read_to_string(&source)
                 .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
             assert!(
