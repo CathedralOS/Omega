@@ -7753,7 +7753,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-ARM64.** Recorded at
+  `wiki/drafts/rc_native_matrix_linux_arm64.md` (revision 6ef64f6dd6,
+  x86-64 host + named emulator `qemu-aarch64-static`
+  1:6.2+dfsg-2ubuntu6.31 for the execution leg): 14 pass / 11 fail across
+  25 counted legs. The hosted aarch64 receiver compiles and emits its ELF
+  everywhere (3/3 cross-emit, 2/2 source-evaluated) and `cli_mvp`
+  cross-compiled and ran to exit 0 under qemu-user — the row's first
+  recorded aarch64 execution. All failures are the `aarch64_entry_abi`
+  fixture families: exact-arithmetic `u64` obligation (5),
+  borrowed-storage result transfer (3), and the param/result-carrying
+  entry-selection residual owned by ENTRY-CONTENT-ROOTS (3). Closure
+  needs a real `aarch64-unknown-linux-gnu` re-run — the suite's
+  `#[cfg]`-gated runtime legs skip under emulation.
 - **RC-NATIVE-MATRIX-LINUX-X64.** Mined candidate — resolved as an alias
   of RC-NATIVE-MATRIX-LINUX-X86-64: `x64` and `x86_64` name the same
   host leg, and that row is already recorded at
