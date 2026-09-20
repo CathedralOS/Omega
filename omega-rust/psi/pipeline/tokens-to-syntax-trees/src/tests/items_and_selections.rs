@@ -813,7 +813,7 @@ fn root_binding_statement_rejects_malformed_operands() {
         "Slot",
         "Slot,",
         "Slot, Entry, Extra",
-        "Slot, 12",
+        "12, Entry",
         "Slot::, Entry",
     ] {
         let source =
@@ -825,6 +825,37 @@ fn root_binding_statement_rejects_malformed_operands() {
             parse_syntax_trees(&tokens).is_err(),
             "accepted operands: {operands}"
         );
+    }
+}
+
+#[test]
+fn root_binding_statement_retains_computed_operands_without_a_declaration_path() {
+    // Result type and compiler issuance are checked after parsing; neither a
+    // call nor a literal should be manufactured into a declaration spelling.
+    for operand in ["setup::retain(entry)", "12"] {
+        let source = format!(
+            "machine build(builder: &mut Build) {{ builder.roots.bind(Slot, {operand}); }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().expect("root binding tokens");
+        let parsed = parse_syntax_trees(&tokens).expect("description expression syntax");
+        let machine = parsed
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Machine(machine) => Some(machine),
+                _ => None,
+            })
+            .expect("build machine");
+        let state = parsed
+            .items
+            .state(parsed.items.state_handles(machine.states)[0]);
+        let StatementNode::RootBinding(binding) = parsed
+            .statements
+            .statement(parsed.items.statements(state.statements)[0])
+        else {
+            panic!("expected root binding");
+        };
+        assert!(binding.implementation.is_empty());
+        assert!(binding.implementation_operand.is_valid());
     }
 }
 

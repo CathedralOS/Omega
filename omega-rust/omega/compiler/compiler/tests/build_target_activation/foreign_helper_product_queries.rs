@@ -735,6 +735,18 @@ fn inline_description_match_subject_establishes_aggregate_field_domains() {
 
 #[test]
 fn delegated_root_binding_requires_a_product_entry_ref_operand() {
+    let errors = inline_description_checked("", "", "12")
+        .map(|_| ())
+        .expect_err("parsing a value expression does not make it a product description");
+    assert!(
+        errors.iter().any(|error| {
+            error
+                .message
+                .contains("not a compiler-issued product entry description")
+                || error.message.contains("ProductEntryRef")
+        }),
+        "{errors:?}"
+    );
     // A typed-but-undescribed local cannot mint selection authority: it is not
     // a compiler-issued description, so the bind refuses it. Build evaluation
     // runs before checked authored selections finalize, so the refusal is the
