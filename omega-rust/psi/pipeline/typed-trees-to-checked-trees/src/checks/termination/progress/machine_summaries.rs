@@ -400,6 +400,17 @@ pub(crate) fn call_argument_subject_with_parameters(
             call_frames,
         )?
     };
+    // A demanded operand spelled through a reference leaf names the
+    // referent's storage, not the carrier's: resolve the leaf so the premise
+    // surface never sees the index selectors it cannot carry.
+    let place = origins::call_argument_boundary_place(
+        program,
+        machine,
+        state_flow,
+        call.statement_index,
+        place,
+        call_frames,
+    )?;
     subject_from_place(place.root, &place.segments)
 }
 

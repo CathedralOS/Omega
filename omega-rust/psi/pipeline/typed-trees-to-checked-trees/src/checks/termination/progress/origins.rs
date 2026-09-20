@@ -112,6 +112,37 @@ pub(super) fn call_argument_place(
     )
 }
 
+/// The demanded place a premise-bearing argument names before the premise
+/// surface extracts a subject. A spelled operand through a reference leaf —
+/// an indexed carrier's element, a bound view — names the same storage as
+/// the referent the leaf's latest store supplied, so the boundary scan
+/// rebases it here with the same bound the subject query uses. Anything the
+/// scan cannot prove keeps the literal place, which the field-only premise
+/// surface then refuses the way it refuses an index selector.
+pub(super) fn call_argument_boundary_place(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &FlowStateFact,
+    bound: usize,
+    place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<CanonicalPlace> {
+    let mut owned_frames = None;
+    let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    let resolve = |state: &FlowStateFact,
+                   statement_index: usize,
+                   call: &TableCallExpression,
+                   relative: &[PlaceSegment]| {
+        call_result_value_place(program, frames, state, statement_index, call, relative, 16)
+    };
+    Some(
+        reference_boundary_before_statement(
+            program, frames, machine, state, bound, &place, &resolve,
+        )
+        .unwrap_or(place),
+    )
+}
+
 /// Where the argument expressions a checked helper call binds live: inside
 /// the caller's own statement stream at the retained call row, or inside a
 /// proven callee's transition-free prefix while the proof recurses through
