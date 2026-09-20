@@ -191,6 +191,86 @@ fn targeted_call_argument(
 }
 
 #[test]
+fn literal_projection_retains_initializer_time_values_through_composition() {
+    for body in [
+        "let values: [u64; 2] = [0, input]; sink(values[1])",
+        "let values: [[u64; 2]; 1] = [[0, input]]; let alias: [[u64; 2]; 1] = values; let unrelated: u64 = 7; sink(alias[0][1])",
+        "let mut value: u64 = input; let values: [u64; 2] = [0, value]; value = 0; sink(values[1])",
+        "let values: [Cell; 1] = [Cell { value: input }]; sink(values[0].value)",
+        "let table: Table = Table { values: [0, input] }; sink(table.values[1])",
+    ] {
+        let program = typed_program(&format!(
+            "data Cell {{ value: u64 }} data Table {{ values: [u64; 2] }}
+             machine sink(value: u64) -> u64 {{ value }}
+             machine forward(input: u64) -> u64 {{ {body} }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "forward")
+            .unwrap();
+        let state = program.machine_states(machine)[0].symbol;
+        let (ordinal, argument) = first_call_argument(&program, machine.symbol, state);
+        assert_eq!(
+            entry_operand(&program, machine.symbol, state, ordinal, argument),
+            Some(CrashPredicateExpression::Parameter(0)),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn literal_projection_does_not_replay_mutated_or_dynamic_storage() {
+    for body in [
+        "let mut values: [u64; 2] = [0, input]; values[1] = 0; sink(values[1])",
+        "let mut values: [u64; 2] = [0, input]; corrupt(&mut values); sink(values[1])",
+        "let values: [u64; 2] = [0, input]; sink(values[input])",
+        "let values: [u64; 2] = [0, input]; sink(values[(255 as u8 in Wrapping) + 2u8])",
+    ] {
+        let program = typed_program(&format!(
+            "machine sink(value: u64) -> u64 {{ value }}
+             machine corrupt(values: &mut [u64; 2]) {{ values[1] = 0; }}
+             machine forward(input: u64) -> u64 {{ {body} }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "forward")
+            .unwrap();
+        let state = program.machine_states(machine)[0].symbol;
+        let (ordinal, argument) = targeted_call_argument(&program, machine.symbol, state, "sink");
+        assert_eq!(
+            entry_operand(&program, machine.symbol, state, ordinal, argument),
+            None,
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn literal_projection_does_not_replace_authored_indexing() {
+    let program = typed_program(
+        "data Indexing {}
+         operator [] Indexing::index(items: &[u64], position: u64) -> u64;
+         machine sink(value: u64) -> u64 { value }
+         machine forward(input: u64) -> u64 {
+             let values: [u64; 2] = [0, input]; sink(values[1u64])
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .unwrap();
+    let state = program.machine_states(machine)[0].symbol;
+    let (ordinal, argument) = first_call_argument(&program, machine.symbol, state);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, state, ordinal, argument),
+        None
+    );
+}
+
+#[test]
 fn integer_widening_preserves_entry_value_across_policies_and_composition() {
     for (source, target, argument) in [
         ("u8", "u64", "input as u64"),

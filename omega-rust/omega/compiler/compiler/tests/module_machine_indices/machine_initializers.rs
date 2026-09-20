@@ -404,6 +404,74 @@ fn constant_helper_conversion_does_not_hide_a_reachable_trap() {
 }
 
 #[test]
+fn indexed_constant_helper_discharge_reaches_source_free_execution() {
+    for body in [
+        "let values: [u64; 2] = [0, value]; divide(values[1])",
+        "let values: [[u64; 2]; 1] = [[0, value]];
+         let alias: [[u64; 2]; 1] = values;
+         let unrelated: u64 = 7;
+         divide(alias[0][1])",
+    ] {
+        let tree = Sources::new();
+        let root = tree.package("root");
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "machine divide(value: u64) -> u64
+             crashes Trap value == 0
+             {{ transition {{ value != 0 -> 10 / value }} crash Trap; }}
+             machine forward(value: u64) -> u64 {{ {body} }}
+             const SIZE: u64 = forward(2);
+             machine read() -> u64 {{ SIZE }}"
+            ),
+        );
+        assert_native_constant_after_source_removal(tree, root);
+    }
+}
+
+#[test]
+fn indexed_constant_helper_keeps_zero_and_mutated_values_rejected() {
+    for (body, actual) in [
+        ("let values: [u64; 2] = [0, value]; divide(values[1])", "0"),
+        ("let values: [u64; 2] = [0, value]; divide(values[0])", "2"),
+        (
+            "let mut values: [u64; 2] = [0, value]; values[1] = 0; divide(values[1])",
+            "2",
+        ),
+        (
+            "let values: [u64; 2] = [divide(0), value]; divide(values[1])",
+            "2",
+        ),
+    ] {
+        let tree = Sources::new();
+        let root = tree.package("root");
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "machine divide(value: u64) -> u64
+             crashes Trap value == 0
+             {{ transition {{ value != 0 -> 10 / value }} crash Trap; }}
+             machine forward(value: u64) -> u64 {{ {body} }}
+             const SIZE: u64 = forward({actual});
+             machine read() -> u64 {{ SIZE }}"
+            ),
+        );
+        let diagnostics = compiler::compile_to_checked(compiler::CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..compiler::CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect_err("projection cannot discharge a real or unproven crash");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("constant invocation")
+                    && diagnostic.message.contains("unhandled [Trap]")
+            }),
+            "{body} at {actual}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn widened_constant_helper_keeps_the_operands_arithmetic_width() {
     let tree = Sources::new();
     let root = tree.package("root");
@@ -441,6 +509,10 @@ fn widened_constant_helper_executes_natively_after_source_removal() {
         root.join("main.omg"),
         "use settings; machine read() -> u64 { settings::VALUE }",
     );
+    assert_native_constant_after_source_removal(tree, root);
+}
+
+fn assert_native_constant_after_source_removal(tree: Sources, root: std::path::PathBuf) {
     let checked = compile(&root, root_inputs(&root));
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
         .produce_artifact()
