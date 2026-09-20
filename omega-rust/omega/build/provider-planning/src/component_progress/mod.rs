@@ -257,7 +257,7 @@ fn exact_boundary_requirement(
                 .map(|requirement| {
                     (
                         program.symbols.symbol_package_identity(owner.symbol),
-                        owner.name.as_str().to_owned(),
+                        program.trait_declaration_path(owner),
                         program.symbols.symbol_package_identity(requirement.symbol),
                         program
                             .normalized_trait_requirement_overload_identity(owner, requirement)

@@ -48,12 +48,12 @@ pub fn evaluate_compatibility_boundary_entry_plan(
     dispatch_only_parameter_count: usize,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<Option<BoundaryEntryPlan>, String> {
-    let trait_leaf = trait_name.rsplit("::").next().unwrap_or(trait_name);
     let trait_candidates = typed
         .traits()
         .iter()
         .filter(|definition| {
-            definition.name.as_str().rsplit("::").next() == Some(trait_leaf)
+            typed.trait_declaration_path(definition) == trait_name
+                && crate::service_schema::is_product_declaration(typed, definition.symbol)
                 && typed.symbols.symbol_package_identity(definition.symbol)
                     == trait_package_identity
         })
@@ -77,7 +77,8 @@ pub fn evaluate_compatibility_boundary_entry_plan(
         .iter()
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && requirement.name.as_str() == trait_name
+                && crate::service_schema::is_product_declaration(typed, requirement.symbol)
+                && typed.symbols.display_path(requirement.symbol, "::") == trait_name
                 && typed.symbols.symbol_package_identity(requirement.symbol)
                     == trait_package_identity
         })

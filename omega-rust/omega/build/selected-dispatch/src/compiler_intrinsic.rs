@@ -705,9 +705,12 @@ fn boundary_row_shape(
             methods.len(),
         )));
     };
-    if plan.schema.trait_name != definition.name.as_str()
-        || method.name != requirement_name
-        || method.requirement_owner != definition.name.as_str()
+    if !provider_planning::service_schema::schema_binds_exact_boundary_trait(
+        typed,
+        &plan.schema,
+        definition,
+    ) || method.name != requirement_name
+        || method.requirement_owner != typed.trait_declaration_path(definition)
         || method.requirement_identity != requirement_identity
         || row.requirement_identity != requirement_identity
         || !exact_console_signature(typed, requirement, requirement_name, trait_symbol, shape)

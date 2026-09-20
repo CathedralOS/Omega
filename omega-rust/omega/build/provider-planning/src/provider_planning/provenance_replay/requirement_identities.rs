@@ -313,12 +313,12 @@ pub(crate) fn external_provider_binding(
     }
 }
 
-pub(crate) fn realization_machine_identity(typed: &TypedTrees, machine_name: &str) -> String {
+pub(crate) fn realization_machine_identity(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> String {
     typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == machine_name)
-        .and_then(|machine| typed.normalized_machine_overload_identity(machine))
+        .normalized_machine_overload_identity(machine)
         .map(|identity| identity.identity())
         .unwrap_or_default()
 }

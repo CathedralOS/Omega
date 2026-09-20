@@ -1,6 +1,6 @@
 //! Resolve installation-bound reach from exact selected realizations.
 
-use super::satisfied_requirement_identity;
+use super::provenance_replay::exact_satisfied_requirement_identity;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 
 /// A selected row whose realization still reaches through unresolved
@@ -132,14 +132,13 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                         .machine_trait_conformances(machine)
                         .iter()
                         .any(|conformance| {
-                            conformance.requirement.as_ref().is_some_and(|name| {
-                                satisfied_requirement_identity(
+                            conformance.requirement.is_some() && {
+                                exact_satisfied_requirement_identity(
                                     &checked.typed,
-                                    machine.name.as_str(),
-                                    conformance.name.as_str(),
-                                    name.as_str(),
+                                    conformance.symbol,
+                                    conformance.requirement_symbol,
                                 ) == row.requirement_identity
-                            })
+                            }
                         })
                 })
                 .collect::<Vec<_>>();

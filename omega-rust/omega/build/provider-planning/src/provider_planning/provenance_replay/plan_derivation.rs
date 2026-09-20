@@ -1,5 +1,11 @@
 //! Deriving satisfies plans, top-level requirement plans and boundary
 //! operator plans with their provenance.
+//!
+//! Provider spelling is the existing Terminal catalog projection, not a
+//! substitute for declaration custody. Keep the exact provider symbol in
+//! grouping/provenance and the normalized callable identity on every row.
+//! Migrating the spelling requires changing Terminal candidate emission and
+//! selection together; changing this producer alone breaks installation.
 
 use crate::provider_planning::operator_provider_evidence::{
     provider_type_package_identity, provider_type_symbol,
@@ -92,7 +98,7 @@ pub(crate) fn derive_provider_plans(
                                 .as_ref()
                                 .map(|name| name.as_str())
                                 .unwrap_or_default(),
-                            &realization_machine_identity(typed, machine.name.as_str()),
+                            &realization_machine_identity(typed, machine),
                         );
                         (binding, None)
                     }
@@ -166,6 +172,7 @@ pub(crate) fn derive_provider_plans(
                                 == provider_type_package_identity
                             && derived.plan.origin_package_identity == origin_package_identity
                             && derived.provenance.schema == schema_declaration
+                            && derived.provenance.provider_type == provider_type_symbol
                     })
                     .unwrap_or_else(|| {
                         plans.push(DerivedProviderPlan {
@@ -326,7 +333,7 @@ fn derive_top_level_requirement_plans(
                     external_provider_binding(
                         binding,
                         &provider_type,
-                        &realization_machine_identity(typed, machine.name.as_str()),
+                        &realization_machine_identity(typed, machine),
                     )
                 }
                 (
@@ -356,6 +363,7 @@ fn derive_top_level_requirement_plans(
                         && derived.plan.origin_package_identity == origin_package_identity
                         && derived.provenance.schema
                             == ProviderSchemaDeclaration::BoundaryRequirement(requirement.symbol)
+                        && derived.provenance.provider_type == Some(provider_type_symbol)
                 })
                 .unwrap_or_else(|| {
                     plans.push(DerivedProviderPlan {
@@ -444,7 +452,7 @@ fn provider_plan_schema_targets(
                 .then(|| {
                     (
                         ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-                        definition.name.as_str().to_owned(),
+                        schema.trait_name.clone(),
                         schema,
                     )
                 })
@@ -472,7 +480,7 @@ fn provider_plan_schema_targets(
                 |schema| {
                     (
                         ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-                        definition.name.as_str().to_owned(),
+                        schema.trait_name.clone(),
                         schema,
                     )
                 },
@@ -581,6 +589,7 @@ fn derive_boundary_operator_plans(
                         && derived.plan.origin_package_identity == origin_package_identity
                         && derived.provenance.schema
                             == ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
+                        && derived.provenance.provider_type == provider_type_symbol
                 })
                 .unwrap_or_else(|| {
                     plans.push(DerivedProviderPlan {
