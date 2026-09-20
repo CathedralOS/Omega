@@ -189,30 +189,71 @@ fail-canary fragments, and umbrella membership are all consistent.
 
 ## checked-trees-to-lowered-psi
 
-`cargo test -p checked-trees-to-lowered-psi --test unit_scalar_result_source
-ordered_boolean_call_computations_preserve_normal_guarantees` fails at
-00d0f9c15f on 2026-09-16 (Linux x86-64) and identically at 51f21bb168:
-`boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees`
-returns `OperationProofUnavailable(ObligationId(9223372036854775809))` at
-`tests/unit_scalar_result_source/boundary_wrappers.rs:41`. The source has no
-floating ranges; reconstruction fails inside `src/proofs/operation_proofs.rs`
-for an obligation issued on the `machine_calls` call path, an area under live
-borrow-proof work.
-
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
-9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
-macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed, of
-which the row above is one. The failing names group as boundary byte
-buffers, scalar-return pure source custody, the ordered-boolean guarantees
-above, crash-member byte entries, provider attachment and results, and one
-attached-unit borrowed-self case; rerun the command for the exact set rather
-than trusting this count, which moved from 25 to 20 within a day as other
-lanes landed. With the
-`validation/affine_cleanup/continuation.rs` repair recorded in the
-terminal-verifier section it is 1999 passed, 24 failed: that repair also
-restores `unit_state_graph::bindings::structural_successors_reject_missing_and_surplus_arguments`,
-which asserts the arity diagnostic from the producer side. The other 24 are
-not attributed here.
+bd6cddcb59 (2026-09-20, Linux x86-64): 2146 tests in 2 binaries — 2088
+passed, 57 named failures, and one test that never completes:
+`nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+ran past 1020 s without producing a verdict (the suite has no per-test
+timeout in `.config/nextest.toml`, so a non-converging lowerer blocks the
+binary rather than reporting a failure; the convergence assert is in
+`tests/nominal_affine_source/integer_comparison.rs`, file last touched by
+294b6cfbf4's erased-formal proof-term lane on 2026-09-19). The 57 named
+failures cluster as:
+
+- `Service<R>` carrier migration (33): fixtures declare bare
+  boundary-trait fields in value position (`console: Console`,
+  `runtime: TaskRuntime`, `output: Output`) and fail source checking with
+  "names bare boundary trait `X` in value position; the intrinsic
+  `Service<R>` carrier is the only service value spelling" — the gate
+  added by 32f5182254 (2026-09-20). Covers `tests::composed_operand_catalogs`
+  (16), `tests::dynamic_composed_unit` (9), `tests::structural_control_cases`
+  (2), `tests::attached_unit_cases`, `tests::composed_unit_nested_control`,
+  `tests::indexed_primitive_storage` (1 each), and the `suite`
+  `unit_plan_omissions` trio. Repair is fixture migration to `Service<R>`
+  spellings (**SERVICE-CARRIER-FIXTURE-MIGRATION** /
+  **BASELINE-SERVICE-CARRIER-FAILURES**); note the inline harnesses
+  (`resolve(ResolutionRequest::new(&syntax))`) load no core library, so a
+  plain `Service<Console>` respell currently reports "unknown generic type
+  `Service`" — the migration also needs core-import resolution in the
+  fixture harness or a project-level compile route.
+- Attached-Unit transitive machine plan (16): `suite`
+  `unit_state_graph::provider_attachments` (9), `provider_attachment_source`
+  (6), and `guarded_scalar_returns_source` (1) panic on
+  `InvalidUnitMachinePlan` — "attached Unit closure is missing a checked
+  transitive machine plan ... has no admitted body (local construction
+  stopped at state graph / signature: attached data shape)". These
+  fixtures spell providers as `&'s mut Console` borrows, pass source
+  checking (verified: they do not emit the `Service<R>` diagnostic; a
+  `Service<Console>` respell of `provider_attachment_source` still fails
+  at the same plan gate), and are rejected at Unit-plan admission — a
+  distinct gate from the value-position check above, in the same
+  provider-carrier family (omission reporting landed in e62ba1737a,
+  2026-09-16; provider `Service<R>` admission in f705cbdb51, 2026-09-19).
+- Crash predicate scalar namespace (3): `exact_affine_sibling_source`,
+  `exact_shift_left_certificate_source`, `mixed_shift_source` fail with
+  `Unsupported("crash predicate value position is outside the selected
+  scalar namespace")` — crash-route lowering family;
+  **LOWERED-PSI-BASELINE-TAIL** claims `src/proofs/crash_routes*`.
+- Owned record return custody (4): `owned_record_return_source` —
+  "composed Unit scalar call requires structural call custody",
+  `Option::unwrap` on `None`
+  (`source_replay_rejects_return_parameter_and_carrier_substitution`),
+  `Record: changed return transfer 0`, and an ordered-structural-result
+  expectation. Not bisected; custody/return lanes.
+- Callback registration qualification (1):
+  `registered_callback_lifetime::interpreted_register_unregister_round_trip_drives_the_ledger`
+  — "cannot establish call-result qualification `Registration::Live`".
+  Not bisected.
+
+Resolved since the previous reading (9d0d864656, 2026-09-18): the named
+row `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees`
+(`OperationProofUnavailable(ObligationId(9223372036854775809))` on the
+`machine_calls` path, first recorded at 00d0f9c15f on 2026-09-16) passes
+at bd6cddcb59 — the operation-proof reconstruction lane repaired it. The
+boundary byte buffer, scalar-return pure source custody, and crash-member
+byte entries groups from that reading no longer appear in the failure
+set; the current set is dominated by the two provider-carrier clusters
+above, which postdate it.
 
 ## compiler build-target activation
 
