@@ -100,13 +100,15 @@ pub(crate) fn validate(
             .map_err(|reason| super::failure(reference, reason))?;
             continue;
         }
-        if !retained_call && !authored_call {
+        let has_calls = retained_call || authored_call;
+        if !has_calls && !contains_floating_component(typed, declaration.declared_type) {
             continue;
         }
         if !typed
             .expression_table
             .expression_is_valid(declaration.authored_initializer)
-            || declaration.authored_initializer == declaration.materialized_initializer
+            || (has_calls
+                && declaration.authored_initializer == declaration.materialized_initializer)
             || typed
                 .expression_table
                 .source_span(declaration.authored_initializer)
@@ -118,10 +120,10 @@ pub(crate) fn validate(
         {
             return Err(super::failure(
                 reference,
-                "retained call declaration lost its distinct source-owned initializer roots",
+                "retained declaration lost its source-owned initializer roots",
             ));
         }
-        replay_declarations.push(declaration);
+        let first_leaf = leaves.len();
         let identity = CanonicalConstIdentity {
             type_name: String::new(),
             encoding: declaration
@@ -134,7 +136,7 @@ pub(crate) fn validate(
                     )
                 })?,
         };
-        let expected = identity.decode_encoding().ok_or_else(|| {
+        let expected = identity.decode_declaration_encoding().ok_or_else(|| {
             super::failure(
                 declaration.initializer_source_span,
                 "retained invocation has invalid canonical result",
@@ -154,6 +156,17 @@ pub(crate) fn validate(
             &mut leaves,
         )
         .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+        // Empty literal aggregates have their complete shape checked by pair,
+        // but supply no scalar computation to probe. Call-produced aggregates
+        // still supply a structured leaf, even when their result is empty.
+        if leaves.len() != first_leaf {
+            replay_declarations.push(declaration);
+        } else if has_calls {
+            return Err(super::failure(
+                reference,
+                "retained call declaration has no replayable leaf",
+            ));
+        }
     }
     if leaves.is_empty() {
         return Ok(());
@@ -238,16 +251,15 @@ pub(crate) fn validate(
         let result = (|| {
             let calls = checked.calls_for_symbol(original_owner)?;
             if let Some(destination) =
-                crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+                crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                     program,
                     leaf.destination,
                 )
             {
-                let original = calls.evaluate(leaf.original, destination)?.0;
-                let materialized = calls.evaluate(leaf.materialized, destination)?.0;
-                if original.decode_encoding().as_ref() != Some(&leaf.expected)
-                    || materialized.decode_encoding().as_ref() != Some(&leaf.expected)
-                {
+                let original = decode_scalar(calls.evaluate_scalar(leaf.original, destination)?.0)?;
+                let materialized =
+                    decode_scalar(calls.evaluate_scalar(leaf.materialized, destination)?.0)?;
+                if original != leaf.expected || materialized != leaf.expected {
                     return Err(
                         "retained constant invocation, materialized value, or canonical result drifted"
                             .to_owned(),
@@ -280,6 +292,49 @@ pub(crate) fn validate(
         })?;
     }
     Ok(())
+}
+
+/// The declared type, not a receipt tag, decides whether floating replay is
+/// required. Otherwise changing a float receipt to an integer receipt could
+/// suppress its check. Literal-only tables owe the same bit/format comparison
+/// as copied or computed tables; unrelated legacy declarations keep their route.
+fn contains_floating_component(program: &TypedTrees, root: TypeReferenceHandle) -> bool {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(reference) = pending.pop() {
+        if visited.contains(&reference) {
+            continue;
+        }
+        visited.push(reference);
+        if float_destination(program, reference).is_some() {
+            return true;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::FixedArray { element_type, .. } => pending.push(*element_type),
+            TypeReferenceNode::Named { symbol, .. } => {
+                if let Some(definition) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.symbol == *symbol)
+                {
+                    for member in program.data_members(definition) {
+                        match member {
+                            DataMember::Field(field) => pending.push(field.type_reference),
+                            DataMember::Variant(variant) => pending.extend(
+                                program
+                                    .data_payload_fields(variant)
+                                    .iter()
+                                    .map(|field| field.type_reference),
+                            ),
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn validate_authored_custody(
@@ -667,10 +722,10 @@ fn validate_dependency_values(
                 .clone()
                 .ok_or("constant dependency lost its canonical value")?,
         }
-        .decode_encoding()
+        .decode_declaration_encoding()
         .ok_or("constant dependency has an invalid canonical value")?;
         if let Some(destination) =
-            crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+            crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                 program,
                 declaration.declared_type,
             )
@@ -715,15 +770,12 @@ fn validate_dependency_values(
                 dependency_leaf_value(program, leaf.materialized)?
             } else {
                 let destination =
-                    crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+                    crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                         program,
                         leaf.destination,
                     )
                     .ok_or("constant dependency lost its exact scalar destination")?;
-                evaluate(leaf.materialized, destination)?
-                    .into_index()?
-                    .decode_encoding()
-                    .ok_or("constant dependency has an invalid scalar value")?
+                decode_scalar(evaluate(leaf.materialized, destination)?)?
             };
             if actual != leaf.expected {
                 return Err(
@@ -771,7 +823,7 @@ fn dependency_leaf_value(
                     .clone()
                     .ok_or("constant dependency lost its canonical value")?,
             }
-            .decode_encoding()
+            .decode_declaration_encoding()
             .ok_or_else(|| "constant dependency has an invalid canonical value".to_owned())
         }
         symbols::SymbolKind::Variant => {
@@ -806,13 +858,27 @@ fn pair(
         return Err("retained initializer lost its exact authored/materialized roots".into());
     }
     if let Some(destination) =
-        crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+        crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
             program,
             leaf.destination,
         )
     {
         match (&leaf.expected, destination) {
             (DecodedCanonicalConstValue::Boolean(_), PrimitiveType::Bool) => {}
+            (
+                DecodedCanonicalConstValue::Float {
+                    format: numerics::literals::FloatFormat::F32,
+                    ..
+                },
+                PrimitiveType::F32,
+            )
+            | (
+                DecodedCanonicalConstValue::Float {
+                    format: numerics::literals::FloatFormat::F64,
+                    ..
+                },
+                PrimitiveType::F64,
+            ) => {}
             (DecodedCanonicalConstValue::Integer { type_name, .. }, primitive)
                 if type_name == primitive.name() => {}
             _ => {
@@ -821,6 +887,29 @@ fn pair(
                 );
             }
         }
+        leaves.push(leaf);
+        return Ok(());
+    }
+    // Substitution retains the selected declaration's child origins; whole-value
+    // materialization gives its generated children the use-site span. Those are
+    // not paired authored tokens. Replay each aggregate snapshot as a whole,
+    // after the ordinary custody check rejoins the exact selected declaration.
+    let copied_aggregate = leaf.original != leaf.materialized && matches!(
+        leaf.expected,
+        DecodedCanonicalConstValue::Array { .. }
+            | DecodedCanonicalConstValue::Record { .. }
+            | DecodedCanonicalConstValue::Variant { .. }
+    ) && table.authored_selection_occurrences(leaf.original).any(|occurrence| {
+        program.authored_declaration_selections().get(occurrence).is_some_and(|selection| {
+            let language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected) = selection.target() else {
+                return false;
+            };
+            selection.source_span() == table.source_span(leaf.original)
+                && program.symbols.get(selected.selected_symbol()).kind == symbols::SymbolKind::Const
+        })
+    });
+    if copied_aggregate {
+        leaf.structured = true;
         leaves.push(leaf);
         return Ok(());
     }
@@ -842,7 +931,9 @@ fn pair(
             },
             DecodedCanonicalConstValue::Array { values, type_name },
         ) => {
-            if type_name != &program.display_type_reference(leaf.destination)
+            // Receipt labels name the selected declaration; diagnostic display
+            // may instead retain its module-qualified lookup spelling.
+            if type_name != &super::materialize::type_label(program, leaf.destination)?
                 || original.len() != *length
                 || materialized.len() != *length
             {
@@ -1023,3 +1114,14 @@ fn pair(
 #[cfg(test)]
 #[path = "tests/noncall_float_replay.rs"]
 mod noncall_float_replay;
+
+fn decode_scalar(
+    value: crate::const_evaluation::const_generic_expressions::value::ScalarValue,
+) -> Result<DecodedCanonicalConstValue, String> {
+    CanonicalConstIdentity {
+        type_name: String::new(),
+        encoding: value.encoding(),
+    }
+    .decode_declaration_encoding()
+    .ok_or_else(|| "constant declaration has an invalid scalar value".to_owned())
+}

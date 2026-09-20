@@ -4,6 +4,7 @@
 mod computed_leaves_and_replays;
 mod concrete_invocations_and_initializers;
 mod dependencies_and_aggregates;
+mod floating_aggregates;
 mod generic_application_carriers;
 mod generic_invocations;
 

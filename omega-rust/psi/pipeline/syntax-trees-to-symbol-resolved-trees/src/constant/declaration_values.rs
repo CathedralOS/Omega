@@ -102,54 +102,13 @@ pub(super) fn validate_nominal_destinations(
     Ok(())
 }
 
-/// Public declaration identity includes floating scalars with determined bits, independently
+/// Public declaration identity includes floating components with determined bits, independently
 /// of the narrower structural values eligible for generic and domain indices.
 pub(crate) fn public_declaration_value_encoding(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
 ) -> Result<String, String> {
-    use numerics::literals::FloatLiteral;
-    use syntax_trees::{expression::ExpressionNode, types::TypeReferenceNode};
-
-    if let TypeReferenceNode::Named(carrier) = syntax
-        .type_references
-        .type_reference(definition.type_reference)
-        && matches!(carrier.as_str(), "f32" | "f64")
-    {
-        validate_scalar_initializer(syntax, definition)?;
-        let literal = match syntax.expressions.expression(definition.value) {
-            ExpressionNode::Float(text) => FloatLiteral::parse(text.as_str()),
-            ExpressionNode::Integer(integer) => integer
-                .value_bignum()
-                .and_then(|value| FloatLiteral::parse(&value.to_string())),
-            _ => None,
-        }
-        .ok_or("floating declaration identity requires a scalar literal")?;
-        // Read the declared format directly from exact source meaning. Going
-        // through f64 for f32 would introduce a second rounding at midpoints.
-        // Signed infinity has one exact encoding per format. Payloadless NaN
-        // meaning cannot choose representation bits for a public declaration.
-        return if carrier.as_str() == "f32" {
-            let value = literal.value_f32();
-            if value.is_nan() {
-                return Err(
-                    "floating declaration identity requires explicit NaN representation bits"
-                        .to_owned(),
-                );
-            }
-            Ok(format!("float:f32:{:08x}", value.to_bits()))
-        } else {
-            let value = literal.value_f64();
-            if value.is_nan() {
-                return Err(
-                    "floating declaration identity requires explicit NaN representation bits"
-                        .to_owned(),
-                );
-            }
-            Ok(format!("float:f64:{:016x}", value.to_bits()))
-        };
-    }
     crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
         syntax, definition, selection,
     )

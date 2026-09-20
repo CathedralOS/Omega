@@ -59,6 +59,7 @@ pub(crate) fn validate_normalized_const_argument(
         (syntax_trees::types::TypeReferenceNode::Named(name), Some(decoded)) => {
             CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
                 let carrier = match &decoded {
+                    DecodedCanonicalConstValue::Float { .. } => return false,
                     DecodedCanonicalConstValue::Boolean(_) => "bool",
                     DecodedCanonicalConstValue::Array { type_name, .. }
                     | DecodedCanonicalConstValue::Record { type_name, .. }

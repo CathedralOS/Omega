@@ -12,6 +12,8 @@ pub(super) fn materialize(
     value: &DecodedCanonicalConstValue,
 ) -> Option<ExpressionNode> {
     match value {
+        // Declaration receipts may contain floats; generic indices may not.
+        DecodedCanonicalConstValue::Float { .. } => None,
         DecodedCanonicalConstValue::Integer { type_name, value } => {
             let primitive = program.type_reference_table.primitive_type(declared_type)?;
             if type_name != primitive.name() {

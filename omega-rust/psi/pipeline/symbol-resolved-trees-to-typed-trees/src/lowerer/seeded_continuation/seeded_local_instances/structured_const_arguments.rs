@@ -348,6 +348,8 @@ fn exact_variant_symbol(
 
 fn canonical_display(value: &DecodedCanonicalConstValue) -> String {
     match value {
+        // Index decoding and carrier validation both reject this declaration-only form.
+        DecodedCanonicalConstValue::Float { .. } => "<ineligible floating const index>".to_owned(),
         DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
         DecodedCanonicalConstValue::Boolean(value) => value.to_string(),
         DecodedCanonicalConstValue::Array { values, .. } => format!(

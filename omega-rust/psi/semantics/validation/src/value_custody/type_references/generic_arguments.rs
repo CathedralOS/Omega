@@ -406,6 +406,9 @@ pub fn validate_exact_const_value_encoding(
         .decode_encoding()
         .ok_or_else(|| "the canonical const encoding is malformed".to_owned())?;
     let type_name = match decoded {
+        DecodedCanonicalConstValue::Float { .. } => {
+            return Err("floating declaration value is not a const index".into());
+        }
         DecodedCanonicalConstValue::Integer { type_name, .. }
         | DecodedCanonicalConstValue::Array { type_name, .. }
         | DecodedCanonicalConstValue::Record { type_name, .. }
