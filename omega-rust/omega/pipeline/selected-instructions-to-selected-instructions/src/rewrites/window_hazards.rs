@@ -338,10 +338,12 @@ pub(super) fn admit_run_relocation(
     for settlement in &function.boundary_settlements {
         let index = settlement.instruction_index as usize;
         let refused = if settlement.block == run_block && run_block == destination_block {
-            // In-block: the window's span runs from the earlier of the
-            // run's start and the landing index through the later of the
-            // run's end and the landing index, endpoints included.
-            index >= crossing.run_start.min(crossing.landing_index)
+            // In-block: the window's span runs from just after the earlier
+            // of the run's start and the landing index through the later of
+            // the run's end and the landing index. The earlier endpoint
+            // itself observes an unchanged prefix — a settlement at it sees
+            // only positions before the window, identical on either order.
+            index > crossing.run_start.min(crossing.landing_index)
                 && index <= crossing.run_end.max(crossing.landing_index)
         } else if settlement.block == run_block {
             // Cross-block: the run vacates from `run_start` on, so any
