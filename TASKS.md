@@ -5808,7 +5808,23 @@ rejection, native-route `InvalidStructuralArrayLength` pin) green at
 - **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Dynamic receiver/evidence loan origin across package boundaries.
 
 - **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics.
-- **STRUCTURAL-UNIT-LOWERING.** Structural-unit lowering gaps in checked-trees-to-lowered-psi.
+- **STRUCTURAL-UNIT-LOWERING.** Scope verified on `a4ffd1aff8` — structural-unit
+  lowering in checked-trees-to-lowered-psi is landed for the bounded subset
+  (`unit/structural_unit_control.rs`: multi-state claim-free affine structural
+  control, two-frontier joins, ranked `TerminalRankedScc` countdown; structural
+  arguments also ride `scalar_structural_calls` and `expression_preparation`
+  structural bindings). The remaining gaps are deliberate capacity fences, all
+  inside `src/unit/`: at most two checked conditional states, joins admit
+  exactly two incoming frontiers and at most one join state, graphs must be
+  acyclic outside the ranked countdown lane, and specialized scalar successors
+  accept only parameter-sourced arguments ("specialized scalar successor does
+  not support checked expressions"). Every implementing surface is live-fenced
+  this wave: `src/unit` is claimed under UEFI-OS-HANDOFF (exp 20:00Z) and the
+  native continuation — the `UnsupportedControlFlow(MachineId(..))` fence the
+  five `structural_units` pipeline-ownership legs stop at — is claimed under
+  sibling **STRUCTURAL-UNIT-CALL-GRAPH-JOINS** (exp 20:13Z). No independent
+  unclaimed slice exists here this wave; the residual stays on the claim
+  holders above.
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
 - **STAGED-LOCAL-SEQUENCE-LOWERING.** Resolved — staged-local sequence
   lowering attribution and order is green on main at 6d00135b89: all seven
