@@ -5,9 +5,8 @@ owns the theorem and evidence-role rules. Enter
 [fuel_certification.rs](src/fuel_certification.rs) for certificate derivation,
 whole-roster replay, and sealing. Public evidence records remain in
 [lib.rs](src/lib.rs). Subordinate owners separate
-[segment partitioning](src/fuel_certification/segment_partition.rs),
-[outcome composition](src/fuel_certification/outcome_bounds.rs), and the distinct
-[ranked-countdown authority](src/fuel_certification/ranked_countdown.rs).
+[segment partitioning](src/fuel_certification/segment_partition.rs) and
+[outcome composition](src/fuel_certification/outcome_bounds.rs).
 
 Ordinary acyclic derivation computes outcome-sensitive maximum paths and the
 complete reachable segment partition. Keep whole-entry, segment, and

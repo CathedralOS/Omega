@@ -119,7 +119,7 @@ maps that gate to exact calls, candidate sets, and authored application sites.
 
 Closed integer expressions for data applications and root-owned domain families in
 concrete data fields, payloads and nongeneric machine type annotations use
-[typed expression probes](src/const_generic_expressions.rs) before generic data
+[typed expression probes](src/const_evaluation/const_generic_expressions.rs) before generic data
 synthesis. Nongeneric machine owners also admit Boolean indices through
 the same probe, including literal Boolean expressions and fixed-integer
 comparisons without named operands. Comparisons between two anonymous numeric
@@ -308,7 +308,7 @@ recursive call cycles without admitted termination evidence. These are
 fail-closed gates, not a prohibition on proof-admissible resources or measured
 recursion in the language.
 
-The [result checker](src/admission/const_evaluable.rs) admits complete closed
+The [result checker](src/machine_execution/admission/const_evaluable.rs) admits complete closed
 pure values and rejects escaping references/slices, Text, dynamic/opaque shapes,
 interior-mutable and non-copy results, and unresolved generic shapes.
 The [interpreter bridge](../checked-interpreter/src/build_time.rs) creates fresh

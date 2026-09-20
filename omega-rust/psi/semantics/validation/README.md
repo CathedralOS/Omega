@@ -295,7 +295,7 @@ full source acceptance or executable Terminal realization.
 ## Quotient correspondence
 
 The [published correspondence contract](../../../../wiki/spec/proofs/quotients.md#published-quotient-correspondence)
-is implemented through [quotients/terminal_bridge.rs](src/quotients/terminal_bridge.rs)
+is implemented through [quotients/terminal_bridge.rs](src/proof_contracts/quotients/terminal_bridge.rs)
 and the relation-plan bridge. Current direct `define`/transport-backed `lift`
 retention and proof-only package review do not admit executable quotient calls.
 Adapted, permuted, repeated, generic/private applications and broader lift forms
@@ -304,7 +304,7 @@ Do not retain schema-bump history as a substitute for those acceptance condition
 
 ## Structural algebra automation
 
-[structural_judgment.rs](src/contract_entailment/structural_judgment.rs) retains
+[structural_judgment.rs](src/proof_contracts/contract_entailment/structural_judgment.rs) retains
 operation licenses and paired add/multiply semiring licenses. The paired form
 requires both operations' associativity/commutativity and a conformed
 distributivity law. Natural-coefficient polynomial expansion is bounded;

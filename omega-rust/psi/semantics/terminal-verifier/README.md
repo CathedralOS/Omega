@@ -247,7 +247,7 @@ specialized authority. Natural-rank verification is not countdown admission.
 
 ## Trust and implementation gaps
 
-The [codec trust graph](../terminal-codec/src/trust_graph/current.rs) binds the
+The [codec trust graph](../terminal-codec/src/sections/trust_graph/current.rs) binds the
 exact deciding source closure and registered dependencies. Source files moved
 during refactoring remain in that closure; a module split is not a proof.
 
