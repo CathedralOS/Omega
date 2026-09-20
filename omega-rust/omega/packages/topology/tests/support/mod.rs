@@ -464,6 +464,10 @@ pub const MEMBER_REPORTS_ENV: &str = "OMEGA_TOPOLOGY_REPORTS";
 /// the substituted mapping the activation gate must refuse.
 #[cfg(unix)]
 pub const MEMBER_SHIFT_TOKENS_ENV: &str = "OMEGA_TOPOLOGY_SHIFT_TOKENS";
+/// Test-only knob: the member dies after its install echo, before the gate
+/// — a member whose startup fails after earlier members already entered.
+#[cfg(unix)]
+pub const MEMBER_DIE_BEFORE_GATE_ENV: &str = "OMEGA_TOPOLOGY_DIE_BEFORE_GATE";
 
 /// Borrow a retained descriptor just long enough to dup it into an owned
 /// `File`. The retained descriptor itself stays open — the member holds it
@@ -544,6 +548,12 @@ pub fn member_process_entry() -> i32 {
         .is_err()
     {
         return 3;
+    }
+
+    // Startup death after the handshake: the member admitted and installed
+    // cleanly but never reaches the gate.
+    if std::env::var_os(MEMBER_DIE_BEFORE_GATE_ENV).is_some() {
+        return 5;
     }
 
     let stdin = std::io::stdin();
