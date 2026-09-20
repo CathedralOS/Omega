@@ -167,6 +167,16 @@ require_delta_compiler_identity
 require_epsilon_evaluator_identity
 require_omega_compiler_identity
 
+# Gate-local prefix entries are bound subjects too: the staged-compiler
+# development driver on the Delta edge and each omega-* gate's packed
+# customer entries on the Omega-D edge sit on top of bound closures as
+# raw-source prefixes, so a substituted entry would otherwise pass the chain
+# gate without touching any canonical member.
+require_delta_compiler_development_entry_identity
+require_omega_parser_entry_identity
+require_omega_outcome_entry_identity
+require_omega_executable_entries_identity
+
 tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
   "$OMEGA_PATH_EPSILON_COMPILER" \
