@@ -73,6 +73,7 @@ mod fixtures;
 pub(crate) use super::{IntegerRangeComparisonKind, IntegerRangePairComparisonKind};
 pub(crate) use fixtures::*;
 
+mod borrowed_storage_windows;
 mod catalog;
 mod control_flow_cleanup;
 mod copy_propagation;
