@@ -5563,16 +5563,26 @@ Owners include
   (`tests/fixtures/boundary-requirement-member-call`, harness
   `canary_suite/top_level_requirement_member_call.rs`; Linux x86-64 verified:
   interpreter exit and native-artifact exit both execute the selected
-  adapter). Borrowed (`&self`/`&mut self`), multi-place (`self.f.m()`), and
-  non-single-symbol receivers stay fenced: settlement leaves them unrowed and
-  the direct call rejects.
+  adapter). Borrowed (`&self`/`&mut self`) receivers stay fenced.
+
+  One projection hop is now the same route: `holder.token.consume();` settles
+  a `forward_receiver` row keyed on the leaf field symbol (`Holder::token`),
+  found by resolving each projected member's declared field type inside the
+  previous member's named data definition, and the rewrite reifies the place
+  path — `Provider::entry(holder.token)` — as argument 0 in both statement
+  and expression position (expression sites splice the authored receiver at
+  any depth). Statement paths longer than one hop stay fenced: the
+  statement-table call retains only root and leaf member symbols, so deeper
+  projections cannot reify their intermediate members
+  (`selected-dispatch` inline test
+  `a_projected_receiver_member_call_forwards_the_place_as_argument_zero`).
 
   Remaining work:
 
-  - Parameterized and projected-receiver requirements.
+  - Parameterized requirements and deeper receiver projections.
     `is_directly_callable_top_level_requirement` still admits no type or
-    lifetime parameter, and the rewrite rejects family rows and receiver
-    paths longer than one member. `core/task.omg` (`Task::finish<T>(self)`,
+    lifetime parameter, the rewrite rejects family rows, and statement
+    receiver paths beyond one hop reject (above). `core/task.omg` (`Task::finish<T>(self)`,
     `request_cancel`) and
     `core/interrupt.omg` (`InterruptMaskGuard::restore`,
     `InterruptAcknowledgement::complete`) have no library or canary satisfier
