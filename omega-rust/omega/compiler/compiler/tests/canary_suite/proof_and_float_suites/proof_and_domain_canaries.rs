@@ -604,3 +604,19 @@ fn generic_float_builtins_retain_exact_provider_evidence() {
         "every normalized float builtin must carry its exact selected ProviderPlan commitment"
     );
 }
+
+#[test]
+fn dependent_embed_self_field_view_canary() {
+    let canary = pass_canary(fixture_roster::DEPENDENT_EMBED_SELF_FIELD_VIEW);
+    check_canary(&canary).unwrap_or_else(|diagnostics| {
+        panic!(
+            "{} failed:\n{}",
+            canary.display(),
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+}

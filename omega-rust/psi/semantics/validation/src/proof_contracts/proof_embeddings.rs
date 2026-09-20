@@ -353,6 +353,23 @@ pub(crate) fn expression_type_reference(
                 })
         }
         ExpressionNode::Member(member) => {
+            // A `self.<field>` receiver resolves to the owning machine's
+            // symbol — not a value name — and its member binds the
+            // machine-scoped field symbol, which is a distinct handle from the
+            // attached data declaration's field row. `exact_self_field`
+            // verifies that receiver identity and rejoins the field through
+            // the attached definition's own symbols.
+            if let ExpressionNode::Name(receiver) =
+                program.expression_table.expression(member.receiver)
+                && let Some(machine) = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == receiver.symbol)
+                && let Some(field) =
+                    crate::value_custody::places::exact_self_field(program, machine, expression)
+            {
+                return Some(field.type_reference);
+            }
             if let Some(receiver) = expression_type_reference(program, member.receiver)
                 && let Some(data) =
                     crate::value_custody::places::data_definition_for_type(program, receiver)
