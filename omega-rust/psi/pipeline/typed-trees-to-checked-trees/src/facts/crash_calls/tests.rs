@@ -29,6 +29,69 @@ fn integer_comparison(
 }
 
 #[test]
+fn widened_integer_guards_preserve_identity_and_fold_only_closed_literals() {
+    use checked_trees::CrashPredicateIdentity;
+    use numerics::arithmetic::ArithmeticDomain;
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::types::PrimitiveType;
+
+    let widen = |operand, domain| CrashPredicateExpression::IntegerWiden {
+        source_type: PrimitiveType::U8 as u8,
+        target_type: PrimitiveType::U64 as u8,
+        domain: domain as u8,
+        operand: Box::new(operand),
+    };
+    let exact = widen(
+        CrashPredicateExpression::Parameter(0),
+        ArithmeticDomain::Exact,
+    );
+    let wrapping = widen(
+        CrashPredicateExpression::Parameter(0),
+        ArithmeticDomain::Wrapping,
+    );
+    assert_ne!(exact, wrapping);
+    assert_ne!(
+        CrashPredicateIdentity::from_expression(exact.clone()).canonical_bytes(),
+        CrashPredicateIdentity::from_expression(wrapping).canonical_bytes(),
+        "the result policy remains part of unresolved route identity"
+    );
+    let guard = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(exact),
+        right: Box::new(CrashPredicateExpression::Integer("0".into())),
+    };
+    assert_eq!(summary_boolean_value(&guard), None);
+    for (literal, expected) in [("0", true), ("255", false)] {
+        let arguments = [Some(CrashPredicateExpression::Integer(literal.into()))];
+        let substituted = crate::facts::crash_entry_values::substitute_entry(&guard, &arguments)
+            .expect("substitute beneath the conversion");
+        assert_eq!(substituted, guard.substitute(&arguments));
+        let projected = crate::facts::crash_entry_values::substitute_entry_projected(
+            &guard,
+            &mut |ordinal, members| {
+                assert!(members.is_empty());
+                arguments.get(ordinal as usize).cloned().flatten()
+            },
+        );
+        assert_eq!(projected, Some(substituted.clone()));
+        assert_eq!(summary_boolean_value(&substituted), Some(expected));
+    }
+    let arithmetic = CrashPredicateExpression::Binary {
+        operator: BinaryOperator::Equal as u8,
+        left: Box::new(widen(
+            integer_comparison(BinaryOperator::Add, "255", "1"),
+            ArithmeticDomain::Exact,
+        )),
+        right: Box::new(CrashPredicateExpression::Integer("0".into())),
+    };
+    assert_eq!(
+        summary_boolean_value(&arithmetic),
+        None,
+        "integer arithmetic still needs its checked width and policy evidence"
+    );
+}
+
+#[test]
 fn closed_summary_integer_comparisons_use_exact_literal_values() {
     use typed_trees::expression::{BinaryOperator, UnaryOperator};
     for (operator, expected) in [(BinaryOperator::And, false), (BinaryOperator::Or, true)] {

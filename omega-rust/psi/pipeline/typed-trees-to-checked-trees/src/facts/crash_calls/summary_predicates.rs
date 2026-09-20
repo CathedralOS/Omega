@@ -101,6 +101,14 @@ pub(crate) fn summary_boolean_value(expression: &CrashPredicateExpression) -> Op
 fn summary_integer_literal(
     expression: &CrashPredicateExpression,
 ) -> Option<numerics::bignum::BigInt> {
+    // This node is produced only for checked full-carrier widening. A closed
+    // literal keeps its mathematical value, including through immutable-local
+    // provenance where the scalar annotation may still name a local slot.
+    // Do not erase the node from identity: arithmetic below/above it and the
+    // result policy must remain distinct when unresolved routes are merged.
+    if let CrashPredicateExpression::IntegerWiden { operand, .. } = expression {
+        return summary_integer_literal(operand);
+    }
     let CrashPredicateExpression::Integer(text) = expression else {
         return None;
     };

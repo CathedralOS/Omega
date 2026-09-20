@@ -674,7 +674,8 @@ pub(crate) fn crash_expression_mentions_parameter_outside_member_path(
             crash_expression_mentions_parameter_outside_member_path(left, parameter)
                 || crash_expression_mentions_parameter_outside_member_path(right, parameter)
         }
-        CrashPredicateExpression::Unary { operand, .. } => {
+        CrashPredicateExpression::Unary { operand, .. }
+        | CrashPredicateExpression::IntegerWiden { operand, .. } => {
             crash_expression_mentions_parameter_outside_member_path(operand, parameter)
         }
         CrashPredicateExpression::Member { receiver, .. } => {

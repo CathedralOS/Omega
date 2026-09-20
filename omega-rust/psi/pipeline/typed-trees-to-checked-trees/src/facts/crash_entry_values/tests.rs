@@ -191,6 +191,93 @@ fn targeted_call_argument(
 }
 
 #[test]
+fn integer_widening_preserves_entry_value_across_policies_and_composition() {
+    for (source, target, argument) in [
+        ("u8", "u64", "input as u64"),
+        ("u8", "i64", "input as i64"),
+        ("i8", "i64", "input as i64"),
+        ("u8", "u64", "(input as u16) as u64"),
+        ("u8", "u64", "input as u64 in Wrapping"),
+        ("u8", "u64", "input as u64 in Saturating"),
+        ("u8", "u64", "input as u64 in Trapping"),
+    ] {
+        let program = typed_program(&format!(
+            "machine sink(value: {target}) -> {target} {{ value }}
+             machine forward(input: {source}) -> {target} {{ sink({argument}) }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "forward")
+            .unwrap();
+        let entry = program.machine_states(machine)[0].symbol;
+        let (call_index, operand) = first_call_argument(&program, machine.symbol, entry);
+        let identity = entry_operand(&program, machine.symbol, entry, call_index, operand)
+            .unwrap_or_else(|| panic!("{source} -> {target}: {argument}"));
+        let mut inner = &identity;
+        let mut conversions = 0;
+        while let CrashPredicateExpression::IntegerWiden { operand, .. } = inner {
+            conversions += 1;
+            inner = operand;
+        }
+        assert_eq!(conversions, if argument.starts_with('(') { 2 } else { 1 });
+        assert_eq!(*inner, CrashPredicateExpression::Parameter(0));
+    }
+}
+
+#[test]
+fn value_changing_conversions_do_not_impersonate_the_entry_integer() {
+    for (source, target, argument) in [
+        ("u64", "u8", "input as u8 in Wrapping"),
+        ("u64", "u8", "input as u8 in Saturating"),
+        ("u64", "u8", "input as u8 in Trapping"),
+        ("i8", "u64", "input as u64 in Wrapping"),
+        ("u64", "f64", "input as f64"),
+        ("f32", "f64", "input as f64"),
+    ] {
+        let program = typed_program(&format!(
+            "machine sink(value: {target}) -> {target} {{ value }}
+             machine forward(input: {source}) -> {target} {{ sink({argument}) }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "forward")
+            .unwrap();
+        let entry = program.machine_states(machine)[0].symbol;
+        let (call_index, operand) = first_call_argument(&program, machine.symbol, entry);
+        assert_eq!(
+            entry_operand(&program, machine.symbol, entry, call_index, operand),
+            None,
+            "{source} -> {target}: {argument}"
+        );
+    }
+}
+
+#[test]
+fn widening_cannot_restore_a_mutated_operands_entry_snapshot() {
+    let program = typed_program(
+        "machine sink(value: u64) -> u64 { value }
+         machine forward(input: u8) -> u64 {
+             let mut value: u8 = input;
+             value = 0;
+             sink(value as u64)
+         }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "forward")
+        .unwrap();
+    let entry = program.machine_states(machine)[0].symbol;
+    let (call_index, operand) = first_call_argument(&program, machine.symbol, entry);
+    assert_eq!(
+        entry_operand(&program, machine.symbol, entry, call_index, operand),
+        None
+    );
+}
+
+#[test]
 fn state_parameter_arrival_transports_its_named_transition_argument() {
     let program = typed_program(
         "machine sink(input: bool) -> bool { input }
