@@ -17,6 +17,16 @@ pub(super) struct FragmentPublicationBinding {
     /// publication time; the emitted image receives it through artifact
     /// construction, not through the sealed object roster.
     foreign_call_custody: Vec<image_emission::ObjectForeignCall>,
+    /// The relocation-free object plan the custody rows were projected from.
+    /// Its identity is already bound by the container custody digested into
+    /// this binding's identity; retaining the plan lets physical derivation
+    /// rejoin the unresolved import field and declared import symbol the
+    /// object route would have proven through relocation records.
+    relocation_free_object: Arc<object_file::RelocationFreeObjectPlan>,
+    /// The selected plan the custody replayed. Its roster rows carry the
+    /// call-site custody — scalar arguments, result-home requirement,
+    /// evaluated binding — the projected rows deliberately keep empty.
+    selected: Arc<selected_instructions::SelectedInstructionPlan>,
     identity: [u8; 32],
 }
 
@@ -37,6 +47,14 @@ impl FragmentPublicationBinding {
     pub(super) fn foreign_call_custody(&self) -> &[image_emission::ObjectForeignCall] {
         &self.foreign_call_custody
     }
+
+    pub(super) fn relocation_free_object(&self) -> &object_file::RelocationFreeObjectPlan {
+        &self.relocation_free_object
+    }
+
+    pub(super) fn selected_plan(&self) -> &selected_instructions::SelectedInstructionPlan {
+        &self.selected
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -54,6 +72,19 @@ pub(crate) fn derive_scope(
         .map_err(|_| "fragment publication object failed independent source replay")?;
     let foreign_call_custody = image_emission::derive_normalized_foreign_call_custody(source)
         .map_err(|_| "fragment publication foreign call custody failed source replay")?;
+    let relocation_free_object = source.shared_object();
+    if relocation_free_object.identity != source.custody().object() {
+        return Err("fragment publication retained a detached relocation-free object");
+    }
+    let selected = Arc::clone(
+        &source
+            .source()
+            .source()
+            .source()
+            .source()
+            .program()
+            .selected,
+    );
     let fragments = source.source().source().source();
     let optimized = fragments.source().optimized_target().optimized();
     validate_final_plan(final_plan, optimized.plan(), terminal, object.psi())?;
@@ -83,6 +114,8 @@ pub(crate) fn derive_scope(
     let publication = FragmentPublicationBinding {
         object: Arc::new(object.clone()),
         foreign_call_custody,
+        relocation_free_object,
+        selected,
         identity: digest.finalize().into(),
     };
     let mut digest = Sha256::new();

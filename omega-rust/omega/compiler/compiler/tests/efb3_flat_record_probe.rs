@@ -197,12 +197,11 @@ impl ProviderExecutionEvidence for ProbeExecution {
 /// execution and same-stack contribution to the exact call site. This test
 /// pins that completed rejoin — the image row must record the boundary-call
 /// owner, Mach-O locator, admitted provider-execution coordinates, and
-/// same-stack contribution the settlement supplied. The remaining frontier
-/// is physical derivation of the normalized-foreign child: the fragment
-/// route seals the object's effect roster empty, so the derivation cannot
-/// yet claim the image custody row for its boundary occurrence and must
-/// report that exact gap subject, flipping this probe when the physical leg
-/// lands.
+/// same-stack contribution the settlement supplied. Physical derivation now
+/// realizes the call's boundary child through the retained relocation-free
+/// object plan: the probe requires the exact unresolved import-field custody
+/// record keyed to the call's `{caller, operation}` and four-byte branch
+/// field.
 #[test]
 fn flat_record_via_call_native_realization_probe() {
     let probe = Probe::new();
@@ -421,18 +420,43 @@ fn flat_record_via_call_native_realization_probe() {
     assert_eq!(call.same_stack_contribution.bytes(), 64);
     assert_eq!(call.same_stack_contribution.alignment(), 16);
     assert!(call.scalar_arguments.is_empty());
-    assert!(artifact.physical_evidence().is_none());
-    let gap = artifact
-        .physical_evidence_gap()
-        .expect("the retained artifact must name its physical derivation gap");
+    let evidence = artifact
+        .physical_evidence()
+        .expect("the fragment route must retain complete physical evidence for its boundary call");
     assert!(
-        matches!(
-            gap.subject(),
-            native_artifact::NativePhysicalEvidenceGapSubject::UnrealizedBoundaryOccurrence {
-                occurrence
-            } if occurrence.machine() == *machine && occurrence.operation() == *operation
-        ),
-        "the remaining frontier is the normalized-foreign physical child, got {:?}",
-        gap.subject()
+        artifact.physical_evidence_gap().is_none(),
+        "the retained artifact must have no physical derivation gap, got {:?}",
+        artifact.physical_evidence_gap().map(|gap| gap.subject())
     );
+    let boundary_children = evidence
+        .children()
+        .iter()
+        .filter(|child| {
+            matches!(
+                child.occurrence(),
+                native_artifact::NativePhysicalOccurrence::Boundary(_)
+            )
+        })
+        .collect::<Vec<_>>();
+    let [boundary_child] = boundary_children.as_slice() else {
+        panic!(
+            "physical evidence must realize exactly one boundary child, found {}",
+            boundary_children.len()
+        )
+    };
+    let native_artifact::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(
+        field,
+    ) = boundary_child.relocation()
+    else {
+        panic!(
+            "the boundary child must retain its fragment import-field custody, got {:?}",
+            boundary_child.relocation()
+        )
+    };
+    assert_eq!(field.caller(), *machine);
+    assert_eq!(field.operation(), *operation);
+    assert_eq!(field.offset(), call.text_offset);
+    assert_eq!(field.byte_width(), 4);
+    assert_eq!(field.addend(), 0);
+    assert_eq!(field.kind(), object_file::RelocationKind::Aarch64Branch26);
 }

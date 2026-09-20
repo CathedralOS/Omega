@@ -342,6 +342,10 @@ pub enum PhysicalRelocationDisposition {
     DirectInstructionBytes,
     ResolvedInternalCall,
     UnresolvedNormalizedForeignCall(NormalizedForeignCallRelocation),
+    /// Fragment-publication custody: the call's import field lives in the
+    /// retained relocation-free object plan, which owns the unresolved field
+    /// row and declared import symbol in place of object relocation records.
+    UnresolvedNormalizedForeignCallImportField(NormalizedForeignCallImportField),
 }
 
 /// Exact unresolved import relocation retained by one normalized-foreign D41
@@ -427,6 +431,78 @@ impl NormalizedForeignCallbackRelocations {
                 callback_function, ..
             } => *callback_function,
         }
+    }
+}
+
+/// Exact unresolved import-field custody retained by one normalized-foreign
+/// D41 child realized through fragment publication. The relocation-free
+/// object plan binds the `{caller, operation}` field owner and the declared
+/// import symbol directly; the parent locator and boundary-contract
+/// identities are repeated here so the field record cannot be rebound to a
+/// different call or contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NormalizedForeignCallImportField {
+    locator_identity: [u8; 32],
+    boundary_plan_identity: [u8; 32],
+    caller: MachineId,
+    operation: OperationId,
+    boundary: BoundaryMachineId,
+    ordinal: u32,
+    object_symbol: object_file::ObjectLocalSymbolId,
+    offset: usize,
+    byte_width: usize,
+    addend: i64,
+    kind: object_file::RelocationKind,
+    final_image_symbol_identity: [u8; 32],
+}
+
+impl NormalizedForeignCallImportField {
+    pub const fn locator_identity(&self) -> &[u8; 32] {
+        &self.locator_identity
+    }
+
+    pub const fn boundary_plan_identity(&self) -> &[u8; 32] {
+        &self.boundary_plan_identity
+    }
+
+    pub const fn caller(&self) -> MachineId {
+        self.caller
+    }
+
+    pub const fn operation(&self) -> OperationId {
+        self.operation
+    }
+
+    pub const fn boundary(&self) -> BoundaryMachineId {
+        self.boundary
+    }
+
+    pub const fn ordinal(&self) -> u32 {
+        self.ordinal
+    }
+
+    pub const fn object_symbol(&self) -> object_file::ObjectLocalSymbolId {
+        self.object_symbol
+    }
+
+    pub const fn offset(&self) -> usize {
+        self.offset
+    }
+
+    pub const fn byte_width(&self) -> usize {
+        self.byte_width
+    }
+
+    pub const fn addend(&self) -> i64 {
+        self.addend
+    }
+
+    pub const fn kind(&self) -> object_file::RelocationKind {
+        self.kind
+    }
+
+    pub const fn final_image_symbol_identity(&self) -> &[u8; 32] {
+        &self.final_image_symbol_identity
     }
 }
 
@@ -849,6 +925,37 @@ pub(crate) fn normalized_foreign_call_relocation(
         addend,
         kind,
         callback,
+        final_image_symbol_identity,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn normalized_foreign_call_import_field(
+    locator_identity: [u8; 32],
+    boundary_plan_identity: [u8; 32],
+    caller: MachineId,
+    operation: OperationId,
+    boundary: BoundaryMachineId,
+    ordinal: u32,
+    object_symbol: object_file::ObjectLocalSymbolId,
+    offset: usize,
+    byte_width: usize,
+    addend: i64,
+    kind: object_file::RelocationKind,
+    final_image_symbol_identity: [u8; 32],
+) -> NormalizedForeignCallImportField {
+    NormalizedForeignCallImportField {
+        locator_identity,
+        boundary_plan_identity,
+        caller,
+        operation,
+        boundary,
+        ordinal,
+        object_symbol,
+        offset,
+        byte_width,
+        addend,
+        kind,
         final_image_symbol_identity,
     }
 }
