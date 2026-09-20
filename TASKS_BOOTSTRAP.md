@@ -409,9 +409,13 @@ prerequisite to every lower-rung milestone.
   `alpha-beta-edge.sh` now reports its seed-execution legs UNAVAILABLE
   (exit 2) rather than FAILED where no audited Alpha container runs.
   Still requiring macOS arm64 or Windows x64: Alpha conformance, Beta
-  self-reconstruction, the shared word prefix, and the
-  omega-parser/outcome/executable chain runs (the parser gate's Windows
-  route is itself unvalidated). The D→omega0 and omega0→omega tapes are not
+  self-reconstruction, and the shared word prefix. The
+  omega-parser/outcome/executable chain now runs on Linux x86-64
+  (`alpha_x64_linux` is bound; the parser gate is fully green there),
+  and the parser gate's Windows PE seed ran both legs byte-exactly under
+  wine — receipt and all twelve customer invocations; only the literal
+  Git Bash route on a real Windows host remains unvalidated. The
+  D→omega0 and omega0→omega tapes are not
   yet produced (OMEGA-C), so whole-chain reconstruction currently ends at
   interpreted D. Every Beta compiler-exec entrypoint — reconstruction,
   the compiler diamond, and `tools/bootstrap/beta/build.sh` — now refuses
