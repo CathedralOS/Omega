@@ -6781,7 +6781,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BENCHMARK-MEASURABLE-SUBJECT-CORPUS, BENCHMARK-DEPEND-FREE-RUNNABLE-
   SUBJECT.
 - **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
-- **BENCHMARK-ROW-RESUMPTION** — mined candidate; verify scope then implement.
+- **BENCHMARK-ROW-RESUMPTION.** Resolved — the two rows rejected at the
+  comparison-occurrence gate (`wiki/drafts/benchmarks.md` "rows resumable"
+  frontier) were re-measured on linux_x86_64 at `96b4afed92` and committed:
+  `cli_mvp__linux_x86_64__default.json` re-measured (median compile
+  1227600 ms, artifact 8192 B stable, runtime measured with exit-0 match)
+  and `cli_mvp__linux_x86_64__sel-885944b13b84.json` (CopyPropagation
+  disabled, median compile 1229394 ms, runtime measured, exit match) —
+  the gate fix at `76dc49a99e`/`f2f39039da` holds end-to-end for a
+  `depend()`-ing subject again. `benchmark.py validate` clean on both;
+  residual: the `benchmarks.md` embedded-matrix refresh these rows make
+  stale (`test_doc_embeds_the_current_matrix`) is fenced to
+  BENCHMARK-PRIME-COUNTER-ROW's live claim on `wiki/drafts/benchmarks.md`
+  (~05:19Z); their own row landing regenerates the matrix from committed
+  records. `euclid_gcd` remains the comparison-bearing resumption
+  witness — uncovered by this item once the two named attempts landed.
 - **BENCHMARK-SELECTION-CONTRAST-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-ISOLATION-ROWS.** Resolved — the per-selection row
   isolation the name asks for is the record contract itself and is already

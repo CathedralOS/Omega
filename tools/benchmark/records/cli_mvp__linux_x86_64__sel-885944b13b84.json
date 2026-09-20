@@ -1,6 +1,6 @@
 {
   "schema": "omega-benchmark-record/1",
-  "recorded_utc": "2026-09-20T21:26:04Z",
+  "recorded_utc": "2026-09-20T22:37:20Z",
   "subject": {
     "name": "cli_mvp",
     "root": "samples/cli/basics/cli_mvp/main.omg",
@@ -10,7 +10,9 @@
     "target": "linux_x86_64",
     "selection": {
       "enabled": [],
-      "disabled": []
+      "disabled": [
+        "CopyPropagation"
+      ]
     },
     "selection_source": "build.omg enable calls plus --enable/--disable"
   },
@@ -29,24 +31,24 @@
       "status": "measured",
       "unit": "ms",
       "samples": [
-        1227600.7083449985,
-        1215441.3879249988,
-        1242402.2243729997
+        1223491.5724359998,
+        1234129.3617660012,
+        1229394.2155789991
       ],
-      "median_ms": 1227600.7083449985,
-      "min_ms": 1215441.3879249988,
+      "median_ms": 1229394.2155789991,
+      "min_ms": 1223491.5724359998,
       "stage_timings_last_sample_ms": {
-        "prepare: project -> prepared sources": 51.462,
-        "compile: sources -> requested product": 1241558.888,
-        "publish: retained product -> published product": 776.171,
-        "total elapsed": 1242387.021
+        "prepare: project -> prepared sources": 50.718,
+        "compile: sources -> requested product": 1228564.513,
+        "publish: retained product -> published product": 763.401,
+        "total elapsed": 1229379.107
       }
     },
     "peak_memory_bytes": {
       "status": "measured",
       "unit": "bytes",
-      "compile_max_rss": 249024512,
-      "run_max_rss": 12156928
+      "compile_max_rss": 248938496,
+      "run_max_rss": 12025856
     },
     "code_size_bytes": {
       "status": "measured",
@@ -63,14 +65,14 @@
       "status": "measured",
       "unit": "ms",
       "samples": [
-        1.7592399999557529,
-        1.6892419989744667,
-        1.3574410004366655,
-        1.3631450019602198,
-        1.3113480017636903
+        1.7959770011657383,
+        1.363143001071876,
+        1.5490400000999216,
+        1.301946998864878,
+        1.2965459973202087
       ],
-      "median_ms": 1.3631450019602198,
-      "min_ms": 1.3113480017636903,
+      "median_ms": 1.363143001071876,
+      "min_ms": 1.2965459973202087,
       "exit_codes": [
         0,
         0,
