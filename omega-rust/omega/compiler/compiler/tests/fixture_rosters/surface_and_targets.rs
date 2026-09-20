@@ -16,6 +16,14 @@ pub const RUNTIME_SAT_MIN_IDIOM_EXIT: &str = "arithmetic/runtime_sat_min_idiom_e
 pub const RUNTIME_WIRE_UTF8_INVALID_REFUSED_EXIT: &str =
     "wire/runtime_wire_utf8_invalid_refused_exit";
 pub const EXTERNAL_LEAF_SYSCALL_COMPILE: &str = "providers/external_leaf_syscall_compile";
+pub const DUPLICATE_NAMED_MACHINE_OVERLOAD_REJECTED: &str =
+    "calls/duplicate_named_machine_overload_rejected";
+pub const DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED: &str =
+    "modules/duplicate_imported_machine_overload_rejected";
+pub const IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED: &str =
+    "modules/imported_name_collides_with_local_data_rejected";
+pub const RECURSIVE_ARGUMENT_IMPORTED_NAME_COLLISION_REJECTED: &str =
+    "calls/recursive_argument_imported_name_collision_rejected";
 
 pub const PASS_CANARIES: &[&str] = &[
     STATIC_MACHINE_PARAMETER_CONFIG_COMPILE,
@@ -30,7 +38,13 @@ pub const PASS_CANARIES: &[&str] = &[
     EXTERNAL_LEAF_SYSCALL_COMPILE,
 ];
 
-pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[FREE_MACHINE_NAMED_TRANSITION_REJECTED];
+pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
+    FREE_MACHINE_NAMED_TRANSITION_REJECTED,
+    DUPLICATE_NAMED_MACHINE_OVERLOAD_REJECTED,
+    DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED,
+    IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED,
+    RECURSIVE_ARGUMENT_IMPORTED_NAME_COLLISION_REJECTED,
+];
 
 pub const RECENT_ENCODER_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_float_compare_bool_exit",

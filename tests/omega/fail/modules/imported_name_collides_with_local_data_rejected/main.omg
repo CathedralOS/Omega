@@ -1,0 +1,10 @@
+// A local declaration named `Point` collides with the imported module's
+// `Point`: imports do not shadow authored declarations, and the duplicate
+// is refused.
+use geo_a::point;
+
+data Point { x: i32; }
+
+data Main {}
+
+machine Main::main(&mut self) {}

@@ -1,0 +1,22 @@
+// The recursive-argument corpus shape: a local `add`/`Nat` pair collides
+// with the imported names even when the self-call only appears inside a
+// statement-call argument (`lemma(q, add(p, q))`).
+use arith::nat;
+
+data Nat { case Leaf; }
+
+machine add(a: Nat, b: Nat) -> Nat
+terminates by a;
+{
+    transition { _ -> b }
+}
+
+machine lemma(x: Nat, y: Nat) { }
+
+machine consumer(p: Nat, q: Nat) {
+    lemma(q, add(p, q));
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
