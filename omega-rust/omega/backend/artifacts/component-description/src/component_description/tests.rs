@@ -10,13 +10,17 @@
 //! non-admitted tag would show up as a missing rejection rather than as a
 //! wrong position.
 
+use std::collections::BTreeSet;
+
+use semantic_vocabulary::ServiceId;
+
 use super::{
-    BTreeSet, COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentEntry,
-    ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind,
-    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ImportSlot,
-    InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
-    ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, ServiceId,
-    decode_component_description, encode_component_description,
+    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentEntry, ComponentEntryKind,
+    CustodyConstraint, CustodyEvidence, CustodyKind, DescriptionDecodeRejection,
+    DescriptionFrontier, EntryEvidence, ImportSlot, InstallationObligation,
+    InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES, ObligationKind, OutgoingAuthority,
+    OutgoingAuthorityClass, OutgoingEvidence, decode_component_description,
+    encode_component_description,
 };
 
 /// A description whose populated rosters place every closed vocabulary on the
