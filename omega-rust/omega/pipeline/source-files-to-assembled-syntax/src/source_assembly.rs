@@ -692,6 +692,17 @@ pub data Pcc {
     psi: bool;
     native: bool;
 }
+// Authored granular privileged-service admission evidence
+// (wiki/spec/build/permissions.md#privileged-services): each flag admits
+// exactly one mediated privileged class for the produced image's assembly
+// authority discharge — `port_io` admits port I/O, `interrupt_table` admits
+// interrupt-table publication. They compose independently; machine-owner
+// authority has no granular grant and stays `freestanding`-only, and
+// `freestanding = true` already covers both classes.
+pub data PrivilegedServices {
+    port_io: bool;
+    interrupt_table: bool;
+}
 pub data Build {
     // compiler-owned Build.target field
     // compiler-owned Build.x86_deployment_features field
@@ -705,6 +716,7 @@ pub data Build {
     identifier: &[u8];
     optimizations: Optimizations;
     pcc: Pcc;
+    privileged_services: PrivilegedServices;
     source: BuildSource;
     inputs: BuildInputs;
     output: BuildOutput;

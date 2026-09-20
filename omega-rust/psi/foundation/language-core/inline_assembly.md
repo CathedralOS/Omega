@@ -37,12 +37,14 @@ whose places were written.
 
 [Authority discharge](../../semantics/validation/src/machine_calls/effects/asm_discharge.rs)
 checks each instruction's declared authority class against the build's supplied
-`AsmAuthorityAdmission` evidence. The only admission evidence today is the
-evaluated `Build.freestanding` selection, which is received as machine-owner
-admission covering every defined class (including the deriver-only `lidt`); a
-hosted build admits no class. Granular per-class grants (for example port
-permission without interrupt-table control) have no authored evidence to read
-yet; consumer-defined publication authority stays receiver-side per
+`AsmAuthorityAdmission` evidence. The evaluated `Build.freestanding` selection
+is received as machine-owner admission covering every defined class
+(including the deriver-only `lidt`). The authored
+`Build.privileged_services` flags grant each mediated class independently —
+`port_io` admits port I/O without machine control and `interrupt_table`
+admits interrupt-table publication without port I/O — while machine-owner
+authority itself has no granular grant and stays `freestanding`-only;
+consumer-defined publication authority stays receiver-side per
 [privileged-service admission](../../../../wiki/spec/build/permissions.md#privileged-services).
 A source gate, catalog row, parser
 test or instruction encoder is not final-artifact or native execution evidence.
