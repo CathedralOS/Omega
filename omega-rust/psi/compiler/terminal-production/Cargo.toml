@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+language-semantics = { path = "../../foundation/language-semantics" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 checked-trees = { path = "../../representations/checked-trees" }
 checked-trees-to-lowered-psi = { path = "../../pipeline/checked-trees-to-lowered-psi" }
