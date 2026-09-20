@@ -9417,19 +9417,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   release-matrix row — release closure still needs all eight gates, one
   clean commit, four required hosts.
 - **RC-RELEASE-CLOSURE-RUN.** Mined candidate; scope verified at
-  797e99ead7 — re-mines the release-record run clause covered by
-  RC-RELEASE-RECORD-AND-CLOSURE's verified row. The substrate exists
-  (`tools/release/release_record.py`, landed `210ffe3c93`: eight-gate
-  manifest, one runner row per `--target`, `omega-release-record/1`
-  records under `records/`, `check` re-validates committed records); a
-  bounded linux_x86_64 record already exists at
+  797e99ead7, re-verified at `9e3edc7be9` — re-mines the release-record
+  run clause covered by RC-RELEASE-RECORD-AND-CLOSURE's verified row. The
+  substrate exists (`tools/release/release_record.py`, landed
+  `210ffe3c93`: eight-gate manifest, one runner row per `--target`,
+  `omega-release-record/1` records under `records/`, `check` re-validates
+  committed records); a bounded linux_x86_64 record already exists at
   `wiki/drafts/release_record_e12b9e8e06.md` (RC-PORTABLE-PSI green,
   RC-REPOSITORY + RC-DIAGNOSTICS red). A fresh run on this host is
-  unfenced in code terms but `tools/release/` + `records/` are
-  claim-held, and a new committed record would only re-measure gates the
-  board already records red. Closure remains correctly open: eight gates
-  green on one clean commit plus all four required hosts. Sibling
-  re-mines: RC-RELEASE-RECORD, RC-RELEASE-RECORD-RUN,
+  unfenced in code terms but every producing surface is claim-held at
+  re-verification (~21:05Z Sep 20): `tools/release/` +
+  `tools/tests/test_release_record.py` to RC-RELEASE-RECORD-SUBSTRATE
+  (22:39Z), `records/` to RC-RELEASE-RECORD (05:07Z Sep 21), the record
+  drafts to RC-RELEASE-RECORD-RUN (22:40Z), RC-RELEASE-RECORD-AND-CLOSURE
+  (02:03Z) and RUST-COMPILER-RELEASE-RECORD (03:34Z),
+  `tools/release_matrix.py` to RC-MATRIX-RUNNER (00:54Z), and
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` to three host-row claims.
+  A new committed record would only re-measure gates the board already
+  records red. Closure remains correctly open: eight gates green on one
+  clean commit plus all four required hosts. Sibling re-mines:
+  RC-RELEASE-RECORD, RC-RELEASE-RECORD-RUN,
   RC-RELEASE-RECORD-AND-CLOSURE, RC-RELEASE-RECORD-SUBSTRATE.
 - **RC-RELEASE-RECORD** — mined candidate; scope verified at `e12b9e8e06`:
   re-mines the release-record clause (see RC-RELEASE-RECORD-AND-CLOSURE's
