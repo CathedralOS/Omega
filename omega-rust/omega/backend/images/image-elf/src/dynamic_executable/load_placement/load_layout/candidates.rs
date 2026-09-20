@@ -60,7 +60,7 @@ pub(super) fn derive_contents(
     let relative_contents = relative.contents();
     require(
         relative_contents.rows.len() == SECTION_COUNT,
-        "dynamic ELF load placement requires the exact thirteen-row relative roster",
+        "dynamic ELF load placement requires the exact fourteen-row relative roster",
     )?;
     for region in [
         ElfRelativeSectionPayloadRegion::ReadOnly,
@@ -259,7 +259,7 @@ pub(super) fn derive_contents(
     let header_contents = relative.payloads().section_headers().contents();
     require(
         header_contents.placement_fixups.len() == PLACEMENT_FIXUP_COUNT,
-        "dynamic ELF load placement requires exactly twenty-three section-header fixups",
+        "dynamic ELF load placement requires exactly twenty-five section-header fixups",
     )?;
     let mut resolutions = Vec::with_capacity(PLACEMENT_FIXUP_COUNT);
     for fixup in &header_contents.placement_fixups {
