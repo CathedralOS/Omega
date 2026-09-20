@@ -148,13 +148,10 @@ pub fn structural_state_contract_scalar_predicates(
                 {
                     return None;
                 }
-                let Some(domain) = program
+                let domain = program
                     .domain_definitions()
                     .iter()
-                    .find(|domain| domain.symbol == membership.domain_symbol)
-                else {
-                    return None;
-                };
+                    .find(|domain| domain.symbol == membership.domain_symbol)?;
                 actual.push((path.symbol, domain.semantic_id.0));
             }
             typed_trees::domain::ProofFact::Expression(expression) => {

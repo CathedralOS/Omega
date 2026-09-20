@@ -86,11 +86,11 @@ pub(super) fn matching_prefix<'places>(
 /// own declaration. The application arguments stay unresolved, so the
 /// declared members verify only this projection's identity; the instantiated
 /// field type is itself an opaque leaf for the next projection.
-fn replay_partition_data<'program>(
-    program: &'program TypedTrees,
+fn replay_partition_data(
+    program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
     machine_symbol: SymbolHandle,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     if let Some(data) =
         crate::checks::termination::progress::qualification_correspondences::replay_data_type(
             program,
@@ -117,10 +117,10 @@ fn replay_partition_data<'program>(
 /// produced by exact member resolution or not at all; when the enclosing type
 /// is an opaque leaf the symbol is the only provenance available, and its own
 /// declared field type resumes the bounded replay.
-fn exact_declared_field<'program>(
-    program: &'program TypedTrees,
+fn exact_declared_field(
+    program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&'program typed_trees::data::DataField> {
+) -> Option<&typed_trees::data::DataField> {
     if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Field {
         return None;
     }
