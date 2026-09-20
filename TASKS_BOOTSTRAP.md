@@ -349,3 +349,17 @@ prerequisite to every lower-rung milestone.
   the entire chain from the audited Alpha seed and repository-owned bytes;
   Rust, Python, networking, and package managers are never semantic stages.
   The manifest contains no retired rung or undisclosed authority substitute.
+
+  Frontier (Linux x86-64, base 1e1559d475): every completed edge's bound
+  materialization and refusal coverage passes host-free — the
+  `*-identity.sh` gates, `source-closure.sh`, and `chain-hygiene.sh` — and
+  `alpha-beta-edge.sh` now reports its seed-execution legs UNAVAILABLE
+  (exit 2) rather than FAILED where no audited Alpha container runs.
+  Still requiring macOS arm64 or Windows x64: Alpha conformance, Beta
+  self-reconstruction, the shared word prefix, and the
+  omega-parser/outcome/executable chain runs (the parser gate's Windows
+  route is itself unvalidated). The D→omega0 and omega0→omega tapes are not
+  yet produced (OMEGA-C), so whole-chain reconstruction currently ends at
+  interpreted D. Beta-owned gap outside this fence:
+  `tests/beta/compiler/reconstruction.sh` still crashes execing the Windows
+  PE seed on unsupported hosts instead of refusing.
