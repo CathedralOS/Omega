@@ -5606,11 +5606,6 @@ family and pin the documented behavior with a canary plus the fix if scoped.
   rejects. Pin a fail-canary for silent qualifier weakening in Weak.
   Paths: `tests/omega/{pass,fail}/memory/`, weakening checks in
   `omega-rust/psi/semantics/`.
-- **FUZZ-MODULE-PRIVACY-HOLE.** A non-`pub` member is nameable from the
-  importing file with no private-access rejection, and a duplicate `use` of
-  the same module is silently accepted. Pin fail-canaries for private member
-  access across module boundaries. Paths: `tests/omega/{pass,fail}/modules/`,
-  module resolution in `omega-rust/psi/`.
 
 Each fuzz leg's full divergence detail lives in wave-9.outcomes.json entries
 with `result: fuzz_report`.
@@ -5641,8 +5636,7 @@ Language/semantic gaps:
 
 - **FUZZ-CLUSTER-ZERO-BYTE-ARRAY.** Canonical item for the zero/empty fixed byte-array admission question (covers all ZERO-*-BYTE-ARRAY-* mining aliases).
 - **EMPTY-TRANSITION-AND-ARM-TYPE-DIAGNOSTICS.** (alias of FUZZ-EMPTY-TRANSITION-ARMS if fenced; else the pair).
-- **DUPLICATE-OVERLOAD-AND-VISIBILITY-ADMISSION.** Duplicate named-machine overloads, duplicate module `use`, and recursive-argument name collisions — pin admission rules with fail-canaries.
-- **MODULE-PRIVACY-ENCAPSULATION.** Non-pub member nameable cross-file (alias of FUZZ-MODULE-PRIVACY-HOLE).
+- **DUPLICATE-OVERLOAD-AND-VISIBILITY-ADMISSION.** Duplicate named-machine overloads and recursive-argument name collisions — pin admission rules with fail-canaries. Distinct visible imported declarations must still reject when ambiguous; repeated selection of one exact declaration is legal under [import scope](wiki/spec/language/modules.md#import-scope-and-exposure).
 - **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Dynamic receiver/evidence loan origin across package boundaries.
 - **DYNAMIC-RECEIVER-LOAN-ORIGIN.** Dynamic receiver loan origin tracking.
 - **CONST-GENERIC-INFERRED-EXTENT-RANGE.** Inferred extent ranges for const-generic parameters.

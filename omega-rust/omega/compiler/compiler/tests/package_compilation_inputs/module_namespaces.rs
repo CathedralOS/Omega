@@ -17,6 +17,122 @@ fn root_inputs(root: &Path) -> PackageCompilationInputs {
     .expect("one package")
 }
 
+// Visibility belongs to the package, not the source file or logical module.
+// Repeating an exact import is idempotent; only distinct visible declarations
+// compete. Keep this acceptance beside its cross-package rejection so a fuzz
+// expectation cannot accidentally introduce file-private language semantics.
+#[test]
+fn repeated_imports_of_package_private_machines_execute_across_files() {
+    for imports in [
+        "use combat; use combat;",
+        "use combat::damage; use combat::damage;",
+        "use combat; use combat::damage; use combat;",
+    ] {
+        let tree = TempTree::new();
+        let root = tree.package("root");
+        TempTree::write(
+            root.join("combat.omg"),
+            "module combat; machine damage() -> u64 { 7 }",
+        );
+        let call = if imports.contains("combat::damage") {
+            "damage()"
+        } else {
+            "combat::damage()"
+        };
+        TempTree::write(
+            root.join("main.omg"),
+            &format!("{imports} machine score() -> u64 {{ {call} }}"),
+        );
+        let checked = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(root_inputs(&root)),
+            ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+        })
+        .expect("same-package private selection and repeated imports are legal");
+        let artifact = terminal_production::TerminalProductionRequest::new(&checked, "score")
+            .produce_artifact()
+            .expect("private module call reaches Terminal");
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+            .expect("reload canonical artifact");
+        drop(checked);
+        drop(tree);
+        assert!(!root.exists(), "execution cannot rediscover source imports");
+        assert_eq!(
+            terminal_interpreter::interpret_terminal_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[],
+            )
+            .expect("private module call executes without source"),
+            terminal_interpreter::TerminalExecutionResult::Scalar(
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(7),
+                    scalar_type: semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .expect("u64 carrier"),
+                },
+            ),
+        );
+    }
+}
+
+#[test]
+fn repeated_imports_cannot_expose_a_dependency_private_machine() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency.clone()),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("one direct dependency");
+    for (imports, call) in [
+        ("use dep::combat; use dep::combat;", "dep::combat::damage()"),
+        (
+            "use dep::combat::damage; use dep::combat::damage;",
+            "damage()",
+        ),
+    ] {
+        TempTree::write(
+            root.join("main.omg"),
+            &format!("{imports} machine score() -> u64 {{ {call} }}"),
+        );
+        for visibility in ["pub ", ""] {
+            TempTree::write(
+                dependency.join("combat.omg"),
+                &format!("module combat; {visibility}machine damage() -> u64 {{ 7 }}"),
+            );
+            let result = compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(inputs.clone()),
+                ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+            });
+            if visibility.is_empty() {
+                let diagnostics =
+                    result.expect_err("a direct dependency does not publish private machines");
+                assert!(
+                    diagnostics.iter().any(|diagnostic| {
+                        diagnostic.message.contains("private")
+                            && diagnostic.message.contains("damage")
+                    }),
+                    "{diagnostics:?}",
+                );
+            } else {
+                result.expect("the same selection is legal when the exact machine is public");
+            }
+        }
+    }
+}
+
 #[test]
 fn signature_free_issuer_selection_uses_the_authored_file_import() {
     use language_semantics::DomainEstablishmentRoute;
