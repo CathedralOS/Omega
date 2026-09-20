@@ -9104,6 +9104,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-NATIVE-MATRIX-WINDOWS-X64 row's platform table; the matching row
   machinery is landed under RC-NATIVE-MATRIX-GATE.
 - **RECAST-SOURCE-POSITIONS** — mined candidate; scope verified, resolved — landed at `92db61544e3` ("recast diagnostics carry the offending cast's source position"): every recast-path diagnostic attaches the authored span of the offending `as` expression via `with_source_span(program.expression_table.source_span(handle))` in `value_custody/recasts.rs` — the stray cast for the positional sweep (pinned by `fail/recast/recast_position_fenced`), the let's initializer for the unspelled reference pun, and the cast for every scalar/slice/byte-region judgment; recorded in `validation/recasts.md`. The distinct remaining leg — admitting recasts in non-`let` positions (guard operands, call arguments, nested expressions) — is the deliberately fenced deeper byte-view rung (L4/L5) in the module header, an authorizing-brief item rather than this stub's bounded scope.
+  REGRESSION NOT CLOSED BY THAT LANDING (measured 2026-09-20 at `00ed2cec7c3`,
+  reconfirmed at `1f7301b71020`): `92db61544e3` left nine `omega-architecture-test`
+  cases red, and they are still red — `symbolic_walk_{weak_guard_spelling_refuses,
+  recast_footprint_discharges,recast_wide_witness_refuses}`,
+  `boundary_ensures_{witness_discharges_recast_footprint,
+  witness_too_wide_refuses_recast_footprint,witness_survives_unrelated_internal_call,
+  witness_survives_unrelated_intervening_call,equalities_couple_symbolic_recast_witnesses}`
+  and `boundary_witness_survives_transitive_disjoint_boundary_frame`. The programs are
+  still REFUSED, so this is a precision loss rather than an admission hole: the refusal
+  now reads "cannot bound the recast offset `offset` -- the region holds 64 bytes, but no
+  declared range, dominating incoming guard, or boundary-ensures witness" instead of the
+  footprint refusal "would read past the buffer" the tests assert. The boundary-ensures
+  witness transport stopped being found, so the offset never gets bounded and the precise
+  tail-overrun diagnosis never forms. Verified pre-existing, not test drift: the same
+  nine fail at clean `origin/main` with no local commits. Their assertions are correct as
+  written and were deliberately left unrelaxed — relaxing them would mask the regression.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
 - **REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
