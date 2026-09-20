@@ -186,7 +186,6 @@ pub(crate) fn check(audit: &mut Audit) {
         "generalized_spill_recovery_actions",
         "generalized_spill_recovery_choice",
         "generalized_spill_recovery_worklist",
-        "logical_spill_operations",
         "recursive_reload_value_homes",
         "recursive_spill_insertion",
         "reload_value_homes",
@@ -225,6 +224,11 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/validate.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/codec.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/tests.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/codec.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

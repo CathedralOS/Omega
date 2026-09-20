@@ -3,11 +3,12 @@
 //! `crate::register_allocation::stage_register_allocation` calls none of the
 //! families below. Executable pressure recovery on the sequenced route is
 //! `crate::assignment::runtime_spill`; these families are the bounded,
-//! independently replayed spill boundaries that would extend it: logical spill
-//! planning, stack-slot coloring, abstract spill insertion, reload-value and
-//! synthetic reload-value homes, recursive and generalized recovery worklists,
-//! victim choices and logical actions, spill-pseudo lowering, and abstract
-//! spill memory effects and access constraints.
+//! independently replayed spill boundaries that would extend it: stack-slot
+//! coloring, abstract spill insertion, reload-value and synthetic reload-value
+//! homes, recursive and generalized recovery worklists, victim choices and
+//! logical actions, spill-pseudo lowering, and abstract spill memory effects
+//! and access constraints. Logical spill planning is sequenced under
+//! `crate::assignment::logical_spill_operations`.
 //!
 //! They are exercised by the native-differential `register_allocation` tests
 //! and the architecture ladders, and machine emission's non-authoritative
@@ -23,7 +24,6 @@ pub(crate) mod generalized_spill_insertion;
 pub(crate) mod generalized_spill_recovery_actions;
 pub(crate) mod generalized_spill_recovery_choice;
 pub(crate) mod generalized_spill_recovery_worklist;
-pub(crate) mod logical_spill_operations;
 pub(crate) mod recursive_reload_value_homes;
 pub(crate) mod recursive_spill_insertion;
 pub(crate) mod reload_value_homes;

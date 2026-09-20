@@ -10,15 +10,16 @@
 use crate::tests::{
     AllocationEvidence, AllocationReplayError, NativeTarget, Optimization, OptimizationSelections,
     OptimizedActiveResidentRematerializationError, OptimizedPostAllocationMachinePipelineError,
-    PostAllocationSelectedTransformation, RuntimeSpillAllocationError,
-    StagedOptimizedSelectedInstructions, stage_active_resident_register_allocation,
+    PostAllocationSelectedTransformation, RuntimeSpillAllocationError, SpillChoicePolicy,
+    StagedOptimizedSelectedInstructions, choose_spill_victims, selected_lowering_budget,
+    stage_active_resident_register_allocation,
     stage_leaf_local_fixed_view_register_allocation_composing, stage_optimized_live_ranges,
     stage_optimized_liveness, stage_optimized_post_allocation_machine_plan,
     stage_shared_entry_fixed_view_register_allocation,
     staged_active_resident_exact_add_bridge_chain,
     staged_active_resident_exact_add_bridge_chain_with_selections,
     staged_active_resident_exact_add_chain, staged_active_resident_exact_add_original_victim_chain,
-    staged_composition_pressure_computed_killer_legality,
+    staged_active_resident_two_view_legality, staged_composition_pressure_computed_killer_legality,
     staged_composition_pressure_module_legality,
 };
 use selected_instructions::LocalStorageSlotId;
@@ -663,6 +664,75 @@ fn changed_spill_frame_realization_invalidates_retained_demand() {
                 Err(AllocationReplayError::CurrentProgramMismatch)
             ),
             "{target:?}: a changed allocation must fail retained replay"
+        );
+    }
+}
+
+/// The runtime-spill sequence retains the sequenced logical-spill boundary's
+/// outcome with the recovered allocation, and replay re-derives it from the
+/// same source facts. This fixture's pressure shape declines the bounded
+/// boundary, so custody records `None` and replay rejoins; custody claiming
+/// a plan recovered under foreign facts must fail replay.
+#[test]
+fn runtime_spill_retains_and_replays_the_sequenced_logical_spill_boundary() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let mut retained = stage_leaf_local_fixed_view_register_allocation_composing(
+            staged_composition_pressure_module_legality(
+                target,
+                OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            ),
+        )
+        .unwrap_or_else(|error| {
+            panic!("{target:?}: leaf-local composition must complete: {error}")
+        });
+        assert!(
+            matches!(
+                retained.current().evidence(),
+                AllocationEvidence::RuntimeSpill(_)
+            ),
+            "{target:?}: residual pressure must publish runtime-spill evidence"
+        );
+        assert!(
+            retained.logical_spill_operations().is_none(),
+            "{target:?}: the bounded boundary declines this shape and records `None`"
+        );
+        retained.replay_allocation().unwrap();
+        assert!(!retained.corrupt_runtime_spill_logical_operations_for_test());
+
+        let foreign_legality = staged_active_resident_two_view_legality(target);
+        let foreign_ranges = foreign_legality.live_range_stage();
+        let foreign_selected = foreign_ranges.liveness_stage().selected_stage();
+        let environment = foreign_selected.register_environment();
+        let foreign_choices = choose_spill_victims(
+            foreign_legality.legality(),
+            foreign_ranges.ranges(),
+            environment.identity(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            &environment.allocation_constraint_keys(),
+            SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        let foreign_operations = selected_instructions_to_register_homes::plan_logical_spill_operations(
+            foreign_selected.selected(),
+            foreign_ranges.ranges(),
+            foreign_legality.legality(),
+            &foreign_choices,
+            selected_instructions_to_register_homes::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        assert!(retained.substitute_runtime_spill_logical_operations_for_test(foreign_operations));
+        assert!(
+            matches!(
+                retained.fresh_source_replay_for_test(),
+                Err(AllocationReplayError::RuntimeSpill(
+                    RuntimeSpillAllocationError::LogicalOperationsMismatch
+                ))
+            ),
+            "{target:?}: custody carrying a foreign logical-spill plan must fail replay"
         );
     }
 }

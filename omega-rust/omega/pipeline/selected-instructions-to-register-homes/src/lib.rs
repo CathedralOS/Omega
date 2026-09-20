@@ -124,6 +124,15 @@ pub use preservation::{
 };
 
 // Validated spill boundaries not yet sequenced by `stage_register_allocation`.
+pub use assignment::logical_spill_operations::{
+    FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
+    LogicalSpillOperationDecodeError, LogicalSpillOperationError, LogicalSpillOperationIdentity,
+    LogicalSpillOperationPlan, LogicalSpillOperationPolicy, LogicalSpillOperationValidationReceipt,
+    LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
+    LogicalSpillStore, LogicalSpillUseRewrite, ValidatedLogicalSpillOperations,
+    logical_spill_operation_identity, plan_logical_spill_operations,
+    validate_logical_spill_operations,
+};
 pub use unsequenced_spill_stages::abstract_spill_access_constraints::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessConstraintPlan,
     AbstractSpillAccessConstraintPlanIdentity, AbstractSpillAccessConstraintPolicy,
@@ -192,15 +201,6 @@ pub use unsequenced_spill_stages::generalized_spill_recovery_worklist::{
     GeneralizedSpillRecoveryWorklistPolicy, GeneralizedSpillRecoveryWorklistReceipt,
     ValidatedGeneralizedSpillRecoveryWorklist, generalized_spill_recovery_worklist_identity,
     seed_generalized_spill_recovery_worklist, validate_generalized_spill_recovery_worklist,
-};
-pub use unsequenced_spill_stages::logical_spill_operations::{
-    FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
-    LogicalSpillOperationDecodeError, LogicalSpillOperationError, LogicalSpillOperationIdentity,
-    LogicalSpillOperationPlan, LogicalSpillOperationPolicy, LogicalSpillOperationValidationReceipt,
-    LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
-    LogicalSpillStore, LogicalSpillUseRewrite, ValidatedLogicalSpillOperations,
-    logical_spill_operation_identity, plan_logical_spill_operations,
-    validate_logical_spill_operations,
 };
 pub use unsequenced_spill_stages::recursive_reload_value_homes::{
     FunctionRecursiveReloadValueHomes, RecursiveReloadCoexistingHome,

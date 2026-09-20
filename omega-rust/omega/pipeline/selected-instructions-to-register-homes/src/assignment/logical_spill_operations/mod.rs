@@ -1,4 +1,10 @@
 //! Optimizer module role: executable entrance. Logical spill planning and independent replay.
+//!
+//! `stage_register_allocation`'s runtime-spill recovery sequences this
+//! boundary: over the recovery's input facts it plans the store, reload, and
+//! operand-rewrite obligations for the first supported active-resident
+//! pressure choice, retains the validated output on the produced allocation,
+//! and re-derives it during replay.
 
 use crate::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
