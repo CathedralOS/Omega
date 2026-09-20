@@ -171,12 +171,7 @@ fn selected_comparison_publication_preserves_complete_custody_among_builtins() {
         "Terminal proposal must retain every selected integer comparison occurrence exactly once"
     );
     assert_eq!(
-        rebuild(
-            &retained,
-            vec![occurrences[0], occurrences[0]],
-            |_| {}
-        )
-        .unwrap_err(),
+        rebuild(&retained, vec![occurrences[0], occurrences[0]], |_| {}).unwrap_err(),
         "Terminal proposal repeats an integer comparison occurrence"
     );
 
