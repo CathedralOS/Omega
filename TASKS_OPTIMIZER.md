@@ -85,10 +85,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   optimization unit) and rejects `StagedOptimized` ancestry inside them. The
   shared-vocabulary table pins the root sets of optimization-core,
   register-model, task-plans, effects, calling-conventions,
-  function-identity and installation-evidence. `representations/target` is
-  the one Omega representation crate the guard does not yet name, and
-  consumers in the selected and allocation stages still reach current data
-  through producer history.
+  function-identity, installation-evidence and `target`. Consumers in the
+  selected and allocation stages still reach current data through producer
+  history.
 
   Remaining work:
 
@@ -112,10 +111,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     stages, and `optimized_semantic_wrapper_object/codec` in
     `native-realization` (see `PIPELINE-OWNER-CONSOLIDATION` for whether that
     owner survives).
-  - `representations/target` is the last unnamed crate: decide whether it is
-    shared vocabulary (exempt under
-    [pipeline.md](omega-rust/pipeline.md#placement-and-semantic-ownership)) or
-    a program needing one root, and extend the guard's table to match.
+  - `representations/target` is shared vocabulary, not a program: its
+    deployment profiles, entry schemas and UEFI/ELF/foreign-locator
+    structures have no current-program aggregate, and the guard's
+    shared-vocabulary table now pins its `target_semantics.rs` root.
 
   Acceptance: current programs outlive their producers; ordinary consumers
   read current data directly; historical inputs remain separate replay
