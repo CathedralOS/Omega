@@ -18,6 +18,7 @@ fn check(source: &str, accepted: bool) {
                     .any(|diagnostic| diagnostic.message.contains("requires")
                         || diagnostic.message.contains("ensures")
                         || diagnostic.message.contains("implicit domain weakening")
+                        || diagnostic.message.contains("implicit domain strengthening")
                         || diagnostic.message.contains("distinct normalized instances")
                         || diagnostic.message.contains("violates required fact")),
                 "{diagnostics:#?}\n{source}"

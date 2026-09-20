@@ -773,7 +773,7 @@ fn checked_facts_do_not_equate_distinct_content_projection_identities() {
 
         data Main {}
         machine Main::retag(region: Region in Left) -> Region in Right {
-            region
+            region as Region in Right
         }
         machine Main::main(&mut self) {}
     "#;
