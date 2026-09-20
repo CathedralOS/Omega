@@ -8020,8 +8020,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (4) `optimized_semantic_wrapper_object/codec` moves only after
   PIPELINE-OWNER-CONSOLIDATION resolves whether native-realization retains
   that owner — skip it while undecided.
-- **DYNAMIC-CALL-OCCURRENCE-SPANS** — mined candidate; scope verified,
-  resolved — landed at `95019d341a9` ("omega: dynamic-call occurrences bind
+- **DYNAMIC-CALL-OCCURRENCE-SPANS.** Mined candidate — resolved: scope
+  verified, landed at `95019d341a9` (confirmed ancestor of origin/main at
+  `ded56393da2` this session) ("omega: dynamic-call occurrences bind
   dispatch parents and span custody"): every surviving `CallDynamic*`
   produces a coverage occurrence joining the emitted call instruction's
   span, dispatch-parent identity, and role
