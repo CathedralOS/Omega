@@ -57,34 +57,40 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   graph. The submodule's TASKS owns port work; this item owns integration and
   compiler blockers exposed by that application.
 
-  The tracked app `420cabe83985` uses intrinsic `Service<Console>` and pins std
-  to `87d8b22713ff5e46e535a4b1c62a8b6710d0d1ab`. With that Omega revision's
-  release compiler on macOS ARM64, Python 3.13 and `RUST_MIN_STACK=67108864`,
-  the native acceptance exits 0 and prints `Squalr geometry: PASS` (66.602 s).
-  All 12 geometry checks and the 17-package/37-edge workspace remain intact.
-  The lock was rebuilt through ordinary update/review after its old policy
-  schema rejected; checkout relocation still requires fresh local-source review.
-  Windows execution remains untested; the supplied-byte scanner is not ported.
+  The tracked app `63baef1` uses intrinsic `Service<Console>` and pins std
+  to `daa47e2d5048b67840393d2bb05ede58ea38e7c7`, the revision publishing the
+  `CString` domain that the public Objective-C boundary already named; earlier
+  pins fail candidate review on the `Service<R>` carrier mandate (87d8b2) or
+  the private-domain interface check (9a4000a). On Linux x86-64 with the
+  `daa47e2d` release compiler and Python 3.10 + a `tomli` backport for
+  `tomllib`, `python samples/apps/squalr/tools/verify.py native --timeout 600`
+  exits 0 and prints `Squalr geometry: PASS` (201.9 s); the same acceptance
+  passed on macOS ARM64 under the previous pin (66.602 s, Python 3.13,
+  `RUST_MIN_STACK=67108864`). All 12 geometry checks and the
+  17-package/37-edge workspace remain intact. The lock was rebuilt as
+  `omega_lock 3` for linux_x86_64 through ordinary update/review after the old
+  schema rejected; checkout relocation still requires fresh local-source
+  review. Windows execution remains untested; the supplied-byte scanner is not
+  ported.
 
-  Scanner prerequisites (2026-09-19, Omega `bf49663932`): the pinned Rust
+  Scanner prerequisites (2026-09-20, Omega `daa47e2d`): the pinned Rust
   `439090da02eb674eb2511664ae217ede86890e4a` is absent from the inspected local
   Squalr/Olorin checkouts, and fetching that exact revision from the recorded
   upstream returns `upload-pack: not our ref`. Recover the pinned reference or
   review an explicit reference update; do not silently port a moving checkout.
-  Private app publication also returned HTTP 403 for the configured Git identity;
-  read access alone is insufficient for publishing a new parent pin. Runtime
-  growable storage remains an implementation dependency: `core/vec.omg` declares
-  no construction or storage mechanics. **BUMP-ALLOCATOR-CANARY** and
-  **PLAN-LAID-VIEWS** own element establishment and content-preserving growth;
-  a fixed-capacity scanner does not satisfy this customer.
+  Runtime growable storage remains an implementation dependency:
+  `core/vec.omg` declares no construction or storage mechanics.
+  **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** own element establishment
+  and content-preserving growth; a fixed-capacity scanner does not satisfy
+  this customer.
 
   Keep one integration owner and work from the actual application command:
 
   1. Preserve the working geometry command as the compiler integration control,
      and run it on Windows after ordinary target-specific package review.
      Publish application changes in its own repository before updating the
-     gitlink; private-repository access is required. Assign only newly witnessed
-     compiler failures to their existing semantic/realization owners.
+     gitlink. Assign only newly witnessed compiler failures to their existing
+     semantic/realization owners.
   2. Drive the submodule's supplied-byte scan and repeated
      filtering through the real growable/partitioned storage and result path.
      Keep build-only packages explicitly unported; no fixed-capacity substitute,
