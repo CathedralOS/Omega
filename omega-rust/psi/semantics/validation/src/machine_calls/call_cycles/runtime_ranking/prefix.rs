@@ -6,6 +6,7 @@ use crate::machine_calls::calls::{CallFrameResolver, frame_paths_overlap};
 use facts::NormalizedWriteFrame;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
 use typed_trees::statement::StatementNode;
 
@@ -116,6 +117,37 @@ pub(super) fn preserves_rank(
                 && frames.is_some_and(|frames| {
                     disjoint(frames.may_write_frame(machine, call))
                         && disjoint(frames.statement_value_write_frame(machine, statement))
+                })
+        }
+        StatementNode::LocalData(local) => {
+            // A `let` binds a fresh local no premise carrier can name, so only
+            // its initializer's calls can disturb protected state. A
+            // direct-call initializer keeps the statement-call bar: a
+            // checked-body callee, an inert receiver and arguments, and the
+            // aggregate write frame complete and disjoint from every
+            // protected carrier. Composed initializers stay refused: an
+            // authored operator or index selection beside the call would hide
+            // a write no frame sees.
+            let ExpressionNode::Call(call) =
+                program.expression_table.expression(local.initial_value)
+            else {
+                return false;
+            };
+            if !call.target_symbol.is_valid() {
+                return false;
+            }
+            let callee_machine = program.symbols.get(call.target_symbol).parent;
+            program.machines().iter().any(|candidate| {
+                (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
+                    && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            }) && super::expression_is_inert(program, machine, state, call.receiver)
+                && program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .all(|argument| super::expression_is_inert(program, machine, state, *argument))
+                && frames.is_some_and(|frames| {
+                    disjoint(frames.expression_write_frame(machine, local.initial_value))
                 })
         }
         _ => false,

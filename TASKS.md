@@ -502,6 +502,21 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
     `scalar_graph/scalar_graph_lowering/cycles.rs` also require a one-state
     graph. Resume with the same named-state source and publish/run it natively;
     the separate single-state native regression is not this acceptance.
+
+    Landed 2026-09-20 (w180, Devin / termination-ranking-checks): a `let`
+    whose initializer is a direct call to a checked-body callee now keeps the
+    statement-call bar in both prefix walks -- `preserves_rank` in
+    `validation/.../call_cycles/runtime_ranking/prefix.rs` and the named-state
+    `preserved_entry_prefix` in `checks/termination/ranking/ranges/relational.rs`.
+    The bound local is fresh storage no premise carrier can name, so admission
+    requires only a pure receiver and arguments plus a complete aggregate
+    write frame disjoint from every protected carrier. The corpus control
+    `rank_range_prefix_let_binding` moved to `tests/omega/pass/termination/`;
+    nested-call arguments, composed initializers, and `&mut` premise-carrier
+    writes still reject (checked-stage coverage in
+    `rank_ranges/call_components.rs::prefix_let_call_bindings_*`). Composed
+    initializers, bodyless boundary/requirement callees, and writes through
+    the bound result remain open.
   - Use STATE-LOCAL-VALUE-FRONTIER's checked computation route to retire
     generated operand-call states. Do not add termination-only provenance for
     artificial source edges. This dependency does not block independent
@@ -3180,12 +3195,13 @@ Owners include
     The per-page loop is a ranked cycle whose body computes `level_index` and
     crosses `TranslationHardware::store_entry`. `preserves_rank` in
     `validation/src/machine_calls/call_cycles/runtime_ranking/prefix.rs` admits
-    inert statements, disjoint stores, and statement-position calls to
+    inert statements, disjoint stores, statement-position calls to
     checked-body callees with inert arguments and complete disjoint write
-    frames. A `let` whose initializer calls a machine and any call to a bodyless
-    boundary or requirement callee reject with "a write, call, or alias
-    invalidates the entry-relative ranking"; probes on 2026-09-18 rejected in
-    both named-state and call-component form.
+    frames, and (since 2026-09-20) a `let` bound directly to such a call in
+    both prefix walks. A `let` whose initializer composes the call and any
+    call to a bodyless boundary or requirement callee still reject with "a
+    write, call, or alias invalidates the entry-relative ranking" or an
+    unproven rank range.
     [Termination](wiki/spec/language/termination.md#ranking) applies ordinary
     contracts to calls outside the component, and
     `TERMINATION-RANKING-CHECKS` owns the repair. Do not respell the loop.
