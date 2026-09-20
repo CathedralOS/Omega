@@ -8328,7 +8328,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX-HOST-EXECUTION** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOSTS** — recorded at
+  `wiki/drafts/rc_native_matrix_hosts.md` (revision 0977a4249e): all four
+  required runner rows enumerated. linux_x86_64 red on a full
+  `omega-native-differential-test` sweep (618 pass / 108 fail across 726
+  legs; `pipeline_ownership` target does not compile on this revision);
+  linux_arm64 cross-emit only; macos_arm64 unrecorded (no runner); and
+  windows_x86_64 open with the runner procedure recorded. Re-run per row
+  when the Service<R> fixture migrations and host runners land.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X64.** Mined candidate — resolved as an alias
   of RC-NATIVE-MATRIX-LINUX-X86-64: `x64` and `x86_64` name the same
