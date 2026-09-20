@@ -21,6 +21,10 @@ impl Drop for Fixture {
 }
 
 fn check(source: &str) -> Result<(), String> {
+    check_files(&[("main.omg", source)])
+}
+
+fn check_files(sources: &[(&str, &str)]) -> Result<(), String> {
     let fixture = Fixture(std::env::temp_dir().join(format!(
         "omega-field-range-{}-{}",
         std::process::id(),
@@ -28,7 +32,9 @@ fn check(source: &str) -> Result<(), String> {
     )));
     fs::create_dir_all(&fixture.0).unwrap();
     let root = fixture.0.join("main.omg");
-    fs::write(&root, source).unwrap();
+    for (name, source) in sources {
+        fs::write(fixture.0.join(name), source).unwrap();
+    }
     compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: root,
@@ -46,6 +52,39 @@ fn check(source: &str) -> Result<(), String> {
             .collect::<Vec<_>>()
             .join("\n")
     })
+}
+
+#[test]
+fn dependent_receiver_bounds_use_the_selected_declaration_in_either_import_order() {
+    for (selected_limit, foreign_limit) in [(3, 4), (4, 3)] {
+        let selected = format!(
+            "module selected;
+            pub data Holder {{ limit: u64 [0..={selected_limit}]; values: [u8; 4]; }}
+            pub machine Holder::read(&self, index: u64 [0..=self.limit]) -> u8 {{
+                self.values[index]
+            }}"
+        );
+        let foreign = format!(
+            "module foreign;
+            pub data Holder {{ limit: u64 [0..={foreign_limit}]; values: [u8; 4]; }}"
+        );
+        for imports in ["use foreign; use selected;", "use selected; use foreign;"] {
+            let root = format!("{imports} pub machine identity(value: u8) -> u8 {{ value }}");
+            let result = check_files(&[
+                ("main.omg", &root),
+                ("selected.omg", &selected),
+                ("foreign.omg", &foreign),
+            ]);
+            if selected_limit == 3 {
+                result.expect("the selected declaration bounds every index below four");
+            } else {
+                let diagnostics = result.expect_err(
+                    "an unrelated declaration cannot exclude the selected receiver's index four",
+                );
+                assert!(diagnostics.contains("cannot prove index"), "{diagnostics}");
+            }
+        }
+    }
 }
 
 #[test]

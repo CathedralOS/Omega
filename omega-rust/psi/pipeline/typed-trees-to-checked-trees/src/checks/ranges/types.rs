@@ -157,25 +157,16 @@ fn dependent_range_substituted(
     handle: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
     let (minimum, symbolic) = dependent_range_of_type_reference(program, handle)?;
-    let attached = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == attached.as_str())?;
-    let field_type = program
-        .data_members(data)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Field(field)
-                if field.name.as_str() == symbolic.field.as_str() =>
-            {
-                field
-                    .type_reference
-                    .is_valid()
-                    .then_some(field.type_reference)
-            }
-            _ => None,
-        })?;
+    // The symbolic bound retains a field spelling, but its owner is the exact
+    // attached declaration. Another module's same-named record cannot supply
+    // the store-enforced bound used to justify this parameter's indexes.
+    let field_type = validation::exact_attached_field(
+        program,
+        machine,
+        SymbolHandle::invalid(),
+        symbolic.field.as_str(),
+    )?
+    .type_reference;
     // The field itself must be an enforced-integer-ranged place (same gate
     // this module applies to any range an index proof may trust).
     if primitive_of_type_reference(program, field_type).is_none_or(|primitive| {
