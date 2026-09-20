@@ -1307,9 +1307,15 @@ Owners include
     static layout at all (the `value_generic_runtime_static_length` fail
     corpus pins the rejection), so the residual fence covers exactly the
     shapes no closed checked identity can name: open templates and
-    non-closed applications. The recursive owner pins that boundary with
-    `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`.
-    Closed literal/generic zero-count arrays are no longer this gap.
+    non-closed applications. The recursive owner pins both shapes of that
+    boundary:
+    `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`
+    covers the unapplied template, and
+    `non_closed_member_applications_stay_fenced_under_the_recursive_owner`
+    covers a member typed by a non-closed application (`Log<two()>`): it
+    joins the ordinary fields, keeps whole-field writes, and rejects
+    traversal below the boundary for want of a carrier. Closed
+    literal/generic zero-count arrays are no longer this gap.
     Standalone rungs retain their narrower single-hop and nonzero-length
     contracts.
   - Obtain matching-host Linux AArch64 execution evidence. The writer harness
