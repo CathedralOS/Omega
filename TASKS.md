@@ -8722,6 +8722,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   program-entry-lane angle); all reach "no independent slice".
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; resolved as drained: the same-name row below carries the triage (57-failure census at bd6cddcb59, closed by attribution into `wiki/drafts/known_baseline_failures.md`); residual ledger refreshed at `e7c0099cb2b7` (2206 run / 2183 pass / 23 fail, member→family mapping current). Repairs stay with the owning lanes named there; no slice under this stub.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; scope verified,
+  The concrete entry-acquisition leg the README named — era-entry-gated sealing of `InstalledEntryReference` on the retained runnable's `InstalledCode` — landed at `be03555d1795` (`entry_acquisition.rs` joins the `ActiveComponentEraEntry` token to the era's retained runnable through `RunnableComponentEraLedger::acquire_installed_entry`, delegates the seal to the executable-installation control-flow-integrity gate, and returns the authority and receipt unchanged on refusal); re-witnessed `cargo nextest run -p component-publication -E 'test(~entry_acquisition)'` 3/3 PASS on linux x86-64 at `483dfea65fc3`. Additional sibling alias on this settled surface: BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS.
   covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
   surface recorded on the resolved ENTRY-MECHANICS-RUNTIME-CONSOLIDATION
   row (~TASKS.md:7467, audit at `be03555d17`): entry/exit mechanics sit
