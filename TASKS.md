@@ -7394,7 +7394,36 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE** — mined candidate; verify scope then implement.
 - **PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION** — mined candidate; verify scope then implement.
-- **PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION** — mined candidate; verify scope then implement.
+- **PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.** Mined candidate;
+  scope verified, covered — the name re-mines the package-evidence contract
+  pair in `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md`:
+  uniqueness ("Every provider conformance demand matches a distinct
+  requirement demand, preserving evidence-binder presence, subject ordinal,
+  trait, selected application, lifetimes, and structural arguments") and the
+  overcollection bound ("Equal applications deduplicate only after complete
+  equality while retaining all" distinctions). Both halves are already
+  implemented and pinned in `src/capture/`: unique-trait selection rejects
+  non-unique/absent cases ("selected schema has no unique exact declaring
+  trait" — `semantics/declarations/provider_schema.rs`; "service authority
+  has no unique declaring trait" — `semantics/services/authority.rs`;
+  "calling application has no unique exact boundary trait" —
+  `calling/application/signature.rs`; "lifetime partition has no unique
+  declaring-trait application" — `providers/policy/rows.rs`; "accepted
+  service has no unique exact trait" —
+  `terminal_authority_permissions/declarations.rs`), and deduplication runs
+  only on completely-projected sorted rows
+  (`providers/application_realizations.rs` "deduplicates only equal complete
+  semantic rows", `contracts/facts.rs`, `contracts/propositions/evidence.rs`,
+  `representation.rs` dedup keyed on full row + declaration identity).
+  Tests pin both directions: `tests/boundary_supply/static_telescopes.rs`
+  rejects a duplicated provider demand refining one requirement demand, and
+  `src/capture/calling/application/signature/inheritance/tests.rs` keeps
+  distinct trait lifetime binders collecting. The genuinely unfinished
+  ledger joins (certificates, transitive open obligations, schema migration,
+  admission decisions — `src/ledger/obligation_ledger.rs`) are named under
+  the sibling resolved stub PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not
+  here. Sibling stubs on this surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION,
+  PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
 - **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF** — mined candidate; verify scope then implement.
 - **PACKAGE-INPUTS-PSI-FAILURES** — mined candidate; verify scope then implement.
 - **PACKAGE-LOCK-SOURCE-IDENTITY** — mined candidate; verify scope then implement.
