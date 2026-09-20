@@ -404,6 +404,7 @@ fn replay_block_instructions(
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
     });
     instructions

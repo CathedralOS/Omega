@@ -271,6 +271,7 @@ pub(super) fn selected_instructions(
         }
         | selected_instructions::SelectedTerminator::Jump { instruction, .. }
         | selected_instructions::SelectedTerminator::Return { instruction, .. }
+        | selected_instructions::SelectedTerminator::Crash { instruction, .. }
         | selected_instructions::SelectedTerminator::HostedExitProcess { instruction, .. } => {
             instruction
         }

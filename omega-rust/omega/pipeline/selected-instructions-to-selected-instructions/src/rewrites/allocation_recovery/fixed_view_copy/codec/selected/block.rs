@@ -45,6 +45,34 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
         encode_instruction(bytes, instruction);
     }
     match &block.terminator {
+        SelectedTerminator::Crash {
+            instruction,
+            psi_edge,
+            cause,
+            site_guard,
+            frontier_lower_bound,
+        } => {
+            bytes.push(6);
+            encode_instruction(bytes, instruction);
+            bytes.extend_from_slice(&psi_edge.get().to_le_bytes());
+            bytes.push(match cause {
+                terminal_psi::CrashCause::Trap => 1,
+                terminal_psi::CrashCause::Abort => 2,
+            });
+            length(bytes, site_guard.len());
+            for predicate in site_guard {
+                let encoded =
+                    terminal_codec::canonical_proposition_order_key(predicate.proposition())
+                        .expect("validated crash predicate");
+                length(bytes, encoded.len());
+                bytes.extend_from_slice(&encoded);
+            }
+            length(bytes, frontier_lower_bound.len());
+            for claim in frontier_lower_bound {
+                bytes.extend_from_slice(&claim.get().to_le_bytes());
+            }
+        }
+
         SelectedTerminator::HostedExitProcess {
             instruction,
             nominal_return_edge,
@@ -124,6 +152,36 @@ pub(super) fn decode_block(
         instructions.push(decode_instruction(cursor)?);
     }
     let terminator = match cursor.byte()? {
+        6 => {
+            let instruction = decode_instruction(cursor)?;
+            let psi_edge = decode_id(cursor, EdgeId::new)?;
+            let cause = match cursor.byte()? {
+                1 => terminal_psi::CrashCause::Trap,
+                2 => terminal_psi::CrashCause::Abort,
+                tag => return Err(FixedViewCopyDecodeError::UnknownCrashCause(tag)),
+            };
+            let count = cursor.length()?;
+            let mut site_guard = Vec::with_capacity(count.min(cursor.remaining()));
+            for _ in 0..count {
+                let length = cursor.length()?;
+                let proposition =
+                    terminal_codec::decode_canonical_proposition(cursor.take(length)?)
+                        .map_err(|_| FixedViewCopyDecodeError::InvalidCrashPredicate)?;
+                site_guard.push(terminal_psi::CrashPredicateTerm::new(proposition));
+            }
+            let count = cursor.length()?;
+            let mut frontier_lower_bound = Vec::with_capacity(count.min(cursor.remaining()));
+            for _ in 0..count {
+                frontier_lower_bound.push(decode_id(cursor, semantic_vocabulary::ClaimId::new)?);
+            }
+            SelectedTerminator::Crash {
+                instruction,
+                psi_edge,
+                cause,
+                site_guard,
+                frontier_lower_bound,
+            }
+        }
         5 => SelectedTerminator::HostedExitProcess {
             instruction: decode_instruction(cursor)?,
             nominal_return_edge: decode_id(cursor, EdgeId::new)?,

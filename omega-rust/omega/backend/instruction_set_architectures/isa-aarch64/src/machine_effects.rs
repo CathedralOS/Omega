@@ -58,6 +58,18 @@ pub fn aarch64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::Crash {
+                    return Ok(crate::selected_form_encoding::crash::declaration(
+                        constraints
+                            .catalog()
+                            .constraints
+                            .iter()
+                            .find(|row| row.key == constraint)
+                            .ok_or(
+                                Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch,
+                            )?,
+                    ));
+                }
                 if semantic == MachineSemanticKind::HostedExitProcessI32 {
                     return crate::selected_form_encoding::hosted_exit_process::declaration(
                         target, constraint,
@@ -184,6 +196,7 @@ fn selected_keys(
         Aarch64SelectedAbi::Darwin => AARCH64_DARWIN_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
+        crash: crate::AARCH64_CRASH,
         copy_bytes: Some(crate::AARCH64_COPY_BYTES),
         save_floating_control: Some(crate::AARCH64_SAVE_FLOATING_CONTROL),
         restore_floating_control: Some(crate::AARCH64_RESTORE_FLOATING_CONTROL),
@@ -365,6 +378,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .units
             .clone()
     };
+    if semantic == MachineSemanticKind::Crash {
+        return crate::selected_form_encoding::crash::effects(&units("pc"));
+    }
     let view = |name: &str| {
         physical
             .view_named(name)
@@ -372,6 +388,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),
         MachineSemanticKind::LoadPacked3
         | MachineSemanticKind::LoadPacked5
@@ -640,6 +657,7 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         return MachineSizeKnowledge::ExactBytes((2 * width - 1) * 4);
     }
     match semantic {
+        MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(4),
         MachineSemanticKind::CopyBytes => MachineSizeKnowledge::ExactBytes(28),
         MachineSemanticKind::StorePacked => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 24,

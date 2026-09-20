@@ -182,6 +182,7 @@ pub(super) fn admit<'source>(
             ..
         } => vec![when_less, when_not_less],
         SelectedTerminator::Jump { .. }
+        | SelectedTerminator::Crash { .. }
         | SelectedTerminator::HostedExitProcess { .. }
         | SelectedTerminator::Return { .. } => {
             return Err(JoinRelocationError::UnsupportedPair);

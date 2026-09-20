@@ -51,6 +51,7 @@ pub(super) fn derive(
             }
             SelectedTerminator::Jump { .. }
             | SelectedTerminator::Return { .. }
+            | SelectedTerminator::Crash { .. }
             | SelectedTerminator::HostedExitProcess { .. } => None,
         };
         if let Some(successor) = successor {

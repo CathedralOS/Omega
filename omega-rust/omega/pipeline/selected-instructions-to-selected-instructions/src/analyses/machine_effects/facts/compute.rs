@@ -60,6 +60,7 @@ pub(super) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. }
                 | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::Crash { instruction, .. }
                 | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
             };
             instructions.push(compute_instruction(
@@ -115,6 +116,7 @@ fn terminal_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        crash: keys.crash,
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
         save_floating_control: keys.save_floating_control,
         restore_floating_control: keys.restore_floating_control,
@@ -383,6 +385,7 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         }
         SelectedInstructionKind::Jump => MachineSemanticKind::Jump,
         SelectedInstructionKind::ReturnScalar => MachineSemanticKind::ReturnScalar,
+        SelectedInstructionKind::Crash => MachineSemanticKind::Crash,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
         SelectedInstructionKind::CallScalar { .. } => MachineSemanticKind::CallScalar,
         SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,

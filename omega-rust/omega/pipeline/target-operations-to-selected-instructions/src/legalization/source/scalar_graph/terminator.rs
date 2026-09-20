@@ -10,6 +10,20 @@ pub(super) fn project(
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     match &node.operation {
+        AbstractOperation::Crash {
+            psi_edge,
+            cause,
+            site_guard,
+            frontier_lower_bound,
+        } => Ok(LegalizedScalarTerminator::Crash {
+            psi_edge: *psi_edge,
+            cause: *cause,
+            site_guard: site_guard.clone(),
+            frontier_lower_bound: frontier_lower_bound.clone(),
+            fuel: node.fuel.clone(),
+            effect: node.effect,
+            ownership: node.ownership.clone(),
+        }),
         AbstractOperation::ReturnStructural {
             psi_edge, source, ..
         } => {

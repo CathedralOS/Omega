@@ -141,6 +141,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
         SelectedInstructionKind::ReturnAggregate { .. } => 36,
+        SelectedInstructionKind::Crash => 111,
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::HostedReadByte { .. } => 32,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
@@ -374,6 +375,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::ConditionalBranchU64LessThan
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::ReturnScalar
+        | SelectedInstructionKind::Crash
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::ReturnUnit
         | SelectedInstructionKind::Jump => {}

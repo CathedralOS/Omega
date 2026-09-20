@@ -58,6 +58,7 @@ pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
                     }
                     | selected_instructions::SelectedTerminator::Jump { instruction, .. }
                     | selected_instructions::SelectedTerminator::Return { instruction, .. }
+                    | selected_instructions::SelectedTerminator::Crash { instruction, .. }
                     | selected_instructions::SelectedTerminator::HostedExitProcess {
                         instruction,
                         ..

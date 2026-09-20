@@ -100,6 +100,7 @@ pub(super) fn apply(
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id,
         };
         if terminator_id != first.instruction {
@@ -140,6 +141,7 @@ fn rewrite_operand(
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. }
                 | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::Crash { instruction, .. }
                 | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
             };
             (terminator.id == rewrite.instruction).then_some(terminator)

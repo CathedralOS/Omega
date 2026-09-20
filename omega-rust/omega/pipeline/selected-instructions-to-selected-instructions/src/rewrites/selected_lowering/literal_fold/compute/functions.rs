@@ -83,6 +83,7 @@ fn validate_dense_identifiers(
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                     | SelectedTerminator::Jump { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. }
+                    | SelectedTerminator::Crash { instruction, .. }
                     | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0,
                 }))
         })

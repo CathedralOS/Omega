@@ -121,6 +121,7 @@ pub(super) fn next_instruction_id(
                     | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                     | SelectedTerminator::Jump { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. }
+                    | SelectedTerminator::Crash { instruction, .. }
                     | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id.0,
                 }))
         })
@@ -273,6 +274,7 @@ fn terminator_instruction(
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
     }
 }

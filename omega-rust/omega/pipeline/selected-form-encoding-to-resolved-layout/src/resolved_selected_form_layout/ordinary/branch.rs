@@ -125,7 +125,9 @@ pub(super) fn resolve(
             when_less,
             when_not_less,
         ),
-        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
+        SelectedTerminator::Crash { .. }
+        | SelectedTerminator::Return { .. }
+        | SelectedTerminator::HostedExitProcess { .. } => {
             return unexpected(instruction.id);
         }
     };

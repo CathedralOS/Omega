@@ -257,7 +257,9 @@ pub(super) fn lower(
         }
         ranges.push(entry.operation_offset..end);
         let targets = match &function.operations[end - 1] {
-            AbstractOperation::ReturnStructural { .. } => Vec::new(),
+            AbstractOperation::ReturnStructural { .. } | AbstractOperation::Crash { .. } => {
+                Vec::new()
+            }
             AbstractOperation::Return {
                 cleanup_actions, ..
             }

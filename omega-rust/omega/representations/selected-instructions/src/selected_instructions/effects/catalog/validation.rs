@@ -25,7 +25,8 @@ pub(super) fn validate_declaration(
         MachineBarrier::ExternalEffect
     } else if matches!(
         semantic,
-        MachineSemanticKind::ConditionalBranchNonZero
+        MachineSemanticKind::Crash
+            | MachineSemanticKind::ConditionalBranchNonZero
             | MachineSemanticKind::Jump
             | MachineSemanticKind::ConditionalBranchU64LessThan
             | MachineSemanticKind::ConditionalBranchI64LessThan
@@ -91,6 +92,7 @@ pub(super) fn validate_declaration(
         ));
     }
     let expected_trap = match semantic {
+        MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
         MachineSemanticKind::HostedExitProcessI32 => {
             crate::MachineTrapBehavior::HostedExitReturnedV1
         }
@@ -221,6 +223,27 @@ fn validate_encoded_effects(
     applicability: MachineAlternativeApplicability,
     encoded: &MachineEncodedEffects,
 ) -> Result<(), ()> {
+    if declaration.semantic == MachineSemanticKind::Crash {
+        return if constraint.operands.is_empty()
+            && !constraint.implicit_uses.is_empty()
+            && constraint.implicit_defs == constraint.implicit_uses
+            && constraint.clobbers.is_empty()
+            && encoded.external_operand_reads.is_empty()
+            && encoded.external_operand_writes.is_empty()
+            && encoded.implicit_unit_uses == constraint.implicit_uses
+            && encoded.implicit_unit_defs == constraint.implicit_defs
+            && encoded.implicit_unit_clobbers.is_empty()
+            && encoded.memory == MachineEncodedMemoryEffect::NoneV1
+            && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+            && encoded.trap == MachineEncodedTrapBehavior::ExplicitCrashV1
+            && encoded.control == MachineEncodedControlEffect::CrashV1
+            && applicability == MachineAlternativeApplicability::Always
+        {
+            Ok(())
+        } else {
+            Err(())
+        };
+    }
     // Packed forms use a real early definition for their instruction-local
     // scratch. Neither the memory footprint nor that interference may be
     // weakened by a catalog row advertising only the eventual source result.
@@ -544,6 +567,7 @@ fn validate_encoded_effects(
         }
     }
     let expected_barrier = match encoded.control {
+        MachineEncodedControlEffect::CrashV1 => return Err(()),
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1
         | MachineEncodedControlEffect::HostedExitOrTrapV1
         | MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,

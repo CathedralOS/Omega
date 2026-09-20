@@ -195,6 +195,7 @@ fn selected<'a>(
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | selected_instructions::SelectedTerminator::HostedExitProcess {
                 instruction, ..
             } => instruction,

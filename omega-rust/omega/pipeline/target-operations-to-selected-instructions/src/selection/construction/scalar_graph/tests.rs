@@ -13,6 +13,7 @@ mod byte_input;
 mod byte_output;
 mod byte_views;
 mod control;
+mod crash;
 mod derived_calls;
 mod ieee_borrows;
 mod ieee_comparisons;

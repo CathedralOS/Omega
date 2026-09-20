@@ -6,6 +6,7 @@ use target_operations::MachineRegister;
 /// Numeric variants are deliberately not inferred by target-neutral stages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstraintKeys {
+    pub crash: RegisterConstraintKey,
     pub copy_bytes: Option<RegisterConstraintKey>,
     pub save_floating_control: Option<RegisterConstraintKey>,
     pub restore_floating_control: Option<RegisterConstraintKey>,

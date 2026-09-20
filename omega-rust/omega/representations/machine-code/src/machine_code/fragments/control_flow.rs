@@ -33,6 +33,12 @@ pub struct FunctionFragmentJumpEvidence {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentControlProvenance {
+    /// The selected source identity retains the checked guard and frontier;
+    /// this row joins their exact crash site to its terminating bytes.
+    Crash {
+        psi_edge: EdgeId,
+        cause: terminal_psi::CrashCause,
+    },
     HostedExitProcess {
         nominal_return_edge: EdgeId,
     },

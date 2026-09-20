@@ -143,6 +143,7 @@ fn terminator_instruction_id(terminator: &SelectedTerminator) -> SelectedInstruc
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction.id,
     }
 }
@@ -154,6 +155,7 @@ fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut Selec
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
     }
 }

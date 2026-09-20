@@ -58,6 +58,102 @@ fn successor_register_transport_has_exact_canonical_bytes() {
 }
 
 #[test]
+fn crash_block_codec_retains_exact_cause_guards_frontier_and_fuel() {
+    use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
+    use selected_instructions::{
+        SelectedBlock, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+        SelectedInstructionProvenance, SelectedTerminator,
+    };
+    use semantic_vocabulary::{ClaimId, Proposition};
+    use terminal_psi::{CrashCause, CrashPredicateTerm};
+
+    for cause in [CrashCause::Trap, CrashCause::Abort] {
+        let edge = EdgeId::new(7).unwrap();
+        let block = SelectedBlock {
+            id: SelectedBlockId(0),
+            origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Crash {
+                instruction: SelectedInstruction {
+                    id: SelectedInstructionId(0),
+                    kind: SelectedInstructionKind::Crash,
+                    constraint: RegisterConstraintKey {
+                        family: RegisterConstraintFamily::Instruction,
+                        variant: 780,
+                    },
+                    operands: Vec::new(),
+                    implicit_uses: Vec::new(),
+                    implicit_defs: Vec::new(),
+                    clobbers: Vec::new(),
+                    provenance: SelectedInstructionProvenance {
+                        edges: vec![edge],
+                        fuel: vec![optimization_unit::FuelSettlement {
+                            site: optimization_unit::PsiProvenance::Edge(edge),
+                            units: 2,
+                        }],
+                        ..Default::default()
+                    },
+                },
+                psi_edge: edge,
+                cause,
+                site_guard: vec![CrashPredicateTerm::new(Proposition::Truth)],
+                frontier_lower_bound: vec![ClaimId::new(3).unwrap(), ClaimId::new(5).unwrap()],
+            },
+        };
+        let mut encoded = Vec::new();
+        encode_block(&mut encoded, &block);
+        let mut cursor = Cursor::new(&encoded);
+        assert_eq!(decode_block(&mut cursor).unwrap(), block);
+        assert_eq!(cursor.remaining(), 0);
+        for mutation in 0..4 {
+            let mut changed = block.clone();
+            let SelectedTerminator::Crash {
+                psi_edge,
+                cause,
+                site_guard,
+                frontier_lower_bound,
+                ..
+            } = &mut changed.terminator
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => *psi_edge = EdgeId::new(9).unwrap(),
+                1 => {
+                    *cause = if *cause == CrashCause::Trap {
+                        CrashCause::Abort
+                    } else {
+                        CrashCause::Trap
+                    }
+                }
+                2 => site_guard.clear(),
+                3 => frontier_lower_bound.reverse(),
+                _ => unreachable!(),
+            }
+            let mut changed_bytes = Vec::new();
+            encode_block(&mut changed_bytes, &changed);
+            assert_ne!(changed_bytes, encoded);
+            assert_eq!(
+                decode_block(&mut Cursor::new(&changed_bytes)).unwrap(),
+                changed
+            );
+        }
+        let mut cursor = Cursor::new(&encoded);
+        cursor.take(4 + 1 + 8 + 8 + 1).unwrap();
+        super::decode_instruction(&mut cursor).unwrap();
+        cursor.take(8).unwrap();
+        let cause_offset = encoded.len() - cursor.remaining();
+        let mut corrupt = encoded.clone();
+        corrupt[cause_offset] = 255;
+        assert_eq!(
+            decode_block(&mut Cursor::new(&corrupt)),
+            Err(FixedViewCopyDecodeError::UnknownCrashCause(255))
+        );
+        assert!(decode_block(&mut Cursor::new(&encoded[..encoded.len() - 1])).is_err());
+    }
+}
+
+#[test]
 fn descriptor_binding_retains_semantic_place_and_transport_without_scalar_identity() {
     use selected_instructions::{
         LocalStorageSlotId, SelectedStructuralBinding, SelectedStructuralTransport,

@@ -65,6 +65,7 @@ pub(super) fn terminator_instruction(terminator: &SelectedTerminator) -> &Select
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
     }
 }

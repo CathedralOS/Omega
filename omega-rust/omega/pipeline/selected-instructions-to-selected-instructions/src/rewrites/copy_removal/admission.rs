@@ -50,7 +50,8 @@ pub(super) struct CopyUse {
 
 fn terminator_instruction_mut(terminator: &mut SelectedTerminator) -> &mut SelectedInstruction {
     match terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
+        SelectedTerminator::Crash { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }

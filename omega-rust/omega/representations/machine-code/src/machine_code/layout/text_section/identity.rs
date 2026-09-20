@@ -194,6 +194,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::Load16 => 34,
         MachineAlternativeFamily::Load32 => 30,
         MachineAlternativeFamily::HostedExitProcessI32 => 31,
+        MachineAlternativeFamily::Crash => 111,
         MachineAlternativeFamily::HostedReadByte => 32,
         MachineAlternativeFamily::HostedWriteByteI32 => 23,
         MachineAlternativeFamily::ByteViewAddress => 22,

@@ -54,7 +54,8 @@ pub(super) struct Admission<'source> {
 /// register definition there still counts toward the unique-producer rule.
 fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
     let terminator = match &block.terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
+        SelectedTerminator::Crash { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }

@@ -29,8 +29,8 @@ pub use register_model::X86_64_SATURATING_SUBTRACT_CLAMPED;
 pub use register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED;
 pub use register_model::X86_64_SHIFT_I64;
 pub use register_model::{
-    X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS,
-    X86_64_HOSTED_READ_BYTE,
+    X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_CRASH, X86_64_FLOAT32_TO_BITS,
+    X86_64_FLOAT64_TO_BITS, X86_64_HOSTED_READ_BYTE,
 };
 pub use register_model::{
     x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,

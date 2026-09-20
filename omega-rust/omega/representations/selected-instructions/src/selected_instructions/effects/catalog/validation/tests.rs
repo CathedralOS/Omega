@@ -497,6 +497,92 @@ fn returns_and_calls_reject_each_others_stack_effects() {
 }
 
 #[test]
+fn explicit_crash_requires_operand_free_unconditional_no_cleanup_effects() {
+    let constraint = RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant: 780,
+        },
+        operands: Vec::new(),
+        implicit_uses: vec![register_model::RegisterUnitId(7)],
+        implicit_defs: vec![register_model::RegisterUnitId(7)],
+        clobbers: Vec::new(),
+    };
+    let source = MachineEffectDeclaration {
+        semantic: MachineSemanticKind::Crash,
+        constraint: constraint.key,
+        memory: crate::MachineMemoryEffect::NoneV1,
+        trap: crate::MachineTrapBehavior::ExplicitCrashV1,
+        barrier: MachineBarrier::ControlFlow,
+        call: crate::MachineCallEffect::NoneV1,
+        cleanup: crate::MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: crate::MachineAlternativeFamily::Crash,
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(2),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded: MachineEncodedEffects {
+                trap: MachineEncodedTrapBehavior::ExplicitCrashV1,
+                control: MachineEncodedControlEffect::CrashV1,
+                implicit_unit_uses: constraint.implicit_uses.clone(),
+                implicit_unit_defs: constraint.implicit_defs.clone(),
+                ..MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new())
+            },
+        }],
+    };
+    validate_declaration(&constraint, &source).unwrap();
+    for mutation in 0..13 {
+        let mut candidate = source.clone();
+        let effects = &mut candidate.alternatives[0].encoded;
+        match mutation {
+            0 => candidate.trap = crate::MachineTrapBehavior::NeverV1,
+            1 => candidate.barrier = MachineBarrier::None,
+            2 => {
+                candidate.call = crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+                    pre_call_stack_alignment: 16,
+                }
+            }
+            3 => effects.trap = MachineEncodedTrapBehavior::HostedExitReturnedV1,
+            4 => effects.control = MachineEncodedControlEffect::FallThroughV1,
+            5 => effects.control = MachineEncodedControlEffect::ReturnFromActivationStackV1,
+            6 => effects.external_operand_reads.push(0),
+            7 => effects.external_operand_writes.push(0),
+            8 => effects
+                .implicit_unit_clobbers
+                .push(register_model::RegisterUnitId(0)),
+            9 => {
+                effects.stack = MachineEncodedStackEffect::PopBytesV1 {
+                    stack_pointer: RegisterViewId(0),
+                    byte_count: 8,
+                }
+            }
+            10 => candidate.semantic = MachineSemanticKind::ReturnUnit,
+            11 => effects.implicit_unit_uses.clear(),
+            12 => effects.implicit_unit_defs.clear(),
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_declaration(&constraint, &candidate).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    let mut changed_constraint = constraint;
+    changed_constraint.operands.push(RegisterOperandConstraint {
+        operand: 0,
+        access: RegisterOperandAccess::Use,
+        class: RegisterClassId(0),
+        fixed_view: None,
+        tied_to: None,
+        early_clobber: false,
+    });
+    assert!(validate_declaration(&changed_constraint, &source).is_err());
+}
+
+#[test]
 fn indexed_and_frame_memory_rows_reject_foreign_semantics() {
     let constraint = RegisterInstructionConstraint {
         id: RegisterConstraintId(0),

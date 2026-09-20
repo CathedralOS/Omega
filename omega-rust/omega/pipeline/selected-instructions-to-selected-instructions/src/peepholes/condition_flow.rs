@@ -44,7 +44,8 @@ pub(super) enum ConditionFlowError {
 /// name.
 pub(super) fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
     match terminator {
-        SelectedTerminator::HostedExitProcess { instruction, .. }
+        SelectedTerminator::Crash { instruction, .. }
+        | SelectedTerminator::HostedExitProcess { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
@@ -73,9 +74,9 @@ pub(super) fn terminator_successors(terminator: &SelectedTerminator) -> Vec<&Sel
             when_not_less,
             ..
         } => vec![when_less, when_not_less],
-        SelectedTerminator::HostedExitProcess { .. } | SelectedTerminator::Return { .. } => {
-            Vec::new()
-        }
+        SelectedTerminator::Crash { .. }
+        | SelectedTerminator::HostedExitProcess { .. }
+        | SelectedTerminator::Return { .. } => Vec::new(),
     }
 }
 

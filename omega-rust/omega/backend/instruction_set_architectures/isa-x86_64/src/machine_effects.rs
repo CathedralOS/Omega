@@ -58,6 +58,18 @@ pub fn x86_64_machine_effect_catalog(
             .declaration_keys()
             .into_iter()
             .map(|(semantic, constraint)| {
+                if semantic == MachineSemanticKind::Crash {
+                    return Ok(crate::selected_form_encoding::crash::declaration(
+                        constraints
+                            .catalog()
+                            .constraints
+                            .iter()
+                            .find(|row| row.key == constraint)
+                            .ok_or(
+                                X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch,
+                            )?,
+                    ));
+                }
                 if semantic == MachineSemanticKind::HostedExitProcessI32 {
                     return crate::selected_form_encoding::hosted_exit_process::declaration(
                         target, constraint,
@@ -203,6 +215,7 @@ fn selected_keys(
         X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
+        crash: crate::X86_64_CRASH,
         load_packed: Some(crate::X86_64_LOAD_PACKED),
         store_packed: Some(crate::X86_64_STORE_PACKED),
         call_aggregate: match abi {
@@ -501,6 +514,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .units
             .clone()
     };
+    if semantic == MachineSemanticKind::Crash {
+        return crate::selected_form_encoding::crash::effects(&units("rip"));
+    }
     let view = |name: &str| {
         physical
             .view_named(name)
@@ -508,6 +524,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
         MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
@@ -764,6 +781,7 @@ fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) ->
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
+        MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(2),
         MachineSemanticKind::MaterializeBooleanEqual
         | MachineSemanticKind::MaterializeBooleanU64LessThan
         | MachineSemanticKind::MaterializeBooleanI64LessThan

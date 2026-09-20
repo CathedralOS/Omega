@@ -385,6 +385,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                         | MachineSemanticKind::ReturnAggregate
                         | MachineSemanticKind::Jump
                         | MachineSemanticKind::ReturnUnit
+                        | MachineSemanticKind::Crash
                 ) {
                     MachineBarrier::ControlFlow
                 } else if matches!(

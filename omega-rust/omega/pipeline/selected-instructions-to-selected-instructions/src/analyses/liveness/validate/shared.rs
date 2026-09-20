@@ -25,6 +25,7 @@ pub(super) fn ordered_instructions(block: &SelectedBlock) -> Vec<&SelectedInstru
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Jump { instruction, .. }
             | SelectedTerminator::Return { instruction, .. }
+            | SelectedTerminator::Crash { instruction, .. }
             | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
         }))
         .collect()

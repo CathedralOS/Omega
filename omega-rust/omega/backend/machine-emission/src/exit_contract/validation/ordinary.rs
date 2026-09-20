@@ -92,6 +92,7 @@ pub(super) fn check(
         let mut modified = BTreeSet::new();
         let mut returns = claimed.returns.iter();
         let mut process_exits = claimed.process_exits.iter();
+        let mut crashes = claimed.crashes.iter();
         for block in &function.blocks {
             let machine_block = machine_function
                 .blocks
@@ -119,7 +120,8 @@ pub(super) fn check(
                 | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. } => (instruction, None),
-                SelectedTerminator::HostedExitProcess { instruction, .. } => (instruction, None),
+                SelectedTerminator::HostedExitProcess { instruction, .. }
+                | SelectedTerminator::Crash { instruction, .. } => (instruction, None),
             };
             for (index, (instruction, actual)) in block
                 .instructions
@@ -174,7 +176,35 @@ pub(super) fn check(
                     &mut modified,
                 )?;
                 let terminal = index == block.instructions.len();
-                if let SelectedTerminator::HostedExitProcess {
+                if let SelectedTerminator::Crash {
+                    psi_edge, cause, ..
+                } = &block.terminator
+                    && terminal
+                {
+                    let crash = crashes
+                        .next()
+                        .ok_or(WholeFunctionExitContractError::ArtifactMismatch)?;
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                    super::super::validation_rules::crash::validate_crash(
+                        physical,
+                        instruction,
+                        actual,
+                        encoded,
+                        resolved,
+                        end,
+                    )?;
+                    require(
+                        crash.block == block.id
+                            && crash.psi_edge == *psi_edge
+                            && crash.cause == *cause
+                            && crash.instruction == instruction.id
+                            && crash.offset == resolved.offset
+                            && crash.bytes == resolved.bytes,
+                    )?;
+                } else if let SelectedTerminator::HostedExitProcess {
                     nominal_return_edge,
                     ..
                 } = &block.terminator
@@ -286,7 +316,10 @@ pub(super) fn check(
         require(
             returns.next().is_none()
                 && process_exits.next().is_none()
-                && (!claimed.returns.is_empty() || !claimed.process_exits.is_empty()),
+                && crashes.next().is_none()
+                && (!claimed.returns.is_empty()
+                    || !claimed.process_exits.is_empty()
+                    || !claimed.crashes.is_empty()),
         )?;
         if function_frame.is_some() && modified != allowed {
             return Err(WholeFunctionExitContractError::FramePreservationMismatch(

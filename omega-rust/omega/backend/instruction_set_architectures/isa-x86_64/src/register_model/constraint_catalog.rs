@@ -123,6 +123,14 @@ pub fn x86_64_register_constraint_catalog(
     let mut constraints = vec![
         RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
+            key: crate::X86_64_CRASH,
+            operands: Vec::new(),
+            implicit_uses: view("rip").units.clone(),
+            implicit_defs: view("rip").units.clone(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
             key: X86_64_SYSTEM_V_CALL,
             operands: ["rdi", "rsi", "rdx", "rcx", "r8", "r9"]
                 .into_iter()

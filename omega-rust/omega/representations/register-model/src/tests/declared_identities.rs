@@ -130,6 +130,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
     )
     .unwrap();
     let keys = TargetRegisterEnvironmentConstraintKeys {
+        crash: instruction_key(780),
         call_aggregate: Vec::new(),
         return_aggregate: Vec::new(),
         load64: Some(instruction_key(30)),
@@ -231,6 +232,10 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
     }
 
     for changed_keys in [
+        TargetRegisterEnvironmentConstraintKeys {
+            crash: instruction_key(781),
+            ..keys.clone()
+        },
         TargetRegisterEnvironmentConstraintKeys {
             load_packed: None,
             ..keys.clone()

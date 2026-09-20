@@ -257,6 +257,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
 
         let mut returns = Vec::new();
         let mut process_exits = Vec::new();
+        let mut crashes = Vec::new();
         for block in &function.blocks {
             let machine_block = machine_blocks.get(&block.id).ok_or(
                 WholeFunctionExitContractError::BlockRosterMismatch(block.id),
@@ -282,9 +283,8 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                             instruction, ..
                         }
                         | SelectedTerminator::Jump { instruction, .. } => (instruction, None),
-                        SelectedTerminator::HostedExitProcess { instruction, .. } => {
-                            (instruction, None)
-                        }
+                        SelectedTerminator::HostedExitProcess { instruction, .. }
+                        | SelectedTerminator::Crash { instruction, .. } => (instruction, None),
                         SelectedTerminator::Return {
                             instruction,
                             psi_return_edge,
@@ -339,7 +339,35 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                     instruction.id,
                     &mut modified_callee_saved,
                 )?;
-                if let SelectedTerminator::HostedExitProcess {
+                if let SelectedTerminator::Crash {
+                    psi_edge,
+                    cause,
+                    instruction: terminal,
+                    ..
+                } = &block.terminator
+                    && terminal.id == instruction.id
+                {
+                    let end = resolved_block
+                        .offset
+                        .checked_add(resolved_block.byte_count)
+                        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+                    super::validation_rules::crash::validate_crash(
+                        physical,
+                        instruction,
+                        machine_instruction,
+                        encoding_row,
+                        resolved_row,
+                        end,
+                    )?;
+                    crashes.push(machine_code::WholeFunctionCrashEvidence {
+                        block: block.id,
+                        psi_edge: *psi_edge,
+                        cause: *cause,
+                        instruction: instruction.id,
+                        offset: resolved_row.offset,
+                        bytes: resolved_row.bytes.clone(),
+                    });
+                } else if let SelectedTerminator::HostedExitProcess {
                     nominal_return_edge,
                     instruction: terminal,
                 } = &block.terminator
@@ -451,7 +479,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                 }
             }
         }
-        if returns.is_empty() && process_exits.is_empty() {
+        if returns.is_empty() && process_exits.is_empty() && crashes.is_empty() {
             return Err(WholeFunctionExitContractError::MissingReturn(
                 function.machine,
             ));
@@ -468,6 +496,7 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
             modified_callee_saved_units: modified_callee_saved.into_iter().collect(),
             returns,
             process_exits,
+            crashes,
         });
     }
 

@@ -906,6 +906,7 @@ fn implicit_unit_used(function: &SelectedFunction, unit: RegisterUnitId) -> bool
                 | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                 | SelectedTerminator::Jump { instruction, .. }
                 | SelectedTerminator::Return { instruction, .. }
+                | SelectedTerminator::Crash { instruction, .. }
                 | SelectedTerminator::HostedExitProcess { instruction, .. } => {
                     std::iter::once(instruction)
                 }

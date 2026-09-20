@@ -140,7 +140,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 bind(when_true);
                 bind(when_false);
             }
-            Terminator::StructuralCase { .. } => {}
+            Terminator::Crash { .. } | Terminator::StructuralCase { .. } => {}
         }
     }
     let mut required = BTreeSet::new();

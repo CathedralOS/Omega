@@ -40,6 +40,46 @@ pub(super) fn validate(
         &selected_block.terminator,
     ) {
         (
+            LegalizedScalarTerminator::Crash {
+                psi_edge,
+                cause,
+                site_guard,
+                frontier_lower_bound,
+                fuel,
+                ..
+            },
+            SelectedTerminator::Crash {
+                instruction,
+                psi_edge: actual_edge,
+                cause: actual_cause,
+                site_guard: actual_guard,
+                frontier_lower_bound: actual_frontier,
+            },
+        ) => {
+            if actual_edge != psi_edge
+                || actual_cause != cause
+                || actual_guard != site_guard
+                || actual_frontier != frontier_lower_bound
+                || !instruction.operands.is_empty()
+                || instruction.implicit_uses != row(catalog, keys.crash)?.implicit_uses
+                || instruction.implicit_defs != row(catalog, keys.crash)?.implicit_defs
+                || !instruction.clobbers.is_empty()
+            {
+                return Err(invalid());
+            }
+            (
+                instruction,
+                SelectedInstructionKind::Crash,
+                keys.crash,
+                Vec::new(),
+                SelectedInstructionProvenance {
+                    edges: vec![*psi_edge],
+                    fuel: fuel.clone(),
+                    ..Default::default()
+                },
+            )
+        }
+        (
             LegalizedScalarTerminator::Return(returned),
             SelectedTerminator::Return {
                 instruction,

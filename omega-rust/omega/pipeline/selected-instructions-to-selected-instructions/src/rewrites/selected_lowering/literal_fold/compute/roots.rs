@@ -77,6 +77,7 @@ fn environment_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        crash: keys.crash,
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
         save_floating_control: keys.save_floating_control,
         restore_floating_control: keys.restore_floating_control,

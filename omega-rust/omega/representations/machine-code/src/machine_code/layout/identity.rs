@@ -164,6 +164,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
     use selected_instructions::MachineAlternativeFamily as Family;
     hasher.update([match alternative.family {
         Family::CompareI64Zero => 0,
+        Family::Crash => 111,
         Family::MaterializeI64 => 1,
         Family::CopyI64 => 2,
         Family::Float32ToBits => 26,
@@ -356,12 +357,14 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
     hasher.update([match effects.trap {
         MachineEncodedTrapBehavior::NeverV1 => 0,
         MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
+        MachineEncodedTrapBehavior::ExplicitCrashV1 => 5,
         MachineEncodedTrapBehavior::HostedReadFailureV1 => 4,
         MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
         MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
     }]);
     match effects.control {
         MachineEncodedControlEffect::HostedExitOrTrapV1 => hasher.update([7]),
+        MachineEncodedControlEffect::CrashV1 => hasher.update([9]),
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => hasher.update([8]),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => hasher.update([6]),
         MachineEncodedControlEffect::FallThroughV1 => hasher.update([0]),

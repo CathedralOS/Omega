@@ -9,6 +9,11 @@ use crate::register_model::{
 };
 use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
 
+pub const X86_64_CRASH: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 780,
+};
+
 pub const X86_64_LOAD8: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 730,
@@ -288,7 +293,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 74] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 75] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -429,4 +434,5 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 74] = [
     X86_64_COPY_BYTES,
     X86_64_SAVE_FLOATING_CONTROL,
     X86_64_RESTORE_FLOATING_CONTROL,
+    X86_64_CRASH,
 ];

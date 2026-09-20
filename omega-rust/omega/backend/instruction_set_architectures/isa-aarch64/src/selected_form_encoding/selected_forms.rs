@@ -86,6 +86,7 @@ fn family_and_operand_count(
     kind: SelectedInstructionKind,
 ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
     Ok(match kind {
+        SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0),
         SelectedInstructionKind::CompareI64Zero => (MachineAlternativeFamily::CompareI64Zero, 1),
         SelectedInstructionKind::CompareI64Immediate { .. } => {
             (MachineAlternativeFamily::CompareI64Immediate, 1)
@@ -334,6 +335,7 @@ fn encode_unchecked(
 ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
     let mut words = Vec::new();
     match kind {
+        SelectedInstructionKind::Crash => words.push(0xd420_0000),
         SelectedInstructionKind::MaterializeI64 { value } => {
             append_canonical_materialization(&mut words, registers[0], integer_bits(value)?);
         }

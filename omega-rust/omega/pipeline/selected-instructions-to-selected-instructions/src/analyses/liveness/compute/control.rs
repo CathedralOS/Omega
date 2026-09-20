@@ -9,6 +9,7 @@ pub(super) fn instruction(terminator: &SelectedTerminator) -> &SelectedInstructi
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
     }
 }
@@ -34,9 +35,9 @@ pub(super) fn successors(
             ..
         } => [Some(when_less), Some(when_not_less)],
         SelectedTerminator::Jump { successor, .. } => [Some(successor), None],
-        SelectedTerminator::Return { .. } | SelectedTerminator::HostedExitProcess { .. } => {
-            [None, None]
-        }
+        SelectedTerminator::Return { .. }
+        | SelectedTerminator::Crash { .. }
+        | SelectedTerminator::HostedExitProcess { .. } => [None, None],
     };
     successors.into_iter().flatten()
 }

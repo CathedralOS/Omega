@@ -33,6 +33,21 @@ pub(super) fn check(
         ));
     }
     let (terminal, predicate, successors) = match &block.terminator {
+        SelectedTerminator::Crash {
+            instruction: terminal,
+            psi_edge,
+            cause,
+            ..
+        } => {
+            return if terminal.id == instruction.id {
+                require(
+                    matches!(actual, Control::Crash { psi_edge: edge, cause: actual_cause }
+                    if edge == psi_edge && actual_cause == cause),
+                )
+            } else {
+                require(matches!(actual, Control::None))
+            };
+        }
         SelectedTerminator::Jump {
             instruction: terminal,
             successor: target,

@@ -23,6 +23,7 @@ impl MachineEffectCatalogIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineSemanticKind {
+    Crash,
     CopyBytes,
     BitwiseAndI64,
     BitwiseXorI64,
@@ -104,7 +105,8 @@ pub enum MachineSemanticKind {
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 106] = [
+    pub const ALL: [Self; 107] = [
+        Self::Crash,
         Self::CopyBytes,
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
@@ -216,6 +218,7 @@ impl MachineSemanticKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MachineAlternativeFamily {
+    Crash,
     CopyBytes,
     BitwiseAndI64,
     BitwiseXorI64,
@@ -304,6 +307,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::BitwiseXorI64 => Self::BitwiseXorI64,
             MachineSemanticKind::CallAggregate => Self::CallAggregate,
             MachineSemanticKind::ReturnAggregate => Self::ReturnAggregate,
+            MachineSemanticKind::Crash => Self::Crash,
             MachineSemanticKind::HostedExitProcessI32 => Self::HostedExitProcessI32,
             MachineSemanticKind::LoadPacked3 => Self::LoadPacked3,
             MachineSemanticKind::LoadPacked5 => Self::LoadPacked5,
@@ -444,6 +448,7 @@ pub enum MachineMemoryEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineTrapBehavior {
+    ExplicitCrashV1,
     HostedExitReturnedV1,
     HostedReadFailureV1,
     HostedWriteFailureV1,
@@ -610,6 +615,7 @@ pub enum MachineEncodedStackEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedTrapBehavior {
+    ExplicitCrashV1,
     HostedExitReturnedV1,
     /// Architectural faults remain possible; syscall results other than zero or one trap.
     HostedReadFailureV1,
@@ -621,6 +627,7 @@ pub enum MachineEncodedTrapBehavior {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedControlEffect {
+    CrashV1,
     HostedExitOrTrapV1,
     HostedReadReturnOrTrapV1,
     HostedWriteReturnOrTrapV1,

@@ -9,6 +9,7 @@ mod branch_forms;
 #[cfg(test)]
 mod byte_view_address_tests;
 mod copy_bytes;
+pub(crate) mod crash;
 mod decoding;
 mod encoding_types;
 mod float_bits;

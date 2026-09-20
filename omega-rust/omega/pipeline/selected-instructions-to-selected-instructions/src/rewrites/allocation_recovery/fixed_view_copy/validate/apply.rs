@@ -143,6 +143,7 @@ fn terminator_mut(terminator: &mut SelectedTerminator) -> &mut SelectedInstructi
         | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Jump { instruction, .. }
         | SelectedTerminator::Return { instruction, .. }
+        | SelectedTerminator::Crash { instruction, .. }
         | SelectedTerminator::HostedExitProcess { instruction, .. } => instruction,
     }
 }

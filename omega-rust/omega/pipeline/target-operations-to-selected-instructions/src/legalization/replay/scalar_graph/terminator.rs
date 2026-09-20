@@ -14,6 +14,35 @@ pub(super) fn validate(
     let invalid = Error::NonCanonicalLegalizedPlan;
     match (actual, &node.operation) {
         (
+            LegalizedScalarTerminator::Crash {
+                psi_edge,
+                cause,
+                site_guard,
+                frontier_lower_bound,
+                fuel,
+                effect,
+                ownership,
+            },
+            AbstractOperation::Crash {
+                psi_edge: expected_edge,
+                cause: expected_cause,
+                site_guard: expected_guard,
+                frontier_lower_bound: expected_frontier,
+            },
+        ) => {
+            if psi_edge != expected_edge
+                || cause != expected_cause
+                || site_guard != expected_guard
+                || frontier_lower_bound != expected_frontier
+                || *fuel != node.fuel
+                || *effect != node.effect
+                || *ownership != node.ownership
+                || !node.successors.is_empty()
+            {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarTerminator::StructuralCase { .. },
             AbstractOperation::StructuralCase { .. },
         ) => {

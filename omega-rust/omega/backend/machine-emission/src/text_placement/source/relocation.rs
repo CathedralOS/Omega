@@ -74,6 +74,13 @@ pub(in crate::text_placement) fn prove_none(
                         return Err(TextPlacementError::UnsupportedRelocationShape);
                     }
                 }
+                MachineAlternativeFamily::Crash => {
+                    if row.branch.is_some()
+                        || !matches!(row.control, FunctionFragmentControlProvenance::Crash { .. })
+                    {
+                        return Err(TextPlacementError::UnsupportedRelocationShape);
+                    }
+                }
                 MachineAlternativeFamily::HostedExitProcessI32 => {
                     if row.branch.is_some()
                         || !matches!(
