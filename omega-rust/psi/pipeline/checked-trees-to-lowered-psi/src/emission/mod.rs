@@ -40,6 +40,13 @@ pub(crate) mod structural_byte_sequence_store;
 pub(crate) mod structural_scalar_store;
 pub(crate) mod structural_scalar_store_source;
 
+/// The Terminal spelling of a borrowed-storage restoration window. No plan
+/// family reaches it yet: the checked Unit plan vocabulary carries no move-out
+/// or whole-field-store row (see the module header), so outside its own tests
+/// the emitter is unreferenced until that producer lands.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) mod borrowed_window;
+
 pub(crate) mod expression_validation;
 pub(crate) mod scalar_types;
 pub(crate) mod store_destination;
