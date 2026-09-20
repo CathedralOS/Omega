@@ -137,6 +137,10 @@
 // - An occupied slot cannot be placed again: `place` requires `Vacant`,
 //   which an occupied storage does not carry
 //   (`tests/omega/fail/memory/bump_allocator_place_into_occupied`).
+// - A resident-bearing region cannot return tail-ward either: `release`
+//   demands `Vacant` on `returned`, so the newest allocation rejects at the
+//   call before its `merge` is even reached
+//   (`tests/omega/fail/memory/bump_allocator_release_with_live_resident`).
 //
 // Discovered edges that fix the spelling:
 // - Indexed membership is supported in both types and proof facts. `place`
