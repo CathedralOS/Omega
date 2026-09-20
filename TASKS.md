@@ -6933,6 +6933,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; verify scope then implement.
+- **PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN.** Mined candidate — resolved:
+  the name re-covers the cross-package-visibility loan-origin cluster
+  already closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at e76d715c8e —
+  `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`
+  stopped emitting "requires an exact retained loan origin" after the
+  retained-lineage/borrow-evidence family landed). Re-verified on this
+  host: all 21 `cross_package_visibility` tests pass at `dcfb595098`
+  (linux x86-64) with zero loan-origin diagnostics. The umbrella items
+  still naming this surface stay owned where they live:
+  CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN and the
+  *-LOAN-ORIGIN stubs beside this row.
 - **PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE** — mined candidate; verify scope then implement.
