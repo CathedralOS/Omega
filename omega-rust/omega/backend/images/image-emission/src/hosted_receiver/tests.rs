@@ -993,3 +993,107 @@ fn windows_hosted_physical_replay_keeps_source_bytes_for_package_qualified_requi
         target::NativeTarget::windows_x64()
     ));
 }
+
+fn hosted_receiver_binding(
+    physical: ProgramEntryPhysicalContractPlan,
+    ceiling_bytes: u64,
+    receiver_byte_count: u64,
+    receiver_alignment: u64,
+) -> super::HostedReceiverBinding {
+    let target = physical.target_slot().owner.native_target();
+    super::HostedReceiverBinding {
+        source: program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            physical.target_slot(),
+            symbols::SymbolHandle::from_arena_index(1),
+            symbols::SymbolHandle::from_arena_index(2),
+            "Main".into(),
+            "main".into(),
+            "Main::main".into(),
+            program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                normalized_type_identity: "named(name(Main))".into(),
+            },
+            Vec::new(),
+        )
+        .expect("well-shaped source signature"),
+        physical,
+        services: Vec::new(),
+        demand: crate::StackDemand {
+            psi: terminal_psi::TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([7; 32]),
+            },
+            target,
+            entry: semantic_vocabulary::MachineId::new(1).unwrap(),
+            ceiling_bytes,
+            stack_alignment: 16,
+            contributing_machines: Default::default(),
+            admitted_contribution_report_identities: Default::default(),
+            admitted_contribution_commitments: Default::default(),
+        },
+        receiver_byte_count,
+        receiver_alignment,
+    }
+}
+
+#[test]
+fn hosted_receiver_partitions_reserve_disjoint_aligned_residences() {
+    let linux_source =
+        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest();
+    let linux = |ceiling_bytes: u64, receiver_byte_count: u64, receiver_alignment: u64| {
+        hosted_receiver_binding(
+            linux_physical_contract(
+                program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+                linux_source,
+            ),
+            ceiling_bytes,
+            receiver_byte_count,
+            receiver_alignment,
+        )
+    };
+    for (existing, ceiling, byte_count, alignment) in [
+        (0u64, 0, 0, 1),
+        (3, 5, 17, 8),
+        (48, 33, 64, 64),
+        (1024, 4096, 4, 256),
+    ] {
+        let partitions = linux(ceiling, byte_count, alignment)
+            .partitions(existing)
+            .unwrap_or_else(|error| {
+                panic!("{existing}/{ceiling}/{byte_count}/{alignment}: {error:?}")
+            });
+        let saved_end = partitions.saved_continuation_offset + 16;
+        let stack_end = partitions.stack_offset + partitions.stack_byte_count;
+        assert!(
+            partitions.saved_continuation_offset >= existing
+                && partitions.saved_continuation_offset % 16 == 0
+                && saved_end <= partitions.stack_offset
+                && partitions.stack_byte_count >= ceiling.max(16)
+                && partitions.stack_byte_count % 16 == 0
+                && stack_end <= partitions.receiver_offset
+                && partitions.receiver_offset % alignment.max(16) == 0
+                && partitions.receiver_byte_count == byte_count.max(1)
+                && partitions.receiver_offset + partitions.receiver_byte_count
+                    == partitions.end_offset,
+            "{existing}/{ceiling}/{byte_count}/{alignment}: {partitions:?}"
+        );
+    }
+    // The Windows caller owes shadow space plus the pushed return address on
+    // top of the checked demand; the private stack partition carries it.
+    let windows = hosted_receiver_binding(
+        windows_physical_contract(
+            program_entry_plan::WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+            program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest(),
+        ),
+        0,
+        8,
+        8,
+    )
+    .partitions(0)
+    .unwrap();
+    assert_eq!(windows.stack_byte_count, 64);
+    // Occupancy that cannot be represented rejects instead of overflowing.
+    assert!(linux(u64::MAX, 8, 8).partitions(0).is_err());
+    assert!(linux(8, 8, 8).partitions(u64::MAX - 4).is_err());
+    // A non-power-of-two receiver alignment has no valid residence.
+    assert!(linux(8, 8, 24).partitions(0).is_err());
+}
