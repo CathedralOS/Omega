@@ -1,3 +1,9 @@
+//! Range premises use the declaration reached through the receiver's type.
+//! Attached `self` fields also have inherited machine symbols, so their join
+//! belongs to the shared exact-field reader. A global same-spelling search can
+//! both reject a valid index and borrow another record's range to admit an
+//! invalid one. Ordinary projections retain this checker's scoped root lookup.
+
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -320,6 +326,9 @@ pub(in crate::checks::ranges) fn expression_type_reference(
         ExpressionNode::ArrayLiteral(_) => {
             validation::declared_constant_array_type(program, expression)
         }
+        ExpressionNode::StructLiteral(_) => {
+            validation::expression_result_type_reference(program, machine, state, expression)
+        }
         ExpressionNode::Borrow(inner) => {
             expression_type_reference(program, machine, state, inner.target)
         }
@@ -359,28 +368,19 @@ pub(in crate::checks::ranges) fn expression_type_reference(
             })
         }
         ExpressionNode::Member(member) => {
-            expression_type_reference(program, machine, state, member.receiver)
-                .and_then(|receiver_type| {
-                    data_field_type_reference(
-                        program,
-                        receiver_type,
-                        member.member_symbol,
-                        &member.member,
-                    )
-                })
+            validation::exact_self_field(program, machine, expression)
+                .map(|field| field.type_reference)
                 .or_else(|| {
-                    // `self.field`: the receiver `self` does not resolve to a type
-                    // reference (attached-data fields are not in the machine's owned-data
-                    // span), so resolve the field directly from its data definition. The
-                    // member symbol is field-unique, so this matches the right field.
-                    program.data_definitions().iter().find_map(|definition| {
-                        data_field_in_definition(
-                            program,
-                            definition,
-                            member.member_symbol,
-                            &member.member,
-                        )
-                    })
+                    expression_type_reference(program, machine, state, member.receiver).and_then(
+                        |receiver_type| {
+                            data_field_type_reference(
+                                program,
+                                receiver_type,
+                                member.member_symbol,
+                                &member.member,
+                            )
+                        },
+                    )
                 })
         }
         _ => None,
@@ -578,7 +578,11 @@ fn data_definition_by_symbol_or_name<'program>(
     name: &typed_trees::name::Identifier,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
     program.data_definitions().iter().find(|data_definition| {
-        (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
+        if symbol.is_valid() {
+            data_definition.symbol == symbol
+        } else {
+            data_definition.name == *name
+        }
     })
 }
 
