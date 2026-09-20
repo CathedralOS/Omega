@@ -3096,21 +3096,20 @@ Owners include
     abstract callable contracts or induction must preserve that ordering,
     independently establish descent, and never import private strengthening.
     Tag predicates retain exact classifier identities without field equations.
-    Structural application/projection
-    premises still fail closed:
-    `structural_judgment.rs::callee_term_with_machines` can turn a binary body
-    into unsubstituted opaque text, and receiver-call opacity cannot substitute
-    arguments. Constructor normalization still needs unsupported float/array
+    Structural receiver-call and result-projection premises still fail closed;
+    receiver-call opacity cannot substitute arguments. Constructor normalization
+    still needs unsupported float/array
     leaves and established qualified defaults; supported Boolean/integer and
     nested data fields must keep complete value rosters, separate from case
-    classifiers. Repair exact selected identity and complete substitution across
-    its consumers before enabling this formation
-    route; never use unrefuted as proved. The source controls
-    `application_unfolding_cannot_erase_different_arguments`
-    and `opaque_receiver_call_cannot_hide_a_changed_requirement_argument` require
-    rejection of wrong arguments; add accepted exact-argument twins when the
-    shared normalizer can justify them. These are implementation dependencies,
-    not unanswered language design.
+    classifiers. Extend formation only with exact selected identity and complete
+    substitution across shared consumers; never use unrefuted as proved.
+    `opaque_receiver_call_cannot_hide_a_changed_requirement_argument` must retain
+    wrong-argument rejection beside an accepted exact-argument twin.
+    Ordinary non-proof body calls also need the shared structural precondition
+    judgment: a Boolean caller of `restricted(false, false)` still rejects when
+    its requirement is `observe(left) == observe(right)` and `observe(value)`
+    returns `value == true`; its `false, true` twin must remain rejected.
+    These are implementation dependencies, not unanswered language design.
     Nested body value-call operands still hit the existing nested-call fence
     before premise checking; do not count that refusal as proof of call-premise
     coverage. Then migrate

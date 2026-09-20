@@ -251,7 +251,24 @@ pub(crate) fn proof_edge_strict_decrease_judged(
     let Some(argument_term) = structural_term(program, edge_argument) else {
         return false;
     };
+    // This legacy synthetic Nat obligation has no authored call occurrence.
+    // Resolve its declaration once, refusing ambiguity; ordinary applications
+    // never recover a missing selected identity from this spelling.
+    let mut candidates = program.machines().iter().filter(|candidate| {
+        candidate.attached_data.is_none() && candidate.name.as_str() == "saturating_sub"
+    });
+    let Some(selected) = candidates.next() else {
+        return false;
+    };
+    if candidates.next().is_some() {
+        return false;
+    }
+    let Some(selected_entry) = program.machine_states(selected).first() else {
+        return false;
+    };
     let left = StructuralTerm::Application {
+        target: selected_entry.symbol,
+        selections: Vec::new(),
         machine: "saturating_sub".to_owned(),
         arguments: vec![
             StructuralTerm::Constructor {

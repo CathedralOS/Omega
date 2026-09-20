@@ -35,7 +35,10 @@ pub fn transparent_proposition_application_entailed(
             let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
                 return structural_term(program, expression);
             };
-            if call.receiver.is_valid() {
+            if call.receiver.is_valid()
+                || !call.evidence_arguments.is_empty()
+                || call.static_requirement_dispatch.is_some()
+            {
                 return structural_term(program, expression);
             }
             let matches = program
@@ -87,6 +90,7 @@ pub fn transparent_proposition_application_entailed(
                         field.name.as_str().to_owned(),
                         StructuralTerm::CallProjection {
                             target: call.target_symbol,
+                            selections: call.machine_arguments.to_vec(),
                             machine: machine.clone(),
                             result_type: state.return_type,
                             field: field.symbol,

@@ -4,10 +4,7 @@ use super::{
     TransitionTargetNode, TypedTrees, is_arm_pattern_marker, split_structural_machine_name,
     structural_call_machine_name, structural_term, term_contains,
 };
-use crate::proof_contracts::contract_entailment::law_conformance::{
-    collect_equality_conjuncts, display_structural_term,
-};
-use std::cell::Cell;
+use crate::proof_contracts::contract_entailment::law_conformance::collect_equality_conjuncts;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) enum StructuralJudgment {
@@ -48,12 +45,14 @@ pub(super) enum StructuralTerm {
         fields: Vec<(String, StructuralTerm)>,
     },
     /// A FREE call whose arguments all term-ify (`add(Nat::Zero, b)`). Static
-    /// machine selections are encoded in `machine`, so `f<A>` and `f<B>`
-    /// remain distinct terms and generic unfolding can alpha-substitute them.
+    /// machine selections and target symbols are retained independently of
+    /// diagnostic display, and generic unfolding substitutes their identities.
     /// Resolution UNFOLDS it when the callee is a single-state proof
     /// machine of the case-arm shape and the matched argument resolves to
     /// a constructor -- the compute-mode of N3's operator routing.
     Application {
+        target: SymbolHandle,
+        selections: Vec<typed_trees::expression::StaticMachineArgument>,
         machine: String,
         arguments: Vec<StructuralTerm>,
     },
@@ -62,12 +61,30 @@ pub(super) enum StructuralTerm {
     /// collapsing; `machine` retains the complete static application for
     /// diagnostics and canonical display.
     CallProjection {
+        selections: Vec<typed_trees::expression::StaticMachineArgument>,
         target: SymbolHandle,
         machine: String,
         result_type: TypeReferenceHandle,
         field: SymbolHandle,
         field_name: String,
         arguments: Vec<StructuralTerm>,
+    },
+    /// A substituted receiver whose field cannot yet be reduced. Retaining
+    /// the receiver prevents a selected application from becoming display text.
+    Projection {
+        subject: Box<StructuralTerm>,
+        path: String,
+    },
+    /// A selected builtin operation, with substituted operands and original
+    /// carrier/policy meaning. No scalar arithmetic is evaluated by this term.
+    ScalarBinary {
+        operator: BinaryOperator,
+        meaning: [(
+            typed_trees::types::PrimitiveType,
+            numerics::arithmetic::ArithmeticDomain,
+        ); 2],
+        left: Box<StructuralTerm>,
+        right: Box<StructuralTerm>,
     },
     /// Anything else, compared by canonical display name only.
     Opaque(String),
@@ -148,6 +165,15 @@ mod case_premise_tests {
         let variable = StructuralTerm::Variable("value".to_owned());
         let alias = StructuralTerm::Variable("alias".to_owned());
         let application = StructuralTerm::Application {
+            target: program.machine_states(
+                program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "make")
+                    .unwrap(),
+            )[0]
+            .symbol,
+            selections: Vec::new(),
             machine: "make".to_owned(),
             arguments: Vec::new(),
         };
@@ -210,6 +236,15 @@ mod case_premise_tests {
         let environment = vec![(
             "holder".to_owned(),
             StructuralTerm::Application {
+                target: program.machine_states(
+                    program
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.name.as_str() == "make")
+                        .unwrap(),
+                )[0]
+                .symbol,
+                selections: Vec::new(),
                 machine: "make".to_owned(),
                 arguments: Vec::new(),
             },
@@ -255,7 +290,7 @@ mod case_premise_tests {
 /// machine-checked against the declared laws).
 #[derive(Clone, Debug)]
 struct RingLicense {
-    add_machine: String,
+    add_machine: SymbolHandle,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -372,8 +407,8 @@ pub(crate) fn proved_index_algebras_for_provider(
 /// each carrying comm+assoc, connected by a conformed DISTRIBUTIVITY law.
 #[derive(Clone)]
 struct SemiringLicense {
-    add_machine: String,
-    mul_machine: String,
+    add_machine: SymbolHandle,
+    mul_machine: SymbolHandle,
 }
 
 pub(super) struct StructuralJudge<'program> {
@@ -398,10 +433,6 @@ pub(super) struct StructuralJudge<'program> {
     ring_licenses: Vec<RingLicense>,
     /// Tier-2: paired add/mul licenses with a conformed distributivity law.
     semiring_licenses: Vec<SemiringLicense>,
-    /// The last exact source-ordered machine selected for structural unfolding.
-    /// Every hit rechecks the complete name/attachment predicate; a miss still
-    /// scans from the beginning, so this hint cannot change first-match order.
-    unfold_machine_hint: Cell<Option<usize>>,
 }
 
 impl Clone for StructuralJudge<'_> {
@@ -417,7 +448,6 @@ impl Clone for StructuralJudge<'_> {
             hypotheses_contradictory: self.hypotheses_contradictory,
             ring_licenses: self.ring_licenses.clone(),
             semiring_licenses: self.semiring_licenses.clone(),
-            unfold_machine_hint: Cell::new(self.unfold_machine_hint.get()),
         }
     }
 }
@@ -460,7 +490,6 @@ impl<'program> StructuralJudge<'program> {
             hypotheses_contradictory: false,
             ring_licenses: compute_ring_licenses(program, judged_machine),
             semiring_licenses: compute_semiring_licenses(program, judged_machine),
-            unfold_machine_hint: Cell::new(None),
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -620,12 +649,22 @@ impl<'program> StructuralJudge<'program> {
                             .collect(),
                     };
                 }
-                StructuralTerm::Application { machine, arguments } => {
+                StructuralTerm::Application {
+                    target,
+                    selections,
+                    machine,
+                    arguments,
+                } => {
                     let arguments: Vec<StructuralTerm> = arguments
                         .into_iter()
                         .map(|argument| self.resolve_at(argument, depth + 1))
                         .collect();
-                    let resolved = StructuralTerm::Application { machine, arguments };
+                    let resolved = StructuralTerm::Application {
+                        target,
+                        selections,
+                        machine,
+                        arguments,
+                    };
                     // Hypothesis rewrites first (the inductive hypothesis
                     // reduces the self-application), then unfolding.
                     if let Some((_, replacement)) = self
@@ -636,16 +675,25 @@ impl<'program> StructuralJudge<'program> {
                         term = replacement.clone();
                         continue;
                     }
-                    let StructuralTerm::Application { machine, arguments } = &resolved else {
+                    let StructuralTerm::Application {
+                        target,
+                        selections,
+                        machine,
+                        arguments,
+                    } = &resolved
+                    else {
                         unreachable!();
                     };
-                    if let Some(unfolded) = self.unfold_application(machine, arguments, depth + 1) {
+                    if let Some(unfolded) =
+                        self.unfold_application(*target, selections, machine, arguments, depth + 1)
+                    {
                         term = unfolded;
                         continue;
                     }
                     return resolved;
                 }
                 StructuralTerm::CallProjection {
+                    selections,
                     target,
                     machine,
                     result_type,
@@ -658,6 +706,7 @@ impl<'program> StructuralJudge<'program> {
                         .map(|argument| self.resolve_at(argument, depth + 1))
                         .collect::<Vec<_>>();
                     let resolved = StructuralTerm::CallProjection {
+                        selections,
                         target,
                         machine,
                         result_type,
@@ -666,6 +715,7 @@ impl<'program> StructuralJudge<'program> {
                         arguments,
                     };
                     let StructuralTerm::CallProjection {
+                        selections,
                         target,
                         machine,
                         result_type,
@@ -678,6 +728,7 @@ impl<'program> StructuralJudge<'program> {
                     };
                     if let Some(unfolded) = self.unfold_exact_call_projection(
                         *target,
+                        selections,
                         machine,
                         *result_type,
                         *field,
@@ -688,6 +739,25 @@ impl<'program> StructuralJudge<'program> {
                         continue;
                     }
                     return resolved;
+                }
+                StructuralTerm::Projection { subject, path } => {
+                    return StructuralTerm::Projection {
+                        subject: Box::new(self.resolve_at(*subject, depth + 1)),
+                        path,
+                    };
+                }
+                StructuralTerm::ScalarBinary {
+                    operator,
+                    meaning,
+                    left,
+                    right,
+                } => {
+                    return StructuralTerm::ScalarBinary {
+                        operator,
+                        meaning,
+                        left: Box::new(self.resolve_at(*left, depth + 1)),
+                        right: Box::new(self.resolve_at(*right, depth + 1)),
+                    };
                 }
                 StructuralTerm::Opaque(_)
                 | StructuralTerm::Integer(_)
@@ -707,6 +777,7 @@ impl<'program> StructuralJudge<'program> {
     fn unfold_exact_call_projection(
         &self,
         target: SymbolHandle,
+        selections: &[typed_trees::expression::StaticMachineArgument],
         machine_application: &str,
         result_type: TypeReferenceHandle,
         field: SymbolHandle,
@@ -734,7 +805,7 @@ impl<'program> StructuralJudge<'program> {
         if state.return_type != result_type {
             return None;
         }
-        let (selected_name, selected_machines) = split_structural_machine_name(machine_application);
+        let (selected_name, _) = split_structural_machine_name(machine_application);
         if machine.name.as_str() != selected_name {
             return None;
         }
@@ -748,13 +819,19 @@ impl<'program> StructuralJudge<'program> {
                 )
             })
             .collect::<Vec<_>>();
-        if machine_parameters.len() != selected_machines.len() {
+        if machine_parameters.len() != selections.len() {
             return None;
         }
         let machine_environment = machine_parameters
             .iter()
-            .zip(selected_machines)
-            .map(|(parameter, selected)| (parameter.name.as_str().to_owned(), selected.to_owned()))
+            .zip(selections)
+            .map(|(parameter, selected)| {
+                (
+                    parameter.symbol,
+                    parameter.name.as_str().to_owned(),
+                    selected.clone(),
+                )
+            })
             .collect::<Vec<_>>();
         let parameters = program.state_parameters(state);
         if parameters.len() != arguments.len() {
@@ -811,6 +888,8 @@ impl<'program> StructuralJudge<'program> {
     /// stays opaque).
     fn unfold_application(
         &self,
+        target: SymbolHandle,
+        selections: &[typed_trees::expression::StaticMachineArgument],
         machine_name: &str,
         arguments: &[StructuralTerm],
         depth: usize,
@@ -822,18 +901,7 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
-        let (machine_name, selected_machines) = split_structural_machine_name(machine_name);
-        let machines = program.machines();
-        let matches = |machine: &Machine| {
-            machine.attached_data.is_none() && machine.name.as_str() == machine_name
-        };
-        let machine_index = self
-            .unfold_machine_hint
-            .get()
-            .filter(|index| machines.get(*index).is_some_and(matches))
-            .or_else(|| machines.iter().position(matches))?;
-        self.unfold_machine_hint.set(Some(machine_index));
-        let machine = &machines[machine_index];
+        let machine = super::structural_terms::selected_application_machine(program, target)?;
         let machine_parameters: Vec<&typed_trees::data::TypeParameter> = program
             .machine_type_parameters(machine)
             .iter()
@@ -844,13 +912,23 @@ impl<'program> StructuralJudge<'program> {
                 )
             })
             .collect();
-        if machine_parameters.len() != selected_machines.len() {
+        if machine_parameters.len() != selections.len() {
             return None;
         }
-        let machine_environment: Vec<(String, String)> = machine_parameters
+        let machine_environment: Vec<(
+            SymbolHandle,
+            String,
+            typed_trees::expression::StaticMachineArgument,
+        )> = machine_parameters
             .iter()
-            .zip(selected_machines)
-            .map(|(parameter, selected)| (parameter.name.as_str().to_owned(), selected.to_owned()))
+            .zip(selections)
+            .map(|(parameter, selected)| {
+                (
+                    parameter.symbol,
+                    parameter.name.as_str().to_owned(),
+                    selected.clone(),
+                )
+            })
             .collect();
         let [state] = program.machine_states(machine) else {
             return None;
@@ -999,7 +1077,11 @@ impl<'program> StructuralJudge<'program> {
         &self,
         ensures_fact: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
-        machine_environment: &[(String, String)],
+        machine_environment: &[(
+            SymbolHandle,
+            String,
+            typed_trees::expression::StaticMachineArgument,
+        )],
         depth: usize,
     ) -> Option<StructuralTerm> {
         let program = self.program;
@@ -1071,7 +1153,11 @@ impl<'program> StructuralJudge<'program> {
         &self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
-        machine_environment: &[(String, String)],
+        machine_environment: &[(
+            SymbolHandle,
+            String,
+            typed_trees::expression::StaticMachineArgument,
+        )],
         depth: usize,
     ) -> Option<StructuralTerm> {
         if depth >= 32 {
@@ -1094,6 +1180,8 @@ impl<'program> StructuralJudge<'program> {
                 if let ExpressionNode::Call(call) =
                     program.expression_table.expression(member.receiver)
                     && !call.receiver.is_valid()
+                    && call.evidence_arguments.is_empty()
+                    && call.static_requirement_dispatch.is_none()
                 {
                     let arguments = program
                         .expression_table
@@ -1139,6 +1227,7 @@ impl<'program> StructuralJudge<'program> {
                     })?;
                     return Some(StructuralTerm::CallProjection {
                         target: call.target_symbol,
+                        selections: call.machine_arguments.to_vec(),
                         machine: structural_call_machine_name(
                             call.target.as_str(),
                             &call.machine_arguments,
@@ -1184,6 +1273,8 @@ impl<'program> StructuralJudge<'program> {
                         })
                     }
                     StructuralTerm::Integer(_)
+                    | StructuralTerm::Projection { .. }
+                    | StructuralTerm::ScalarBinary { .. }
                     | StructuralTerm::Application { .. }
                     | StructuralTerm::CallProjection { .. } => None,
                 }
@@ -1203,7 +1294,25 @@ impl<'program> StructuralJudge<'program> {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
-                if call.receiver.is_valid() {
+                if call.receiver.is_valid()
+                    || !call.evidence_arguments.is_empty()
+                    || call.static_requirement_dispatch.is_some()
+                {
+                    return None;
+                }
+                let selected_target = machine_environment
+                    .iter()
+                    .find(|(symbol, _, _)| *symbol == call.target_symbol)
+                    .map(|(_, _, selected)| selected);
+                // A selected generic/evidence application is retained on the
+                // enclosing term, but this body substitution does not apply
+                // its nested telescope. Refuse unfolding instead of dropping it.
+                if selected_target.is_some_and(|selected| {
+                    selected.application.is_some()
+                        || selected.evidence_projection.is_some()
+                        || selected.type_reference.is_valid()
+                        || selected.const_literal.is_some()
+                }) {
                     return None;
                 }
                 let mut arguments = Vec::new();
@@ -1216,6 +1325,20 @@ impl<'program> StructuralJudge<'program> {
                     )?);
                 }
                 Some(StructuralTerm::Application {
+                    target: selected_target.map_or(call.target_symbol, |selected| selected.symbol),
+                    selections: call
+                        .machine_arguments
+                        .iter()
+                        .map(|argument| {
+                            machine_environment
+                                .iter()
+                                .find(|(symbol, _, _)| *symbol == argument.symbol)
+                                .map_or_else(
+                                    || argument.clone(),
+                                    |(_, _, selected)| selected.clone(),
+                                )
+                        })
+                        .collect(),
                     machine: structural_call_machine_name(
                         call.target.as_str(),
                         &call.machine_arguments,
@@ -1229,15 +1352,22 @@ impl<'program> StructuralJudge<'program> {
                 case: value.to_string(),
                 fields: Vec::new(),
             }),
-            // A structural theorem may recurse on an ordinary scalar
-            // measure (`build(n - 1)`) while its result lives in proof data.
-            // The structural judge does not interpret that scalar algebra;
-            // retain it as an opaque operand so the self-application has the
-            // correct arity and identity.  The separate arithmetic recursion
-            // validator is solely responsible for proving the edge decreases.
-            ExpressionNode::Binary(_) => Some(StructuralTerm::Opaque(
-                program.expression_table.display_name(expression),
-            )),
+            ExpressionNode::Binary(binary) => super::structural_terms::binary_term(
+                program,
+                expression,
+                self.callee_term_with_machines(
+                    binary.left,
+                    environment,
+                    machine_environment,
+                    depth + 1,
+                )?,
+                self.callee_term_with_machines(
+                    binary.right,
+                    environment,
+                    machine_environment,
+                    depth + 1,
+                )?,
+            ),
             _ => None,
         }
     }
@@ -1253,6 +1383,21 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::Integer(_)
             | StructuralTerm::BoundValue(_)
             | StructuralTerm::BoundProjection { .. } => term.clone(),
+            StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
+                subject: Box::new(Self::substitute_term(subject, map)),
+                path: path.clone(),
+            },
+            StructuralTerm::ScalarBinary {
+                operator,
+                meaning,
+                left,
+                right,
+            } => StructuralTerm::ScalarBinary {
+                operator: *operator,
+                meaning: *meaning,
+                left: Box::new(Self::substitute_term(left, map)),
+                right: Box::new(Self::substitute_term(right, map)),
+            },
             StructuralTerm::Variable(name) => map
                 .iter()
                 .find(|(variable, _)| variable == name)
@@ -1266,7 +1411,14 @@ impl<'program> StructuralJudge<'program> {
                     .map(|(name, value)| (name.clone(), Self::substitute_term(value, map)))
                     .collect(),
             },
-            StructuralTerm::Application { machine, arguments } => StructuralTerm::Application {
+            StructuralTerm::Application {
+                target,
+                selections,
+                machine,
+                arguments,
+            } => StructuralTerm::Application {
+                target: *target,
+                selections: selections.clone(),
                 machine: machine.clone(),
                 arguments: arguments
                     .iter()
@@ -1274,6 +1426,7 @@ impl<'program> StructuralJudge<'program> {
                     .collect(),
             },
             StructuralTerm::CallProjection {
+                selections,
                 target,
                 machine,
                 result_type,
@@ -1282,6 +1435,7 @@ impl<'program> StructuralJudge<'program> {
                 arguments,
             } => StructuralTerm::CallProjection {
                 target: *target,
+                selections: selections.clone(),
                 machine: machine.clone(),
                 result_type: *result_type,
                 field: *field,
@@ -1298,8 +1452,8 @@ impl<'program> StructuralJudge<'program> {
                 // cited Rat law leaks callee names into the caller frame.
                 // Restrict the rewrite to an exact `<parameter>.` prefix.
                 // A symbolic static-machine application is also a legitimate
-                // place root (`Middle(index).den`); retain that projection in
-                // the Opaque place vocabulary.  A concrete constructor can be
+                // place root (`Middle(index).den`); retain its complete
+                // structural receiver.  A concrete constructor can be
                 // projected structurally.  Arbitrary opaque arithmetic never
                 // gains substring-rewrite semantics.
                 for (parameter, replacement) in map {
@@ -1323,10 +1477,12 @@ impl<'program> StructuralJudge<'program> {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
                         StructuralTerm::Application { .. }
-                        | StructuralTerm::CallProjection { .. } => StructuralTerm::Opaque(format!(
-                            "{}.{suffix}",
-                            display_structural_term(replacement)
-                        )),
+                        | StructuralTerm::CallProjection { .. }
+                        | StructuralTerm::ScalarBinary { .. }
+                        | StructuralTerm::Projection { .. } => StructuralTerm::Projection {
+                            subject: Box::new(replacement.clone()),
+                            path: suffix.to_owned(),
+                        },
                         StructuralTerm::Constructor { fields, .. } => fields
                             .iter()
                             .find(|(name, _)| name == suffix)
@@ -1342,26 +1498,38 @@ impl<'program> StructuralJudge<'program> {
     /// Collect every self-application (calls to `machine_name`) in a term.
     pub(super) fn self_applications<'term>(
         term: &'term StructuralTerm,
-        machine_name: &str,
+        selected_target: SymbolHandle,
         found: &mut Vec<&'term StructuralTerm>,
     ) {
         match term {
-            StructuralTerm::Application { machine, arguments } => {
-                if machine == machine_name {
+            StructuralTerm::Projection { subject, .. } => {
+                Self::self_applications(subject, selected_target, found)
+            }
+            StructuralTerm::ScalarBinary { left, right, .. } => {
+                Self::self_applications(left, selected_target, found);
+                Self::self_applications(right, selected_target, found);
+            }
+            StructuralTerm::Application {
+                target,
+                selections: _,
+                machine: _,
+                arguments,
+            } => {
+                if *target == selected_target {
                     found.push(term);
                 }
                 for argument in arguments {
-                    Self::self_applications(argument, machine_name, found);
+                    Self::self_applications(argument, selected_target, found);
                 }
             }
             StructuralTerm::CallProjection { arguments, .. } => {
                 for argument in arguments {
-                    Self::self_applications(argument, machine_name, found);
+                    Self::self_applications(argument, selected_target, found);
                 }
             }
             StructuralTerm::Constructor { fields, .. } => {
                 for (_, value) in fields {
-                    Self::self_applications(value, machine_name, found);
+                    Self::self_applications(value, selected_target, found);
                 }
             }
             _ => {}
@@ -1706,7 +1874,9 @@ impl<'program> StructuralJudge<'program> {
             StructuralTerm::Application { .. }
             | StructuralTerm::CallProjection { .. }
             | StructuralTerm::BoundProjection { .. }
-            | StructuralTerm::Opaque(_) => None,
+            | StructuralTerm::Opaque(_)
+            | StructuralTerm::ScalarBinary { .. }
+            | StructuralTerm::Projection { .. } => None,
         }
     }
 
@@ -1839,11 +2009,11 @@ impl<'program> StructuralJudge<'program> {
     /// The rearrange tier's comparison: for each ring license whose op
     /// appears in the equation, flatten both sides into addend multisets
     /// (nested applications of the licensed op associate away; everything
-    /// else is an atom by canonical display) and compare. At least two
+    /// else is a structural atom) and compare. At least two
     /// addends must appear -- a single atom has nothing to rearrange.
     fn ring_rearranged_equal(&self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
         for license in &self.ring_licenses {
-            let op = license.add_machine.as_str();
+            let op = &license.add_machine;
             if !term_uses_application(left, op) && !term_uses_application(right, op) {
                 continue;
             }
@@ -1854,8 +2024,8 @@ impl<'program> StructuralJudge<'program> {
             if left_addends.len() < 2 {
                 continue;
             }
-            left_addends.sort();
-            right_addends.sort();
+            left_addends.sort_by_key(|term| format!("{term:?}"));
+            right_addends.sort_by_key(|term| format!("{term:?}"));
             if left_addends.len() == right_addends.len() && left_addends == right_addends {
                 return true;
             }
@@ -1872,9 +2042,9 @@ impl<'program> StructuralJudge<'program> {
             // resolve; this reaches the sub-multisets the rewriter cannot
             // see. Frontier-capped BFS -- over-refusal past the cap, never
             // unsound.
-            let mut frontier: Vec<Vec<String>> = vec![left_addends.clone()];
+            let mut frontier: Vec<Vec<StructuralTerm>> = vec![left_addends.clone()];
             for _depth in 0..2 {
-                let mut next: Vec<Vec<String>> = Vec::new();
+                let mut next: Vec<Vec<StructuralTerm>> = Vec::new();
                 for current in &frontier {
                     for (pattern, replacement) in &self.rewrites {
                         for (from, to) in [(pattern, replacement), (replacement, pattern)] {
@@ -1882,14 +2052,14 @@ impl<'program> StructuralJudge<'program> {
                             additive_addends(from, op, &mut from_addends);
                             let mut to_addends = Vec::new();
                             additive_addends(to, op, &mut to_addends);
-                            from_addends.sort();
+                            from_addends.sort_by_key(|term| format!("{term:?}"));
                             let Some(mut candidate) =
                                 sorted_multiset_subtract(current, &from_addends)
                             else {
                                 continue;
                             };
                             candidate.extend(to_addends.iter().cloned());
-                            candidate.sort();
+                            candidate.sort_by_key(|term| format!("{term:?}"));
                             if candidate == right_addends {
                                 return true;
                             }
@@ -1922,8 +2092,8 @@ impl<'program> StructuralJudge<'program> {
             ) else {
                 continue;
             };
-            left_poly.sort();
-            right_poly.sort();
+            left_poly.sort_by_key(|term| format!("{term:?}"));
+            right_poly.sort_by_key(|term| format!("{term:?}"));
             if left_poly == right_poly {
                 return true;
             }
@@ -1937,40 +2107,43 @@ impl<'program> StructuralJudge<'program> {
             // what proves mul-CONGRUENCE over a quotient: the cross-sum
             // hypothesis scaled by b.pos and by b.neg equalizes the product
             // components in two exchanges. Depth-2 frontier-capped BFS.
-            let mut atoms: Vec<String> = left_poly
+            let mut atoms: Vec<StructuralTerm> = left_poly
                 .iter()
                 .chain(right_poly.iter())
                 .flatten()
                 .cloned()
                 .collect();
-            atoms.sort();
+            atoms.sort_by_key(|term| format!("{term:?}"));
             atoms.dedup();
-            let mut scales: Vec<Vec<String>> = vec![Vec::new()];
+            let mut scales: Vec<Vec<StructuralTerm>> = vec![Vec::new()];
             scales.extend(atoms.into_iter().map(|atom| vec![atom]));
-            let mut hypothesis_polys: Vec<(Vec<Vec<String>>, Vec<Vec<String>>)> = Vec::new();
+            let mut hypothesis_polys: Vec<(Vec<Vec<StructuralTerm>>, Vec<Vec<StructuralTerm>>)> =
+                Vec::new();
             for (pattern, replacement) in &self.rewrites {
                 if let (Some(mut hl), Some(mut hr)) = (
                     polynomial_normal_form(pattern, license),
                     polynomial_normal_form(replacement, license),
                 ) {
-                    hl.sort();
-                    hr.sort();
+                    hl.sort_by_key(|term| format!("{term:?}"));
+                    hr.sort_by_key(|term| format!("{term:?}"));
                     hypothesis_polys.push((hl, hr));
                 }
             }
-            let scaled = |poly: &[Vec<String>], scale: &[String]| -> Vec<Vec<String>> {
+            let scaled = |poly: &[Vec<StructuralTerm>],
+                          scale: &[StructuralTerm]|
+             -> Vec<Vec<StructuralTerm>> {
                 poly.iter()
                     .map(|monomial| {
                         let mut product = monomial.clone();
                         product.extend(scale.iter().cloned());
-                        product.sort();
+                        product.sort_by_key(|term| format!("{term:?}"));
                         product
                     })
                     .collect()
             };
-            let mut frontier: Vec<Vec<Vec<String>>> = vec![left_poly.clone()];
+            let mut frontier: Vec<Vec<Vec<StructuralTerm>>> = vec![left_poly.clone()];
             for _depth in 0..2 {
-                let mut next: Vec<Vec<Vec<String>>> = Vec::new();
+                let mut next: Vec<Vec<Vec<StructuralTerm>>> = Vec::new();
                 for current in &frontier {
                     for (hypothesis_left, hypothesis_right) in &hypothesis_polys {
                         for (from, to) in [
@@ -1985,7 +2158,7 @@ impl<'program> StructuralJudge<'program> {
                                     continue;
                                 };
                                 candidate.extend(scaled(to, scale));
-                                candidate.sort();
+                                candidate.sort_by_key(|term| format!("{term:?}"));
                                 if candidate == right_poly {
                                     return true;
                                 }
@@ -2013,18 +2186,23 @@ impl<'program> StructuralJudge<'program> {
 fn polynomial_normal_form(
     term: &StructuralTerm,
     license: &SemiringLicense,
-) -> Option<Vec<Vec<String>>> {
+) -> Option<Vec<Vec<StructuralTerm>>> {
     const MONOMIAL_CAP: usize = 64;
-    if let StructuralTerm::Application { machine, arguments } = term
+    if let StructuralTerm::Application {
+        target,
+        selections,
+        machine: _,
+        arguments,
+    } = term
         && arguments.len() == 2
     {
-        if *machine == license.add_machine {
+        if *target == license.add_machine && selections.is_empty() {
             let mut left = polynomial_normal_form(&arguments[0], license)?;
             let right = polynomial_normal_form(&arguments[1], license)?;
             left.extend(right);
             return (left.len() <= MONOMIAL_CAP).then_some(left);
         }
-        if *machine == license.mul_machine {
+        if *target == license.mul_machine && selections.is_empty() {
             let left = polynomial_normal_form(&arguments[0], license)?;
             let right = polynomial_normal_form(&arguments[1], license)?;
             let mut product = Vec::new();
@@ -2032,14 +2210,14 @@ fn polynomial_normal_form(
                 for right_monomial in &right {
                     let mut monomial = left_monomial.clone();
                     monomial.extend(right_monomial.iter().cloned());
-                    monomial.sort();
+                    monomial.sort_by_key(|term| format!("{term:?}"));
                     product.push(monomial);
                 }
             }
             return (product.len() <= MONOMIAL_CAP).then_some(product);
         }
     }
-    Some(vec![vec![display_structural_term(term)]])
+    Some(vec![vec![term.clone()]])
 }
 
 /// `left - from` as multisets; `None` when `from` is not a sub-multiset of
@@ -2055,24 +2233,38 @@ fn sorted_multiset_subtract<T: Clone + PartialEq>(left: &[T], from: &[T]) -> Opt
 }
 
 /// Flatten nested applications of the licensed op into its addend list; any
-/// other term is one addend, compared by canonical display (the Opaque
-/// discipline).
-fn additive_addends(term: &StructuralTerm, op: &str, out: &mut Vec<String>) {
-    if let StructuralTerm::Application { machine, arguments } = term
-        && machine == op
+/// other term is one addend, compared by complete structural identity.
+fn additive_addends(term: &StructuralTerm, op: &SymbolHandle, out: &mut Vec<StructuralTerm>) {
+    if let StructuralTerm::Application {
+        target,
+        selections,
+        machine: _,
+        arguments,
+    } = term
+        && target == op
+        && selections.is_empty()
         && arguments.len() == 2
     {
         additive_addends(&arguments[0], op, out);
         additive_addends(&arguments[1], op, out);
         return;
     }
-    out.push(display_structural_term(term));
+    out.push(term.clone());
 }
 
-fn term_uses_application(term: &StructuralTerm, op: &str) -> bool {
+fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) -> bool {
     match term {
-        StructuralTerm::Application { machine, arguments } => {
-            machine == op
+        StructuralTerm::Projection { subject, .. } => term_uses_application(subject, op),
+        StructuralTerm::ScalarBinary { left, right, .. } => {
+            term_uses_application(left, op) || term_uses_application(right, op)
+        }
+        StructuralTerm::Application {
+            target,
+            selections,
+            machine: _,
+            arguments,
+        } => {
+            (target == op && selections.is_empty())
                 || arguments
                     .iter()
                     .any(|argument| term_uses_application(argument, op))
@@ -2226,7 +2418,7 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
                         && slot_satisfier_exists(program, trait_definition, assoc_law, carrier)
                     {
                         licenses.push(RingLicense {
-                            add_machine: candidate.name.as_str().to_owned(),
+                            add_machine: candidate_entry.symbol,
                         });
                     }
                 }
@@ -2327,10 +2519,15 @@ fn distributivity_shape(
     right: &StructuralTerm,
     parameters: &[String],
 ) -> Option<(String, String)> {
+    if !consistent_operation_selections(left, right) {
+        return None;
+    }
+
     // left = mul(a, add(b, c))
     let StructuralTerm::Application {
         machine: mul_op,
         arguments: mul_args,
+        ..
     } = left
     else {
         return None;
@@ -2340,6 +2537,7 @@ fn distributivity_shape(
         StructuralTerm::Application {
             machine: add_op,
             arguments: add_args,
+            ..
         },
     ] = mul_args.as_slice()
     else {
@@ -2360,6 +2558,7 @@ fn distributivity_shape(
     let StructuralTerm::Application {
         machine: outer_add,
         arguments: outer_args,
+        ..
     } = right
     else {
         return None;
@@ -2371,10 +2570,12 @@ fn distributivity_shape(
         StructuralTerm::Application {
             machine: left_mul,
             arguments: left_args,
+            ..
         },
         StructuralTerm::Application {
             machine: right_mul,
             arguments: right_args,
+            ..
         },
     ] = outer_args.as_slice()
     else {
@@ -2541,7 +2742,7 @@ fn compute_semiring_licenses(
                         op_slot_satisfier(program, trait_definition, mul_op, carrier)
                     {
                         licenses.push(SemiringLicense {
-                            add_machine: add_candidate.name.as_str().to_owned(),
+                            add_machine: entry.symbol,
                             mul_machine,
                         });
                     }
@@ -2558,7 +2759,7 @@ fn op_slot_satisfier(
     trait_definition: &TraitDefinition,
     op_slot: &str,
     carrier: typed_trees::types::TypeReferenceHandle,
-) -> Option<String> {
+) -> Option<SymbolHandle> {
     for candidate in program.machines() {
         for conformance in program.machine_trait_conformances(candidate) {
             if conformance.symbol != trait_definition.symbol {
@@ -2590,7 +2791,7 @@ fn op_slot_satisfier(
                 candidate_carrier,
                 carrier,
             ) {
-                return Some(candidate.name.as_str().to_owned());
+                return Some(entry.symbol);
             }
         }
     }
@@ -2602,9 +2803,14 @@ fn commutativity_shape(
     right: &StructuralTerm,
     parameters: &[String],
 ) -> Option<String> {
+    if !consistent_operation_selections(left, right) {
+        return None;
+    }
+
     let StructuralTerm::Application {
         machine: op_l,
         arguments: args_l,
+        ..
     } = left
     else {
         return None;
@@ -2612,6 +2818,7 @@ fn commutativity_shape(
     let StructuralTerm::Application {
         machine: op_r,
         arguments: args_r,
+        ..
     } = right
     else {
         return None;
@@ -2636,10 +2843,15 @@ fn associativity_shape(
     right: &StructuralTerm,
     parameters: &[String],
 ) -> Option<String> {
+    if !consistent_operation_selections(left, right) {
+        return None;
+    }
+
     for (first, second) in [(left, right), (right, left)] {
         let StructuralTerm::Application {
             machine: op_outer,
             arguments: outer_args,
+            ..
         } = first
         else {
             continue;
@@ -2650,6 +2862,7 @@ fn associativity_shape(
         let StructuralTerm::Application {
             machine: op_inner,
             arguments: inner_args,
+            ..
         } = &outer_args[0]
         else {
             continue;
@@ -2665,6 +2878,7 @@ fn associativity_shape(
         let StructuralTerm::Application {
             machine: op_right,
             arguments: right_args,
+            ..
         } = second
         else {
             continue;
@@ -2678,6 +2892,7 @@ fn associativity_shape(
         let StructuralTerm::Application {
             machine: op_right_inner,
             arguments: right_inner_args,
+            ..
         } = &right_args[1]
         else {
             continue;
@@ -2704,4 +2919,51 @@ fn associativity_shape(
         }
     }
     None
+}
+
+/// Law schema names identify slots, but repeated occurrences must retain the
+/// same resolved operation and complete static application before a shape can
+/// license a rewrite.
+fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm) -> bool {
+    fn visit<'term>(
+        term: &'term StructuralTerm,
+        seen: &mut Vec<(
+            &'term str,
+            SymbolHandle,
+            &'term [typed_trees::expression::StaticMachineArgument],
+        )>,
+    ) -> bool {
+        match term {
+            StructuralTerm::Application {
+                target,
+                selections,
+                machine,
+                arguments,
+            } => {
+                if let Some((_, previous, previous_selections)) =
+                    seen.iter().find(|(name, _, _)| *name == machine)
+                {
+                    if previous != target || *previous_selections != selections.as_slice() {
+                        return false;
+                    }
+                } else {
+                    seen.push((machine, *target, selections));
+                }
+                arguments.iter().all(|argument| visit(argument, seen))
+            }
+            StructuralTerm::Constructor { fields, .. } => {
+                fields.iter().all(|(_, value)| visit(value, seen))
+            }
+            StructuralTerm::CallProjection { arguments, .. } => {
+                arguments.iter().all(|argument| visit(argument, seen))
+            }
+            StructuralTerm::ScalarBinary { left, right, .. } => {
+                visit(left, seen) && visit(right, seen)
+            }
+            StructuralTerm::Projection { subject, .. } => visit(subject, seen),
+            _ => true,
+        }
+    }
+    let mut seen = Vec::new();
+    visit(left, &mut seen) && visit(right, &mut seen)
 }

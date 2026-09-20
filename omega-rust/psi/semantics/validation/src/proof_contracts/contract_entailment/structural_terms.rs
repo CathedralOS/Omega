@@ -10,7 +10,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 
 use super::{StructuralTerm, is_arm_pattern_marker};
 
+mod binary;
 mod constructors;
+pub(super) use binary::binary_term;
 pub(super) use constructors::{
     case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
     is_case_observation, zero_value_structural_term,
@@ -25,6 +27,10 @@ pub(super) fn term_contains(haystack: &StructuralTerm, needle: &StructuralTerm) 
         return true;
     }
     match haystack {
+        StructuralTerm::Projection { subject, .. } => term_contains(subject, needle),
+        StructuralTerm::ScalarBinary { left, right, .. } => {
+            term_contains(left, needle) || term_contains(right, needle)
+        }
         StructuralTerm::Constructor { fields, .. } => {
             fields.iter().any(|(_, value)| term_contains(value, needle))
         }
@@ -45,13 +51,28 @@ pub(super) fn unfold_constant_applications(
     term: StructuralTerm,
 ) -> StructuralTerm {
     match term {
-        StructuralTerm::Application { machine, arguments } if arguments.is_empty() => {
-            match constant_machine_constructor(program, &machine) {
-                Some(constructor) => constructor,
-                None => StructuralTerm::Application { machine, arguments },
-            }
-        }
-        StructuralTerm::Application { machine, arguments } => StructuralTerm::Application {
+        StructuralTerm::Application {
+            target,
+            selections,
+            machine,
+            arguments,
+        } if arguments.is_empty() => match constant_machine_constructor(program, target) {
+            Some(constructor) => constructor,
+            None => StructuralTerm::Application {
+                target,
+                selections,
+                machine,
+                arguments,
+            },
+        },
+        StructuralTerm::Application {
+            target,
+            selections,
+            machine,
+            arguments,
+        } => StructuralTerm::Application {
+            target,
+            selections,
             machine,
             arguments: arguments
                 .into_iter()
@@ -59,6 +80,7 @@ pub(super) fn unfold_constant_applications(
                 .collect(),
         },
         StructuralTerm::CallProjection {
+            selections,
             target,
             machine,
             result_type,
@@ -66,6 +88,7 @@ pub(super) fn unfold_constant_applications(
             field_name,
             arguments,
         } => StructuralTerm::CallProjection {
+            selections,
             target,
             machine,
             result_type,
@@ -84,24 +107,34 @@ pub(super) fn unfold_constant_applications(
                 .map(|(name, value)| (name, unfold_constant_applications(program, value)))
                 .collect(),
         },
+        StructuralTerm::ScalarBinary {
+            operator,
+            meaning,
+            left,
+            right,
+        } => StructuralTerm::ScalarBinary {
+            operator,
+            meaning,
+            left: Box::new(unfold_constant_applications(program, *left)),
+            right: Box::new(unfold_constant_applications(program, *right)),
+        },
+        StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
+            subject: Box::new(unfold_constant_applications(program, *subject)),
+            path,
+        },
         other => other,
     }
 }
 
 /// The constructor value a trivial constant machine returns, when its shape
 /// is exactly one state with one unguarded transition to a closed constructor.
-fn constant_machine_constructor(program: &TypedTrees, name: &str) -> Option<StructuralTerm> {
+fn constant_machine_constructor(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+) -> Option<StructuralTerm> {
     use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
-    let machine = program.machines().iter().find(|machine| {
-        machine.name.as_str() == name
-            || machine
-                .name
-                .as_str()
-                .rsplit("::")
-                .next()
-                .is_some_and(|simple| simple == name)
-    })?;
+    let machine = selected_application_machine(program, target)?;
     let [state] = program.machine_states(machine) else {
         return None;
     };
@@ -145,13 +178,20 @@ fn constant_machine_constructor(program: &TypedTrees, name: &str) -> Option<Stru
 pub(super) fn structural_call_machine_name(
     target: &str,
     machine_arguments: &[StaticMachineArgument],
-    machine_environment: &[(String, String)],
+    machine_environment: &[(symbols::SymbolHandle, String, StaticMachineArgument)],
 ) -> String {
     let substitute = |name: String| {
         machine_environment
             .iter()
-            .find(|(parameter, _)| parameter == &name)
-            .map(|(_, selected)| selected.clone())
+            .find(|(_, parameter, _)| parameter == &name)
+            .map(|(_, _, selected)| {
+                selected
+                    .path
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::")
+            })
             .unwrap_or(name)
     };
     let target = substitute(target.to_owned());
@@ -211,9 +251,18 @@ pub(super) fn structural_term(
         ExpressionNode::StructLiteral(literal) => {
             constructor_literal_term(program, literal, |value| structural_term(program, value))
         }
+        ExpressionNode::Binary(binary) => binary_term(
+            program,
+            expression,
+            structural_term(program, binary.left)?,
+            structural_term(program, binary.right)?,
+        ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
         ExpressionNode::Call(call) => {
-            if !call.receiver.is_valid() {
+            if !call.receiver.is_valid()
+                && call.evidence_arguments.is_empty()
+                && call.static_requirement_dispatch.is_none()
+            {
                 let handles = program.expression_table.expression_handles(call.arguments);
                 let arguments: Vec<StructuralTerm> = handles
                     .iter()
@@ -221,6 +270,8 @@ pub(super) fn structural_term(
                     .collect();
                 if arguments.len() == handles.len() {
                     return Some(StructuralTerm::Application {
+                        target: call.target_symbol,
+                        selections: call.machine_arguments.to_vec(),
                         machine: structural_call_machine_name(
                             call.target.as_str(),
                             &call.machine_arguments,
@@ -242,6 +293,8 @@ pub(super) fn structural_term(
         ExpressionNode::Member(member) => {
             if let ExpressionNode::Call(call) = program.expression_table.expression(member.receiver)
                 && !call.receiver.is_valid()
+                && call.evidence_arguments.is_empty()
+                && call.static_requirement_dispatch.is_none()
             {
                 let handles = program.expression_table.expression_handles(call.arguments);
                 let arguments = handles
@@ -259,6 +312,7 @@ pub(super) fn structural_term(
                         call_projection_field_symbol(program, result_type, member.member.as_str())?;
                     return Some(StructuralTerm::CallProjection {
                         target: call.target_symbol,
+                        selections: call.machine_arguments.to_vec(),
                         machine: structural_call_machine_name(
                             call.target.as_str(),
                             &call.machine_arguments,
@@ -294,4 +348,22 @@ fn call_projection_field_symbol(
         };
         (field.name.as_str() == field_name).then_some(field.symbol)
     })
+}
+
+/// Rejoin the exact selected entry. Names never recover an absent selection.
+pub(super) fn selected_application_machine(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+) -> Option<&typed_trees::machine::Machine> {
+    if !target.is_valid() {
+        return None;
+    }
+    let mut matches = program.machines().iter().filter(|machine| {
+        program
+            .machine_states(machine)
+            .first()
+            .is_some_and(|state| state.symbol == target)
+    });
+    let machine = matches.next()?;
+    matches.next().is_none().then_some(machine)
 }
