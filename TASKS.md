@@ -8477,7 +8477,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   linux-x86_64 at `0977a4249e`. Sibling re-mines of the same landed leg:
   RC-PCC-REPLAY, RC-PCC-REPLAY-GATE, RC-PCC-REPLAY-HOSTILE-EVIDENCE.
 - **RC-PCC-REPLAY-GATE** — mined candidate; verify scope then implement.
-- **RC-PCC-REPLAY-HOSTILE-EVIDENCE** — mined candidate; verify scope then implement.
+- **RC-PCC-REPLAY-HOSTILE-EVIDENCE.** Resolved — re-mines the hostile/
+  substituted-evidence leg of `RC-PCC-REPLAY` already landed and recorded
+  on the `RC-PCC-REPLAY-CLOSURE` row: hostile or substituted evidence
+  rejects before any PCC-required interpretation.
+  `stale_or_substituted_bytes_and_wrong_policy_reject`,
+  `a_tampered_native_pair_rejects_from_bytes`,
+  `a_stale_companion_never_certifies_republished_bytes`,
+  `standalone_pair_checking_rejects_wrong_bytes_premises_policy_and_
+  assumptions`, `arbitrary_native_bytes_with_recomputed_custody_never_
+  complete`, plus the pcc.rs unit legs (forged inventory extents,
+  relabeled semantic profile, malformed section) and the stale-companion
+  removal controls. Re-witnessed at `a1daf35f2e` on linux x86-64:
+  `cargo nextest run -p compiler --test pcc_publication` hostile/stale
+  selection 7/7 green. Honest remainder unchanged: the native evidence's
+  behavioral legs stay `Incomplete` until standalone native semantics
+  checking exists.
 - **RC-PLATFORM-RUN-RECORDS** — scope verified 2026-09-20: re-mines the
   "required platform runs" contract in
   [rust_compiler_completion.md](wiki/drafts/rust_compiler_completion.md#required-platform-runs)
