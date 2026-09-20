@@ -3384,12 +3384,18 @@ Owners include
     `constant_helper_preconditions_reach_native_execution_after_source_removal`,
     including nested array aliases and zero, wrapping-to-zero, mutated-operand,
     unselected-constructor-crash and false-precondition rejection controls.
-  - `const_generic_expressions/value/match_dispatch.rs` needs nonconstant
-    divisor integrality beyond singleton sign intervals, nonzero proofs beyond
-    retained lattice gaps, and exact fractional-warning evidence for
-    independent dispatch operands, through rational bounds and correlations,
-    not arm enumeration or evaluation of skipped subjects. Preserve exact
-    selected operators (**OPERATOR-MACHINE-SUPPLY**) and proof arguments.
+  - `const_generic_expressions/value/match_dispatch.rs` proves nonconstant
+    divisor integrality beyond singleton sign intervals, nonzero proofs
+    through retained lattice gaps, and per-operand fractional warnings for
+    independent dispatch operands through rational bounds, not arm
+    enumeration or evaluation of skipped subjects (`match_tests.rs`
+    `nonconstant_divisor_lattices_prove_all_arm_integrality`,
+    `exact_operand_points_discharge_divisors_beyond_lattice_gaps` and
+    `independent_dispatch_operands_retain_each_exact_fractional_warning`
+    cover them). Correlated result facts are deliberately not reconstructed
+    from branch selection, so no residual dispatch obligation remains.
+    Preserve exact selected operators (**OPERATOR-MACHINE-SUPPLY**) and
+    proof arguments.
 
   General array-value execution (dynamic selectors, borrowed projections and
   slices, array-producing cycles, boundary and indirect results) is a
