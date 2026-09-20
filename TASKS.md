@@ -7094,7 +7094,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TASKS_BOOTSTRAP.md's OFFLINE-REBUILD paragraph belongs to that row's
   owner; sibling re-mine names on this surface: BETA-SEED-EXEC-HOST-REFUSAL,
   BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST, BOOTSTRAP-CHAIN-NATIVE-EXECUTION.
-- **BETA-PE-SEED-REFUSAL** — mined candidate; verify scope then implement.
+- **BETA-PE-SEED-REFUSAL.** Resolved at `bde84d1765` — re-mines the
+  landed Beta seed-refusal surface per sibling BETA-SEED-EXEC-HOST-REFUSAL's
+  verified row: `tests/beta/compiler/reconstruction.sh`,
+  `tests/beta/compiler/compiler-diamond.sh`, and
+  `tools/bootstrap/beta/build.sh` each `require_seed_execution_host` and
+  refuse exit 2 on hosts that cannot exec the selected container (host
+  matrix audited in `tools/bootstrap/alpha/seed_env.sh`). Re-verified on
+  linux x86-64: `sh tests/beta/compiler/reconstruction.sh` — green,
+  "Beta reconstructs its direct Alpha tape byte-identically". The
+  refusal-on-unsupported-host leg is host-gated by definition; no
+  implementable slice remains. The live `tests/beta` +
+  `tools/bootstrap/beta` fence is now BOOTSTRAP-SEED-EXECUTION-HOSTS
+  (exp 03:55Z), not this row. Sibling alias stubs:
+  BETA-SEED-EXEC-HOST-REFUSAL (resolved), BETA-COMPILER-SEED-REFUSAL.
 - **BETA-SEED-EXEC-HOST-REFUSAL.** Resolved — re-mine of the landed Beta seed-refusal surface. The refusal leg exists: `tests/beta/compiler/reconstruction.sh`, `tests/beta/compiler/compiler-diamond.sh`, and `tools/bootstrap/beta/build.sh` each refuse exit 2 on hosts that cannot exec the selected container ("refuse rather than crash"), per the same landed host-degradation design recorded on sibling BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST (BETA-RECONSTRUCTION-REFUSAL). On Linux x86-64 the audited `alpha_x64_linux` seed IS executable, so the gates run their positive legs (`reconstruction.sh` re-ran green at tip — byte-identical Beta→Alpha tape). The refusal-on-unsupported-host side is host-gated by definition; no implementable slice remains here. Cluster: BETA-COMPILER-SEED-REFUSAL is the other alias stub; BETA-PE-SEED-REFUSAL owns the live `tests/beta/compiler` + `tools/bootstrap/beta` fence (exp 22:13Z).
 - **BOOTSTRAP-CHAIN-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
 - **BOOTSTRAP-EPSILON-EVALUATOR** — mined candidate; verify scope then implement.
