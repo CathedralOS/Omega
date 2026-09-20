@@ -130,10 +130,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   which omits doctests. The command cannot pass today: `AGENTS.md` records a
   full `canary_suite` run as red, and
   [known baseline failures](wiki/drafts/known_baseline_failures.md) lists open
-  library and native-differential failures. The first staged record,
-  [promotions/ControlFlowCleanup.md](omega-rust/omega/representations/optimization-core/promotions/ControlFlowCleanup.md),
-  records that rule's coverage state with `Approved status`, owner approval,
-  and measurement evidence still `PENDING`; `omega-architecture-test`'s
+  library and native-differential failures. Two staged records now exist:
+  [promotions/ControlFlowCleanup.md](omega-rust/omega/representations/optimization-core/promotions/ControlFlowCleanup.md)
+  and
+  [promotions/DeadPureScalarElimination.md](omega-rust/omega/representations/optimization-core/promotions/DeadPureScalarElimination.md),
+  each recording that rule's coverage state with `Approved status`, owner
+  approval, and measurement evidence still `PENDING`. The
+  DeadPureScalarElimination record's target-matrix field cites
+  `no_selection_golden/rollback.rs::dead_scalar_rollback_rejoins_exact_ordinary_path_on_every_target`,
+  which retains byte-identical artifacts under the exact-rule rollback on
+  every hosted target for a program carrying dead scalar work.
+  `omega-architecture-test`'s
   `exact_rule_rollout_is_complete_and_promotion_gated` keeps the inventory and
   every staged record in step and resolves each record's backticked
   `path`/`path::subject` evidence citations against the checkout, so a
