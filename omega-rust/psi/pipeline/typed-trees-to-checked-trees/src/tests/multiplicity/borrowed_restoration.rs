@@ -158,6 +158,44 @@ fn direct_provider_call_consumes_a_borrowed_argument() {
 }
 
 #[test]
+fn service_receiver_observes_an_erased_member_argument_without_a_window() {
+    let source = "boundary trait Probe { machine take_descriptor(value: Sealed) -> i32; }
+        data Evidence { case Only; }
+        data Sealed { payload: i32; proof [erased]: Evidence; }
+        data Main<'s> { sealed: Sealed; probe: &'s mut Probe; observed: i32; }
+        machine Main::replace(&mut self) reaches Probe {
+            self.observed = self.probe.take_descriptor(self.sealed);
+        }";
+    check_source(source).expect(
+        "an erased member never crosses the service seam: the marshal reads \
+         runtime contents while the observed place keeps the whole value",
+    );
+}
+
+#[test]
+fn direct_provider_call_still_consumes_an_erased_member_argument() {
+    let source = "boundary trait Probe { machine take_descriptor(value: Sealed) -> i32; }
+        machine probe_binding() -> i32 { 0 }
+        machine take_descriptor(value: Sealed) -> i32
+            satisfies Probe::take_descriptor via probe_binding();
+        data Evidence { case Only; }
+        data Sealed { payload: i32; proof [erased]: Evidence; }
+        data Main { sealed: Sealed; observed: i32; }
+        machine Main::replace(&mut self) reaches Probe {
+            self.observed = take_descriptor(self.sealed);
+        }";
+    let diagnostics =
+        check_source(source).expect_err("a direct provider call still moves the borrowed argument");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("boundary or service call")
+                && diagnostic.message.contains("sealed")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn evaluation_order_selected_index_uses_its_collection_operand() {
     check_source(
         "data Buffer { value: i32; }

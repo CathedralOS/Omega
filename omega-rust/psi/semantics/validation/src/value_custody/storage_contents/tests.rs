@@ -1,6 +1,7 @@
 use super::{
     TypeReferenceHandle, TypeReferenceNode, TypedTrees, has_plain_owned_contents,
-    has_plain_owned_contents_with_numeric_constraints, has_stable_observable_contents,
+    has_plain_owned_contents_with_numeric_constraints, has_service_seam_contents,
+    has_stable_observable_contents,
 };
 fn typed(source: &str) -> TypedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
@@ -223,6 +224,65 @@ fn stable_observation_rejects_nested_mutation_authority_and_unknown_qualifiers()
             );
         }
     }
+}
+
+#[test]
+fn service_seam_contents_leave_erased_members_with_the_observed_place() {
+    // The seam marshal carries runtime contents only: an erased member stays
+    // with the observed place, so it resolves but is never checked for stable
+    // contents of its own.
+    let program = typed(
+        "data Evidence { case Only; }
+         data Sealed { payload: u64; proof [erased]: Evidence; }
+         machine inspect(value: Sealed) {}",
+    );
+    let reference = input(&program);
+    assert!(has_service_seam_contents(&program, reference));
+    assert!(
+        !has_stable_observable_contents(&program, reference),
+        "observation still duplicates the member the seam leaves behind"
+    );
+}
+
+#[test]
+fn service_seam_contents_keep_the_runtime_exclusions() {
+    // An unresolvable erased member type still fails closed.
+    let program = typed(
+        "data Sealed { payload: u64; proof [erased]: Missing; }
+         machine inspect(value: Sealed) {}",
+    );
+    assert!(!has_service_seam_contents(&program, input(&program)));
+    for carrier in [
+        // Runtime contents are exactly stable-observation's: mutation
+        // authority, linear carriers, and cleanup-hooked members still reject.
+        "data Sealed { payload: &mut u64; proof [erased]: Evidence; }
+         data Evidence { case Only; }
+         machine inspect(value: Sealed) {}",
+        "data Evidence { case Only; }
+         data Token [linear] { value: u64; }
+         data Sealed { payload: u64; token: Token; proof [erased]: Evidence; }
+         machine inspect(value: Sealed) {}",
+        "data Evidence { case Only; }
+         data Sealed { payload: u64; proof [erased]: Evidence; }
+         machine Sealed::drop(&mut self) {}
+         machine inspect(value: Sealed) {}",
+    ] {
+        let program = typed(carrier);
+        assert!(
+            !has_service_seam_contents(&program, input(&program)),
+            "{carrier}"
+        );
+    }
+    // An erased member with runtime-bearing contents still stays behind: a
+    // seam-marshalable record may carry erased members whose own contents
+    // would not survive observation, because they never cross.
+    let program = typed(
+        "data Loaned { holder: &u64; }
+         data Evidence { case Only; }
+         data Sealed { payload: u64; proof [erased]: Loaned; tag: Evidence; }
+         machine inspect(value: Sealed) {}",
+    );
+    assert!(has_service_seam_contents(&program, input(&program)));
 }
 
 #[test]
