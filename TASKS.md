@@ -6726,7 +6726,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **INTRINSIC-PHYSICAL-SPAN-ARMS** — mined candidate; verify scope then implement.
 - **KNOWN-BASELINE-FAILURES-DOC-REFRESH** — mined candidate; verify scope then implement.
 - **KNOWN-BASELINE-FAILURES-REFRESH** — mined candidate; verify scope then implement.
-- **LEARNED-COST-MODEL** — mined candidate; verify scope then implement.
+- **LEARNED-COST-MODEL** — verified 05416dd1a0: duplicate pointer to the
+  live **LEARNED-OPTIMIZATION-COST-MODEL.** item (TASKS.md:5889), which
+  already names this alias. Nothing to implement by design:
+  `wiki/spec/build/optimizations.md` forbids a trainer, training corpus,
+  model evaluator or inference path in the Rust reference compiler, the
+  premature trainer was removed at 55ba7f6ab3, and
+  `wiki/drafts/learned_optimization_policy.md` authorizes no
+  implementation — the gated residual (versioned workload corpus plus
+  measured comparison against `predicted_cost_delta`) waits on
+  WORKLOAD-CORPUS-AND-MULTIVERSIONING and the product compiler. Row
+  consumed — the canonical item carries the frontier.
 - **LEGACY-COMPATIBILITY-WRAPPER-PRUNING** — landed. The original Unit-only demand entry point kept a compat surface in `object_artifact/stack_demand.rs`: `derive_unit_stack_demand` forwarding to `derive_stack_demand` and `pub type UnitStackDemand = StackDemand`, both doc-marked "new callers should use" the canonical names with only test callers left. Removed the wrapper, alias, and their `image-emission` re-exports; the two `object_replays.rs` call sites now use `derive_stack_demand`/`StackDemand`. Deliberately retained: `NativeArtifact as RetainedNativeArtifact` (compilation-report), whose compatibility name is pinned by `tests/architecture/layering.rs` and now carries report-domain vocabulary (`CompileOutputKind::RetainedNativeArtifact`, `retained_native_artifact()`); and `legacy_cli_alias` in `representations/target`, a still-live transitional CLI normalization seam rather than a dead wrapper.
 - **LIFETIME-MULTI-SOURCE-AND-OUTLIVES** — mined candidate; verify scope then implement.
 - **LIFETIME-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
