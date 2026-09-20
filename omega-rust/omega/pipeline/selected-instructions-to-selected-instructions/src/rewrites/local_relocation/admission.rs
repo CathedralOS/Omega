@@ -8,14 +8,13 @@
 //! inside its span.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedFunction, SelectedInstructionId};
+use selected_instructions::SelectedInstructionId;
 
 use super::LocalRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     pub block_index: usize,
     /// The member's index in the block body.
     pub member_index: usize,
@@ -32,7 +31,7 @@ pub(super) fn admit<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, LocalRelocationError> {
+) -> Result<Admission, LocalRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(LocalRelocationError::SourceMismatch);
@@ -128,7 +127,6 @@ pub(super) fn admit<'source>(
         return Err(LocalRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         destination_index,
