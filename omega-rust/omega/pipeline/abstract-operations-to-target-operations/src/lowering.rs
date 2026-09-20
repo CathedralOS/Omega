@@ -28,9 +28,11 @@ use coordination::lower_to_target_operations_with_settlements_and_installation;
 
 #[cfg(test)]
 pub(crate) use coordination::{
-    bind_native_callback_arguments as bind_native_callback_arguments_for_tests,
     lower_to_target_operations_with_settlements as lower_with_settlements_for_tests,
-    validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
+    native_callbacks::{
+        bind_native_callback_arguments as bind_native_callback_arguments_for_tests,
+        validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
+    },
 };
 
 /// The admitted settlements a target lowering consumes beyond the plan and
