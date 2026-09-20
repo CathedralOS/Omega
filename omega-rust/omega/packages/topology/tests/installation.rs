@@ -1634,8 +1634,95 @@ fn a_three_process_installation_mediated_over_real_private_channels() {
         WriteVerdict::Refused(9) // EBADF
     );
 
-    // One outstanding request per binding, then a schema violation closes
-    // it — the dead channel refuses its remaining ends.
+    // Binding 1's pair: authorization calls billing through the same law —
+    // one outstanding request, one outstanding response, bytes checked at
+    // both kernel endpoints.
+    let grant_b1 = installed
+        .authorize_send(b1_request_write, auth_b1_token)
+        .expect("binding 1 grants its write end");
+    assert_eq!(grant_b1.deliver_to, 2);
+    let billing_request = Frame {
+        operation: 2,
+        payload: Vec::new(),
+    };
+    let billing_request_bytes = encode_frame(&billing_request).unwrap();
+    assert_eq!(
+        supervisor
+            .write_endpoint(
+                &mut installed.members_mut()[1],
+                b1_request_write,
+                &billing_request_bytes
+            )
+            .unwrap(),
+        WriteVerdict::Written
+    );
+    let billing_read = {
+        let endpoints = installed.receipt().bindings[1].endpoints;
+        endpoints[1].0
+    };
+    let billing_delivered = match supervisor
+        .read_endpoint(
+            &mut installed.members_mut()[2],
+            billing_read,
+            MAX_FRAME_BYTES,
+        )
+        .unwrap()
+    {
+        ReadVerdict::Bytes(bytes) => bytes,
+        other => panic!("binding 1's request must arrive: {other:?}"),
+    };
+    assert_eq!(billing_delivered, billing_request_bytes);
+    installed
+        .deliver_send(grant_b1, Ok(&decode_frame(&billing_delivered).unwrap()))
+        .expect("the schema admits binding 1's request");
+
+    let b1_response_token = supervisor
+        .attested_token(&installed.members()[2], b1_response_write)
+        .expect("billing's response token");
+    let billing_reply_grant = installed
+        .authorize_respond(b1_response_write, b1_response_token)
+        .expect("binding 1's response is outstanding");
+    let billing_reply = Frame {
+        operation: 3,
+        payload: vec![0xCD; 8],
+    };
+    let billing_reply_bytes = encode_frame(&billing_reply).unwrap();
+    assert_eq!(
+        supervisor
+            .write_endpoint(
+                &mut installed.members_mut()[2],
+                b1_response_write,
+                &billing_reply_bytes
+            )
+            .unwrap(),
+        WriteVerdict::Written
+    );
+    let b1_response_read = {
+        let endpoints = installed.receipt().bindings[1].endpoints;
+        endpoints[3].0
+    };
+    let billing_reply_delivered = match supervisor
+        .read_endpoint(
+            &mut installed.members_mut()[1],
+            b1_response_read,
+            MAX_FRAME_BYTES,
+        )
+        .unwrap()
+    {
+        ReadVerdict::Bytes(bytes) => bytes,
+        other => panic!("binding 1's reply must arrive: {other:?}"),
+    };
+    assert_eq!(billing_reply_delivered, billing_reply_bytes);
+    installed
+        .deliver_respond(
+            billing_reply_grant,
+            Ok(&decode_frame(&billing_reply_delivered).unwrap()),
+        )
+        .expect("the demanded contract admits binding 1's reply");
+
+    // A second outstanding request on the same binding refuses — one
+    // request in flight — then a schema-violating frame closes the dead
+    // channel and its remaining ends refuse.
     let grant_b1 = installed
         .authorize_send(b1_request_write, auth_b1_token)
         .expect("binding 1 grants its write end");
@@ -1654,9 +1741,6 @@ fn a_three_process_installation_mediated_over_real_private_channels() {
             violation: SchemaViolation::UnlistedOperation { operation: 77 },
         })
     );
-    let b1_response_token = supervisor
-        .attested_token(&installed.members()[2], b1_response_write)
-        .expect("billing's response token");
     assert_eq!(
         installed.authorize_respond(b1_response_write, b1_response_token),
         Err(InvocationRefusal::BindingClosed { binding: 1 })
