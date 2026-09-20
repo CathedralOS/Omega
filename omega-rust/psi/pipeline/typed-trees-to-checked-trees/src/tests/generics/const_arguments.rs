@@ -547,7 +547,7 @@ fn value_argument_results_seed_static_inference_without_a_place_declaration() {
 fn literal_cast_and_operator_results_seed_type_inference() {
     let checked = accepts(
         "machine pick<T>(value: T) -> T { value }
-        machine caller(flag: bool, whole: i64) -> u64 {
+        machine caller(flag: bool, whole: i64[0..=100]) -> u64 {
             _ = pick(true);
             _ = pick(2.5f64);
             _ = pick(whole as i32);
