@@ -65,38 +65,14 @@ impl ReviewBuildSession {
                 ".omega-package-evidence-{}-{sequence}",
                 std::process::id()
             ));
-            match create_private_directory(&root) {
-                Ok(()) => {
-                    let canonical_root = match fs::canonicalize(&root) {
-                        Ok(canonical_root) => canonical_root,
-                        Err(error) => {
-                            let _ = fs::remove_dir(&root);
-                            return Err(CompileResolvedPackageReviewsError::BuildStagingCreate {
-                                path: root,
-                                error,
-                            });
+            match FilesystemSponsor::create_private(&root) {
+                Ok(filesystem_sponsor) => {
+                    let canonical_root = filesystem_sponsor.session_root().map_err(|error| {
+                        CompileResolvedPackageReviewsError::BuildStagingSponsor {
+                            path: root.clone(),
+                            error,
                         }
-                    };
-                    if canonical_root.parent() != Some(canonical_workspace.as_path()) {
-                        let _ = fs::remove_dir(&canonical_root);
-                        return Err(CompileResolvedPackageReviewsError::BuildStagingCreate {
-                            path: canonical_root,
-                            error: io::Error::new(
-                                io::ErrorKind::InvalidData,
-                                "created review session escaped its canonical workspace",
-                            ),
-                        });
-                    }
-                    let filesystem_sponsor = match FilesystemSponsor::new(&canonical_root) {
-                        Ok(sponsor) => sponsor,
-                        Err(error) => {
-                            let _ = fs::remove_dir(&canonical_root);
-                            return Err(CompileResolvedPackageReviewsError::BuildStagingSponsor {
-                                path: canonical_root,
-                                error,
-                            });
-                        }
-                    };
+                    })?;
                     let evaluation_limits = BuildEvaluationSponsorLimits::new(
                         PACKAGE_REVIEW_BUILD_FUEL_CEILING,
                         PACKAGE_REVIEW_BUILD_LOG_CEILING,
@@ -150,7 +126,7 @@ impl ReviewBuildSession {
         mut self,
         result: Result<T, CompileResolvedPackageReviewsError>,
     ) -> Result<T, CompileResolvedPackageReviewsError> {
-        match fs::remove_dir_all(&self.root) {
+        match self.filesystem_sponsor.dispose_private_staging() {
             Ok(()) => {
                 self.active = false;
                 result
@@ -167,20 +143,9 @@ impl ReviewBuildSession {
 impl Drop for ReviewBuildSession {
     fn drop(&mut self) {
         if self.active {
-            let _ = fs::remove_dir_all(&self.root);
+            let _ = self.filesystem_sponsor.dispose_private_staging();
         }
     }
-}
-
-fn create_private_directory(path: &Path) -> io::Result<()> {
-    #[cfg_attr(not(unix), allow(unused_mut))]
-    let mut builder = fs::DirBuilder::new();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::DirBuilderExt;
-        builder.mode(0o700);
-    }
-    builder.create(path)
 }
 
 #[cfg(test)]

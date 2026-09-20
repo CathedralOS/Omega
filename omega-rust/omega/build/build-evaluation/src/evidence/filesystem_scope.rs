@@ -50,9 +50,6 @@ pub struct BuildMachineFilesystemScope {
     canonical_source_metadata_required: bool,
     build_dir: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
-    // Ordinary snapshot compilation owns fresh scratch, not the publication
-    // directory. Cloned admission state shares its lifetime through capture.
-    output_scratch: Option<std::sync::Arc<preparation::BuildOutputScratch>>,
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     root_role: Option<package_compilation::BuildDeclarationKind>,
     build_execution_profile: Option<target::TargetProfile>,
@@ -109,7 +106,6 @@ impl BuildMachineFilesystemScope {
             canonical_source_metadata_required: false,
             build_dir,
             sponsor,
-            output_scratch: None,
             root_package_identity: None,
             root_role: None,
             build_execution_profile: None,
@@ -133,7 +129,6 @@ impl BuildMachineFilesystemScope {
             canonical_source_metadata_required: true,
             build_dir,
             sponsor,
-            output_scratch: None,
             root_package_identity: None,
             root_role: None,
             build_execution_profile: None,
@@ -416,6 +411,23 @@ impl BuildMachineFilesystemScope {
             },
             None => BuildMachineFilesystemAccess::RealScoped(grants),
         }
+    }
+
+    /// The benign build exemption follows exact issued custody, not root names
+    /// or sponsorship alone. Generic sponsors may point at existing host data.
+    /// Here every read uses captured membership, and the only write root belongs
+    /// to a fresh private session whose shared owner also handles cleanup.
+    pub(crate) fn is_private_snapshot_execution(
+        &self,
+        access: &BuildMachineFilesystemAccess,
+    ) -> bool {
+        let BuildMachineFilesystemAccess::RealScopedSponsored { sponsor, .. } = access else {
+            return false;
+        };
+        self.captured_source_input.is_some()
+            && self.snapshot_dir.is_some()
+            && sponsor.owns_private_staging_root(&self.build_dir)
+            && access == &self.filesystem_access()
     }
 
     pub(crate) fn ensure_write_roots(&self) -> Result<(), Vec<Diagnostic>> {
@@ -786,6 +798,86 @@ mod tests {
             )],
         )
         .expect("assemble captured build source input")
+    }
+
+    #[test]
+    fn benign_snapshot_execution_requires_exact_private_staging_custody() {
+        let fixture = temporary_staging_root("benign-custody");
+        fs::create_dir(&fixture).unwrap();
+        let sponsor = FilesystemSponsor::create_private(fixture.join("private")).unwrap();
+        let private_root = sponsor.session_root().unwrap();
+        let source = fixture.join("source");
+        let scope = BuildMachineFilesystemScope::for_package_root(
+            source.clone(),
+            private_root.join("output"),
+            Some(sponsor.clone()),
+            Some(captured_input().canonical_source_metadata().clone()),
+        )
+        .with_captured_source_input(captured_input(), fixture.join("captured"))
+        .unwrap()
+        .with_named_inputs(&std::collections::BTreeMap::from([(
+            b"template".to_vec(),
+            captured_input(),
+        )]));
+        let access = scope.filesystem_access();
+        assert!(scope.is_private_snapshot_execution(&access));
+        let BuildMachineFilesystemAccess::RealScopedSponsored { grants, .. } = &access else {
+            panic!("captured private scope must be sponsored")
+        };
+        let mut broader = grants.clone();
+        broader
+            .read_roots
+            .push(build_time_evaluation::BuildMachineFilesystemGrantRoot::new(
+                build_time_evaluation::BuildMachineFilesystemGrantRootIdentity::new(9).unwrap(),
+                fixture.join("live"),
+            ));
+        assert!(!scope.is_private_snapshot_execution(
+            &BuildMachineFilesystemAccess::RealScopedSponsored {
+                grants: broader,
+                sponsor: sponsor.clone(),
+            }
+        ));
+        let mut writable_input = grants.clone();
+        writable_input
+            .write_roots
+            .push(grants.read_roots[1].clone());
+        assert!(!scope.is_private_snapshot_execution(
+            &BuildMachineFilesystemAccess::RealScopedSponsored {
+                grants: writable_input,
+                sponsor: sponsor.clone(),
+            }
+        ));
+        let mut substituted = grants.clone();
+        substituted.read_roots[0] = build_time_evaluation::BuildMachineFilesystemGrantRoot::new(
+            super::BUILD_SOURCE_ROOT_IDENTITY,
+            fixture.join("different-backing"),
+        )
+        .with_canonical_metadata(captured_input().canonical_source_metadata().clone());
+        assert!(!scope.is_private_snapshot_execution(
+            &BuildMachineFilesystemAccess::RealScopedSponsored {
+                grants: substituted,
+                sponsor: sponsor.clone(),
+            }
+        ));
+        assert!(!scope.is_private_snapshot_execution(&BuildMachineFilesystemAccess::RealUnscoped));
+        assert!(
+            !scope.is_private_snapshot_execution(&BuildMachineFilesystemAccess::RealScoped(
+                grants.clone()
+            ))
+        );
+        let mut live_source = scope.clone();
+        live_source.captured_source_input = None;
+        live_source.snapshot_dir = None;
+        assert!(!live_source.is_private_snapshot_execution(&live_source.filesystem_access()));
+        let mut supplied_directory = scope.clone();
+        supplied_directory.sponsor = Some(FilesystemSponsor::new(&private_root).unwrap());
+        assert!(
+            !supplied_directory
+                .is_private_snapshot_execution(&supplied_directory.filesystem_access())
+        );
+        sponsor.dispose_private_staging().unwrap();
+        assert!(!scope.is_private_snapshot_execution(&access));
+        fs::remove_dir_all(fixture).unwrap();
     }
 
     #[test]
