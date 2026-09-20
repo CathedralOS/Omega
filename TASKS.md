@@ -5157,9 +5157,13 @@ Owners include
   `with_independent_component_descriptions` before any byte is consulted —
   plus the carried-subject substitution rejection (the expected subject is
   caller-supplied, never read from the bytes), the unmatched-component
-  rejection when the named dependency selects `Fused`, and the settled
-  compilation's custody retention of the admitted description beside an
-  empty acceptance roster.
+  rejection when the named dependency selects `Fused` or selects nothing at
+  all, and the settled compilation's custody retention of the admitted
+  description beside an empty acceptance roster. Corrupt and truncated
+  description bytes each reject inside independent verification rather than
+  being treated as complete, and the join is per selection: a second
+  dependency's own `Independent` edge stays unmatched — naming its plan —
+  while only the first dependency's description is attached.
   Still, a settled `Independent` edge carries no symbolic import or
   installation obligation into the product past that emission fence.
 
