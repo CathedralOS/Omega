@@ -7300,7 +7300,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **TERMINATION-FIELD-ENDPOINT-TRIO** — mined candidate; verify scope then implement.
 - **TERMINATION-RANK-RANGE-FIELDS** — mined candidate; verify scope then implement.
 - **TEST-CYCLE-SELECTION-REMEASUREMENT** — mined candidate; verify scope then implement.
-- **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS** — mined candidate; verify scope then implement.
+- **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS** — scope verified 2026-09-20:
+  re-mines [chapter 14](wiki/language_guide/chapter_14_traits.md)'s recorded
+  gap that a trait requirement expressing an arbitrary nondecidable validity
+  condition uses a
+  [mathematical predicate parameter](wiki/spec/proofs/mathematical_bindings.md)
+  and "checking that general route remains implementation work". That route
+  is **PROOF-CONTRACT-MIGRATION**'s connected implementation (the migration
+  item explicitly owns contract proof semantics and core mathematical traits,
+  elaborating to PROOF-KERNEL-CORE's term model rather than a second logical
+  representation); its kernel substrate is under a live PROOF-KERNEL-CORE
+  claim and its bindings leg under MATH-FOUNDATION-BINDINGS at verification
+  time. No independent slice exists here. Sibling re-mines of the same
+  surface: MATHEMATICAL-PREDICATE-PARAMETERS, MATHEMATICAL-FOUNDATIONS-REAL,
+  MATH-PROOFS-CALL-SELECTION-OCCURRENCE, MATH-PROOFS-DECLARATION-SELECTION.
 - **TRANSFORM-CODEC-RELOCATION** — mined candidate; verify scope then implement.
 - **TRANSLATION-VALIDATION** — verified `fcef01c59a`: duplicate pointer to the
   live `**TRANSLATION-VALIDATION.**` item in TASKS_OPTIMIZER.md, which now
