@@ -5089,7 +5089,17 @@ Owners include
   provider — instead of emitting a silently fused artifact
   (`independent_components.rs` pins both product routes; check-level
   compilation, description publication and the component join are
-  unaffected).
+  unaffected). The same file pins the attachment fence's coordinate checks —
+  a description naming the root package, a foreign package, or a second
+  description for one dependency each reject at
+  `with_independent_component_descriptions` before any byte is consulted —
+  plus the carried-subject substitution rejection (the expected subject is
+  caller-supplied, never read from the bytes), the unmatched-component
+  rejection when the named dependency selects `Fused`, and the settled
+  compilation's custody retention of the admitted description beside an
+  empty acceptance roster.
+  Still, a settled `Independent` edge carries no symbolic import or
+  installation obligation into the product past that emission fence.
 
   Remaining work:
 
