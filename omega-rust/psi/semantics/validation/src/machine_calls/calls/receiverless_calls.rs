@@ -107,7 +107,7 @@ pub(super) fn validate_receiverless_call(
             current_state,
             value_env,
             arguments,
-            state.name.as_str(),
+            call.target.as_str(),
             program.state_parameters(state),
             Some(state),
             writable_roots,
@@ -118,7 +118,49 @@ pub(super) fn validate_receiverless_call(
             symbols,
             current_machine,
             state,
-            state.name.as_str(),
+            call.target.as_str(),
+            arguments,
+            current_machine,
+            current_state,
+            false,
+            diagnostics,
+        );
+        return;
+    }
+
+    // A receiverless call resolved to a state of THIS machine while no local
+    // state owns the spelled name is a recursive machine call onto the
+    // machine's own entry (`walk(n - 1);` inside `machine walk`). Result
+    // overload rebinding already chose the exact sibling; falling through to
+    // the name lookups below would re-choose the first-declared overload.
+    if let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol)
+        .filter(|(callee_machine, _)| callee_machine.symbol == current_machine.symbol)
+    {
+        validate_result_use(
+            program,
+            call,
+            call.target.as_str(),
+            state.return_type,
+            diagnostics,
+        );
+        validate_call_arguments_handles(
+            program,
+            current_machine,
+            current_state,
+            value_env,
+            arguments,
+            call.target.as_str(),
+            program.state_parameters(state),
+            Some(state),
+            writable_roots,
+            diagnostics,
+        );
+        validate_machine_call_type_parameter_bounds(
+            program,
+            symbols,
+            current_machine,
+            state,
+            call.target.as_str(),
             arguments,
             current_machine,
             current_state,

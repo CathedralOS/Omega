@@ -518,6 +518,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "core/self_read_only_receiver_compile",
     "calls/effectless_mut_out_param_discard_compile",
     "calls/pure_discard_warns_compile",
+    "calls/statement_call_recursive_overload_compile",
     "calls/typed_return_from_local_call_compile",
     "expressions/float_literal_suffix",
     "expressions/integer_literal_suffix",

@@ -1,0 +1,34 @@
+// REGRESSION PIN: a statement call recursing through an OVERLOADED name
+// selected the wrong sibling. `walk(n - 1);` inside the Unit `walk` is a
+// receiverless call rebound onto the enclosing machine's own entry, so
+// result-use validation skipped the resolved-target branch (reserved for
+// cross-machine callees) and fell through to the free-machine NAME lookup,
+// which re-chose the first-declared `walk` (`-> i32 in Logged`) and
+// rejected the call for discarding a result the selected Unit overload
+// never returns. A statement call carries no expected result, so the
+// result-domain overload rule selects the empty projection on every call
+// site -- including the recursive one -- and this program simply compiles.
+domain i32::Logged;
+
+data Main { }
+
+machine Main::main(&mut self) {
+    walk(3);
+}
+
+machine walk(n: i32) -> i32 in Logged {
+    n as i32 in Logged
+}
+
+machine walk(n: i32) {
+    transition n > 0 {
+        true -> descend(n)
+        _ -> done()
+    }
+
+    state descend(&mut self, n: i32) {
+        walk(n - 1);
+    }
+
+    state done(&mut self) { }
+}
