@@ -129,7 +129,7 @@ mod tests {
     use super::SymbolHandle;
     use crate::semantic_calls::call_target_parameters;
     use crate::semantic_calls::call_target_type_parameters;
-    use crate::semantic_calls::find_state;
+    use crate::semantic_calls::{find_state, find_state_in_machine};
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::{machine::Machine, state::State};
 
@@ -273,5 +273,104 @@ mod tests {
             find_state(&program, state_symbol).map(|state| state.symbol),
             Some(state_symbol)
         );
+    }
+
+    #[test]
+    fn state_lookup_in_machine_scopes_candidates_to_that_machine() {
+        // find_state_in_machine never widens its candidate pool past the named
+        // machine: a state stored under another machine, and a machine handle
+        // that names nothing, both reject. Only find_state's whole-program
+        // fallback admits a state whose retained parent disagrees.
+        let mut program = typed_trees::TypedTrees::default();
+        let machine_symbol = SymbolHandle::from_arena_index(40);
+        let other_machine_symbol = SymbolHandle::from_arena_index(41);
+        let state_symbol = SymbolHandle::from_arena_index(42);
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            ..Machine::default()
+        };
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: state_symbol,
+                ..State::default()
+            },
+        );
+        program.push_machine(machine);
+        program.push_machine(Machine {
+            symbol: other_machine_symbol,
+            ..Machine::default()
+        });
+
+        assert!(
+            find_state_in_machine(&program, machine_symbol, state_symbol).is_some(),
+            "the owning machine admits its own state",
+        );
+        assert!(
+            find_state_in_machine(&program, other_machine_symbol, state_symbol).is_none(),
+            "another machine's scope does not expose the state",
+        );
+        assert!(
+            find_state_in_machine(&program, SymbolHandle::from_arena_index(99), state_symbol)
+                .is_none(),
+            "an unbound machine handle admits nothing",
+        );
+    }
+
+    #[test]
+    fn trait_machine_signature_is_a_call_target_outside_machine_scope() {
+        // A trait requirement's own signature is a call target resolved in the
+        // trait's scope: its parameters and the trait's generic context answer
+        // without any machine owning the symbol.
+        use typed_trees::data::{TypeParameter, TypeParameterKind};
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::{StateParameter, StateSignature};
+        use typed_trees::trait_definition::TraitDefinition;
+
+        let mut program = typed_trees::TypedTrees::default();
+        let trait_symbol = SymbolHandle::from_arena_index(50);
+        let signature_symbol = SymbolHandle::from_arena_index(51);
+        let parameter_symbol = SymbolHandle::from_arena_index(52);
+        let generic_symbol = SymbolHandle::from_arena_index(53);
+
+        let mut trait_definition = TraitDefinition {
+            symbol: trait_symbol,
+            ..TraitDefinition::default()
+        };
+        program.push_trait_type_parameter(
+            &mut trait_definition,
+            TypeParameter {
+                symbol: generic_symbol,
+                name: Identifier::generated("Carrier"),
+                kind: TypeParameterKind::Type,
+                bounds: Default::default(),
+            },
+        );
+        let mut signature = StateSignature {
+            symbol: signature_symbol,
+            ..StateSignature::default()
+        };
+        program.push_state_signature_parameter(
+            &mut signature,
+            StateParameter {
+                symbol: parameter_symbol,
+                ..Default::default()
+            },
+        );
+        program.push_trait_machine_signature(&mut trait_definition, signature);
+        program.push_trait_definition(trait_definition);
+
+        assert_eq!(
+            call_target_parameters(&program, signature_symbol).unwrap()[0].symbol,
+            parameter_symbol
+        );
+        assert_eq!(
+            call_target_type_parameters(&program, signature_symbol)[0].symbol,
+            generic_symbol
+        );
+        // The signature's parameters answer for the signature symbol only;
+        // the trait symbol itself names no call target.
+        assert!(call_target_parameters(&program, trait_symbol).is_none());
+        assert!(call_target_type_parameters(&program, trait_symbol).is_empty());
     }
 }
