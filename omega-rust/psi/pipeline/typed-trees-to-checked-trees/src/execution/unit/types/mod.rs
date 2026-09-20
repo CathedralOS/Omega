@@ -800,7 +800,36 @@ pub(crate) fn erased_scalar_parameter_plans(
         .collect()
 }
 
-pub(super) fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
+/// Whether an authored parameter owns a slot in the caller's structural
+/// argument namespace once the unit plan is sealed. Erased bindings and
+/// `const` formals carry no runtime slot, direct `Placed` view parameters
+/// stay custody-only, and scalar primitives live in the scalar namespace. A
+/// borrowed `self` is excluded here because it joins only when the plan
+/// retains it; receivers that read `self` go through `reads_receiver`, which
+/// decides retention before this index is committed.
+pub(crate) fn structural_parameter_candidate(
+    program: &TypedTrees,
+    parameter: &StateParameter,
+) -> bool {
+    if parameter.is_const || strips_erased_parameter(parameter) == Some(true) {
+        return false;
+    }
+    if parameter.is_self {
+        return !is_reference(program, parameter.type_reference);
+    }
+    if matches!(
+        program.type_reference_table.type_reference(parameter.type_reference),
+        TypeReferenceNode::Reference { referee, .. }
+            if program.placed_view_plan_for_type_reference(*referee).is_some()
+    ) {
+        return false;
+    }
+    program
+        .primitive_type_reference(parameter.type_reference)
+        .is_none()
+}
+
+pub(crate) fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
