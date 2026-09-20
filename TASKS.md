@@ -6140,7 +6140,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIXES** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-GATE-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-OCREQ-BINDING** — mined candidate; verify scope then implement.
-- **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS** — mined candidate; verify scope then implement.
 - **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION** — mined candidate; verify scope then implement.
