@@ -45,6 +45,14 @@ pub(super) fn project_named_const_static_argument(
         DecodedCanonicalConstValue::Boolean(value) => {
             return Ok(PackageReviewContractStaticArgument::ConstBoolean(value));
         }
+        // Declaration receipts can retain floating bits, but static arguments
+        // still require structural index values. Keep that boundary explicit
+        // even though decode_encoding currently rejects floating leaves.
+        DecodedCanonicalConstValue::Float { .. } => {
+            return Err(rejected(
+                "with a floating value in a structural const index",
+            ));
+        }
         DecodedCanonicalConstValue::Array { .. }
         | DecodedCanonicalConstValue::Record { .. }
         | DecodedCanonicalConstValue::Variant { .. } => {}
@@ -73,4 +81,30 @@ fn canonical_integer_type_name(type_name: &str) -> bool {
         type_name,
         "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "addr"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_canonical_const_value;
+
+    #[test]
+    fn static_argument_decoding_excludes_floating_leaves_at_every_depth() {
+        for encoding in [
+            "float:f32:3fc00000",
+            "array8:[f32; 1]18:float:f32:3fc00000",
+            "record4:Cell5:value18:float:f32:3fc00000",
+        ] {
+            let declaration =
+                language_semantics::const_value::CanonicalConstValue::new("", encoding, "");
+            assert!(
+                declaration
+                    .identity()
+                    .decode_declaration_encoding()
+                    .is_some()
+            );
+            assert!(decode_canonical_const_value(encoding).is_none());
+        }
+        assert!(decode_canonical_const_value("integer3:u641:7").is_some());
+        assert!(decode_canonical_const_value("boolean4:true").is_some());
+    }
 }
