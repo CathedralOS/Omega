@@ -6388,7 +6388,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PLACED-ACCESS-NATIVE-OPS** — mined candidate; verify scope then implement.
 - **PLATFORM-RUN-LINUX-X86-64** — mined candidate; verify scope then implement.
 - **POC-NATIVE-WRAPPER-RELOCATION** — mined candidate; verify scope then implement.
-- **POC-ORPHAN-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
+- **POC-ORPHAN-ENTRANCE-AUDIT.** Resolved — the
+  [stage-entrance orphan audit](wiki/drafts/stage_entrance_orphan_audit.md)
+  now covers the post-allocation chain and `unsequenced_spill_stages/`
+  family the POC cluster orbits: every post-allocation stage entrance is
+  wired (native-realization physical pipeline, machine-emission
+  `function_realization`/`exit_contract`, native-differential
+  `optimizer_corpus`/layout stages, architecture coordination markers), all
+  19 spill-stage modules' entrances are driven by native-differential
+  `register_allocation` tests and architecture gates, and the per-stage
+  `*_identity` helpers are internally routed plumbing called by their own
+  validators and generalized siblings. No orphans found; the one durable
+  note for a future automated gate is that spill codec names (`encode`,
+  `decode`) collide workspace-wide and need qualified identities to be
+  machine-attributable.
 - **POC-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
 - **POC-SELECTED-REWRITE-CATALOG** — mined candidate; verify scope then implement.
 - **POC-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
