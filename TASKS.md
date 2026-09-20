@@ -6637,6 +6637,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP** — mined candidate; verify scope then implement.
 - **OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION** — mined candidate; verify scope then implement.
 - **OPTIMIZED-WRAPPER-DISPOSITION** — mined candidate; verify scope then implement.
+  Verified scope: same orphan-owner surface as WRAPPER-OBJECT-OWNERSHIP's
+  landed annotation (the `optimized_semantic_wrapper_{encoding,object}`
+  modules in `native-realization/`) — "disposition" is the keep/move/delete
+  question enumerated as PIPELINE-OWNER-CONSOLIDATION remaining work in
+  TASKS_OPTIMIZER.md; the codec move leg is deferred to
+  DURABLE-CODEC-RELOCATION / REPRESENTATION-OWNERSHIP and the first real
+  caller leg is UEFI-PHYSICAL-SEMANTIC-ENTRY's. The module paths are held by
+  PIPELINE-WRAPPER-OBJECT-ORPHAN's live claim (expires 22:46Z). Sibling
+  re-mine names are listed on the WRAPPER-OBJECT-OWNERSHIP row;
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION and
+  OPTIMIZED-WRAPPER-OBJECT-RELOCATION name the same surface.
 - **OPTIMIZED-WRAPPER-OBJECT-RELOCATION** — mined candidate; verify scope then implement.
 - **OPTIMIZER-RULE-AXIS-GATE** — mined candidate; verify scope then implement.
 - **ORPHAN-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
