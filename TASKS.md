@@ -10050,7 +10050,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SNAPSHOT-STORAGE-AND-FILTERING** — mined candidate; verify scope then implement.
 - **SOURCE-SEMANTICS-SUITE** — mined candidate; verify scope then implement.
 - **SPILL-FAMILY-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
-- **SPILL-STAGES-OWNERSHIP** — mined candidate; verify scope then implement.
+- **SPILL-STAGES-OWNERSHIP** — mined candidate; scope verified, covered — the
+  ownership answer is already recorded on the canonical row and in the module
+  itself. `unsequenced_spill_stages/` is a stage group of 18
+  validated-but-unsequenced spill-boundary families (`mod.rs`: "Spill
+  boundaries validated but not yet sequenced by register allocation");
+  executable pressure recovery is owned by `assignment/runtime_spill`, and
+  sequencing ownership belongs to SPILL-REALIZATION per
+  UNSEQUENCED-SPILL-STAGES-DISPOSITION's verified flag — a family is either
+  sequenced behind the executable route via `stage_register_allocation` or
+  deleted, and extending both is the banned shape (identified duplicate-owner
+  pair: `stack_slot_coloring` vs `runtime_spill/slot.rs`). This stub is a fifth
+  mined duplicate of that directory after the four named there —
+  UNSEQUENCED-SPILL-STAGE-DISPOSITION, UNSEQUENCED-SPILL-STAGE-TRIAGE,
+  UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE — plus
+  SPILL-FAMILY-SEQUENCE-OR-DELETE beside this one. The whole territory stays
+  fenced this wave: `selected-instructions-to-register-homes` wholesale
+  (POC-SPILL-FAMILY-SEQUENCING), `optimizer_source_organization`
+  (ORPHAN-STAGE-OUTPUT-AUDIT), `pipeline_ownership`
+  (STRUCTURAL-UNIT-CALL-GRAPH-JOINS).
 - **SQUALR-CLI-ENTRY-AND-MODEL** — mined candidate; verify scope then implement.
 - **SQUALR-CLONE-SERIALIZATION.** Implemented under `samples/apps/squalr`
   (submodule branch zergling/z61-squalr-clone-serialization): `NormalizedRegion`
