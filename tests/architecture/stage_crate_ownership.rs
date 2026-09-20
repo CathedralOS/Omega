@@ -70,6 +70,120 @@ fn transform_pair(name: &str) -> (&str, &str) {
     (from, to)
 }
 
+/// Public function names (`pub fn`, never a crate-private `pub(...)` qualifier)
+/// declared at top-level `src/` files of a crate.
+fn public_functions(source: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("//") {
+            continue;
+        }
+        let Some(mut head) = trimmed.strip_prefix("pub ") else {
+            continue;
+        };
+        for modifier in ["const", "async", "unsafe"] {
+            if let Some(tail) = head
+                .strip_prefix(modifier)
+                .filter(|tail| tail.starts_with(char::is_whitespace))
+            {
+                head = tail.trim_start();
+            }
+        }
+        let Some(signature) = head
+            .strip_prefix("fn")
+            .filter(|tail| tail.starts_with(char::is_whitespace))
+        else {
+            continue;
+        };
+        let name: String = signature
+            .trim_start()
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if !name.is_empty() {
+            names.push(name);
+        }
+    }
+    names
+}
+
+/// Names a crate root exposes: `pub use` re-exports (possibly spanning lines)
+/// plus `pub fn` declarations in `lib.rs` itself.
+fn root_exported_names(library: &str) -> BTreeSet<String> {
+    let mut exported: BTreeSet<String> = public_functions(library).into_iter().collect();
+    let mut rest = library;
+    while let Some(at) = rest.find("pub use") {
+        rest = &rest[at + "pub use".len()..];
+        let end = rest.find(';').unwrap_or(rest.len());
+        for word in rest[..end].split(|c: char| !(c.is_alphanumeric() || c == '_')) {
+            if !word.is_empty() {
+                exported.insert(word.to_owned());
+            }
+        }
+        rest = &rest[end.min(rest.len())..];
+    }
+    exported
+}
+
+/// Caller scan: every `.rs` file outside `crate/src/` is a potential external
+/// caller — other crates' sources, integration tests, and the crate's own
+/// `tests/` targets are all outside `src/`. A reference counts when the file
+/// reaches the crate (`use <ident>` or `<ident>::`) and names the entrance.
+/// `pub` re-export chains aliasing deeper paths stay approximate, matching
+/// wiki/drafts/stage_entrance_orphan_audit.md's resolution convention.
+fn has_external_caller(root: &Path, crate_root: &Path, ident: &str, name: &str) -> bool {
+    let use_crate = format!("use {ident}");
+    let qualified = format!("{ident}::");
+    let mut stack: Vec<PathBuf> = ["omega-rust", "tests"]
+        .iter()
+        .map(|scope| root.join(scope))
+        .collect();
+    while let Some(directory) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().is_none_or(|ext| ext != "rs")
+                || path.starts_with(crate_root.join("src"))
+            {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            if (text.contains(&use_crate) || text.contains(&qualified)) && text.contains(name) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Root-reachable `pub fn`s that are deliberately not stage entrances: internal
+/// plumbing delegates and test-only helpers re-exported for crate-internal or
+/// integration-test consumers, cataloged by the stage-entrance orphan audit.
+/// Adding an entry needs the same audit disposition, not an unexamined pass.
+const PLUMBING_REEXPORTS: [(&str, &str); 3] = [
+    (
+        "abstract-operations-to-target-operations",
+        "lower_to_target_operations_and_native_callbacks",
+    ),
+    (
+        "selected-instructions-to-selected-instructions",
+        "optimize_analyzed_selected_instructions",
+    ),
+    (
+        "typed-trees-to-checked-trees",
+        "normalize_open_index_identities",
+    ),
+];
+
 fn markdown_links(document: &str) -> Vec<&str> {
     let mut links = Vec::new();
     let mut rest = document;
@@ -168,4 +282,47 @@ fn pipeline_ownership_document_links_every_stage_crate() {
         linked, on_disk,
         "pipeline.md stage-crate links differ from the on-disk pipeline crates"
     );
+}
+
+/// The connected-route leg of the ownership audit: a designed stage entrance
+/// is a `pub fn` declared at a crate's top-level `src/` and reachable at its
+/// root. Every designed entrance must have a caller outside its own crate's
+/// `src/` — the executable route, not just the crate-name chain, stays
+/// connected. wiki/drafts/stage_entrance_orphan_audit.md cataloged the live
+/// surface; PLUMBING_REEXPORTS carries its non-entrance dispositions.
+#[test]
+fn stage_entrances_stay_connected_to_external_callers() {
+    let root = repository();
+    for (name, path) in stage_crates(&root) {
+        let library = std::fs::read_to_string(path.join("src/lib.rs")).unwrap();
+        let exported = root_exported_names(&library);
+        let mut entrances = Vec::new();
+        for entry in std::fs::read_dir(path.join("src")).unwrap().flatten() {
+            let file = entry.path();
+            if file.extension().is_none_or(|ext| ext != "rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&file).unwrap();
+            entrances.extend(
+                public_functions(&source)
+                    .into_iter()
+                    .filter(|function| exported.contains(function)),
+            );
+        }
+        let ident = name.replace('-', "_");
+        for entrance in entrances {
+            if PLUMBING_REEXPORTS
+                .iter()
+                .any(|(stage, function)| stage == &name && function == &entrance)
+            {
+                continue;
+            }
+            assert!(
+                has_external_caller(&root, &path, &ident, &entrance),
+                "stage entrance {ident}::{entrance} has no caller outside its \
+                 own crate — wire it into the route or catalog it in \
+                 PLUMBING_REEXPORTS with the audit disposition"
+            );
+        }
+    }
 }
