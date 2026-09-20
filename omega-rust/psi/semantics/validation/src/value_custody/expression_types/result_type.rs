@@ -709,7 +709,15 @@ fn integer(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                 | PrimitiveType::U32
                 | PrimitiveType::U64
         )
-    )
+    ) || arithmetic_carrier(program, reference).is_some_and(|(symbol, _)| {
+        // Machine-width `UInt`/`Int` carry no fixed PrimitiveType atom but are
+        // integer carriers: `calls = calls + 1` on a `UInt` place is an
+        // established arithmetic shape, not a type the evaluator may drop.
+        matches!(
+            program.symbols.builtin_type_atom(symbol),
+            Some(BuiltinTypeAtom::UInt | BuiltinTypeAtom::Int)
+        )
+    })
 }
 
 // Raw operand references reach overload selection above. Only after builtin
