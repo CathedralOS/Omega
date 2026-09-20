@@ -85,12 +85,6 @@ pub(super) fn capture_snapshot(
             .min(limits.maximum_bytes_per_snapshot()),
         max_depth: custody_limits.max_depth,
     };
-    verify_package_source_snapshot(
-        custody.snapshot_root(),
-        custody.materialization().content(),
-        custody.source_limits(),
-    )
-    .map_err(|error| PackageSourcePatchError::SourceCustody { side, error })?;
     let entries = capture_verified_package_source_snapshot(
         custody.snapshot_root(),
         custody.materialization().content(),
