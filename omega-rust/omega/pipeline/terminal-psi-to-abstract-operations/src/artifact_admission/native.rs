@@ -7,6 +7,7 @@ use crate::lowering::lower_decoded_verified_module;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
 use abstract_operations::AbstractOperationPlan;
 use terminal_interpreter::TerminalPlacedViewEstablishment;
+use terminal_verifier::AcceptedControlCycle;
 
 /// Native-admitted input and the provider establishments bound to its
 /// direct-entry placed-view roster rows. Construction is private:
@@ -17,6 +18,7 @@ use terminal_interpreter::TerminalPlacedViewEstablishment;
 pub struct VerifiedNativeArtifactInput {
     optimization_input: VerifiedPsiOptimizationInput,
     placed_view_establishments: Vec<TerminalPlacedViewEstablishment>,
+    accepted_control_cycles: Vec<AcceptedControlCycle>,
 }
 
 impl VerifiedNativeArtifactInput {
@@ -34,6 +36,14 @@ impl VerifiedNativeArtifactInput {
         &self.placed_view_establishments
     }
 
+    /// The ranked control cycles the verifier accepted for this exact
+    /// artifact, in the verifier's acceptance order. Native admission retains
+    /// them so a realization consumer can observe which cycles were admitted
+    /// rather than re-deriving them from the retained module and bundle.
+    pub fn accepted_control_cycles(&self) -> &[AcceptedControlCycle] {
+        &self.accepted_control_cycles
+    }
+
     /// Establishment bindings are invocation-scoped executable evidence and
     /// do not transfer into optimizer authority; the provider keeps custody
     /// of its supply.
@@ -47,6 +57,7 @@ impl VerifiedNativeArtifactInput {
 #[derive(Debug, Clone)]
 pub struct AdmittedNativeArtifact {
     optimization_input: VerifiedPsiOptimizationInput,
+    accepted_control_cycles: Vec<AcceptedControlCycle>,
 }
 
 impl AdmittedNativeArtifact {
@@ -60,6 +71,15 @@ impl AdmittedNativeArtifact {
 
     pub fn placed_view_inputs(&self) -> &[terminal_psi::TerminalPlacedViewInput] {
         &self.context().module().placed_view_inputs
+    }
+
+    /// The ranked control cycles the verifier accepted for this exact
+    /// artifact, in the verifier's acceptance order. The roster is admission
+    /// authority bound to this artifact; it stays available through
+    /// `try_into_native_input*` for the realization boundary but does not
+    /// transfer into optimizer authority via `into_optimization_artifact`.
+    pub fn accepted_control_cycles(&self) -> &[AcceptedControlCycle] {
+        &self.accepted_control_cycles
     }
 
     /// Downgrade authority while preserving the complete semantic roster.
@@ -103,6 +123,7 @@ impl AdmittedNativeArtifact {
         Ok(VerifiedNativeArtifactInput {
             optimization_input: self.optimization_input,
             placed_view_establishments,
+            accepted_control_cycles: self.accepted_control_cycles,
         })
     }
 }
@@ -115,11 +136,15 @@ pub(super) fn lower_decoded_native_module(
     let verified = terminal_verifier::verify_module(module, proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
     let plan = lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)?;
+    // The accepted roster is captured from the native-verified module because
+    // the optimizer-eligibility transfer below does not re-expose it.
+    let accepted_control_cycles = verified.accepted_control_cycles().to_vec();
     let optimizable = verified
         .into_optimization()
         .map_err(ArtifactLoweringError::Verification)?;
     let context = retain_verified_optimization_context(&optimizable)?;
     Ok(AdmittedNativeArtifact {
         optimization_input: VerifiedPsiOptimizationInput { plan, context },
+        accepted_control_cycles,
     })
 }
