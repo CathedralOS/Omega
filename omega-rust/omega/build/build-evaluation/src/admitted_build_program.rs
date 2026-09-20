@@ -816,8 +816,10 @@ pub fn admit_build_program(
 /// Project the admitted authority decision into normalized restricted
 /// build-host requests.
 ///
-/// Only real host reach produces a request; the virtual provider installs no
-/// host authority. Logical roots are reported by compiler
+/// Virtual execution and compiler-owned captured-input/private-staging work
+/// require no restricted-action decision. Other real host reach remains
+/// restricted, including scoped access without private staging custody.
+/// Logical roots are reported by compiler
 /// vocabulary identity — the host paths the roots map to never enter the
 /// projection.
 fn restricted_build_requests(
@@ -830,6 +832,9 @@ fn restricted_build_requests(
     let BuildMachineExecutionMode::Granted { filesystem, .. } = execution_mode else {
         return Vec::new();
     };
+    if filesystem_scope.is_private_snapshot_execution(filesystem) {
+        return Vec::new();
+    }
     let (operation, read_roots, write_roots, filesystem_sponsor) = match filesystem {
         BuildMachineFilesystemAccess::RealScoped(grants) => (
             RestrictedBuildOperation::ScopedFilesystemExecution,

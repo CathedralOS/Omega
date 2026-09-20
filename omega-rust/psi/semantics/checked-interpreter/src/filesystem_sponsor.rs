@@ -2,13 +2,15 @@
 
 //! Compiler-owned accounting for a disposable build-filesystem session.
 //!
-//! This module deliberately knows nothing about either filesystem provider. A
+//! Accounting remains independent of either filesystem provider. A
 //! provider prepares an accounting transaction before attempting its mutation,
 //! commits the token only after the provider succeeds, and otherwise drops or
 //! aborts the token. One outstanding token reserves the account, so committed
 //! state cannot change between provider preflight and accounting commit.
 //!
 //! This file owns the sponsor, its limits and its account operations.
+//! `private_staging.rs` owns optional fresh-directory custody and cleanup;
+//! Omega still decides which grants and acceptance classification are lawful.
 //! `sponsor_errors.rs` carries the sponsor error, `snapshots.rs` sponsor
 //! paths, descriptors and namespace snapshots,
 //! `prepared_transactions.rs` prepared mutations, opens, writes and
@@ -17,6 +19,7 @@
 
 mod accounts;
 mod prepared_transactions;
+mod private_staging;
 mod snapshots;
 mod sponsor_errors;
 #[cfg(test)]
@@ -73,6 +76,7 @@ impl Default for FilesystemSponsorLimits {
 #[derive(Debug, Clone)]
 pub struct FilesystemSponsor {
     account: Arc<Mutex<FilesystemAccount>>,
+    private_staging: Option<Arc<private_staging::PrivateStaging>>,
 }
 
 impl PartialEq for FilesystemSponsor {
@@ -99,6 +103,7 @@ impl FilesystemSponsor {
             })
             .map_err(|_| FilesystemSponsorError::AccountIdentityExhausted)?;
         Ok(Self {
+            private_staging: None,
             account: Arc::new(Mutex::new(FilesystemAccount {
                 id,
                 session_root,
