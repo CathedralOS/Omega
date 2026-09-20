@@ -8988,7 +8988,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   slice exists.
 - **SELECTIVE-EVALUATION-PARSER.** Resolved — the mined source claim ("the Rust parser's current arithmetic expansion does not implement general selective evaluation", chapter_6_pattern_matching_dispatch.md) predates the real `match` implementation by two days (written 5f5ec35a63, scalar dispatch retained 9356485a0b). Scalar selective evaluation is implemented end-to-end and pinned by the `expressions/match_*` and runtime `*_dispatch_exit` canaries; the true residual frontier (record/domain/payload match-arm patterns, owned/borrowed custody results) is already tracked under **MATCH-SELECTIVE-LOWERING**. The durable gaps found and fixed at this row: `match` arm `Name {` destructure spelling now rejects with a diagnostic naming `transition` as the owning dispatch form (previously `expected '->'` on `{`), and the two stale pre-split `match` pass fixtures under `tests/omega/pass/domains/` were respelled to `transition` (`match_domain_patterns`, `match_interleaved_domain_data_guard` — both had been silently red since the June chapter-coverage sweep). Sibling mined rows from the same stale sentence (SELECTIVE-ARITHMETIC-EXPANSION, SELECTIVE-EVALUATION-EXPANSION, SELECTIVE-EVALUATION-SOURCE-EXPANSION) cover this same resolved scope.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION** — mined candidate; verify scope then implement.
-- **SEMANTIC-WRAPPER-COORDINATOR-RESIDUE** — mined candidate; verify scope then implement.
+- **SEMANTIC-WRAPPER-COORDINATOR-RESIDUE.** Mined candidate; scope verified
+  at `a3ab15b761`, covered — same settled orphan-owner surface as resolved
+  siblings SEMANTIC-WRAPPER-OWNERSHIP (adjacent row),
+  SEMANTIC-WRAPPER-OWNER-RELOCATION (above), and WRAPPER-OBJECT-OWNERSHIP
+  (9184): the `native-realization/src/optimized_semantic_wrapper_{encoding,
+  object}/` keep/move/delete decision is an enumerated bullet of
+  PIPELINE-OWNER-CONSOLIDATION (TASKS_OPTIMIZER.md), the codec-move leg is
+  deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that
+  decision, and the first real caller of
+  `stage_validated_optimized_program_storage_semantic_wrapper_object` is a
+  UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. "Coordinator residue" names the same
+  caller-absence residue already cataloged — no independent slice exists.
+  Live fences at verification: PIPELINE-WRAPPER-OBJECT-ORPHAN claims the
+  object dir + lib.rs (~22:46Z) and OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP
+  holds a freeform claim (~00:10Z). Sibling stubs on the same surface:
+  SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RESOLUTION,
+  OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-
+  DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
 - **SEMANTIC-WRAPPER-OBJECT-OWNERSHIP** — mined candidate; verify scope then implement.
 - **SEMANTIC-WRAPPER-OWNER-RELOCATION** — mined candidate; scope verified, covered — same settled surface as resolved sibling SEMANTIC-WRAPPER-OWNERSHIP (adjacent row): the `native-realization/src/optimized_semantic_wrapper_{encoding,object}/` keep/move/delete decision is an enumerated bullet of PIPELINE-OWNER-CONSOLIDATION; the codec-move leg this stub's name asks for is exactly the leg deferred to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP pending that owner decision; the first real caller of `stage_validated_optimized_program_storage_semantic_wrapper_object` is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. No independent slice exists here. Sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION, OPTIMIZED-WRAPPER-OBJECT-RELOCATION.
 - **SEMANTIC-WRAPPER-OWNER-RESOLUTION** — mined candidate; verify scope then implement.
