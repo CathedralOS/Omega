@@ -16,6 +16,37 @@ fn checked_program(source: &str) -> checked_trees::CheckedTrees {
 }
 
 #[test]
+fn borrowed_storage_evaluation_order_retains_the_read_before_extraction() {
+    let checked = checked_program(
+        "data Inventory { slots: i32; }
+         data Saved { observed: i32; inventory: Inventory; }
+         data Main { inventory: Inventory; observed: i32; }
+         machine Main::replace(&mut self) {
+             let saved: Saved = Saved {
+                 observed: self.inventory.slots,
+                 inventory: self.inventory,
+             };
+             self.inventory = move saved.inventory;
+             self.inventory.slots = 42;
+             self.observed = saved.observed;
+         }
+         machine main() -> i32 {
+             let mut owner: Main = Main {
+                 inventory: Inventory { slots: 41 }, observed: 0
+             };
+             owner.replace();
+             transition owner.inventory.slots == 42 && owner.observed == 41 {
+                 true -> 7
+                 false -> 0
+             }
+         }",
+    );
+    let outcome = interpret_entry(&checked, "main", &[], InterpretOptions::default());
+    assert_eq!(outcome.error, None);
+    assert_eq!(outcome.exit_code, 7);
+}
+
+#[test]
 fn borrowed_storage_replacement_round_trips_the_exact_place() {
     // The guide canary pattern: move the value out of borrowed storage, then
     // restore the exact place before the exclusive loan ends. Custody passes

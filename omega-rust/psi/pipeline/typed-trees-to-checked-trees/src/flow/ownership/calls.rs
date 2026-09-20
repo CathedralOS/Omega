@@ -136,7 +136,11 @@ pub(in crate::flow) fn append_call_ownership_events(
             borrow_call.receiver_symbol,
         )
     {
-        append_move_event_for_place(program, sink, receiver, source);
+        let expression = match &call_site {
+            CallSite::Expression { call, .. } => call.receiver,
+            _ => Default::default(),
+        };
+        append_move_event_for_place(program, sink, receiver, source, expression);
     }
 
     let parameters = declared_parameters
@@ -160,6 +164,7 @@ pub(in crate::flow) fn append_call_ownership_events(
                     segments: Vec::new(),
                 },
                 source,
+                *argument,
             );
             continue;
         }

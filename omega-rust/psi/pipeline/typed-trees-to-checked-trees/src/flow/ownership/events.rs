@@ -17,6 +17,11 @@ pub(crate) enum FlowOwnershipEventSource {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DiscoveredMoveEvent {
     pub(crate) source: FlowOwnershipEventSource,
+    /// Exact evaluated operand that detaches this value. Statement receivers
+    /// and production destinations have no expression; their source names the
+    /// statement/call instead. Equal places at different occurrences are not
+    /// interchangeable reads or moves.
+    pub(crate) expression: typed_trees::expression::ExpressionHandle,
     pub(crate) source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
     pub(crate) root: facts::PlaceRoot,
     pub(crate) segments: HandleSpan<facts::PlaceSegment>,
@@ -63,9 +68,11 @@ impl DirectMoveEventSink<'_> {
         program: &typed_trees::TypedTrees,
         place: CanonicalPlace,
         source: FlowOwnershipEventSource,
+        expression: typed_trees::expression::ExpressionHandle,
     ) {
         self.events.push(DiscoveredMoveEvent {
             source,
+            expression,
             source_arm: self.source_arm,
             root: normalized_event_place_root(program, place.root),
             segments: self.segments.insert_many(place.segments),
@@ -78,8 +85,9 @@ pub(in crate::flow::ownership) fn append_move_event_for_place(
     sink: &mut DirectMoveEventSink<'_>,
     place: CanonicalPlace,
     source: FlowOwnershipEventSource,
+    expression: typed_trees::expression::ExpressionHandle,
 ) {
-    sink.append_move_event(program, place, source);
+    sink.append_move_event(program, place, source, expression);
 }
 
 /// Re-root a `self`/`self.field` event place at its machine symbol.

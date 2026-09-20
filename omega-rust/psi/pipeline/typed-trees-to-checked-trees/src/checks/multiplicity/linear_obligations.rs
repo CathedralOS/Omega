@@ -143,6 +143,11 @@ fn validate_partial_moves(
                 state,
                 &mut segments,
             );
+            // Restoration debt cannot enter a state, and without extraction
+            // there is neither a window nor a partial-move obligation here.
+            if moves.is_empty() {
+                continue;
+            }
             let statements = program.statement_table.statements(state.statement_nodes);
             let state_calls = facts
                 .flow
@@ -154,6 +159,14 @@ fn validate_partial_moves(
                         .then(|| facts.flow.control.calls.span_or_empty(flow.calls))
                 })
                 .unwrap_or_default();
+            borrowed_windows::check_call_occurrences(
+                program,
+                machine,
+                state,
+                state_calls,
+                &facts.flow.control,
+                &mut diagnostics,
+            );
             // A state body is a linear fall-through: each `transition` arm is
             // a guarded exit edge, and a missed arm continues to the next
             // statement. Every taken edge and the implicit return must see a
@@ -161,10 +174,47 @@ fn validate_partial_moves(
             let mut windows = borrowed_windows::BorrowedStorageWindows::default();
             for (statement_index, statement) in statements.iter().enumerate() {
                 let is_transition = matches!(statement, StatementNode::Transition(_));
-                for event in moves
-                    .iter()
-                    .filter(|event| event_statement_index(event.source) == Some(statement_index))
-                {
+                for step in borrowed_windows::statement_steps(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                    &moves,
+                    &facts.operators,
+                ) {
+                    let (event_index, conditional) = match step {
+                        borrowed_windows::WindowStep::Observe(place) => {
+                            windows.check_use(
+                                program,
+                                machine,
+                                state,
+                                statements,
+                                statement_index,
+                                &place,
+                                &mut diagnostics,
+                            );
+                            continue;
+                        }
+                        borrowed_windows::WindowStep::Invoke(expression) => {
+                            windows.check_invocation(
+                                program,
+                                state,
+                                statement_index,
+                                expression,
+                                &facts.flow.control,
+                                state_calls,
+                                &facts.service_reaches,
+                                &facts.operators,
+                                &mut diagnostics,
+                            );
+                            continue;
+                        }
+                        borrowed_windows::WindowStep::Move { event, conditional } => {
+                            (event, conditional)
+                        }
+                    };
+                    let event = &moves[event_index];
                     let path = segments.span_or_empty(event.segments);
                     if move_event_is_production_target(program, state, event, path) {
                         continue;
@@ -184,6 +234,7 @@ fn validate_partial_moves(
                         // owner is entitled to a whole value. All keep the
                         // plain rejection.
                         if is_transition
+                            || conditional
                             || event.source_arm.is_valid()
                             || borrowed_move_crosses_nominal_drop(program, state, event, path)
                         {
@@ -252,29 +303,19 @@ fn validate_partial_moves(
                         &mut diagnostics,
                     );
                 }
-                let moved = borrowed_windows::BorrowedStorageWindows::statement_moved_places(
-                    program,
-                    machine,
-                    state,
-                    statements,
-                    statement_index,
-                    &moves,
-                    &segments,
-                );
-                windows.check_statement(
-                    program,
-                    machine,
-                    state,
-                    statements,
-                    statement_index,
-                    statement,
-                    &moved,
-                    &facts.flow.control,
-                    state_calls,
-                    &facts.service_reaches,
-                    &facts.operators,
-                    &mut diagnostics,
-                );
+                // Replacement evaluation and destination selectors must both
+                // finish before the store discharges restoration debt.
+                if let StatementNode::Assignment(assignment) = statement {
+                    windows.check_repair(
+                        program,
+                        machine,
+                        state,
+                        statements,
+                        statement_index,
+                        assignment,
+                        &mut diagnostics,
+                    );
+                }
                 // A taken transition edge leaves the state; a window open on
                 // it can never be repaired. A crash edge abandons the window
                 // outright under the existing survivor contract — no hole is
@@ -425,6 +466,16 @@ fn move_event_is_production_target(
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
 ) -> bool {
+    // A source operand may be the same place the enclosing assignment repairs.
+    // Equal paths do not turn that extraction into production of the result.
+    if event.expression.is_valid()
+        || !matches!(
+            event.source,
+            crate::flow::FlowOwnershipEventSource::Statement { .. }
+        )
+    {
+        return false;
+    }
     let Some(statement_index) = event_statement_index(event.source) else {
         return false;
     };
