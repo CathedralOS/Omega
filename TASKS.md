@@ -7637,7 +7637,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   rename, visible-file replay, runnable custody returned on failure) for
   `component_publication::InstalledRunnableComponent` eras — deliberately
   not the CLI's carrier.
-- **COMPILER-OBSERVATION-OUTPUTS** — mined candidate; verify scope then implement.
+- **COMPILER-OBSERVATION-OUTPUTS** — mined candidate; resolved: re-mine
+  of the deliberately-closed observation surface adjudicated under
+  COMPILER-OBSERVATION-PRODUCTS (next row). Compilation produces only the
+  requested product plus diagnostics — no JSON/HTML/debug dump,
+  disassembly, or timing product exists or is authorized
+  ([product boundaries](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations),
+  [wiki/spec/build/observations.md](wiki/spec/build/observations.md)); a
+  new observation product would first need a concrete authorized design.
+  No independent slice remains.
 - **COMPILER-OBSERVATION-PRODUCTS** — mined candidate; verify scope then implement.
   Verified scope: the surface this name points at is deliberately closed —
   [product boundaries](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations)
