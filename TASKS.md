@@ -8488,7 +8488,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   exit_replay_checks_claimed_records_without_reentering_the_producer` is red
   at base — `stage.rs` carries 2 `validation::validate(` calls against the
   pin's 3 — a stale count pin on the exit-contract lane, not placement.)
-- **PIPELINE-REWRITE-CATALOG-WIRING** — mined candidate; verify scope then implement.
+- **PIPELINE-REWRITE-CATALOG-WIRING** — resolved as a merged alias at
+  `797e99ead7a`: folded twice already — (1) named a sibling re-mine of the
+  landed rewrite-ownership audit surface on resolved row
+  PIPELINE-REWRITES-OWNERSHIP-AUDIT (`0a3b9344ac2`,
+  wiki/drafts/pipeline_rewrites_ownership_audit.md); (2) named in the
+  owner-chain routing of the SELECTED-REWRITE-CATALOG cluster — the
+  catalog-wiring leg is indivisible from the per-rewrite catalog entries
+  executed by `optimize_selected_instructions`, owned by
+  SELECTED-REWRITE-CATALOG-EXECUTION / EXACT-MACHINE-SIMPLIFICATIONS
+  (verified at `6d00135b89`). No independent slice. Implementing surfaces
+  (`selected-instructions-to-selected-instructions` crate dir,
+  `rewrites/{mod.rs,module_catalog.rs}`) are fenced to POC-REWRITE-ORPHANS
+  and ORPHAN-REWRITE-MODULES-CATALOG at verification time.
 - **PIPELINE-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
 - **PIPELINE-REWRITES-OWNERSHIP-AUDIT** — resolved; the audit landed at `0a3b9344ac2` as [pipeline_rewrites_ownership_audit.md](wiki/drafts/pipeline_rewrites_ownership_audit.md) (recorded against `40e9234d97`). Every rewrite-bearing module tree (`rules`/`rules/passes`, `ranked_rewrites`, sis2sis `rewrites` (93 families), sis2rh `rewrites`) audited against the AGENTS.md ownership rules — all transformation code in the three pipeline optimization crates, zero orphan modules, no misplaced apply/transform entry points; one watch item on candidate construction in `optimization-unit/rewrite`. Sibling re-mines of the same surface: PIPELINE-REWRITE-ORPHANS, PIPELINE-REWRITE-CATALOG-WIRING, PIPELINE-ORPHAN-ELIMINATION, PIPELINE-PLACEMENT-AUDIT.
 - **PIPELINE-ROUTE-CONFORMANCE-AUDIT** — mined candidate; scope verified, resolved by landed audits. `1ccc88fb51` added `tests/architecture/representation_ownership/route_conformance.rs` pinning the documented program route: every route-table owner link resolves inside its named crate, every pipeline crate on disk is owned by exactly one row, and crate/package names keep the X-to-Y shape (the stale `timing_report.rs` link it caught was repointed to `compile_timings/mod.rs`). `36ffc8af87` added the connectivity leg in `tests/architecture/stage_crate_ownership.rs`: every designed stage entrance reachable at its crate root must have a caller outside its own crate, so the executable route — not only the crate-name chain — stays connected. Both halves of the stub's named audit are landed and pinned.
