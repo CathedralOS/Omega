@@ -1120,7 +1120,7 @@ pub enum ModuleError {
     ContentPartitionProducerArgumentMismatch(OperationId),
     NonCanonicalBoundaryContentGuarantees(BoundaryMachineId),
     InvalidBoundaryContentGuarantee(BoundaryMachineId),
-    RetainedBorrowBoundaryIsNotExecutable {
+    InvalidRetainedBorrowBoundaryCall {
         operation: OperationId,
         boundary: BoundaryMachineId,
     },
