@@ -6284,7 +6284,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **DEPENDENCY-FREE-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
 - **DEPENDENCY-FREE-MEASURABLE-SUBJECT** — mined candidate; verify scope then implement.
 - **DEPENDENCY-FREE-RUNTIME-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
-- **DEPENDENT-RELATIONAL-PROOF-SUPPORT** — mined candidate; verify scope then implement.
+- **DEPENDENT-RELATIONAL-PROOF-SUPPORT.** Resolved — the mined sentence
+  (chapter_12: "implementation support for relational proofs and views
+  remains narrower") named a real fence: `unsigned_increase_fits` admitted
+  composed relational ceilings only for `u64`, so `requires
+  self.count < self.cap` proved `self.count += 1` for u64 yet rejected the
+  same shape for u8..u32 even when the ceiling operand's own carrier was
+  bounded inside the result primitive. `ordered_values::composed_ceiling_gap`
+  now carries a ceiling-admission predicate and `operand_carrier_bound`
+  resolves the composed ceiling operand's declared bound (literal value,
+  place carrier range, binary primitive, usize length); the
+  `ResultRepresentable` gate consults the relational route at every integer
+  width with the result's `range.high` as the admitted ceiling. The u64 lane
+  is unchanged (`None` ceiling admits every operand). Pinned by
+  `guard_narrowing::tests::a_strict_place_ceiling_proves_the_increment_for_narrower_carriers`
+  (u8/u32/range-declared ceilings prove `+1`, two-hop `count < mid < cap`
+  proves `+2`; non-strict, unbound, unrelated, and wider-carrier ceilings
+  stay rejected). The chapter sentence is rewritten to state the checked
+  contract: strict relational bounds discharge representability through the
+  ceiling's carrier at every width; equality through writes and
+  solver-general proofs remain the named residual. Sibling rows
+  DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT / DEPENDENT-RELATIONAL-PROOFS-VIEWS
+  / DEPENDENT-VALUES-CHECKER-COVERAGE are re-mines of the same sentence and
+  remain for their own slices.
 - **DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT** — mined candidate; verify scope then implement.
 - **DEPENDENT-RELATIONAL-PROOFS-VIEWS** — mined candidate; verify scope then implement.
 - **DEPENDENT-VALUES-CHECKER-COVERAGE** — mined candidate; verify scope then implement.

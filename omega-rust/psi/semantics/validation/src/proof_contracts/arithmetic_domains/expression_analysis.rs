@@ -720,6 +720,7 @@ pub(super) fn analyze(
                                 env,
                                 binary.left,
                                 right.interval,
+                                range.high,
                             ) || ordered_values::unsigned_increase_fits(
                                 program,
                                 machine,
@@ -727,6 +728,7 @@ pub(super) fn analyze(
                                 env,
                                 binary.right,
                                 left.interval,
+                                range.high,
                             )))
                         || (operator == BinaryOperator::Subtract
                             && interval.low.is_some_and(|low| low >= 0))
@@ -738,7 +740,30 @@ pub(super) fn analyze(
                             bitwise_known_unsigned(program, env, primitive, binary.right, 0),
                         )
                 } else {
+                    // The interval route needs every operand already bounded;
+                    // the relational route proves `x + k` through a composed
+                    // ceiling operand whose own carrier fits the result
+                    // primitive (`count < cap` with `cap: u32` proves
+                    // `count + 1` representable).
                     range.contains(interval)
+                        || (operator == BinaryOperator::Add
+                            && (ordered_values::unsigned_increase_fits(
+                                program,
+                                machine,
+                                state,
+                                env,
+                                binary.left,
+                                right.interval,
+                                range.high,
+                            ) || ordered_values::unsigned_increase_fits(
+                                program,
+                                machine,
+                                state,
+                                env,
+                                binary.right,
+                                left.interval,
+                                range.high,
+                            )))
                 })
             {
                 // When an operand is a value-machine CALL, "constrain the operands'
