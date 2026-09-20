@@ -17,7 +17,8 @@ audited VM implementations and normative semantics remain in `bootstrap/0_alpha/
 `sh tests/alpha/conformance.sh` runs the native bounds cases through Python 3;
 `sh tests/alpha/reference/diamond-py.sh` runs the same short cases against the
 independent reference. Both commands work from the repository root on macOS
-arm64 and Windows x64 with Git Bash, Python 3, and the existing bootstrap tools.
+arm64, Windows x64 with Git Bash, and Linux x86-64 with Python 3 and the
+existing bootstrap tools.
 The native runner stamps copies directly to test hostile embedded lengths that
 the normal stamper correctly refuses. It compares exact stdout (including empty
 bytes), empty stderr, and native illegal-instruction termination rather than
@@ -40,7 +41,7 @@ Run these alone with `python3 tests/alpha/bounds.py --stack-only`. The reference
 excludes these large loops explicitly; it still checks return without a preceding
 call, access above the stack origin, and overlapping call storage.
 
-macOS arm64 execution is validated for the identities in the
+macOS arm64 and Linux x86-64 execution are validated for the identities in the
 [seed inventory](../../bootstrap/0_alpha/README.md#retention-inventory).
 Windows native execution remains outstanding; exact PE reconstruction and source
 review do not establish that host result. These tests do not discharge native

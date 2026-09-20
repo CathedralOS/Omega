@@ -37,6 +37,22 @@ encode the extent. The tape hole still begins at file offset `0x1400`.
 Windows runtime validation is not established by the listing's exact
 reconstruction.
 
+The Linux x86-64 realization is a static ELF64 built from
+`alpha_x64_linux.s` with GNU `as` and `ld -s --build-id=none` (binutils
+2.38, Ubuntu) — byte-exact reproducible, no imports, no dynamic loader. The
+interpreter is the same audited machine as `alpha_x64_windows.hex`:
+identical register convention, opcode dispatch, and bounds checks; the four
+kernel32 calls become Linux syscalls (`mmap`/`read`/`write`/`exit`). `mmap`
+carries `MAP_NORESERVE` so the 128 GiB extent is reserved without swap
+accounting, matching the PE's reserve-now/lazy-commit model; a refusal is
+still a startup Trap. Because Linux delivers a hardware `#DE` as SIGFPE —
+not the semantic Trap — the divide/remainder handlers pre-check divisor zero
+and `INT64_MIN / -1` exactly as the arm64 seed does. The tape hole is the
+`.tape` section at file offset 12,288 (0x3000); the registers/scratch page
+is `.data` at 0x402000 and text at 0x401000. Rebuild for provenance:
+`as --64 -o a.o alpha_x64_linux.s && ld -s -o alpha_x64_linux --build-id=none -e _start a.o`,
+then compare the committed bytes directly.
+
 The extent is a startup allocation, so the
 [PE32+ image-size limit of 2 GiB](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
 no longer bounds it; both containers stay small. The current capacity is not a
@@ -97,12 +113,15 @@ alpha_x64_windows.hex    annotated x86-64 audit listing
 alpha_arm64_macos        audited macOS arm64 VM container
 alpha_arm64_macos.s      hand-authored arm64 implementation
 alpha_arm64_macos.lst    committed arm64 disassembly
+alpha_x64_linux          audited Linux x86-64 VM container
+alpha_x64_linux.s        hand-authored x86-64 implementation
+alpha_x64_linux.lst      committed x86-64 disassembly
 SEMANTICS.md             AlphaBootstrapV5 execution and tape semantics
 ```
 
 Host seed selection and tape stamping live under `tools/bootstrap/alpha/`.
-`tests/alpha/container.sh` validates both containers' native structure and the
-stamping-hole contract on any host. Conformance and the independent reference
+`tests/alpha/container.sh` validates all three containers' native structure and
+the stamping-hole contract on any host. Conformance and the independent reference
 VM live under `tests/alpha/`.
 `tests/bootstrap/alpha-beta-edge.sh` checks behavior and optional native-source
 provenance.
@@ -120,9 +139,11 @@ repository bytes, separate from their realization/conformance obligations:
 | --- | ---: | --- |
 | `alpha_arm64_macos` | 16,942,368 | `3a9cc3112f9f7645fca00716c347865d1b160f56d458fb6340c66f237d1ae616` |
 | `alpha_x64_windows.exe` | 16,782,336 | `4ee9ee0f97c1b11c5a7ef32ffd05f1eeb193d1e9b327cb89df9ac54431aad701` |
+| `alpha_x64_linux` | 16,789,856 | `39ccffa0303d07c0c1fee7dc40ded00e0e667b311836cdbced2768f868b775b1` |
 
 | Retained files | Direct role | Deletion condition |
 | --- | --- | --- |
 | `SEMANTICS.md` | Authoritative Alpha execution and raw-tape relation. | Replace only atomically with a ruled Alpha revision and every consumer. |
 | `alpha_arm64_macos`, `alpha_arm64_macos.s`, `alpha_arm64_macos.lst` | Audited macOS arm64 realization, source, and listing. | Delete only with platform retirement or an equally audited replacement. |
 | `alpha_x64_windows.exe`, `alpha_x64_windows.hex` | Audited Windows x86-64 realization and listing. | Delete only with platform retirement or an equally audited replacement. |
+| `alpha_x64_linux`, `alpha_x64_linux.s`, `alpha_x64_linux.lst` | Audited Linux x86-64 realization, source, and listing. | Delete only with platform retirement or an equally audited replacement. |
