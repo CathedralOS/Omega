@@ -6836,7 +6836,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   wholesale (POC-SPILL-FAMILY-SEQUENCING), `optimizer_source_organization`
   (ORPHAN-STAGE-OUTPUT-AUDIT), `pipeline_ownership` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS).
 - **UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
-- **VERIFIER-EDGE-CLEANUP-PHASE-ORDER** — mined candidate; verify scope then implement.
+- **VERIFIER-EDGE-CLEANUP-PHASE-ORDER** — mined candidate; scope verified, resolved — alias of the terminal-verifier cleanup-order row already repaired on `origin/main`: edge validation consumes owned successor sources before the residual and trivial discard rosters (`validation/frontier/block_parameters.rs` documents the order; `terminators.rs` runs it), and `d96a0fda39` repinned `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to expect `EdgeAffineDiscardsInvalid`. All 26 `structural_scalar_fields::owned_reads` tests pass at `ff596a06e6`. EDGE-CLEANUP-ERROR-PRECEDENCE's landed annotation already names this stub among the row's aliases.
 - **WAIT-WAKE-SUBSTRATE** — mined candidate; verify scope then implement.
 - **WHOLE-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
 - **WHOLE-COMPOSITION-INTERACTION-EXTRACTION** — mined candidate; verify scope then implement.
