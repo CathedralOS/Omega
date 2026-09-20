@@ -7755,7 +7755,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RC-DIAGNOSTICS, RC-DIAGNOSTICS-GATE, RC-DIAGNOSTICS-STABILITY re-mine
   the same row.
 - **RC-DIAGNOSTICS-GATE** — mined candidate; verify scope then implement.
-- **RC-DIAGNOSTICS-STABILITY** — mined candidate; verify scope then implement.
+- **RC-DIAGNOSTICS-STABILITY** — mined candidate; scope verified, coverage recorded. Sibling row RC-DIAGNOSTICS-CLOSURE (this section) already carries the measurement and names this stub as a re-mine of its row: the fail-canary leg `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment` ran red at `e76d715c8e` (wiki/drafts/rc_diagnostics_linux_x86_64.md) — 10 drifted canaries in 127.3s, 8 stale `expected.txt` fragments + 2 silent acceptances, 9 fixtures fenced to the RC-DIAGNOSTICS-GATE worker. Closure = respell/land those legs on another row run; no independent slice on this row.
 - **RC-GATE-STABILITY-REPAIR** — mined candidate; verify scope then implement.
 - **RC-HOST-RUNNER-LANES** — mined candidate; verify scope then implement.
 - **RC-LINUX-ARM64-NATIVE-ROW** — mined candidate; verify scope then implement.
