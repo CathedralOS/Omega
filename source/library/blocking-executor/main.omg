@@ -20,9 +20,12 @@
 //     disappears in a refused call.
 //   * Linear completion claim — `Ticket<T>` is `[linear]` like `Task<T>`:
 //     observe/cancel-request/settle authority that must be discharged
-//     exactly once by `Executor::settle`/`Executor::close`. Copying,
-//     overwriting, or scope drop cannot discharge it.
-//   * Suspension — `Executor::take_one` and `Executor::settle` are
+//     exactly once by `Ticket::settle`/`Executor::close`. Copying,
+//     overwriting, or scope drop cannot discharge it. The executor's
+//     `outstanding` ledger counts vended, unsettled claims; `close`
+//     requires it provably zero so an executor cannot die stranding
+//     claims that can only settle against it.
+//   * Suspension — `Executor::take_one` and `Ticket::settle` are
 //     `suspends; blocks`; the parked continuation stays compiler/provider-
 //     owned. `WaitSubstrate` is the small word/value wait + wake-one/
 //     wake-many boundary the spec names as the shared wait direction.
