@@ -4,25 +4,32 @@
 // same operands. The selection must hold through every value position — let
 // binding, transition argument, and guard operand — so the quotient lands as
 // an ordinary integer value rather than an anonymous rational intermediate.
+// The deployable shape exits 70 only when every selected entry's result is
+// exact.
+
+use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
+    console: Service<Console>;
 }
 
-machine Main::main(
-    &mut self,
-    out: &mut i32
-) {
+machine Main::main(&mut self) reaches Console {
     let unsigned: u64 = 12u64 / 4u64;
-    let signed: i32 = (0i32 - 17) / 5i32;
-    let remainder: i32 = (0i32 - 17) % 5i32;
     transition unsigned == 3u64 {
-        true -> finish(out, signed + remainder)
-        false -> wrong(out)
+        true -> finish((0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
+        false -> wrong()
     }
-    state finish(sink: &mut i32, value: i32) {
-        sink = value;
+    state finish(&mut self, value: i32) {
+        transition value == (0i32 - 5) {
+            true -> good()
+            false -> wrong()
+        }
     }
-    state wrong(sink: &mut i32) {
-        sink = 0;
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
     }
 }

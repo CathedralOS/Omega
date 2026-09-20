@@ -82,6 +82,11 @@ pub fn reconstruct_trust_report(
         let selected = selected_provider_plans.plans().iter().any(|selected| {
             selected == plan && selected.identity_digest() == plan.identity_digest()
         });
+        // Toolchain-settled plans are toolchain-owned realizations of
+        // canonical boundary slots; no package grant applies or is needed,
+        // so they carry their own provenance rather than the ungranted
+        // dev-active warning.
+        let toolchain_settled = selected && selected_provider_plans.is_toolchain_settled(plan);
         let grant_selectors = if selected {
             {
                 provider_grants
@@ -94,7 +99,9 @@ pub fn reconstruct_trust_report(
             Default::default()
         };
         let granted = !grant_selectors.is_empty();
-        let provenance = if granted {
+        let provenance = if toolchain_settled {
+            "toolchain-settled"
+        } else if granted {
             "root grant (build.omg)"
         } else {
             "own-package (dev-active)"
@@ -143,7 +150,7 @@ pub fn reconstruct_trust_report(
             machine_may_block: None,
             machine_terminates_guarantee: None,
             machine_crash_routes: None,
-            standing_warning: !granted,
+            standing_warning: !granted && !toolchain_settled,
         });
         let mut bound_methods = Vec::with_capacity(plan.rows.len());
         for row in &plan.rows {
@@ -203,7 +210,7 @@ pub fn reconstruct_trust_report(
                     realization: trust_provider_realization(&row.binding),
                     provenance: provenance.to_owned(),
                     grant_selectors: grant_selectors.clone(),
-                    standing_warning: !granted,
+                    standing_warning: !granted && !toolchain_settled,
                 });
         }
         // Preserve schema declaration order while excluding every unbound
@@ -236,7 +243,7 @@ pub fn reconstruct_trust_report(
                     predicate_discharge_required: claim.predicate_body.is_present(),
                     provenance: provenance.to_owned(),
                     grant_selectors: grant_selectors.clone(),
-                    standing_warning: !granted,
+                    standing_warning: !granted && !toolchain_settled,
                 });
             }
             for claim in &method.result_claims {
@@ -268,7 +275,7 @@ pub fn reconstruct_trust_report(
                     predicate_discharge_required: false,
                     provenance: provenance.to_owned(),
                     grant_selectors: grant_selectors.clone(),
-                    standing_warning: !granted,
+                    standing_warning: !granted && !toolchain_settled,
                 });
             }
         }

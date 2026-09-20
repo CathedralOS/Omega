@@ -3925,6 +3925,15 @@ fn lowered_session(source: &str, label: &str) -> VerifiedPsiOptimizationSession 
 }
 
 fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationSession {
+    lowered_session_entry_with_module_edit(source, label, entry, |_| {})
+}
+
+fn lowered_session_entry_with_module_edit(
+    source: &str,
+    label: &str,
+    entry: &str,
+    edit: impl FnOnce(&mut terminal_psi::TerminalModule),
+) -> VerifiedPsiOptimizationSession {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap_or_else(|error| panic!("tokenize {label}: {error:?}"));
@@ -3938,8 +3947,9 @@ fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiO
         .unwrap_or_else(|error| panic!("type {label}: {error:?}"));
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
+    let mut lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
         .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
+    edit(&mut lowered.semantic_module);
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module)
@@ -10667,6 +10677,468 @@ fn affine_empty_record_establishment_relocates_re_expressing_disposal_custody() 
             .expect("relocated session is an exact fixed point")
             .is_empty()
     );
+}
+
+/// Re-spell `scan`'s member `marker` establishment into the direct
+/// `EstablishTrivialAffineLocal` form the ordinary checked-machine
+/// statement path emits. Source spelling can never produce that op inside a
+/// cycle — composed-control lowering spells the same declaration as an
+/// empty `EstablishRecord` — so the seed's terminal module is edited to the
+/// admitted cyclic shape directly: the declared place is identical, and
+/// only the operation kind, its `Unit` result, and the place's declaration
+/// kind change.
+fn respell_member_record_as_trivial_affine_local(
+    module: &mut terminal_psi::TerminalModule,
+) -> terminal_psi::StructuralPlaceDeclaration {
+    let entry = module.entry;
+    let machine = module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .expect("entry scan");
+    let (block_index, operation_index, picked) = machine
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block_index, block)| {
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .find_map(|(operation_index, operation)| {
+                    if !matches!(
+                        &operation.kind,
+                        terminal_psi::OperationKind::EstablishRecord { fields }
+                            if fields.is_empty()
+                    ) {
+                        return None;
+                    }
+                    operation
+                        .result
+                        .structural()
+                        .filter(|result| {
+                            result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                        })
+                        .map(|result| (block_index, operation_index, result.place))
+                })
+        })
+        .expect("the cyclic body retains one empty affine establishment");
+    let structural_type = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == picked)
+        .and_then(|place| match place.kind {
+            semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                structural_type, ..
+            } => Some(structural_type),
+            _ => None,
+        })
+        .expect("the member establishment's result place declares its type");
+    machine.blocks[block_index].operations[operation_index].kind =
+        terminal_psi::OperationKind::EstablishTrivialAffineLocal {
+            destination: picked,
+        };
+    machine.blocks[block_index].operations[operation_index].result =
+        terminal_psi::OperationResult::Unit;
+    let declaration = machine
+        .structural_places
+        .iter_mut()
+        .find(|place| place.id == picked)
+        .expect("the declared place exists");
+    declaration.kind = semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+        declaration_ordinal: 0,
+        structural_type,
+        construction: None,
+    };
+    *declaration
+}
+
+/// The direct `EstablishTrivialAffineLocal` spelling relocates under the
+/// same custody contract as the composed record form: the relocation's
+/// declared result is the persistent place itself, member-internal edges
+/// keep it live, and every component exit disposes it exactly once.
+#[test]
+fn trivial_affine_local_establishment_relocates_re_expressing_disposal_custody() {
+    let session = lowered_session_entry_with_module_edit(
+        MEMBER_AFFINE_RECORD_SOURCE,
+        "member trivial affine local loop",
+        "Root::scan",
+        |module| {
+            respell_member_record_as_trivial_affine_local(module);
+        },
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let establishments = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .find(|block| block.id == *member)
+                .expect("member block exists")
+                .nodes
+                .iter()
+        })
+        .filter(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::EstablishTrivialAffineLocal { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    let [establishment] = establishments.as_slice() else {
+        panic!("one member trivial-affine-local establishment")
+    };
+    let (local_operation, picked) = match &establishment.operation {
+        AbstractOperation::EstablishTrivialAffineLocal {
+            psi_operation,
+            place,
+            ..
+        } => (*psi_operation, place.id),
+        operation => panic!("the member node is the direct establishment: {operation:?}"),
+    };
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == local_operation)
+        .expect("the trivial affine local establishment is a planned relocation");
+    let LoopInvariantNodeResult::TrivialAffineLocal(place) = relocation.node().result() else {
+        panic!("the trivial affine local relocation names its declared place")
+    };
+    assert_eq!(place.id, picked, "the declared place is byte-exact");
+    assert!(
+        relocation.node().operand_rewrites().is_empty()
+            && relocation.node().argument_rewrites().is_empty(),
+        "the unit-result establishment carries no operand or root rewrites"
+    );
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    match &moved.operation {
+        AbstractOperation::EstablishTrivialAffineLocal { place, .. } => {
+            assert_eq!(place.id, picked, "the declared place is byte-exact");
+        }
+        operation => panic!("relocated node keeps its operation: {operation:?}"),
+    }
+    assert_eq!(moved.provenance, relocation.node().provenance());
+    assert_eq!(moved.fuel, relocation.node().fuel());
+    // The persistent place stays live across member-internal hops and is
+    // disposed exactly once on every component exit — the custody the
+    // relocation re-expressed rather than retained.
+    let internal_discards: Vec<_> = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .filter(|block| member_targets.contains(&block.id))
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| member_targets.contains(&edge.target))
+        .map(|edge| edge.trivial_affine_discards.contains(&picked))
+        .collect();
+    assert!(
+        !internal_discards.is_empty() && internal_discards.iter().all(|discard| !*discard),
+        "every member-internal edge keeps the persistent place live"
+    );
+    let exit_discards: Vec<_> = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .filter(|block| member_targets.contains(&block.id))
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| !member_targets.contains(&edge.target))
+        .map(|edge| edge.trivial_affine_discards.contains(&picked))
+        .collect();
+    assert!(
+        !exit_discards.is_empty() && exit_discards.iter().all(|discard| *discard),
+        "every member exit edge disposes the persistent place exactly once"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+/// Build the relocated session over `MEMBER_AFFINE_RECORD_SOURCE` respelled
+/// so the member marker lowers as a direct `EstablishTrivialAffineLocal`:
+/// apply the one planned candidate and return the optimization input, the
+/// transformed unit, the component's member set, the seed's frontier
+/// catalog, the relocated place, and the machine.
+fn applied_trivial_affine_local_relocation() -> (
+    terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
+    PsiOptimizationUnit,
+    std::collections::BTreeSet<semantic_vocabulary::BlockId>,
+    Vec<optimization_unit::OwnershipFrontierFact>,
+    semantic_vocabulary::PlaceId,
+    semantic_vocabulary::MachineId,
+) {
+    let session = lowered_session_entry_with_module_edit(
+        MEMBER_AFFINE_RECORD_SOURCE,
+        "member trivial affine local loop",
+        "Root::scan",
+        |module| {
+            respell_member_record_as_trivial_affine_local(module);
+        },
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let mut picked = None;
+    for block in &function.blocks {
+        if !member_targets.contains(&block.id) {
+            continue;
+        }
+        for node in &block.nodes {
+            if let AbstractOperation::EstablishTrivialAffineLocal { place, .. } = &node.operation {
+                assert!(picked.is_none(), "one member trivial affine local");
+                picked = Some(place.id);
+            }
+        }
+    }
+    let picked = picked.expect("the member retains the establishment");
+    let seed_frontier_facts = session.unit().ownership_frontier_facts.clone();
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, unit) = applied.into_session().into_parts();
+    (
+        input,
+        unit,
+        member_targets,
+        seed_frontier_facts,
+        picked,
+        machine,
+    )
+}
+
+#[test]
+fn kept_internal_trivial_affine_local_discard_is_rejected_by_the_freeze_fence() {
+    let (input, mut unit, member_targets, _, picked, machine) =
+        applied_trivial_affine_local_relocation();
+    // Forging a member-internal edge to keep discarding the persistent
+    // place restores the source's per-traversal custody: the first
+    // traversal would end the one preheader place the next traversal still
+    // owns. The freeze replay normalizes the seed's retained node through
+    // the same custody rewrite — internal edges stripped, exits disposing —
+    // so the kept discard rejects byte-exact.
+    let mut forged = false;
+    for function in &mut unit.functions {
+        for block in &mut function.blocks {
+            if !member_targets.contains(&block.id) {
+                continue;
+            }
+            for node in &mut block.nodes {
+                for edge in &mut node.successors {
+                    if member_targets.contains(&edge.target)
+                        && !edge.trivial_affine_discards.contains(&picked)
+                    {
+                        edge.trivial_affine_discards.push(picked);
+                        forged = true;
+                    }
+                }
+                match &mut node.operation {
+                    AbstractOperation::Jump {
+                        target,
+                        trivial_affine_discards,
+                        ..
+                    } if member_targets.contains(target) => {
+                        if !trivial_affine_discards.contains(&picked) {
+                            trivial_affine_discards.push(picked);
+                        }
+                    }
+                    AbstractOperation::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        for successor in [when_true, when_false] {
+                            if member_targets.contains(&successor.target)
+                                && !successor.trivial_affine_discards.contains(&picked)
+                            {
+                                successor.trivial_affine_discards.push(picked);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    assert!(forged, "a member-internal edge carried the forged discard");
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                ..
+            }
+        ) if rejected_machine == machine
+    ));
+}
+
+#[test]
+fn dropped_exit_trivial_affine_local_disposal_is_rejected_by_the_freeze_fence() {
+    let (input, mut unit, member_targets, _, picked, machine) =
+        applied_trivial_affine_local_relocation();
+    // An exit edge — a member terminator edge departing the roster — must
+    // dispose the persistent place. Forging it back to the seed's empty
+    // roster leaves the place live outside the component; the freeze
+    // replay's normalized custody expects the disposal, so the drop
+    // rejects byte-exact.
+    let exit_edge = unit
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .filter(|block| member_targets.contains(&block.id))
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .filter(|edge| !member_targets.contains(&edge.target))
+        .map(|edge| edge.psi_edge)
+        .next()
+        .expect("the component has an exit edge");
+    let mut forged = false;
+    for function in &mut unit.functions {
+        for block in &mut function.blocks {
+            if !member_targets.contains(&block.id) {
+                continue;
+            }
+            for node in &mut block.nodes {
+                for edge in &mut node.successors {
+                    if edge.psi_edge == exit_edge
+                        && let Some(index) = edge
+                            .trivial_affine_discards
+                            .iter()
+                            .position(|place| *place == picked)
+                    {
+                        edge.trivial_affine_discards.remove(index);
+                        forged = true;
+                    }
+                }
+                match &mut node.operation {
+                    AbstractOperation::Jump {
+                        trivial_affine_discards,
+                        ..
+                    } if node
+                        .successors
+                        .first()
+                        .is_some_and(|edge| edge.psi_edge == exit_edge) =>
+                    {
+                        trivial_affine_discards.retain(|place| *place != picked);
+                    }
+                    AbstractOperation::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        for successor in [when_true, when_false] {
+                            if successor.psi_edge == exit_edge {
+                                forged |= !successor.trivial_affine_discards.is_empty();
+                                successor
+                                    .trivial_affine_discards
+                                    .retain(|place| *place != picked);
+                            }
+                        }
+                    }
+                    AbstractOperation::StructuralCase { cases, .. } => {
+                        for case in cases {
+                            if case.psi_edge == exit_edge {
+                                forged |= !case.trivial_affine_discards.is_empty();
+                                case.trivial_affine_discards
+                                    .retain(|place| *place != picked);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    assert!(
+        forged,
+        "the exit edge carried the relocated place's disposal"
+    );
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                ..
+            }
+        ) if rejected_machine == machine
+    ));
+}
+
+#[test]
+fn stale_trivial_affine_local_frontier_catalog_is_rejected() {
+    let (input, mut unit, _, seed_frontier_facts, _, machine) =
+        applied_trivial_affine_local_relocation();
+    // Forging the frontier catalog back to the seed's spelling leaves the
+    // affine-authority replay reading custody the transformed edges no
+    // longer execute — internal edges keep the persistent place live where
+    // the stale catalog still ends it at dispatch — so the stale
+    // membership rejects before the catalog comparison is even reached.
+    unit.ownership_frontier_facts = seed_frontier_facts;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
+                machine: rejected_machine,
+                ..
+            }
+        ) if rejected_machine == machine
+    ));
 }
 
 #[test]

@@ -134,10 +134,11 @@ pub(crate) fn realize(
         .checked_sub(1)
         .and_then(|jump| jump.checked_sub(certificate_tail))
         .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
-    // An affine scalar-case, empty-record, or structural-call result the run
-    // relocates keeps one persistent preheader place live through the whole
-    // component where the source established — and discarded — a fresh place
-    // at every traversal's dispatch.
+    // An affine scalar-case, empty-record, or structural-call result — or a
+    // trivial-affine-local place — the run relocates keeps one persistent
+    // preheader place live through the whole component where the source
+    // established — and discarded — a fresh place at every traversal's
+    // dispatch.
     let case_results: BTreeSet<PlaceId> = nodes
         .iter()
         .filter_map(|node| match &node.operation {
@@ -148,6 +149,7 @@ pub(crate) fn realize(
             {
                 Some(result.place)
             }
+            O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
             _ => None,
         })
         .collect();

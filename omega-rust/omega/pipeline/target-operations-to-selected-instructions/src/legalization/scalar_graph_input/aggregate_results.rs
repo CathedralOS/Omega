@@ -175,17 +175,12 @@ pub(super) fn cleanup(
     actions: &[terminal_psi::TerminalAffineCleanupAction],
 ) -> bool {
     let mut discarded = std::collections::BTreeSet::new();
-    actions.iter().all(|action| {
-        let terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) = action else {
-            return false;
-        };
-        if !discarded.insert(*place) {
-            return false;
-        }
+    let mut residuals = std::collections::BTreeSet::new();
+    let eligible_owner = |place: semantic_vocabulary::PlaceId| {
         if let Some(parameter) = function
             .structural_parameters
             .iter()
-            .find(|parameter| parameter.place == *place)
+            .find(|parameter| parameter.place == place)
         {
             // Exact source cleanup and the current ownership frontier are
             // checked independently. Observing a plain owned input does not
@@ -197,16 +192,16 @@ pub(super) fn cleanup(
                 && function
                     .entry_claim_declarations
                     .iter()
-                    .all(|claim| claim.input != *place)
+                    .all(|claim| claim.input != place)
                 && function
                     .content_entry_claims
                     .iter()
-                    .all(|claim| claim.input.root != *place);
+                    .all(|claim| claim.input.root != place);
         }
         // Selection transfers a fresh owner into a block parameter. Its final
         // discard owes the same whole affine cleanup as a direct producer;
         // requiring an operation result here would reject the completed join.
-        super::structural_case::source_owner(function, *place).is_ok_and(|owner| match owner {
+        super::structural_case::source_owner(function, place).is_ok_and(|owner| match owner {
             legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 result, ..
             } => {
@@ -225,6 +220,33 @@ pub(super) fn cleanup(
                     && declaration.projected_qualifications.is_empty()
             }
         })
+    };
+    actions.iter().all(|action| {
+        match action {
+            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                discarded.insert(*place) && eligible_owner(*place)
+            }
+            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                // A residual is a strictly projected plain subtree of a still
+                // eligible root; overlapping boundaries or a discarded root
+                // cannot be replayed twice.
+                !discard.path.is_empty()
+                    && !discarded.contains(&discard.place)
+                    && !residuals.iter().any(
+                        |(place, path): &(
+                            semantic_vocabulary::PlaceId,
+                            Vec<terminal_psi::StructuralPathSegment>,
+                        )| {
+                            *place == discard.place
+                                && (path.starts_with(&discard.path)
+                                    || discard.path.starts_with(path))
+                        },
+                    )
+                    && eligible_owner(discard.place)
+                    && residuals.insert((discard.place, discard.path.clone()))
+            }
+            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_) => false,
+        }
     })
 }
 

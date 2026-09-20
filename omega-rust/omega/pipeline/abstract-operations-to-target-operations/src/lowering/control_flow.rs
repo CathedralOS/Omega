@@ -265,17 +265,17 @@ pub(super) fn lower(
             }
             | AbstractOperation::ReturnUnit {
                 cleanup_actions, ..
-            } if cleanup_actions
-                .iter()
-                .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(_))) =>
+            } if cleanup_actions.iter().all(|action| {
+                matches!(
+                    action,
+                    TerminalAffineCleanupAction::DiscardRoot(_)
+                        | TerminalAffineCleanupAction::DiscardResidual(_)
+                )
+            }) =>
             {
                 Vec::new()
             }
-            AbstractOperation::Jump {
-                target,
-                residual_affine_discards,
-                ..
-            } if residual_affine_discards.is_empty() => {
+            AbstractOperation::Jump { target, .. } => {
                 vec![*target]
             }
             AbstractOperation::Conditional {

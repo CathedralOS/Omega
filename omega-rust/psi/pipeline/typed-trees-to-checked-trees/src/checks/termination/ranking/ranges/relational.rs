@@ -279,22 +279,41 @@ fn preserved_entry_prefix<'program>(
             // An unrelated local does not revise the entry
             // telescope. Keep numeric substitution handle-first: local
             // expressions are not promoted into parameter hypotheses.
-            let preserved = local.symbol.is_valid()
+            // A direct-call initializer keeps the statement-call bar: the
+            // bound local is fresh storage no premise carrier can name, so
+            // only the call's own writes matter -- a checked-body callee,
+            // pure receiver and arguments, and a complete aggregate frame
+            // disjoint from every protected carrier. Composed initializers
+            // stay refused: an authored operator beside the call would hide
+            // a write no frame sees.
+            let fresh_local = local.symbol.is_valid()
                 && !program
                     .state_parameters(state)
                     .iter()
-                    .any(|parameter| parameter.symbol == local.symbol)
-                && pure_guard(program, machine, state, local.initial_value, 0)
+                    .any(|parameter| parameter.symbol == local.symbol);
+            let pure_initializer = pure_guard(program, machine, state, local.initial_value, 0)
                 && frames.is_some_and(|frames| {
                     frames
                         .expression_write_frame(machine, local.initial_value)
                         .into_complete_paths()
                         .is_some_and(|paths| paths.is_empty())
                 });
+            let preserved = fresh_local
+                && (pure_initializer
+                    || let_call_initializer_preserves_entry(
+                        program,
+                        machine,
+                        state,
+                        local.initial_value,
+                        frames,
+                        protected,
+                    ));
             if !preserved {
                 return None;
             }
-            evaluated.push(local.initial_value);
+            if pure_initializer {
+                evaluated.push(local.initial_value);
+            }
             continue;
         }
         if let StatementNode::Call(call) = statement {
@@ -361,6 +380,48 @@ fn preserved_entry_prefix<'program>(
         }
     }
     Some(evaluated)
+}
+
+/// A `let` whose initializer is a direct call keeps the statement-call bar:
+/// only a checked-body callee's frame is admitted (boundary, requirement,
+/// and admitted declarations resolve a signature state whose empty body
+/// summary would claim an exclusive argument write never happened), the
+/// receiver and arguments stay pure the way transition actuals are, and the
+/// initializer's aggregate write frame must be complete and disjoint from
+/// every protected carrier. The binding writes a fresh local, so nothing
+/// else in the statement can disturb the entry telescope.
+fn let_call_initializer_preserves_entry<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    state: &State,
+    initial_value: ExpressionHandle,
+    frames: Option<&validation::CallFrameResolver<'program>>,
+    protected: &[&str],
+) -> bool {
+    let ExpressionNode::Call(call) = program.expression_table.expression(initial_value) else {
+        return false;
+    };
+    if !call.target_symbol.is_valid() {
+        return false;
+    }
+    let callee_machine = program.symbols.get(call.target_symbol).parent;
+    program.machines().iter().any(|candidate| {
+        (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
+            && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+    }) && (!call.receiver.is_valid() || pure_guard(program, machine, state, call.receiver, 0))
+        && program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .all(|argument| pure_guard(program, machine, state, *argument, 0))
+        && frames.is_some_and(|frames| {
+            protected.iter().all(|input| {
+                write_preservation::frame_preserves_path(
+                    frames.expression_write_frame(machine, initial_value),
+                    input,
+                )
+            })
+        })
 }
 
 /// A store target must be a place whose own evaluation performs no call:

@@ -401,6 +401,25 @@ fn admit_member_node(
             return None;
         }
         substitution.into_iter().collect()
+    } else if crate::validation::admissible_invariant_trivial_affine_local(node).is_some() {
+        // A trivial affine local establishment is the scalar-case family's
+        // operand-free sibling: the cyclic eligibility fence already
+        // confines the declared affine place to the member block that
+        // establishes it, disposing it on every departing edge. Moving the
+        // establishment into the preheader keeps one persistent place live
+        // through the whole component, so the realization strips it from
+        // member-internal edges and disposes it on every exit edge and
+        // member return instead — the admission replays the containment
+        // bound proving the place is only ever spelled through member
+        // positions that rewrite covers. Establishing the place performs
+        // work a bypassed traversal would not, so both halves of the
+        // non-speculative gate apply; the operation carries no operands, so
+        // there is no substitution to represent.
+        if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
+            return None;
+        }
+        crate::validation::invariant_trivial_affine_local_admission(function, component, node)?;
+        Vec::new()
     } else if crate::validation::admissible_invariant_scalar_call(node).is_some() {
         // A scalar-signature call keeps the full non-speculative gate — it
         // performs callee work a skipped traversal would not — and then adds
@@ -752,6 +771,14 @@ pub(super) fn component_plan(
                                 .is_some() =>
                         {
                             LoopInvariantNodeResult::Structural(result.clone())
+                        }
+                        AbstractOperation::EstablishTrivialAffineLocal { place, .. }
+                            if crate::validation::admissible_invariant_trivial_affine_local(
+                                node,
+                            )
+                            .is_some() =>
+                        {
+                            LoopInvariantNodeResult::TrivialAffineLocal(*place)
                         }
                         AbstractOperation::CallUnit { .. }
                             if crate::validation::admissible_invariant_unit_call(node)

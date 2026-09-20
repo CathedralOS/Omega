@@ -59,8 +59,8 @@ fn branch_contract(semantic: MachineSemanticKind) -> BranchContract {
 }
 
 /// The declared size knowledge for one selected branch semantic on each ISA:
-/// the x86-64 conditional envelope and near forms, and the fixed-width
-/// AArch64 encodings.
+/// the x86-64 conditional envelope and near forms, the widened AArch64
+/// conditional encodings, and the fixed-width AArch64 unconditional `B`.
 fn expected_size(
     semantic: MachineSemanticKind,
     architecture: Architecture,
@@ -79,10 +79,15 @@ fn expected_size(
             other => panic!("{other:?} is not a selected branch rule"),
         },
         Architecture::Aarch64 => match semantic {
+            // `B.cond` when the taken edge fits imm19; widens to
+            // `B.<invcond> +8; B target` past it.
             ConditionalBranchNonZero
             | ConditionalBranchU64LessThan
-            | ConditionalBranchI64LessThan
-            | Jump => MachineSizeKnowledge::ExactBytes(4),
+            | ConditionalBranchI64LessThan => MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4,
+                maximum_bytes: Some(8),
+            },
+            Jump => MachineSizeKnowledge::ExactBytes(4),
             other => panic!("{other:?} is not a selected branch rule"),
         },
     }

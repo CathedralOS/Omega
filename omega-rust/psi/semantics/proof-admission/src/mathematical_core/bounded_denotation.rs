@@ -2172,13 +2172,13 @@ impl<'a> Elaboration<'a> {
                 // Both propositions reach the same normalized denotation
                 // goal; when their terms already agree — a canonical
                 // `Equal`/`IntegerMathEqual` pair — the premise evidence
-                // inhabits the goal with no axiom at all.
-                if self
+                // inhabits the goal with no axiom at all. A reversal nested
+                // inside a connective converts through nested `J`s instead.
+                if let Some(term) = self
                     .denotation
-                    .arena
-                    .structurally_equal(premise_ty, goal_ty)
+                    .oriented_evidence(premise_ty, goal_ty, evidence)
                 {
-                    return Ok(evidence);
+                    return Ok(term);
                 }
                 self.rule_instance(
                     AcceptedProofRule::PredicateDenotation,
