@@ -21,10 +21,16 @@ every source-to-native consumer realizes it.
 The catalog's operand and clobber constants are authoritative for the current
 realized sequence, including scratch loaders/stores. Do not copy their register
 lists or encoded bytes into a language rule. General return/call/indirect-branch
-spellings currently refuse as hidden exits; recognized unmodeled loads/stores
-refuse for missing memory contracts. Register-only `mov`/`movq` is the decoded
-exception: it carries no memory-addressing operand, so its contract is the
-ordinary assignment's. Unknown mnemonics remain distinct failures.
+spellings currently refuse as hidden exits; the named refusal coverage also
+includes the mode-transition and branch/counted-loop/Jcc spellings plus the
+AArch64 branch, supervisor-call and exception-generating forms, which all name
+the same unmodeled control edge. Recognized unmodeled memory instructions —
+the atomic/RMW, string, far-pointer and descriptor-table families, cache/TLB and
+address-monitoring maintenance, and the AArch64 plain/exclusive/acquire-release
+and LSE families — refuse for missing memory contracts. Register-only
+`mov`/`movq` is the decoded exception: it carries no memory-addressing operand,
+so its contract is the ordinary assignment's. Unknown mnemonics remain distinct
+failures.
 Target gates do not silently substitute another ISA's instruction.
 
 [Parsing](../../pipeline/tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs) lowers
