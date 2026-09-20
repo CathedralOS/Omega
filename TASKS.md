@@ -7647,7 +7647,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PORTABLE-PROCESS-EXIT-OBSERVATION** — mined candidate; verify scope then implement.
 - **PORTABLE-REVIEW-LOCK** — mined candidate; verify scope then implement.
 - **PRIME-COUNTER-BENCHMARK-ROW** — mined candidate; verify scope then implement.
-- **PRIME-COUNTER-I32-REMAINDER** — mined candidate; verify scope then implement.
+- **PRIME-COUNTER-I32-REMAINDER.** Mined candidate — resolved: the name
+  re-mines the `i32` remainder legalization gap recorded in
+  `wiki/drafts/benchmarks.md` ("`prime_counter` was ruled out on this revision
+  because its `i32` remainder operation does not legalize to a native
+  artifact"). Landed at `3c1ead6df4`: non-u64 exact divide/remainder now
+  select the signed i64 entries (`ExactDivideI64`/`ExactRemainderI64` — bare
+  `cqo;idiv` on x86-64, `sdiv`/`msub` on AArch64). Re-verified on linux
+  x86-64 at `6d00135b89`: `runtime_signed_division_exit_canary_runs`
+  compiles i32 `-17 % 5` to a native artifact and runs it to exit 70, and
+  `samples_with_documented_exit_run_correctly`
+  (`OMEGA_SAMPLE_RUNTIME_FILTER==cli__arithmetic__prime_counter`) compiles
+  the prime_counter sample itself natively and runs it to its documented
+  exit 8. Sibling re-mine name: PRIME-COUNTER-REMAINDER-LEGALIZATION; the
+  benchmark subject row stays with PRIME-COUNTER-BENCHMARK-ROW /
+  BENCHMARK-PRIME-COUNTER-ROW.
 - **PRIME-COUNTER-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **PRIVATE-PIPE-RUNTIME-ENFORCEMENT** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN** — mined candidate; verify scope then implement.
