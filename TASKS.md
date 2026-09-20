@@ -6980,7 +6980,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   C2L-RESIDUAL-FAILURE-ATTRIBUTION). No independent slice remains; sibling
   stub LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES carries the same resolution.
 - **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES** — mined candidate; verify scope then implement.
-- **C2L-UNATTRIBUTED-FAILURE-TAIL** — mined candidate; verify scope then implement.
+- **C2L-UNATTRIBUTED-FAILURE-TAIL.** Mined candidate; scope verified, tail
+  still empty — fresh member-by-member reading at `23392bc467` (linux
+  x86-64): 2183 run, 2127 passed, 56 failed. All 55 FAIL + the
+  proof-search blowup map onto the ledger's owned families with identical
+  diagnostics (33 bare `Service<R>` spellings, 16 missing transitive
+  machine plans, 4 scalar-return custody, 2 ranked safe-point bounds, 1
+  blowup). Shrinkage since the `6ef64f6dd6` reading: the 3 site_guard
+  crash-namespace rejections and the closed-projection replay member now
+  pass — their unbisected suspects sit in the retained-borrow/
+  result-contract lane. Full attribution recorded in
+  `wiki/drafts/known_baseline_failures.md`; sibling subsets C2L-SCALAR-
+  RETURN-SOURCE-CUSTODY-FAILURES / CHECKED-TREES-TO-LOWERED-PSI-
+  UNATTRIBUTED-SET remain named on the parent row.
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
 - **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS** — mined candidate; verify scope then implement.
