@@ -7170,6 +7170,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TASKS_BOOTSTRAP.md's OFFLINE-REBUILD paragraph belongs to that row's
   owner; sibling re-mine names on this surface: BETA-SEED-EXEC-HOST-REFUSAL,
   BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST, BOOTSTRAP-CHAIN-NATIVE-EXECUTION.
+  Re-verified on linux x86-64 at `aa98a716664`:
+  `sh tests/beta/compiler/reconstruction.sh` again prints
+  "reconstruction — Beta reconstructs its direct Alpha tape
+  byte-identically", exit 0.
 - **BETA-PE-SEED-REFUSAL.** Resolved at `bde84d1765` — re-mines the
   landed Beta seed-refusal surface per sibling BETA-SEED-EXEC-HOST-REFUSAL's
   verified row: `tests/beta/compiler/reconstruction.sh`,
