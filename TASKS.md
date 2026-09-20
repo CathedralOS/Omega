@@ -6104,6 +6104,19 @@ Omega-side / native:
   Service-carrier custody item, not this one; the linux leg of the last test
   now emits its expected `requires explicit AVX+FMA3 admission` diagnostics
   again under this fix.
+  Leg (a) landed on branch `zergling/z13-x86-fma-provider-transport` (linux
+  x86-64, `cargo nextest run -p target-operations-to-selected-instructions`
+  258/258): `unit.rs` dispatches
+  `AbstractOperation::NearestIeeeFloatFusedMultiplyAdd` to the IEEE replay,
+  `unit/ieee_float.rs` validates the FMA row — exact psi_operation/result/
+  format identity, `settlement.terminal_operation` and `settlement.format`
+  pinned, and each of left/right/addend replayed against the ordered sources
+  as the exact `IeeeFloatImmediate` the operand names (defining operation,
+  source value, raw bits — a same-valued constant from another definition
+  rejects); the result publishes `Source::Home` with the float's
+  `scalar_shape`, and `control_flow/sources.rs` `definition()` supplies the
+  same `Home` row so downstream consumers replay it. Legs (b) and (c)
+  remain on their own surfaces.
 - **I32-REMAINDER-NATIVE-LEGALIZATION.** Landed at `3c1ead6df4`:
   non-u64 exact divide/remainder now select the signed i64 entries
   (`ExactDivideI64`/`ExactRemainderI64` — bare `cqo;idiv` on x86-64,

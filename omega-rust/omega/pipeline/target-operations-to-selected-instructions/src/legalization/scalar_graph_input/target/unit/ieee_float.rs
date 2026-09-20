@@ -76,6 +76,70 @@ pub(super) fn validate(
                 },
             ));
         }
+        (
+            TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
+                psi_operation,
+                result,
+                format,
+                left,
+                right,
+                addend,
+                settlement,
+            },
+            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+                psi_operation: expected_operation,
+                result: expected_result,
+                format: expected_format,
+                left: expected_left,
+                right: expected_right,
+                addend: expected_addend,
+            },
+        ) => {
+            // Each operand must be the exact immediate source the target row
+            // names — a same-valued constant from another definition is a
+            // substituted input, not the checked abstract operand.
+            let operand_replays = |operand: &target_operations::TargetIeeeFloatFmaOperand,
+                                   expected: &ValueId| {
+                operand.source_value == *expected
+                    && sources.iter().any(|(value, source)| {
+                        value == expected
+                            && matches!(
+                                source,
+                                Source::IeeeFloatImmediate {
+                                    defining_operation,
+                                    source_value,
+                                    value: immediate,
+                                } if *defining_operation == operand.defining_operation
+                                    && *source_value == operand.source_value
+                                    && *immediate == operand.value
+                            )
+                    })
+            };
+            if psi_operation != expected_operation
+                || result != expected_result
+                || format != expected_format
+                || settlement.terminal_operation != *psi_operation
+                || settlement.format != *format
+                || !operand_replays(left, expected_left)
+                || !operand_replays(right, expected_right)
+                || !operand_replays(addend, expected_addend)
+            {
+                return Err(invalid);
+            }
+            let Some(shape) = super::super::super::scalar_shape(ScalarType::IeeeFloat(*format))
+            else {
+                return Err(invalid);
+            };
+            sources.push((
+                *result,
+                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: *result,
+                    scalar_type: ScalarType::IeeeFloat(*format),
+                    shape,
+                }),
+            ));
+        }
         _ => return Err(invalid),
     }
     Ok(())
