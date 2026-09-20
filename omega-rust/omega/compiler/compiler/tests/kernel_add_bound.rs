@@ -220,14 +220,16 @@ fn check_source_correlated_add_bound(machine_name: &str, lower: bool) {
             // prefixes have checked bodies: MAX uses positions 3..=66, while
             // the signed customer's zero, MIN prefixes and negation are
             // interleaved with the independently reconstructed context.
+            // Boolean carriers and literals use primitive Two, so contribute
+            // no opaque vocabulary assumptions.
             // This is the target bound's closure, not a claim that unrelated
             // rules in the complete operation certificate are axiom-free.
             if lower {
-                assert_eq!(denoted.certificate.signature.len(), 64);
-                assert_eq!(closure, (0..16).chain([17, 49]).chain(51..64).collect());
+                assert_eq!(denoted.certificate.signature.len(), 61);
+                assert_eq!(closure, (0..13).chain([14, 46]).chain(48..61).collect());
             } else {
-                assert_eq!(denoted.certificate.signature.len(), 95);
-                assert_eq!(closure, (0..3).chain(67..95).collect());
+                assert_eq!(denoted.certificate.signature.len(), 92);
+                assert_eq!(closure, (0..3).chain(67..92).collect());
             }
             let definitions = denoted
                 .certificate
@@ -241,9 +243,9 @@ fn check_source_correlated_add_bound(machine_name: &str, lower: bool) {
             if lower {
                 assert_eq!(
                     definitions,
-                    [16].into_iter()
-                        .chain(18..49)
-                        .chain([50])
+                    [13].into_iter()
+                        .chain(15..46)
+                        .chain([47])
                         .collect::<Vec<_>>()
                 );
             } else {

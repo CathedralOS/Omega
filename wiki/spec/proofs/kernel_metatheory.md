@@ -327,7 +327,7 @@ trusted translation: `denote_bounded_certificate`'s output is a
 `MathematicalCertificate` that `verify_mathematical_certificate` re-decides
 in full, so the soundness obligation reduces to the kernel's own judgment.
 Meaning preservation of the denotation table (atoms as `Type 0`
-assumptions, scalar `Equal` as `Id` over a carrier assumption, connectives
+assumptions, scalar `Equal` as `Id` over its denoted carrier, connectives
 as `Σ`/tagged sums/`Π`, a decided non-reflexive primitive as a named
 decision assumption) is argued per connective in
 `mathematical_core/bounded_denotation.rs`'s module documentation. Every
@@ -336,9 +336,24 @@ symmetry/transitivity, including `ContentConservation`, elaborate to kernel
 terms. Liftable scalar integers and `IntegerMath*` share `Int` and its
 identity type, so the supported `Equal`↔`IntegerMathEqual` citation crossing
 does not assume a conversion. Integer order rules apply one fixed roster
-of explicit laws. Single-equation transport between identities uses identity
-elimination; transport of integer order applies fixed endpoint-substitution
-laws.
+of explicit laws. Value-equation transport uses identity elimination in exact
+replacement contexts, including multiple equations and connective binders.
+Both statements expand through the same supplied definitions; the premise
+transports forward and the goal backward. Reversal reuses the original
+occurrence context, so equal-looking terms elsewhere do not change. The separate
+integer-order substitution rule still applies fixed endpoint-substitution laws.
+
+Boolean values denote `Two`, with false/true as zero/one. Negation and
+Boolean-valued equality use the existing `caseTwo` truth tables, keeping their
+operands visible without new axioms or kernel rules. Boolean equality applies
+one fixed closed lambda, storing each supplied operand once rather than
+duplicating nested operands into both case branches. Proposition equality
+remains `Id Two`, not that Boolean comparison. Unknown Boolean values remain
+distinct constants; other Boolean-valued operations remain opaque when their
+denotation is not implemented. If bounded normalization reduces a reflexive
+result equality to `Truth`, `refl` proves the expanded result before the
+stored value equations transport it back. This does not prove every Boolean
+identity on neutral values.
 
 Fixed scalar literal magnitudes have shared signed binary definitions over
 `zero`, `double`, `odd` and `negate`. Discreteness derives adjacent-literal
@@ -375,15 +390,19 @@ result. Recursive evaluator preflights may revisit prefixes;
 shallow term storage does not establish linear checking cost.
 
 Remaining families, including other bound and correlated-root
-witnesses, multiple-equation or nested transport and transports outside the
-supported integer vocabulary, denote
+witnesses, transport through opaque operations, reversed identities nested
+inside connectives and further Boolean normalization, denote
 a *rule-instance decision*: an assumption constant of type
 `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧` whose premise/conclusion relation
 is re-decided during denotation by the same shared function the bounded
 checker runs, applied to the denoted premise evidence. The judgment's
 assumption closure then names the instance's arithmetic or conversion
 content exactly. Source invalidity, unsupported valid encodings and producer
-defects remain separate outcomes. *Witnessed:* the bounded-denotation unit
+defects remain separate outcomes. Exhausting the optional transport producer's
+construction allowance declines to that explicit assumption-bearing route;
+it does not report an unchecked derivation or reject previously supported
+bounded evidence solely for the extra construction cost.
+*Witnessed:* the bounded-denotation unit
 tests inspect exact law closure and identity compositions;
 `compiler/tests/kernel_discreteness.rs` independently checks a source-produced
 certificate, its mathematical wire roundtrip and its invalid control.
@@ -396,6 +415,12 @@ checks the same lower-bound rule and rejects an insufficient guard.
 customers, independently reconstructs their operation questions and checks the
 correlated lower- and upper-bound certificates and mathematical wire. A changed
 addend, reversed guard, missing premises or malformed kernel evidence rejects.
+`compiler/tests/kernel_equality_transport.rs` compiles a nested Boolean result
+contract and drops its source before reconstructing its obligation and operation
+equations from Terminal bytes. Its mathematical proof uses identity elimination
+instead of a conclusion-specific assumption and survives canonical wire replay.
+Removing any required equation, changing an executable operand or the decoded
+J endpoint, and negating the source result all reject.
 Each receipt records the exact closure, term storage, normalization budget and wire
 size; these are measurements of this certificate, not a general speed claim.
 The `terminal-codec` bounded-certificate tests exercise retained declarations,

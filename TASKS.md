@@ -1735,8 +1735,9 @@ Owners include
   `decode_mathematical_certificate` have no caller outside tests, and the only
   source customers cover scalar `==` symmetry/transitivity, fixed-literal
   discreteness, subtraction rank decrease, its no-underflow obligation and
-  guarded addition bounds (`compiler/tests/proof_kernel_canaries.rs`,
-  `kernel_discreteness.rs`, `kernel_subtract_order.rs` and `kernel_add_bound.rs`),
+  guarded addition bounds and nested Boolean result contracts
+  (`compiler/tests/proof_kernel_canaries.rs`, `kernel_discreteness.rs`,
+  `kernel_subtract_order.rs`, `kernel_add_bound.rs` and `kernel_equality_transport.rs`),
   not general dependent theorems.
 
   Remaining work:
@@ -1752,9 +1753,13 @@ Owners include
     constants. The order/equality rules
     cite one fixed roster (`eq_le`, `lt_le`, `le_trans`/`lt_trans`/
     `lt_le_trans`/`le_lt_trans`, `lt`/`le_subst_left`/`_right`) while
-    `Id` symmetry/transitivity and single-equation transport between identities
-    use `J`; the `Equal`↔`IntegerMathEqual` citation crossing shares one
-    denotation, and order transport applies the fixed substitution laws.
+    `Id` symmetry/transitivity and value-equation transport use `J`;
+    the `Equal`↔`IntegerMathEqual` citation crossing shares one
+    denotation. The separate integer-order substitution rule still cites its
+    fixed laws. Boolean values, negation and equality use `Two` and `caseTwo`,
+    exposing their operands to the same multi-equation transport as exact
+    addition/subtraction. A reflexive expanded result uses `refl`, not an
+    assumed implication for that program.
     Discreteness derives adjacent literal order from five fixed numeral laws
     and composes it with the inclusive premise. Exact scalar subtraction
     applies fixed zero and antitonicity laws; evaluated differences retain
@@ -1775,8 +1780,9 @@ Owners include
     interned once per evaluated operand triple — for the applicative
     cancellation step. An already admitted open expression stays opaque
     if composing a child would introduce a resource refusal. Still to do:
-    other bound-witness forms, multiple-equation or nested transport, and
-    transport outside the supported `Int` vocabulary. Other operations remain
+    other bound-witness forms, transport through opaque operations, nested
+    canonical identity reversal, and Boolean identities requiring case analysis
+    rather than structural correspondence. Other operations remain
     opaque; unsupported arithmetic derivations, including `x + 0 = x`, still
     assume their conclusions.
   - Check indexed-scheme applications produced from source declarations, per
@@ -1819,11 +1825,21 @@ Owners include
   transitivity on the denoted crossing, and interns closed mathematical
   terms by exact evaluated value. Subtraction order, the correlated
   unsigned subtraction lower bound and correlated addition bounds with
-  open right addends use fixed arithmetic laws. Remaining bound-witness forms and
-  multiple-equation, nested or non-`Int` transport instances still use
-  per-instance `rule_axiom`s. Addition and subtraction retain their operands;
+  open right addends use fixed arithmetic laws. Remaining bound-witness forms,
+  opaque or noncompositional transport and construction-budget fallback still
+  use per-instance `rule_axiom`s. Addition and subtraction retain their operands;
   other open arithmetic remains opaque. Fixed laws still require exact
   assumption admission and do not establish arithmetic consistency.
+
+  Resume transport coverage with `cargo nextest run --release -p compiler
+  --test kernel_equality_transport --no-fail-fast --no-tests fail` on macOS
+  ARM64 (witnessed on base `7216c52a2f` plus this implementation). The nested
+  Boolean source reaches a decoded, independently reconstructed
+  result obligation and a kernel-checked mathematical wire without an instance
+  assumption for its conclusion; missing equations, substituted executable
+  operands, a changed J endpoint and the false source twin reject. The next
+  transport work must retain a real source obligation needing one of the
+  remaining cases above, not add another standalone theorem builder.
 
   PCC-CANONICAL-SEMANTIC-LEDGER owns the soundness status of trusted checker
   rows and PROOF-CERTIFICATION-BRIDGE owns loop correspondence. Reopen W only
