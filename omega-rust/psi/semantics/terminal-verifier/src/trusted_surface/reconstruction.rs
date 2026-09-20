@@ -21,6 +21,7 @@ const PATH_FACTS: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts.rs";
 const PATH_FACTS_CONDITIONS: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/conditions.rs";
 const PATH_FACTS_DISCRETE: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/discrete.rs";
+const PATH_FACTS_TRANSPORT: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/transport.rs";
 const OPERATION_FACTS: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
@@ -504,10 +505,29 @@ static FACT_SUCCESSOR_PARAMETER_BINDING: TrustedSurfaceEntry = TrustedSurfaceEnt
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a successor block's declared parameters and the edge's argument values",
-    conclusion: "equalities binding each target parameter to its argument term, plus the established facts rewritten through the parameter substitution, deduplicated deterministically",
+    conclusion: "equalities binding each target parameter to its argument term, plus any established-fact restatement whose fixed-shape transport certificate the checker rejects — a licensed premise introduction rather than a failed module; every accepted rewrite is discharged under fact:successor-path-transport",
     dependencies: &["scope:successor-substitution"],
-    implementation: &[PATH_FACTS],
+    implementation: &[PATH_FACTS, PATH_FACTS_TRANSPORT],
     soundness: TRUSTED,
+};
+
+static FACT_SUCCESSOR_PATH_TRANSPORT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:successor-path-transport",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "an established roster fact mentioning one of the edge's argument values, together with that edge's parameter-binding equalities already pushed into the same roster",
+    conclusion: "the source fact with each substituted argument restated to its target parameter, deduplicated deterministically and emitted only after a fixed-shape certificate is accepted: the source fact cited as one semantic axiom and the edge's binding equalities cited as semantic axioms in roster order, so the checker re-decides that source and restatement carry the same denotation",
+    dependencies: &[
+        "fact:successor-parameter-binding",
+        "rule:value-equality-transport",
+        "rule:semantic-axiom",
+        "scope:successor-substitution",
+        "formation:mathematical-core",
+    ],
+    implementation: &[PATH_FACTS, PATH_FACTS_TRANSPORT],
+    soundness: SoundnessStatus::Proved {
+        evidence: "bind_successor_axioms and append_successor_fact build a fixed-shape ValueEqualityTransport certificate for every restated roster fact and call proof-admission's certificate checker before classifying the emission; only an accepted certificate marks the emission under this entry — a rejected certificate leaves it under fact:successor-parameter-binding's licensed premise introductions and never fails the module",
+    },
 };
 
 static FACT_BRANCH_CONDITION: TrustedSurfaceEntry = TrustedSurfaceEntry {
@@ -515,7 +535,7 @@ static FACT_BRANCH_CONDITION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a conditional's Boolean condition and the reconstructed axiom set at the terminator",
-    conclusion: "the selected arm's condition fact where the emission is a licensed premise introduction the fixed-shape transport certificate does not re-derive: the literal-adjacency strengthening of a fixed-carrier disequality, an equal-terms unsatisfiable arm's falsehood, or a boundary truth whose walk consulted a backward-only edge; every other emission is discharged under fact:branch-condition-transport",
+    conclusion: "the selected arm's condition fact where the emission is a licensed premise introduction the fixed-shape transport certificate does not re-derive: the literal-adjacency strengthening of a fixed-carrier disequality, an equal-terms unsatisfiable arm's falsehood, or a boundary truth whose walk consulted a backward-only edge; every other emission is discharged under fact:branch-condition-transport, and the fact's parameter-restated copy on the edge follows the successor rewrite discipline under fact:successor-path-transport",
     dependencies: &["fact:boolean-polarity-implications"],
     implementation: &[PATH_FACTS, PATH_FACTS_CONDITIONS],
     soundness: TRUSTED,
@@ -605,6 +625,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_CALL_ENSURES_IMPORT,
     FACT_CONTENT_PARTITION_COMPOSITION,
     FACT_SUCCESSOR_PARAMETER_BINDING,
+    FACT_SUCCESSOR_PATH_TRANSPORT,
     FACT_BRANCH_CONDITION,
     FACT_BRANCH_CONDITION_TRANSPORT,
     FACT_STRUCTURAL_CASE_ARM,

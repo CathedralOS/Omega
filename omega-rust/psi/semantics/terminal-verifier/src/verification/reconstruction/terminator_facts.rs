@@ -52,6 +52,7 @@ pub(super) fn append_terminator(
                 target_block,
                 arguments,
                 value_term,
+                proposition_context,
                 reconstruct_path_facts,
             );
             incoming.entry(*target).or_default().push(axioms);
@@ -91,6 +92,7 @@ pub(super) fn append_terminator(
                     target_block,
                     &successor.arguments,
                     value_term,
+                    proposition_context,
                     reconstruct_path_facts,
                 );
                 if reconstruct_path_facts && let Some(condition_fact) = condition_fact {
@@ -100,6 +102,7 @@ pub(super) fn append_terminator(
                         target_block,
                         &successor.arguments,
                         value_term,
+                        proposition_context,
                     );
                 }
                 if crash_facts {
@@ -113,6 +116,7 @@ pub(super) fn append_terminator(
                         target_block,
                         &successor.arguments,
                         value_term,
+                        proposition_context,
                     );
                 }
                 incoming
