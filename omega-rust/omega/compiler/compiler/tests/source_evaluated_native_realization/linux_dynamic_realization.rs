@@ -1,6 +1,7 @@
 use super::{
-    Fixture, admit_import, realize_linux_dynamic, realize_linux_dynamic_outcome,
-    terminal_authority_permission_policy, terminal_authority_policy,
+    CompileOptions, CompileRequest, Fixture, RequestedCompileProduct, admit_import, compile,
+    realize_linux_dynamic, realize_linux_dynamic_outcome, terminal_authority_permission_policy,
+    terminal_authority_policy,
 };
 use compiler::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
@@ -217,4 +218,92 @@ fn rejected_native_reentry_returns_the_exact_dynamic_interpreter() {
     assert_eq!(interpreter, expected_interpreter);
     assert_eq!(diagnostics.len(), 1);
     assert!(diagnostics[0].message.contains("has no supplied execution"));
+}
+
+#[test]
+fn aggregate_foreign_boundary_members_refuse_at_terminal_entry_establishment() {
+    for (name, member, pre, call) in [
+        (
+            "aggarg",
+            "send(pair: Pair)",
+            "self.pair = Pair { first: 1, second: 2 };",
+            "self.boundary.send(self.pair);",
+        ),
+        (
+            "aggres",
+            "take() -> Pair",
+            "",
+            "self.result = self.boundary.take();",
+        ),
+        (
+            "aggmix",
+            "call(tag: u64, pair: Pair) -> Pair",
+            "self.pair = Pair { first: 1, second: 2 };",
+            "self.result = self.boundary.call(7, self.pair);",
+        ),
+    ] {
+        let mname = member.split('(').next().unwrap();
+        let signature = &member[mname.len()..];
+        let fixture = Fixture::with_source(
+            name,
+            "linux_x86_64",
+            &format!(
+                r#"use omega::language::core::service;
+use omega::language::core::external_binding;
+
+
+pub data Pair {{
+    first: u64;
+    second: u64;
+}}
+
+pub boundary trait Agg {{
+    machine {mname}{signature};
+}}
+
+linux_x86_64 machine {mname}_binding() -> Binding<15, 9, 7> {{
+    Binding::DllImport {{
+        import: DllImport::ElfVersioned {{
+            object: "libagg-probe.so",
+            symbol: "agg_probe",
+            version: "OMEGA_1",
+        }},
+    }}
+}}
+
+machine {mname}_leaf{signature} satisfies Agg::{mname} via {mname}_binding();
+
+data Main {{ boundary: Service<Agg>; pair: Pair; result: Pair; }}
+machine Main::main(&mut self) reaches Agg {{
+    {pre}
+    {call}
+}}
+"#,
+            ),
+            &format!(
+                "machine build(builder: &mut Build) {{
+    builder.application(\"{name}\");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}}
+",
+            ),
+        );
+        let request = CompileRequest::new(CompileOptions {
+            root_path: fixture.main.clone(),
+            build_dir: Some(fixture.root.join("build")),
+            target_name: Some(fixture.target.clone()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+        let diagnostics = compile(request)
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .unwrap_err();
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .to_string()
+                    .contains("ProgramEntry establishment rejoins 0 Terminal attachment identities")
+            }),
+            "aggregate boundary member `{member}` must currently refuse Terminal entry establishment; diagnostics: {diagnostics:?}",
+        );
+    }
 }
