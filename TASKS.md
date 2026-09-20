@@ -7558,7 +7558,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DEPENDENCY-FREE-MEASURABLE-SUBJECT (subject landed `3dd805679c`),
   BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT, BENCHMARK-MEASURABLE-SUBJECT-CORPUS,
   BENCHMARK-STANDALONE-SUBJECT.
-- **DEPENDENT-RELATIONAL-PROOFS-VIEWS** — mined candidate; verify scope then implement.
+- **DEPENDENT-RELATIONAL-PROOFS-VIEWS** — mined candidate; scope verified at
+  `ded56393da`: re-mines the same chapter_12 sentence as resolved sibling
+  **DEPENDENT-RELATIONAL-PROOF-SUPPORT** (this section) — "implementation
+  support for relational proofs and views remains narrower". The landed
+  slice covers strict relational bounds discharging representability through
+  the ceiling's carrier at every integer width (`ordered_values::
+  composed_ceiling_gap` + `operand_carrier_bound`, pinned by
+  `guard_narrowing/tests.rs:65
+  a_strict_place_ceiling_proves_the_increment_for_narrower_carriers`).
+  This row's distinct residual is the "views" half plus the solver-general
+  proofs opening — a multi-session solver/representation leg, not a bounded
+  slice landable from this stub. The other named opening, equality facts
+  through writes, is DEPENDENT-VALUES-CHECKER-COVERAGE's slice (already
+  annotated on this board). No live claim currently fences
+  `proof_contracts/ordered_values.rs` or `guard_narrowing`; the neighboring
+  DEPENDENT-RELATIONAL-PROOF-VIEW-SUPPORT stub re-mines the same sentence.
 - **DEPENDENT-VALUES-CHECKER-COVERAGE.** Mined candidate; scope verified at
   `33eb8d92ff`: the residual named by the rewritten
   [chapter 12](wiki/language_guide/chapter_12_dependent_types.md) sentence is
