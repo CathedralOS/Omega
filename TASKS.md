@@ -11555,6 +11555,197 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   byte-identical to `8f9b82fef2`. Re-verified at `b9635834f3`
   (linux x86-64): zero `ComponentEraJournal`/`era_journal` references
   remain in the tree. No leg exists under this name.
+||||||| parent of 3d9edf7b95e5 (board: INDUCTIVE-CARRIER-CERTIFICATE — add missing resolved row)
+  Windows host before working it.
+- **GLOB-SELF-IMPORTS-REPAIR** — mined candidate; scope verified, slice landed. The name resolves to `tests/architecture/glob_self_imports.rs`: a per-crate ratchet over files carrying `use super::*;`/`use crate::*;`, whose ceiling table is already empty — so every surviving glob self-import fails `glob_self_imports_never_grow_per_crate`. Repair means removing the glob, not raising ceilings. Residual at `33eb8d92ff`: twelve files across eleven crates (new glob files keep landing, so the residual regrows while the ratchet is red). This slice converted four files to explicit `use super::{names}`/`use super::Name` imports — `component-description`'s `component_description/tests.rs`, `omega`'s `execution/mod.rs`, `machine-emission`'s `startup_trampoline.rs`, and `selected-instructions-to-selected-instructions`' `address_fold/tests.rs` `independence_tests` module — plus corrected the gate's stale "more than two thousand" preamble (crate suites green: 23/23, 4/4, 50/50, 41/41 filtered). Remaining files sit under sibling claims: BUILD-PACKAGES-GATE holds `sources/acquisition` traversal.rs, MACOS-X64-HOST-PROFILE/validators-leg holds image-emission `final_image_validation.rs`, MATCH-SELECTIVE-LOWERING holds validation `result_type.rs`, PROOF-RULE-CLASSICALITY-AUDIT holds proof-admission `classicality.rs`, and RC-REPOSITORY-BASELINE-GREEN glob legs hold optimization-unit-semantics `replay.rs`, checked-trees-to-lowered-psi `operation_crash_contracts.rs`, proof `measurement.rs`, and both terminal-verifier files. The gate stays red until those legs land; the ratchet then guards zero. Second slice (z103): the residual regrew to 24 files while red; this pass converted the eleven unfenced survivors — `target`'s `elf_loader`, `foreign_locator`, `target_semantics`, `uefi_loaded_image/{mod,occurrence}`, `x86_features`, `image-emission`'s `final_image_validation`, `build-evaluation`'s `evidence/filesystem_scope/preparation`, and the three `selected-instructions-to-selected-instructions` `*_relocation/tests.rs` `independence_tests` modules (the uefi_boot_services/uefi_system_table quartet was repaired by its claim owner in the interim). Nested `mod tests` globs needed the parent file's own `use` bindings listed explicitly (`use super::{TargetProfile}` / `use super::{Field, LayoutPlacementReport}`); rustc E0432/E0425 drive convergence. Four-crate lib suites 1896/1896 green. Residual at this commit: nine files, all sibling-fenced (BUILD-PACKAGES-GATE, RC-REPOSITORY-BASELINE-GREEN glob legs 1-2, RUNTIME-SIZED-ACTIVATION-STORAGE, PROOF-RULE-CLASSICALITY-AUDIT, MATCH-SELECTIVE-LOWERING); the ratchet stays red until they land.
+- **GRAPH-COST-EVIDENCE-CORPUS** — mined candidate; scope verified, authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg of GRAPH-COST-MODEL-STUDY (a versioned workload corpus is the missing evidence for the `predicted_cost_delta` comparison). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records; the comparison protocol is scoped in `wiki/drafts/graph_cost_model_study.md`. Sibling stubs on the same gated surface: OPTIMIZATION-WORKLOAD-CORPUS, WORKLOAD-CORPUS.
+- **GRAPH-FEATURE-PROJECTION-SCHEMA** — mined candidate; verify scope then implement.
+- **HOST-ALIAS-BUILD-DIR-DETECTION** — mined candidate.
+  Verified scope at `7452910c6e`: re-mines the same race-window residual
+  already assigned to **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** (see
+  **BUILD-DIR-ALIAS-RACE-DETECTION**'s record) — a host alias created
+  between admission's `overlap_key` check and the first write (e.g. a
+  symlink planted inside the window) is invisible to the spelling-level
+  fence in `build-evaluation/src/evidence/filesystem_scope.rs`. Every
+  implementing surface is live-fenced at verification time:
+  request/options admission plus `behavior_exclusions`
+  (BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION, 22:14Z),
+  `filesystem_scope.rs` (BUILD-DIRECTORY-ALIAS-COLLISION, 23:07Z),
+  `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION,
+  22:28Z), and `build-output`
+  (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
+  exists; retire or re-scope once the sibling lane lands detection.
+- **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
+- **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
+- **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; scope verified, covered — same indexing-through-attached-receiver surface as the resolved sibling INDEXING-ATTACHED-RECEIVER-BORROW, which names this stub (verified `669925b8b9`, linux x86-64): `tests/multiplicity/borrowed_case_payloads.rs` exercises `self.kinds[slot]` transitions under `&self`/`&mut self` custody, loan lifetime across successors, and index-argument consumption; `tests/multiplicity/borrowed_observations.rs` pins reborrows into the attached receiver and rejects a borrowed indexed collection moving into an owned receiver; affine extraction still rejects; the indexed operand route through the receiver_self_match loan is additionally pinned by BASELINE-T2C-INDEXED-OPERAND-ACCESS's landing (`7ec7ee32e8`, 8/8 `borrowed_observations` green at `d05ec39a5d`). No independent slice exists here.
+- **INDEXING-ATTACHED-RECEIVER-BORROW.** Mined candidate — resolved,
+  covered on `origin/main` (verified `669925b8b9`, linux x86-64). The
+  indexing-through-borrowed-attached-receiver surface is implemented and
+  pinned: `tests/multiplicity/borrowed_case_payloads.rs` exercises
+  `self.kinds[slot]` transitions under `&self`/`&mut self` custody
+  (borrowed_indexed_affine_case_observation_preserves_array), loan
+  lifetime across successors, and consumption of index arguments;
+  `tests/multiplicity/borrowed_observations.rs` pins reborrows into the
+  attached receiver and rejects a borrowed indexed collection moving
+  into an owned receiver; affine extraction still rejects. Scoped run:
+  9/9 `borrowed_indexed`/`indexed_case`/`indexed_observation` tests
+  PASS. Sibling stub on the same surface:
+  INDEXED-OPERAND-ATTACHED-RECEIVER.
+- **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE.** Mined candidate —
+  resolved, covered. Member of the INTEGER-COMPARISON-OCCURRENCE-*
+  re-mine family under BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES.
+  The producer-coverage leg is what the landed pin checks: the
+  `terminal_product::integer_comparisons` gate (repaired `76dc49a99e`)
+  counts selected integer occurrences against the artifact-bound
+  checked scope, and `compiler`'s `integer_comparison_publication`
+  suite
+  (`selected_comparison_publication_preserves_complete_custody_among_builtins`,
+  PASS on linux x86-64 at `f2f39039da`) requires complete custody
+  coverage of the producer's selected occurrences among builtins —
+  provider coverage for genuinely selected occurrences is the
+  residual that pin already exercises. Siblings:
+  INTEGER-COMPARISON-OCCURRENCE-{PRODUCER,RETENTION,STD-COVERAGE},
+  COMPARISON-OCCURRENCE-PRODUCER-COVERAGE,
+  BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE.
+- **INTEGER-COMPARISON-OCCURRENCE-RETENTION** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-STD-COVERAGE.** Resolved — member of the
+  INTEGER-COMPARISON-OCCURRENCE-* re-mine family named under
+  BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES. The "std coverage" leg
+  it names is covered by composition: the integer-comparison occurrence
+  gate (`compilation-report`'s `terminal_product::integer_comparisons`,
+  repaired at `76dc49a99e`) runs on every published artifact — all
+  std-linked pass canaries and the benchmark subjects exercise it, and
+  `wrapping_square_sum` compiled + published through it on
+  windows_x86_64 / macos_arm64 / linux_arm64 at `f2f39039da`. The
+  dedicated pin is `compiler`'s `integer_comparison_publication` suite
+  (`selected_comparison_publication_preserves_complete_custody_among_builtins`,
+  witnessed PASS on linux x86-64), which requires complete custody coverage
+  for selected occurrences among builtins; provider coverage for genuinely
+  selected occurrences is the surviving residual and is what that pin
+  already checks. A separate std-wide sweep would duplicate the canary
+  corpus's own compile coverage. Siblings: INTEGER-COMPARISON-OCCURRENCE-
+  {PRODUCER,PRODUCER-COVERAGE,RETENTION}, COMPARISON-OCCURRENCE-PRODUCER-
+  COVERAGE, BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE.
+- **INTEL-MACOS-HOST-PROFILE** — mined candidate; verify scope then implement.
+  Verified scope: named alias of **MACOS-X64-HOST-PROFILE** (TASKS.md:5962)
+  — "Intel gap" is that row's own parenthetical. `TargetProfile::MacosX64`
+  already catalogues the host through checked admission (which refuses on
+  the missing `targets/macos_x86_64` provider package); the enumerated legs
+  are the `ProgramEntryPhysicalContractPackage::MacosX64` entry contract +
+  `targets/macos_x86_64/` source library, the x86-64 Mach-O writer
+  (`image_output.rs` refuses `(MachO, X86_64)`), the
+  `native_hosted_target()` cfg arm in `canary_suite.rs`, and a real
+  x86_64-apple-darwin host run. Every implementing surface is under that
+  item's live claims this wave (image-macho/image_output.rs +
+  macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
+  installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
+  all Devin / swarm-w9-macos-x64-host-profile).
+- **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
+- **INTRINSIC-PHYSICAL-SPAN-ARMS** — mined candidate; verify scope then implement.
+  Windows host before working it.
+- **GLOB-SELF-IMPORTS-REPAIR** — mined candidate; scope verified, slice landed. The name resolves to `tests/architecture/glob_self_imports.rs`: a per-crate ratchet over files carrying `use super::*;`/`use crate::*;`, whose ceiling table is already empty — so every surviving glob self-import fails `glob_self_imports_never_grow_per_crate`. Repair means removing the glob, not raising ceilings. Residual at `33eb8d92ff`: twelve files across eleven crates (new glob files keep landing, so the residual regrows while the ratchet is red). This slice converted four files to explicit `use super::{names}`/`use super::Name` imports — `component-description`'s `component_description/tests.rs`, `omega`'s `execution/mod.rs`, `machine-emission`'s `startup_trampoline.rs`, and `selected-instructions-to-selected-instructions`' `address_fold/tests.rs` `independence_tests` module — plus corrected the gate's stale "more than two thousand" preamble (crate suites green: 23/23, 4/4, 50/50, 41/41 filtered). Remaining files sit under sibling claims: BUILD-PACKAGES-GATE holds `sources/acquisition` traversal.rs, MACOS-X64-HOST-PROFILE/validators-leg holds image-emission `final_image_validation.rs`, MATCH-SELECTIVE-LOWERING holds validation `result_type.rs`, PROOF-RULE-CLASSICALITY-AUDIT holds proof-admission `classicality.rs`, and RC-REPOSITORY-BASELINE-GREEN glob legs hold optimization-unit-semantics `replay.rs`, checked-trees-to-lowered-psi `operation_crash_contracts.rs`, proof `measurement.rs`, and both terminal-verifier files. The gate stays red until those legs land; the ratchet then guards zero. Second slice (z103): the residual regrew to 24 files while red; this pass converted the eleven unfenced survivors — `target`'s `elf_loader`, `foreign_locator`, `target_semantics`, `uefi_loaded_image/{mod,occurrence}`, `x86_features`, `image-emission`'s `final_image_validation`, `build-evaluation`'s `evidence/filesystem_scope/preparation`, and the three `selected-instructions-to-selected-instructions` `*_relocation/tests.rs` `independence_tests` modules (the uefi_boot_services/uefi_system_table quartet was repaired by its claim owner in the interim). Nested `mod tests` globs needed the parent file's own `use` bindings listed explicitly (`use super::{TargetProfile}` / `use super::{Field, LayoutPlacementReport}`); rustc E0432/E0425 drive convergence. Four-crate lib suites 1896/1896 green. Residual at this commit: nine files, all sibling-fenced (BUILD-PACKAGES-GATE, RC-REPOSITORY-BASELINE-GREEN glob legs 1-2, RUNTIME-SIZED-ACTIVATION-STORAGE, PROOF-RULE-CLASSICALITY-AUDIT, MATCH-SELECTIVE-LOWERING); the ratchet stays red until they land.
+- **GRAPH-COST-EVIDENCE-CORPUS** — mined candidate; scope verified, authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg of GRAPH-COST-MODEL-STUDY (a versioned workload corpus is the missing evidence for the `predicted_cost_delta` comparison). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records; the comparison protocol is scoped in `wiki/drafts/graph_cost_model_study.md`. Sibling stubs on the same gated surface: OPTIMIZATION-WORKLOAD-CORPUS, WORKLOAD-CORPUS.
+- **GRAPH-FEATURE-PROJECTION-SCHEMA** — mined candidate; verify scope then implement.
+- **HOST-ALIAS-BUILD-DIR-DETECTION** — mined candidate.
+  Verified scope at `7452910c6e`: re-mines the same race-window residual
+  already assigned to **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** (see
+  **BUILD-DIR-ALIAS-RACE-DETECTION**'s record) — a host alias created
+  between admission's `overlap_key` check and the first write (e.g. a
+  symlink planted inside the window) is invisible to the spelling-level
+  fence in `build-evaluation/src/evidence/filesystem_scope.rs`. Every
+  implementing surface is live-fenced at verification time:
+  request/options admission plus `behavior_exclusions`
+  (BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION, 22:14Z),
+  `filesystem_scope.rs` (BUILD-DIRECTORY-ALIAS-COLLISION, 23:07Z),
+  `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION,
+  22:28Z), and `build-output`
+  (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
+  exists; retire or re-scope once the sibling lane lands detection.
+- **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
+- **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
+- **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; scope verified, covered — same indexing-through-attached-receiver surface as the resolved sibling INDEXING-ATTACHED-RECEIVER-BORROW, which names this stub (verified `669925b8b9`, linux x86-64): `tests/multiplicity/borrowed_case_payloads.rs` exercises `self.kinds[slot]` transitions under `&self`/`&mut self` custody, loan lifetime across successors, and index-argument consumption; `tests/multiplicity/borrowed_observations.rs` pins reborrows into the attached receiver and rejects a borrowed indexed collection moving into an owned receiver; affine extraction still rejects; the indexed operand route through the receiver_self_match loan is additionally pinned by BASELINE-T2C-INDEXED-OPERAND-ACCESS's landing (`7ec7ee32e8`, 8/8 `borrowed_observations` green at `d05ec39a5d`). No independent slice exists here.
+- **INDEXING-ATTACHED-RECEIVER-BORROW.** Mined candidate — resolved,
+  covered on `origin/main` (verified `669925b8b9`, linux x86-64). The
+  indexing-through-borrowed-attached-receiver surface is implemented and
+  pinned: `tests/multiplicity/borrowed_case_payloads.rs` exercises
+  `self.kinds[slot]` transitions under `&self`/`&mut self` custody
+  (borrowed_indexed_affine_case_observation_preserves_array), loan
+  lifetime across successors, and consumption of index arguments;
+  `tests/multiplicity/borrowed_observations.rs` pins reborrows into the
+  attached receiver and rejects a borrowed indexed collection moving
+  into an owned receiver; affine extraction still rejects. Scoped run:
+  9/9 `borrowed_indexed`/`indexed_case`/`indexed_observation` tests
+  PASS. Sibling stub on the same surface:
+  INDEXED-OPERAND-ATTACHED-RECEIVER.
+- **INDUCTIVE-CARRIER-CERTIFICATE.** Resolved — re-mines the internal
+  inductive-carrier certificate cited as already-landed on
+  PROOF-INTERCHANGE-IMPORT (:6236): `admission/recursion.rs`
+  `verify_recursive_component` /
+  `verify_recursive_component_with_machine_parameters`
+  (proof-admission:55-95+) validate the component shape, require and
+  match the ranking relation, verify the well-foundedness obligation
+  through `verify_recursive_obligation`, and check each member's
+  certificate; loop-local values never acquire parameter-only proof
+  rules. The W-induction certificate is additionally covered end to end
+  by `terminal-codec/tests/mathematical_certificate.rs`. The external
+  matching-logic induction certificate has no importer — that route runs
+  through MATCHING-LOGIC-BOUNDED-SLICE + a concrete design per
+  PROOF-INTERCHANGE-IMPORT, not here. No independent slice exists.
+- **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE.** Mined candidate —
+  resolved, covered. Member of the INTEGER-COMPARISON-OCCURRENCE-*
+  re-mine family under BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES.
+  The producer-coverage leg is what the landed pin checks: the
+  `terminal_product::integer_comparisons` gate (repaired `76dc49a99e`)
+  counts selected integer occurrences against the artifact-bound
+  checked scope, and `compiler`'s `integer_comparison_publication`
+  suite
+  (`selected_comparison_publication_preserves_complete_custody_among_builtins`,
+  PASS on linux x86-64 at `f2f39039da`) requires complete custody
+  coverage of the producer's selected occurrences among builtins —
+  provider coverage for genuinely selected occurrences is the
+  residual that pin already exercises. Siblings:
+  INTEGER-COMPARISON-OCCURRENCE-{PRODUCER,RETENTION,STD-COVERAGE},
+  COMPARISON-OCCURRENCE-PRODUCER-COVERAGE,
+  BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE.
+- **INTEGER-COMPARISON-OCCURRENCE-RETENTION** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-STD-COVERAGE.** Resolved — member of the
+  INTEGER-COMPARISON-OCCURRENCE-* re-mine family named under
+  BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES. The "std coverage" leg
+  it names is covered by composition: the integer-comparison occurrence
+  gate (`compilation-report`'s `terminal_product::integer_comparisons`,
+  repaired at `76dc49a99e`) runs on every published artifact — all
+  std-linked pass canaries and the benchmark subjects exercise it, and
+  `wrapping_square_sum` compiled + published through it on
+  windows_x86_64 / macos_arm64 / linux_arm64 at `f2f39039da`. The
+  dedicated pin is `compiler`'s `integer_comparison_publication` suite
+  (`selected_comparison_publication_preserves_complete_custody_among_builtins`,
+  witnessed PASS on linux x86-64), which requires complete custody coverage
+  for selected occurrences among builtins; provider coverage for genuinely
+  selected occurrences is the surviving residual and is what that pin
+  already checks. A separate std-wide sweep would duplicate the canary
+  corpus's own compile coverage. Siblings: INTEGER-COMPARISON-OCCURRENCE-
+  {PRODUCER,PRODUCER-COVERAGE,RETENTION}, COMPARISON-OCCURRENCE-PRODUCER-
+  COVERAGE, BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE.
+- **INTEL-MACOS-HOST-PROFILE** — mined candidate; verify scope then implement.
+  Verified scope: named alias of **MACOS-X64-HOST-PROFILE** (TASKS.md:5962)
+  — "Intel gap" is that row's own parenthetical. `TargetProfile::MacosX64`
+  already catalogues the host through checked admission (which refuses on
+  the missing `targets/macos_x86_64` provider package); the enumerated legs
+  are the `ProgramEntryPhysicalContractPackage::MacosX64` entry contract +
+  `targets/macos_x86_64/` source library, the x86-64 Mach-O writer
+  (`image_output.rs` refuses `(MachO, X86_64)`), the
+  `native_hosted_target()` cfg arm in `canary_suite.rs`, and a real
+  x86_64-apple-darwin host run. Every implementing surface is under that
+  item's live claims this wave (image-macho/image_output.rs +
+  macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
+  installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
+  all Devin / swarm-w9-macos-x64-host-profile).
+- **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
+- **INTRINSIC-PHYSICAL-SPAN-ARMS** — mined candidate; verify scope then implement.
 - **KNOWN-BASELINE-FAILURES-DOC-REFRESH.** Mined candidate; scope verified at
   `669925b8b9`: the item is a refresh sweep of
   `wiki/drafts/known_baseline_failures.md` — several board entries record
