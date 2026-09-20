@@ -505,20 +505,20 @@ mod close_tests {
         std::fs::write(root.join("child").join("a.omg"), b"captured").expect("rewrite member");
         // Inode numbers and both clocks can repeat inside one filesystem
         // tick; a permissions change keeps the replacement visible on them.
-        let mut readonly = std::fs::metadata(root.join("child"))
+        let original = std::fs::metadata(root.join("child"))
             .expect("read child metadata")
             .permissions();
+        let mut readonly = original.clone();
         readonly.set_readonly(true);
         std::fs::set_permissions(root.join("child"), readonly).expect("mark child readonly");
         assert!(matches!(
             fixture.close(&observation),
             Err(SourceResolveError::LocalSourceChanged { .. })
         ));
-        let mut writable = std::fs::metadata(root.join("child"))
-            .expect("read child metadata")
-            .permissions();
-        writable.set_readonly(false);
-        std::fs::set_permissions(root.join("child"), writable).expect("restore child permissions");
+        // Restore the mode the directory actually had. Clearing the readonly
+        // bit instead would hand it back world-writable on Unix, which is
+        // both wrong and what `permissions_set_readonly_false` rejects.
+        std::fs::set_permissions(root.join("child"), original).expect("restore child permissions");
         let _ = std::fs::remove_dir_all(&root);
     }
 
