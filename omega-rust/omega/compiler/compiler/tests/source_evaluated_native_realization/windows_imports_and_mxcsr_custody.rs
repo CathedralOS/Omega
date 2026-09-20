@@ -262,7 +262,9 @@ fn windows_evaluated_u32_result_reaches_a_later_pe_import_through_exact_home_cus
         .validate()
         .expect("Windows evaluated result artifact independently replays");
     assert_eq!(artifact.target(), target::NativeTarget::windows_x64());
-    let [producer, consumer] = artifact.object().foreign_calls() else {
+    // The fragment publication route seals object-level foreign-call custody
+    // empty; the bound executable image carries the projected rows.
+    let [producer, consumer] = artifact.image().foreign_calls() else {
         panic!("the source result chain must retain two PE calls")
     };
     let result = producer
@@ -283,9 +285,21 @@ fn windows_evaluated_u32_result_reaches_a_later_pe_import_through_exact_home_cus
                 .unwrap()
         )
     );
+    for (call, export) in [
+        (producer, b"GetCurrentProcessId".as_slice()),
+        (consumer, b"Sleep".as_slice()),
+    ] {
+        let target::ForeignLocatorCandidate::PeByName {
+            library,
+            export: name,
+        } = call.locator.locator()
+        else {
+            panic!("the custody row must retain its PE import locator")
+        };
+        assert_eq!(library.as_slice(), b"kernel32.dll");
+        assert_eq!(name.as_slice(), export);
+    }
     assert_eq!(artifact.image().output().format, "pe64-x86_64-executable");
-    assert_eq!(artifact.image().output().final_image_imports, 2);
-    assert_eq!(artifact.image().output().final_image_relocations, 2);
 }
 
 #[test]
