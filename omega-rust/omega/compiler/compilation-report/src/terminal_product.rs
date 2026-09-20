@@ -176,7 +176,9 @@ impl TerminalX86ScalarFmaAdmission {
 mod float_comparisons;
 mod integer_comparisons;
 use float_comparisons::validate_float_comparison_occurrences;
-use integer_comparisons::validate_integer_comparison_occurrences;
+use integer_comparisons::{
+    validate_integer_comparison_coverage, validate_integer_comparison_occurrences,
+};
 
 /// Source-free join from one canonical Terminal nearest-FMA operation to the
 /// exact selected plan that authored it and, on x86, its admitted deployment
@@ -335,8 +337,10 @@ impl TerminalIntegerComparisonOccurrenceProposal {
         )
     }
 
-    /// Check complete one-to-one association with the independently verified
-    /// Terminal operation roster. This does not establish source custody.
+    /// Check each supplied selected occurrence against its exact Terminal
+    /// operation and plan. Builtin comparisons need no selected occurrence.
+    /// Final proposal admission separately checks completeness against the
+    /// artifact-bound checked boundary scope.
     pub fn validate_roster(
         module: &terminal_psi::TerminalModule,
         plans: &[effects::provider_plan::ProviderPlan],
@@ -757,34 +761,13 @@ impl TerminalNativeRealizationProposal {
                 return Err("Terminal IEEE comparison changed its selected boundary realization");
             }
         }
-        validate_integer_comparison_occurrences(
+        validate_integer_comparison_coverage(
             &module,
             self.selected_provider_plans.plans(),
             &self.integer_comparison_occurrences,
+            self.boundary_application_coverage.realizations(),
+            &self.checked_boundary_operator_scope,
         )?;
-        for occurrence in &self.integer_comparison_occurrences {
-            let matching = self
-                .boundary_application_coverage
-                .realizations()
-                .rows()
-                .iter()
-                .filter(|row| row.terminal_operation() == occurrence.terminal_operation)
-                .collect::<Vec<_>>();
-            let [realization] = matching.as_slice() else {
-                return Err(
-                    "Terminal integer comparison requires one exact boundary realization companion",
-                );
-            };
-            if realization.selected_plan_digest() != occurrence.provider_plan_commitment.as_bytes()
-                || !matches!(realization.realization(),
-                    boundary_applications::BoundaryApplicationRealization::ExactCompilerIntrinsic { execution }
-                    if Some(*execution) == occurrence.execution_identity())
-            {
-                return Err(
-                    "Terminal integer comparison changed its selected boundary realization",
-                );
-            }
-        }
         let terminal_fma_operations = module
             .machines
             .iter()
