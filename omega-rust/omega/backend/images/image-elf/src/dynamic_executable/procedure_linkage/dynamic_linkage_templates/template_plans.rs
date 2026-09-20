@@ -3,6 +3,7 @@
 
 use crate::dynamic_executable::procedure_linkage::dynamic_import_relocations::ValidatedElfProcedureLinkageRelocationPlan;
 use diagnostics::Diagnostic;
+use image::FinalImageSection;
 
 /// Independently validated fixed template bytes and semantic fixups for the
 /// exact address-free procedure-linkage plan.
@@ -33,6 +34,10 @@ impl ValidatedElfProcedureLinkageTemplatePlan {
 
     pub fn procedure_relocation_byte_count(&self) -> usize {
         self.contents.bytes.rela_plt.len()
+    }
+
+    pub fn general_relocation_byte_count(&self) -> usize {
+        self.contents.bytes.rela_dyn.len()
     }
 
     pub fn fixup_count(&self) -> usize {
@@ -111,6 +116,7 @@ pub(crate) struct ElfProcedureLinkageTemplateBytes {
     pub(crate) plt: Vec<u8>,
     pub(crate) got_plt: Vec<u8>,
     pub(crate) rela_plt: Vec<u8>,
+    pub(crate) rela_dyn: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,6 +136,7 @@ pub(crate) enum ElfProcedureLinkageFixupStorage {
     Plt = 2,
     GotPlt = 3,
     RelaPlt = 4,
+    RelaDyn = 5,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,10 +155,24 @@ pub(crate) enum ElfProcedureLinkageFixupKind {
 pub(crate) enum ElfProcedureLinkageSemanticTarget {
     FutureDynamicSection,
     PltHeader,
-    PltEntry { logical_ordinal: u32 },
-    PltLazyTail { logical_ordinal: u32 },
-    GotPltHeaderWord { word_index: u8 },
-    GotPltSlot { logical_ordinal: u32 },
+    PltEntry {
+        logical_ordinal: u32,
+    },
+    PltLazyTail {
+        logical_ordinal: u32,
+    },
+    GotPltHeaderWord {
+        word_index: u8,
+    },
+    GotPltSlot {
+        logical_ordinal: u32,
+    },
+    /// One retained source-image section plus its section-relative slot
+    /// offset: the future `r_offset` of a general `.rela.dyn` row.
+    RelocatedImageSection {
+        section: FinalImageSection,
+        byte_offset: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -172,9 +172,9 @@ fn both_targets_append_exact_names_and_address_free_metadata() {
                 .section_name_seed_byte_count(),
             79,
         );
-        assert_eq!(plan.descriptor_count(), 10);
-        assert_eq!(plan.appended_descriptor_count(), 3);
-        assert_eq!(plan.section_name_seed_byte_count(), 103);
+        assert_eq!(plan.descriptor_count(), 11);
+        assert_eq!(plan.appended_descriptor_count(), 4);
+        assert_eq!(plan.section_name_seed_byte_count(), 113);
         assert_eq!(
             &plan.contents.section_name_table_seed[79..],
             PROCEDURE_LINKAGE_NAME_SUFFIX,
@@ -240,6 +240,23 @@ fn both_targets_append_exact_names_and_address_free_metadata() {
                 info: ElfProcedureLinkageSectionInfo::RelocatedSection(
                     ElfProcedureLinkageSectionKind::ProcedureGot,
                 ),
+            },
+        );
+        assert_eq!(
+            *row(
+                &plan.contents,
+                ElfProcedureLinkageSectionKind::GeneralRelocation,
+            ),
+            ElfProcedureLinkageSectionDescriptor {
+                kind: ElfProcedureLinkageSectionKind::GeneralRelocation,
+                name_offset: 103,
+                section_type: SHT_RELA,
+                flags: SHF_ALLOC | SHF_INFO_LINK,
+                payload_size: 0,
+                alignment: 8,
+                entry_size: 24,
+                link: ElfProcedureLinkageSectionLink::DynamicSymbol,
+                info: ElfProcedureLinkageSectionInfo::None,
             },
         );
         assert_ne!(

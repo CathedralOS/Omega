@@ -125,10 +125,23 @@ fn encode_template_bytes(
         write_u64(&mut rela_plt, info);
         write_u64(&mut rela_plt, relocation.addend as u64);
     }
+    let mut rela_dyn = Vec::with_capacity(checked_product(
+        linkage.general_relocations.len(),
+        ELF64_RELA_SIZE,
+        "general RELA template size",
+    )?);
+    for relocation in &linkage.general_relocations {
+        write_u64(&mut rela_dyn, 0);
+        let info = (u64::from(relocation.dynamic_symbol_index) << 32)
+            | u64::from(relocation.relocation_type);
+        write_u64(&mut rela_dyn, info);
+        write_u64(&mut rela_dyn, relocation.addend as u64);
+    }
     Ok(ElfProcedureLinkageTemplateBytes {
         plt,
         got_plt,
         rela_plt,
+        rela_dyn,
     })
 }
 
@@ -260,6 +273,18 @@ pub(crate) fn derive_fixups(
             ElfProcedureLinkageFixupKind::Elf64RelaOffset,
             ElfProcedureLinkageSemanticTarget::GotPltSlot {
                 logical_ordinal: relocation.logical_got_slot_ordinal,
+            },
+        );
+    }
+    for (index, relocation) in linkage.general_relocations.iter().enumerate() {
+        push_fixup(
+            &mut fixups,
+            ElfProcedureLinkageFixupStorage::RelaDyn,
+            checked_product(index, ELF64_RELA_SIZE, "general RELA r_offset")?,
+            ElfProcedureLinkageFixupKind::Elf64RelaOffset,
+            ElfProcedureLinkageSemanticTarget::RelocatedImageSection {
+                section: relocation.source_section,
+                byte_offset: relocation.source_offset,
             },
         );
     }

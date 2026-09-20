@@ -214,7 +214,7 @@ fn both_linux_targets_emit_exact_non_runnable_envelopes() {
     ] {
         let envelope = serialize_elf_dynamic_file_envelope(standard_resolved(target)).unwrap();
         assert_eq!(envelope.header_prefix_bytes().len(), 344);
-        assert_eq!(envelope.section_header_table_bytes().len(), 832);
+        assert_eq!(envelope.section_header_table_bytes().len(), 896);
         assert_ne!(
             envelope.non_authoritative_envelope_compatibility_fingerprint(),
             0,
