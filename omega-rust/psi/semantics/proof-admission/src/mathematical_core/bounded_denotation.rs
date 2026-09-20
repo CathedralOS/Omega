@@ -2407,6 +2407,16 @@ impl<'a> Elaboration<'a> {
                 for &index in &cited {
                     definitions.push(self.cited_axiom(index)?);
                 }
+                if let Some(evidence) = self.denotation.correlated_subtract_bound_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &proof.conclusion,
+                    &definitions,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
                 if let Some(evidence) = self.denotation.correlated_add_bound_evidence(
                     &root_bound.conclusion,
                     root,
