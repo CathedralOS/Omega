@@ -4790,11 +4790,21 @@ Owners include
     `accepted_build_requests_retain_in_lock_and_widened_requests_require_decisions`;
     verified w9 by `cargo nextest run -p package-evidence` and
     `cargo nextest run -p package-manager --test suite` on Linux x86-64).
-    Review choices still do not issue or withhold actual invocation grants,
-    and nothing gates execution on acceptance: new and widened request
-    acceptance through install/update commands, the benign snapshot/staging
-    exemption, recoverable review/resume, audit-only inspection, and the
-    execution-time grant join all remain. Do not implement an arbitrary
+    Review choices still do not issue or withhold actual invocation grants.
+    The execution-time grant join now gates the operations that consume a
+    fresh compile against an accepted lock — locked-source checking, checked
+    reporting, and native production reject each projected restricted build
+    request whose normalized meaning has no identical retained
+    `restricted_build_request` row for the same package identity and complete
+    checked context, surfacing the ungranted request rather than consuming its
+    generated sources
+    (`omega-rust/omega/packages/manager/src/review/restricted_build_grants.rs`,
+    `manager/tests/locked_source_checking/restricted_build_grants.rs`;
+    verified w9 by `cargo nextest run -p package-manager` on Linux x86-64).
+    New and widened request acceptance through install/update commands, the
+    benign snapshot/staging exemption, recoverable review/resume, audit-only
+    inspection, and a gate at the admitted-program evaluator itself all
+    remain. Do not implement an arbitrary
     recursive build API or a new host protocol as part of this join.
   - Bind restricted-request checkpoints to the existing `PackageCheckedContext`
     and generated handoff. Build/product occurrences already have independent
