@@ -6103,7 +6103,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GEOMETRY-ALIGNMENT-STRING-PARSING** — mined candidate; verify scope then implement.
 - **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
 - **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
-- **GEOMETRY-EVIDENCE-REFRESH** — mined candidate; verify scope then implement.
 - **GEOMETRY-NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
 - **GEOMETRY-NATIVE** — mined candidate; verify scope then implement.
 - **GEOMETRY-PARITY** — mined candidate; verify scope then implement.
