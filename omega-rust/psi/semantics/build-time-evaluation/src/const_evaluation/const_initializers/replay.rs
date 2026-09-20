@@ -190,6 +190,21 @@ pub(crate) fn validate(
             )
         })
         .collect::<Vec<_>>();
+    // The actual source recipe must precede specialization. Prepared target
+    // custody alone cannot distinguish another valid instance of one template.
+    for declaration in &replay_declarations {
+        let ordinal = leaves
+            .iter()
+            .position(|leaf| leaf.owner == declaration.symbol)
+            .ok_or_else(|| {
+                super::failure(
+                    declaration.initializer_source_span,
+                    "constant lost its authored replay owner",
+                )
+            })?;
+        validate_authored_custody(&probe, owners[ordinal].0, declaration)
+            .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+    }
     let checked =
         super::invocations::CheckedInitializers::prepare(&probe, authority, &probe_symbols)?;
     let program = checked.typed();
@@ -265,6 +280,29 @@ pub(crate) fn validate(
         })?;
     }
     Ok(())
+}
+
+fn validate_authored_custody(
+    program: &TypedTrees,
+    owner: symbols::SymbolHandle,
+    declaration: &typed_trees::constant::ConstDeclaration,
+) -> Result<(), String> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == owner)
+        .ok_or("constant lost its authored replay machine")?;
+    let [state] = program.machine_states(machine) else {
+        return Err("constant lost its authored replay state".into());
+    };
+    crate::const_evaluation::const_generic_expressions::validate_authored_initializer_call_custody(
+        program,
+        machine,
+        state,
+        declaration.authored_initializer,
+        declaration.materialized_initializer,
+    )
+    .map(|_| ())
 }
 
 fn float_destination(
@@ -350,6 +388,9 @@ fn validate_anonymous_float(
         original,
         declaration.declared_type,
     );
+    if has_calls {
+        validate_authored_custody(&probe, owner, declaration)?;
+    }
     let checked = has_calls
         .then(|| {
             super::invocations::CheckedInitializers::prepare(&probe, authority.clone(), &[owner])

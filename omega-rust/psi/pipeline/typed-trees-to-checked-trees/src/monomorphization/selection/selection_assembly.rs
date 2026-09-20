@@ -39,7 +39,7 @@ pub(crate) fn selection_for_call(
     // statement.
     let scope_limit =
         enclosing_statement_ordinal(program, caller_state, site).unwrap_or(usize::MAX);
-    collect_call_proposals(
+    let explicit_arguments = collect_call_proposals(
         program,
         caller_machine,
         caller_state,
@@ -58,7 +58,7 @@ pub(crate) fn selection_for_call(
         &mut const_proposals,
         &mut runtime_value_proposals,
     );
-    Some(selection_from_proposals(
+    let mut selection = selection_from_proposals(
         program,
         site,
         callee,
@@ -69,7 +69,10 @@ pub(crate) fn selection_for_call(
         type_proposals,
         const_proposals,
         runtime_value_proposals,
-    ))
+    );
+    selection.explicit_argument_overflow =
+        explicit_arguments == super::ExplicitArgumentCapacity::Exceeded;
+    Some(selection)
 }
 
 pub(crate) fn selection_from_proposals(
@@ -98,6 +101,7 @@ pub(crate) fn selection_from_proposals(
         machine_bindings: vec![None; candidate.template.machine_parameters.len()],
         evidence_bindings: vec![None; candidate.template.evidence_parameters.len()],
         conflicted: false,
+        explicit_argument_overflow: false,
     };
     for (_, parameter, argument) in runtime_value_proposals {
         // A runtime subject never conflicts: distinct argument values share
@@ -196,6 +200,8 @@ pub(crate) fn upsert_selection(selections: &mut Vec<CallSelection>, selection: C
         .iter_mut()
         .find(|existing| existing.site == selection.site)
     {
+        let explicit_argument_overflow =
+            existing.explicit_argument_overflow || selection.explicit_argument_overflow;
         let existing_evidence = existing
             .type_bindings
             .iter()
@@ -239,6 +245,7 @@ pub(crate) fn upsert_selection(selections: &mut Vec<CallSelection>, selection: C
         if new_evidence >= existing_evidence {
             *existing = selection;
         }
+        existing.explicit_argument_overflow = explicit_argument_overflow;
     } else {
         selections.push(selection);
     }

@@ -327,9 +327,10 @@ pub(crate) fn is_scalar_return_computation(
     else {
         return false;
     };
+    // Static arguments belong to ordinary checked specialization, not a
+    // different expression schedule. Hoisting them here loses the scalar
+    // constant probe before its complete application can be checked.
     !call.receiver.is_valid()
-        && call.machine_arguments.is_empty()
-        && call.evidence_arguments.is_empty()
         && !is_integer_embedding_call(lowerer, call)
         && !matches!(call.target.as_str(), "min" | "max" | "sqrt")
 }

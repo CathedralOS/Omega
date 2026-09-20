@@ -29,6 +29,12 @@ use crate::monomorphization::{
     CallSelection, CalleeState, Candidate, collect_statement_expression_trees, const_arguments,
 };
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ExplicitArgumentCapacity {
+    WithinBounds,
+    Exceeded,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn collect_call_proposals(
     program: &TypedTrees,
@@ -48,11 +54,11 @@ pub(super) fn collect_call_proposals(
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     runtime_value_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
-) {
+) -> ExplicitArgumentCapacity {
     let Some(callee) = resolve_callee(callee_states, target_symbol, target_name) else {
-        return;
+        return ExplicitArgumentCapacity::WithinBounds;
     };
-    collect_machine_proposals_for_callee(
+    let explicit_arguments = collect_machine_proposals_for_callee(
         program,
         candidates,
         callee,
@@ -64,6 +70,9 @@ pub(super) fn collect_call_proposals(
         const_proposals,
         runtime_value_proposals,
     );
+    if explicit_arguments.is_err() {
+        return ExplicitArgumentCapacity::Exceeded;
+    }
 
     // An explicit bound is selected before compatibility. It must not conflict
     // with an ordinary argument's narrower declared endpoint.
@@ -161,6 +170,7 @@ pub(super) fn collect_call_proposals(
             const_proposals,
         );
     }
+    ExplicitArgumentCapacity::WithinBounds
 }
 
 pub(super) fn collect_call_selections(
@@ -323,12 +333,30 @@ pub(super) fn collect_call_selections(
         }
     }
 
+    // Retained constant initializers are source recipes, not executable sites.
+    // Rewriting their detached calls would erase the original application tuple
+    // needed by independent constant replay. A private evaluation probe activates
+    // its recipe in an executable body, which the scans above still specialize.
+    let mut initializer_recipes = Vec::new();
+    for declaration in program.const_declarations() {
+        if declaration.authored_initializer.is_valid() {
+            collect_expression_tree(
+                program,
+                declaration.authored_initializer,
+                &mut initializer_recipes,
+            );
+        }
+    }
+
     // Calls outside executable states have no caller argument context, but explicit
     // static-machine arguments still determine a complete tuple through the
     // authored machine requirement. Preserve the old all-expression scan for
     // precisely that case.
     for (handle, expression) in program.expression_table.iter_expressions() {
-        if covered_expressions.contains(&handle) || contract_expressions.contains(&handle) {
+        if covered_expressions.contains(&handle)
+            || contract_expressions.contains(&handle)
+            || initializer_recipes.contains(&handle)
+        {
             continue;
         }
         let ExpressionNode::Call(call) = expression else {
@@ -349,7 +377,7 @@ pub(super) fn collect_call_selections(
         let mut runtime_value_proposals = Vec::new();
         // Calls outside executable states have no argument evaluation edge
         // that could carry a runtime subject.
-        collect_machine_proposals_for_callee(
+        let explicit_arguments = collect_machine_proposals_for_callee(
             program,
             candidates,
             callee,
@@ -361,7 +389,7 @@ pub(super) fn collect_call_selections(
             &mut const_proposals,
             &mut runtime_value_proposals,
         );
-        let selection = selection_from_proposals(
+        let mut selection = selection_from_proposals(
             program,
             CallSite::Expression(handle),
             callee,
@@ -373,6 +401,7 @@ pub(super) fn collect_call_selections(
             const_proposals,
             runtime_value_proposals,
         );
+        selection.explicit_argument_overflow = explicit_arguments.is_err();
         upsert_selection(&mut selections, selection);
     }
 

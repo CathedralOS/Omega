@@ -12,6 +12,10 @@ use crate::monomorphization::{
     candidate, collect_call_selections, materialize_static_argument_types,
 };
 
+/// An explicit argument has no binder slot of its selected kind. Omitted
+/// arguments can still be inferred; excess arguments cannot be discarded.
+pub(crate) struct StaticArgumentOverflow;
+
 pub(crate) fn collect_machine_proposals_for_callee(
     program: &TypedTrees,
     candidates: &[Candidate],
@@ -23,7 +27,7 @@ pub(crate) fn collect_machine_proposals_for_callee(
     type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
     runtime_value_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
-) {
+) -> Result<(), StaticArgumentOverflow> {
     let candidate = &candidates[callee.candidate_index];
     let mut type_index = 0usize;
     let mut const_index = 0usize;
@@ -31,9 +35,10 @@ pub(crate) fn collect_machine_proposals_for_callee(
     let mut evidence_index = 0usize;
     for selected in machine_arguments {
         if selected.type_reference.is_valid() {
-            if type_index < candidate.template.type_parameters.len() {
-                type_proposals.push((callee.candidate_index, type_index, selected.type_reference));
+            if type_index >= candidate.template.type_parameters.len() {
+                return Err(StaticArgumentOverflow);
             }
+            type_proposals.push((callee.candidate_index, type_index, selected.type_reference));
             type_index += 1;
             continue;
         }
@@ -41,6 +46,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
         // closed value. Keep this call incomplete until the caller specializes;
         // neither range inference nor a later explicit argument may fill it.
         if const_arguments::forwarded_type(program, selected).is_valid() {
+            if const_index >= candidate.template.const_parameters.len() {
+                return Err(StaticArgumentOverflow);
+            }
             if let Some(binding) = program
                 .type_reference_table
                 .find_named_type_reference(selected.symbol)
@@ -51,21 +59,30 @@ pub(crate) fn collect_machine_proposals_for_callee(
             continue;
         }
         if let Some(literal) = const_arguments::spelling(program, selected) {
-            if const_index < candidate.template.const_parameters.len()
-                && let Some((handle, _, _)) = program
-                    .type_reference_table
-                    .named_references()
-                    .find(|(_, symbol, name)| !symbol.is_valid() && *name == literal)
+            if const_index >= candidate.template.const_parameters.len() {
+                return Err(StaticArgumentOverflow);
+            }
+            if let Some((handle, _, _)) = program
+                .type_reference_table
+                .named_references()
+                .find(|(_, symbol, name)| !symbol.is_valid() && *name == literal)
             {
                 const_proposals.push((callee.candidate_index, const_index, handle));
-                const_index += 1;
             }
+            const_index += 1;
             continue;
         }
         // A `Value` binder admits an ordinary runtime subject. Its slot binds
         // the declared carrier so every runtime argument of that carrier shares
         // one specialization; the resolved argument later becomes an appended
         // ordinary call argument.
+        if const_index >= candidate.template.const_parameters.len()
+            && let Some((scope_state, scope_limit)) = runtime_scope
+            && const_arguments::resolve_runtime_subject(program, scope_state, scope_limit, selected)
+                .is_some()
+        {
+            return Err(StaticArgumentOverflow);
+        }
         if const_index < candidate.template.const_parameters.len()
             && candidate
                 .template
@@ -98,32 +115,35 @@ pub(crate) fn collect_machine_proposals_for_callee(
             kind,
             SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
         ) {
-            if type_index < candidate.template.type_parameters.len()
-                && let Some((handle, _, _)) = program
-                    .type_reference_table
-                    .named_references()
-                    .find(|(_, symbol, _)| *symbol == selected.symbol)
+            if type_index >= candidate.template.type_parameters.len() {
+                return Err(StaticArgumentOverflow);
+            }
+            if let Some((handle, _, _)) = program
+                .type_reference_table
+                .named_references()
+                .find(|(_, symbol, _)| *symbol == selected.symbol)
             {
                 type_proposals.push((callee.candidate_index, type_index, handle));
-                type_index += 1;
             }
+            type_index += 1;
             continue;
         }
         if matches!(
             kind,
             SymbolKind::Conformance | SymbolKind::ConformanceParameter
         ) {
-            if evidence_index < candidate.template.evidence_parameters.len() {
-                evidence_proposals.push((callee.candidate_index, evidence_index, selected.clone()));
-                evidence_index += 1;
+            if evidence_index >= candidate.template.evidence_parameters.len() {
+                return Err(StaticArgumentOverflow);
             }
+            evidence_proposals.push((callee.candidate_index, evidence_index, selected.clone()));
+            evidence_index += 1;
             continue;
         }
         if !matches!(kind, SymbolKind::State | SymbolKind::MachineParameter) {
             continue;
         }
         if machine_index >= candidate.template.machine_parameters.len() {
-            continue;
+            return Err(StaticArgumentOverflow);
         }
         machine_proposals.push((callee.candidate_index, machine_index, selected.clone()));
         let requirement = &candidate.template.machine_parameters[machine_index].2;
@@ -166,6 +186,7 @@ pub(crate) fn collect_machine_proposals_for_callee(
             const_proposals,
         );
     }
+    Ok(())
 }
 
 pub(crate) fn resolve_callee<'a>(

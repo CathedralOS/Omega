@@ -196,7 +196,7 @@ pub(super) fn collect(
     public: bool,
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(program, machine, state, &[root], public, Some(syntax))
+    collect_internal(program, machine, state, &[root], public, Some(syntax), true)
 }
 
 /// The same closure walk over several expression roots: a structured leaf
@@ -211,7 +211,7 @@ pub(super) fn collect_roots(
     public: bool,
     syntax: &SyntaxTrees,
 ) -> Result<Custody, String> {
-    collect_internal(program, machine, state, roots, public, Some(syntax))
+    collect_internal(program, machine, state, roots, public, Some(syntax), true)
 }
 
 pub(super) fn validate_retained(
@@ -220,6 +220,30 @@ pub(super) fn validate_retained(
     state: &State,
     root: ExpressionHandle,
     materialized: ExpressionHandle,
+) -> Result<Vec<DependencyValue>, String> {
+    validate(program, machine, state, root, materialized, true)
+}
+
+/// Before private specialization, the retained recipe must still select its
+/// authored declarations. A different instance of the same template cannot
+/// replace that recipe, even if it happens to return the same value.
+pub(super) fn validate_authored(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    root: ExpressionHandle,
+    materialized: ExpressionHandle,
+) -> Result<Vec<DependencyValue>, String> {
+    validate(program, machine, state, root, materialized, false)
+}
+
+fn validate(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    root: ExpressionHandle,
+    materialized: ExpressionHandle,
+    specialized_calls: bool,
 ) -> Result<Vec<DependencyValue>, String> {
     if !program.expression_table.expression_is_valid(materialized) {
         return Err("constant call receipt has a stale materialized root".into());
@@ -244,7 +268,15 @@ pub(super) fn validate_retained(
             expected.push(target);
         }
     }
-    let actual = collect_internal(program, machine, state, &[root], false, None)?;
+    let actual = collect_internal(
+        program,
+        machine,
+        state,
+        &[root],
+        false,
+        None,
+        specialized_calls,
+    )?;
     if actual.call_targets.len() != expected.len()
         || actual
             .call_targets
@@ -265,6 +297,7 @@ fn collect_internal(
     roots: &[ExpressionHandle],
     public: bool,
     syntax: Option<&SyntaxTrees>,
+    specialized_calls: bool,
 ) -> Result<Custody, String> {
     let context = Context {
         machine,
@@ -275,6 +308,7 @@ fn collect_internal(
         program,
         syntax,
         public,
+        specialized_calls,
         custody: Custody::default(),
         expressions: roots.iter().rev().map(|root| (*root, context)).collect(),
         machines: Vec::new(),
@@ -314,6 +348,7 @@ struct Collector<'program> {
     program: &'program TypedTrees,
     syntax: Option<&'program SyntaxTrees>,
     public: bool,
+    specialized_calls: bool,
     custody: Custody,
     expressions: Vec<(ExpressionHandle, Context<'program>)>,
     machines: Vec<SymbolHandle>,
@@ -321,6 +356,60 @@ struct Collector<'program> {
 }
 
 impl<'program> Collector<'program> {
+    fn authored_target(
+        &self,
+        target: SymbolHandle,
+        initializer: bool,
+    ) -> Result<SymbolHandle, String> {
+        // Only detached recipes retain unmodified call tuples. Executable helper
+        // bodies may already be specialized by an earlier ordinary checking pass.
+        if initializer && !self.specialized_calls {
+            return Ok(target);
+        }
+        let symbol = self.program.symbols.get(target);
+        let owner = match symbol.kind {
+            SymbolKind::Machine => target,
+            SymbolKind::State => symbol.parent,
+            _ => return Ok(target),
+        };
+        let mut instances = self
+            .program
+            .machine_specializations
+            .iter()
+            .filter(|instance| instance.instance == owner);
+        let Some(instance) = instances.next() else {
+            return Ok(target);
+        };
+        if instances.next().is_some() {
+            return Err("constant call has ambiguous specialization custody".into());
+        }
+        if symbol.kind == SymbolKind::Machine {
+            return Ok(instance.template);
+        }
+        let concrete = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == instance.instance)
+            .ok_or("constant call lost its concrete specialization")?;
+        let template = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == instance.template)
+            .ok_or("constant call lost its authored template")?;
+        let states = self.program.machine_states(concrete);
+        let templates = self.program.machine_states(template);
+        if states.len() != concrete.states.len() || templates.len() != states.len() {
+            return Err("constant call specialization lost its state correspondence".into());
+        }
+        let ordinal = states
+            .iter()
+            .position(|state| state.symbol == target)
+            .ok_or("constant call has no exact specialization state")?;
+        Ok(templates[ordinal].symbol)
+    }
+
     fn retained_call(
         &mut self,
         target: SymbolHandle,
@@ -336,14 +425,21 @@ impl<'program> Collector<'program> {
             .ok_or("constant call lost its authored selection occurrence")?;
         if selection.kind() != Kind::Call
             || selection.source_span() != reference
-            || !matches!(selection.target(), Target::Resolved(selected) if selected.selected_symbol() == target)
+            || !matches!(selection.target(), Target::Resolved(selected) if selected.selected_symbol() == self.authored_target(target, false)?)
         {
             return Err("constant call differs from its exact authored selection".into());
         }
-        self.call(target, reference)
+        self.call(target, reference, false)
     }
 
-    fn call(&mut self, target: SymbolHandle, reference: SourceSpan) -> Result<(), String> {
+    fn call(
+        &mut self,
+        target: SymbolHandle,
+        reference: SourceSpan,
+        initializer: bool,
+    ) -> Result<(), String> {
+        let executable = target;
+        let target = self.authored_target(target, initializer)?;
         let symbol = self.program.symbols.get(target);
         let machine = match symbol.kind {
             SymbolKind::Machine => target,
@@ -392,7 +488,13 @@ impl<'program> Collector<'program> {
         if !self.custody.call_targets.contains(&(reference, target)) {
             self.custody.call_targets.push((reference, target));
         }
-        self.machines.push(machine);
+        let executable_symbol = self.program.symbols.get(executable);
+        self.machines
+            .push(if executable_symbol.kind == SymbolKind::State {
+                executable_symbol.parent
+            } else {
+                executable
+            });
         Ok(())
     }
 
@@ -549,6 +651,8 @@ impl<'program> Collector<'program> {
         let children = expression_children(program, expression)?;
         match table.expression(expression) {
             ExpressionNode::Call(call) => {
+                let authored_target =
+                    self.authored_target(call.target_symbol, context.initializer)?;
                 let mut selections = table
                     .authored_selection_occurrences(expression)
                     .filter_map(|occurrence| {
@@ -557,7 +661,7 @@ impl<'program> Collector<'program> {
                     .filter(|selection| {
                         selection.kind() == Kind::Call
                             && matches!(selection.target(), Target::Resolved(selected)
-                            if selected.selected_symbol() == call.target_symbol)
+                            if selected.selected_symbol() == authored_target)
                     });
                 let reference = selections
                     .next()
@@ -566,7 +670,7 @@ impl<'program> Collector<'program> {
                 if selections.next().is_some() {
                     return Err("constant call has ambiguous authored target selections".into());
                 }
-                self.call(call.target_symbol, reference)?;
+                self.call(call.target_symbol, reference, context.initializer)?;
             }
             ExpressionNode::Name(name)
                 if program.symbols.get(name.symbol).kind == SymbolKind::Const =>
@@ -864,7 +968,7 @@ mod tests {
         *retained.expression_table.expression_mut(call_expression) =
             ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(7));
         assert!(
-            collect_internal(&retained, machine, state, &[*expression], false, None).is_err(),
+            collect_internal(&retained, machine, state, &[*expression], false, None, true).is_err(),
             "erasing the call cannot leave its authored occurrence unaccounted for"
         );
         assert!(

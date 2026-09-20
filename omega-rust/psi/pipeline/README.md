@@ -687,7 +687,16 @@ and Boolean-selected results while preserving format and exact bits. These
 floating values remain ineligible as generic/domain indices. The
 [initializer admission owner](../semantics/build-time-evaluation/README.md#semantic-admission-boundary)
 checks concrete crash discharge before execution and repeats it during receiving
-replay. Specialized generic/provider calls, aggregate-producing expressions,
+replay. Closed type- and const-generic helper applications use ordinary checked
+specialization, including nested calls with integer, Boolean and floating results.
+Detached initializer recipes retain the authored target and static argument tuple;
+receiving replay validates that custody before independently specializing and
+evaluating a private probe. Specialization commitments do not authorize replacing
+the recipe with another instance of the same template. The
+`module_machine_indices::machine_initializers` and native
+`scalar_case_results::generic_constants` tests carry these results through
+source-free artifacts and matching-host execution. Selected provider applications,
+aggregate-producing expressions,
 selected floating operations, aggregate floating values and public NaN
 initializers still need their complete evaluation and
 explicit representation contexts. Closed module-owned
