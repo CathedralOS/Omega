@@ -10,7 +10,7 @@ the accepted whole-source artifact.
 
 The marked test entry plus the exact thirty-two-member source closure is 3,415
 lines, 130,574 bytes, SHA-256
-`94468627ee0b6154f1b95a0dc8b1ad7aa95818332566e11880b13aefd8c49b56`.
+`821150c880278ed80c03a3fb0d6a49127fcb2fa6aa158e1baa89d2bd952fd56e`.
 Its only admitted input is empty; framing occupies 130,578 bytes. Nonempty input
 returns status 1 without publishing output. The fixed emitted section is
 116,900 bytes, SHA-256
