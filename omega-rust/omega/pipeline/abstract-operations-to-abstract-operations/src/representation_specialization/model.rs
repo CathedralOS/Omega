@@ -11,17 +11,19 @@ use super::{
 /// folded constant retains (`psi_operation`), which value it still defines
 /// (`result`), the established place it observed (`source` produced by
 /// `producer`), the case the source asked about (`observed_case`), the case
-/// the establishment fixed (`established_case`), and the proven verdict
-/// (`outcome`, always `established_case == observed_case`).
+/// the establishment fixed (`proven_case`), and the proven verdict
+/// (`outcome`, always `proven_case == observed_case`). `producer` is `Some`
+/// when the verdict is establishment-derived and `None` when the place's
+/// declared sole-case roster proves the case independently of any producer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedCaseMembership {
     pub(super) site: NodeLocation,
     pub(super) psi_operation: OperationId,
     pub(super) result: semantic_vocabulary::ValueId,
     pub(super) source: PlaceId,
-    pub(super) producer: OperationId,
+    pub(super) producer: Option<OperationId>,
     pub(super) observed_case: StructuralCaseId,
-    pub(super) established_case: StructuralCaseId,
+    pub(super) proven_case: StructuralCaseId,
     pub(super) outcome: bool,
 }
 
@@ -46,8 +48,9 @@ impl ResolvedCaseMembership {
         self.source
     }
 
-    /// The `EstablishScalarCase` producer identity for the observed place.
-    pub const fn producer(&self) -> OperationId {
+    /// The `EstablishScalarCase` producer identity for the observed place,
+    /// or `None` when the place's sole-case roster proves the verdict.
+    pub const fn producer(&self) -> Option<OperationId> {
         self.producer
     }
 
@@ -56,9 +59,9 @@ impl ResolvedCaseMembership {
         self.observed_case
     }
 
-    /// The case the establishment fixed for the observed place.
-    pub const fn established_case(&self) -> StructuralCaseId {
-        self.established_case
+    /// The case the observed place is proven to hold.
+    pub const fn proven_case(&self) -> StructuralCaseId {
+        self.proven_case
     }
 
     /// The proven membership verdict folded into the constant.
@@ -74,7 +77,7 @@ pub struct CaseMembershipSpecializationCandidate {
     pub(super) output: OptimizationUnitIdentity,
     pub(super) machine: MachineId,
     pub(super) place: PlaceId,
-    pub(super) producer: OperationId,
+    pub(super) producer: Option<OperationId>,
     pub(super) memberships: Vec<ResolvedCaseMembership>,
 }
 
@@ -95,13 +98,14 @@ impl CaseMembershipSpecializationCandidate {
         self.machine
     }
 
-    /// The established operation-result place whose case observations fold.
+    /// The place whose case observations fold.
     pub const fn place(&self) -> PlaceId {
         self.place
     }
 
-    /// The `EstablishScalarCase` identity that fixed the place's case.
-    pub const fn producer(&self) -> OperationId {
+    /// The `EstablishScalarCase` identity that fixed the place's case, or
+    /// `None` when the place's declared sole-case roster proves it.
+    pub const fn producer(&self) -> Option<OperationId> {
         self.producer
     }
 
@@ -163,8 +167,9 @@ pub enum CaseMembershipSpecializationError {
         current: OptimizationUnitIdentity,
     },
     /// No specialization plan exists for the claimed place: either the
-    /// machine holds an authenticated cyclic component, the place is not an
-    /// `EstablishScalarCase` operation result, or it no longer exists.
+    /// machine holds an authenticated cyclic component, the place carries no
+    /// case proof — neither an `EstablishScalarCase` producer nor a declared
+    /// sole-case roster — or it no longer exists.
     UnknownPlace,
     /// The place exists but currently has no foldable membership left.
     AlreadySpecialized,
@@ -194,16 +199,19 @@ impl std::fmt::Display for CaseMembershipSpecializationError {
 
 impl std::error::Error for CaseMembershipSpecializationError {}
 
-/// The independently derived specialization plan for one established place:
+/// The independently derived specialization plan for one proven place:
 /// every empty-path `StructuralCaseMembership` observing it, sorted by node
-/// location. Proposal and validation both recompute this plan; the candidate
-/// is accepted only when its claimed rows equal the replayed plan exactly.
+/// location. `producer` is `Some` when the place's `EstablishScalarCase`
+/// operation result proves the case and `None` when the place's declared
+/// type is a closed roster of one case. Proposal and validation both
+/// recompute this plan; the candidate is accepted only when its claimed rows
+/// equal the replayed plan exactly.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct EstablishedCasePlan {
+pub(super) struct CaseMembershipPlan {
     pub(super) machine: MachineId,
     pub(super) place: PlaceId,
-    pub(super) producer: OperationId,
-    pub(super) established_case: StructuralCaseId,
+    pub(super) producer: Option<OperationId>,
+    pub(super) proven_case: StructuralCaseId,
     pub(super) memberships: Vec<ResolvedCaseMembership>,
 }
 
@@ -231,9 +239,14 @@ pub(super) fn candidate_identity(
         canonical.extend_from_slice(&row.psi_operation.get().to_le_bytes());
         canonical.extend_from_slice(&row.result.get().to_le_bytes());
         canonical.extend_from_slice(&row.source.get().to_le_bytes());
-        canonical.extend_from_slice(&row.producer.get().to_le_bytes());
+        canonical.extend_from_slice(
+            &row.producer
+                .map(|producer| producer.get())
+                .unwrap_or(0)
+                .to_le_bytes(),
+        );
         canonical.extend_from_slice(&row.observed_case.get().to_le_bytes());
-        canonical.extend_from_slice(&row.established_case.get().to_le_bytes());
+        canonical.extend_from_slice(&row.proven_case.get().to_le_bytes());
         canonical.push(u8::from(row.outcome));
     }
     OptimizationCandidateIdentity::from_canonical_bytes(&canonical)

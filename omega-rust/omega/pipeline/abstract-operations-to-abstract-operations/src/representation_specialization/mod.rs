@@ -1,28 +1,33 @@
-//! Optimizer module role: executable entrance. Established-case membership specialization boundary.
+//! Optimizer module role: executable entrance. Proven-case membership specialization boundary.
 //!
-//! One bounded specialization family: a `StructuralCaseMembership` observation
-//! whose `source` place is declared `StructuralPlaceKind::OperationResult` and
-//! whose producer node in the same function is an `EstablishScalarCase` reads
-//! a place whose case is fixed at establishment — the operation-result place
-//! is assigned exactly once by its producer and no operation can rewrite it,
-//! so the membership's Boolean answer is `result_case == case` at every
-//! observation site. The traversal "observe the established case" specializes
-//! into `BooleanConstant` at the same node: the result keeps its value
-//! identity, the node keeps its `PsiProvenance::Operation` custody and fuel
-//! settlement, and successors, definitions, uses, and ownership events are
-//! unchanged.
+//! One bounded specialization family: a `StructuralCaseMembership`
+//! observation whose `source` place carries a case the unit itself proves
+//! folds to a `BooleanConstant` holding that verdict. Two proofs qualify.
+//! Establishment: the place is declared `StructuralPlaceKind::OperationResult`
+//! and its producer node in the same function is an `EstablishScalarCase` —
+//! the operation-result place is assigned exactly once by its producer and
+//! no operation can rewrite it. Sole-case roster: the place's declared
+//! structural type is a closed `Sum` or `Mixed` roster of exactly one case,
+//! so every inhabitant of the place holds that case independently of how it
+//! arrived — parameters, results, and non-`EstablishScalarCase` producers
+//! all qualify. In either proof the membership's Boolean answer is
+//! `proven_case == case` at every observation site. The traversal "observe
+//! the proven case" specializes into `BooleanConstant` at the same node: the
+//! result keeps its value identity, the node keeps its
+//! `PsiProvenance::Operation` custody and fuel settlement, and successors,
+//! definitions, uses, and ownership events are unchanged.
 //!
-//! Memberships on parameter, block-parameter, result, or any non-case
-//! producer places are not covered; memberships carrying a non-empty path
-//! observe a nested position the root case does not determine and decline.
-//! Only machines absent from the authenticated Terminal-cycle component
-//! roster are eligible: a machine containing a verified cyclic component is
-//! frozen byte-exact under `validate_frozen_component_blocks`. Proposal,
-//! independent validation, and application are separate boundaries; the
-//! candidate pins the exact input and output revision identities, the
-//! specialized place, the producer operation, and every folded observation's
-//! site, custody identity, and verdict, so replay rejects forged or stale
-//! rows by recomputation rather than trust.
+//! Memberships on places whose declared type holds more than one case and
+//! carries no `EstablishScalarCase` producer are not covered; memberships
+//! carrying a non-empty path observe a nested position the root case does
+//! not determine and decline. Only machines absent from the authenticated
+//! Terminal-cycle component roster are eligible: a machine containing a
+//! verified cyclic component is frozen byte-exact under
+//! `validate_frozen_component_blocks`. Proposal, independent validation, and
+//! application are separate boundaries; the candidate pins the exact input
+//! and output revision identities, the specialized place, the proof basis,
+//! and every folded observation's site, custody identity, and verdict, so
+//! replay rejects forged or stale rows by recomputation rather than trust.
 
 use optimization_core::{
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity,
@@ -51,7 +56,7 @@ pub use model::{
     CaseMembershipSpecializationError, ResolvedCaseMembership,
     ValidatedCaseMembershipSpecialization,
 };
-use model::{EstablishedCasePlan, candidate_identity};
+use model::{CaseMembershipPlan, candidate_identity};
 
 pub fn propose_case_membership_specializations(
     session: &VerifiedPsiOptimizationSession,

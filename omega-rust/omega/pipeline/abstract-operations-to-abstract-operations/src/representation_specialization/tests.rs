@@ -44,13 +44,35 @@ const TWO_MEMBERSHIPS_SOURCE: &str = r#"
     }
 "#;
 
-/// A membership on a machine parameter place carries no establishment proof:
-/// the parameter arrives with whatever case the caller supplied, so nothing
-/// may specialize.
+/// A membership on a machine parameter place over a multi-case roster
+/// carries no establishment proof and no sole-case roster: the parameter
+/// arrives with whatever case the caller supplied, so nothing may
+/// specialize.
 const PARAMETER_SOURCE: &str = r#"
     data Choice { case Empty; case Some(value: u32); }
     machine probe(c: Choice) -> bool {
         c in Choice::Some
+    }
+"#;
+
+/// A membership on a machine parameter place whose declared sum roster holds
+/// exactly one case: the roster alone proves the case regardless of caller,
+/// so the observation folds to `true`.
+const SOLE_CASE_PARAMETER_SOURCE: &str = r#"
+    data Tag { case Only; }
+    machine probe(t: Tag) -> bool {
+        t in Tag::Only
+    }
+"#;
+
+/// A locally established single-case sum still folds through the
+/// establishment proof: the `EstablishScalarCase` producer is the basis, not
+/// the roster.
+const SOLE_CASE_LOCAL_SOURCE: &str = r#"
+    data Tag { case Only; }
+    machine probe() -> bool {
+        let t: Tag = Tag::Only;
+        t in Tag::Only
     }
 "#;
 
@@ -78,7 +100,7 @@ fn established_case_membership_folds_to_proven_verdict() {
     };
     assert_eq!(candidate.machine(), machine);
     assert_eq!(candidate.place(), place);
-    assert_eq!(candidate.producer(), producer);
+    assert_eq!(candidate.producer(), Some(producer));
     assert_eq!(candidate.input(), unit.identity);
     assert_ne!(candidate.output(), unit.identity);
     let [row] = candidate.memberships() else {
@@ -88,9 +110,9 @@ fn established_case_membership_folds_to_proven_verdict() {
     assert_eq!(row.psi_operation(), membership.0);
     assert_eq!(row.result(), membership.1);
     assert_eq!(row.source(), place);
-    assert_eq!(row.producer(), producer);
+    assert_eq!(row.producer(), Some(producer));
     assert_eq!(row.observed_case(), membership.2);
-    assert_eq!(row.established_case(), established);
+    assert_eq!(row.proven_case(), established);
     assert!(row.outcome());
 
     // The proposal is deterministic and the folded site identity is bound
@@ -298,7 +320,7 @@ fn unobserved_establishment_yields_no_candidate() {
         output: unit.identity,
         machine,
         place,
-        producer,
+        producer: Some(producer),
         memberships: Vec::new(),
     };
     assert_eq!(
@@ -344,7 +366,7 @@ fn replay_rejects_forged_membership_rows() {
 
     // A forged producer identity.
     let mut forged = candidate.clone();
-    forged.producer = forged.memberships[0].psi_operation;
+    forged.producer = Some(forged.memberships[0].psi_operation);
     assert_eq!(
         validate_case_membership_specialization(&session, &forged).err(),
         Some(CaseMembershipSpecializationError::CandidateMismatch)
@@ -463,8 +485,8 @@ fn transformed_replay_rejects_forged_folded_custody() {
         folded.provenance,
         vec![PsiProvenance::Operation(row.psi_operation())]
     );
-    folded.provenance[0] = PsiProvenance::Operation(row.producer());
-    folded.fuel[0].site = PsiProvenance::Operation(row.producer());
+    folded.provenance[0] = PsiProvenance::Operation(row.producer().expect("establishment basis"));
+    folded.fuel[0].site = PsiProvenance::Operation(row.producer().expect("establishment basis"));
     corrupted.identity = recompute_psi_optimization_unit_identity(&corrupted);
     let mut forged = candidate.clone();
     forged.output = corrupted.identity;
@@ -508,6 +530,115 @@ fn transformed_replay_rejects_forged_folded_custody() {
         )
         .is_ok(),
         "the applied folded revision revalidates independently"
+    );
+}
+
+#[test]
+fn sole_case_parameter_membership_folds_without_producer() {
+    let session = lowered_session_entry(SOLE_CASE_PARAMETER_SOURCE, "sole-case parameter", "probe");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+    let function = &unit.functions[0];
+    let place = function
+        .structural_places
+        .iter()
+        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
+        .expect("parameter place exists")
+        .id;
+    let (site, membership) = membership_on(&unit, machine, place).expect("membership exists");
+
+    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    assert_eq!(candidate.machine(), machine);
+    assert_eq!(candidate.place(), place);
+    assert_eq!(candidate.producer(), None);
+    let [row] = candidate.memberships() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site(), site);
+    assert_eq!(row.psi_operation(), membership.0);
+    assert_eq!(row.source(), place);
+    assert_eq!(row.producer(), None);
+    assert_eq!(row.observed_case(), row.proven_case());
+    assert!(row.outcome());
+
+    let validated =
+        validate_case_membership_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_case_membership_specialization(session, validated).expect("apply");
+    let folded = &applied.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::BooleanConstant { value: true, .. }
+    ));
+    assert!(
+        propose_case_membership_specializations(applied.session(), 4)
+            .expect("fixed-point proposal runs")
+            .is_empty(),
+        "the specialization reaches a fixed point"
+    );
+}
+
+#[test]
+fn sole_case_local_keeps_establishment_basis() {
+    let session = lowered_session_entry(SOLE_CASE_LOCAL_SOURCE, "sole-case local", "probe");
+    let unit = session.unit();
+    let machine = unit.functions[0].machine;
+    let (place, producer, _) = established_place(unit, machine);
+
+    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one specialization candidate")
+    };
+    assert_eq!(candidate.producer(), Some(producer));
+    let [row] = candidate.memberships() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.source(), place);
+    assert!(row.outcome());
+}
+
+#[test]
+fn replay_rejects_forged_roster_rows() {
+    let session = lowered_session_entry(SOLE_CASE_PARAMETER_SOURCE, "sole-case parameter", "probe");
+    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one specialization candidate")
+    };
+
+    // Claiming a producer on a roster-proven row mismatches the replayed plan.
+    let mut forged = candidate.clone();
+    forged.producer = Some(forged.memberships[0].psi_operation);
+    assert_eq!(
+        validate_case_membership_specialization(&session, &forged).err(),
+        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    );
+    let mut forged = candidate.clone();
+    forged.memberships[0].producer = Some(forged.memberships[0].psi_operation);
+    assert_eq!(
+        validate_case_membership_specialization(&session, &forged).err(),
+        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    );
+
+    // A forged proven case on the roster basis mismatches too.
+    let mut forged = candidate.clone();
+    forged.memberships[0].proven_case =
+        semantic_vocabulary::StructuralCaseId::new(forged.memberships[0].proven_case.get() + 7)
+            .expect("forged case identity");
+    assert_eq!(
+        validate_case_membership_specialization(&session, &forged).err(),
+        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    );
+
+    assert!(
+        validate_case_membership_specialization(&session, candidate).is_ok(),
+        "the exact roster candidate still validates"
     );
 }
 
