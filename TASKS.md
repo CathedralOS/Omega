@@ -7479,7 +7479,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   last group is a Psi crate, so it cannot take `optimization-core` (an Omega
   representation) as a dev-dependency without crossing the firewall and
   needs the harness relocated to a shared foundation crate first.
-- **CUSTODY-MUTATION-COVERAGE** — mined candidate; verify scope then implement.
+- **CUSTODY-MUTATION-COVERAGE.** — mined candidate; scope verified at
+  `ded56393da` (linux x86-64, claim 6f8aad97 until 05:23Z): the stub
+  re-mines the optimizer-board item of the same name
+  (`TASKS_OPTIMIZER.md:249`). Verified on the claimed surface:
+  `compilation-report/src/pcc/native_evidence/custody_tests.rs` is already
+  fully on the shared harness — `custody_field_inventory!` declares
+  `NativePlacedImageEvidenceFieldForTest::INVENTORY` and
+  `run_one_field_substitution_matrix` drives the matrix (converted by
+  `05577e4eec`); `native_placed_image_evidence_rejects_every_one_field_substitution`
+  plus both publication-receipt matrices PASS (10/10 in-filter). The
+  residual legacy files the optimizer row names (the ~15k-line six-file
+  set) all sit under sibling fences at verification: image-emission's two
+  `artifacts/installation_*_custody` files under ENTRY-CONTENT-ROOTS,
+  executable-installation `tests.rs` under WIRE-RUNTIME-AND-INSTALLATION
+  (~02:09Z), component-publication `tests.rs` under
+  BACKEND-RUNTIME-STARTUP-MECHANICS (~22:18Z), terminal-codec
+  `tests/artifact/*` under CUSTODY-MATRIX-HARNESS-MIGRATION (~01:36Z), and
+  topology `custody_substitution.rs` under TOPOLOGY-PLAN-VERIFICATION.
+  Conversion is CUSTODY-MATRIX-HARNESS-MIGRATION's item; families with no
+  declared `*FieldForTest` vocabulary at all are the remaining coverage
+  axis the `custody_mutation_matrix` architecture ratchet guards. No
+  unclaimed implementing slice existed under this stub.
 - **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT** — mined candidate; verify scope then implement.
   Verified scope at `0e8bb1bdad`: re-mines the OMEGA-D clause
   (`TASKS_BOOTSTRAP.md`, "Its diagnostic scalar entry adapter is not
