@@ -123,8 +123,11 @@ pub(crate) fn project_terminal_native_realization_proposal(
         artifact,
         &checked_boundary_operator_scope,
     )?;
-    let (boundary_application_demands, boundary_application_realizations) =
-        boundary_application_coverage.into_parts();
+    let (
+        boundary_application_demands,
+        boundary_application_realizations,
+        boundary_opaque_applications,
+    ) = boundary_application_coverage.into_parts();
     let external_binding_rows = callback_closed_external_binding_rows(
         checked,
         &terminal_module,
@@ -152,6 +155,11 @@ pub(crate) fn project_terminal_native_realization_proposal(
             checked_program_entry,
             selected_provider_plans: checked.selected_provider_plans().clone(),
             external_binding_rows,
+            // The proposal retains the exact selected-application commitment
+            // at each by-value opaque edge while the checked signature custody
+            // still exists; artifacts compared across an exchange must carry
+            // the same set.
+            boundary_opaque_applications,
             package_terminal_authority_permissions,
             compiler_builtins: builtin_proposals,
             callback_occurrences,

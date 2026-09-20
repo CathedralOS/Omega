@@ -12,6 +12,7 @@ path = "src/lib.rs"
 arena = { path = "../../../psi/foundation/arena" }
 artifacts = { path = "../../tooling/artifacts" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
+boundary-applications = { path = "../../representations/boundary-applications" }
 build-declarations = { path = "../../build/build-declarations" }
 build-evaluation = { path = "../../build/build-evaluation" }
 build-output = { path = "../../build/build-output" }

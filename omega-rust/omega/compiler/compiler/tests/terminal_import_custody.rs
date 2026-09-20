@@ -153,6 +153,7 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
                 checked_program_entry: proposal.checked_program_entry().clone(),
                 selected_provider_plans: proposal.selected_provider_plans().clone(),
                 external_binding_rows: rows,
+                boundary_opaque_applications: proposal.boundary_opaque_applications().clone(),
                 package_terminal_authority_permissions: proposal
                     .package_terminal_authority_permissions()
                     .to_vec(),

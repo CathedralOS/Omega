@@ -122,6 +122,7 @@ dependencies = [
  "arena",
  "artifacts",
  "backend-plan",
+ "boundary-applications",
  "build-declarations",
  "build-evaluation",
  "build-output",

@@ -445,6 +445,10 @@ pub struct TerminalNativeRealizationInputs {
     pub checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     pub selected_provider_plans: effects::SelectedProviderPlanFacts,
     pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+    /// Exact selected opaque applications used by value across the retained
+    /// signatures, canonicalized by the producing checked compilation.
+    pub boundary_opaque_applications:
+        boundary_applications::BoundaryOpaqueRepresentationApplications,
     pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     pub callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
@@ -476,6 +480,7 @@ impl TerminalNativeRealizationProposal {
             checked_program_entry,
             selected_provider_plans,
             external_binding_rows,
+            boundary_opaque_applications,
             mut package_terminal_authority_permissions,
             compiler_builtins,
             callback_occurrences,
@@ -491,7 +496,11 @@ impl TerminalNativeRealizationProposal {
             boundary_applications::TerminalBoundaryApplicationCoverage::new(
                 boundary_application_demands,
                 boundary_application_realizations,
-            )?;
+            )?
+            // Opaque custody rejoins coverage so every artifact, replay, and
+            // install record built from this coverage carries the identical
+            // selected-application set.
+            .with_opaque_applications(boundary_opaque_applications);
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
                 .as_bytes()
@@ -1174,6 +1183,16 @@ impl TerminalNativeRealizationProposal {
         &self,
     ) -> &boundary_applications::TerminalBoundaryApplicationCoverage {
         &self.boundary_application_coverage
+    }
+
+    /// Strong selected-application custody for every by-value opaque boundary
+    /// edge this artifact's signatures carry. Native realization binds the
+    /// identical set into the native artifact; a consumer artifact must carry
+    /// the same commitments at the same edges for an exchange to agree.
+    pub const fn boundary_opaque_applications(
+        &self,
+    ) -> &boundary_applications::BoundaryOpaqueRepresentationApplications {
+        self.boundary_application_coverage.opaque_applications()
     }
 }
 

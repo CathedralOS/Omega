@@ -453,6 +453,33 @@ impl CheckedCompilation {
         &self.execution.boundary_calling_plan_realizations
     }
 
+    /// Canonical source-free custody of every opaque application actually used
+    /// by value across this compilation's boundary signatures: one strong
+    /// `selected_application_commitment` per requirement edge and shape
+    /// coordinate. Producer and consumer artifacts compare this exact set;
+    /// retained arena identities are deliberately absent.
+    pub fn boundary_opaque_applications(
+        &self,
+    ) -> Result<boundary_applications::BoundaryOpaqueRepresentationApplications, &'static str> {
+        let rows = self
+            .execution
+            .boundary_calling_plan_realizations
+            .iter()
+            .flat_map(|realization| {
+                let signature = realization.materialized_signature();
+                signature.opaque_representation_uses().iter().map(|use_| {
+                    boundary_applications::BoundaryOpaqueRepresentationApplication {
+                        requirement_identity: signature.owner_requirement_identity().to_owned(),
+                        shape_root: use_.shape_root(),
+                        application_report_fingerprint: use_.application_report_fingerprint(),
+                        selected_application_commitment: use_.selected_application_commitment(),
+                    }
+                })
+            })
+            .collect();
+        boundary_applications::BoundaryOpaqueRepresentationApplications::new(rows)
+    }
+
     /// Exact named optimizations selected by the authoritative root build.
     /// Empty executes each applicable optimization phase as a validated
     /// identity transformation; it does not select an optimizer-free path.
