@@ -7,8 +7,9 @@ use super::{
     ServiceReachSummary, unsupported,
 };
 use checked_trees::{
-    CheckedComposedUnitControlMachinePlan, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
+    CheckedComposedUnitControlMachinePlan, CheckedErasedProofParameterPlan,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralParameterPlan,
 };
 
 #[derive(Clone, Copy)]
@@ -24,6 +25,7 @@ pub(crate) struct UnitEntry<'a> {
     pub(crate) scalar_parameters: &'a [CheckedStructuralScalarParameterPlan],
     /// Proof-only erased scalar formals in authored order.
     pub(crate) erased_scalar_parameters: &'a [CheckedStructuralScalarParameterPlan],
+    pub(crate) erased_proof_parameters: &'a [CheckedErasedProofParameterPlan],
     pub(crate) entry_claims: &'a [CheckedUnitEntryClaimPlan],
     pub(crate) contract_report_fingerprint: u64,
     pub(crate) contract_service_reach: ServiceReachPlan,
@@ -94,6 +96,7 @@ impl<'a> UnitBody<'a> {
                 structural_parameters: &plan.structural_parameters,
                 scalar_parameters: &plan.scalar_parameters,
                 erased_scalar_parameters: &plan.erased_scalar_parameters,
+                erased_proof_parameters: &plan.erased_proof_parameters,
                 entry_claims: &plan.entry_claims,
                 contract_report_fingerprint: plan.contract_report_fingerprint,
                 contract_service_reach: plan.contract_service_reach,
@@ -108,6 +111,7 @@ impl<'a> UnitBody<'a> {
                     structural_parameters: &state.structural_parameters,
                     scalar_parameters: &state.scalar_parameters,
                     erased_scalar_parameters: &state.erased_scalar_parameters,
+                    erased_proof_parameters: &state.erased_proof_parameters,
                     entry_claims: &state.entry_claims,
                     contract_report_fingerprint: plan.contract_report_fingerprint,
                     contract_service_reach: plan.contract_service_reach,

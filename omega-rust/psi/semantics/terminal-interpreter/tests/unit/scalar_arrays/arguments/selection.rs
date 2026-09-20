@@ -33,6 +33,7 @@ fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> Termin
             target: block_id(10001),
             arguments: vec![],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![],
             trivial_affine_discards: vec![],
         },
@@ -41,6 +42,7 @@ fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> Termin
             target: block_id(10002),
             arguments: vec![],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![],
             trivial_affine_discards: vec![],
         },
@@ -48,6 +50,7 @@ fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> Termin
     for (identity, operations) in [(10001, operations), (10002, vec![])] {
         caller.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(identity),
             parameters: vec![],
             structural_parameters: vec![],
@@ -57,6 +60,7 @@ fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> Termin
                 target: block_id(10003),
                 arguments: vec![],
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: vec![],
                 trivial_affine_discards: vec![],
                 residual_affine_discards: vec![],
@@ -65,6 +69,7 @@ fn selected_module(dimensions: &[u64], leaves: &[TerminalScalarValue]) -> Termin
     }
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(10003),
         parameters: vec![],
         structural_parameters: vec![],

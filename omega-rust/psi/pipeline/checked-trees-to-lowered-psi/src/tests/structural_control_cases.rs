@@ -437,6 +437,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                     },
                                 ],
                                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![1],
                             },
                             when_false: checked_trees::CheckedStructuralControlSuccessorPlan {
@@ -457,6 +458,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                     },
                                 ],
                                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![0],
                             },
                         },
@@ -604,6 +606,7 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
                 primitive_type: PrimitiveType::I32,
             }],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discard_parameter_positions: Vec::new(),
         };
     plan.states[1].terminator = CheckedStructuralUnitControlTerminatorPlan::Conditional {

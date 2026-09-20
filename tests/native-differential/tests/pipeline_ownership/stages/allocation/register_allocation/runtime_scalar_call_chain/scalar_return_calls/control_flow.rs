@@ -140,6 +140,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     middle.parameters.push(declaration(28_106));
     let successor = |raw| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         edge: edge(raw),
         target: block(raw),
@@ -148,6 +149,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     };
     let arm = |raw, literal| Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block(raw),
         parameters: Vec::new(),
@@ -159,6 +161,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
                 result: OperationResult::Scalar(declaration(raw + 1)),
                 kind: OperationKind::Call {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee,
                     arguments: vec![value(raw)],
                     requirement_obligations: Vec::new(),
@@ -168,6 +171,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
         ],
         terminator: Terminator::Jump {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             edge: edge(raw + 1),
             target: block(28_170),
@@ -179,6 +183,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
     middle.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: middle.entry,
             parameters: Vec::new(),
@@ -205,6 +210,7 @@ pub(super) fn branch_call_artifact(equal: bool) -> (Vec<u8>, Vec<u8>) {
         arm(28_160, 41),
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block(28_170),
             parameters: vec![declaration(28_170)],

@@ -16,7 +16,8 @@ use checked_trees::{
     CheckedBooleanExpression, ClosedScalarContractValue, ClosedScalarValueContractPlan,
 };
 use semantic_vocabulary::{
-    ClaimId, PlaceId, QualifiedScalarType, ScalarType, StructuralFieldId, StructuralTypeId,
+    ClaimId, PlaceId, ProofTerm, QualifiedScalarType, ScalarType, StructuralFieldId,
+    StructuralTypeId,
 };
 use terminal_psi::{
     CrashCause as TerminalCrashCause, StructuralArgument, StructuralParameterDeclaration,
@@ -37,6 +38,8 @@ pub(crate) enum LoweredScalarBranchTerminator {
         arguments: Vec<LoweredDirectExpression>,
         /// Proof-only erased actuals for the successor state's erased roster.
         erased_arguments: Vec<LoweredDirectExpression>,
+        /// Erased proof-only actuals for the successor state's proof roster.
+        erased_proof_arguments: Vec<ProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
         trivial_affine_discards: Vec<PlaceId>,
     },
@@ -45,9 +48,11 @@ pub(crate) enum LoweredScalarBranchTerminator {
         when_true_target: usize,
         when_true_arguments: Vec<LoweredDirectExpression>,
         when_true_erased_arguments: Vec<LoweredDirectExpression>,
+        when_true_erased_proof_arguments: Vec<ProofTerm>,
         when_false_target: usize,
         when_false_arguments: Vec<LoweredDirectExpression>,
         when_false_erased_arguments: Vec<LoweredDirectExpression>,
+        when_false_erased_proof_arguments: Vec<ProofTerm>,
     },
     Return {
         expression: LoweredDirectExpression,
@@ -69,6 +74,10 @@ pub(crate) struct LoweredScalarBranchState {
     pub(crate) parameter_types: Vec<QualifiedScalarType>,
     /// Proof-only erased formals in authored order — the block's erased roster.
     pub(crate) erased_formal_types: Vec<QualifiedScalarType>,
+    /// Erased proof-only formals the emitted block declares: the source
+    /// state's roster for authored states, the enclosing caller roster for
+    /// expansion states — `ProofTerm::Formal` positions index it.
+    pub(crate) erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     pub(crate) bindings: Vec<LoweredScalarBinding>,
     /// Effects execute after the scalar prefix, without creating scalar slots.
     pub(crate) structural_effects: Vec<LoweredScalarEffect>,
@@ -96,6 +105,9 @@ pub(crate) struct LoweredUnitCall {
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) target_state: symbols::SymbolHandle,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
+    /// Erased proof-only actuals in the callee's erased-proof roster order.
+    /// `Formal` positions index the caller state's erased-proof roster.
+    pub(crate) erased_proof_arguments: Vec<ProofTerm>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
     pub(crate) crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }

@@ -14,6 +14,7 @@ fn natural_topology_rejects_a_preserving_cross_cycle() {
     let machine = &mut module.machines[0];
     let edge = |number, target, arguments| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: id(number, EdgeId::new),
         target: id(target, BlockId::new),
         arguments,
@@ -27,6 +28,7 @@ fn natural_topology_rejects_a_preserving_cross_cycle() {
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(5, BlockId::new),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -36,6 +38,7 @@ fn natural_topology_rejects_a_preserving_cross_cycle() {
             target: id(3, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),

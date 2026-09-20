@@ -46,6 +46,7 @@ fn unit_call_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: helper.id,
             arguments: vec![entry.parameters[0].id, newline],
             structural_arguments: vec![terminal_psi::StructuralArgument {

@@ -6,6 +6,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan,
 };
+use crate::checked_trees::values::CheckedProofTerm;
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
 
@@ -220,6 +221,9 @@ pub struct CheckedStructuralControlSuccessorPlan {
     /// Proof-only erased actuals pairing the target's erased formals with the
     /// retained scalar expressions recorded at the transition.
     pub erased_arguments: Vec<CheckedStructuralScalarArgumentPlan>,
+    /// Erased proof-only actuals in the target's erased-proof roster order.
+    /// They carry semantic identity, never a runtime operand.
+    pub erased_proof_arguments: Vec<CheckedProofTerm>,
     pub trivial_affine_discard_parameter_positions: Vec<u32>,
 }
 

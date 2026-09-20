@@ -29,6 +29,10 @@ pub(super) struct MachineSignature {
     pub scalar_parameters: Vec<ValueDeclaration>,
     /// Proof-only erased scalar formals in authored order.
     pub erased_scalar_parameters: Vec<ValueDeclaration>,
+    /// Erased proof-only formals in authored order. The checked roster is
+    /// retained (not just emitted declarations) because `Formal` actuals
+    /// resolve positions by parameter symbol.
+    pub erased_proof_parameters: Vec<checked_trees::CheckedErasedProofParameterPlan>,
     pub predicate_parameters: Vec<StructuralParameterDeclaration>,
     pub claims: LoweredUnitClaims,
     /// Every `requires` row the emitted contract carries, in order: closed
@@ -115,6 +119,7 @@ pub(super) fn lower(
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
+        let erased_proof_parameters = plan.erased_proof_parameters.to_vec();
         // Claims stay machine-local: unrelated callees cannot shift these IDs.
         let claims =
             lower_unit_entry_claims(plan.machine, plan.state, plan.entry_claims, &parameters)?;
@@ -123,6 +128,7 @@ pub(super) fn lower(
             parameters,
             scalar_parameters,
             erased_scalar_parameters,
+            erased_proof_parameters,
             predicate_parameters: Vec::new(),
             claims,
             requires: Vec::new(),

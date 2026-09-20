@@ -75,6 +75,7 @@ fn store_module(block_home: bool) -> TerminalModule {
             target: id(2),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: id(1),
                 path: Vec::new(),
@@ -85,6 +86,7 @@ fn store_module(block_home: bool) -> TerminalModule {
         };
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(2),
             parameters: Vec::new(),
             structural_parameters: vec![parameter],

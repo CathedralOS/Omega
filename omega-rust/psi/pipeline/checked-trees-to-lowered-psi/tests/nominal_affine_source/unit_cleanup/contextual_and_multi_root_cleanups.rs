@@ -274,6 +274,7 @@ fn contextual_nominal_cleanup_crosses_source_lowering_codec_and_verifier() {
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: mutator.id,
                 arguments: Vec::new(),
                 structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -784,6 +785,7 @@ fn two_nominal_roots_allow_one_executable_cleanup_in_reverse_order() {
             let OperationKind::CallUnit {
                 arguments,
                 erased_arguments: _,
+                erased_proof_arguments: _,
                 callee,
                 structural_arguments,
                 claim_transfers,

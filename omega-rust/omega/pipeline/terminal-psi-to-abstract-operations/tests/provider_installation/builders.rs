@@ -198,6 +198,7 @@ fn machine(
         entry: block,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block,
             parameters: Vec::new(),
@@ -209,6 +210,7 @@ fn machine(
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract,
             crash_routes: Vec::new(),
             requires: Vec::new(),

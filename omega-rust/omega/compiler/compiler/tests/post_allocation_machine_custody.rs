@@ -53,6 +53,7 @@ fn calling_module() -> TerminalModule {
     };
     let contract = |id: u64| MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: ContractId::new(id).unwrap(),
         requires: Vec::new(),
         ensures: Vec::new(),
@@ -82,6 +83,7 @@ fn calling_module() -> TerminalModule {
         entry,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: entry,
             parameters: Vec::new(),
@@ -131,6 +133,7 @@ fn calling_module() -> TerminalModule {
                     callee: MachineId::new(2).unwrap(),
                     arguments: vec![ValueId::new(14).unwrap()],
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
                 },

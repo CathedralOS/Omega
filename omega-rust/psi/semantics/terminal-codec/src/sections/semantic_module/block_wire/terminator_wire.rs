@@ -5,6 +5,7 @@ use super::super::contract_wire::{
     decode_crash_predicate, decode_successor_edge, encode_crash_predicate, encode_successor_edge,
 };
 use super::super::wire::{Reader, Writer};
+use crate::sections::semantic_module::proof_term_wire::{decode_proof_terms, encode_proof_terms};
 use crate::sections::semantic_module::scalar_term_wire::{
     decode_scalar_terms, encode_scalar_terms,
 };
@@ -33,6 +34,7 @@ pub(super) fn encode_terminator(
             target,
             arguments,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             trivial_affine_discards,
             residual_affine_discards,
@@ -50,6 +52,7 @@ pub(super) fn encode_terminator(
                 writer.id(*argument);
             }
             encode_scalar_terms(writer, erased_arguments)?;
+            encode_proof_terms(writer, erased_proof_arguments)?;
             encode_structural_arguments(writer, structural_arguments)?;
             writer.len(
                 "jump trivial affine discards",
@@ -225,6 +228,7 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                 target,
                 arguments,
                 erased_arguments: decode_scalar_terms(reader)?,
+                erased_proof_arguments: decode_proof_terms(reader)?,
                 structural_arguments: decode_structural_arguments(reader)?,
                 trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
                 residual_affine_discards: if tag == 10 {

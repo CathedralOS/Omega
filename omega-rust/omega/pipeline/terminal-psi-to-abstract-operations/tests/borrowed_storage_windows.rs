@@ -174,6 +174,7 @@ fn window_machine(access: StructuralAccess) -> TerminalMachine {
         entry: id::<BlockId>(1),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id::<BlockId>(1),
             parameters: Vec::new(),
@@ -185,6 +186,7 @@ fn window_machine(access: StructuralAccess) -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id::<ContractId>(1),
             crash_routes: Vec::new(),
             requires: Vec::new(),

@@ -270,6 +270,7 @@ fn projected_unit_calls_compose_each_callee_bound_in_call_order() {
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: machine_id(701),
                 structural_arguments: vec![StructuralArgument {
@@ -434,6 +435,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
     callee.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(2),
             parameters: Vec::new(),
@@ -446,6 +448,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
                     target: block_id(3),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -454,12 +457,14 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
                     target: block_id(4),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     trivial_affine_discards: Vec::new(),
                 },
             },
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(3),
             parameters: Vec::new(),
@@ -472,6 +477,7 @@ fn mixed_call_outcomes_do_not_cross_product_crash_and_caller_return_costs() {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(4),
             parameters: Vec::new(),

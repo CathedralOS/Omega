@@ -60,6 +60,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
             entry,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -71,6 +72,7 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(3_504).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -173,6 +175,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let contract = |id| MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id,
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -256,6 +259,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 entry: BlockId::new(3_610).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(3_610).unwrap(),
                     parameters: Vec::new(),
@@ -265,6 +269,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             arguments: Vec::new(),
                             callee,
                             structural_arguments: caller_places
@@ -305,6 +310,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 entry: BlockId::new(3_614).unwrap(),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: BlockId::new(3_614).unwrap(),
                     parameters: Vec::new(),

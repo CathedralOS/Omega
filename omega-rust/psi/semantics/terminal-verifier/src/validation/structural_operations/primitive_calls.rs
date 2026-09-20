@@ -55,6 +55,7 @@ pub(crate) fn validate_primitive_structural_call(
             callee,
             arguments,
             erased_arguments: _,
+            erased_proof_arguments: _,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,

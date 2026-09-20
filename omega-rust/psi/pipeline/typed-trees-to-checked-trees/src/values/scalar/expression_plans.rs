@@ -34,6 +34,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    proof_terms: &mut Vec<checked_trees::CheckedLocatedProofTerm>,
 ) -> CheckedScalarExpressionPlans {
     let mut expressions = Vec::new();
     let mut source_bindings = arena::Arena::default();
@@ -166,6 +167,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &scalar_parameters,
                                 &locals,
                                 &mut expressions,
+                                proof_terms,
                                 &mut source_bindings,
                                 &mut binding_symbols,
                             );
@@ -208,6 +210,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     &scalar_parameters,
                                     &locals,
                                     &mut expressions,
+                                    proof_terms,
                                     &mut source_bindings,
                                     &mut binding_symbols,
                                 );
@@ -370,6 +373,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &scalar_parameters,
                                 &locals,
                                 &mut expressions,
+                                proof_terms,
                                 &mut source_bindings,
                                 &mut binding_symbols,
                             );
@@ -495,6 +499,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &scalar_parameters,
                                 &locals,
                                 &mut expressions,
+                                proof_terms,
                                 &mut source_bindings,
                                 &mut binding_symbols,
                             );
@@ -579,6 +584,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 &scalar_parameters,
                                 &locals,
                                 &mut expressions,
+                                proof_terms,
                                 &mut source_bindings,
                                 &mut binding_symbols,
                             );

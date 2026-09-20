@@ -15,6 +15,7 @@ pub(super) fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationU
         TerminalMachineResult::Unit,
         vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: entry_block,
             parameters: Vec::new(),
@@ -45,6 +46,7 @@ pub(super) fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationU
         entry: private_block,
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: private_block,
             parameters: Vec::new(),
@@ -56,6 +58,7 @@ pub(super) fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationU
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: ContractId::new(1_047).unwrap(),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -78,12 +81,14 @@ pub(super) fn adjacent_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
             vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: entry,
                     parameters: Vec::new(),
                     operations: Vec::new(),
                     terminator: Terminator::Jump {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_054).unwrap(),
                         target,
@@ -94,6 +99,7 @@ pub(super) fn adjacent_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: target,
                     parameters: Vec::new(),
@@ -135,6 +141,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
         vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -143,6 +150,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                     condition,
                     when_true: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_512).unwrap(),
                         target: predecessor,
@@ -151,6 +159,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                     },
                     when_false: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_513).unwrap(),
                         target: sibling,
@@ -161,6 +170,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: descendant,
                 parameters: Vec::new(),
@@ -181,6 +191,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: target,
                 parameters: vec![boolean(target_parameter)],
@@ -194,6 +205,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 }],
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_517).unwrap(),
                     target: descendant,
@@ -204,6 +216,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: sibling,
                 parameters: Vec::new(),
@@ -216,6 +229,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: predecessor,
                 parameters: Vec::new(),
@@ -227,6 +241,7 @@ pub(super) fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit
                 }],
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_519).unwrap(),
                     target,
@@ -264,6 +279,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
         vec![
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: entry,
                 parameters: Vec::new(),
@@ -272,6 +288,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                     condition,
                     when_true: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_069).unwrap(),
                         target: left,
@@ -280,6 +297,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                     },
                     when_false: SuccessorEdge {
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
                         edge: EdgeId::new(1_070).unwrap(),
                         target: right,
@@ -290,6 +308,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: left,
                 parameters: Vec::new(),
@@ -301,6 +320,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                 }],
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_072).unwrap(),
                     target,
@@ -311,6 +331,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: right,
                 parameters: Vec::new(),
@@ -322,6 +343,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
                 }],
                 terminator: Terminator::Jump {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     edge: EdgeId::new(1_074).unwrap(),
                     target,
@@ -332,6 +354,7 @@ pub(super) fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
             },
             Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: target,
                 parameters: Vec::new(),

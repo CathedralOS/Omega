@@ -58,12 +58,12 @@ pub(super) fn validate_supported_shapes(program: &TypedTrees, diagnostics: &mut 
 }
 
 /// Erased signature parameters on a runtime machine occupy no position in the
-/// checked calling plan, and the plan builder admits them only when a scalar
-/// slot can carry the erased actual. A record, enum, or proof-only formal such
-/// as `Nat` has no such carrier until the contract term lane exists, so the
-/// plan omission would otherwise surface with no name. Proof machines are
-/// exempt: their erased formals are proof-side occurrences that never need a
-/// runtime plan.
+/// checked calling plan, and the plan builder admits them through one of two
+/// erased lanes: a scalar slot for a primitive carrier, or the contract term
+/// lane for a proof-only carrier such as `Nat`. A runtime record or enum
+/// formal has neither carrier, so its plan omission would otherwise surface
+/// with no name. Proof machines are exempt: their erased formals are
+/// proof-side occurrences that never need a runtime plan.
 fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     let proof_only = typed_trees::proof_only::classify(program);
     for machine in program.machines() {
@@ -84,8 +84,16 @@ fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mu
                 {
                     continue;
                 }
+                // A proof-only carrier such as `Nat` admits no scalar lane,
+                // so it reaches the contract term lane by identity instead.
+                if proof_only
+                    .proof_only_mention(program, parameter.type_reference)
+                    .is_some()
+                {
+                    continue;
+                }
                 diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}::{}` erased parameter `{}` is not scalar; an erased formal on a runtime machine needs a scalar lane until contract terms can carry it",
+                    "machine `{}::{}` erased parameter `{}` is not scalar; an erased formal on a runtime machine needs a scalar lane or a proof-only carrier",
                     machine.name, state.name, parameter.name,
                 )));
             }

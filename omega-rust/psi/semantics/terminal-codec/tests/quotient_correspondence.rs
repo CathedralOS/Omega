@@ -205,6 +205,7 @@ fn module_with(quotient_correspondences: Vec<RetainedQuotientCorrespondence>) ->
             entry: BlockId::new(1).unwrap(),
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: BlockId::new(1).unwrap(),
                 parameters: Vec::new(),
@@ -216,6 +217,7 @@ fn module_with(quotient_correspondences: Vec<RetainedQuotientCorrespondence>) ->
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),
@@ -231,7 +233,7 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     let module = module_with(vec![correspondence("Public::apply")]);
     validate_module_representation(&module).expect("representation replay");
     let bytes = encode_module(&module).expect("quotient correspondence encodes");
-    assert_eq!(&bytes[8..10], 103_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 104_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         terminal_psi::VocabularyMarker::CURRENT.get().to_le_bytes()

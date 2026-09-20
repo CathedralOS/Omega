@@ -58,8 +58,12 @@ fn indexed_byte_arithmetic_captures_materialized_bounds() {
         } else {
             selected.candidate_count = 1;
         }
-        let plans =
-            crate::values::build_checked_scalar_expression_plans(&checked.typed, &operators, &[]);
+        let plans = crate::values::build_checked_scalar_expression_plans(
+            &checked.typed,
+            &operators,
+            &[],
+            &mut Vec::new(),
+        );
         assert!(
             !plans.expressions.iter().any(|expression| matches!(
                 expression.expression,

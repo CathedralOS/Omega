@@ -64,6 +64,7 @@ fn provider_attachment_verifier_keeps_callee_requirements_independent() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -1241,6 +1242,7 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: second_helper.id,
                 structural_arguments: Vec::new(),
@@ -1276,6 +1278,7 @@ fn two_nominal_affine_roots_allow_distinct_and_shared_executable_cleanup_bodies(
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: helper.id,
                 structural_arguments: Vec::new(),

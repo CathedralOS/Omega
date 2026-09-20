@@ -17,6 +17,7 @@ use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
@@ -69,6 +70,11 @@ pub(crate) struct Evaluation {
     /// The enclosing signature's erased scalar formals, for `ErasedParameter`
     /// positions inside proof-only call actuals lowered in this namespace.
     pub erased_scalar_formals: Vec<ValueDeclaration>,
+    /// The enclosing signature's erased proof-only roster, in checked order.
+    /// Every emitted block redeclares it and every internal edge forwards it,
+    /// so `ProofTerm::Formal` positions stay in scope across the evaluation's
+    /// private joins.
+    pub erased_proof_formals: Vec<checked_trees::CheckedErasedProofParameterPlan>,
     pub entry: BlockId,
     pub current: BlockId,
     pub parameters: Vec<ValueDeclaration>,
@@ -120,6 +126,7 @@ impl Evaluation {
             structural_fields: self.structural_fields.clone(),
             structural_cases: self.structural_cases.clone(),
             erased_scalar_formals: self.erased_scalar_formals.clone(),
+            erased_proof_formals: self.erased_proof_formals.clone(),
             entry: self.entry,
             current: block,
             parameters: Vec::new(),
@@ -478,6 +485,7 @@ impl Evaluation {
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: erased_proof_formal_declarations(&self.erased_proof_formals),
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 structural_arguments: Vec::new(),
@@ -485,6 +493,7 @@ impl Evaluation {
                 target: continuation,
                 arguments: values.iter().map(|value| value.id).collect(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: self.proof_formal_forwarding(),
                 residual_affine_discards: residuals,
                 trivial_affine_discards: discards,
             },
@@ -512,6 +521,7 @@ impl Evaluation {
             structural_cases: Vec::new(),
             structural_parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             entry,
             current: entry,
             parameters: Vec::new(),
@@ -519,6 +529,16 @@ impl Evaluation {
             operation_start: 0,
             blocks: Vec::new(),
         })
+    }
+
+    /// Forward the whole erased-proof roster positionally: the identity edge
+    /// arguments a private join passes when it redeclares the caller roster.
+    fn proof_formal_forwarding(&self) -> Vec<semantic_vocabulary::ProofTerm> {
+        (0..self.erased_proof_formals.len())
+            .map(|position| semantic_vocabulary::ProofTerm::Formal {
+                position: u32::try_from(position).expect("erased-proof roster positions fit u32"),
+            })
+            .collect()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -726,6 +746,7 @@ impl Evaluation {
         )
         .with_arrays(&self.arrays)
         .with_cases(&self.cases)
+        .enter_proof_scope(&self.erased_proof_formals)
         .with_fields(&self.record_fields);
         let entry_index = expansion.call_arguments(
             state,
@@ -835,6 +856,7 @@ impl Evaluation {
         )
         .with_arrays(&self.arrays)
         .with_cases(&self.cases)
+        .enter_proof_scope(&self.erased_proof_formals)
         .with_fields(&self.record_fields);
         let entry = expansion.retained_value(
             state,
@@ -913,6 +935,7 @@ impl Evaluation {
             id: self.current,
             parameters: std::mem::take(&mut self.parameters),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: erased_proof_formal_declarations(&self.erased_proof_formals),
             operations: operations[self.operation_start..].to_vec(),
             terminator: Terminator::Jump {
                 structural_arguments: Vec::new(),
@@ -922,6 +945,7 @@ impl Evaluation {
                 ))?,
                 arguments: values.iter().map(|value| value.id).collect(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: self.proof_formal_forwarding(),
                 residual_affine_discards: Vec::new(),
                 trivial_affine_discards: Vec::new(),
             },
@@ -932,6 +956,7 @@ impl Evaluation {
                 targets[index + 1],
                 &parameters[index + 1],
                 &self.erased_scalar_formals,
+                &self.erased_proof_formals,
                 &targets,
                 next_value,
                 next_block,
@@ -990,6 +1015,7 @@ fn emit_state(
     mut block: BlockId,
     parameters: &[ValueDeclaration],
     caller_erased_formals: &[ValueDeclaration],
+    source_erased_proof_formals: &[checked_trees::CheckedErasedProofParameterPlan],
     targets: &[BlockId],
     next_value: &mut u64,
     next_block: &mut u64,
@@ -1117,6 +1143,7 @@ fn emit_state(
             target,
             arguments: outgoing,
             erased_arguments,
+            erased_proof_arguments,
             structural_arguments,
             trivial_affine_discards,
         } => Terminator::Jump {
@@ -1136,6 +1163,7 @@ fn emit_state(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?,
+            erased_proof_arguments: erased_proof_arguments.clone(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: trivial_affine_discards.clone(),
         },
@@ -1147,6 +1175,8 @@ fn emit_state(
             when_false_target,
             when_false_arguments,
             when_false_erased_arguments,
+            when_true_erased_proof_arguments,
+            when_false_erased_proof_arguments,
         } => {
             let when_true_arguments = arguments(when_true_arguments)?;
             let when_false_arguments = arguments(when_false_arguments)?;
@@ -1175,6 +1205,7 @@ fn emit_state(
                         .ok_or(LoweringError::Unsupported("call true target is absent"))?,
                     arguments: when_true_arguments,
                     erased_arguments: when_true_erased_arguments,
+                    erased_proof_arguments: when_true_erased_proof_arguments.clone(),
                     trivial_affine_discards: Vec::new(),
                 },
                 when_false: SuccessorEdge {
@@ -1185,6 +1216,7 @@ fn emit_state(
                         .ok_or(LoweringError::Unsupported("call false target is absent"))?,
                     arguments: when_false_arguments,
                     erased_arguments: when_false_erased_arguments,
+                    erased_proof_arguments: when_false_erased_proof_arguments.clone(),
                     trivial_affine_discards: Vec::new(),
                 },
             }
@@ -1200,6 +1232,7 @@ fn emit_state(
         id: block,
         parameters: block_parameters,
         erased_scalar_formals: erased_formals,
+        erased_proof_formals: erased_proof_formal_declarations(source_erased_proof_formals),
         operations: operations[operation_start..].to_vec(),
         terminator,
     });

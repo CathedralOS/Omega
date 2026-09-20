@@ -68,6 +68,7 @@ pub(crate) fn bind_scalar_call_result(
             service_reach,
             scalar_arguments,
             erased_scalar_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
         } => Some(CheckedUnitEffectOperationPlan::ScalarCall {
@@ -83,6 +84,7 @@ pub(crate) fn bind_scalar_call_result(
             service_reach,
             scalar_arguments,
             erased_scalar_arguments,
+            erased_proof_arguments,
             structural_arguments,
             claim_transfers,
         }),

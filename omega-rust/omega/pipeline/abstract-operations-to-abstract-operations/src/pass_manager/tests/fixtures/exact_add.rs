@@ -87,6 +87,7 @@ pub(super) fn verified_exact_add_unit_with_right(
             entry: block,
             blocks: vec![Block {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 id: block,
                 parameters: Vec::new(),
@@ -126,6 +127,7 @@ pub(super) fn verified_exact_add_unit_with_right(
             }],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(421).unwrap(),
                 crash_routes: Vec::new(),
                 requires: Vec::new(),

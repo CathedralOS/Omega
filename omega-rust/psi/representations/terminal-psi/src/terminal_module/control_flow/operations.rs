@@ -5,8 +5,8 @@ use crate::{
 };
 use semantic_vocabulary::{
     BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, IeeeFloatValue, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, ScalarTerm, ServiceId, StructuralCaseId,
-    StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
+    MachineId, ObligationId, OperationId, PlaceId, ProofTerm, ScalarTerm, ServiceId,
+    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -342,6 +342,9 @@ pub enum OperationKind {
         /// in roster order. Each term is evaluated against the caller's
         /// namespace at verification only; it has no runtime operand.
         erased_arguments: Vec<ScalarTerm>,
+        /// Proof-only actuals for the callee's `erased_proof_formals` roster,
+        /// in roster order, verified against the caller's namespace.
+        erased_proof_arguments: Vec<ProofTerm>,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
@@ -353,6 +356,9 @@ pub enum OperationKind {
         /// Proof-only actuals for the callee's `erased_scalar_formals` roster,
         /// in roster order, verified against the caller's namespace.
         erased_arguments: Vec<ScalarTerm>,
+        /// Proof-only actuals for the callee's `erased_proof_formals` roster,
+        /// in roster order, verified against the caller's namespace.
+        erased_proof_arguments: Vec<ProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,
@@ -368,6 +374,9 @@ pub enum OperationKind {
         /// Proof-only actuals for the callee's `erased_scalar_formals` roster,
         /// in roster order, verified against the caller's namespace.
         erased_arguments: Vec<ScalarTerm>,
+        /// Proof-only actuals for the callee's `erased_proof_formals` roster,
+        /// in roster order, verified against the caller's namespace.
+        erased_proof_arguments: Vec<ProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,
@@ -439,6 +448,9 @@ pub enum OperationKind {
         /// Proof-only actuals for the callee's `erased_scalar_formals` roster,
         /// in roster order, verified against the caller's namespace.
         erased_arguments: Vec<ScalarTerm>,
+        /// Proof-only actuals for the callee's `erased_proof_formals` roster,
+        /// in roster order, verified against the caller's namespace.
+        erased_proof_arguments: Vec<ProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,

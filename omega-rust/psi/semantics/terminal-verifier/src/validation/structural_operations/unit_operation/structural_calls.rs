@@ -26,6 +26,7 @@ pub(super) fn validate_call_structural_scalar(
         callee,
         arguments,
         erased_arguments,
+        erased_proof_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -82,6 +83,12 @@ pub(super) fn validate_call_structural_scalar(
         });
     }
     crate::validation::validate_erased_argument_terms(machine, operation.id, erased_arguments)?;
+    crate::validation::validate_erased_proof_terms(
+        crate::validation::proof_formals_in_scope(machine, operation.id),
+        &callee.contract.erased_proof_formals,
+        erased_proof_arguments,
+        operation.id,
+    )?;
 
     validate_unit_call_claim_transfers(
         module,
@@ -134,6 +141,13 @@ pub(super) fn validate_call_structural(
         OperationKind::CallStructuralWithScalarArguments {
             erased_arguments, ..
         } => erased_arguments.as_slice(),
+        _ => &[],
+    };
+    let erased_proof_arguments = match &operation.kind {
+        OperationKind::CallStructuralWithScalarArguments {
+            erased_proof_arguments,
+            ..
+        } => erased_proof_arguments.as_slice(),
         _ => &[],
     };
     let arguments = match &operation.kind {
@@ -332,6 +346,12 @@ pub(super) fn validate_call_structural(
         });
     }
     crate::validation::validate_erased_argument_terms(machine, operation.id, erased_arguments)?;
+    crate::validation::validate_erased_proof_terms(
+        crate::validation::proof_formals_in_scope(machine, operation.id),
+        &callee.contract.erased_proof_formals,
+        erased_proof_arguments,
+        operation.id,
+    )?;
 
     validate_unit_call_claim_transfers(
         module,

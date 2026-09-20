@@ -37,6 +37,7 @@ fn module() -> TerminalModule {
     };
     caller.blocks[0].operations[1].kind = OperationKind::CallStructuralScalar {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: machine_id(2),
         arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
@@ -151,6 +152,7 @@ fn scalar_byte_call_cannot_import_a_sibling_branch_literal() {
         target: block_id(block),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -162,6 +164,7 @@ fn scalar_byte_call_cannot_import_a_sibling_branch_literal() {
     for (block, operations) in [(3, vec![establish]), (4, Vec::new())] {
         caller.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: block_id(block),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -171,6 +174,7 @@ fn scalar_byte_call_cannot_import_a_sibling_branch_literal() {
                 target: block_id(5),
                 arguments: Vec::new(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 trivial_affine_discards: Vec::new(),
                 residual_affine_discards: Vec::new(),
@@ -179,6 +183,7 @@ fn scalar_byte_call_cannot_import_a_sibling_branch_literal() {
     }
     caller.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),

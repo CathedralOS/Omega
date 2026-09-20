@@ -16,6 +16,7 @@ use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
 use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
+use checked_trees::CheckedErasedProofParameterPlan;
 use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
@@ -44,6 +45,9 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     /// Each emitted state's erased-formal roster: the machine contract
     /// formals for a plain entry, fresh block-level declarations otherwise.
     state_erased: Vec<Vec<ValueDeclaration>>,
+    /// Each emitted state's erased-proof roster in checked order — the same
+    /// positions the state's own blocks declare and its edges forward.
+    state_erased_proof: Vec<Vec<CheckedErasedProofParameterPlan>>,
     /// Jump and Conditional edge identities emitted so far, keyed by their
     /// target block — the exact roster a header invariant must cite.
     arrival_edges: BTreeMap<BlockId, Vec<EdgeId>>,
@@ -130,6 +134,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     let mut state_views = Vec::new();
     let mut state_values = Vec::new();
     let mut state_erased = Vec::new();
+    let mut state_erased_proof = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
         state_ids.push(block_id(allocate_dense(&mut catalogs.next_block)?));
         if position != 0 || entry_reentered {
@@ -216,12 +221,14 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                     &mut catalogs.next_value,
                 )?,
             );
+            state_erased_proof.push(state.erased_proof_parameters.clone());
         } else {
             state_views.push(parameters.clone());
             state_values.push(scalar_parameters.clone());
             // A plain entry shares the machine contract formals; the block
             // does not redeclare them.
             state_erased.push(entry_erased_formals.clone());
+            state_erased_proof.push(state.erased_proof_parameters.clone());
         }
     }
     let mut blocks = Vec::new();
@@ -236,6 +243,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             id: entry,
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals:
+                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    &plan.states[0].erased_proof_parameters,
+                ),
             structural_parameters: Vec::new(),
             operations: Vec::new(),
             terminator: Terminator::Jump {
@@ -250,6 +261,14 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                 erased_arguments: entry_erased_formals
                     .iter()
                     .map(|parameter| ScalarTerm::value(parameter.id, parameter.scalar_type))
+                    .collect(),
+                // The machine proof roster forwards positionally into the
+                // entry block's identical declaration.
+                erased_proof_arguments: (0..plan.states[0].erased_proof_parameters.len())
+                    .map(|position| semantic_vocabulary::ProofTerm::Formal {
+                        position: u32::try_from(position)
+                            .expect("erased-proof roster positions fit u32"),
+                    })
                     .collect(),
                 structural_arguments: parameters
                     .iter()
@@ -292,6 +311,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         state_views,
         state_values,
         state_erased,
+        state_erased_proof,
         arrival_edges,
         structural_places,
         blocks,
@@ -313,6 +333,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         state_ids,
         state_values,
         state_erased,
+        state_erased_proof: _,
         arrival_edges,
         mut structural_places,
         mut blocks,
@@ -452,6 +473,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             ensures: Vec::new(),
             crash_routes: Vec::new(),
             erased_scalar_formals: entry_erased_formals,
+            erased_proof_formals:
+                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    &plan.states[0].erased_proof_parameters,
+                ),
             outcome_specific_ensures: Vec::new(),
         },
     };

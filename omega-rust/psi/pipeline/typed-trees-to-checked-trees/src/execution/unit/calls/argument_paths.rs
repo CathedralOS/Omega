@@ -82,6 +82,61 @@ pub(crate) fn checked_call_scalar_arguments(
         .collect()
 }
 
+/// Proof-only erased actuals of an in-module Unit call: the retained proof
+/// terms recorded under `ErasedUnitCallArgument`, in the callee's dense
+/// erased proof-formal order. Each term's constructed (or forwarded) data
+/// identity must match the formal's canonical `Nat`-style identity.
+pub(crate) fn checked_call_erased_proof_arguments(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller_state: SymbolHandle,
+    coordinate: CheckedUnitCallCoordinate,
+    parameters: &[checked_trees::CheckedErasedProofParameterPlan],
+) -> Option<Vec<checked_trees::CheckedProofTerm>> {
+    parameters
+        .iter()
+        .enumerate()
+        .map(|(erased_ordinal, parameter)| {
+            let role = checked_trees::CheckedProofTermRole::ErasedUnitCallArgument {
+                call_ordinal: coordinate.call_ordinal,
+                erased_ordinal: u32::try_from(erased_ordinal).ok()?,
+            };
+            let term =
+                facts
+                    .values
+                    .proof_terms
+                    .term_at(caller_state, coordinate.statement_index, role)?;
+            proof_term_type_matches(program, caller_state, term, &parameter.type_identity)
+                .then(|| term.clone())
+        })
+        .collect()
+}
+
+/// The construction or forwarded formal carries exactly the formal's declared
+/// proof-only data identity.
+fn proof_term_type_matches(
+    program: &TypedTrees,
+    caller_state: SymbolHandle,
+    term: &checked_trees::CheckedProofTerm,
+    type_identity: &str,
+) -> bool {
+    match term {
+        checked_trees::CheckedProofTerm::Construction {
+            type_identity: actual,
+            ..
+        } => actual == type_identity,
+        checked_trees::CheckedProofTerm::Formal { parameter_symbol } => {
+            crate::semantic_calls::find_state(program, caller_state).is_some_and(|state| {
+                program.state_parameters(state).iter().any(|parameter| {
+                    parameter.symbol == *parameter_symbol
+                        && base_type_identity(program, parameter.type_reference, &[]).as_deref()
+                            == Some(type_identity)
+                })
+            })
+        }
+    }
+}
+
 /// Proof-only erased actuals of an in-module Unit call: the retained pure
 /// expressions recorded under `ErasedUnitCallArgument`, in the callee's dense
 /// erased-formal order.

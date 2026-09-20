@@ -611,6 +611,7 @@ fn unranked_self_bindings_validate_without_claiming_finite_fuel() {
     let block = finished.id;
     finished.terminator = Terminator::Jump {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge,
         target: block,
         arguments: finished

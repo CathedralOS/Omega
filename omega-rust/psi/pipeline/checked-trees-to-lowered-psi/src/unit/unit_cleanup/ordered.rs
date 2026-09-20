@@ -269,6 +269,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 service_reach,
                 scalar_arguments,
                 erased_scalar_arguments,
+                erased_proof_arguments,
                 structural_arguments,
                 claim_transfers,
             } = operation
@@ -291,6 +292,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 || !service_summary_is_empty(*service_reach)
                 || !scalar_arguments.is_empty()
                 || !erased_scalar_arguments.is_empty()
+                || !erased_proof_arguments.is_empty()
                 || !structural_arguments.is_empty()
                 || !claim_transfers.is_empty()
             {
@@ -687,6 +689,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                                     callee,
                                     arguments,
                                     erased_arguments,
+                                    erased_proof_arguments,
                                     structural_arguments,
                                     claim_transfers,
                                     requirement_obligations,

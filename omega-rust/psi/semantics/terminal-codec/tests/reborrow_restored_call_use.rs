@@ -44,6 +44,7 @@ fn restored_call_use_module() -> TerminalModule {
     };
     let contract = |raw| MachineContract {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: id(raw, ContractId::new),
         crash_routes: Vec::new(),
         requires: Vec::new(),
@@ -142,6 +143,7 @@ fn restored_call_use_module() -> TerminalModule {
                 entry: id(1, BlockId::new),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(1, BlockId::new),
                     parameters: Vec::new(),
@@ -151,6 +153,7 @@ fn restored_call_use_module() -> TerminalModule {
                         result: OperationResult::Unit,
                         kind: OperationKind::CallUnit {
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             arguments: Vec::new(),
                             callee,
                             structural_arguments: vec![StructuralArgument {
@@ -194,6 +197,7 @@ fn restored_call_use_module() -> TerminalModule {
                 entry: id(2, BlockId::new),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(2, BlockId::new),
                     parameters: Vec::new(),
@@ -284,6 +288,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: observer,
                 structural_arguments: vec![
@@ -352,6 +357,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         entry: id(3, BlockId::new),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(3, BlockId::new),
             parameters: Vec::new(),
@@ -363,6 +369,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(3, ContractId::new),
             crash_routes: Vec::new(),
             requires: Vec::new(),

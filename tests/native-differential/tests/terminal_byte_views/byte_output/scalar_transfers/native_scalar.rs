@@ -42,6 +42,7 @@ fn ordered_scalar_module() -> TerminalModule {
     ];
     let successor = |edge, arguments| terminal_psi::SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(20).unwrap(),
         arguments,
@@ -56,6 +57,7 @@ fn ordered_scalar_module() -> TerminalModule {
     };
     machine.blocks.push(terminal_psi::Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(20).unwrap(),
         parameters: vec![declaration(21), declaration(22)],
         structural_parameters: Vec::new(),
@@ -75,6 +77,7 @@ fn ordered_scalar_module() -> TerminalModule {
     for (identity, returned) in [(30, 21), (40, 22)] {
         machine.blocks.push(terminal_psi::Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(identity).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
