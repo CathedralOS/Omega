@@ -14,7 +14,10 @@ use crate::selection::construction::scalar_graph::row;
 use crate::selection::construction::scalar_graph::structural;
 use calling_conventions::ValueLocation;
 use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::{SelectedMemoryAccessRole, SelectedNormalizedForeignCall};
+use selected_instructions::{
+    LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessRole,
+    SelectedNormalizedForeignCall,
+};
 
 pub(super) fn emit(
     function: usize,
@@ -48,6 +51,36 @@ pub(super) fn emit(
         row(builder.catalog, key)?,
         environment,
     )?;
+    // The private save home is disjoint from outgoing arguments and survives
+    // the counterparty's register clobbers. Save before any argument transport;
+    // restore before interpreting its result. Both remain ordinary selected
+    // instructions so allocation and byte replay see their complete effects.
+    let saved_controls = LocalStorageSlotId::Boundary {
+        operation: operation.operation,
+    };
+    builder
+        .transport
+        .local_slots
+        .push(SelectedLocalStorageSlot {
+            id: saved_controls,
+            byte_size: 8,
+            alignment: 8,
+        });
+    builder.emit(
+        SelectedInstructionKind::SaveFloatingControl {
+            slot: saved_controls,
+        },
+        builder
+            .constraints
+            .keys
+            .save_floating_control
+            .ok_or_else(invalid)?,
+        &[],
+        SelectedInstructionProvenance {
+            operations: vec![operation.operation],
+            ..Default::default()
+        },
+    )?;
     // Scalar arguments copy their resolved source register; a stack-placed
     // argument is outgoing frame custody rather than a call operand.
     let mut operands = Vec::new();
@@ -69,7 +102,17 @@ pub(super) fn emit(
         {
             return Err(invalid());
         }
-        let output = builder.copy(input, value, site, scalar_type)?;
+        let output = builder.register(value, site, scalar_type)?;
+        builder.emit(
+            SelectedInstructionKind::CopyI64,
+            builder.constraints.keys.copy_i64,
+            &[input, output],
+            SelectedInstructionProvenance {
+                operations: vec![operation.operation],
+                values: vec![value],
+                ..Default::default()
+            },
+        )?;
         operands.push((argument.parameter_index, output));
     }
     // Each structural argument transports its source-rooted referent pointer
@@ -196,6 +239,21 @@ pub(super) fn emit(
             ..Default::default()
         },
     )?;
+    builder.emit(
+        SelectedInstructionKind::RestoreFloatingControl {
+            slot: saved_controls,
+        },
+        builder
+            .constraints
+            .keys
+            .restore_floating_control
+            .ok_or_else(invalid)?,
+        &[],
+        SelectedInstructionProvenance {
+            operations: vec![operation.operation],
+            ..Default::default()
+        },
+    )?;
     // The ABI result register carries the raw scalar carrier; the durable
     // definition is its signed/unsigned normalization, like internal calls.
     if let (Some(short_result), Some(result)) = (short_result, operation.result) {
@@ -205,6 +263,7 @@ pub(super) fn emit(
             builder.constraints.keys.copy_i64,
             &[short_result, output],
             SelectedInstructionProvenance {
+                operations: vec![operation.operation],
                 values: vec![result.value],
                 ..Default::default()
             },

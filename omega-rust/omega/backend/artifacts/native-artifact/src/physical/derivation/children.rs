@@ -1,6 +1,8 @@
 //! Deriving each physical child: exit groups, byte writes and reads,
 //! admitted provider settlements and normalized foreign children.
 
+mod floating_control;
+
 use crate::BoundaryTraitSettlementParts;
 pub(crate) use crate::BoundaryTraitSettlementRole;
 use crate::NativeCompilerBuiltinCatalogIdentity;
@@ -1628,6 +1630,9 @@ fn fragment_scalar_argument_custody_rejoin(
     let (Some(fragment), None) = (fragments.next(), fragments.next()) else {
         return false;
     };
+    if !floating_control::rejoin(publication, function, block, fragment, record, foreign) {
+        return false;
+    }
     let home_offsets = fragment_durable_home_offsets(function);
     if !fragment_scalar_result_custody_rejoin(
         function,
@@ -1973,7 +1978,19 @@ fn fragment_scalar_result_custody_rejoin(
     else {
         return false;
     };
-    let Some(normalization) = block.instructions.get(position + 1) else {
+    let Some(restore) = block.instructions.get(position + 1) else {
+        return false;
+    };
+    if restore.kind
+        != (selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
+            slot: selected_instructions::LocalStorageSlotId::Boundary {
+                operation: record.operation,
+            },
+        })
+    {
+        return false;
+    }
+    let Some(normalization) = block.instructions.get(position + 2) else {
         return false;
     };
     let [input, output] = normalization.operands.as_slice() else {
@@ -1991,6 +2008,7 @@ fn fragment_scalar_result_custody_rejoin(
     };
     if normalization.kind != expected_kind
         || input.virtual_register != call_result.virtual_register
+        || normalization.provenance.operations.as_slice() != [record.operation]
         || normalization.provenance.values.as_slice() != [home.source_value]
         || output_origin
             != Some(

@@ -25,6 +25,7 @@ pub(crate) const VECTOR128: RegisterClassId = RegisterClassId(5);
 const FLAGS: RegisterClassId = RegisterClassId(6);
 
 const INSTRUCTION_POINTER: RegisterClassId = RegisterClassId(7);
+const FLOAT_CONTROL: RegisterClassId = RegisterClassId(8);
 
 /// Resolve one ABI-visible register through the x86-64 target owner's
 /// canonical model. Target-neutral selection consumes the resulting fixed
@@ -88,6 +89,7 @@ impl ModelBuilder {
                 "x86.vector128",
                 "x86.flags",
                 "x86.instruction-pointer",
+                "x86.floating-control",
             ]
             .into_iter()
             .enumerate()
@@ -275,10 +277,25 @@ pub fn x86_64_physical_register_model() -> PhysicalRegisterModel {
         false,
     );
     named_views.insert("rip".into(), rip_view);
+    let mxcsr_unit = builder.unit(
+        "mxcsr.storage".into(),
+        32,
+        RegisterUnitKind::FloatingControl,
+    );
+    let mxcsr_view = builder.view(
+        "mxcsr".into(),
+        FLOAT_CONTROL,
+        vec![mxcsr_unit],
+        vec![mxcsr_unit],
+        32,
+        RegisterWriteSemantics::InstructionDefined,
+        false,
+    );
+    named_views.insert("mxcsr".into(), mxcsr_view);
 
     let all_units = builder.units.iter().map(|unit| unit.id).collect::<Vec<_>>();
     let rsp = gpr_units["rsp"].clone();
-    let fixed = sorted_units(rsp.iter().copied().chain([rip_unit]));
+    let fixed = sorted_units(rsp.iter().copied().chain([rip_unit, mxcsr_unit]));
     let sysv_callee = units_for(&gpr_units, &["rbx", "rbp", "r12", "r13", "r14", "r15"]);
     let sysv_caller = complement(&all_units, &fixed, &sysv_callee);
     let microsoft_callee = sorted_units(
@@ -313,6 +330,11 @@ pub fn x86_64_physical_register_model() -> PhysicalRegisterModel {
         },
     ];
     let reservations = vec![
+        overlay(
+            "x86.floating-control",
+            ReservationReason::Architectural,
+            vec![mxcsr_unit],
+        ),
         overlay("x86.stack-pointer", ReservationReason::StackPointer, rsp),
         overlay(
             "x86.instruction-pointer",

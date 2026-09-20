@@ -72,6 +72,7 @@ pub use register_model::{
     AARCH64_HOSTED_WRITE_BYTE_I32, AARCH64_LOAD_PACKED, AARCH64_LOAD8_INDEXED, AARCH64_LOAD64,
     AARCH64_STORE, AARCH64_STORE_PACKED, AARCH64_STORE64,
 };
+pub use register_model::{AARCH64_RESTORE_FLOATING_CONTROL, AARCH64_SAVE_FLOATING_CONTROL};
 pub use register_model::{
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };
@@ -111,6 +112,9 @@ pub use selected_form_encoding::{
     validate_aarch64_selected_scalar_call_template,
     validate_aarch64_selected_u64_less_than_branch_form,
     validate_aarch64_shortest_movn_materialization,
+};
+pub use selected_form_encoding::{
+    encode_aarch64_selected_floating_control_form, validate_aarch64_selected_floating_control_form,
 };
 pub use selected_form_encoding::{
     encode_aarch64_selected_hosted_write_byte_form,

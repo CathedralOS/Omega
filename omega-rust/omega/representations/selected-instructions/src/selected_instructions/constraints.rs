@@ -7,6 +7,8 @@ use target_operations::MachineRegister;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedConstraintKeys {
     pub copy_bytes: Option<RegisterConstraintKey>,
+    pub save_floating_control: Option<RegisterConstraintKey>,
+    pub restore_floating_control: Option<RegisterConstraintKey>,
     pub hosted_read_byte: Option<RegisterConstraintKey>,
     pub hosted_write_byte_i32: Option<RegisterConstraintKey>,
     pub hosted_exit_process_i32: Option<RegisterConstraintKey>,

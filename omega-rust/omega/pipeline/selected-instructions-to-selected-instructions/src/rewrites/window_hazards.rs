@@ -90,6 +90,8 @@ pub(super) fn is_barrier(instruction: &SelectedInstruction) -> bool {
             | CallAggregate { .. }
             | HostedReadByte { .. }
             | HostedWriteByteI32 { .. }
+            | SaveFloatingControl { .. }
+            | RestoreFloatingControl { .. }
             | HostedExitProcessI32
             | ReturnScalar
             | ReturnAggregate { .. }

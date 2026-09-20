@@ -14,9 +14,12 @@
 //! caller's durable scalar-home area, and a scalar result records the exact
 //! normalization instruction that produces the durable definition after the
 //! call. Result and `Home` records share one per-caller home-area map so a
-//! consumer names the producer's slot exactly. Floating-control intervals
-//! and callback materialization stay out of the projection; selection
+//! consumer names the producer's slot exactly. Floating controls name the
+//! call-owned frame slot and the selected save/restore intervals. Callback
+//! materialization stays out of the projection; selection
 //! rejects callback-bearing calls before they reach this roster at all.
+
+mod floating_control;
 
 use calling_conventions::ValueLocation;
 use semantic_vocabulary::{MachineId, ScalarType};
@@ -182,6 +185,9 @@ pub fn derive_normalized_foreign_call_custody(
             .ok_or(ObjectError::TextSizeOverflow)?;
         let caller_live_bytes =
             u32::try_from(committed).map_err(|_| ObjectError::TextSizeOverflow)?;
+        let controls =
+            floating_control::derive(section.target, function, block, fragment, frame, record)
+                .ok_or_else(invalid)?;
         custody.push(ObjectForeignCall {
             machine: call.caller,
             owner,
@@ -194,8 +200,8 @@ pub fn derive_normalized_foreign_call_custody(
             scalar_arguments,
             callback_address: None,
             scalar_result,
-            x86_floating_control: None,
-            aarch64_floating_control: None,
+            x86_floating_control: controls.x86,
+            aarch64_floating_control: controls.aarch64,
             text_offset,
         });
     }
@@ -509,7 +515,7 @@ where
 /// the result occupies, its plan placement, and the exact normalization
 /// instruction that produces the durable definition.
 ///
-/// The normalization is emitted immediately after the call inside the same
+/// The normalization follows the call's floating-control restore in the same
 /// block, reads the call's raw result operand, and its output vreg is the
 /// durable definition every downstream use resolves. A result home exists
 /// exactly when the selected instruction defines a result and the evaluated
@@ -562,7 +568,19 @@ fn foreign_scalar_result_custody(
     else {
         return Err(invalid());
     };
-    let Some(normalization) = block.instructions.get(position + 1) else {
+    let Some(restore) = block.instructions.get(position + 1) else {
+        return Err(invalid());
+    };
+    if restore.kind
+        != (selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
+            slot: selected_instructions::LocalStorageSlotId::Boundary {
+                operation: record.operation,
+            },
+        })
+    {
+        return Err(invalid());
+    }
+    let Some(normalization) = block.instructions.get(position + 2) else {
         return Err(invalid());
     };
     let Some(kind) = scalar_result_normalization_kind(home.scalar_type) else {
@@ -580,6 +598,7 @@ fn foreign_scalar_result_custody(
         .map(|register| register.origin);
     if normalization.kind != kind
         || input.virtual_register != call_result.virtual_register
+        || normalization.provenance.operations.as_slice() != [record.operation]
         || normalization.provenance.values.as_slice() != [home.source_value]
         || output_origin
             != Some(

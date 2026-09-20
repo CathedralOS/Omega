@@ -146,6 +146,8 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         frame_address: Some(instruction_key(32)),
         hosted_read_byte: None,
         hosted_write_byte_i32: None,
+        save_floating_control: None,
+        restore_floating_control: None,
         hosted_exit_process_i32: None,
         call_unit: vec![RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,

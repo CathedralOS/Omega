@@ -132,7 +132,13 @@ pub(super) fn place_pointer(
                 .ok_or_else(invalid)?
         },
         &[input, output],
-        SelectedInstructionProvenance::default(),
+        SelectedInstructionProvenance {
+            // Pointer staging belongs to this call, not to the operation that
+            // originally produced the referent. Keep its physical interval
+            // contiguous with the call's other argument transport.
+            operations: vec![row.operation],
+            ..Default::default()
+        },
     )?;
     Ok(output)
 }

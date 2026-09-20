@@ -480,6 +480,82 @@ fn codec_keeps_linux_output_pointer_store_and_address_offset_distinct() {
 }
 
 #[test]
+fn floating_control_codec_binds_direction_slot_and_memory_width() {
+    for restore in [false, true] {
+        let mut source = plan();
+        let slot = crate::LocalStorageSlotId::Boundary {
+            operation: OperationId::new(313).unwrap(),
+        };
+        let row = &mut source.functions[0].blocks[0].instructions[0];
+        row.kind = if restore {
+            SelectedInstructionKind::RestoreFloatingControl { slot }
+        } else {
+            SelectedInstructionKind::SaveFloatingControl { slot }
+        };
+        row.memory = if restore {
+            MachineMemoryEffect::ReadFrameStorageV1
+        } else {
+            MachineMemoryEffect::WriteFrameStorageV1
+        };
+        row.trap = MachineTrapBehavior::MayArchitecturalFaultV1;
+        row.barrier = MachineBarrier::ExternalEffect;
+        row.alternatives.truncate(1);
+        let alternative = &mut row.alternatives[0];
+        alternative.key.family = if restore {
+            MachineAlternativeFamily::RestoreFloatingControl
+        } else {
+            MachineAlternativeFamily::SaveFloatingControl
+        };
+        alternative.encoded.memory = if restore {
+            MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+                stack_pointer: register_model::RegisterViewId(7),
+                byte_count: 8,
+            }
+        } else {
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                stack_pointer: register_model::RegisterViewId(7),
+                byte_count: 8,
+            }
+        };
+        alternative.encoded.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+        alternative.encoded.control = MachineEncodedControlEffect::FallThroughV1;
+        source.identity = pre_allocation_machine_effect_identity(&source);
+        assert_eq!(
+            PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
+            source
+        );
+        for mutation in 0..3 {
+            let mut changed = source.clone();
+            let row = &mut changed.functions[0].blocks[0].instructions[0];
+            match mutation {
+                0 => {
+                    row.kind = if restore {
+                        SelectedInstructionKind::SaveFloatingControl { slot }
+                    } else {
+                        SelectedInstructionKind::RestoreFloatingControl { slot }
+                    }
+                }
+                1 => {
+                    row.kind = SelectedInstructionKind::SaveFloatingControl {
+                        slot: crate::LocalStorageSlotId::Boundary {
+                            operation: OperationId::new(317).unwrap(),
+                        },
+                    }
+                }
+                _ => {
+                    row.alternatives[0].encoded.memory =
+                        MachineEncodedMemoryEffect::ReadActivationStackV1 {
+                            stack_pointer: register_model::RegisterViewId(7),
+                            byte_count: 8,
+                        }
+                }
+            }
+            assert!(PreAllocationMachineEffectPlan::decode(&changed.encode()).is_err());
+        }
+    }
+}
+
+#[test]
 fn linux_byte_output_codec_retains_external_effect_trap_and_boundary_scratch() {
     let mut source = plan();
     let row = &mut source.functions[0].blocks[0].instructions[0];

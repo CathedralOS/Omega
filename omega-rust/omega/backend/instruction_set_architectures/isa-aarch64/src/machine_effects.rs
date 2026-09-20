@@ -73,6 +73,17 @@ pub fn aarch64_machine_effect_catalog(
                         ),
                     );
                 }
+                if matches!(
+                    semantic,
+                    MachineSemanticKind::SaveFloatingControl
+                        | MachineSemanticKind::RestoreFloatingControl
+                ) {
+                    return Ok(
+                        crate::selected_form_encoding::floating_control::declaration(
+                            semantic, constraint,
+                        ),
+                    );
+                }
                 if semantic == MachineSemanticKind::HostedWriteByteI32 {
                     return Ok(
                         crate::selected_form_encoding::hosted_write_byte::declaration(
@@ -174,6 +185,8 @@ fn selected_keys(
     };
     Ok(SelectedConstraintKeys {
         copy_bytes: Some(crate::AARCH64_COPY_BYTES),
+        save_floating_control: Some(crate::AARCH64_SAVE_FLOATING_CONTROL),
+        restore_floating_control: Some(crate::AARCH64_RESTORE_FLOATING_CONTROL),
         load_packed: Some(crate::AARCH64_LOAD_PACKED),
         store_packed: Some(crate::AARCH64_STORE_PACKED),
         hosted_read_byte: if target == NativeTarget::linux_arm64() {
@@ -430,6 +443,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::FrameAddress => (vec![], vec![0]),
         MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
+        | MachineSemanticKind::SaveFloatingControl
+        | MachineSemanticKind::RestoreFloatingControl
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")
@@ -629,6 +644,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         },
         MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
+        | MachineSemanticKind::SaveFloatingControl
+        | MachineSemanticKind::RestoreFloatingControl
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             panic!("memory and Unit call forms are not admitted on this target")

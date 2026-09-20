@@ -93,10 +93,12 @@ pub enum MachineSemanticKind {
     WrappingDivideI64,
     BitwiseOrI64,
     BitwiseNotI64,
+    SaveFloatingControl,
+    RestoreFloatingControl,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 98] = [
+    pub const ALL: [Self; 100] = [
         Self::CopyBytes,
         Self::BitwiseAndI64,
         Self::BitwiseXorI64,
@@ -195,6 +197,8 @@ impl MachineSemanticKind {
         Self::WrappingDivideI64,
         Self::BitwiseOrI64,
         Self::BitwiseNotI64,
+        Self::SaveFloatingControl,
+        Self::RestoreFloatingControl,
     ];
 }
 
@@ -270,6 +274,8 @@ pub enum MachineAlternativeFamily {
     WrappingDivideI64,
     BitwiseOrI64,
     BitwiseNotI64,
+    SaveFloatingControl,
+    RestoreFloatingControl,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -295,6 +301,8 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::BitsToFloat64 => Self::BitsToFloat64,
             MachineSemanticKind::HostedReadByte => Self::HostedReadByte,
             MachineSemanticKind::HostedWriteByteI32 => Self::HostedWriteByteI32,
+            MachineSemanticKind::SaveFloatingControl => Self::SaveFloatingControl,
+            MachineSemanticKind::RestoreFloatingControl => Self::RestoreFloatingControl,
             MachineSemanticKind::Store => Self::Store,
             MachineSemanticKind::AddressOffset => Self::AddressOffset,
             MachineSemanticKind::ByteViewAddress => Self::ByteViewAddress,
@@ -407,6 +415,7 @@ pub enum MachineMemoryEffect {
     NoneV1,
     ReadPointerV1,
     WriteFrameStorageV1,
+    ReadFrameStorageV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -545,6 +554,10 @@ pub enum MachineEncodedMemoryEffect {
         byte_count: u16,
     },
     WriteFrameStorageV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
+    ReadFrameStorageV1 {
         stack_pointer: RegisterViewId,
         byte_count: u16,
     },

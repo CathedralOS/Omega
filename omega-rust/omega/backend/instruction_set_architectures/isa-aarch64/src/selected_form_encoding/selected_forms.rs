@@ -216,6 +216,8 @@ fn family_and_operand_count(
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::HostedReadByte { .. }
+        | SelectedInstructionKind::SaveFloatingControl { .. }
+        | SelectedInstructionKind::RestoreFloatingControl { .. }
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
@@ -532,6 +534,8 @@ fn encode_unchecked(
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::HostedReadByte { .. }
+        | SelectedInstructionKind::SaveFloatingControl { .. }
+        | SelectedInstructionKind::RestoreFloatingControl { .. }
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }

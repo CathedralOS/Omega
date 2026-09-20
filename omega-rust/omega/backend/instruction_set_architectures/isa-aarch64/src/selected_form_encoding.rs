@@ -12,6 +12,10 @@ mod copy_bytes;
 mod decoding;
 mod encoding_types;
 mod float_bits;
+pub(crate) mod floating_control;
+pub use floating_control::{
+    encode_aarch64_selected_floating_control_form, validate_aarch64_selected_floating_control_form,
+};
 pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
 pub(crate) mod hosted_write_byte;

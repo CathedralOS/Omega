@@ -4394,32 +4394,27 @@ Owners include
   still reject.
 
 - **EVALUATED-FOREIGN-BINDINGS.** Carry the typed compile-time locator values
-  for PE, versioned ELF, and Darwin/Mach-O
-  (`provider-planning/src/evaluated_via_bindings/`; the string-backed import
-  bootstrap is retired) with their normalized locator, evaluated plan, target
-  applicability, and producer custody through provider selection and native
-  emission. Raw foreign bytes are data, never Omega symbol names or ambient
-  lookup authority.
+  for PE, versioned ELF, and Darwin/Mach-O through the remaining ranked-control
+  and port-bearing native paths, preserving the normalized locator, evaluated
+  plan, target applicability and admitted provider custody under
+  [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
 
-  Extend [normalized-import evidence](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement)
-  from fixed-width scalar calls to a
-  source-rooted flat-record argument (landed 2026-09-16/17 through the
-  structural-argument chain and `derive_normalized_foreign_child` structural
-  custody), then ranked control and port-bearing artifacts. Ranked control's
-  evidence half landed 2026-09-19: physical derivation no longer blocks a
-  machine on `ranked_scc` alone — the survivor/physical-child bijection is
-  occurrence-coordinate keyed and cycle-agnostic, so `terminates by` machines
-  mint complete native physical evidence and the `RankedMachine` gap subject
-  retires. Remaining frontier: a foreign call inside a ranked machine still
-  stops at legalization's source-custody replay
-  (`target-operations-to-selected-instructions/src/legalization`, upstream of
-  physical evidence — pinned by
-  `ranked_machine_foreign_call_stops_at_legalization_source_custody`), and
-  port-bearing artifacts still have no `port_effects` production writer.
-  Acceptance: independent native replay preserves the exact
-  survivor/physical-child bijection and rejects missing, duplicate, substituted,
-  or role-swapped children. External realization claims require independently
-  admitted concrete authority.
+  Remaining work:
+
+  - A foreign call inside a ranked machine stops at legalization's
+    source-custody replay in
+    `target-operations-to-selected-instructions/src/legalization`, pinned by
+    `ranked_machine_foreign_call_stops_at_legalization_source_custody`.
+    Extend the shared lowering so the ranked caller reaches native execution;
+    the physical-evidence path already admits ranked occurrences.
+  - Port-bearing artifacts need a `port_effects` production writer connected
+    to native physical evidence and independent replay.
+
+  Acceptance: a ranked caller invokes its admitted foreign provider on a
+  matching host, and port-bearing artifacts retain their exact effects.
+  Independent native replay rejects missing, duplicate, substituted or
+  role-swapped children. Raw foreign bytes remain locator data, never Omega
+  symbol names or ambient lookup authority.
 
 - **FLOAT-PROVIDERS.** Complete runtime Boolean/machine operations for exact
   `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources

@@ -531,6 +531,67 @@ fn mixed_scalar_record_arguments_and_reused_result_replay() {
             .admitted_contribution_commitments()
             .contains(&call.same_stack_contribution.commitment())
     );
+    let first = call
+        .aarch64_floating_control
+        .expect("first control envelope");
+    let second = object.foreign_calls()[1]
+        .aarch64_floating_control
+        .expect("second control envelope");
+    assert_ne!(first.saved_slot_byte_offset, second.saved_slot_byte_offset);
+    assert!(first.restore_offset + first.restore_byte_count <= second.save_offset);
+    for call in object.foreign_calls() {
+        let control = call.aarch64_floating_control.unwrap();
+        assert!(control.save_offset + control.save_byte_count <= call.text_offset);
+        assert_eq!(control.restore_offset, call.text_offset + 4);
+        assert_eq!(
+            call.scalar_result.as_ref().unwrap().code_offset,
+            control.restore_offset + control.restore_byte_count
+        );
+    }
+}
+
+#[test]
+fn fragment_foreign_control_envelopes_reject_substituted_custody_and_bytes() {
+    let (_probe, artifact) = realize_mixed_arguments_probe();
+    let object = artifact.object();
+    let source = object.fragment_source_for_test().unwrap();
+    for mutation in 0..5 {
+        let mut changed = object.clone();
+        let original = changed.foreign_calls()[0].aarch64_floating_control.unwrap();
+        match mutation {
+            0 => changed.foreign_calls_mut_for_test()[0].aarch64_floating_control = None,
+            1 => {
+                let other_slot = changed.foreign_calls()[1]
+                    .aarch64_floating_control
+                    .unwrap()
+                    .saved_slot_byte_offset;
+                changed.foreign_calls_mut_for_test()[0]
+                    .aarch64_floating_control
+                    .as_mut()
+                    .unwrap()
+                    .saved_slot_byte_offset = other_slot;
+            }
+            2 => {
+                changed.foreign_calls_mut_for_test()[0]
+                    .aarch64_floating_control
+                    .as_mut()
+                    .unwrap()
+                    .restore_offset = original.save_offset
+            }
+            3 => changed.text_bytes_mut_for_test()[original.restore_offset] ^= 1,
+            _ => {
+                changed.foreign_calls_mut_for_test()[0]
+                    .aarch64_floating_control
+                    .as_mut()
+                    .unwrap()
+                    .target = target::NativeTarget::linux_arm64()
+            }
+        }
+        assert!(
+            image_emission::validate_function_fragment_object_artifact(source, &changed).is_err(),
+            "floating-control mutation {mutation}"
+        );
+    }
 }
 
 #[test]
@@ -668,6 +729,15 @@ fn fragment_foreign_imports_reject_substituted_object_records() {
 /// ABI route; artifact replay alone does not establish foreign-call execution.
 #[test]
 fn mixed_scalar_record_arguments_and_reused_result_execute_natively() {
+    execute_mixed_arguments_probe(false);
+}
+
+#[test]
+fn returning_foreign_call_restores_floating_controls_before_the_next_call() {
+    execute_mixed_arguments_probe(true);
+}
+
+fn execute_mixed_arguments_probe(perturb_floating_controls: bool) {
     let (probe, artifact) = realize_mixed_arguments_probe();
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
@@ -681,11 +751,28 @@ fn mixed_scalar_record_arguments_and_reused_result_execute_natively() {
 #include <stdio.h>
 typedef struct { int32_t x; int32_t y; } Point;
 static unsigned calls = 0;
+static uint64_t original_fpcr;
 int32_t shift(int32_t delta, const Point *point, int32_t bias) {
     calls += 1;
     if (point && point->x == 11 && point->y == 22) {
-        if (calls == 1 && delta == 5 && bias == 7) return 45;
+        if (calls == 1 && delta == 5 && bias == 7) {
+            if (PERTURB_FLOATING_CONTROLS) {
+                __asm__ volatile("mrs %0, fpcr" : "=r"(original_fpcr));
+                uint64_t changed = original_fpcr ^ (1ull << 22);
+                __asm__ volatile("msr fpcr, %0" : : "r"(changed));
+            }
+            return 45;
+        }
         if (calls == 2 && delta == 45 && bias == 9) {
+            if (PERTURB_FLOATING_CONTROLS) {
+                uint64_t observed;
+                __asm__ volatile("mrs %0, fpcr" : "=r"(observed));
+                if (observed != original_fpcr) {
+                    puts("foreign call changed floating controls");
+                    fflush(stdout);
+                    return -1;
+                }
+            }
             puts("mixed foreign arguments: PASS");
             fflush(stdout);
             return 87;
@@ -695,7 +782,11 @@ int32_t shift(int32_t delta, const Point *point, int32_t bias) {
     fflush(stdout);
     return -1;
 }
-"#,
+"#
+            .replace(
+                "PERTURB_FLOATING_CONTROLS",
+                if perturb_floating_controls { "1" } else { "0" },
+            ),
         )
         .unwrap();
         let compile = Command::new("cc")
@@ -737,7 +828,7 @@ int32_t shift(int32_t delta, const Point *point, int32_t bias) {
     }
     #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
     {
-        let _ = (probe, artifact);
+        let _ = (probe, artifact, perturb_floating_controls);
         eprintln!("SKIP mixed foreign-call execution: requires macOS ARM64 and cc");
     }
 }

@@ -17,6 +17,8 @@ pub(super) fn validate_declaration(
     let expected_barrier = if matches!(
         semantic,
         MachineSemanticKind::HostedReadByte
+            | MachineSemanticKind::SaveFloatingControl
+            | MachineSemanticKind::RestoreFloatingControl
             | MachineSemanticKind::HostedWriteByteI32
             | MachineSemanticKind::HostedExitProcessI32
     ) {
@@ -72,7 +74,12 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::LoadPacked5
         | MachineSemanticKind::LoadPacked6
         | MachineSemanticKind::LoadPacked7 => crate::MachineMemoryEffect::ReadPointerV1,
-        MachineSemanticKind::Store64 => crate::MachineMemoryEffect::WriteFrameStorageV1,
+        MachineSemanticKind::Store64 | MachineSemanticKind::SaveFloatingControl => {
+            crate::MachineMemoryEffect::WriteFrameStorageV1
+        }
+        MachineSemanticKind::RestoreFloatingControl => {
+            crate::MachineMemoryEffect::ReadFrameStorageV1
+        }
         MachineSemanticKind::Store | MachineSemanticKind::StorePacked => {
             crate::MachineMemoryEffect::WritePointerV1
         }
@@ -101,7 +108,11 @@ pub(super) fn validate_declaration(
         | MachineSemanticKind::LoadPacked7
         | MachineSemanticKind::Store
         | MachineSemanticKind::StorePacked
-        | MachineSemanticKind::Store64 => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
+        | MachineSemanticKind::Store64
+        | MachineSemanticKind::SaveFloatingControl
+        | MachineSemanticKind::RestoreFloatingControl => {
+            crate::MachineTrapBehavior::MayArchitecturalFaultV1
+        }
         _ => crate::MachineTrapBehavior::NeverV1,
     };
     if declaration.trap != expected_trap {
@@ -536,6 +547,15 @@ fn validate_encoded_effects(
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1
         | MachineEncodedControlEffect::HostedExitOrTrapV1
         | MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
+        MachineEncodedControlEffect::FallThroughV1
+            if matches!(
+                declaration.semantic,
+                MachineSemanticKind::SaveFloatingControl
+                    | MachineSemanticKind::RestoreFloatingControl
+            ) =>
+        {
+            MachineBarrier::ExternalEffect
+        }
         MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
         MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
         MachineEncodedControlEffect::ConditionalRelativeBranchV1
@@ -572,7 +592,36 @@ fn validate_encoded_effects(
     if !control_shape_matches {
         return Err(());
     }
+    if matches!(
+        declaration.semantic,
+        MachineSemanticKind::SaveFloatingControl | MachineSemanticKind::RestoreFloatingControl
+    ) && (!constraint.operands.is_empty()
+        || !encoded.external_operand_reads.is_empty()
+        || !encoded.external_operand_writes.is_empty()
+        || encoded.implicit_unit_uses != constraint.implicit_uses
+        || encoded.implicit_unit_defs != constraint.implicit_defs
+        || encoded.implicit_unit_clobbers != constraint.clobbers
+        || encoded.control != MachineEncodedControlEffect::FallThroughV1)
+    {
+        return Err(());
+    }
     match (encoded.memory, encoded.stack, encoded.trap) {
+        (
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                byte_count: 4 | 8, ..
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::SaveFloatingControl
+            && declaration.memory == crate::MachineMemoryEffect::WriteFrameStorageV1 => {}
+        (
+            MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+                byte_count: 4 | 8, ..
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::RestoreFloatingControl
+            && declaration.memory == crate::MachineMemoryEffect::ReadFrameStorageV1 => {}
         (
             MachineEncodedMemoryEffect::NoneV1,
             MachineEncodedStackEffect::UnchangedV1,

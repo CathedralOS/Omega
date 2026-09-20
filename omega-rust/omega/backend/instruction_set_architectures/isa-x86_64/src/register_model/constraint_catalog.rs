@@ -860,6 +860,28 @@ pub fn x86_64_register_constraint_catalog(
         clobbers: view("rflags").units.clone(),
     });
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
+    for (key, restore) in [
+        (crate::X86_64_SAVE_FLOATING_CONTROL, false),
+        (crate::X86_64_RESTORE_FLOATING_CONTROL, true),
+    ] {
+        let mut implicit_uses = view("rsp").units.clone();
+        if !restore {
+            implicit_uses.extend(view("mxcsr").units.iter().copied());
+        }
+        implicit_uses.sort_unstable();
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: Vec::new(),
+            implicit_uses,
+            implicit_defs: if restore {
+                view("mxcsr").units.clone()
+            } else {
+                Vec::new()
+            },
+            clobbers: Vec::new(),
+        });
+    }
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =

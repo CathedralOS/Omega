@@ -259,6 +259,105 @@ fn incoming_pointer_slots_bind_entry_bias_frame_size_and_parameter_identity() {
 }
 
 #[test]
+fn floating_control_frame_custody_rejects_slot_geometry_and_address_substitution() {
+    for restore in [false, true] {
+        let (mut function, mut frame, mut instruction) = fixture();
+        let slot = LocalStorageSlotId::Boundary {
+            operation: OperationId::new(3).unwrap(),
+        };
+        function.local_storage_slots[0] = SelectedLocalStorageSlot {
+            id: slot,
+            byte_size: 8,
+            alignment: 8,
+        };
+        frame.functions[0].local_storage_slots[0] = machine_code::LocalStorageFrameSlot {
+            id: slot,
+            frame_offset_bytes: 8,
+            size_bytes: 8,
+            alignment_bytes: 8,
+        };
+        frame.functions[0].outgoing_abi_area.byte_size = 8;
+        frame.functions[0].stable_address_loans.clear();
+        instruction.address = Some(if restore {
+            Address::RestoreFloatingControl { slot }
+        } else {
+            Address::SaveFloatingControl { slot }
+        });
+        let resolved = resolve(&function, Some(&frame), &instruction)
+            .unwrap()
+            .unwrap();
+        assert_eq!(resolved.displacement, 8);
+        validate_address(&function, Some(&frame), &instruction, Some(resolved)).unwrap();
+        for mutation in 0..9 {
+            let mut changed_function = function.clone();
+            let mut changed_frame = frame.clone();
+            let mut changed_instruction = instruction.clone();
+            let mut candidate = resolved;
+            match mutation {
+                0 => candidate.displacement = 0,
+                1 => {
+                    candidate.symbolic = if restore {
+                        Address::SaveFloatingControl { slot }
+                    } else {
+                        Address::RestoreFloatingControl { slot }
+                    }
+                }
+                2 => {
+                    changed_function.local_storage_slots[0].byte_size = 4;
+                    changed_frame.functions[0].local_storage_slots[0].size_bytes = 4;
+                }
+                3 => {
+                    changed_function.local_storage_slots[0].alignment = 4;
+                    changed_frame.functions[0].local_storage_slots[0].alignment_bytes = 4;
+                }
+                4 => changed_frame.functions[0].frame_size_bytes = 8,
+                5 => changed_frame.functions[0].local_storage_slots[0].frame_offset_bytes = 0,
+                6 => changed_frame.functions[0].local_storage_slots[0].frame_offset_bytes = 9,
+                7 => changed_function
+                    .local_storage_slots
+                    .push(changed_function.local_storage_slots[0].clone()),
+                _ => {
+                    let wrong_slot = LocalStorageSlotId::Structural {
+                        operation: OperationId::new(3).unwrap(),
+                        place: PlaceId::new(5).unwrap(),
+                    };
+                    changed_function.local_storage_slots[0].id = wrong_slot;
+                    changed_frame.functions[0].local_storage_slots[0].id = wrong_slot;
+                    changed_instruction.address = Some(if restore {
+                        Address::RestoreFloatingControl { slot: wrong_slot }
+                    } else {
+                        Address::SaveFloatingControl { slot: wrong_slot }
+                    });
+                    candidate.symbolic = changed_instruction.address.unwrap();
+                }
+            }
+            if mutation >= 2 {
+                assert!(
+                    resolve(
+                        &changed_function,
+                        Some(&changed_frame),
+                        &changed_instruction
+                    )
+                    .is_err(),
+                    "mutation {mutation}"
+                );
+            }
+            assert!(
+                validate_address(
+                    &changed_function,
+                    Some(&changed_frame),
+                    &changed_instruction,
+                    Some(candidate)
+                )
+                .is_err(),
+                "mutation {mutation}"
+            );
+        }
+        assert!(resolve(&function, None, &instruction).is_err());
+    }
+}
+
+#[test]
 fn boundary_byte_scratch_requires_exact_origin_geometry_and_offset() {
     let (mut function, mut frame, mut instruction) = fixture();
     let slot = LocalStorageSlotId::Boundary {

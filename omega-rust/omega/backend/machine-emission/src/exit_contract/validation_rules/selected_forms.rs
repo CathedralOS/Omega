@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+mod floating_control_tests;
+
 use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 use register_model::{RegisterOperandAccess, RegisterUnitId, RegisterViewId};
 use selected_instructions::{
@@ -213,6 +216,34 @@ pub(in crate::exit_contract) fn validate_non_return(
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
         (
+            SelectedInstructionKind::SaveFloatingControl { slot },
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                byte_count: 4 | 8, ..
+            },
+            Some(address),
+        ) => {
+            matches!(
+                slot,
+                selected_instructions::LocalStorageSlotId::Boundary { .. }
+            ) && address.symbolic
+                == physical_instructions::PhysicalAddressOperation::SaveFloatingControl { slot }
+                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        }
+        (
+            SelectedInstructionKind::RestoreFloatingControl { slot },
+            MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+                byte_count: 4 | 8, ..
+            },
+            Some(address),
+        ) => {
+            matches!(
+                slot,
+                selected_instructions::LocalStorageSlotId::Boundary { .. }
+            ) && address.symbolic
+                == physical_instructions::PhysicalAddressOperation::RestoreFloatingControl { slot }
+                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        }
+        (
             SelectedInstructionKind::CopyBytes,
             MachineEncodedMemoryEffect::CopyBytesV1 {
                 source_pointer_operand: 0,
@@ -384,7 +415,12 @@ pub(in crate::exit_contract) fn validate_non_return(
             address.symbolic
                 == physical_instructions::PhysicalAddressOperation::Store64 { slot, byte_offset }
         }
-        (_, MachineEncodedMemoryEffect::NoneV1, _) => kind != SelectedInstructionKind::CopyBytes,
+        (_, MachineEncodedMemoryEffect::NoneV1, _) => !matches!(
+            kind,
+            SelectedInstructionKind::CopyBytes
+                | SelectedInstructionKind::SaveFloatingControl { .. }
+                | SelectedInstructionKind::RestoreFloatingControl { .. }
+        ),
         _ => false,
     };
     if !memory_matches {

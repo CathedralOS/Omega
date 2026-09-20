@@ -73,6 +73,18 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                     slot.encode_identity(&mut identity);
                     hasher.update(identity);
                 }
+                Address::SaveFloatingControl { slot } => {
+                    hasher.update([14]);
+                    let mut identity = Vec::new();
+                    slot.encode_identity(&mut identity);
+                    hasher.update(identity);
+                }
+                Address::RestoreFloatingControl { slot } => {
+                    hasher.update([15]);
+                    let mut identity = Vec::new();
+                    slot.encode_identity(&mut identity);
+                    hasher.update(identity);
+                }
                 Address::HostedWriteByteI32 { slot } => {
                     hasher.update([5]);
                     let mut identity = Vec::new();
@@ -387,6 +399,14 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(stack_pointer.0.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
         }
+        Memory::ReadFrameStorageV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            hasher.update([10]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
         Memory::ReadActivationStackV1 {
             stack_pointer,
             byte_count,
@@ -526,6 +546,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::WrappingDivideI64 => 92,
         MachineAlternativeFamily::BitwiseOrI64 => 93,
         MachineAlternativeFamily::BitwiseNotI64 => 94,
+        MachineAlternativeFamily::SaveFloatingControl => 103,
+        MachineAlternativeFamily::RestoreFloatingControl => 104,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

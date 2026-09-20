@@ -35,6 +35,12 @@ pub(super) fn decode_instruction(
         operands.push(decode_operand(cursor)?);
     }
     let address = match byte(cursor)? {
+        14 => Some(crate::PhysicalAddressOperation::SaveFloatingControl {
+            slot: effect_codec::decode_local_storage_slot(cursor).map_err(map_field_error)?,
+        }),
+        15 => Some(crate::PhysicalAddressOperation::RestoreFloatingControl {
+            slot: effect_codec::decode_local_storage_slot(cursor).map_err(map_field_error)?,
+        }),
         9 => Some(crate::PhysicalAddressOperation::HostedReadByte {
             slot: effect_codec::decode_local_storage_slot(cursor).map_err(map_field_error)?,
         }),

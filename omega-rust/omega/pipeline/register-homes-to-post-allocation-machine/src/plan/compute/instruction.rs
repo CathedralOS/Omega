@@ -145,6 +145,16 @@ pub(super) fn build(
             selected_instructions::SelectedInstructionKind::HostedReadByte { slot } => {
                 Some(physical_instructions::PhysicalAddressOperation::HostedReadByte { slot })
             }
+            selected_instructions::SelectedInstructionKind::SaveFloatingControl { slot } => {
+                Some(physical_instructions::PhysicalAddressOperation::SaveFloatingControl { slot })
+            }
+            selected_instructions::SelectedInstructionKind::RestoreFloatingControl { slot } => {
+                Some(
+                    physical_instructions::PhysicalAddressOperation::RestoreFloatingControl {
+                        slot,
+                    },
+                )
+            }
             selected_instructions::SelectedInstructionKind::HostedWriteByteI32 { slot } => {
                 Some(physical_instructions::PhysicalAddressOperation::HostedWriteByteI32 { slot })
             }

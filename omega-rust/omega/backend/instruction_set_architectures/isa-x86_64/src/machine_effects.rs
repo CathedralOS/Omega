@@ -71,6 +71,17 @@ pub fn x86_64_machine_effect_catalog(
                         crate::selected_form_encoding::hosted_read_byte::declaration(constraint),
                     );
                 }
+                if matches!(
+                    semantic,
+                    MachineSemanticKind::SaveFloatingControl
+                        | MachineSemanticKind::RestoreFloatingControl
+                ) {
+                    return Ok(
+                        crate::selected_form_encoding::floating_control::declaration(
+                            semantic, constraint,
+                        ),
+                    );
+                }
                 if semantic == MachineSemanticKind::HostedWriteByteI32 {
                     return Ok(
                         crate::selected_form_encoding::hosted_write_byte::declaration(constraint),
@@ -230,6 +241,8 @@ fn selected_keys(
         load32: Some(crate::X86_64_LOAD32),
         load8_indexed: Some(crate::X86_64_LOAD8_INDEXED),
         copy_bytes: Some(crate::X86_64_COPY_BYTES),
+        save_floating_control: Some(crate::X86_64_SAVE_FLOATING_CONTROL),
+        restore_floating_control: Some(crate::X86_64_RESTORE_FLOATING_CONTROL),
         store: Some(crate::X86_64_STORE),
         address_offset: Some(crate::X86_64_ADDRESS_OFFSET),
         store64: Some(crate::X86_64_STORE64),
@@ -559,6 +572,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
+        | MachineSemanticKind::SaveFloatingControl
+        | MachineSemanticKind::RestoreFloatingControl
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
@@ -823,6 +838,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::FrameAddress
         | MachineSemanticKind::HostedExitProcessI32
         | MachineSemanticKind::HostedReadByte
+        | MachineSemanticKind::SaveFloatingControl
+        | MachineSemanticKind::RestoreFloatingControl
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
