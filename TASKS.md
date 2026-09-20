@@ -8104,7 +8104,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   method" — no independent slice exists under this stub. Sibling stubs
   on the same bullet: GENERIC-DYNAMIC-FAMILY-DISPATCH,
   GENERIC-VIRTUAL-DISPATCH.
-- **GENERIC-VIRTUAL-DISPATCH** — mined candidate; verify scope then implement.
+- **GENERIC-VIRTUAL-DISPATCH** — mined candidate; scope verified, covered — same leg as resolved sibling GENERIC-VIRTUAL-CALLS: FINITE-GENERIC-DISPATCH's remaining-work bullet "runtime-capable family calls in Psi checking (`execution/unit/dynamic_scalar_calls/`)" — a `Value` argument proven a roster member selects its row through generated dispatch among the closed bodies, an unproven argument rejects. Re-verified at `7176821bc6b9` on Linux x86-64: the leg still depends on RUNTIME-VALUE-GENERICS (open), and `dynamic_scalar_calls/` + `monomorphization/dynamic_families.rs` are live-fenced under Zergling-136's GENERIC-DYNAMIC-FAMILY-DISPATCH claim until ~05:31Z — no independent slice exists under this stub. Sibling stubs on the same bullet: FINITE-GENERIC-METHOD-FAMILIES, GENERIC-DYNAMIC-FAMILY-DISPATCH, GENERIC-VIRTUAL-CALLS.
 - **GEOMETRY-ALIGNMENT-PARSING** — mined candidate; verify scope then implement.
 - **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md) GEOMETRY-PARITY
