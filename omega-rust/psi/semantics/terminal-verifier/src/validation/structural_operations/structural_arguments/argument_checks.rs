@@ -102,9 +102,14 @@ pub(super) fn validate_structural_argument(
                             source_policy,
                             StructuralArgumentSourcePolicy::ParametersOrLinearCallResults
                                 | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
-                        ) && argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
+                        ) && argument.path.is_empty() && argument.access == StructuralAccess::Owned
+                            && linear_call_result(caller, argument.place).is_some() =>
                     {
-                        let (_, result) = linear_call_result(caller, argument.place)?;
+                        // The guard keeps claim-free affine call results on the
+                        // general arm below: selecting this arm for them would
+                        // end the place lookup on a missing linear result.
+                        let (_, result) = linear_call_result(caller, argument.place)
+                            .expect("guard established a linear call result");
                         Some((result.structural_type, result.multiplicity, StructuralAccess::Owned,
                             result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
                     }
