@@ -7557,7 +7557,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   independent slice exists here.
 - **ZERO-BYTE-ARRAY-FENCE-PLACEMENT** — mined candidate; verify scope then implement.
 - **ZERO-EXTENT-BYTE-ARRAY-ADMISSION** — mined candidate; verify scope then implement.
-- **ZERO-EXTENT-BYTE-ARRAY-FENCE** — mined candidate; verify scope then implement.
+- **ZERO-EXTENT-BYTE-ARRAY-FENCE.** Resolved — re-mines the fence half of
+  the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row. The use-site fences are
+  already pinned: unprovable index into `[u8; 0]` rejects at check, fixed
+  literals must supply exactly 0 elements/bytes
+  (`fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}`
+  and `zero_length_byte_literal_length_rejected`), and non-scalar-leaf
+  `[T; 0]` stays fenced by `InvalidStructuralArrayLength` in the terminal
+  verifier (`terminal-verifier/src/validation/foundation/structural_types.rs:51`,
+  mirrored in optimization-unit-semantics). Re-verified green here at
+  `2442a9b4`: `zero_length_byte_array_is_admitted_at_check` and
+  `zero_length_byte_array_use_fences_reject_at_check` — 2/2 PASS on linux
+  x86-64. Sibling re-mines of the same cluster: FIXED-ARRAY-ZERO-EXTENT-FENCE,
+  ZERO-BYTE-ARRAY-FENCE-PLACEMENT, ZERO-EXTENT-BYTE-ARRAY-ADMISSION,
+  ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE,
+  ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE. The
+  remaining named residual is the native-route corpus pin, which the
+  resolved row assigns to the ACTIVE_FAIL roster — not this stub.
 - **ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE** — mined candidate; verify scope then implement.
 - **ZERO-LENGTH-BYTE-ARRAY-FENCE** — mined candidate; verify scope then implement.
 - **ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE** — mined candidate; verify scope then implement.
