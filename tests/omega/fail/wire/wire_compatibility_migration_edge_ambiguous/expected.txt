@@ -1,0 +1,1 @@
+migration coverage (no uniquely bound `CounterLineage` migration route exists from `CounterV1` to `Counter`: edge `CounterV1` -> `Counter` is bound by `Counter::from_v1`, `Counter::from_v1_legacy`; bind exactly one machine to each checked conversion edge)

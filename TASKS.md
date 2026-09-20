@@ -5951,6 +5951,15 @@ Platform/cross-host (structurally gated — document host limits):
 - **SHARED-MAPPING-REVOCATION.** Shared-mapping revocation and hostile shared-memory placement/remapping.
 - **DEVICE-EXTENT-ACCESS.** Device extent access.
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** External data schema conversion.
+  Landed: `require_wire_compatibility` CompleteMigration now certifies only a
+  uniquely bound conversion route — a `FormatMigration` lineage edge bound by
+  more than one machine fails migration coverage as ambiguous instead of
+  letting the route search pick whichever binding it reached first
+  (`wire/wire_compatibility_migration_edge_ambiguous`). Remaining: no codec
+  publishes preserving decode (`PreserveUnknown` demands are always
+  unsatisfiable); the preserving-decode mode and its remainder custody
+  (`Relayed<T>`/`OpaqueWireRemainder` in `wiki/spec/layouts/codecs.md`) are the
+  next slice.
 
 Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 

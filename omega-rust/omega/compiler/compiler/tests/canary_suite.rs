@@ -4827,6 +4827,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "wire/wire_policy_plan_disagrees",
     "wire/wire_compatibility_preservation_unmet",
     "wire/wire_compatibility_migration_route_missing",
+    "wire/wire_compatibility_migration_edge_ambiguous",
     "wire/encode_unsupported_field_type",
     "wire/encode_text_field_not_last",
     "wire/encode_case_bearing_value",

@@ -1,0 +1,44 @@
+// A store policy demanding CompleteMigration certifies one explicitly bound
+// checked conversion per lineage edge. Two machines satisfy the same
+// FormatMigration<CounterLineage, CounterV1, Counter>::migrate edge, so the
+// route cannot name which conversion is the checked one — the demand is
+// unsatisfied regardless of either body's correctness.
+
+use omega_language_std::format_lineage;
+
+data ArchiveStore {
+}
+
+data CounterLineage {
+}
+
+data CounterV1 {
+    #1 counter: i32;
+}
+
+data Counter {
+    #1 counter: i32;
+    #2 timestamp: i32;
+}
+
+machine Counter::from_v1(
+    old: CounterV1,
+    out: &mut Counter
+) satisfies FormatMigration<CounterLineage, CounterV1, Counter>::migrate {
+    out.counter = old.counter;
+    out.timestamp = 0;
+}
+
+machine Counter::from_v1_legacy(
+    old: CounterV1,
+    out: &mut Counter
+) satisfies FormatMigration<CounterLineage, CounterV1, Counter>::migrate {
+    out.counter = old.counter;
+    out.timestamp = 1;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

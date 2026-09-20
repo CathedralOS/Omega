@@ -309,22 +309,24 @@ fn compatibility_demand_report(
         &demand.peer_schema,
         &demand.local_schema,
     );
-    let identity_reuse = migration_route
-        .as_ref()
-        .and_then(|route| retired_identity_reuse(typed, &route.eras));
+    let identity_reuse = match &migration_route {
+        MigrationRouteSearch::Complete(route) => retired_identity_reuse(typed, &route.eras),
+        _ => None,
+    };
     let migration_value = local_schema.is_some()
         && peer_schema.is_some()
-        && migration_route.is_some()
+        && matches!(migration_route, MigrationRouteSearch::Complete(_))
         && identity_reuse.is_none();
     let migration_detail = match (local_schema, peer_schema, &migration_route) {
         (None, _, _) | (_, None, _) => schema_selection_detail(&local, &peer, demand),
-        (Some(_), Some(_), None) => {
+        (Some(_), Some(_), MigrationRouteSearch::Missing) => {
             format!(
                 "no complete `{}` migration route exists from `{}` to `{}`",
                 demand.lineage, demand.peer_schema, demand.local_schema
             )
         }
-        (Some(_), Some(_), Some(route)) => {
+        (Some(_), Some(_), MigrationRouteSearch::Ambiguous(detail)) => detail.clone(),
+        (Some(_), Some(_), MigrationRouteSearch::Complete(route)) => {
             if let Some(reuse) = identity_reuse {
                 format!("the selected route is not a sound migration: {reuse}")
             } else if route.machines.is_empty() {
@@ -541,22 +543,40 @@ struct MigrationRoute {
     eras: Vec<symbols::SymbolHandle>,
 }
 
+/// What the route search found between the selected eras. `Complete` carries
+/// the uniquely bound checked conversion chain the report certifies;
+/// `Ambiguous` means a complete chain exists but every one traverses an edge
+/// bound by more than one machine, so no unique conversion is certified;
+/// `Missing` means no bound chain exists at all.
+enum MigrationRouteSearch {
+    Complete(MigrationRoute),
+    Ambiguous(String),
+    Missing,
+}
+
 /// The checked migration route between two explicitly selected eras. Edges
 /// are the machines bound to `FormatMigration<Lineage, Old, New>`; lineage,
 /// old, and new are compared by declaration symbol, never by leaf name, so a
 /// route bound on one module's declarations cannot satisfy another module's
-/// demand even when the declarations are spelled identically.
+/// demand even when the declarations are spelled identically. The certified
+/// route may only traverse edges bound by exactly one machine: an edge bound
+/// twice would certify whichever binding the search happened to reach first,
+/// so such a route is reported ambiguous rather than selected.
 fn migration_route(
     typed: &TypedTrees,
     lineage: &str,
     peer: &str,
     local: &str,
-) -> Option<MigrationRoute> {
-    let local_symbol = resolve_declared_era(typed, local)?;
-    let peer_symbol = resolve_declared_era(typed, peer)?;
-    let lineage_symbol = resolve_declared_era(typed, lineage)?;
+) -> MigrationRouteSearch {
+    let (Some(local_symbol), Some(peer_symbol), Some(lineage_symbol)) = (
+        resolve_declared_era(typed, local),
+        resolve_declared_era(typed, peer),
+        resolve_declared_era(typed, lineage),
+    ) else {
+        return MigrationRouteSearch::Missing;
+    };
     if peer_symbol == local_symbol {
-        return Some(MigrationRoute {
+        return MigrationRouteSearch::Complete(MigrationRoute {
             machines: Vec::new(),
             eras: vec![local_symbol],
         });
@@ -587,10 +607,62 @@ fn migration_route(
         }
     }
 
-    let mut frontier = vec![(peer_symbol, Vec::<String>::new(), vec![peer_symbol])];
-    let mut visited = vec![peer_symbol];
+    let uniquely_bound = |(old, new): &(symbols::SymbolHandle, symbols::SymbolHandle)| {
+        edges
+            .iter()
+            .filter(|edge| (edge.0, edge.1) == (*old, *new))
+            .count()
+            == 1
+    };
+    let certified_edges = edges
+        .iter()
+        .filter(|(old, new, _)| uniquely_bound(&(*old, *new)))
+        .cloned()
+        .collect::<Vec<_>>();
+    if let Some(route) = search_route(&certified_edges, peer_symbol, local_symbol) {
+        return MigrationRouteSearch::Complete(route);
+    }
+    if let Some(route) = search_route(&edges, peer_symbol, local_symbol) {
+        let hops = route
+            .eras
+            .windows(2)
+            .filter_map(|hop| {
+                let machines = edges
+                    .iter()
+                    .filter(|edge| (edge.0, edge.1) == (hop[0], hop[1]))
+                    .map(|edge| format!("`{}`", edge.2))
+                    .collect::<Vec<_>>();
+                (machines.len() > 1).then(|| {
+                    format!(
+                        "edge `{}` -> `{}` is bound by {}",
+                        typed.symbols.display_path(hop[0], "::"),
+                        typed.symbols.display_path(hop[1], "::"),
+                        machines.join(", ")
+                    )
+                })
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        return MigrationRouteSearch::Ambiguous(format!(
+            "no uniquely bound `{lineage}` migration route exists from `{peer}` to `{local}`: \
+             {hops}; bind exactly one machine to each checked conversion edge"
+        ));
+    }
+    MigrationRouteSearch::Missing
+}
+
+/// Depth-first search for a bound edge chain from `peer` to `local` over the
+/// given edges, returning the machines in peer-to-local order and the era
+/// symbols the chain traverses, oldest first.
+fn search_route(
+    edges: &[(symbols::SymbolHandle, symbols::SymbolHandle, String)],
+    peer: symbols::SymbolHandle,
+    local: symbols::SymbolHandle,
+) -> Option<MigrationRoute> {
+    let mut frontier = vec![(peer, Vec::<String>::new(), vec![peer])];
+    let mut visited = vec![peer];
     while let Some((current, machines, eras)) = frontier.pop() {
-        for (old, new, machine) in &edges {
+        for (old, new, machine) in edges {
             if *old != current {
                 continue;
             }
@@ -598,7 +670,7 @@ fn migration_route(
             next_machines.push(machine.clone());
             let mut next_eras = eras.clone();
             next_eras.push(*new);
-            if *new == local_symbol {
+            if *new == local {
                 return Some(MigrationRoute {
                     machines: next_machines,
                     eras: next_eras,
