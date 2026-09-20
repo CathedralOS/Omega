@@ -5384,10 +5384,24 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
     pins all three through `compiler::compile`. Rust Alpha emission stays
     out of scope.
   - Std name shadowing. A user declaration spelled like a std one (`ByteRead`,
-    `Lexer`) makes std's own machines fail checking: `read_line`'s `store`
-    overflow and `MacosArm64::extent_shape`'s range. The three red
+    `Lexer`) makes std's own machines fail checking. The implicit-case-domain
+    capture is fixed: dispatch-arm `Type::Case` classification in
+    `symbol-resolved-trees-to-typed-trees`' `exhaustiveness.rs` and domain-fact
+    case lookup in `domain_membership.rs` scanned every loaded package by
+    spelling, so a consumer's package-private `data ByteRead {}` captured
+    `read_line`'s own dispatch as `can fall through`. Both now honor the
+    authored-selection `case_type_symbol`/`case_symbol` and `Named.symbol`,
+    and spelling fallbacks resolve inside the referencing source's package
+    scope (`data_definition_index`). Pinned by `module_machine_indices`
+    bare_cases
+    `consumer_same_named_data_does_not_capture_dependency_case_dispatch`; a
+    `data ByteRead {}` + `console.read_line` repro on linux-x86_64 now clears
+    the dispatch and stops at the remaining same-family diagnostics: a
+    cross-package `duplicate data ByteRead` check plus `read_line`'s `store`
+    overflow and `LinuxX86_64::extent_shape`'s range. The red
     `compiler/tests/calling_policy_plans/macos_entry.rs` tests are the same
-    family and the cheapest reproduction.
+    family; that directory is currently claimed by
+    OPAQUE-BY-VALUE-BOUNDARY-ABI.
   - The parser gate's next Unit omission: `statement sequence: call: call
     operation`, state `source_full`, statement 1 of
     `source/psi/gates/parser/harness.omg` — an attached call through a nested
