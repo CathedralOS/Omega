@@ -6505,7 +6505,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL name the same scope.
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **CTTL-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
-- **CUSTODY-MATRIX-HARNESS-MIGRATION** — mined candidate; verify scope then implement.
+- **CUSTODY-MATRIX-HARNESS-MIGRATION.** Mined candidate (split-of:CUSTODY-MUTATION-COVERAGE):
+  convert the legacy handwritten one-field substitution matrices to the shared
+  `custody_field_inventory!`/`run_one_field_substitution_matrix` harness in
+  `optimization-core`'s `test_support`, starting with the six-file ~15k-line set
+  led by `image-emission/tests/artifacts/installation_function_nested_custody.rs`
+  (18 matrices, 6,942 lines).
 - **CUSTODY-MUTATION-COVERAGE** — mined candidate; verify scope then implement.
 - **D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT** — mined candidate; verify scope then implement.
 - **D-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
