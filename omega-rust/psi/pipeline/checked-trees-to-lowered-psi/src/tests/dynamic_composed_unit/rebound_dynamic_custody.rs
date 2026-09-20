@@ -5,7 +5,7 @@ use super::{
     STORED_DYNAMIC_SOURCE, assert_dynamic_unit_artifact_executes,
     assert_stored_dynamic_scalar_artifact_executes, unsupported_message,
 };
-use crate::tests::{checked_source, lower_machine};
+use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, Terminator};
 
@@ -90,7 +90,7 @@ fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
 
 #[test]
 fn lowers_stored_dynamic_result_into_console_effect_control() {
-    let checked = checked_source(STORED_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let checked = checked_source_with_core_service(STORED_DYNAMIC_INTEGER_CONTROL_SOURCE);
     assert_eq!(
         checked.facts.dynamic_conformances.storages.len(),
         1,
@@ -162,7 +162,7 @@ fn lowers_stored_dynamic_result_into_console_effect_control() {
 fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
     use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
 
-    let checked = checked_source(STORED_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let checked = checked_source_with_core_service(STORED_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let stored = &checked
         .facts
         .flow
@@ -271,7 +271,7 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
 
 #[test]
 fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
-    let mut checked = checked_source(REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let mut checked = checked_source_with_core_service(REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert!(catalog.direct_scalar_calls.is_empty());
     let [plan] = catalog.rebound_scalar_calls.as_slice() else {
@@ -369,7 +369,8 @@ fn retains_distinct_applications_when_rebinding_to_another_conformance() {
 
 #[test]
 fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody() {
-    let mut checked = checked_source(FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let mut checked =
+        checked_source_with_core_service(FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     let [transfer] = catalog.transfers.as_slice() else {
         panic!("one checked dynamic descriptor transfer expected, got {catalog:#?}")

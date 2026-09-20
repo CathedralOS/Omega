@@ -235,11 +235,19 @@ class HostRowMatrix(unittest.TestCase):
 
     def test_unmeasured_host_legs_stay_explicit(self):
         output = self.matrix()
-        windows = next(
-            line for line in output.splitlines() if "windows_x86_64" in line
+        # windows_x86_64, linux_arm64, and macos_arm64 carry committed
+        # records now; cross_platform_cli and local_unchecked remain the
+        # unrecorded build-host legs that must stay explicit.
+        cli = next(
+            line for line in output.splitlines() if "cross_platform_cli" in line
         )
-        self.assertIn("measurable", windows)
-        self.assertNotIn("unavailable", windows)
+        self.assertIn("measurable", cli)
+        self.assertNotIn("unavailable", cli)
+        unchecked = next(
+            line for line in output.splitlines() if "local_unchecked" in line
+        )
+        self.assertIn("measurable", unchecked)
+        self.assertNotIn("unavailable", unchecked)
         uefi = next(
             line for line in output.splitlines() if "uefi_x86_64" in line
         )

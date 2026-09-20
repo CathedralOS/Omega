@@ -140,6 +140,43 @@ fn file_read_rejects_replacement_with_matching_bytes_length_and_modified_time() 
     assert!(hash_canonical_source_file(&source.path, &initial).is_err());
 }
 
+#[cfg(unix)]
+#[test]
+fn file_read_rejects_in_place_edit_restoring_compared_observations() {
+    // A same-inode rewrite restoring every compared indicator — length,
+    // permissions and the recorded modification time — still moves the
+    // kernel-managed change time, so both snapshot readers reject it.
+    let mut source = SourceFile::new(b"before");
+    let initial = std::fs::symlink_metadata(&source.path).expect("initial source metadata");
+    // Kernel change time moves only when the edit lands in a later
+    // filesystem timestamp tick; coarse-clock hosts quantize metadata
+    // timestamps to jiffies, so the mutation has to wait out a tick.
+    std::thread::sleep(Duration::from_millis(50));
+    source
+        .writer
+        .seek(SeekFrom::Start(0))
+        .expect("rewind writer");
+    source
+        .writer
+        .write_all(b"after!")
+        .expect("same-length bytes into the same inode");
+    source
+        .writer
+        .set_times(
+            FileTimes::new().set_modified(initial.modified().expect("initial modification time")),
+        )
+        .expect("restore the recorded modification time");
+
+    assert!(
+        read_canonical_source_file(&source.path, &initial).is_err(),
+        "a same-inode edit restoring compared indicators cannot pass on a host with kernel change times"
+    );
+    assert!(
+        hash_canonical_source_file(&source.path, &initial).is_err(),
+        "a same-inode edit restoring compared indicators cannot pass on a host with kernel change times"
+    );
+}
+
 #[test]
 fn unchanged_empty_and_multichunk_files_keep_exact_bytes_and_hashes() {
     for bytes in [Vec::new(), vec![b'A'; 128 * 1024 + 17]] {

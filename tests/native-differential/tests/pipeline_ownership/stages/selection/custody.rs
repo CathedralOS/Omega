@@ -59,7 +59,7 @@ fn optimized_selection_custody_rejects_every_one_field_substitution() {
                 "{target:?}: mutation `{name}` must change the retained custody receipt",
             );
             let rebuilt = validate_optimized_selection_custody(
-                substituted.optimized_target(),
+                substituted.optimized_target_owner(),
                 substituted.register_environment(),
                 substituted.legalized(),
                 substituted.selected(),

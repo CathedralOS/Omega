@@ -525,6 +525,30 @@ re-attributed member-by-member below.
   member `owned_match_nested_record_replays_every_selected_payload` passed
   at 261s — still slow-flagged, still not a failure.
 
+Residual attribution at 23392bc467 (2026-09-20, Linux x86-64), same
+command: 2183 run, 2127 passed, 56 failed (55 FAIL plus
+`mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+killed externally after ~1390s at ~570% CPU — the same blowup, still
+unbisected, still PROOF-SEARCH-MEASUREMENT's). Every failure maps onto the
+recorded families with identical diagnostics — 30 `tests::*` bare
+`Service<R>` spellings at `src/tests.rs:82` plus the 3
+`unit_plan_omissions` members (33 total, ENTRY-CONTENT-ROOTS); 16 missing
+checked transitive machine plans (`provider_attachment_source` ×6,
+`unit_state_graph::provider_attachments` ×9,
+`guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`);
+4 scalar-return custody cases; 2 ranked safe-point segment bounds. Both new
+families from the 6ef64f6dd6 reading closed since: the three site_guard
+crash-namespace rejections now pass
+(`landed_affine_sibling_custody_crosses_source_codec_and_independent_verification`,
+`bounded_exact_left_shift_uses_only_its_canonical_certificate`,
+`erased_arithmetic_prefix_still_requires_its_own_certificate`), and
+`closed_record_projections_replay_exact_sources_carriers_and_all_siblings`
+passes again at 0.020s — shrinkage, not a new tail; the closed families'
+unbisected suspects are in the retained-borrow/result-contract lane.
+`owned_match_nested_record_replays_every_selected_payload` passed at 258s —
+still slow-flagged, still not a failure. The unattributed tail remains
+empty; all 56 members remain owned by the families' named items.
+
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
 macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the
@@ -616,15 +640,6 @@ and the expectation now names it.)
   builds the native request by hand and never supplies the checked entry the
   production route attaches through `with_checked_entry`. Repair is a harness
   migration onto the stage crate's route (**ENTRY-CONTENT-ROOTS** area).
-- Frontend-drop custody ordering (2):
-  `contracts_and_frontend_drop::terminal_production_requires_typed_custody_but_not_debug_presentation`
-  and `locals_calls_and_short_circuit::checked_source_scalar_locals_become_terminal_block_values`
-  expect `Unsupported("scalar source custody has no authored state")` but now
-  reach the earlier attached-Unit parameter gate
-  (`checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs`,
-  `carries_parameter_custody`) first: `Unsupported("direct Unit parameter plan
-  has no exact typed machine")`. The expectation dates from 3fcf8240e3; the
-  gate order moved in a 2026-09-15 lowering commit and was not bisected.
 - `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
   (1): `UnsupportedControlFlow(MachineId(1))` from
   `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;

@@ -166,13 +166,13 @@ fn row(
 }
 
 #[test]
-fn both_targets_close_exact_thirteen_row_roster_and_shstrndx() {
+fn both_targets_close_exact_fourteen_row_roster_and_shstrndx() {
     for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
         let roster = plan_elf_dynamic_section_roster(section_names(target, &IMPORTS))
             .expect("validated section roster");
-        assert_eq!(roster.section_count(), 13);
-        assert_eq!(roster.section_name_table_index(), 12);
-        assert_eq!(roster.contents.rows.len(), 13);
+        assert_eq!(roster.section_count(), 14);
+        assert_eq!(roster.section_name_table_index(), 13);
+        assert_eq!(roster.contents.rows.len(), 14);
         assert_eq!(
             roster
                 .contents
@@ -227,7 +227,7 @@ fn exact_numeric_links_and_literal_info_are_preserved() {
     let dynamic = row(&roster.contents, ElfDynamicRosterSectionKind::DynamicTable);
     assert_eq!(
         (dynamic.name_offset, dynamic.link, dynamic.info),
-        (103, 2, 0)
+        (113, 2, 0)
     );
     let shstrtab = row(
         &roster.contents,
@@ -241,7 +241,7 @@ fn exact_numeric_links_and_literal_info_are_preserved() {
             shstrtab.link,
             shstrtab.info,
         ),
-        (59, 3, 112, 0, 0),
+        (59, 3, 122, 0, 0),
     );
 }
 

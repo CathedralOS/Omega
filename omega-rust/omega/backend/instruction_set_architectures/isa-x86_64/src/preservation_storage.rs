@@ -7,9 +7,7 @@ use register_model::{
 };
 use target::NativeTarget;
 
-use crate::register_model::{
-    x86_64_physical_register_model, x86_64_preservation_convention_for_target,
-};
+use crate::register_model::x86_64_preservation_convention_for_target;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum X86_64PreservationStorageCatalogError {
@@ -36,7 +34,7 @@ pub fn x86_64_preservation_storage_catalog(
     model: &ValidatedPhysicalRegisterModel,
     target: NativeTarget,
 ) -> Result<ValidatedPreservationStorageCatalog, X86_64PreservationStorageCatalogError> {
-    if model.model() != &x86_64_physical_register_model() {
+    if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64PreservationStorageCatalogError::PhysicalRegisterModelMismatch);
     }
     let group_names: Vec<String> = if target == NativeTarget::linux_x64() {
@@ -91,8 +89,9 @@ pub fn x86_64_preservation_storage_catalog(
 mod tests {
     use super::{
         NativeTarget, ValidatedPhysicalRegisterModel, X86_64PreservationStorageCatalogError,
-        x86_64_physical_register_model, x86_64_preservation_storage_catalog,
+        x86_64_preservation_storage_catalog,
     };
+    use crate::x86_64_physical_register_model;
     use register_model::{RegisterUnitId, validate_physical_register_model};
     use target::{Architecture, ObjectFormat};
 

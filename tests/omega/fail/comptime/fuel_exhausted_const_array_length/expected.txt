@@ -1,1 +1,1 @@
-machine `table_size` is not build-time admissible
+const evaluation of `table_size` failed: step budget exceeded

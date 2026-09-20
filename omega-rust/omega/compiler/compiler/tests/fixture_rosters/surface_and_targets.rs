@@ -18,6 +18,8 @@ pub const RUNTIME_WIRE_UTF8_INVALID_REFUSED_EXIT: &str =
 pub const EXTERNAL_LEAF_SYSCALL_COMPILE: &str = "providers/external_leaf_syscall_compile";
 pub const DUPLICATE_NAMED_MACHINE_OVERLOAD_REJECTED: &str =
     "calls/duplicate_named_machine_overload_rejected";
+pub const DUPLICATE_ATTACHED_MACHINE_OVERLOAD_REJECTED: &str =
+    "calls/duplicate_attached_machine_overload_rejected";
 pub const DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED: &str =
     "modules/duplicate_imported_machine_overload_rejected";
 pub const DUPLICATE_TRAIT_REQUIREMENT_OVERLOAD_REJECTED: &str =
@@ -46,6 +48,7 @@ pub const PASS_CANARIES: &[&str] = &[
 pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     FREE_MACHINE_NAMED_TRANSITION_REJECTED,
     DUPLICATE_NAMED_MACHINE_OVERLOAD_REJECTED,
+    DUPLICATE_ATTACHED_MACHINE_OVERLOAD_REJECTED,
     DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED,
     DUPLICATE_TRAIT_REQUIREMENT_OVERLOAD_REJECTED,
     IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED,

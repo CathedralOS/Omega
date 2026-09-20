@@ -276,6 +276,107 @@ fn opaque_movement_rejoins_an_exact_result_placement() {
     );
 }
 
+#[test]
+fn boundary_application_replay_rejects_stale_opaque_custody_lanes() {
+    let call_signature = CallSignature {
+        parameters: vec![ValueShape::integer(8, 8)],
+        result: None,
+    };
+    let validated = evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(NativeTarget::host()),
+        &call_signature,
+    )
+    .expect("ordinary one-parameter plan");
+    let materialized_signature = materialized_boundary_signature_from_abi(&call_signature)
+        .expect("materialized one-parameter signature");
+    let (report_fingerprint, application_commitment) =
+        boundary_plan_application_identity(&materialized_signature, &validated);
+    let realization = BoundaryCallingPlanRealization {
+        boundary_trait: symbols::SymbolHandle::from_arena_index(1),
+        boundary_arguments: Vec::new(),
+        requirement_machine: symbols::SymbolHandle::from_arena_index(2),
+        report_fingerprint,
+        commitment: typed_trees::typed_trees::BoundaryCallingPlanCommitment::from_digest(
+            application_commitment,
+        ),
+        boundary_entry_plan: validated.plan().clone(),
+        exact_boundary_entry_plan: validated.plan().clone(),
+        callback_binders: Vec::new(),
+        callback_demands: Vec::new(),
+        callback_context_closed: false,
+        native_parameters: Vec::new(),
+        materialized_signature,
+        policy_machine: String::new(),
+        relationship_span: source::SourceSpan::default(),
+    };
+
+    // Fresh custody: no retained opaque uses replays the same application
+    // identity the realization was minted with.
+    let (_, fingerprint, commitment) = realization
+        .replayed_validated_application()
+        .expect("fresh realization replays its exact validated application");
+    assert_eq!(fingerprint, report_fingerprint);
+    assert_eq!(commitment, realization.commitment);
+
+    // A correctly committed use is not stale custody: the replay proceeds past
+    // the custody arm and can only fail later at movement rejoin.
+    let mut fresh = realization.clone();
+    fresh
+        .materialized_signature
+        .opaque_representations
+        .push(test_opaque_representation_use(0));
+    if let Err(error) = fresh.replayed_validated_application() {
+        assert!(
+            !error
+                .0
+                .contains("stale opaque-representation application custody"),
+            "{error}"
+        );
+    }
+
+    // Every stale-custody lane rejects with the gate's own diagnostic.
+    let stale_uses = [
+        BoundaryOpaqueRepresentationUse {
+            opaque: symbols::SymbolHandle::default(),
+            ..test_opaque_representation_use(0)
+        },
+        BoundaryOpaqueRepresentationUse {
+            conformance: symbols::SymbolHandle::default(),
+            ..test_opaque_representation_use(0)
+        },
+        BoundaryOpaqueRepresentationUse {
+            carrier: symbols::SymbolHandle::default(),
+            ..test_opaque_representation_use(0)
+        },
+        test_opaque_representation_use(u16::MAX),
+        BoundaryOpaqueRepresentationUse {
+            representation_schema_version:
+                representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION + 1,
+            ..test_opaque_representation_use(0)
+        },
+        BoundaryOpaqueRepresentationUse {
+            selected_application_commitment: [0xEE; 32],
+            ..test_opaque_representation_use(0)
+        },
+    ];
+    for stale in stale_uses {
+        let mut tampered = realization.clone();
+        tampered
+            .materialized_signature
+            .opaque_representations
+            .push(stale);
+        let error = tampered
+            .replayed_validated_application()
+            .expect_err("a stale opaque-representation use must reject");
+        assert!(
+            error
+                .0
+                .contains("stale opaque-representation application custody"),
+            "{error}"
+        );
+    }
+}
+
 fn legacy_boundary_plan_application_v2_identity(
     signature: &MaterializedBoundarySignature,
     validated: &ValidatedBoundaryEntryPlan,

@@ -3,7 +3,6 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
-use crate::aarch64_physical_register_model;
 use crate::selected_form_encoding::selected_forms::resolve_registers;
 use register_model::RegisterViewId;
 use register_model::ValidatedPhysicalRegisterModel;
@@ -191,7 +190,7 @@ fn request(
     displacement: u32,
 ) -> Result<[u8; 2], Aarch64SelectedFormEncodingError> {
     let width = load_width(kind)?;
-    if physical.model() != &aarch64_physical_register_model()
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || !matches!(kind, SelectedInstructionKind::Load8 { byte_offset } | SelectedInstructionKind::Load16 { byte_offset } | SelectedInstructionKind::Load32 { byte_offset } | SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
         || alternative
             != (MachineAlternativeKey {

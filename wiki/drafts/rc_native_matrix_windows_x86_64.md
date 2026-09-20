@@ -50,6 +50,14 @@ Useful coverage, not a row substitute:
   pipeline cross-target on any host; its host-agnostic legs run on Linux
   today but its PE execution legs remain unobserved by definition here.
 
+Re-checked at `c93cceb9ca` (Linux x86-64): the row remains **open** — no
+Windows x86-64 runner exists, and the host-free legs above cannot be
+re-executed at this revision because the workspace is red before the test
+crate builds: `external-roots` fails `cargo check --lib` with
+`E0432 unresolved import effects::ComponentEraJournalRoster` in
+`program_local/program_local_roots/epoch_cohorts.rs:9` (in-flight
+ENTRY-CONTENT-ROOTS lane; not this row's repair).
+
 ## Substrate integrity note for the row's owner
 
 `tools/release/release_record.py` `command_run` does not currently check

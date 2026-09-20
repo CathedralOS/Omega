@@ -226,7 +226,11 @@ fn register_move_contracts_delegate_operand_checking_to_the_assignment() {
 
 #[test]
 fn catalog_names_semantic_refusal_classes() {
-    for mnemonic in ["ret", "retq", "call", "br", "blr"] {
+    for mnemonic in [
+        "ret", "retq", "call", "br", "blr", "retf", "jmpq", "b", "bl", "bx", "cbz", "tbz", "loop",
+        "loopne", "jcxz", "jrcxz", "int", "int3", "je", "jne", "jz", "jae", "jbe", "jng", "jnle",
+        "jo", "js", "jpe", "jnp", "jc", "jnc",
+    ] {
         assert_eq!(
             asm_catalog_entry(mnemonic),
             Some(AsmCatalogEntry::Refused(
@@ -235,7 +239,52 @@ fn catalog_names_semantic_refusal_classes() {
             "{mnemonic} stays a hidden-exit refusal"
         );
     }
-    for mnemonic in ["ldr", "str", "ldp", "stp", "push", "pop"] {
+    for mnemonic in [
+        "ldr",
+        "str",
+        "ldp",
+        "stp",
+        "push",
+        "pop",
+        "pushq",
+        "enter",
+        "leave",
+        "ldrb",
+        "ldrsw",
+        "strh",
+        "ldur",
+        "sturh",
+        "ldtrb",
+        "sttr",
+        "ldxr",
+        "stxrh",
+        "ldaxr",
+        "stlxrb",
+        "ldxp",
+        "stlxp",
+        "ldar",
+        "stlrh",
+        "swp",
+        "swpal",
+        "cas",
+        "caspal",
+        "ldadd",
+        "ldeor",
+        "ldsmax",
+        "ldumin",
+        "xchg",
+        "xadd",
+        "cmpxchg",
+        "cmpxchg8b",
+        "xlatb",
+        "movsb",
+        "lodsq",
+        "stosw",
+        "scasb",
+        "cmpsq",
+        "insb",
+        "outsw",
+    ] {
         assert_eq!(
             asm_catalog_entry(mnemonic),
             Some(AsmCatalogEntry::Refused(
@@ -244,7 +293,16 @@ fn catalog_names_semantic_refusal_classes() {
             "{mnemonic} stays an unmodeled-memory refusal"
         );
     }
-    assert_eq!(asm_catalog_entry("db"), None);
+    // Supervisor traps are service-admission candidates, not hidden exits;
+    // address arithmetic and ordering barriers access no memory. Each keeps
+    // the unknown-mnemonic failure rather than borrowing a semantic refusal.
+    for mnemonic in ["db", "svc", "hvc", "smc", "brk", "lea", "dmb", "dsb", "nop"] {
+        assert_eq!(
+            asm_catalog_entry(mnemonic),
+            None,
+            "{mnemonic} stays an unknown mnemonic"
+        );
+    }
 }
 
 #[test]

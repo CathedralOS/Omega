@@ -1,6 +1,6 @@
 use super::{
-    Lexer, ResolutionRequest, checked_source, lower_machine, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve,
+    Lexer, ResolutionRequest, checked_source_with_core_service, lower_machine,
+    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
@@ -11,7 +11,7 @@ use terminal_psi::{OperationKind, StructuralPathSegment};
 fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
     let source = r#"
         pub boundary trait Console { machine write_byte(byte: i32) reaches Console; }
-        data Main { value: i32; bytes: [u8; 256]; console: Console; }
+        data Main { value: i32; bytes: [u8; 256]; console: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
             transition self.value == 0 { true -> initialized() false -> failed() }
             state initialized(&mut self) {
@@ -22,7 +22,7 @@ fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
             state failed(&mut self) { self.console.write_byte(70); }
         }
     "#;
-    let checked = checked_source(source);
+    let checked = checked_source_with_core_service(source);
     lower_machine(&checked, "Main::main").expect("indexed source retains its composed attachment");
 }
 
@@ -56,7 +56,7 @@ fn indexed_primitive_source_rejects_out_of_bounds_and_shared_writes() {
 #[test]
 fn source_indexed_primitive_storage_retains_canonical_leaf_paths() {
     for (primitive, value) in [("u8", "65"), ("i32", "65"), ("bool", "true")] {
-        let checked = checked_source(&source(primitive, value));
+        let checked = checked_source_with_core_service(&source(primitive, value));
         let artifact =
             terminal_production::TerminalProductionRequest::new(&checked, "Buffer::update")
                 .produce_artifact()
@@ -91,7 +91,7 @@ fn source_indexed_primitive_storage_retains_canonical_leaf_paths() {
 
 #[test]
 fn source_indexed_primitive_store_and_read_share_serialized_backing() {
-    let checked = checked_source(&source("u8", "65"));
+    let checked = checked_source_with_core_service(&source("u8", "65"));
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Buffer::update")
         .produce_artifact()
         .unwrap();
@@ -154,7 +154,7 @@ fn source_indexed_primitive_store_and_read_share_serialized_backing() {
 
 #[test]
 fn indexed_primitive_store_receiver_rejects_changed_path_and_missing_store() {
-    let checked = checked_source(&source("u8", "65"));
+    let checked = checked_source_with_core_service(&source("u8", "65"));
     lower_machine(&checked, "Buffer::update").unwrap();
     for index in [254, 256] {
         let mut changed = checked.clone();
@@ -195,7 +195,7 @@ fn indexed_primitive_store_receiver_rejects_changed_path_and_missing_store() {
 
 #[test]
 fn indexed_primitive_read_receiver_rejects_changed_source_path() {
-    let checked = checked_source(&source("u8", "65"));
+    let checked = checked_source_with_core_service(&source("u8", "65"));
     let plan = checked
         .facts
         .values

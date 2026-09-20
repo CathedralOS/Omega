@@ -27,6 +27,7 @@ mod packed_byte_width;
 pub use packed_byte_width::PackedByteWidth;
 pub mod live_ranges;
 pub mod liveness;
+pub mod plan_identity;
 pub mod provenance;
 pub mod structural_case;
 pub mod values;
@@ -61,6 +62,7 @@ pub use instructions::{SelectedInstruction, SelectedInstructionKind};
 pub use legalized_operations::{SaturatingCarrier, SaturatingOperation};
 pub use live_ranges::*;
 pub use liveness::*;
+pub use plan_identity::selected_instruction_plan_identity;
 pub use provenance::SelectedInstructionProvenance;
 pub use structural_case::{
     SelectedCasePayloadBinding, SelectedCasePayloadTransport, SelectedStructuralCaseEdge,

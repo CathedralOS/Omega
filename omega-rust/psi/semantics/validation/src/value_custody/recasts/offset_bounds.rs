@@ -266,11 +266,15 @@ fn boundary_call_ensures_bound(
             }
             _ => None,
         })?;
-    let TypeReferenceNode::Named {
-        name: trait_name, ..
-    } = program.type_reference_table.type_reference(field_type)
-    else {
-        return None;
+    let mut type_node = program.type_reference_table.type_reference(field_type);
+    let trait_name = loop {
+        match type_node {
+            TypeReferenceNode::Named { name, .. } => break name,
+            TypeReferenceNode::Reference { referee, .. } => {
+                type_node = program.type_reference_table.type_reference(*referee);
+            }
+            _ => return None,
+        }
     };
     let trait_definition = program
         .traits()

@@ -3,7 +3,7 @@
 //! This layer consumes relative permission-domain packing, binds it to the
 //! exact retained Linux target, and closes the current five-program-header
 //! geometry (`PT_INTERP`, R/RX/RW `PT_LOAD`, and `PT_DYNAMIC`). It also
-//! resolves all twenty-three section-header placement obligations as retained
+//! resolves all twenty-five section-header placement obligations as retained
 //! values. It does not write those values into the section-header template,
 //! resolve payload-internal fixups, mutate image bytes, serialize program
 //! headers, or claim runnable-ELF authority. The section-header template gets
@@ -41,9 +41,9 @@ use crate::dynamic_executable::load_placement::load_layout::candidates::{
 use crate::dynamic_executable::load_placement::load_layout::compatibility_fingerprint::non_authoritative_layout_compatibility_fingerprint;
 use crate::dynamic_executable::section_headers::relative_section_layout::ValidatedElfRelativeSectionPayloadLayout;
 
-const SECTION_COUNT: usize = 13;
+const SECTION_COUNT: usize = 14;
 
-const PLACEMENT_FIXUP_COUNT: usize = 23;
+const PLACEMENT_FIXUP_COUNT: usize = 25;
 
 const DYNAMIC_PROGRAM_HEADER_COUNT: u64 = 5;
 

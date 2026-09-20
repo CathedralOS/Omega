@@ -1,0 +1,36 @@
+// Named-machine result overloads on an ATTACHED family select from the
+// destination's normalized dispatch-bearing domain set through a member
+// receiver. `Helper::pick` has an empty default and a Saturating result;
+// a typed member LET must bind the latter while an ordinary LET binds the
+// former. Runtime values differ so symbol/backend identity mistakes are
+// observable.
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Helper { seed: i32; }
+
+machine Helper::pick(&self) -> i32 {
+    transition { _ -> (self.seed) }
+}
+
+machine Helper::pick(&self) -> i32 in Saturating {
+    transition { _ -> ((self.seed as i32 in Saturating) + 1) }
+}
+
+data Main {
+    console: Service<Console>;
+    helper: Helper;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.helper.seed = 69;
+    let qualified: i32 in Saturating = self.helper.pick();
+    let ordinary: i32 = self.helper.pick();
+    transition {
+        qualified == (70 as i32 in Saturating) && ordinary == 69 -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(77); }
+}

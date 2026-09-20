@@ -118,7 +118,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert!(!subtract_pair.admits_immediate(4096));
     assert_eq!(
         subtract_pair.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
+        PairOperandShape::BINARY_RIGHT_LITERAL
     );
     assert_eq!(subtract_pair.victim_operand(), 1);
     // The compare family admits the literal at either `Use` position of the
@@ -164,7 +164,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         add_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
+        PairOperandShape::BINARY_RIGHT_LITERAL
     );
     assert_eq!(add_rule.victim_operand(), 1);
     assert_eq!(
@@ -173,7 +173,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         add_left_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteral
+        PairOperandShape::BINARY_LEFT_LITERAL
     );
     assert_eq!(add_left_rule.victim_operand(), 0);
     assert_eq!(
@@ -204,7 +204,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         compare_right_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
+        PairOperandShape::BINARY_RIGHT_LITERAL
     );
     assert_eq!(
         compare_right_rule.machine_effects(),
@@ -229,7 +229,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // operand 0.
     assert_eq!(
         compare_left_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteralOperandSwap
+        PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP
     );
     assert_eq!(
         compare_left_rule.machine_effects(),
@@ -261,7 +261,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert!(!indexed_rule.admits_immediate(4096));
     assert_eq!(
         indexed_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
+        PairOperandShape::BINARY_RIGHT_LITERAL
     );
     assert_eq!(indexed_rule.victim_operand(), 1);
     assert_eq!(indexed_rule.result(), PairResultDisposition::ScalarRegister);
@@ -295,7 +295,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(copy_rule.producer(), MachineSemanticKind::MaterializeI64);
     assert_eq!(copy_rule.consumer(), MachineSemanticKind::CopyI64);
     assert_eq!(copy_rule.rewritten(), MachineSemanticKind::MaterializeI64);
-    assert_eq!(copy_rule.operand_shape(), PairOperandShape::UnaryLiteral);
+    assert_eq!(copy_rule.operand_shape(), PairOperandShape::UNARY_LITERAL);
     assert_eq!(copy_rule.victim_operand(), 0);
     assert_eq!(copy_rule.result(), PairResultDisposition::ScalarRegister);
     assert_eq!(copy_rule.unit_effects(), PairUnitEffects::Isolated);
@@ -333,7 +333,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         address_offset_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
+        PairOperandShape::BINARY_RIGHT_LITERAL
     );
     assert_eq!(address_offset_rule.victim_operand(), 1);
     assert_eq!(
@@ -342,7 +342,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         address_backing_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteral
+        PairOperandShape::BINARY_LEFT_LITERAL
     );
     assert_eq!(address_backing_rule.victim_operand(), 0);
     assert_eq!(
@@ -401,7 +401,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(divide_rule.fold_immediate(1), Some(1));
     assert_eq!(
         divide_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteralAuxiliaryUses
+        PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES
     );
     assert_eq!(divide_rule.victim_operand(), 1);
     assert_eq!(divide_rule.result(), PairResultDisposition::ScalarRegister);
@@ -471,7 +471,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(remainder_rule.fold_immediate(1), Some(0));
     assert_eq!(
         remainder_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteralConstantResult
+        PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT
     );
     assert_eq!(remainder_rule.victim_operand(), 1);
     assert_eq!(
@@ -556,7 +556,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(remainder_zero_rule.fold_immediate(0), Some(0));
     assert_eq!(
         remainder_zero_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteralConstantResult
+        PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT
     );
     assert_eq!(remainder_zero_rule.victim_operand(), 0);
     assert_ne!(
@@ -647,7 +647,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(divide_zero_rule.fold_immediate(0), Some(0));
     assert_eq!(
         divide_zero_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
+        PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES
     );
     assert_eq!(divide_zero_rule.victim_operand(), 0);
     assert_ne!(
@@ -739,12 +739,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     }
     assert_eq!(
         and_zero_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteralConstantResult
+        PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT
     );
     assert_eq!(and_zero_rule.victim_operand(), 1);
     assert_eq!(
         and_zero_left_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteralConstantResult
+        PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT
     );
     assert_eq!(and_zero_left_rule.victim_operand(), 0);
     let and_kind = SelectedInstructionKind::BitwiseAndI64;
@@ -805,12 +805,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     }
     assert_eq!(
         xor_zero_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
+        PairOperandShape::BINARY_RIGHT_LITERAL
     );
     assert_eq!(xor_zero_rule.victim_operand(), 1);
     assert_eq!(
         xor_zero_left_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteral
+        PairOperandShape::BINARY_LEFT_LITERAL
     );
     assert_eq!(xor_zero_left_rule.victim_operand(), 0);
     let xor_kind = SelectedInstructionKind::BitwiseXorI64;
@@ -872,12 +872,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     }
     assert_eq!(
         wrapping_add_zero_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
+        PairOperandShape::BINARY_RIGHT_LITERAL
     );
     assert_eq!(wrapping_add_zero_rule.victim_operand(), 1);
     assert_eq!(
         wrapping_add_zero_left_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteral
+        PairOperandShape::BINARY_LEFT_LITERAL
     );
     assert_eq!(wrapping_add_zero_left_rule.victim_operand(), 0);
     let wrapping_add_kind = SelectedInstructionKind::WrappingAddI64;
@@ -955,12 +955,12 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     );
     assert_eq!(
         and_ones_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteral
+        PairOperandShape::BINARY_RIGHT_LITERAL
     );
     assert_eq!(and_ones_rule.victim_operand(), 1);
     assert_eq!(
         and_ones_left_rule.operand_shape(),
-        PairOperandShape::BinaryLeftLiteral
+        PairOperandShape::BINARY_LEFT_LITERAL
     );
     assert_eq!(and_ones_left_rule.victim_operand(), 0);
     assert_eq!(
@@ -1021,10 +1021,10 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(
             pair.operand_shape(),
             match (carrier, left) {
-                (SaturatingCarrier::U64, false) => PairOperandShape::BinaryRightLiteral,
-                (SaturatingCarrier::U64, true) => PairOperandShape::BinaryLeftLiteral,
-                (_, false) => PairOperandShape::BinaryRightLiteralScratchDefs,
-                (_, true) => PairOperandShape::BinaryLeftLiteralScratchDefs,
+                (SaturatingCarrier::U64, false) => PairOperandShape::BINARY_RIGHT_LITERAL,
+                (SaturatingCarrier::U64, true) => PairOperandShape::BINARY_LEFT_LITERAL,
+                (_, false) => PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS,
+                (_, true) => PairOperandShape::BINARY_LEFT_LITERAL_SCRATCH_DEFS,
             }
         );
         assert_eq!(pair.victim_operand(), u16::from(!left));
@@ -1139,9 +1139,9 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(
             pair.operand_shape(),
             if carrier.is_signed() {
-                PairOperandShape::BinaryRightLiteralScratchDefs
+                PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS
             } else {
-                PairOperandShape::BinaryRightLiteral
+                PairOperandShape::BINARY_RIGHT_LITERAL
             }
         );
         assert_eq!(pair.victim_operand(), 1);
@@ -1252,7 +1252,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.operand_shape(),
-            PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs
+            PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS
         );
         assert_eq!(pair.victim_operand(), 1);
         assert_eq!(pair.rewritten(), MachineSemanticKind::CopyI64);
@@ -1363,7 +1363,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.operand_shape(),
-            PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs
+            PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS
         );
         assert_eq!(pair.victim_operand(), 0);
         assert_eq!(pair.rewritten(), MachineSemanticKind::MaterializeI64);
@@ -1476,7 +1476,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.operand_shape(),
-            PairOperandShape::BinaryLeftLiteralConstantResult
+            PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT
         );
         assert_eq!(pair.victim_operand(), 0);
         assert_eq!(pair.rewritten(), MachineSemanticKind::MaterializeI64);
@@ -1583,9 +1583,9 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         assert_eq!(
             pair.operand_shape(),
             if left {
-                PairOperandShape::BinaryLeftLiteralConstantResult
+                PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT
             } else {
-                PairOperandShape::BinaryRightLiteralConstantResult
+                PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT
             }
         );
         assert_eq!(pair.victim_operand(), u16::from(!left));
@@ -1723,7 +1723,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     assert_eq!(remainder_minus_one_rule.fold_immediate(u64::MAX), Some(0));
     assert_eq!(
         remainder_minus_one_rule.operand_shape(),
-        PairOperandShape::BinaryRightLiteralConstantResult
+        PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT
     );
     assert_eq!(remainder_minus_one_rule.victim_operand(), 1);
     assert_eq!(
@@ -1805,7 +1805,7 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         );
         assert_eq!(
             pair.operand_shape(),
-            PairOperandShape::BinaryRightLiteralConstantResult
+            PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT
         );
         assert_eq!(pair.victim_operand(), 1);
         assert_eq!(pair.rewritten(), MachineSemanticKind::MaterializeI64);
@@ -3051,7 +3051,7 @@ fn extension_elimination_rules_fold_unary_consumers_to_materializations() {
     for rule in pairs {
         assert_eq!(rule.producer(), MachineSemanticKind::MaterializeI64);
         assert_eq!(rule.rewritten(), MachineSemanticKind::MaterializeI64);
-        assert_eq!(rule.operand_shape(), PairOperandShape::UnaryLiteral);
+        assert_eq!(rule.operand_shape(), PairOperandShape::UNARY_LITERAL);
         assert_eq!(rule.victim_operand(), 0);
         assert_eq!(rule.result(), PairResultDisposition::ScalarRegister);
         // Extension-folded constants always encode; no immediate bound applies.
@@ -3176,7 +3176,7 @@ fn copy_materialization_rule_folds_the_unary_copy_to_a_materialization() {
     assert_eq!(rule.producer(), MachineSemanticKind::MaterializeI64);
     assert_eq!(rule.consumer(), MachineSemanticKind::CopyI64);
     assert_eq!(rule.rewritten(), MachineSemanticKind::MaterializeI64);
-    assert_eq!(rule.operand_shape(), PairOperandShape::UnaryLiteral);
+    assert_eq!(rule.operand_shape(), PairOperandShape::UNARY_LITERAL);
     assert_eq!(rule.victim_operand(), 0);
     assert_eq!(rule.result(), PairResultDisposition::ScalarRegister);
     // The copy preserves the full literal: no target immediate bound and no

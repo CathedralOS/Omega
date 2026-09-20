@@ -13,7 +13,7 @@
 
 This is a staged record: the inventory row remains `Experimental` and opt-in
 until the workspace gate passes. The `PENDING` fields name the promotion-contract
-evidence still missing — owner review, an approved status, a versioned
-measurement, and a selected-rule rollback leg. Backticked evidence pointers cite
+evidence still missing — owner review, an approved status, and a versioned
+measurement. Backticked evidence pointers cite
 repository artifacts as `path` or `path::subject`; the architecture gate resolves
 every one of them.

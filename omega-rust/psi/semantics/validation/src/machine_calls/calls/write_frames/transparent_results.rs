@@ -28,6 +28,7 @@ use crate::machine_calls::calls::write_frames::local_aliases::{
 use crate::machine_calls::calls::write_frames::parameter_aliases::{
     ParameterRelativeFrameOrigin, parameter_relative_alias_position,
 };
+use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_or_carrier_origins;
 use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origin;
 use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origins;
 use crate::machine_calls::calls::write_frames::parameter_relative_origins::single_parameter_relative_origin;
@@ -383,7 +384,7 @@ pub(crate) fn transparent_callee_result_origins(
                     // initializer admits: a transparent helper result or
                     // divergent match arms bind the exact finite union so a
                     // returned alias re-exports all of them.
-                    let origins = parameter_relative_place_origins(
+                    let origins = parameter_relative_place_or_carrier_origins(
                         program,
                         callee_machine,
                         local.initial_value,
@@ -481,7 +482,7 @@ pub(crate) fn transparent_callee_result_origins(
                             assignment.target,
                             &local_aliases,
                         )?;
-                        let replacement = parameter_relative_place_origins(
+                        let replacement = parameter_relative_place_or_carrier_origins(
                             program,
                             callee_machine,
                             assignment.value,
@@ -513,7 +514,7 @@ pub(crate) fn transparent_callee_result_origins(
                 _ => return None,
             }
         }
-        parameter_relative_place_origins(
+        parameter_relative_place_or_carrier_origins(
             program,
             callee_machine,
             result,
@@ -527,16 +528,45 @@ pub(crate) fn transparent_callee_result_origins(
         .or_else(|| carrier_leaf_result_origins(program, result, parameters, prefix))
         // Every admitted route must export an actual parameter root; a
         // candidate that reaches only helper-private storage means the result
-        // may escape to a referent this relation cannot name.
+        // may escape to a referent this relation cannot name. A route rooted
+        // in a by-value carrier parameter additionally must spell one of the
+        // carrier's declared exclusive reference leaves, and its binding must
+        // stay frozen across the prefix — the same guards
+        // `carrier_leaf_result_origins` enforces, now applied to origins the
+        // primary resolver produced through bound locals and nested calls.
         .filter(|origins| {
             origins.iter().all(|origin| {
-                origin.parameter_symbol.is_valid()
-                    && parameters.iter().any(|parameter| {
-                        parameter.symbol == origin.parameter_symbol
-                            && (origin.place.source.root == parameter.symbol
-                                || (parameter.is_self
-                                    && origin.place.source.root == callee_machine.symbol))
-                    })
+                let Some(parameter) = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == origin.parameter_symbol)
+                else {
+                    return false;
+                };
+                if !(origin.place.source.root == parameter.symbol
+                    || (parameter.is_self && origin.place.source.root == callee_machine.symbol))
+                {
+                    return false;
+                }
+                if type_reference_is_reference(program, parameter.type_reference) {
+                    return true;
+                }
+                let Some(declared) = super::stored_origins::declared_origins_for_query(
+                    program,
+                    parameter.symbol,
+                    parameter.name.as_str(),
+                    parameter.type_reference,
+                    false,
+                ) else {
+                    return false;
+                };
+                declared.references.iter().any(|leaf| {
+                    super::stored_origins::source_reaches_leaf(
+                        &origin.place.source.segments,
+                        &leaf.local_segments,
+                    )
+                }) && !prefix.iter().any(|statement| {
+                    statement_rebases_carrier_root(program, statement, parameter.symbol)
+                })
             })
         })
     })();

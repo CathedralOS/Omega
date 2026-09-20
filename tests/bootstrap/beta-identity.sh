@@ -94,6 +94,46 @@ rc=0
   fail "truncated tape: destination was written"
 echo "truncate: a truncated tape is refused before stamping"
 
+# The seed leg: materialize_beta_compiler stamps only into the audited
+# Alpha container — a foreign or truncated seed refuses before any
+# destination is written. OMEGA_PATH_ALPHA is redirected at a shadow
+# directory holding the tampered container under its selected name.
+mkdir "$TMP/alpha-corrupt"
+cp "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/alpha-corrupt/$ALPHA_SEED"
+if [ "$(od -An -tx1 -j 100 -N1 "$TMP/alpha-corrupt/$ALPHA_SEED" | tr -d ' ')" = "ff" ]; then
+  printf '\000' | dd of="$TMP/alpha-corrupt/$ALPHA_SEED" bs=1 seek=100 conv=notrunc status=none
+else
+  printf '\377' | dd of="$TMP/alpha-corrupt/$ALPHA_SEED" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_ALPHA=$TMP/alpha-corrupt
+  . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
+  materialize_beta_compiler "$TMP/refused-seed"
+) 2>"$TMP/corrupt-seed.err" || rc=$?
+[ "$rc" = 3 ] ||
+  fail "corrupted seed: expected exit 3, got $rc"
+grep -q 'bootstrap/0_alpha/README.md' "$TMP/corrupt-seed.err" ||
+  fail "corrupted seed: refusal did not cite the retention inventory"
+[ ! -e "$TMP/refused-seed" ] ||
+  fail "corrupted seed: destination was written"
+echo "corrupt: a one-byte container change is refused before stamping"
+
+mkdir "$TMP/alpha-truncated"
+head -c $((ALPHA_SEED_SIZE - 1)) \
+  "$OMEGA_PATH_ALPHA/$ALPHA_SEED" > "$TMP/alpha-truncated/$ALPHA_SEED"
+rc=0
+(
+  export OMEGA_PATH_ALPHA=$TMP/alpha-truncated
+  . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
+  materialize_beta_compiler "$TMP/refused-seed-truncated"
+) 2>/dev/null || rc=$?
+[ "$rc" = 3 ] ||
+  fail "truncated seed: expected exit 3, got $rc"
+[ ! -e "$TMP/refused-seed-truncated" ] ||
+  fail "truncated seed: destination was written"
+echo "truncate: a truncated container is refused before stamping"
+
 for needle in \
   "$BETA_COMPILER_SOURCE_SHA256" "$BETA_COMPILER_TAPE_SHA256" "12,536" "1,773"
 do
@@ -115,4 +155,4 @@ grep -q "1,773" "$OMEGA_REPO_ROOT/bootstrap/1_beta/README.md" ||
   fail "bootstrap/1_beta/README.md lacks bound tape record"
 echo "records: bound identities match AUDIT.md, root-audit.py, LANGUAGE.md, and the rung README"
 
-echo "Beta identity: bound subject stamped exactly; corrupted and truncated sources and tapes refused"
+echo "Beta identity: bound subject stamped exactly; corrupted and truncated sources, tapes and seeds refused"

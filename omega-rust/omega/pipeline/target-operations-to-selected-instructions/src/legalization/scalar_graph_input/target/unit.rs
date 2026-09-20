@@ -112,7 +112,8 @@ pub(super) fn validate_operation(
         (
             _,
             AbstractOperation::IeeeFloatCompare { .. }
-            | AbstractOperation::IeeeFloatConstant { .. },
+            | AbstractOperation::IeeeFloatConstant { .. }
+            | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. },
         ) => {
             ieee_float::validate(target, abstracted, sources)?;
         }

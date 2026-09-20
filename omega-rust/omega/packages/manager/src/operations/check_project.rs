@@ -150,7 +150,7 @@ pub fn check_prepared_local_project(
     // projected restricted build request the accepted rows do not grant
     // rejects here.
     if let Some(accepted) = accepted_target.as_ref() {
-        let ungranted = ungranted_restricted_build_requests(accepted, &reviews)
+        let ungranted = ungranted_restricted_build_requests(accepted, &reviews, &source_closure)
             .map_err(CheckPreparedLocalProjectError::GrantJoin)?;
         if !ungranted.is_empty() {
             return Err(CheckPreparedLocalProjectError::UngrantedRestrictedBuild(

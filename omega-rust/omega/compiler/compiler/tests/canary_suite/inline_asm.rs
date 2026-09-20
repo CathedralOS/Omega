@@ -221,11 +221,18 @@ fn asm_control_registers_enforce_authority_and_value_contracts() {
     }
 }
 
-// Native-artifact production currently refuses asm-only program entries before
-// emission, so pipeline directives are pinned at the checked surface -- the
-// same contract the byte-assertion canaries relied on. When artifact
-// production reaches this family, promote these fixtures to byte assertions
-// (x86: `0f 01 e8` serialize / `f3 90` pause) and an aarch64 refusal test.
+// Pipeline directives are pinned at the checked surface -- the same contract
+// the byte-assertion canaries relied on. The fixtures now bind hosted program
+// entries, so entry selection admits asm-only bodies; the remaining wall is
+// `asm#*` call lowering: `build_call_operation` in
+// typed-trees-to-checked-trees lowers only `asm#port_out`, so statement
+// position stops at "call operation" and value position stops at "call source
+// result type", before any terminal op exists. When a dedicated asm operation
+// reaches emitted bytes, promote these fixtures to byte assertions (x86:
+// `0f 01 e8` serialize / `f3 90` pause; aarch64: `df 3f 03 d5` isb /
+// `5f 20 03 d5` yield) and an aarch64 refusal test. Target applicability is
+// catalog metadata only -- the "x86_64-only" refusal those assertions expect
+// is itself unbuilt.
 #[test]
 fn pipeline_directives_reach_checked_semantics() {
     for &name in &[

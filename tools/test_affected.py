@@ -48,8 +48,8 @@ DOCUMENTATION_TEST = (
 # tail it is about to pay.
 SLOW_TEST_OWNERS = {
     "native-realization": [
-        ("stack_probe_commit", 324),
-        ("runtime_spill_pressure", 356),
+        ("stack_probe_commit", 38),
+        ("runtime_spill_pressure", 249),
     ],
 }
 

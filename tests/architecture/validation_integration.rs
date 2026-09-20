@@ -299,13 +299,14 @@ fn checked_progress_retains_provider_receiver_as_build_bound_demand() {
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
         boundary trait SchedulerAdmission {
-            machine grant<'s>(scheduler: &'s mut SchedulerRuntime) -> SchedulerRuntime in WeakFair;
+            machine grant<'s>(scheduler: &'s mut SchedulerRuntime in WeakFair)
+            terminates;
         }
-        machine helper<'s>(runtime: &'s mut SchedulerRuntime in WeakFair) reaches SchedulerRuntime
+        machine helper<'s>(runtime: &'s SchedulerRuntime in WeakFair) reaches SchedulerRuntime
         {
             runtime.wait();
         }
-        machine process<'s>(runtime: &'s mut SchedulerRuntime in WeakFair)
+        machine process<'s>(runtime: &'s SchedulerRuntime in WeakFair)
         terminates
         {
             helper(runtime);
@@ -347,27 +348,32 @@ fn checked_progress_retains_provider_receiver_as_build_bound_demand() {
 fn admitted_provider_receiver_receipt_removes_build_bound_demand() {
     let typed = typed_program_from_source(
         r#"
-        boundary trait SchedulerRuntime {
-            machine wait(&self)
-            requires self in WeakFair
-            terminates;
-        }
-        domain SchedulerRuntime::WeakFair
+        data SchedulerHandle [copy] {}
+        domain SchedulerHandle::WeakFair
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
+        boundary trait SchedulerRuntime {
+            machine wait(&self, scheduler: SchedulerHandle in WeakFair)
+            requires scheduler in WeakFair
+            terminates;
+        }
         boundary trait SchedulerAdmission {
-            machine grant<'s>(scheduler: &'s mut SchedulerRuntime) -> SchedulerRuntime in WeakFair
-            ensures result in SchedulerRuntime::WeakFair
+            machine grant<'s>(
+                runtime: &'s mut SchedulerRuntime,
+                scheduler: SchedulerHandle
+            ) -> SchedulerHandle in WeakFair
+            ensures result in SchedulerHandle::WeakFair
             terminates;
         }
         machine process<'s>(
             admission: &mut SchedulerAdmission,
-            runtime: &'s mut SchedulerRuntime
+            runtime: &'s mut SchedulerRuntime,
+            handle: SchedulerHandle
         ) reaches SchedulerAdmission + SchedulerRuntime
         terminates
         {
-            let granted: SchedulerRuntime in WeakFair = admission.grant(runtime);
-            granted.wait();
+            let granted: SchedulerHandle in WeakFair = admission.grant(runtime, handle);
+            runtime.wait(granted);
         }
         "#,
     );

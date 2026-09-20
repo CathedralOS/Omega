@@ -123,12 +123,12 @@ fn candidate(target: TargetProfile) -> Candidate {
 }
 
 #[test]
-fn both_linux_targets_apply_exact_twenty_three_little_endian_placements() {
+fn both_linux_targets_apply_exact_twenty_five_little_endian_placements() {
     for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
         let placed = apply_elf_section_header_placements(load_layout(target)).unwrap();
         assert_eq!(placed.load_layout().target(), target);
-        assert_eq!(placed.bytes().len(), 832);
-        assert_eq!(placed.applied_placements().len(), 23);
+        assert_eq!(placed.bytes().len(), 896);
+        assert_eq!(placed.applied_placements().len(), 25);
         assert_ne!(
             placed.non_authoritative_placed_compatibility_fingerprint(),
             0
@@ -197,7 +197,7 @@ fn ledger_has_exact_field_split_and_file_only_section_name_table() {
                 application.kind() == ElfSectionPlacementResolutionKind::FileOffset
             })
             .count(),
-        12,
+        13,
     );
     assert_eq!(
         placed
@@ -207,7 +207,7 @@ fn ledger_has_exact_field_split_and_file_only_section_name_table() {
                 application.kind() == ElfSectionPlacementResolutionKind::VirtualAddress
             })
             .count(),
-        11,
+        12,
     );
     assert!(
         placed

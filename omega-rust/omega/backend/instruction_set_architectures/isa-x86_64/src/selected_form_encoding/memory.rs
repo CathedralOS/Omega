@@ -202,7 +202,7 @@ fn request(
     ) {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    if physical.model() != &crate::x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     let (family, count, opcode, key) = match kind {
@@ -268,7 +268,7 @@ fn request(
     } else {
         (registers[0], 4)
     };
-    let catalog = crate::x86_64_register_constraint_catalog(physical);
+    let catalog = crate::x86_64_register_constraint_catalog_for(physical);
     let constraint = catalog
         .constraints
         .iter()

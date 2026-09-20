@@ -8,7 +8,7 @@ use super::{
     assert_dynamic_unit_artifact_executes, unsupported_message,
 };
 use crate::terminal_identities::value_id;
-use crate::tests::{checked_source, lower_machine};
+use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, OperationResult, Terminator, ValueDeclaration};
 
@@ -291,7 +291,7 @@ fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
 
 #[test]
 fn retains_multi_hop_forwarded_scalar_result_control() {
-    let mut checked = checked_source(MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let mut checked = checked_source_with_core_service(MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert_eq!(checked_catalog.transfers.len(), 2);
     let [plan] = checked_catalog.direct_scalar_calls.as_slice() else {
@@ -433,7 +433,7 @@ fn forwarded_descriptor_calculations_execute_through_verified_artifact() {
         } else {
             composed_helper_source()
         };
-        let checked = checked_source(&source);
+        let checked = checked_source_with_core_service(&source);
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Main::run")
             .produce_artifact()
             .expect("composed helper source publishes canonical verified artifact");
@@ -502,7 +502,7 @@ fn forwarded_descriptor_calculations_execute_through_verified_artifact() {
 
 #[test]
 fn forwarded_descriptor_helper_rejects_substituted_body_custody() {
-    let checked = checked_source(&composed_helper_source());
+    let checked = checked_source_with_core_service(&composed_helper_source());
     for mutation in 0..6 {
         let mut changed = checked.clone();
         let helper = &mut changed

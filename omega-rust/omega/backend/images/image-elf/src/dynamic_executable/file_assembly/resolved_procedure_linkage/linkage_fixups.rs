@@ -13,6 +13,7 @@ pub enum ElfAppliedProcedureLinkageStorage {
     ProcedureLinkage = 2,
     ProcedureGot = 3,
     ProcedureRelocation = 4,
+    GeneralRelocation = 5,
 }
 
 /// Target-specific encoding used for one applied fixup.
@@ -33,10 +34,24 @@ pub enum ElfAppliedProcedureLinkageKind {
 pub enum ElfAppliedProcedureLinkageTarget {
     DynamicSection,
     ProcedureLinkageHeader,
-    ProcedureLinkageEntry { logical_ordinal: u32 },
-    ProcedureLinkageLazyTail { logical_ordinal: u32 },
-    ProcedureGotHeaderWord { word_index: u8 },
-    ProcedureGotSlot { logical_ordinal: u32 },
+    ProcedureLinkageEntry {
+        logical_ordinal: u32,
+    },
+    ProcedureLinkageLazyTail {
+        logical_ordinal: u32,
+    },
+    ProcedureGotHeaderWord {
+        word_index: u8,
+    },
+    ProcedureGotSlot {
+        logical_ordinal: u32,
+    },
+    /// Placed address of one retained source-image section slot: the resolved
+    /// `r_offset` written into a `.rela.dyn` row.
+    RelocatedImageSection {
+        section: image::FinalImageSection,
+        byte_offset: usize,
+    },
 }
 
 /// One exact application retained beside the resulting fragment bytes.
@@ -125,6 +140,10 @@ impl ValidatedElfResolvedProcedureLinkage {
 
     pub fn procedure_relocation_bytes(&self) -> &[u8] {
         &self.contents.procedure_relocation_bytes
+    }
+
+    pub fn general_relocation_bytes(&self) -> &[u8] {
+        &self.contents.general_relocation_bytes
     }
 
     pub fn applied_fixups(&self) -> &[ElfAppliedProcedureLinkageFixup] {

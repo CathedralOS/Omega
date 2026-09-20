@@ -167,9 +167,21 @@ prerequisite to every lower-rung milestone.
     `tests/gamma/beta-encoding-check/run.sh` emits the theory through the
     selected evaluator, reproduces the pinned 135,485,028-byte request, and
     requires the `Checked` observation with row count 3,182,974 and work
-    inside the 2^26 provision, on the native hosts only. Remaining: execute
-    it on macOS arm64 or Windows x64 and record measured work and time, then
-    run the mutation legs the acceptance document lists.
+    inside the 2^26 provision. Measured on linux x86-64 (this leg formerly
+    crashed before executing: `check.py` bound `derivation-layout` ahead of
+    `beta-encoding-theory` on `sys.path`, so its `import gate` resolved the
+    wrong module): the evaluator emits the pinned 116,900-byte theory
+    (2.3 s), the host stepper reproduces the pinned request
+    (35.2 s), and the checker runs — then refuses the request with
+    `admission_incomplete` code 1 at its compiled-in 8,388,608-byte request
+    extent. The checker source still carries the pre-selection bound in
+    `implementation/admission/extents.gamma`; applying the selected
+    136,314,880-byte extent there re-pins the checker manifest, the packed
+    and diagnostic source identities, and the admission-boundary vectors in
+    the derivation gates. Remaining: land the extents.gamma extent with
+    that re-pin, then execute on macOS arm64 or Windows x64 and record
+    measured work and time, then run the mutation legs the acceptance
+    document lists.
   - Show that each retained checker rule and encoding helper has a role in
     that certificate, and remove the rest. The audit is resolved: every
     rule except symmetry appears (symmetry stays as one of the five
