@@ -648,23 +648,45 @@ and the expectation now names it.)
 ## native-differential `pipeline_ownership`
 
 `cargo nextest run -p omega-native-differential-test --test pipeline_ownership
---no-fail-fast` at 7a63ba8cfd plus the lint, expectation, and retired-control
-commits beside this row (2026-09-16, macOS arm64): 349 run, 344 passed, 5
-failed. (The duplicate-import compile failure recorded earlier was removed
-upstream in 9d4b45b0cf; the two u8 legalization negatives whose premise
-a63284e305 retired now pin the admission instead.)
+--no-fail-fast` at 7176821bc6 plus the repairs beside this row (2026-09-20,
+macOS arm64): 392 run, 387 passed, 5 failed. The target could not compile
+until 7176821bc6, so these expectations drifted unseen. Four are repaired:
+the compiler baseline budget pin follows ed8d2d6d8d's aligned iteration
+ceiling; the fixed and precolored segment-home usage pins follow 1f6f851930's
+incremental conflict accounting, with the domain and assignment counts and
+all four receipt identities unmoved, so the plan did not change and only the
+two counters that commit reduced did; and the text-section manifest corpus
+now substitutes tag 3, because d5e8ceef51 gave tag 2 a real meaning, which
+had quietly turned that corruption into a parse that failed one check later
+instead of the unknown-tag rejection it names. That repair keeps an
+assertion on tag 2 as well, so the file gained custody coverage rather than
+losing it.
 
 - Structural Unit fail-closed (5):
   `stages::realization::structural_units::leaf_object::structural_extent_unit_leaf_reaches_canonical_object_artifact`,
   `..::publication::claim_completion_prefixes_publish_as_metadata_without_instruction_spans`,
   `..::publication::installed_structural_provider_call_reaches_shared_publication`,
-  `..::publication::structural_call_publication_preserves_owned_indirect_arguments`, and
-  `..::structural_call::structural_unit_call_reaches_post_allocation_machine_custody`
-  stop at `UnsupportedControlFlow(MachineId(..))` from
-  `abstract-operations-to-target-operations/src/lowering/control_flow.rs`,
-  the fail-closed behavior 8aac311045 documents for qualified structural
-  calls, executable cleanup, installed-provider and descriptor cases that
-  lack ordinary graph joins (**TRANSLATION-VALIDATION** area).
+  `..::publication::structural_call_publication_preserves_owned_indirect_arguments`
+  and `..::structural_call::structural_unit_call_reaches_post_allocation_machine_custody`
+  stop at `UnsupportedControlFlow` from
+  `abstract-operations-to-target-operations/src/lowering/control_flow.rs`.
+  These are one cause, not five: `lower()` rejects any function whose
+  structural parameters carry qualifications, `unobserved_owned::parameter`
+  demands the same emptiness, and every fixture declares a granted extent.
+  Probed by stripping that one domain from the fixtures, then reverting: the
+  leaf test passes end to end through object artifact, image emission and
+  installation replay, so the qualification gate is its only blocker.
+  `claim_completion_prefixes` is additionally held by the `entry_claims` arm
+  of the same gate, and the two publication legs additionally fail
+  `InvalidInternalUnitCall` in image emission's installation-record builder.
+  The spec makes qualifications "semantic metadata, not additional ABI
+  words" and retains them independently of the native parameter contract, so
+  this is an explicit implementation limit rather than a semantic rule. The
+  expectations are deliberately not rewritten to assert the rejection: these
+  are route tests, and pinning the refusal would leave five tests observing
+  nothing. Owned by **STRUCTURAL-UNIT-CALL-GRAPH-JOINS**; the two lowering
+  files are under a live CML4 claim and the image-emission area under
+  WIRE-RUNTIME-AND-INSTALLATION.
 
 ## checked-interpreter integration tests
 
