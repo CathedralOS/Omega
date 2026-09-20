@@ -14,7 +14,9 @@
 //! - `dependencies`: other ledger entries whose own status this rule needs;
 //!   a proved row may not hide an unproved composition theorem, so an entry
 //!   that establishes a claim must not depend on an `Unfinished` entry — the
-//!   gap poisons every dependent, not only its direct dependers.
+//!   gap poisons every dependent, not only its direct dependers. Edges reject
+//!   when duplicated, spelled noncanonically, or terminating at a trust root
+//!   whose accepting policy does not cover the depender's family.
 //! - `implementation`: registered [`ImplementationSite`] paths whose recorded
 //!   content digest pins the implementing code. Changing an implementation
 //!   changes its digest and fails coverage until the entry's justification is
@@ -175,7 +177,9 @@ pub struct TrustedSurfaceEntry {
 }
 
 /// A registered terminal of the trust-dependency graph. Dependencies must end
-/// at an entry or at one of these roots.
+/// at an entry or at one of these roots, and the root's accepting policy must
+/// cover the depender's family — a dependency ending at a root that cannot
+/// accept it is unreachable, not trusted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrustRoot {
     pub id: &'static str,
@@ -186,6 +190,10 @@ pub struct TrustRoot {
     /// The owner whose policy accepts it.
     pub owner: &'static str,
     pub rationale: &'static str,
+    /// The accepting policy: the ledger families whose dependency edges this
+    /// root may terminate. An edge ending at a root outside its scope is
+    /// unreachable — the root's policy cannot accept that claim.
+    pub accepts: &'static [LedgerFamily],
 }
 
 /// The only places an `ExplicitlyTrusted` status may point.
@@ -196,6 +204,21 @@ pub static TRUST_ROOTS: &[TrustRoot] = &[
         subject: "the trusted Rust implementation of the Terminal Psi verifier and certificate checker",
         owner: "psi",
         rationale: "bounded rules executed as trusted code under the verification contract; no lower-rung derivation currently discharges them",
+        accepts: &[
+            LedgerFamily::PrimitiveJudgment,
+            LedgerFamily::CheckerRule,
+            LedgerFamily::EvidenceRoute,
+            LedgerFamily::ObligationOwner,
+            LedgerFamily::OperationSchema,
+            LedgerFamily::ReconstructedFactKind,
+            LedgerFamily::NormalizationConversion,
+            LedgerFamily::PremiseScope,
+            LedgerFamily::WriteInvalidation,
+            LedgerFamily::CallComposition,
+            LedgerFamily::CycleComposition,
+            LedgerFamily::SharedFormation,
+            LedgerFamily::Inventory,
+        ],
     },
     TrustRoot {
         id: "root:verifier-regression-corpus",
@@ -203,6 +226,9 @@ pub static TRUST_ROOTS: &[TrustRoot] = &[
         subject: "terminal-verifier, proof-admission, and canary suites witnessing each accepted and rejected boundary",
         owner: "tests",
         rationale: "coverage witnesses establish that implemented rules fire and refuse; they are evidence of behavior, not of soundness",
+        // A witness corpus accepts no dependency: evidence of behavior cannot
+        // terminate a soundness claim.
+        accepts: &[],
     },
     TrustRoot {
         id: "root:verification-contract",
@@ -210,6 +236,7 @@ pub static TRUST_ROOTS: &[TrustRoot] = &[
         subject: "wiki/spec/terminal-psi/verification.md canonical-ledger and trusted-surface obligations",
         owner: "docs",
         rationale: "the contract this inventory enumerates; it assigns responsibilities, not discharged theorems",
+        accepts: &[LedgerFamily::SharedFormation, LedgerFamily::Inventory],
     },
 ];
 
@@ -273,6 +300,14 @@ pub enum LedgerFailure {
         dependency: &'static str,
     },
     UnfinishedDependency {
+        entry: &'static str,
+        dependency: &'static str,
+    },
+    NoncanonicalDependency {
+        entry: &'static str,
+        dependency: &'static str,
+    },
+    UnreachableDependency {
         entry: &'static str,
         dependency: &'static str,
     },
@@ -362,6 +397,14 @@ impl std::fmt::Display for LedgerFailure {
                 formatter,
                 "ledger entry `{entry}` establishes a claim but depends on Unfinished entry `{dependency}`; an Unfinished row establishes no independent claim, so only Unfinished entries may depend on one"
             ),
+            Self::NoncanonicalDependency { entry, dependency } => write!(
+                formatter,
+                "ledger entry `{entry}` lists dependency `{dependency}` in noncanonical form; dependency ids are `family:name` or `root:name`, lowercase words joined by hyphens"
+            ),
+            Self::UnreachableDependency { entry, dependency } => write!(
+                formatter,
+                "ledger entry `{entry}` depends on root `{dependency}` whose accepting policy does not cover the entry's family; the edge terminates at a root that cannot accept it"
+            ),
             Self::TrustedEntryMissingRoot { entry } => write!(
                 formatter,
                 "ledger entry `{entry}` is ExplicitlyTrusted but names no registered trust root"
@@ -431,9 +474,9 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
     let mut failures = Vec::new();
     let mut entry_ids = BTreeSet::new();
     let mut site_paths = BTreeSet::new();
-    let mut root_ids = BTreeSet::new();
+    let mut root_index: BTreeMap<&'static str, &'static TrustRoot> = BTreeMap::new();
     for root in TRUST_ROOTS {
-        if !root_ids.insert(root.id) {
+        if root_index.insert(root.id, root).is_some() {
             failures.push(LedgerFailure::DuplicateTrustRoot(root.id));
         }
     }
@@ -479,7 +522,7 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
                 }
             }
             SoundnessStatus::ExplicitlyTrusted { root, rationale } => {
-                if !root_ids.contains(root) || rationale.trim().is_empty() {
+                if !root_index.contains_key(root) || rationale.trim().is_empty() {
                     failures.push(LedgerFailure::TrustedEntryMissingRoot { entry: entry.id });
                 }
             }
@@ -502,7 +545,7 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
         }
     }
     let index = entry_index();
-    check_dependency_edges(all_entries(), &index, &root_ids, &mut failures);
+    check_dependency_edges(all_entries(), &index, &root_index, &mut failures);
     check_proved_set(all_entries(), &mut failures);
     // The trust graph is closed: dependencies resolve to entries or roots and
     // entry-to-entry edges must be acyclic. A cycle exists exactly when an
@@ -698,7 +741,7 @@ fn collect_unclaimed_sources(
 fn check_dependency_edges<'a>(
     entries: impl Iterator<Item = &'a TrustedSurfaceEntry>,
     index: &BTreeMap<&'a str, &'a TrustedSurfaceEntry>,
-    root_ids: &BTreeSet<&'a str>,
+    roots: &BTreeMap<&'a str, &'a TrustRoot>,
     failures: &mut Vec<LedgerFailure>,
 ) {
     for entry in entries {
@@ -710,6 +753,13 @@ fn check_dependency_edges<'a>(
                     dependency,
                 });
             }
+            if !canonical_dependency_id(dependency) {
+                failures.push(LedgerFailure::NoncanonicalDependency {
+                    entry: entry.id,
+                    dependency,
+                });
+                continue;
+            }
             if let Some(target) = index.get(dependency) {
                 if !matches!(entry.soundness, SoundnessStatus::Unfinished { .. })
                     && matches!(target.soundness, SoundnessStatus::Unfinished { .. })
@@ -719,7 +769,14 @@ fn check_dependency_edges<'a>(
                         dependency,
                     });
                 }
-            } else if !root_ids.contains(dependency) {
+            } else if let Some(root) = roots.get(dependency) {
+                if !root.accepts.contains(&entry.family) {
+                    failures.push(LedgerFailure::UnreachableDependency {
+                        entry: entry.id,
+                        dependency,
+                    });
+                }
+            } else {
                 failures.push(LedgerFailure::UnknownDependency {
                     entry: entry.id,
                     dependency,
@@ -727,6 +784,25 @@ fn check_dependency_edges<'a>(
             }
         }
     }
+}
+
+/// Canonical dependency-id shape: `family:name` or `root:name`, where the
+/// prefix is lowercase letters and the name is lowercase words separated by
+/// single hyphens. A dependency spelled otherwise can never resolve.
+fn canonical_dependency_id(dependency: &str) -> bool {
+    let Some((prefix, name)) = dependency.split_once(':') else {
+        return false;
+    };
+    let prefix_ok = prefix == "root"
+        || (!prefix.is_empty() && prefix.bytes().all(|byte| byte.is_ascii_lowercase()));
+    let name_ok = !name.is_empty()
+        && name.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        });
+    prefix_ok && name_ok
 }
 
 /// The recorded [`PROVED_ENTRIES`] set must equal the rows still marked
@@ -821,11 +897,61 @@ mod tests {
             rationale: "justification",
         },
     };
+    static NONCANONICAL_DEPENDENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:noncanonical-dependent",
+        family: LedgerFamily::SharedFormation,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["NoCanonical"],
+        implementation: &[],
+        soundness: SoundnessStatus::ExplicitlyTrusted {
+            root: "root:test-root",
+            rationale: "justification",
+        },
+    };
+    static UNREACHABLE_DEPENDENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:unreachable-dependent",
+        family: LedgerFamily::SharedFormation,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &["root:witness-only"],
+        implementation: &[],
+        soundness: SoundnessStatus::ExplicitlyTrusted {
+            root: "root:test-root",
+            rationale: "justification",
+        },
+    };
+    static TEST_ROOT: TrustRoot = TrustRoot {
+        id: "root:test-root",
+        kind: "implementation",
+        subject: "a test root",
+        owner: "tests",
+        rationale: "fixture root accepting the fixture family",
+        accepts: &[LedgerFamily::SharedFormation],
+    };
+    static SPEC_ROOT: TrustRoot = TrustRoot {
+        id: "root:verification-contract",
+        kind: "specification",
+        subject: "a test specification root",
+        owner: "tests",
+        rationale: "fixture root accepting formation and inventory rows",
+        accepts: &[LedgerFamily::SharedFormation, LedgerFamily::Inventory],
+    };
+    static WITNESS_ROOT: TrustRoot = TrustRoot {
+        id: "root:witness-only",
+        kind: "witness",
+        subject: "a test witness root",
+        owner: "tests",
+        rationale: "fixture root whose policy accepts no dependency",
+        accepts: &[],
+    };
 
     fn fixture() -> (
         Vec<&'static TrustedSurfaceEntry>,
         BTreeMap<&'static str, &'static TrustedSurfaceEntry>,
-        BTreeSet<&'static str>,
+        BTreeMap<&'static str, &'static TrustRoot>,
     ) {
         let entries = vec![
             &UNFINISHED,
@@ -833,17 +959,23 @@ mod tests {
             &TRUSTED_DEPENDENT,
             &UNFINISHED_DEPENDENT,
             &DUPLICATE_DEPENDENT,
+            &NONCANONICAL_DEPENDENT,
+            &UNREACHABLE_DEPENDENT,
         ];
         let index = entries.iter().map(|entry| (entry.id, *entry)).collect();
-        let root_ids = BTreeSet::from(["root:test-root", "root:verification-contract"]);
-        (entries, index, root_ids)
+        let roots = BTreeMap::from([
+            (TEST_ROOT.id, &TEST_ROOT),
+            (SPEC_ROOT.id, &SPEC_ROOT),
+            (WITNESS_ROOT.id, &WITNESS_ROOT),
+        ]);
+        (entries, index, roots)
     }
 
     #[test]
     fn claim_bearing_entries_cannot_depend_on_unfinished_rows() {
-        let (entries, index, root_ids) = fixture();
+        let (entries, index, roots) = fixture();
         let mut failures = Vec::new();
-        check_dependency_edges(entries.into_iter(), &index, &root_ids, &mut failures);
+        check_dependency_edges(entries.into_iter(), &index, &roots, &mut failures);
         let unfinished_edges: Vec<_> = failures
             .iter()
             .filter_map(|failure| match failure {
@@ -862,13 +994,46 @@ mod tests {
 
     #[test]
     fn dependency_edges_must_be_distinct() {
-        let (entries, index, root_ids) = fixture();
+        let (entries, index, roots) = fixture();
         let mut failures = Vec::new();
-        check_dependency_edges(entries.into_iter(), &index, &root_ids, &mut failures);
+        check_dependency_edges(entries.into_iter(), &index, &roots, &mut failures);
         assert!(failures.contains(&LedgerFailure::DuplicateDependency {
             entry: "test:duplicate-dependent",
             dependency: "root:test-root",
         }));
+    }
+
+    #[test]
+    fn dependency_ids_must_be_canonical() {
+        let (entries, index, roots) = fixture();
+        let mut failures = Vec::new();
+        check_dependency_edges(entries.into_iter(), &index, &roots, &mut failures);
+        assert!(failures.contains(&LedgerFailure::NoncanonicalDependency {
+            entry: "test:noncanonical-dependent",
+            dependency: "NoCanonical",
+        }));
+        assert!(!failures.contains(&LedgerFailure::UnknownDependency {
+            entry: "test:noncanonical-dependent",
+            dependency: "NoCanonical",
+        }));
+    }
+
+    #[test]
+    fn dependencies_must_terminate_at_an_accepting_root() {
+        let (entries, index, roots) = fixture();
+        let mut failures = Vec::new();
+        check_dependency_edges(entries.into_iter(), &index, &roots, &mut failures);
+        assert!(failures.contains(&LedgerFailure::UnreachableDependency {
+            entry: "test:unreachable-dependent",
+            dependency: "root:witness-only",
+        }));
+        assert!(!failures.iter().any(|failure| matches!(
+            failure,
+            LedgerFailure::UnreachableDependency {
+                entry: "test:duplicate-dependent",
+                ..
+            }
+        )));
     }
 
     static NEWLY_PROVED: TrustedSurfaceEntry = TrustedSurfaceEntry {
