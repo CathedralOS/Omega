@@ -6669,7 +6669,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators.
 - **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
 - **SQUALR-SEED-PARITY.** Resolved — merged alias of SQUALR-GEOMETRY-PARITY's "finish the mapped Rust behavior still absent from the seed" clause, adjudicated at `a3ab15b7611`. The submodule's TASKS.md carries no seed-parity item; the phrase mines the GEOMETRY-PARITY residual list, whose enumerated gaps are each already a sibling row: alignment string parsing (SQUALR-ALIGNMENT-STRING-PARSING), clone/serialization (SQUALR-CLONE-SERIALIZATION-PARITY), region alignment/expansion (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators (SQUALR-NAMED-TRAIT-OPERATORS), Rust debug-only assertions (SQUALR-GEOMETRY-PARITY), and the Windows validation leg plus the std-pin `32f5182254` upgrade (both recorded open inside SQUALR-GEOMETRY-PARITY's verified-scope audit). The implementing surface `samples/apps/squalr` stays with the port's own lane; no independent slice exists under this name. Re-verified at `59610bf809`: the submodule board still carries no seed-parity row, and the surface stays fenced — `samples/apps/squalr` under SQUALR-TARGETS-AND-THROUGHPUT (21:39Z) plus a same-item sibling claim `Jarod / swarm-w9-squalr-seed-parity` (02:08Z).
-- **SQUALR-TARGETS-AND-THROUGHPUT.** Targets and throughput.
+- **SQUALR-TARGETS-AND-THROUGHPUT.** Targets and throughput. Scope
+  verified at `7110606f46e5`: the name re-mines the submodule's ordered
+  `samples/apps/squalr/TASKS.md` TARGETS-AND-THROUGHPUT item — port native
+  reads using a controlled child process, partial-read handling,
+  cancellations, SIMD and parallel execution, with scalar fixtures for
+  optimized-result checks and total-allocation/throughput measurement
+  through result publication (GUI/TUI/installer excluded). Not
+  implementable this leg on two axes: the implementing surface is
+  wholesale-fenced — `samples/apps/squalr` under GEOMETRY-ALIGNMENT-REGIONS
+  (Zergling-112, ~01:18Z) — and the submodule board orders this item after
+  CLI-COMMANDS, which is still unstarted ("the CLI main entry is
+  intentionally absent until this work starts; do not substitute a
+  success stub"). No independent slice exists; re-check once CLI-COMMANDS
+  lands and the dir fence clears.
 
 
 ## Mined items (deep-mine sweep, wave 9)
