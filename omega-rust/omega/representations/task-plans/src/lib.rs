@@ -19,10 +19,13 @@
 //! accounts for claims until outcome-bound settlement, `provider_admission`
 //! is the provider-side gate consuming those carriers for one admitted
 //! runtime instance, `stack_composition` projects WCSU stack plans,
-//! `identities` holds every coordinate, `report_fingerprints` the compact
-//! report values and `diagnostic` the failure type.
+//! `composition_model` extracts the sealed whole-composition record proof
+//! machines consume at composition/deployment, `identities` holds every
+//! coordinate, `report_fingerprints` the compact report values and
+//! `diagnostic` the failure type.
 
 mod activation_plans;
+mod composition_model;
 mod executor_selection;
 mod identities;
 mod lifecycle_ledger;
@@ -44,14 +47,19 @@ pub use activation_plans::{
     LiveCarryDemand, LiveCarryStorage, StackPlan, TaskArgumentExtent, TaskArgumentLayout,
     ValidatedActivationPlan, validate_activation_plan, validate_wcsu_activation_plan,
 };
+pub use composition_model::{
+    CompositionActivation, CompositionActivationCreation, CompositionCrossActivationEdges,
+    CompositionPriorities, CompositionResourceIdentities, CompositionWaitWakeEdge,
+    SealedCompositionModel, compose_composition_model, replay_composition_model,
+};
 pub use executor_selection::{
     ExecutorPreservationAxis, ExecutorPreservationEvidence, ExecutorSelectionCandidate,
     ValidatedExecutorSelection, validate_executor_selection,
 };
 pub use identities::{
     ActivationInstanceId, ActivationPlanId, AdmittedStackContributionReportId, CallingPlanId,
-    ExecutorPreservationEvidenceId, ExecutorSelectionId, LiveCarryPlaceId, LiveCarryTypeId,
-    MachineContractId, MachineEntryId, SameStackContributionAdmissionReceiptId,
+    CompositionModelId, ExecutorPreservationEvidenceId, ExecutorSelectionId, LiveCarryPlaceId,
+    LiveCarryTypeId, MachineContractId, MachineEntryId, SameStackContributionAdmissionReceiptId,
     StackPlanProjectionId, StackRepresentationId, TaskArgumentCustodyId, TaskLifecycleClaimId,
     TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId,
     TaskRuntimeInvocationReceiptId, TaskStackCompositionId, TaskStackFrameId,

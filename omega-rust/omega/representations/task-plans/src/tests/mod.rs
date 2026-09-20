@@ -5,6 +5,7 @@ mod activation_plans;
 mod argument_marshalling;
 mod cancellation;
 mod claim_routing;
+mod composition_model;
 mod execution;
 mod executor_selection;
 mod lifecycle_ledger;
