@@ -10782,6 +10782,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   through emission + independent replay (family green at
   rc_native_matrix_hosts). Residual is future extension only: a fourth
   hosted builtin = one enum variant + one catalog row.
+  Alias: HOSTED-BUILTIN-SETTLEMENT-EXPANSION (dispatched name with no board
+  row) re-mines exactly that residual — the catalog is complete against
+  the closed three-variant `CompilerBuiltinExecution`, and no fourth hosted
+  builtin is named anywhere in spec or board prose, so there is no
+  implementable slice today. Re-verified at `7176821bc6`: all three
+  variants still each declare supported targets + admitted scalar forms +
+  result custody under `derive_hosted_builtin_child`, and the
+  settlement-identity pins remain the coverage carrier.
 - **TV-DYNAMIC-AND-INTRINSIC-SPANS** — mined candidate; verify scope then implement.
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS** — verified 14e6f8f72e: the span-arm surface
