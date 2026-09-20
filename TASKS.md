@@ -14598,6 +14598,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   enumerated gap to these rows. No linux_x86_64 slice exists outside the
   claimed fence — coordinate with the squalr port lane before working it.
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
+||||||| parent of caf525a16c2b (board: REMAINING-INTRINSIC-SPAN-ARMS — scope verified, resolved alias)
+- **REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
+- **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
+- **REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
+- **REMAINING-INTRINSIC-SPAN-ARMS.** Mined candidate; scope verified at
+  `739e4e81e97` — resolved as documented on sibling TV-INTRINSIC-SPAN-ARMS
+  (verified 14e6f8f72e): the span-arm surface is complete for every intrinsic
+  family that produces coverage occurrences — IEEE FMA joins
+  `x86_scalar_fma_occurrences` fragments (`derive_fma_span`), integer
+  comparisons join `semantic_code_attribution` rows
+  (`derive_integer_comparison_span`), float comparisons take the
+  fragment-publication arm, structural returns arrive through the
+  checked-body call span. Re-verified the demand side at this revision:
+  `lowered-psi-to-terminal-psi/.../boundary_operator_custody/replay_scope.rs:102-105`
+  replays exactly the same four families (`local_initializers`,
+  `structural_returns`, `float_comparisons`, `integer_comparisons`), and the
+  span arms are still at `native-artifact/src/physical/operator_applications.rs:56-58`.
+  The remaining intrinsic kinds produce no occurrences, so an arm would be
+  dead code joining nothing — occurrence production for those kinds is
+  TV-OPERATOR-APPLICATIONS-REPLAY's scope, not this stub's. No independent
+  slice exists. Fence note: `native-artifact/src/physical` is path-claimed
+  under PHYSICAL-ACCESS-PROFILES and the same-surface item
+  INTRINSIC-PHYSICAL-SPAN-ARMS is item-claimed (Jarod / swarm-w9) until
+  ~05:04Z this wave.
 - **REPLACEMENT-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
 - **REPOSITORY-BASELINE-GATE** — duplicate stub of the annotated row at
   :12798 above (gate measured red on this host; fmt green again at
