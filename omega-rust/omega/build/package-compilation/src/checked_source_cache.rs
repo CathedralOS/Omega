@@ -36,10 +36,14 @@
 //! contract so a mid-traversal edit cannot mint an index describing two
 //! different trees.
 //!
-//! The consumer wiring (selecting a cache directory under retained build
-//! storage and routing `with_canonical_source_metadata` through it) is a
-//! follow-up leg: this module owns the store, fingerprint, and capture
-//! protocol; callers opt in through [`CheckedSourceCache::capture`].
+//! Package resolution opts in per root custody: each resolved root carries
+//! the retained `checked-source-cache` lane child beneath the resolver
+//! storage lane that produced its snapshot, and compiler-input preparation
+//! routes `with_canonical_source_metadata` through
+//! [`CheckedSourceCache::capture`] when the lane is present, degrading to
+//! the cold capture when the directory cannot be opened. This module owns
+//! the store, fingerprint, and capture protocol; that choice of lane and
+//! the caller opt-in live with the resolving consumers.
 
 use checked_interpreter::{
     CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT, CanonicalFilesystemMetadataIndex,

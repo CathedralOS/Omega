@@ -142,13 +142,24 @@ fn binding_with_canonical_source_metadata(
         path: custody.snapshot_root().to_path_buf(),
         reason: format!("could not derive canonical build-source metadata: {error}"),
     })?;
-    binding.with_canonical_source_metadata().map_err(|reason| {
-        PackageCompilationInputError::InvalidSourceRoot {
-            identity: custody.key().identity(),
-            path: custody.snapshot_root().to_path_buf(),
-            reason: format!("invalid canonical build-source metadata: {reason}"),
-        }
-    })
+    let invalid = |reason: String| PackageCompilationInputError::InvalidSourceRoot {
+        identity: custody.key().identity(),
+        path: custody.snapshot_root().to_path_buf(),
+        reason: format!("invalid canonical build-source metadata: {reason}"),
+    };
+    // A resolved custody may name a retained lane directory holding the
+    // persistent checked-source index. Reuse is self-verifying — a retained
+    // record is only replayed when its stat fingerprint still matches — so a
+    // directory that cannot be opened degrades to the cold capture rather
+    // than failing compilation.
+    if let Some(directory) = custody.checked_source_cache_dir()
+        && let Ok(cache) = package_compilation::CheckedSourceCache::open_or_create(directory)
+    {
+        return binding
+            .with_cached_canonical_source_metadata(&cache)
+            .map_err(invalid);
+    }
+    binding.with_canonical_source_metadata().map_err(invalid)
 }
 
 fn revalidate_package_source_selection(
@@ -349,6 +360,78 @@ mod tests {
                     .expect("canonical dependency root")
                     .as_path()
             )
+        );
+
+        let _ = std::fs::remove_dir_all(roots);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn checked_source_cache_replays_the_retained_index_for_an_unchanged_root() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let roots = temp_root("checked-source-cache");
+        let source_root = roots.join("root");
+        std::fs::create_dir_all(&source_root).expect("create source root");
+        std::fs::write(source_root.join("module.omg"), b"source bytes").expect("write root source");
+        std::fs::set_permissions(
+            source_root.join("module.omg"),
+            std::fs::Permissions::from_mode(0o444),
+        )
+        .expect("seal root source");
+        let cache_dir = roots.join("cache");
+
+        let root = custody("application", 1, source_root.clone(), vec![])
+            .with_checked_source_cache_dir(cache_dir.clone());
+        let root_identity = root.key().identity();
+        let canonical_root = root.snapshot_root().to_path_buf();
+        let closure = resolve_package_source_closure(
+            root_request(&root),
+            root,
+            |_, _| -> Result<PackageSourceCustody, &'static str> { unreachable!() },
+        )
+        .expect("resolve root-only closure");
+
+        let first = package_compilation_inputs(&closure).expect("cold handoff validates");
+        let second = package_compilation_inputs(&closure).expect("warm handoff validates");
+        assert_eq!(
+            first
+                .canonical_source_metadata(root_identity)
+                .map(|index| index.source_content_commitment()),
+            second
+                .canonical_source_metadata(root_identity)
+                .map(|index| index.source_content_commitment()),
+        );
+
+        // The wired cold capture stored a self-verifying record into the
+        // custody's retained lane; a direct capture through the same lane
+        // replays it without rehashing, and a stat-visible drift misses.
+        let replay = package_compilation::CheckedSourceCache::open(&cache_dir)
+            .expect("open the lane the wiring populated")
+            .capture(&canonical_root)
+            .expect("capture the unchanged root");
+        assert_eq!(
+            replay.outcome(),
+            package_compilation::CheckedSourceCacheOutcome::Warm
+        );
+
+        std::fs::set_permissions(&source_root, std::fs::Permissions::from_mode(0o755))
+            .expect("unseal source root for drift");
+        std::fs::write(source_root.join("added.omg"), b"drift").expect("drift the source");
+        std::fs::set_permissions(
+            source_root.join("added.omg"),
+            std::fs::Permissions::from_mode(0o444),
+        )
+        .expect("seal drifted source");
+        std::fs::set_permissions(&source_root, std::fs::Permissions::from_mode(0o555))
+            .expect("re-seal source root");
+        let drifted = package_compilation::CheckedSourceCache::open(&cache_dir)
+            .expect("reopen the cache lane")
+            .capture(&canonical_root)
+            .expect("capture the drifted root");
+        assert_eq!(
+            drifted.outcome(),
+            package_compilation::CheckedSourceCacheOutcome::Cold
         );
 
         let _ = std::fs::remove_dir_all(roots);

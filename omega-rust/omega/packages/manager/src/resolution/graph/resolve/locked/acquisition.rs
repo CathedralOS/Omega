@@ -1,5 +1,6 @@
 //! Fresh source-owner acquisition; recorded IDs are only equality expectations.
 
+use super::super::cache::SourceCacheLane;
 use super::{ResolveLockedPackageClosureError as Error, Resolver};
 use crate::resolution::graph::{PackageRootSourceRequest, ResolvedSourceIdentity};
 use crate::resolution::source::{
@@ -15,7 +16,10 @@ impl Resolver<'_> {
     pub(super) fn root(&mut self) -> Result<PackageSourceCustody, Error> {
         match self.root_request {
             PackageRootSourceRequest::Git(request) => {
-                self.git(request, self.subject.root().selected(), true)
+                let custody = self.git(request, self.subject.root().selected(), true)?;
+                let cache_dir = SourceCacheLane::Retained(self.storage.git_sources())
+                    .checked_source_cache_dir()?;
+                Ok(custody.with_checked_source_cache_dir(cache_dir))
             }
             PackageRootSourceRequest::ExternalLocal {
                 requested_root,
@@ -28,7 +32,11 @@ impl Resolver<'_> {
                     source_context.clone(),
                 )?;
                 self.register_local_root(resolved.key(), resolved.source().canonical_live_root())?;
-                Ok(resolved.into_custody())
+                let cache_dir = SourceCacheLane::Retained(self.storage.external_local_sources())
+                    .checked_source_cache_dir()?;
+                Ok(resolved
+                    .into_custody()
+                    .with_checked_source_cache_dir(cache_dir))
             }
             PackageRootSourceRequest::WorkspaceMember {
                 workspace_root_source,
@@ -50,7 +58,11 @@ impl Resolver<'_> {
                 )?;
                 self.register_local_root(resolved.key(), resolved.source().canonical_live_root())?;
                 self.local_workspace_root = Some(canonical_root);
-                Ok(resolved.into_custody())
+                let cache_dir = SourceCacheLane::Retained(self.storage.workspace_members())
+                    .checked_source_cache_dir()?;
+                Ok(resolved
+                    .into_custody()
+                    .with_checked_source_cache_dir(cache_dir))
             }
         }
     }
