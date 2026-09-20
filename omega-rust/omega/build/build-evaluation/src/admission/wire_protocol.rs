@@ -1215,11 +1215,14 @@ fn report_relevance_name(relevance: WireFieldRelevance) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        ScopeTable, codec_requirement_report_identity, compatibility_verdicts,
-        encode_requirement_report_identity, fields_equal, normalized_wire_plan_report_identity,
-        schema_accepts,
+        ScopeTable, build_wire_protocol_report, codec_requirement_report_identity,
+        compatibility_verdicts, encode_requirement_report_identity, fields_equal,
+        normalized_wire_plan_report_identity, qualified_schema_path, schema_accepts,
     };
-    use artifacts::{WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry};
+    use artifacts::{
+        WireFieldRelevance, WireFieldReportEntry, WireSchemaReportEntry, WireTrustClass,
+    };
+    use std::collections::BTreeMap;
     use typed_trees::wire::WirePlacement;
 
     fn field(
@@ -1347,6 +1350,47 @@ mod tests {
         assert!(
             !schema_accepts(&reader, &writer),
             "compact-equal schema reports cannot authorize an incompatible exact wire shape"
+        );
+    }
+
+    #[test]
+    fn independently_verified_generated_codec_reports_derived_trust() {
+        use source_files_to_tokens::Lexer;
+        use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+        use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+        use tokens_to_syntax_trees::parse_syntax_trees;
+
+        let tokens = Lexer::new(
+            "data Packet { #0 tag: u32; #1 depth: i32; } \
+             machine main() -> i32 { transition true { true -> 7 false -> 0 } }",
+        )
+        .tokenize()
+        .expect("wire tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("wire syntax");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("wire symbols");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("wire types");
+
+        let verifications: BTreeMap<_, _> = typed
+            .wire_schemas()
+            .iter()
+            .map(|schema| {
+                (
+                    qualified_schema_path(&typed, schema.symbol, schema.name.as_str()),
+                    checked_interpreter::verify_wire_schema_codec(&typed, schema),
+                )
+            })
+            .collect();
+        let report = build_wire_protocol_report(&typed, &[], &verifications);
+        let row = report
+            .schemas
+            .iter()
+            .find(|row| row.name == "Packet")
+            .expect("packet row");
+        assert_eq!(row.trust_class, Some(WireTrustClass::Derived));
+        assert!(
+            row.realization_evidence
+                .iter()
+                .any(|entry| entry.contains("independently checked"))
         );
     }
 }
