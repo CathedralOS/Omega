@@ -6747,6 +6747,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
+- **ALPHA-WINDOWS-SEED-EXECUTION.** Mined candidate — scope verified at
+  `a51cb805cc`, host-gated re-mine: the name re-covers the Windows x64 leg of
+  the audited Alpha seed-execution surface already owned by
+  ALPHA-SEED-WINDOWS-X64-EXECUTION (stub immediately above) and
+  ALPHA-WINDOWS-CONFORMANCE-HOST (resolved-with-remainder row ~line 6520,
+  whose remaining acceptance is exactly the seed-executing legs of
+  `tests/bootstrap/alpha-beta-edge.sh` and `tests/alpha/reference/diamond-py.sh`
+  on a Windows x64 host). The committed seed `bootstrap/0_alpha/
+  alpha_x64_windows.exe` (PE32+ x86-64, hole offset 5120) is already bound,
+  selected, and structurally validated host-free: `tools/bootstrap/alpha/
+  seed_env.sh` pins its size/SHA-256/hole and sets `ALPHA_SEED_EXECUTABLE=1`
+  under `MINGW*-x86_64|MSYS*-x86_64`; `tests/alpha/container.sh` re-verified
+  green on linux x86-64 at this revision (valid pe, pristine + stamped hole
+  contract, bound identity for the non-host seed). Nothing executable remains
+  on a Linux host: the only residual is running the seed on Windows x64,
+  which stays with the owning rows. No independent slice.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
 - **ASM-CATALOG-FAMILY-EXPANSION** — mined candidate; verify scope then
   implement. Landed slice: the pipeline-directive family — `serialize`
