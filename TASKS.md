@@ -6481,7 +6481,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
 - **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS** — mined candidate; verify scope then implement.
-- **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT** — mined candidate; verify scope then implement.
+- **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.** Mined candidate; scope
+  verified at 1edade1a48 — names the canary
+  `tests/omega/pass/filesystem/native_wrapper_write_all_result` (the
+  payload-carrying `Filesystem::write_all -> UnitResult` deep-fix guard:
+  bad path must deliver `Error`, good path `Ok`, through an assigned
+  field). Infrastructure already landed: the fixture carries a deployable
+  `build.omg` binding all four hosted `ProgramEntry` roots
+  (`builder.roots.bind(<t>::ProgramEntry, Main::main)`), is rostered
+  (`fixture_rosters/native_filesystem_canaries.rs:82`,
+  `NATIVE_WRAPPER_WRITE_ALL_RESULT`), and has its test leg
+  `native_wrapper_write_all_result_passes` in
+  `native_filesystem_canaries/native_filesystem_passes.rs:452`. What the
+  leg still needs is a macOS arm64 run — the whole
+  `native_filesystem_canaries` suite is `#![cfg(target_os = "macos")]` and
+  asserts via `compile_exact_macos_entry` + real `/tmp` writes, so the
+  PASS cannot be witnessed on a linux_x86_64 host (a compile-only leg is
+  already covered by the pass-corpus compile roster). Prerequisite: a
+  seeded macOS arm64 host (SEED-HOST-CHAIN-LEGS' audited list); then run
+  `cargo nextest run -p compiler --test canary_suite -E
+  'test(=native_filesystem_canaries::native_filesystem_passes::native_wrapper_write_all_result_passes)'`
+  there and record the result on this row.
 - **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT** — mined candidate; verify scope then implement.
 - **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT** — mined candidate; scope verified
   2026-09-20 (z105): re-mines the `control_flow/runtime_{integer,string}
