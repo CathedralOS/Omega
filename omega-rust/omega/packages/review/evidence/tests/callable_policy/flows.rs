@@ -7,25 +7,26 @@ use flow_effects::CapabilityFlowKind;
 // Direct boundary leaves declare their services; ordinary forwarding helpers
 // intentionally do not. Review must retain transitive authority independently
 // of private helper names and exclude helpers outside the caller's reach.
-const SOURCE: &str = r#"
+const SOURCE: &str = r#"use omega::language::core::service;
+
 pub boundary trait Folder { machine touch() reaches Folder; }
 pub boundary trait SubFolder { machine touch() reaches SubFolder; }
-pub boundary trait RootDir { machine open() -> Folder reaches RootDir; }
-pub boundary trait Workspace { machine narrow(parent: Folder) -> SubFolder reaches Workspace; }
-pub data Vault { root: RootDir; }
-pub machine Vault::direct(&self) -> Folder
+pub boundary trait RootDir { machine open() -> Service<Folder> reaches RootDir; }
+pub boundary trait Workspace { machine narrow(parent: Service<Folder>) -> Service<SubFolder> reaches Workspace; }
+pub data Vault { root: Service<RootDir>; }
+pub machine Vault::direct(&self) -> Service<Folder>
 reaches RootDir
 invokes RootDir;
 { self.root.open() }
-machine Vault::open_folder(&self) -> Folder reaches RootDir { self.root.open() }
-machine Vault::relay(&self) -> Folder { self.open_folder() }
-pub machine Vault::expose(&self) -> Folder
+machine Vault::open_folder(&self) -> Service<Folder> reaches RootDir { self.root.open() }
+machine Vault::relay(&self) -> Service<Folder> { self.open_folder() }
+pub machine Vault::expose(&self) -> Service<Folder>
 reaches RootDir
 invokes RootDir;
 { self.relay() }
-pub data Broker { workspace: Workspace; }
-machine Broker::narrow(&self, folder: Folder) -> SubFolder reaches Workspace { self.workspace.narrow(folder) }
-pub machine Broker::delegate(&self, folder: Folder) -> SubFolder
+pub data Broker { workspace: Service<Workspace>; }
+machine Broker::narrow(&self, folder: Service<Folder>) -> Service<SubFolder> reaches Workspace { self.workspace.narrow(folder) }
+pub machine Broker::delegate(&self, folder: Service<Folder>) -> Service<SubFolder>
 reaches Workspace
 invokes Workspace;
 { self.narrow(folder) }
@@ -143,7 +144,7 @@ invokes RootDir;
     assert_eq!(original, renamed);
     let expanded_source = format!(
         r#"{source}
-boundary trait Unused {{ machine touch() reaches Unused; }}
+pub boundary trait Unused {{ machine touch() reaches Unused; }}
 machine unreachable_helper() reaches Unused {{ Unused::touch(); }}
 "#
     );

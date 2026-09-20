@@ -261,15 +261,16 @@ machine Main::main(&mut self) { }
 fn effectful_policies_are_rejected_at_the_gate() {
     let main_path = write_program(
         "effectful-policy",
-        r#"
+        r#"use omega::language::core::service;
+
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
 data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
 data FieldPlan { case At(offset: u64); case Skip; }
 data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
-boundary trait Console { machine write(code: i64); }
-data Chatty { console: Console; }
+pub boundary trait Console { machine write(code: i64); }
+data Chatty { console: Service<Console>; }
 machine Chatty::plan(&mut self, schema: Schema) -> Plan {
     let entries: [FieldEntry; 64];
     self.console.write(1);

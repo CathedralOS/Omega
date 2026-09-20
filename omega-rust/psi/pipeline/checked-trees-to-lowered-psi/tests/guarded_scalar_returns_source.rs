@@ -60,7 +60,7 @@ fn stored_returned_cases_support_borrowed_refined_getters() {
             }
         }
         boundary trait Sink { machine record(value: u64); }
-        data Main { sink: Sink; }
+        data Main<'s> { sink: &'s mut Sink; }
         machine Main::main(&mut self) reaches Sink {
             transition { _ -> alignment_conversion() }
             state alignment_conversion(&mut self) {

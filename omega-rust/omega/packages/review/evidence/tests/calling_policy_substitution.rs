@@ -17,7 +17,7 @@ fn policy(declaration: &str) -> PackagePolicyCallingPlan {
     )
     .unwrap();
     let prefix = fixture
-        .split_once("boundary trait HookProcedure:")
+        .split_once("pub boundary trait HookProcedure:")
         .unwrap()
         .0;
     let package = TempPackage::new();
@@ -59,17 +59,18 @@ fn policy(declaration: &str) -> PackagePolicyCallingPlan {
 #[test]
 fn inherited_array_type_matches_concrete_semantic_parameter() {
     let inherited = policy(
-        r#"
-boundary trait ProcedureBase<Value> {
+        r#"use omega::language::core::service;
+
+pub boundary trait ProcedureBase<Value> {
     machine call(message: &Value) -> u64;
 }
 
-boundary trait HookProcedure: ProcedureBase<[u8; 7]> + Calling<HookProcedurePolicy> {}
+pub boundary trait HookProcedure: Service<ProcedureBase><[u8; 7]> + Calling<HookProcedurePolicy> {}
 "#,
     );
     let concrete = policy(
         r#"
-boundary trait HookProcedure: Calling<HookProcedurePolicy> {
+pub boundary trait HookProcedure: Calling<HookProcedurePolicy> {
     machine call(message: &[u8; 7]) -> u64;
 }
 "#,
@@ -83,12 +84,13 @@ boundary trait HookProcedure: Calling<HookProcedurePolicy> {
 
 #[test]
 fn inherited_nested_array_argument_uses_ancestor_type_application() {
-    let declaration = r#"
-boundary trait ProcedureBase<Value> {
+    let declaration = r#"use omega::language::core::service;
+
+pub boundary trait ProcedureBase<Value> {
     machine call(message: &Value) -> u64;
 }
-boundary trait ProcedureMiddle<Element>: ProcedureBase<[Element; 7]> {}
-boundary trait HookProcedure: ProcedureMiddle<u8> + Calling<HookProcedurePolicy> {}
+pub boundary trait ProcedureMiddle<Element>: ProcedureBase<[Element; 7]> {}
+pub boundary trait HookProcedure: Service<ProcedureMiddle><u8> + Calling<HookProcedurePolicy> {}
 "#;
     let inherited = policy(declaration);
     let concrete =
@@ -107,13 +109,14 @@ boundary trait HookProcedure: ProcedureMiddle<u8> + Calling<HookProcedurePolicy>
 fn inherited_nested_static_contract_keeps_private_nominal_and_outer_telescope() {
     let declaration = r#"
 trait Hidden { machine apply(value: u64) -> u64; }
-boundary trait ProcedureBase<Value> {
+use omega::language::core::service;
+pub boundary trait ProcedureBase<Value> {
     machine call<machine Work, Later>(message: u64) -> u64
     where machine Work<machine Nested>(value: Value) -> Value
     where machine Nested satisfies Hidden::apply;
     ;
 }
-boundary trait HookProcedure: ProcedureBase<u64> + Calling<HookProcedurePolicy> {}
+pub boundary trait HookProcedure: Service<ProcedureBase><u64> + Calling<HookProcedurePolicy> {}
 "#;
     let inherited = policy(declaration);
     let concrete = policy(&declaration.replace("value: Value) -> Value", "value: u64) -> u64"));
@@ -124,7 +127,7 @@ boundary trait HookProcedure: ProcedureBase<u64> + Calling<HookProcedurePolicy> 
 #[test]
 fn nested_static_lifetime_shadows_method_binder_without_collapsing_ordinals() {
     let declaration = r#"
-boundary trait HookProcedure: Calling<HookProcedurePolicy> {
+pub boundary trait HookProcedure: Calling<HookProcedurePolicy> {
     machine call<'a, machine Work>(message: u64) -> u64
     where machine Work<'a>(value: &'a u64) -> u64;
     ;

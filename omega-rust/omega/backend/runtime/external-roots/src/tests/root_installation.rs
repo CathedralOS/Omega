@@ -148,12 +148,9 @@ fn opaque_callback_gateway_must_be_exact_current_dispatch_and_process_lifetime()
         ),
         provider,
     );
-    let error = admit_process_lifetime_opaque_callback(
-        &admitted_code,
-        receipt,
-        substituted_capacity,
-    )
-    .expect_err("a distinct live-registration capacity occurrence must reject");
+    let error =
+        admit_process_lifetime_opaque_callback(&admitted_code, receipt, substituted_capacity)
+            .expect_err("a distinct live-registration capacity occurrence must reject");
     assert!(error.diagnostic().0.contains("capacity occurrence"));
     let (receipt, _substituted_capacity) = (*error).into_parts();
 

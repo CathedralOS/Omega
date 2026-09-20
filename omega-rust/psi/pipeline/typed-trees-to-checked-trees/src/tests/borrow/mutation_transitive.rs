@@ -283,7 +283,7 @@ fn shared_boundary_resolver_preserves_exact_and_opaque_storage_frames() {
             machine fill(value: &mut u64);
             machine consume(carrier: Carrier);
         }
-        data Main { device: Device; value: u64; }
+        data Main<'s> { device: &'s mut Device; value: u64; }
         machine Main::good(&mut self) { self.device.fill(&mut self.value); }
         machine Main::forward(&mut self) {
             let output: &mut u64 = &mut self.value;

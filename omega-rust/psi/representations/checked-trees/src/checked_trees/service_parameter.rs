@@ -45,8 +45,7 @@ impl CheckedTrees {
     pub fn bound_service_parameter_carrier(
         &self,
         type_reference: types::TypeReferenceHandle,
-    ) -> Result<Option<CheckedServiceParameterCarrier>, CheckedServiceParameterError>
-    {
+    ) -> Result<Option<CheckedServiceParameterCarrier>, CheckedServiceParameterError> {
         let Some(carrier) =
             typed_trees::service::classify_exact_bound_service_carrier(&self.typed, type_reference)
                 .map_err(CheckedServiceParameterError::InvalidCarrier)?

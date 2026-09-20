@@ -239,8 +239,8 @@ data Main { }
 #[test]
 fn concrete_boundary_arguments_distinguish_equal_physical_calling_policies() {
     let source = procedure_source().replace(
-        "boundary trait HookProcedure:",
-        "boundary trait HookProcedure<Tag>:",
+        "pub boundary trait HookProcedure:",
+        "pub boundary trait HookProcedure<Tag>:",
     );
     let source = format!(
         r#"{source}
@@ -272,10 +272,11 @@ machine Provider::call(message: u64) -> u64
 #[test]
 fn inherited_requirement_retains_declaring_trait_and_concrete_parent_application() {
     let source = procedure_source().replace(
-        "boundary trait HookProcedure: Calling<HookProcedurePolicy> {\n    machine call(message: u64) -> u64;\n}",
-        "boundary trait ProcedureBase<Value> {\n    machine call(message: Value) -> Value;\n}\n\nboundary trait HookProcedure: ProcedureBase<u64> + Calling<HookProcedurePolicy> {}",
+        "pub boundary trait HookProcedure: Calling<HookProcedurePolicy> {\n    machine call(message: u64) -> u64;\n}",
+        "use omega::language::core::service;
+pub boundary trait ProcedureBase<Value> {\n    machine call(message: Value) -> Value;\n}\n\nboundary trait HookProcedure: Service<ProcedureBase><u64> + Calling<HookProcedurePolicy> {}",
     );
-    assert!(source.contains("boundary trait ProcedureBase<Value>"));
+    assert!(source.contains("pub boundary trait ProcedureBase<Value>"));
     let (_first_package, first) = checked(&source);
     let (_second_package, second) =
         checked(&source.replace("ProcedureBase<u64>", "ProcedureBase<i64>"));

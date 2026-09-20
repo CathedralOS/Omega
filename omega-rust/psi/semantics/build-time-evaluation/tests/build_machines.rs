@@ -40,7 +40,7 @@ const SOURCE: &str = r#"
         (Choice::Ready { bytes: "\x03\x04" })
     }
 
-    data Stager { filesystem: FilesystemHost; result: i32; }
+    data Stager<'s> { filesystem: &'s mut FilesystemHost; result: i32; }
     machine Stager::build(&mut self, value: &mut Build)
     reaches FilesystemHost
     {
@@ -48,7 +48,7 @@ const SOURCE: &str = r#"
         value.freestanding = self.result >= 0;
     }
 
-    data StatementStager { filesystem: FilesystemHost; }
+    data StatementStager<'s> { filesystem: &'s mut FilesystemHost; }
     machine StatementStager::build(&mut self, value: &mut Build)
     reaches FilesystemHost
     {

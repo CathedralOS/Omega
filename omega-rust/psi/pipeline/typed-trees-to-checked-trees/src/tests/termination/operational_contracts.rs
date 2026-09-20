@@ -87,7 +87,7 @@ fn checked_wrappers_publish_authored_and_transitive_service_union() {
 fn private_direct_boundary_calls_require_authored_service_reach() {
     let source = r#"
         boundary trait Readable { machine read() -> u64; }
-        data Worker { reader: Readable; }
+        data Worker<'s> { reader: &'s mut Readable; }
         machine Worker::read(&mut self) -> u64 { self.reader.read() }
         machine static_read() -> u64 { Readable::read() }
     "#;
@@ -121,7 +121,7 @@ fn symbol_resolved_service_reach_propagates_boundary_identity_and_parent_closure
     boundary trait Filesystem: Readable {
     }
 
-    data Worker { reader: Readable; }
+    data Worker<'s> { reader: &'s mut Readable; }
     machine Worker::run(&mut self) -> u64 reaches Filesystem {
         self.reader.read()
     }
@@ -192,7 +192,7 @@ fn symbol_resolved_service_ceiling_rejects_undeclared_boundary_reach() {
     boundary trait Readable { machine read() -> u64; }
     boundary trait Queryable { }
 
-    data Main { reader: Readable; }
+    data Main<'s> { reader: &'s mut Readable; }
     machine Main::run(&mut self) -> u64 reaches Queryable {
         self.reader.read()
     }
@@ -254,7 +254,7 @@ fn operational_plans_are_independent_from_service_reach_rows() {
     let source = r#"
     boundary trait Clock { machine read(); }
 
-    data Sleeper { clock: Clock; }
+    data Sleeper<'s> { clock: &'s mut Clock; }
     machine Sleeper::wait(&mut self) reaches Clock suspends; blocks; {}
 
     data Main { sleeper: Sleeper; }
@@ -372,7 +372,7 @@ fn checked_machine_operational_facts_keep_suspension_and_blocking_independent() 
         machine wait() blocks;
     }
 
-    data Harness { sleeper: Sleeper; waiter: Waiter; }
+    data Harness<'s> { sleeper: &'s mut Sleeper; waiter: &'s mut Waiter; }
 
     machine Harness::suspend_only(&mut self) reaches Sleeper suspends; {
         suspend self.sleeper.sleep();
@@ -645,7 +645,7 @@ fn contract_plans_fingerprint_published_halves() {
     boundary trait Device {
         machine overwrite(value: &mut u64);
     }
-    data Wrapper { device: Device; value: u64; }
+    data Wrapper<'s> { device: &'s mut Device; value: u64; }
     machine Wrapper::boundary_call(&mut self) reaches Device {
         self.device.overwrite(&mut self.value);
     }

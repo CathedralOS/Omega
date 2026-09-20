@@ -638,7 +638,7 @@ fn operational_window_source(contract: &str, body: &str) -> String {
         "boundary trait Waiter {{ machine wait() -> i32 {contract}; }}
          machine identity(value: i32) -> i32 {{ value }}
          data Inventory {{ slots: i32; }}
-         data Main {{ inventory: Inventory; waiter: Waiter; observed: i32; }}
+         data Main<'s> {{ inventory: Inventory; waiter: &'s mut Waiter; observed: i32; }}
          machine Main::replace(&mut self) reaches Waiter {body_contract} {{ {body} }}"
     )
 }
@@ -803,7 +803,7 @@ fn ordinary_wrapper_retains_its_conservative_service_reach() {
             "boundary trait Observer {{ machine wait() -> i32; }}
              machine observe(observer: &Observer) -> i32 reaches Observer {{ {body} }}
              data Inventory {{ slots: i32; }}
-             data Main {{ inventory: Inventory; observer: Observer; }}
+             data Main<'s> {{ inventory: Inventory; observer: &'s mut Observer; }}
              machine Main::replace(&mut self) reaches Observer {{
                  let taken: Inventory = self.inventory;
                  let reading: i32 = observe(&self.observer);

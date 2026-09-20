@@ -31,7 +31,7 @@ impl Fixture {
             r#"use omega::language::core::external_binding;
 
 
-boundary trait Console {
+pub boundary trait Console {
     machine write(value: u8);
 }
 
@@ -285,15 +285,16 @@ impl CalledLeafFixture {
         fs::write(
             &main,
             format!(
-                r#"use omega::language::core::external_binding;
+                r#"use omega::language::core::service;
+use omega::language::core::external_binding;
 
-boundary trait Leaf {{
+pub boundary trait Leaf {{
     machine exit(code: i32) -> i32;
 }}
 
 {leaf_declaration}
 
-data Main {{ p: Leaf; }}
+data Main {{ p: Service<Leaf>; }}
 machine Main::main(&mut self) reaches Leaf {{
     let rc: i32 = self.p.exit(70);
     let keep: i32 = rc;

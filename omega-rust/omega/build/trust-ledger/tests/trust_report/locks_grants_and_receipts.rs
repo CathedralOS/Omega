@@ -65,9 +65,10 @@ fn domain_declarations_do_not_create_trust_rows() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"domain u32::Meters;
-boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; }
+        r#"use omega::language::core::service;
+domain u32::Meters;
+pub boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Service<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
@@ -105,8 +106,9 @@ fn trust_report_empty_without_commitments() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; }
+        r#"use omega::language::core::service;
+pub boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Service<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
@@ -272,9 +274,10 @@ fn domain_and_unmatched_root_grants_reject_without_receipts() {
     .expect("write build.omg");
     std::fs::write(
         project.join("main.omg"),
-        r#"domain u32::Meters;
-boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; }
+        r#"use omega::language::core::service;
+domain u32::Meters;
+pub boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Service<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
@@ -401,9 +404,10 @@ fn lockfile_written_and_drift_fails_until_reapproved() {
             claim.trim().to_owned()
         };
         format!(
-            r#"boundary machine admitted() ensures {claim};
-boundary trait Console {{ machine exit_process(return_code: i32); }}
-data Main {{ console: Console; }}
+            r#"use omega::language::core::service;
+boundary machine admitted() ensures {claim};
+pub boundary trait Console {{ machine exit_process(return_code: i32); }}
+data Main {{ console: Service<Console>; }}
 machine Main::exercise(&mut self) reaches Console {{
     self.console.exit_process(70);
 }}
@@ -627,9 +631,10 @@ fn granted_axiom_receipt_drifts_on_claim_edit() {
     .expect("write build.omg");
     let main_with = |claim: &str| {
         format!(
-            r#"use omega::language::core::nat;
-boundary trait Console {{ machine exit_process(return_code: i32); }}
-data Main {{ console: Console; }}
+            r#"use omega::language::core::service;
+use omega::language::core::nat;
+pub boundary trait Console {{ machine exit_process(return_code: i32); }}
+data Main {{ console: Service<Console>; }}
 
 boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
 ensures
@@ -692,8 +697,9 @@ fn granted_axiom_receipt_drifts_on_published_contract_axis_edit() {
     .expect("write build.omg");
     let main_with = |axis: &str| {
         format!(
-            r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
-data Main {{ console: Console; }}
+            r#"use omega::language::core::service;
+pub boundary trait Console {{ machine exit_process(return_code: i32); }}
+data Main {{ console: Service<Console>; }}
 
 boundary machine admitted_axis()
 {axis}
@@ -758,7 +764,8 @@ fn granted_generic_axiom_receipt_pins_template_and_machine_requirement() {
     .expect("write build.omg");
     let main_with = |requirement_clause: &str| {
         format!(
-            r#"boundary trait Console {{ machine exit_process(return_code: i32); }}
+            r#"use omega::language::core::service;
+pub boundary trait Console {{ machine exit_process(return_code: i32); }}
 pub trait Ranked {{ machine Self::before(&self, other: &Self) -> bool; }}
 data Card {{ rank: i32; }}
 pub domain<T, const N: u64> T::Quantity<N>;
@@ -768,7 +775,7 @@ Ascending: Card satisfies Ranked {{
 Descending: Card satisfies Ranked {{
     machine before(&self, other: &Card) -> bool {{ self.rank > other.rank }}
 }}
-data Main {{ console: Console; first: Card; second: Card; }}
+data Main {{ console: Service<Console>; first: Card; second: Card; }}
 
 machine selected_first(value: &Card) {{}}
 machine selected_second(value: &Card) ensures true {{}}

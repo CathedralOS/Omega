@@ -4,12 +4,13 @@ use crate::lowerer::seeded_continuation::{
 };
 use typed_trees::signature::AuthoredInvocationTarget;
 
-const BASE: &str = "boundary trait Console { machine write(value: i32) reaches Console; }";
+const BASE: &str = "pub boundary trait Console { machine write(value: i32) reaches Console; }";
 
 #[test]
 fn seeded_invocations_retain_service_and_parameter_identity_and_source_occurrences() {
-    let extension_source = "pub machine direct() reaches Console invokes Console; {}\n\
-        pub machine parameter(first: Console, second: Console) reaches Console invokes second; {}";
+    let extension_source = "use omega::language::core::service;
+pub machine direct() reaches Console invokes Console; {}\n\
+        pub machine parameter(first: Service<Console>, second: Service<Console>) reaches Console invokes second; {}";
     let (base, extension) = seeded_plain_data_inputs(BASE, extension_source);
     let retained = base.typed().clone();
     let expected_reaches = extension.trees().authored_service_reach_rows.clone();
@@ -118,7 +119,7 @@ fn seeded_invocations_without_reaches_reuse_normalized_service_rows() {
 #[test]
 fn seeded_invocations_append_new_normalized_service_sets_without_rebinding_base_rows() {
     let (base, extension) = seeded_plain_data_inputs(
-        "boundary trait Console { machine write() reaches Console; } boundary trait FilesystemHost { machine write() reaches FilesystemHost; }",
+        "pub boundary trait Console { machine write() reaches Console; } pub boundary trait FilesystemHost { machine write() reaches FilesystemHost; }",
         "pub machine generated() reaches Console + FilesystemHost invokes Console; {}\n\
          pub machine reordered() reaches FilesystemHost + Console invokes FilesystemHost; {}",
     );
@@ -166,7 +167,7 @@ fn seeded_invocations_append_new_normalized_service_sets_without_rebinding_base_
 #[test]
 fn seeded_invocations_reject_incompatible_typed_service_rows_transactionally() {
     let (mut base, extension) = seeded_plain_data_inputs(
-        "boundary trait Console { machine write() reaches Console; } boundary trait FilesystemHost { machine write() reaches FilesystemHost; }",
+        "pub boundary trait Console { machine write() reaches Console; } pub boundary trait FilesystemHost { machine write() reaches FilesystemHost; }",
         "pub machine generated() reaches Console + FilesystemHost invokes Console; {}",
     );
     let filesystem = base

@@ -1,5 +1,6 @@
 use super::{fixtures, project, read_permission};
-const SOURCE: &str = r#"use calling;
+const SOURCE: &str = r#"use omega::language::core::service;
+use calling;
 pub data FsCallingPolicy {}
 pub FsCallingConformance: FsCallingPolicy satisfies CallingPolicy;
 pub machine FsCallingPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -33,7 +34,7 @@ satisfies CallingPolicy::plan
 pub boundary trait FilesystemBase {
     machine read(descriptor: u64) -> u64;
 }
-pub boundary trait FilesystemHost: FilesystemBase + Calling<FsCallingPolicy> {}
+pub boundary trait FilesystemHost: Service<FilesystemBase> + Calling<FsCallingPolicy> {}
 "#;
 
 #[test]

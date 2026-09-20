@@ -71,7 +71,7 @@ fn provider_progress_schema_retains_the_exact_authorized_establishment_route() {
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
         boundary trait SchedulerAdmission {
-            machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair;
+            machine grant<'s>(scheduler: &'s mut SchedulerRuntime) -> SchedulerRuntime in WeakFair;
         }
         "#,
     );
@@ -299,13 +299,13 @@ fn checked_progress_retains_provider_receiver_as_build_bound_demand() {
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
         boundary trait SchedulerAdmission {
-            machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair;
+            machine grant<'s>(scheduler: &'s mut SchedulerRuntime) -> SchedulerRuntime in WeakFair;
         }
-        machine helper(runtime: SchedulerRuntime in WeakFair) reaches SchedulerRuntime
+        machine helper<'s>(runtime: &'s mut SchedulerRuntime in WeakFair) reaches SchedulerRuntime
         {
             runtime.wait();
         }
-        machine process(runtime: SchedulerRuntime in WeakFair)
+        machine process<'s>(runtime: &'s mut SchedulerRuntime in WeakFair)
         terminates
         {
             helper(runtime);
@@ -356,13 +356,13 @@ fn admitted_provider_receiver_receipt_removes_build_bound_demand() {
         satisfies ProgressProfile
         established by SchedulerAdmission::grant;
         boundary trait SchedulerAdmission {
-            machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair
+            machine grant<'s>(scheduler: &'s mut SchedulerRuntime) -> SchedulerRuntime in WeakFair
             ensures result in SchedulerRuntime::WeakFair
             terminates;
         }
-        machine process(
+        machine process<'s>(
             admission: &mut SchedulerAdmission,
-            runtime: SchedulerRuntime
+            runtime: &'s mut SchedulerRuntime
         ) reaches SchedulerAdmission + SchedulerRuntime
         terminates
         {
@@ -4249,7 +4249,7 @@ fn published_operational_omission_is_a_negative_ceiling() {
             machine wait() suspends; blocks;
         }
 
-        data Published { source: WaitingSource; }
+        data Published<'s> { source: &'s mut WaitingSource; }
         boundary machine Published::entry(&mut self) {
             suspend block self.source.wait();
         }
@@ -4476,11 +4476,11 @@ fn checked_provider_infers_attached_boundary_field_as_direct_target() {
         boundary trait Beta {
             machine beta() invokes Alpha;
         }
-        data AlphaProvider { beta: Beta; }
+        data AlphaProvider<'s> { beta: &'s mut Beta; }
         machine AlphaProvider::alpha_checked(&mut self) satisfies Alpha::alpha {
             self.beta.beta();
         }
-        data BetaProvider { alpha: Alpha; }
+        data BetaProvider<'s> { alpha: &'s mut Alpha; }
         machine BetaProvider::beta_checked(&mut self) satisfies Beta::beta {
             self.alpha.alpha();
         }
@@ -4514,8 +4514,8 @@ fn invocation_inference_does_not_alias_same_named_foreign_fields_to_self() {
         boundary trait Beta {
             machine beta();
         }
-        data Other { binding: Beta; }
-        data Provider { binding: Alpha; }
+        data Other<'s> { binding: &'s mut Beta; }
+        data Provider<'s> { binding: &'s mut Alpha; }
         machine Provider::run(&self, other: &Other) {
             other.binding.beta();
         }
@@ -5162,7 +5162,7 @@ fn boundary_out_param_ensures_seeds_the_value_env() {
         machine get_size(size: &mut u32)
         ensures size <= 8;
     }
-    data Main { fw: Firmware; n: u32; m: u32; }
+    data Main<'s> { fw: &'s mut Firmware; n: u32; m: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         self.m = self.n + 1;
@@ -5181,7 +5181,7 @@ fn boundary_out_param_without_ensures_stays_unproven() {
     boundary trait Firmware {
         machine get_size(size: &mut u32);
     }
-    data Main { fw: Firmware; n: u32; m: u32; }
+    data Main<'s> { fw: &'s mut Firmware; n: u32; m: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         self.m = self.n + 1;
@@ -5206,7 +5206,7 @@ fn boundary_out_param_ensures_dies_at_the_next_write() {
         machine get_size(size: &mut u32)
         ensures size <= 8;
     }
-    data Main { fw: Firmware; n: u32; other: u32; m: u32; }
+    data Main<'s> { fw: &'s mut Firmware; n: u32; other: u32; m: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         self.n = self.other;
@@ -5235,7 +5235,7 @@ fn boundary_ensures_witness_discharges_recast_footprint() {
         machine get_size(size: &mut u32)
         ensures size <= 8;
     }
-    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 12]; n: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         transition { _ -> read(self.n) }
@@ -5258,7 +5258,7 @@ fn boundary_ensures_witness_too_wide_refuses_recast_footprint() {
         machine get_size(size: &mut u32)
         ensures size <= 9;
     }
-    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 12]; n: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         transition { _ -> read(self.n) }
@@ -5289,7 +5289,7 @@ fn boundary_ensures_witness_survives_unrelated_intervening_call() {
         ensures size <= 8;
         machine poke();
     }
-    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 12]; n: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         self.fw.poke();
@@ -5312,7 +5312,7 @@ fn boundary_ensures_witness_dies_when_intervening_call_borrows_place_mutably() {
         ensures size <= 8;
         machine poke(size: &mut u32);
     }
-    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 12]; n: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         self.fw.poke(&mut self.n);
@@ -5340,7 +5340,7 @@ fn boundary_ensures_witness_survives_unrelated_internal_call() {
         machine get_size(size: &mut u32)
         ensures size <= 8;
     }
-    data Main { fw: Firmware; buf: [u8; 12]; n: u32; other: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 12]; n: u32; other: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         self.touch_other();
@@ -5365,7 +5365,7 @@ fn boundary_ensures_witness_dies_when_internal_call_writes_place() {
         machine get_size(size: &mut u32)
         ensures size <= 8;
     }
-    data Main { fw: Firmware; buf: [u8; 12]; n: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 12]; n: u32; }
     machine Main::main(&mut self) {
         self.fw.get_size(&mut self.n);
         self.touch_n();
@@ -5399,11 +5399,11 @@ fn boundary_witness_survives_transitive_disjoint_boundary_frame() {
     boundary trait Device {
         machine ping();
     }
-    data Worker { device: Device; }
+    data Worker<'s> { device: &'s mut Device; }
     machine Worker::touch_device(&mut self) {
         self.device.ping();
     }
-    data Main { sensor: Sensor; worker: Worker; n: u32; buf: [u8; 12]; }
+    data Main<'s> { sensor: &'s mut Sensor; worker: Worker; n: u32; buf: [u8; 12]; }
     machine Main::main(&mut self) {
         self.sensor.sample(&mut self.n);
         self.worker.touch_device();
@@ -5428,11 +5428,11 @@ fn boundary_witness_dies_through_transitive_boundary_out_argument() {
     boundary trait Device {
         machine overwrite(value: &mut u32);
     }
-    data Worker { device: Device; }
+    data Worker<'s> { device: &'s mut Device; }
     machine Worker::overwrite_external(&mut self, value: &mut u32) {
         self.device.overwrite(value);
     }
-    data Main { sensor: Sensor; worker: Worker; n: u32; buf: [u8; 12]; }
+    data Main<'s> { sensor: &'s mut Sensor; worker: Worker; n: u32; buf: [u8; 12]; }
     machine Main::main(&mut self) {
         self.sensor.sample(&mut self.n);
         self.worker.overwrite_external(&mut self.n);
@@ -5510,7 +5510,7 @@ fn symbolic_walk_recast_footprint_discharges() {
         ensures map_size <= 64 && desc_size >= 8;
     }
     data Desc { a: u32; b: u32; }
-    data Main { fw: Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
     machine Main::main(&mut self) {
         self.fw.get_memory_map(&mut self.map_size, &mut self.desc_size);
         transition { _ -> walk(self.map_size, self.desc_size, 0) }
@@ -5546,8 +5546,8 @@ fn boundary_ensures_equalities_couple_symbolic_recast_witnesses() {
             && desc_size == desc_floor && desc_floor >= 8;
     }
     data Desc { a: u32; b: u32; }
-    data Main {
-        fw: Firmware;
+    data Main<'s> {
+        fw: &'s mut Firmware;
         buf: [u8; 64];
         map_size: u32;
         desc_size: u32;
@@ -5593,7 +5593,7 @@ fn symbolic_walk_guard_route_discharges() {
         machine get_memory_map(map_size: &mut u32, desc_size: &mut u32);
     }
     data Desc { a: u32; b: u32; }
-    data Main { fw: Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
     machine Main::main(&mut self) {
         self.fw.get_memory_map(&mut self.map_size, &mut self.desc_size);
         transition self.map_size <= 64 && self.desc_size >= 8 {
@@ -5625,7 +5625,7 @@ fn symbolic_walk_recast_wide_witness_refuses() {
         ensures map_size <= 65 && desc_size >= 8;
     }
     data Desc { a: u32; b: u32; }
-    data Main { fw: Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
     machine Main::main(&mut self) {
         self.fw.get_memory_map(&mut self.map_size, &mut self.desc_size);
         transition { _ -> walk(self.map_size, self.desc_size, 0) }
@@ -5661,7 +5661,7 @@ fn symbolic_walk_weak_guard_spelling_refuses() {
         ensures map_size <= 64 && desc_size >= 8;
     }
     data Desc { a: u32; b: u32; }
-    data Main { fw: Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
+    data Main<'s> { fw: &'s mut Firmware; buf: [u8; 64]; map_size: u32; desc_size: u32; }
     machine Main::main(&mut self) {
         self.fw.get_memory_map(&mut self.map_size, &mut self.desc_size);
         transition { _ -> walk(self.map_size, self.desc_size, 0) }
@@ -6649,8 +6649,8 @@ fn rejects_published_service_ceiling_below_reached_services() {
     boundary trait Output {
     }
 
-    data Main {
-        input: Input;
+    data Main<'s> {
+        input: &'s mut Input;
     }
 
     machine Main::main(&mut self)
@@ -6927,8 +6927,8 @@ mod effects_analysis {
                 machine write_line(text: &[u8]);
             }
 
-            data Main {
-                console: Console;
+            data Main<'s> {
+                console: &'s mut Console;
             }
 
             machine Main::main(&mut self) reaches Console {
@@ -7651,7 +7651,7 @@ mod provider_plan {
              blocks;\n\
              machine exit_process(return_code: i32);\n\
              }\n\
-             data Main { console: Console; }\n\
+             data Main<'s> { console: &'s mut Console; }\n\
              machine Main::main(&mut self) {}\n",
         );
         let console = program

@@ -989,7 +989,7 @@ fn target_provider_default_cannot_request_independent_composition() {
     let package = identity(65);
     TempTree::write(
         root.join("main.omg"),
-        r#"boundary trait Pair { machine first(); }
+        r#"pub boundary trait Pair { machine first(); }
 data Provider { first: addr; }
 machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
 
@@ -1232,9 +1232,10 @@ fn native_package_entrypoint_uses_the_same_reconciled_binding_mode() {
 
     TempTree::write(
         root.join("main.omg"),
-        r#"use dep::values;
-boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; }
+        r#"use omega::language::core::service;
+use dep::values;
+pub boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     transition ANSWER == 42 { true -> yes() _ -> no() }
     state yes(&mut self) { self.console.exit_process(0); }

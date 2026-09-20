@@ -65,8 +65,9 @@ fn public_trait_termination_is_parameter_rooted_review_shape() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"pub boundary trait SchedulerRuntime {
-    machine wait(&self, scheduler: SchedulerRuntime)
+        r#"use omega::language::core::service;
+pub boundary trait SchedulerRuntime {
+    machine wait(&self, scheduler: Service<SchedulerRuntime>)
     requires self in WeakFair
     requires scheduler in WeakFair
     terminates;
@@ -75,7 +76,7 @@ pub domain SchedulerRuntime::WeakFair
 satisfies ProgressProfile
 established by SchedulerAdmission::grant;
 pub boundary trait SchedulerAdmission {
-    machine grant(scheduler: SchedulerRuntime) -> SchedulerRuntime in WeakFair;
+    machine grant(scheduler: Service<SchedulerRuntime>) -> Service<SchedulerRuntime> in WeakFair;
 }
 "#,
     );

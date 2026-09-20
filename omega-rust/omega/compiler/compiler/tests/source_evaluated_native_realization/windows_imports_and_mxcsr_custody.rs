@@ -91,9 +91,10 @@ fn windows_catalog_dll_case_variants_preserve_imports_and_execute() {
         ("upper", "KERNEL32.DLL"),
     ] {
         let source = format!(
-            r#"use omega::language::core::external_binding;
+            r#"use omega::language::core::service;
+use omega::language::core::external_binding;
 
-boundary trait WindowsCalls {{
+pub boundary trait WindowsCalls {{
     machine find_close(handle: i64) -> i32;
     machine exit(code: i32);
 }}
@@ -109,7 +110,7 @@ windows_x86_64 machine exit_binding() -> Binding<12, 11, 0> {{
 }}
 machine find_close_leaf(handle: i64) -> i32 satisfies WindowsCalls::find_close via find_close_binding();
 machine exit_leaf(code: i32) satisfies WindowsCalls::exit via exit_binding();
-data Main {{ windows: WindowsCalls; }}
+data Main {{ windows: Service<WindowsCalls>; }}
 machine Main::main(&mut self) reaches WindowsCalls {{
     let result: i32 = self.windows.find_close(0);
     self.windows.exit(result);
