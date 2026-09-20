@@ -10260,7 +10260,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **WHOLE-COMPOSITION-INTERACTION-EXTRACTION** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
 - **WINDOWS-ALPHA-CONFORMANCE-LEG** — mined candidate; verify scope then implement.
 - **WINDOWS-FILE-TIME-CARRIER-RESPELL** — mined candidate; verify scope then implement.
-- **WINDOWS-FILE-TIME-UNSIGNED-RESPELL** — mined candidate; verify scope then implement.
+- **WINDOWS-FILE-TIME-UNSIGNED-RESPELL** — mined candidate; scope verified,
+  covered. The stub is the "unsigned carrier" clause of
+  WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with
+  FILESYSTEM-WINDOWS-FILETIME-RESPELL), landed at `ff782bdf21` — the
+  `windows_set_file_time_exit` fixture assembles the `st_mtime`
+  nanos-through-100ns conversion through the u64 carrier
+  (`widen_u8_to_u64`/`narrow_u64_to_i64_wrapping`) instead of the overflowing
+  `widen_u8_to_i64(byte) << 56` idiom. `wiki/drafts/known_baseline_failures.md`
+  names the same respelling and records that the fixture is Windows-gated, so
+  neither its failure nor its repair can be measured on a non-Windows host.
+  The parent row owns the residual bookkeeping; no independent slice exists
+  here. Sibling stubs resolved on the same clause:
+  WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
+  WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
 - **WINDOWS-PEAK-MEMORY-MEASUREMENT** — mined candidate; verify scope then implement.
 - **WINDOWS-SET-FILE-TIME-CARRIER** — mined candidate; scope verified, landed.
   The stub re-mines the unsigned-carrier clause of
