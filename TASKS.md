@@ -745,11 +745,10 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   policy, while a retained ProcessInput exclusion validates. Provider operands
   use the package-scope spelling (`omega_language_std::ConsoleNativeProvider`,
   `dep::Decl`); the pre-c103af89b0 unqualified form no longer resolves.
-  `authored_physical_exclusion_publishes_and_runs_on_the_host` remains red
-  preexisting: the quiet program's emitted linux_x86_64 `_start` is
-  `movabs rax,0; ret`, so the `ret` jumps to argc (rip=0x1, SIGSEGV, exit 139,
-  gdb-witnessed with no exclusion); the defect lives in entry/provider
-  emission machinery outside this item's paths.
+  An earlier linux_x86_64 `_start` trampoline defect (quiet program emitted
+  `movabs rax,0; ret`, exit 139) was fixed upstream between d05ec39a5d and
+  15fa36812f6; `authored_physical_exclusion_publishes_and_runs_on_the_host`
+  runs green at the landing base.
 
   Next native control: `sink_composition_physical_exclusion_reaches_native_custody_frontier`
   in `build_behavior_exclusions.rs` is a committed sentinel — it compiles the
