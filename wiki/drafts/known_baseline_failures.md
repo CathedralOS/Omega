@@ -454,6 +454,13 @@ the bare `Service<R>` spellings (since repaired, see above), 16 missing
 transitive machine plans, 3
 site_guard crash-namespace rejections, 4 scalar-return custody cases, 1
 `established by` qualification, 1 blowup — so the residual tail is empty.
+A host note worth its own attention: at 00e1da7ae2a on macOS arm64,
+`nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+ran past 1800 seconds with every other test in the crate finished, and was
+terminated. Linux readings above record the same member killed past 1400
+seconds at high CPU, so it is either nonterminating or pathological on both
+hosts, and it taxes every full run of this crate.
+
 The three added tests since d8d48fe4ff all pass. One boundary-timing note:
 `owned_match_nested_record_replays_every_selected_payload` passed at 336s
 (was not flagged slow in the d8d48fe4ff reading) — a near-threshold pass on
