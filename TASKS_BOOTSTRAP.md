@@ -147,14 +147,25 @@ prerequisite to every lower-rung milestone.
     remaining validation for the derived containers.
 
   - Produce the certificate through the selected chain from source-owned
-    definitions. Today the full-subject derivation comes from the host-side
-    [stepper](tests/gamma/beta-encoding-theory/stepper.py), a diagnostic
-    producer with no gate mode; `tests/gamma/beta-encoding-theory/run.sh`
-    covers finite equations, `--subject-shape`, and `--counter-cost` only.
+    definitions. The host-side
+    [stepper](tests/gamma/beta-encoding-theory/stepper.py) production now
+    has a gate mode:
+    `tests/gamma/beta-encoding-theory/run.sh --full-subject` reproduces the
+    complete derivation on any host with python3, pins the theory
+    reconstruction, both subject identities, and every emitted figure, and
+    emits the retained-role census; it remains diagnostic production rather
+    than the selected chain, which still needs a native host to evaluate and
+    check.
   - Check the full certificate, and the full-subject mutations the acceptance
     document lists, under the exact profile.
   - Show that each retained checker rule and encoding helper has a role in
-    that certificate, and remove the rest.
+    that certificate, and remove the rest. The gate's census supplies the
+    certificate-level evidence: every rule except symmetry appears, 107 of
+    108 theory functions unfold (function 62 never does), 359 of 361
+    constructors appear in terms (S_EMPTY and A_EXHAUSTED do not), and 1,911
+    of the 2,813 declared clauses appear as unfolding premises; which of the
+    unexercised members are retained for generality versus removed is the
+    open decision.
 
   Acceptance: the full certificate checks under the exact
   [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with
