@@ -154,6 +154,7 @@ fn reference(program: &TypedTrees, shape: Shape) -> Result<Option<TypeReferenceH
     let primitive = match shape {
         Shape::Anonymous(_) => return Ok(None),
         Shape::Boolean => PrimitiveType::Bool,
+        Shape::Float(format) => super::float_primitive(format),
         Shape::Integer(_, reference) if reference.is_valid() => {
             if !program
                 .type_reference_table
@@ -168,6 +169,8 @@ fn reference(program: &TypedTrees, shape: Shape) -> Result<Option<TypeReferenceH
     use symbols::BuiltinTypeAtom as Atom;
     let atom = match primitive {
         PrimitiveType::Bool => Atom::Bool,
+        PrimitiveType::F32 => Atom::F32,
+        PrimitiveType::F64 => Atom::F64,
         PrimitiveType::I8 => Atom::I8,
         PrimitiveType::I16 => Atom::I16,
         PrimitiveType::I32 => Atom::I32,

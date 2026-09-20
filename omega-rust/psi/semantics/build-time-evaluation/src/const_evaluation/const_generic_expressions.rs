@@ -312,7 +312,7 @@ pub(super) fn exact_probe_destination(
 
 /// Scalar declaration probes additionally admit floating destinations. Keep the
 /// structural index predicate unchanged for generic and aggregate consumers.
-fn scalar_probe_destination(
+pub(super) fn scalar_probe_destination(
     program: &typed_trees::TypedTrees,
     destination: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::PrimitiveType> {

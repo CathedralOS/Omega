@@ -219,6 +219,10 @@ fn join(
     for shape in shapes {
         match (*shape, peer) {
             (Shape::Boolean, Shape::Boolean) => {}
+            (Shape::Float(left), Shape::Float(right)) if left == right => {}
+            (Shape::Anonymous(expression), Shape::Float(_)) => {
+                validate_anonymous_fragments(program, context, expression)?;
+            }
             (Shape::Anonymous(expression), Shape::Anonymous(_)) => {
                 validate_anonymous_fragments(program, context, expression)?;
             }
@@ -591,6 +595,22 @@ pub(super) fn coerce(
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Value, String> {
     match (value, shape) {
+        (Value::Anonymous(expression), Shape::Float(format)) => {
+            let exact = validation::evaluate_anonymous_numeric_expression_with_selected_match_arms(
+                program,
+                expression,
+                selected,
+                |operand| context.has_builtin(program, operand),
+            )
+            .ok_or("floating constant requires a defined exact anonymous value")?;
+            Ok(Value::Float(
+                format,
+                match format {
+                    numerics::literals::FloatFormat::F32 => u64::from(exact.to_f32().to_bits()),
+                    numerics::literals::FloatFormat::F64 => exact.to_f64().to_bits(),
+                },
+            ))
+        }
         (Value::Anonymous(expression), Shape::Integer(carrier, _)) => land_anonymous(
             program,
             context,
@@ -603,6 +623,7 @@ pub(super) fn coerce(
             Ok(value)
         }
         (Value::Landed(left, _), Shape::Integer(right, _)) if left == right => Ok(value),
+        (Value::Float(left, _), Shape::Float(right)) if left == right => Ok(value),
         _ => Err("constant Match execution changed its scalar join type".into()),
     }
 }

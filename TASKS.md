@@ -3361,7 +3361,8 @@ Owners include
     (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`, shared
     with **CRASH-CONTRACT**), not successful interpretation or provider-body
     inspection. `machine_execution/admission/closure_validation.rs` fences
-    every authored `requires` except root parameter-domain premises.
+    authored `requires` without discharged concrete-invocation evidence;
+    successful interpretation alone cannot discharge them.
   - `const_generic_expressions/value/match_dispatch.rs` needs nonconstant
     divisor integrality beyond singleton sign intervals, nonzero proofs beyond
     retained lattice gaps, and exact fractional-warning evidence for
@@ -3381,6 +3382,9 @@ Owners include
   `terminal-psi-to-abstract-operations --test scalar_array_construction` and
   `omega-native-differential-test --test scalar_array_results` exercise exact
   source selection through independent artifacts and matching-host execution.
+  `omega-native-differential-test --test scalar_case_results floating_constants`
+  additionally checks exact floating helper results through source-free
+  publication and matching-host execution, including signed zero.
   Preserve the `qualified_declarations`, `qualified_constants`,
   `match_constant_indices`, `nominal_constant_bodies` and
   `module_array_constant_indices` customers. Under

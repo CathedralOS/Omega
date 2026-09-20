@@ -2,6 +2,159 @@ use super::{constant, evaluate, integer_encoding};
 use syntax_trees::expression::ExpressionNode;
 
 #[test]
+fn floating_calls_preserve_landings_control_and_concrete_admission() {
+    for (carrier, literal, encoding) in [
+        ("f32", "8388609.499999999999999", "float:f32:4b000001"),
+        ("f32", "-0.0f32", "float:f32:80000000"),
+        ("f64", "-0.0f64", "float:f64:8000000000000000"),
+    ] {
+        let text = format!(
+            "machine retain(value: {carrier}) -> {carrier} {{ value }}
+             machine guarded(value: {carrier}, ready: bool) -> {carrier}
+             requires ready; {{ value }}
+             const VALUE: {carrier} = match true {{
+                 true -> guarded(retain({literal}), true),
+                 false -> guarded(retain(2.0), false)
+             }};"
+        );
+        let typed = super::evaluate_fully(&[("main.omg", &text)], &[]);
+        assert_eq!(
+            typed.const_declarations()[0]
+                .canonical_value_encoding
+                .as_deref(),
+            Some(encoding)
+        );
+    }
+}
+
+#[test]
+fn floating_calls_in_guarded_named_transitions_preserve_selection() {
+    for (choice, expected) in [
+        ("true", "float:f32:3fc00000"),
+        ("false", "float:f32:40000000"),
+    ] {
+        let text = format!(
+            "machine keep(value: f32) -> f32 {{ value }}
+             machine choose(value: f32, flag: bool) -> f32 {{
+                 transition {{ flag -> finish(keep(value)) _ -> finish(keep(2.0f32)) }}
+                 state finish(value: f32) -> f32 {{ value }}
+             }}
+             const VALUE: f32 = choose(1.5f32, {choice});"
+        );
+        let typed = super::evaluate_fully(&[("main.omg", &text)], &[]);
+        assert_eq!(
+            typed.const_declarations()[0]
+                .canonical_value_encoding
+                .as_deref(),
+            Some(expected)
+        );
+    }
+}
+
+#[test]
+fn floating_calls_retain_computed_constant_dependencies() {
+    let typed = super::evaluate_fully(
+        &[(
+            "main.omg",
+            "machine keep(value: f32) -> f32 { value }
+         machine ready(value: f32) -> bool { true }
+         const BASE: f32 = keep(1.5f32); const VALUE: f32 = keep(BASE);
+         const READY: bool = ready(BASE);",
+        )],
+        &[],
+    );
+    assert!(
+        typed
+            .const_declarations()
+            .iter()
+            .filter(|declaration| typed.symbols.name(declaration.symbol) != "READY")
+            .all(
+                |declaration| declaration.canonical_value_encoding.as_deref()
+                    == Some("float:f32:3fc00000")
+            )
+    );
+    let base = typed
+        .const_declarations()
+        .iter()
+        .find(|declaration| typed.symbols.name(declaration.symbol) == "BASE")
+        .unwrap();
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        typed.expression_table.expression(base.authored_initializer)
+    else {
+        panic!("base call");
+    };
+    let argument = typed.expression_table.expression_handles(call.arguments)[0];
+    let mut changed = typed.clone();
+    *changed.expression_table.expression_mut(argument) =
+        typed_trees::expression::ExpressionNode::Float(
+            numerics::literals::FloatLiteral::from_f64(2.0)
+                .with_landing(numerics::literals::FloatFormat::F32),
+        );
+    assert!(super::super::validate_retained_invocations(&changed, None).is_err());
+}
+
+#[test]
+fn floating_calls_reject_wrong_formats_even_in_unused_initializers_and_arms() {
+    for source in [
+        "machine keep(value: f32) -> f32 { value } const UNUSED: f32 = keep(1.0f64);",
+        "machine keep(value: f64) -> f64 { value } const UNUSED: f32 = keep(1.0f64);",
+        "machine keep(value: f32) -> f32 { value }
+         const UNUSED: f32 = match true { true -> keep(1.0f32), false -> keep(2.0f64) };",
+        "machine guarded(value: f32, ready: bool) -> f32 requires ready; { value }
+         const UNUSED: f32 = guarded(1.0f32, false);",
+        "machine keep(value: f32) -> f32 { value } const UNUSED: u64 = keep(1.0f32);",
+    ] {
+        let diagnostics =
+            evaluate(source).expect_err("typed carrier and invocation checks remain required");
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.message.contains("interpreter")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn floating_call_replay_rejects_changed_argument_and_materialized_bits() {
+    let typed = super::evaluate_fully(
+        &[(
+            "main.omg",
+            "machine keep(value: f32) -> f32 { value } const VALUE: f32 = keep(1.5f32);",
+        )],
+        &[],
+    );
+    for change_argument in [true, false] {
+        let mut changed = typed.clone();
+        let declaration = &changed.const_declarations()[0];
+        let expression = if change_argument {
+            let typed_trees::expression::ExpressionNode::Call(call) = changed
+                .expression_table
+                .expression(declaration.authored_initializer)
+            else {
+                panic!("authored call");
+            };
+            changed.expression_table.expression_handles(call.arguments)[0]
+        } else {
+            declaration.materialized_initializer
+        };
+        *changed.expression_table.expression_mut(expression) =
+            typed_trees::expression::ExpressionNode::Float(
+                numerics::literals::FloatLiteral::from_f64(2.0)
+                    .with_landing(numerics::literals::FloatFormat::F32),
+            );
+        let diagnostics = super::super::validate_retained_invocations(&changed, None)
+            .expect_err("receiving replay must derive the original bits independently");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("drifted")),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn concrete_invocation_admission_preserves_demand_and_scalar_snapshots() {
     let evaluated = evaluate(
         "machine divide(value: u64) -> u64

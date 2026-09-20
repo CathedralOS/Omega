@@ -34,6 +34,33 @@ fn assert_source_free_scalar_result(
 }
 
 #[test]
+fn floating_helper_constants_preserve_their_declared_format_through_terminal() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (carrier, expected) in [
+        ("f32", IeeeFloatValue::Binary32(0x3fc0_0000)),
+        ("f64", IeeeFloatValue::Binary64(0x3ff8_0000_0000_0000)),
+    ] {
+        Sources::write(
+            root.join("settings.omg"),
+            &format!(
+                "module settings; machine retain(value: {carrier}) -> {carrier} {{ value }}
+                 pub const VALUE: {carrier} = retain(retain(1.5{carrier}));"
+            ),
+        );
+        Sources::write(
+            root.join("main.omg"),
+            &format!("use settings::VALUE; machine read() -> {carrier} {{ VALUE }}"),
+        );
+        assert_source_free_scalar_result(
+            compile(&root, root_inputs(&root)),
+            "read",
+            TerminalScalarValue::IeeeFloat(expected),
+        );
+    }
+}
+
+#[test]
 fn imported_anonymous_float_constants_round_once_before_source_free_execution() {
     let tree = Sources::new();
     let root = tree.package("root");

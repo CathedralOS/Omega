@@ -23,6 +23,9 @@ use typed_trees::{
 };
 
 use crate::const_evaluation::const_generic_expressions::value::{self, ConstantCalls};
+use crate::const_evaluation::const_generic_expressions::{
+    scalar_probe_destination, value::ScalarValue,
+};
 use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
 
 pub(crate) struct CheckedInitializers {
@@ -232,7 +235,16 @@ impl Invocation<'_> {
         expression: ExpressionHandle,
         destination: PrimitiveType,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
-        value::evaluate(
+        let (value, warnings) = self.evaluate_scalar(expression, destination)?;
+        Ok((value.into_index()?, warnings))
+    }
+
+    pub(super) fn evaluate_scalar(
+        &self,
+        expression: ExpressionHandle,
+        destination: PrimitiveType,
+    ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
+        value::evaluate_scalar(
             self.program.typed(),
             self.machine,
             self.state,
@@ -312,12 +324,8 @@ impl ConstantCalls for Invocation<'_> {
     ) -> Result<(PrimitiveType, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
         let (_, _, entry) = self.selected(expression)?;
-        let destination =
-            crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-                typed,
-                entry.return_type,
-            )
-            .ok_or("constant call result needs an exact builtin integer or Boolean carrier")?;
+        let destination = scalar_probe_destination(typed, entry.return_type)
+            .ok_or("constant call result needs an exact builtin scalar carrier")?;
         let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
             return Err("constant validation lost its selected call".into());
         };
@@ -328,14 +336,8 @@ impl ConstantCalls for Invocation<'_> {
         }
         let mut warnings = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
-            let carrier =
-                crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-                    typed,
-                    parameter.type_reference,
-                )
-                .ok_or(
-                    "constant call argument needs an exact builtin integer or Boolean carrier",
-                )?;
+            let carrier = scalar_probe_destination(typed, parameter.type_reference)
+                .ok_or("constant call argument needs an exact builtin scalar carrier")?;
             for warning in value::validate(
                 typed,
                 self.machine,
@@ -356,6 +358,14 @@ impl ConstantCalls for Invocation<'_> {
         &self,
         expression: ExpressionHandle,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
+        let (value, warnings) = self.evaluate_scalar_call(expression)?;
+        Ok((value.into_index()?, warnings))
+    }
+
+    fn evaluate_scalar_call(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Result<(ScalarValue, Vec<Diagnostic>), String> {
         let typed = self.program.typed();
         let AdmittedCall {
             premise_discharge,
@@ -388,15 +398,11 @@ impl ConstantCalls for Invocation<'_> {
                     custody,
                 )?
         };
-        let destination =
-            crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-                typed,
-                entry.return_type,
-            )
+        let destination = scalar_probe_destination(typed, entry.return_type)
             .ok_or("constant result lost its exact carrier")?;
         let value = match result {
             BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
-                CanonicalConstValue::boolean(value)
+                ScalarValue::Index(CanonicalConstValue::boolean(value))
             }
             BuildTimeValue::Int(value) if destination.accepts_integer_literal() => {
                 let value = if destination.is_signed_integer() {
@@ -405,7 +411,41 @@ impl ConstantCalls for Invocation<'_> {
                     i128::from(value as u64)
                 };
                 let identity = CanonicalConstIdentity::integer(destination.name(), value);
-                CanonicalConstValue::new(identity.type_name, identity.encoding, value.to_string())
+                ScalarValue::Index(CanonicalConstValue::new(
+                    identity.type_name,
+                    identity.encoding,
+                    value.to_string(),
+                ))
+            }
+            BuildTimeValue::Float(value)
+                if matches!(destination, PrimitiveType::F32 | PrimitiveType::F64) =>
+            {
+                // The interpreter carries floats in f64 storage, but that is
+                // not permission to round an incorrectly landed f32 result.
+                // As in ConstMaterializable, NaN needs exact realization
+                // custody before an evaluator choice can enter image bytes.
+                if value.is_nan() {
+                    return Err(
+                        "constant result is NaN without an exact raw-NaN realization".into(),
+                    );
+                }
+                match destination {
+                    PrimitiveType::F32 if f64::from(value as f32).to_bits() == value.to_bits() => {
+                        ScalarValue::Float {
+                            format: numerics::literals::FloatFormat::F32,
+                            bits: u64::from((value as f32).to_bits()),
+                        }
+                    }
+                    PrimitiveType::F64 => ScalarValue::Float {
+                        format: numerics::literals::FloatFormat::F64,
+                        bits: value.to_bits(),
+                    },
+                    _ => {
+                        return Err(
+                            "constant result does not retain one exact binary32 value".into()
+                        );
+                    }
+                }
             }
             _ => return Err("constant result does not match its declared scalar carrier".into()),
         };
@@ -452,13 +492,9 @@ impl Invocation<'_> {
             .iter()
             .zip(typed.state_parameters(entry))
         {
-            let destination =
-                crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-                    typed,
-                    parameter.type_reference,
-                )
+            let destination = scalar_probe_destination(typed, parameter.type_reference)
                 .ok_or("constant call argument lost its exact carrier")?;
-            let (value, argument_warnings) = value::evaluate(
+            let (value, argument_warnings) = value::evaluate_scalar(
                 typed,
                 self.machine,
                 self.state,
@@ -469,20 +505,29 @@ impl Invocation<'_> {
             if needs_concrete_discharge {
                 snapshots.push(scalar_snapshot(&value, destination)?);
             }
-            arguments.push(match value.decode_encoding() {
-                Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
-                    let bits = if destination.is_signed_integer() {
-                        i64::try_from(value)
-                            .map_err(|_| "constant argument exceeds signed interpreter storage")?
-                    } else {
-                        u64::try_from(value)
-                            .map_err(|_| "constant argument exceeds unsigned interpreter storage")?
-                            as i64
-                    };
-                    BuildTimeValue::Int(bits)
-                }
-                Some(DecodedCanonicalConstValue::Boolean(value)) => BuildTimeValue::Bool(value),
-                _ => return Err("constant argument is not a canonical scalar snapshot".into()),
+            arguments.push(match value {
+                ScalarValue::Float { format, bits } => BuildTimeValue::Float(match format {
+                    numerics::literals::FloatFormat::F32 => f64::from(f32::from_bits(
+                        u32::try_from(bits).map_err(|_| "invalid binary32 snapshot")?,
+                    )),
+                    numerics::literals::FloatFormat::F64 => f64::from_bits(bits),
+                }),
+                ScalarValue::Index(value) => match value.decode_encoding() {
+                    Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                        let bits = if destination.is_signed_integer() {
+                            i64::try_from(value).map_err(
+                                |_| "constant argument exceeds signed interpreter storage",
+                            )?
+                        } else {
+                            u64::try_from(value).map_err(
+                                |_| "constant argument exceeds unsigned interpreter storage",
+                            )? as i64
+                        };
+                        BuildTimeValue::Int(bits)
+                    }
+                    Some(DecodedCanonicalConstValue::Boolean(value)) => BuildTimeValue::Bool(value),
+                    _ => return Err("constant argument is not a canonical scalar snapshot".into()),
+                },
             });
             for warning in argument_warnings {
                 if !warnings.contains(&warning) {
@@ -772,11 +817,23 @@ pub(super) struct LeafEvaluation {
     pub(super) warnings: Vec<Diagnostic>,
 }
 
-fn scalar_snapshot(
-    value: &CanonicalConstValue,
-    carrier: PrimitiveType,
-) -> Result<ExpressionNode, String> {
+fn scalar_snapshot(value: &ScalarValue, carrier: PrimitiveType) -> Result<ExpressionNode, String> {
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    let value = match value {
+        ScalarValue::Index(value) => value,
+        ScalarValue::Float { format, bits } => {
+            let value = match (format, carrier) {
+                (numerics::literals::FloatFormat::F32, PrimitiveType::F32) => f64::from(
+                    f32::from_bits(u32::try_from(*bits).map_err(|_| "invalid binary32 snapshot")?),
+                ),
+                (numerics::literals::FloatFormat::F64, PrimitiveType::F64) => f64::from_bits(*bits),
+                _ => return Err("constant argument lost its exact floating carrier".into()),
+            };
+            return Ok(ExpressionNode::Float(
+                numerics::literals::FloatLiteral::from_f64(value).with_landing(*format),
+            ));
+        }
+    };
     let value = match value.decode_encoding() {
         Some(DecodedCanonicalConstValue::Boolean(value)) if carrier == PrimitiveType::Bool => {
             return Ok(ExpressionNode::Boolean(value));
