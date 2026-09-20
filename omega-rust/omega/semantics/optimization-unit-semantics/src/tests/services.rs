@@ -1,6 +1,7 @@
 //! Service hierarchy and root-reach tests.
 use super::id;
 use crate::BTreeMap;
+use crate::MachineId;
 use crate::OptimizationUnitValidationError;
 use crate::PlaceId;
 use crate::ServiceId;
@@ -508,11 +509,149 @@ fn replays_exact_root_service_reach_shape_and_installation_dependencies() {
     );
 }
 
+fn conformance_selection(
+    owner: MachineId,
+    ordinal: u32,
+) -> terminal_psi::TerminalDynamicConformanceSelection {
+    terminal_psi::TerminalDynamicConformanceSelection {
+        owner,
+        ordinal,
+        source: terminal_psi::StructuralArgument {
+            place: id(760, PlaceId::new),
+            path: Vec::new(),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        },
+        conformance_application_report_fingerprint: 0,
+        conformance_application_commitment: Default::default(),
+    }
+}
+
+fn conformance_application(
+    owner: MachineId,
+    realizations: &[MachineId],
+) -> terminal_psi::ClosedConformanceApplication {
+    terminal_psi::ClosedConformanceApplication {
+        owner,
+        declaration_identity: "reach::CarrierImplementsPort".into(),
+        telescope: Vec::new(),
+        subject_identity: Some("reach::Carrier".into()),
+        trait_identity: "reach::Port".into(),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: realizations
+            .iter()
+            .map(
+                |machine| terminal_psi::ClosedConformanceRealizationCallable {
+                    source_callable_identity: "reach::Carrier::write".into(),
+                    machine: *machine,
+                    result: terminal_psi::ClosedConformanceCallableResult::Unit,
+                },
+            )
+            .collect(),
+        rows: Vec::new(),
+        report_fingerprint: 0,
+        commitment: Default::default(),
+    }
+}
+
+fn rebound_dispatch(
+    owner: MachineId,
+    operation: OperationId,
+    realization: MachineId,
+) -> abstract_operations::AbstractReboundDynamicDispatch {
+    abstract_operations::AbstractReboundDynamicDispatch {
+        initial: conformance_selection(owner, 0),
+        rebound: conformance_selection(owner, 1),
+        descriptor: terminal_psi::TerminalReboundDynamicDescriptor {
+            owner,
+            ordinal: 0,
+            initial_selection_ordinal: 0,
+            rebound_selection_ordinal: 1,
+        },
+        initial_application: conformance_application(owner, &[]),
+        application: conformance_application(owner, &[realization]),
+        dispatch: terminal_psi::TerminalIndirectDynamicDispatch {
+            owner,
+            operation,
+            descriptor_ordinal: 0,
+            declaring_trait_identity: "reach::Port".into(),
+            public_requirement_identity: "reach::Port::write()".into(),
+            family_tuple: Vec::new(),
+            requirement_identity: "reach::Port::write".into(),
+            realization_identity: "reach::Carrier::write".into(),
+            realization_callable_identity: "reach::Carrier::write::callable".into(),
+            realization,
+        },
+    }
+}
+
+fn stored_dispatch(
+    owner: MachineId,
+    operation: OperationId,
+    realization: MachineId,
+) -> abstract_operations::AbstractStoredDynamicDispatch {
+    abstract_operations::AbstractStoredDynamicDispatch {
+        stored: abstract_operations::AbstractStoredDynamicDescriptor {
+            selection: conformance_selection(owner, 0),
+            descriptor: terminal_psi::TerminalStoredDynamicDescriptor {
+                owner,
+                ordinal: 0,
+                establishment_operation: operation,
+                selection_ordinal: 0,
+                aggregate_type_identity: "reach::Holder".into(),
+                field_identity: "handler".into(),
+            },
+            application: conformance_application(owner, &[realization]),
+        },
+        dispatch: terminal_psi::TerminalStoredDynamicDispatch {
+            owner,
+            operation,
+            descriptor_ordinal: 0,
+            declaring_trait_identity: "reach::Port".into(),
+            public_requirement_identity: "reach::Port::write()".into(),
+            family_tuple: Vec::new(),
+            requirement_identity: "reach::Port::write".into(),
+            realization_identity: "reach::Carrier::write".into(),
+            realization_callable_identity: "reach::Carrier::write::callable".into(),
+            realization,
+        },
+    }
+}
+
+fn descriptor_argument(
+    owner: MachineId,
+    operation: OperationId,
+    target: MachineId,
+    realization: MachineId,
+) -> abstract_operations::AbstractDynamicDescriptorArgument {
+    abstract_operations::AbstractDynamicDescriptorArgument {
+        argument: terminal_psi::TerminalDynamicDescriptorArgument {
+            owner,
+            operation,
+            parameter_ordinal: 0,
+            source: terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+        },
+        target: terminal_psi::TerminalDynamicDescriptorParameter {
+            owner: target,
+            ordinal: 0,
+            source_position: 0,
+            trait_identity: "reach::Port".into(),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            requirements: Vec::new(),
+        },
+        source: abstract_operations::AbstractDynamicDescriptorSource::Selection {
+            selection: conformance_selection(owner, 0),
+            application: conformance_application(owner, &[realization]),
+        },
+    }
+}
+
 #[test]
 fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_effects() {
     let service = id(703, ServiceId::new);
     let mut baseline = scalar_call_unit();
     install_service_catalog(&mut baseline);
+    let caller = baseline.functions[0].machine;
     let callee = baseline.functions[1].machine;
     let mut write = baseline.functions[1].blocks[0].nodes[0].clone();
     write.operation = AbstractOperation::PortWrite {
@@ -572,6 +711,66 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
             selected_evidence: Vec::new(),
+        },
+        AbstractOperation::CallDynamicScalar {
+            psi_operation: id(740, OperationId::new),
+            result: AbstractResult {
+                value: id(741, ValueId::new),
+                scalar_type: ScalarType::Boolean,
+            },
+            dynamic_dispatch: rebound_dispatch(caller, id(742, OperationId::new), callee),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        AbstractOperation::CallDynamicUnit {
+            psi_operation: id(743, OperationId::new),
+            dynamic_dispatch: rebound_dispatch(caller, id(744, OperationId::new), callee),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        AbstractOperation::CallStoredDynamicScalar {
+            psi_operation: id(745, OperationId::new),
+            result: AbstractResult {
+                value: id(746, ValueId::new),
+                scalar_type: ScalarType::Boolean,
+            },
+            dynamic_dispatch: stored_dispatch(caller, id(747, OperationId::new), callee),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        // The descriptor lane carries the realization: the static callee is the
+        // caller itself and contributes no new service effects.
+        AbstractOperation::CallUnitWithDynamicArguments {
+            psi_operation: id(748, OperationId::new),
+            callee: caller,
+            structural_arguments: Vec::new(),
+            dynamic_arguments: vec![descriptor_argument(
+                caller,
+                id(749, OperationId::new),
+                caller,
+                callee,
+            )],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            psi_operation: id(750, OperationId::new),
+            result: AbstractResult {
+                value: id(751, ValueId::new),
+                scalar_type: ScalarType::Boolean,
+            },
+            callee: caller,
+            structural_arguments: Vec::new(),
+            dynamic_arguments: vec![descriptor_argument(
+                caller,
+                id(752, OperationId::new),
+                caller,
+                callee,
+            )],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
         },
     ];
     for call in calls {
