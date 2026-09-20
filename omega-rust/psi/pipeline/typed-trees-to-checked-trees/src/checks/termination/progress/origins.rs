@@ -951,8 +951,41 @@ where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
-    let candidate =
+    reference_bound_operand_place_segments(
+        program,
+        frames,
+        machine,
+        state,
+        index,
+        value,
+        &[],
+        resolve,
+        shared_binding,
+    )
+}
+
+/// `reference_bound_operand_place` carrying an additional projection: a
+/// constructed literal selects an operand that itself carries the remaining
+/// segment list, so the joined walk sees the operand's own place extended by
+/// the projection instead of a suffix appended afterward.
+fn reference_bound_operand_place_segments<Resolve>(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    machine: &Machine,
+    state: &FlowStateFact,
+    index: usize,
+    value: ExpressionHandle,
+    extra: &[PlaceSegment],
+    resolve: &Resolve,
+    shared_binding: bool,
+) -> Option<CanonicalPlace>
+where
+    Resolve:
+        Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
+{
+    let mut candidate =
         flow::canonical_place_from_expression_in_state(program, state.state_symbol, index, value)?;
+    candidate.segments.extend_from_slice(extra);
     match candidate.root {
         PlaceRoot::Symbol(root) => {
             // The operand must name storage this state owns — a local or
@@ -1025,6 +1058,70 @@ where
         }
         PlaceRoot::Expression(rooted) => match program.expression_table.expression(rooted) {
             ExpressionNode::Call(call) => resolve(state, index, call, &candidate.segments),
+            // A record literal has no storage of its own: the demanded leaf
+            // arrives from the operand bound to that exact field, which then
+            // proves a referent under the same operand rules.
+            // `literal_value_projections` keeps the operand
+            // exact — a case-qualified, dynamic, or ranged selection yields
+            // several candidates and stays unproven — and the chosen operand
+            // re-enters this same provenance walk so a nested literal or a
+            // leaf store supplies it.
+            ExpressionNode::StructLiteral(_) => {
+                let mut projections = flow::literal_value_projections(
+                    program,
+                    rooted,
+                    literal_operand_type(program, rooted, None)?,
+                    &candidate.segments,
+                    false,
+                )?;
+                if projections.len() != 1 {
+                    return None;
+                }
+                let projection = projections.remove(0);
+                // A selection that lands exactly on a nested literal returns
+                // that literal itself: no leaf is selected, and re-entering
+                // it would loop without naming a referent.
+                if projection.expression == rooted {
+                    return None;
+                }
+                reference_bound_operand_place_segments(
+                    program,
+                    frames,
+                    machine,
+                    state,
+                    index,
+                    projection.expression,
+                    &projection.remaining,
+                    resolve,
+                    shared_binding,
+                )
+            }
+            // An array literal has no named-type row to project against, so
+            // only a leading literal `FixedIndex` selects an element here;
+            // a dynamic or ranged selection names several operands and stays
+            // unproven.
+            ExpressionNode::ArrayLiteral(elements) => {
+                let Some((PlaceSegment::FixedIndex { index: selected }, remaining)) =
+                    candidate.segments.split_first()
+                else {
+                    return None;
+                };
+                let element = *program
+                    .expression_table
+                    .expression_handles(*elements)
+                    .get(*selected)?;
+                reference_bound_operand_place_segments(
+                    program,
+                    frames,
+                    machine,
+                    state,
+                    index,
+                    element,
+                    remaining,
+                    resolve,
+                    shared_binding,
+                )
+            }
             _ => None,
         },
         _ => None,
