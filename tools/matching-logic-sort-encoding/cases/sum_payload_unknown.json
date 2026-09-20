@@ -1,0 +1,26 @@
+{
+  "schema": "omega-sort-encoding-case/1",
+  "subject": "negative: sum arm payload outside every declared membership",
+  "target": {"capsule": "linux_x86_64", "address_model": "flat_u64"},
+  "types": {
+    "integers": {},
+    "sums": [
+      {
+        "name": "MaybeHandle",
+        "arms": [
+          {"tag": "Some", "payload": "Handle"},
+          {"tag": "None", "payload": null}
+        ]
+      }
+    ]
+  },
+  "pair_constructor_injective": true,
+  "inhabitants": {
+    "Integer": 1,
+    "Nat": 1,
+    "MaybeHandle": 1,
+    "Tag_MaybeHandle_Some": 1,
+    "Tag_MaybeHandle_None": 1,
+    "Handle": 0
+  }
+}
