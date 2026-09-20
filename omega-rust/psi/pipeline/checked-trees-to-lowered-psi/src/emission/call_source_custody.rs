@@ -10,6 +10,8 @@ pub(crate) mod initializers;
 pub(crate) mod literal_arguments;
 pub(crate) mod occurrences;
 pub(crate) mod projected_receivers;
+#[cfg(test)]
+mod tests;
 
 /// Preserve calls around authored stores and direct call initializers, even
 /// when a result is unused. Each retained owner checks its exact operands.
