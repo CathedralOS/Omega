@@ -11539,7 +11539,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-recorded bounded_denotation). Re-verified 2026-09-20 on linux
   x86-64: `cargo nextest run -p terminal-verifier -E
   'test(~trusted_surface)'` — 15/15 pass including
-  recorded_digests_match_the_working_tree. Sibling names the same op:
+  recorded_digests_match_the_working_tree. The ledger drifted again at
+  `ff2f489bbf`: `0c5db44fde` (correlated-subtraction adjunction denotation)
+  changed `bounded_denotation.rs`, `addition.rs`, `subtraction.rs` without
+  re-recording; justification revalidated (explicitly named assumptions,
+  kernel re-decides the elaborated term, instance fallback retained) and the
+  three digests re-recorded on the pending branch (15/15 green after).
+  Sibling names the same op:
   TRUSTED-SURFACE-DIGEST-RE-RECORD (no row), -REFRESH, -RERECORD.
   The self-audit was red at `0f5ae41e7d` (contradicting the resolved
   siblings' "ledger is current" notes — it drifted since): `e2974a6a80`
