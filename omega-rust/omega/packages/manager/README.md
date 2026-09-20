@@ -166,6 +166,12 @@ accept restricted build requests before execution, retain decisions in the lock,
 and require actual host grants under
 [restricted-build acceptance](../../../../wiki/spec/packages/acceptance.md#restricted-build-acceptance).
 
+Captured source and named inputs with bounded private output staging need no
+restricted-action decision. The filesystem sponsor owns that fresh staging
+session and cleanup; generic sponsors for supplied directories carry no such
+exemption. Broader host scopes still project restricted requests, whose retained
+lock meaning is distinct from actual invocation grants.
+
 Start candidate compilation at
 [`compilation.rs`](src/review/candidate/compilation.rs): product selection,
 binding discovery, final checking, session disposal, then result handoff.

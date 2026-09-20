@@ -1,3 +1,5 @@
+mod restricted_build_grants;
+
 use super::super::PackageSourceVerificationPhase;
 use super::{
     CandidateSourcePreparation, CompileResolvedPackageReviewsError, SemanticBindingReview,

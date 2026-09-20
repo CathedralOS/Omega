@@ -6,8 +6,7 @@ use super::{
 use package_manager::review::{
     CandidateSourcePreparation, PackagePolicyChangeSet, PackagePolicyDecision,
     PackagePolicyDecisionError, PackagePolicyDecisionSubject as Subject,
-    PackagePolicyPackageChange, PackagePolicyReviewError as Error,
-    ReviewOnlyRootPolicyDisposition::*, SemanticBindingReview,
+    PackagePolicyReviewError as Error, ReviewOnlyRootPolicyDisposition::*, SemanticBindingReview,
     compile_resolved_package_reviews_reusing, recover_package_policy_review,
     render_package_policy_review, resolve_package_policy_decisions,
 };
@@ -531,13 +530,10 @@ fn source_replacement_choices_round_trip_for_exact_dependency_aliases() {
     assert_choices_round_trip(&changes);
 }
 
-/// A package whose admitted build machine reaches the filesystem facets
-/// lists its restricted build-host request inside its own package block —
-/// separately from the `change`/`decision` product-authority rows — while a
-/// consumer whose build machine stays pure lists none
-/// (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
+/// Captured inputs and private staging remain visible under the dependency
+/// path without manufacturing a restricted-action decision.
 #[test]
-fn build_host_requests_render_distinctly_from_product_authority() {
+fn benign_snapshot_staging_keeps_dependency_paths_without_restricted_consent() {
     let tree = Tree::new();
     package(
         &tree.path("sources/dep"),
@@ -554,20 +550,13 @@ fn build_host_requests_render_distinctly_from_product_authority() {
         "pub const VALUE: u64 = 7;\n",
         " builder.depend_as(\"dep\", Source::Path { location: \"../dep\" });\n",
     );
-    let (closure, reviews) = candidate(&tree, "document-build-request");
+    let (closure, reviews) = candidate(&tree, "document-benign-build");
     let changes = compare(None, &closure, &reviews);
     let dep = changes
         .packages()
         .iter()
         .find(|package| package.key().name().as_str() == "dep")
         .unwrap();
-    let root = changes
-        .packages()
-        .iter()
-        .find(|package| package.key().name().as_str() == "policy-fixture")
-        .unwrap();
-    assert_eq!(dep.restricted_build_requests().len(), 1);
-    assert!(root.restricted_build_requests().is_empty());
     assert_eq!(
         dep.candidate_path()
             .unwrap()
@@ -577,44 +566,29 @@ fn build_host_requests_render_distinctly_from_product_authority() {
             .alias(),
         "dep"
     );
-    let text = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
-    let section = |name: &str| {
-        let start = text.find(&format!("package \"{name}\"")).unwrap();
-        &text[start..start + text[start..].find("end-package\n").unwrap()]
-    };
-    let dep_section = section("dep");
-    assert!(
-        dep_section.contains("-> \"dep\""),
-        "dependency path must name the requesting edge:\n{dep_section}"
-    );
-    assert!(
-        dep_section
-            .contains("build-request scoped-filesystem-execution\nread source-inventory narrowed")
-    );
-    assert!(dep_section.contains("\nwrite staged-output\n"));
-    assert!(dep_section.contains("end-build-request\n"));
-    let block = dep_section
-        .split("build-request ")
-        .nth(1)
-        .unwrap()
-        .split("end-build-request")
-        .next()
-        .unwrap();
-    for line in block.lines() {
-        assert!(!line.starts_with("change ") && !line.starts_with("decision "));
+    assert!(!changes.requires_decision());
+    assert!(accepting(&changes).is_empty());
+    for package in changes.packages() {
+        assert!(package.restricted_build_requests().is_empty());
+        assert!(
+            package
+                .rows()
+                .iter()
+                .all(|row| row.kind() != PackagePolicyRowKind::RestrictedBuildRequest)
+        );
     }
-    assert!(!section("policy-fixture").contains("build-request"));
+    let text = render_package_policy_review(&changes, MAXIMUM_BYTES).unwrap();
+    let start = text.find("package \"dep\"").unwrap();
+    let dep_section = &text[start..start + text[start..].find("end-package\n").unwrap()];
+    assert!(dep_section.contains("-> \"dep\""), "{dep_section}");
+    assert!(!text.contains("build-request"), "{text}");
     assert_choices_round_trip(&changes);
 }
 
-/// An accepted restricted build-host request retains its normalized meaning in
-/// `omega.lock` as its own decision row: an unchanged candidate then needs no
-/// recurring approval, while widening the request — a newly required output —
-/// re-derives a changed row that does. The lock stores request meaning only;
-/// no host path, machine state, or invocation grant enters the retained row
-/// (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
+/// Completion obligations constrain private outputs; changing that roster
+/// does not grant new host authority or require a restricted-action decision.
 #[test]
-fn accepted_build_requests_retain_in_lock_and_widened_requests_require_decisions() {
+fn benign_required_output_changes_preserve_lock_without_restricted_decisions() {
     const DEP_WRITE: &str = concat!(
         " let generated: BuildPath = builder.output.resolve(\"stamp.txt\");\n",
         " let descriptor: i32 = builder.output.create(generated, 420);\n",
@@ -636,101 +610,57 @@ fn accepted_build_requests_retain_in_lock_and_widened_requests_require_decisions
             " builder.depend_as(\"dep\", Source::Path {{ location: \"../dep\" }});\n{PLAN_WRITE}"
         ),
     );
-    fn dep_changes(changes: &PackagePolicyChangeSet) -> &PackagePolicyPackageChange {
-        changes
-            .packages()
-            .iter()
-            .find(|package| package.key().name().as_str() == "dep")
-            .unwrap()
-    }
-    let (closure, reviews) = candidate(&tree, "document-build-lock");
+    let (closure, reviews) = candidate(&tree, "document-benign-lock");
     let initial = compare(None, &closure, &reviews);
-    let initial_row = dep_changes(&initial)
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
-        .expect("initial install surfaces the request as its own row");
-    assert_eq!(initial_row.change(), PackagePolicyChangeKind::Added);
-    assert!(initial_row.requires_decision());
-    let root_row_key = initial
-        .packages()
-        .iter()
-        .find(|package| package.key().name().as_str() == "policy-fixture")
-        .unwrap()
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
-        .expect("the root build request retains as its own row")
-        .key_bytes()
-        .to_vec();
+    assert!(!initial.requires_decision());
+    assert!(accepting(&initial).is_empty());
     assert_choices_round_trip(&initial);
 
-    // lock_from_reviews writes and re-reads omega.lock text, so the retained
-    // row also proves the lock codec round-trips the new kind.
+    // This helper writes and recovers canonical lock text through the public
+    // codec. Benign build work must not leave restricted consent rows behind.
     let lock = lock_from_reviews(&closure, &reviews);
-    let acceptance = lock
-        .target(TARGET)
-        .unwrap()
-        .occurrences()
-        .iter()
-        .map(|occurrence| occurrence.acceptance())
-        .find(|acceptance| acceptance.package() == dep_changes(&initial).key().identity())
-        .expect("dep acceptance retains in the lock");
-    let retained = acceptance
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
-        .expect("accepted request meaning retains as a lock row");
-    assert!(
-        retained
-            .canonical_text()
-            .contains("scoped_filesystem_execution")
-    );
-    assert!(retained.canonical_text().contains("staged_output"));
-    assert!(
-        !retained.canonical_text().contains("dep"),
-        "the lock stores logical request meaning, never a host path"
-    );
-
-    // An unchanged accepted request needs no recurring approval.
+    let retained_text = lock.canonical_text().unwrap();
+    for occurrence in lock.target(TARGET).unwrap().occurrences() {
+        assert!(
+            occurrence
+                .acceptance()
+                .rows()
+                .iter()
+                .all(|row| row.kind() != PackagePolicyRowKind::RestrictedBuildRequest)
+        );
+    }
     let unchanged = compare(lock.target(TARGET), &closure, &reviews);
     assert!(!unchanged.requires_decision());
-    assert!(dep_changes(&unchanged).rows().is_empty());
+    assert!(
+        unchanged
+            .packages()
+            .iter()
+            .all(|package| package.rows().is_empty())
+    );
     assert_choices_round_trip(&unchanged);
 
-    // The same resolved sources reviewed under a wider request: a snapshot
-    // newly requiring `plan.txt` widens the root's retained row to Changed
-    // while the unchanged dep request asks for no recurring approval.
-    let widened_closure = resolve(&tree, "document-build-widened");
-    let widened_target = widened_closure.for_exact_target(TARGET);
-    let mut preparation = CandidateSourcePreparation::for_closure(widened_target.source_closure());
-    let widened_reviews = compile_resolved_package_reviews_reusing(
-        &widened_target,
-        &tree.path("document-build-widened-build"),
+    let required_closure = resolve(&tree, "document-required-output");
+    let required_target = required_closure.for_exact_target(TARGET);
+    let mut preparation = CandidateSourcePreparation::for_closure(required_target.source_closure());
+    let required_reviews = compile_resolved_package_reviews_reusing(
+        &required_target,
+        &tree.path("document-required-output-build"),
         SemanticBindingReview::Discover,
         Some(&build_evaluation::BuildSnapshotRequest::new([
             b"plan.txt".to_vec()
         ])),
         &mut preparation,
     )
-    .unwrap();
-    let widened = compare(lock.target(TARGET), &widened_closure, &widened_reviews);
-    let root = widened
-        .packages()
-        .iter()
-        .find(|package| package.key().name().as_str() == "policy-fixture")
-        .unwrap();
-    let changed = root
-        .rows()
-        .iter()
-        .find(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
-        .expect("a widened root request compares as a row change");
-    assert_eq!(changed.change(), PackagePolicyChangeKind::Changed);
-    assert_eq!(changed.key_bytes(), root_row_key.as_slice());
-    assert!(changed.requires_decision());
-    assert!(dep_changes(&widened).rows().is_empty());
-    assert!(widened.requires_decision());
-    assert_choices_round_trip(&widened);
+    .expect("the newly required file is sealed by the same benign build");
+    let changed = compare(lock.target(TARGET), &required_closure, &required_reviews);
+    assert!(!changed.requires_decision());
+    assert!(accepting(&changed).is_empty());
+    for package in changed.packages() {
+        assert!(package.restricted_build_requests().is_empty());
+        assert!(package.rows().is_empty());
+    }
+    assert_choices_round_trip(&changed);
+    assert_eq!(lock.canonical_text().unwrap(), retained_text);
 }
 
 #[test]

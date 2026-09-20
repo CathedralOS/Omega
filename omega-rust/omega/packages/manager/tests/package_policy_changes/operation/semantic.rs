@@ -1,4 +1,4 @@
-use super::super::{PackagePolicyRowKind, Path};
+use super::super::Path;
 use super::{
     CompileResolvedPackageReviewsError, PURE, PackageChangeError, TARGET, Tree, assert_round_trip,
     fs, package, propose, resolve, review, review_package_change, source,
@@ -130,10 +130,10 @@ fn scoped_build_generated_sources_reach_fresh_audit_without_expanding_consent() 
         .find(|package| package.key() == root)
         .unwrap()
         .rows();
-    // Including generated source adds no consent beyond the admitted build's
-    // retained restricted request row.
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].kind(), PackagePolicyRowKind::RestrictedBuildRequest);
+    // Captured inputs and compiler-owned private staging need no restricted
+    // consent; generated declarations still enter the ordinary checked review.
+    assert!(rows.is_empty());
+    assert!(!checked.changes().requires_decision());
     assert!(
         checked
             .reviews()
@@ -144,13 +144,12 @@ fn scoped_build_generated_sources_reach_fresh_audit_without_expanding_consent() 
             .unwrap()
             .contains("Generated")
     );
-    assert!(proposed.occurrences().iter().all(|acceptance| {
-        acceptance
-            .acceptance()
-            .rows()
+    assert!(
+        proposed
+            .occurrences()
             .iter()
-            .all(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
-    }));
+            .all(|acceptance| { acceptance.acceptance().rows().is_empty() })
+    );
     let root_review = checked.reviews().review(root).unwrap();
     let observation = root_review.build_observation_summary().unwrap();
     let expected_log = b"generated package data\n";
