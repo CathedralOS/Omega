@@ -548,6 +548,7 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
                     selection,
                     &instance.synthetic_name,
                     &const_values,
+                    &const_parameter_scalars,
                     warnings,
                 )
                 .map_err(|diagnostic| vec![diagnostic])?;
