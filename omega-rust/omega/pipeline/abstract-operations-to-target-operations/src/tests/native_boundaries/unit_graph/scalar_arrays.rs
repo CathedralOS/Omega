@@ -122,8 +122,10 @@ fn owned_array_calls_preserve_constructed_and_returned_home_identity() {
             .operations
             .iter()
             .filter_map(|operation| {
-                let target_operations::TargetUnitOperation::StructuralResultCall {
-                    arguments, ..
+                let target_operations::TargetUnitOperation::Call {
+                    arguments,
+                    result: target_operations::TargetCallResult::Structural { .. },
+                    ..
                 } = operation
                 else {
                     return None;

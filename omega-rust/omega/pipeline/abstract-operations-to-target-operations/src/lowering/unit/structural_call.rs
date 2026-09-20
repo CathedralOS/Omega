@@ -232,7 +232,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
         psi_operation: *psi_operation,
         callee: *callee,
         call_plan: callee_plan,
-        result_home: None,
+        result: target_operations::TargetCallResult::Unit,
         scalar_arguments,
         arguments,
         claim_transfers: claim_transfers.clone(),

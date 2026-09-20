@@ -1,4 +1,4 @@
-use super::super::{ScalarType, scalar_shape};
+use super::super::ScalarType;
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
     TargetFunction, TargetOperationPlan, TargetUnitOperation, ValueId,
@@ -40,8 +40,7 @@ pub(super) fn validate_operation(
         {
             let mut ordinary = target.clone();
             match &mut ordinary {
-                TargetUnitOperation::Call { origin, .. }
-                | TargetUnitOperation::StructuralResultCall { origin, .. } => {
+                TargetUnitOperation::Call { origin, .. } => {
                     *origin = target_operations::NativeCallOrigin::Authored
                 }
                 _ => return Err(invalid),
@@ -146,12 +145,9 @@ pub(super) fn validate_operation(
             _,
             AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishRecord { .. }
-            | AbstractOperation::EstablishScalarCase { .. }
-            | AbstractOperation::CallStructural { .. },
+            | AbstractOperation::EstablishScalarCase { .. },
         ) => {
-            aggregate_results::validate(
-                target, abstracted, sources, custody, optimized, native, plan, unit,
-            )?;
+            aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;
         }
         (
             TargetUnitOperation::StructuralByteSequenceFieldByteStore {

@@ -160,7 +160,10 @@ pub(super) fn lower(
         psi_operation,
         callee,
         call_plan: signature.call_plan,
-        result_home,
+        result: result_home.map_or(
+            target_operations::TargetCallResult::Unit,
+            target_operations::TargetCallResult::Scalar,
+        ),
         scalar_arguments,
         arguments: target_arguments,
         claim_transfers: claims.clone(),

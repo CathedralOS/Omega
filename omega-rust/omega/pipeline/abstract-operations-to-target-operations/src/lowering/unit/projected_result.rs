@@ -33,10 +33,14 @@ pub(super) fn source(
     place: PlaceId,
 ) -> Option<(&TargetStructuralHomeRequirement, &ValuePlacement)> {
     let mut sources = operations.iter().filter_map(|operation| {
-        let TargetUnitOperation::StructuralResultCall {
+        let TargetUnitOperation::Call {
             psi_operation,
-            result,
-            result_home: Some(home),
+            result:
+                target_operations::TargetCallResult::Structural {
+                    result,
+                    result_home: Some(home),
+                    ..
+                },
             call_plan,
             ..
         } = operation

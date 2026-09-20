@@ -444,7 +444,7 @@ fn conventional_sum_layout(
         .map_err(|_| InvalidStructuralShape)
 }
 
-/// The exact durable home one `StructuralResultCall` must require, replayed the
+/// The exact durable home one structural-result `Call` must require, replayed the
 /// way the producer derives it: the retained operation-result origin carries
 /// the semantic result row verbatim, and the layout is the aggregate shape or
 /// the conventional sum layout the declared structural type resolves to.

@@ -581,7 +581,7 @@ pub(super) fn lower_operation(
             )?;
             let TargetUnitOperation::Call {
                 psi_operation,
-                result_home: Some(home),
+                result: target_operations::TargetCallResult::Scalar(home),
                 ..
             } = &call
             else {

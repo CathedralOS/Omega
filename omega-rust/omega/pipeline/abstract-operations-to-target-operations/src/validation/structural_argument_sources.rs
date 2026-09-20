@@ -48,7 +48,7 @@ enum ExpectedSource<'a> {
     },
 }
 
-/// A retained `StructuralResultCall` producer: its semantic result, retained
+/// A retained structural-result `Call` producer: its semantic result, retained
 /// home requirement, and published result placement.
 type ResultCall<'a> = (
     &'a StructuralOperationResult,
@@ -72,24 +72,23 @@ pub(super) fn validate(
         match operation {
             TargetUnitOperation::Call {
                 psi_operation,
-                arguments,
-                ..
-            } => {
-                target_calls.insert(*psi_operation, arguments.as_slice());
-            }
-            TargetUnitOperation::StructuralResultCall {
-                psi_operation,
                 result,
-                result_home,
                 call_plan,
                 arguments,
                 ..
             } => {
                 target_calls.insert(*psi_operation, arguments.as_slice());
-                result_calls.insert(
-                    *psi_operation,
-                    (result, result_home.as_ref(), call_plan.result.as_ref()),
-                );
+                if let target_operations::TargetCallResult::Structural {
+                    result,
+                    result_home,
+                    ..
+                } = result
+                {
+                    result_calls.insert(
+                        *psi_operation,
+                        (result, result_home.as_ref(), call_plan.result.as_ref()),
+                    );
+                }
             }
             TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
                 psi_operation,

@@ -100,12 +100,6 @@ pub(super) fn retain_origin(
             callee,
             origin: actual,
             ..
-        }
-        | TargetUnitOperation::StructuralResultCall {
-            psi_operation,
-            callee,
-            origin: actual,
-            ..
         },
     ] = operations
     else {

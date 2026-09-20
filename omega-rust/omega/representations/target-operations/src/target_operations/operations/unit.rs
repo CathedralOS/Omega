@@ -21,8 +21,8 @@ use semantic_vocabulary::{
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, CrashRouteBucket, ProviderCandidateConformance,
     StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    TerminalAffineCleanupAction,
 };
 
 /// Exact semantic origin retained beside ordinary native call transport.
@@ -213,40 +213,19 @@ pub enum TargetUnitOperation {
     },
     /// One direct call, independent of its scalar/structural argument mix.
     /// Scalar arguments occupy the prefix of the complete ABI plan;
-    /// structural arguments retain the remaining placements. A scalar result
-    /// always has a home identity, even when unused; `None` means Unit, never
-    /// a discarded scalar. Receiving checks reconstruct this identity and the
-    /// full plan from the source declaration, not from this transport record.
+    /// structural arguments retain the remaining placements. Result storage,
+    /// returned references and ownership are explicit result custody, not
+    /// separate call operations. Receiving checks reconstruct the full plan
+    /// and custody from the declaration and pre-call state.
     Call {
         origin: NativeCallOrigin,
         psi_operation: OperationId,
         callee: MachineId,
         call_plan: CallPlan,
-        result_home: Option<TargetUnitScalarHomeRequirement>,
+        result: crate::TargetCallResult,
         scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One whole-input affine call. A later projected consumer requires real
-    /// structural storage; immediate whole-result disposal requires no home.
-    StructuralResultCall {
-        origin: NativeCallOrigin,
-        psi_operation: OperationId,
-        result: StructuralOperationResult,
-        callee: MachineId,
-        callee_result: StructuralResultDeclaration,
-        result_home: Option<TargetStructuralHomeRequirement>,
-        /// Reference leaves the callee's declared result roster hands back,
-        /// each resolved to its referent root place through caller custody.
-        /// Empty unless the result carrier is reference-bearing.
-        reference_results: Vec<crate::TargetReferenceResult>,
-        call_plan: CallPlan,
-        scalar_arguments: Vec<TargetUnitScalarCallArgument>,
-        arguments: Vec<TargetStructuralArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

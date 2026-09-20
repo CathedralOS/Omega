@@ -141,7 +141,7 @@ fn scalar_graph_call_keeps_callee_abi_and_effect_custody() {
                 call_plan,
                 requirement_obligations,
                 crash_continuations,
-                result_home: Some(result_home),
+                result: target_operations::TargetCallResult::Scalar(result_home),
                 ..
             },
         ] = graph.blocks[0].operations.as_slice()

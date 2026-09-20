@@ -9,3 +9,5 @@ mod abi;
 pub use abi::*;
 mod arguments;
 pub use arguments::*;
+mod results;
+pub use results::*;

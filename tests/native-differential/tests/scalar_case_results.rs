@@ -8,6 +8,14 @@ use terminal_codec::CanonicalTerminalArtifact;
 #[path = "scalar_case_results/admission.rs"]
 mod admission;
 
+#[path = "scalar_case_results/direct_call_results.rs"]
+mod direct_call_results;
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+#[path = "pipeline_ownership/native_execution.rs"]
+#[allow(dead_code)]
+mod native_execution;
+
 #[path = "scalar_case_results/source_custody.rs"]
 mod source_custody;
 
