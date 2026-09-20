@@ -10211,6 +10211,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-REPRESENTATIVE-PROGRAMS-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
+  Re-measured at `edc77c21480` on linux x86-64 (`cargo nextest run
+  -p compiler --test samples_compile --no-fail-fast`): still red —
+  8 pass / 24 fail of 32 legs completed; the run-leg
+  `samples_with_documented_exit_run_correctly` was still executing at
+  annotation time (>130 min, compiles + runs every documented-exit
+  sample — its outcome cannot lift the gate). Same named families plus
+  wider coverage now pinned by newer legs: ProgramEntry-rejoin (178
+  diagnostics) and the windows_x86_64 `named-callable(WindowsProcessEntry::
+  enter)` schema rejection of std `entry.omg` (103) still dominate; also
+  observed — `block`-envelope acknowledgement mismatch on `apply` calls
+  (60), `Service field Main::clock/gui requires a selected Fused provider`
+  (35), slice/index-within-length proofs in CompactBinary/write_pixel,
+  non-copy transfer out of borrowed storage, and the `[u8; N]::Utf8`
+  domain-field leg. Newly red legs vs the d8041919ad tally include
+  print_squares, temperature float evidence, text_padding, stdin,
+  unit_closure cli_mvp, and every family `*_from_authored_program_
+  entry_bindings` cohort (algorithm/interpreter/gui/collection/probe/
+  rendering/simulation/text/system/arithmetic/all_samples).
 - **RC-REPRESENTATIVE-PROGRAMS-PER-HOST** — mined candidate; verify scope then implement.
 - **RC-SOURCE-SEMANTICS** — mined candidate; verify scope then implement.
 - **RC-SOURCE-SEMANTICS-CLOSURE** — mined candidate; verify scope then implement.
