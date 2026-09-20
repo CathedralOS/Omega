@@ -593,6 +593,17 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             },
             input,
         )),
+        AsmInstructionShape::CacheOperation(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: zero_operand_asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                ),
+                contract,
+            },
+            input,
+        )),
         AsmInstructionShape::FlagsSnapshot => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let value =

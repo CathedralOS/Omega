@@ -26,6 +26,8 @@ pub const DUPLICATE_TRAIT_REQUIREMENT_OVERLOAD_REJECTED: &str =
     "traits/duplicate_trait_requirement_overload_rejected";
 pub const IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED: &str =
     "modules/imported_name_collides_with_local_data_rejected";
+pub const BUNDLED_CORE_NAME_COLLISION_REJECTED: &str =
+    "modules/bundled_core_name_collision_rejected";
 pub const RECURSIVE_ARGUMENT_IMPORTED_NAME_COLLISION_REJECTED: &str =
     "calls/recursive_argument_imported_name_collision_rejected";
 pub const REPEATED_EXACT_DECLARATION_SELECTION_COMPILE: &str =
@@ -52,6 +54,7 @@ pub const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &[
     DUPLICATE_IMPORTED_MACHINE_OVERLOAD_REJECTED,
     DUPLICATE_TRAIT_REQUIREMENT_OVERLOAD_REJECTED,
     IMPORTED_NAME_COLLIDES_WITH_LOCAL_DATA_REJECTED,
+    BUNDLED_CORE_NAME_COLLISION_REJECTED,
     RECURSIVE_ARGUMENT_IMPORTED_NAME_COLLISION_REJECTED,
 ];
 

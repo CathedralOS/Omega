@@ -159,6 +159,7 @@ pub(super) fn validate_asm_statement_call(
             "asm#isb" => ("isb", 0),
             "asm#pause" => ("pause", 0),
             "asm#yield" => ("yield", 0),
+            "asm#wbinvd" => ("wbinvd", 0),
             "asm#popfq" => ("popfq", 1),
             "asm#wrmsr" => ("wrmsr", 2),
             other => {

@@ -306,17 +306,40 @@ pub(super) fn operation(
     let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
         return Err(invalid());
     };
-    if call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
+    // An owned actual that re-presents the caller's complete signature —
+    // identical call plan, every argument an owned parameter forward into an
+    // indirect-register outgoing copy — uses the slot-addressed forward lane;
+    // the general Unit transport emits register-relative copies instead.
+    let signature_equal_forward = source.structural.as_ref().is_some_and(|signature| {
+        call.result_placement.is_none()
+            && call.arguments.len() == signature.parameters.len()
+            && !call.arguments.is_empty()
+            && call.call_plan == source.call_plan
+            && call.arguments.iter().all(|argument| {
+                matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
+                if semantic.access == StructuralAccess::Owned
+                    && semantic.path.is_empty()
+                    && signature.parameters.iter().any(|parameter|
+                        parameter.semantic.place == semantic.place)
+                    && matches!(target.destination.locations.as_slice(),
+                        [ValueLocation::Indirect {
+                            pointer: IndirectPointerLocation::Register(_),
+                            copy_stack_byte_offset: Some(_),
+                            ..
+                        }]))
+            })
+    });
+    if !signature_equal_forward
+        && call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target }
         if semantic.access == StructuralAccess::Owned
             && crate::selection::scalar_call_abi::owned_value_shape(source, target.structural_type).is_none())) {
         super::unit_call::emit(function, source, row, environment, builder)?;
         return Ok(true);
     }
     let signature = source.structural.as_ref().ok_or_else(invalid)?;
-    call.validate_shape().map_err(|_| invalid())?;
-    call.validate_source(&row.ownership)
-        .map_err(|_| invalid())?;
-    if call.result_placement.is_some()
+    if call.validate_shape().is_err()
+        || call.validate_source(&row.ownership).is_err()
+        || call.result_placement.is_some()
         || call.arguments.len() != signature.parameters.len()
         || call.call_plan != source.call_plan
     {
@@ -407,31 +430,40 @@ pub(super) fn operation(
                 provenance(row),
             )?;
         }
-        let address = transport_register(builder, semantic.place, 0)?;
-        memory(
-            builder,
-            row,
-            semantic.place,
-            0,
-            u32::from(*byte_size),
-            SelectedMemoryAccessRole::AddressOutgoing { slot },
-        )?;
-        builder.emit(
-            SelectedInstructionKind::FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
-                byte_offset: 0,
-            },
-            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
-            &[address],
-            provenance(row),
-        )?;
-        pointers.push((
-            address,
-            environment
-                .fixed_register_view(*pointer)
-                .ok_or_else(invalid)?,
-        ));
+        pointers.push((semantic.place, *byte_size, *pointer, slot));
     }
+    // Outgoing-slot addresses materialize after the argument copies: per-
+    // argument custody spans stay contiguous and the call's operand roster
+    // still reads in argument order.
+    let pointers = pointers
+        .into_iter()
+        .map(|(place, byte_size, pointer, slot)| {
+            let address = transport_register(builder, place, 0)?;
+            memory(
+                builder,
+                row,
+                place,
+                0,
+                u32::from(byte_size),
+                SelectedMemoryAccessRole::AddressOutgoing { slot },
+            )?;
+            builder.emit(
+                SelectedInstructionKind::FrameAddress {
+                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
+                    byte_offset: 0,
+                },
+                builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+                &[address],
+                provenance(row),
+            )?;
+            Ok((
+                address,
+                environment
+                    .fixed_register_view(pointer)
+                    .ok_or_else(invalid)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let key = builder
         .constraints
         .keys

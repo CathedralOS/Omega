@@ -40,6 +40,12 @@ pub enum AsmInstructionShape {
     /// A scheduler/pipeline hint the core may legally elide; it never changes
     /// program semantics or machine-state obligations.
     SchedulingHint(AsmSchedulingHintKind),
+    /// Cache/TLB maintenance on the machine's own caches: serializing and
+    /// privileged, with no modeled operand place — the operation's subject is
+    /// the cache hierarchy itself, not an addressable value. Members needing a
+    /// memory operand (`invlpg`, `clflush`) stay refused until the catalog has
+    /// a modeled memory operand contract.
+    CacheOperation(AsmCacheOperationKind),
     DescriptorTableLoad,
     DerivedExit,
 }
@@ -71,6 +77,34 @@ impl AsmInstructionSerializationKind {
 
     pub fn from_intrinsic_name(name: &str) -> Option<Self> {
         [Self::Serialize, Self::InstructionSynchronizationBarrier]
+            .into_iter()
+            .find(|kind| kind.intrinsic_name() == name)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmCacheOperationKind {
+    /// x86_64 `wbinvd`: writes back and invalidates all internal caches, then
+    /// serializes the instruction stream. Ring-0 privileged; it carries no
+    /// operand because its subject is the cache hierarchy, not a place.
+    WriteBackInvalidate,
+}
+
+impl AsmCacheOperationKind {
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::WriteBackInvalidate => "wbinvd",
+        }
+    }
+
+    pub const fn intrinsic_name(self) -> &'static str {
+        match self {
+            Self::WriteBackInvalidate => "asm#wbinvd",
+        }
+    }
+
+    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+        [Self::WriteBackInvalidate]
             .into_iter()
             .find(|kind| kind.intrinsic_name() == name)
     }
@@ -492,7 +526,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmInstructionRefusal::{HiddenControlExit, UnmodeledMemoryAccess};
     use AsmInstructionSerializationKind::{InstructionSynchronizationBarrier, Serialize};
     use AsmInstructionShape::{
-        DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt,
+        CacheOperation, DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt,
         InstructionSerialization, InterruptControl, JumpState, MemoryFence, MsrRead, MsrWrite,
         PortIn, PortOut, RegisterMove, SchedulingHint,
     };
@@ -732,6 +766,20 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             shape: SchedulingHint(Yield),
             target: Aarch64,
             required_authority: NoAuthority,
+            operands: NO_OPERANDS,
+            memory_ordering: NoOrdering,
+            interrupt_flag_effect: NoInterruptChange,
+            flags_data_flow: NoFlagsDataFlow,
+            clobbers: NO_CLOBBERS,
+        }),
+        // Cache maintenance writes back and invalidates the machine's caches
+        // rather than touching a modeled place: a serializing, machine-owner
+        // operation whose operand list and clobber list are both empty.
+        "wbinvd" => Contract(AsmInstructionContract {
+            availability: UserChecked,
+            shape: CacheOperation(AsmCacheOperationKind::WriteBackInvalidate),
+            target: X86_64,
+            required_authority: MachineOwner,
             operands: NO_OPERANDS,
             memory_ordering: NoOrdering,
             interrupt_flag_effect: NoInterruptChange,

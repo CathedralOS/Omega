@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.application("asm-cache-maintenance-compile");
+    builder.freestanding = true;
+}
