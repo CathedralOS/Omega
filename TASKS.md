@@ -6932,15 +6932,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   non-applicable, not as failed compiles (MACOS-X64-HOST-PROFILE owns
   the x86_64 macOS host-profile gap).
 
-  Remaining: three compile-only records already measured at f2f39039da
-  (compile_time_ms ~23.8k/24.7k/28.2k, code_size_bytes 1024/16640/8192,
-  runtime_ms skipped, `validate` clean) sit ready on the wave-w9 z57
-  machine at `~/bench-records-z57/` — copy into
-  `tools/benchmark/records/` and commit when the fence clears; refresh
-  the host-row matrix (`benchmark.py matrix` into benchmarks.md —
-  claimed by BENCHMARK-HOST-ROW-MATRIX). Fence note: `tools/benchmark`
-  was held by BENCHMARK-COMPARISON-OCCURRENCE-GATE until
-  2026-09-20T22:09:59Z during the z57 leg — records commit under it.
+  The three compile-only records are now committed at `52ceeeabb7`
+  (BENCHMARK-CROSS-TARGET-COMPILE-ROWS's lane): the
+  `wrapping_square_sum__<windows_x86_64|macos_arm64|linux_arm64>__default.json`
+  records carry the measured legs
+  (runtime_ms skipped; code_size_bytes 1024/16640/8192
+  match the w9 measurements), with `d8825aef56` recording the verified
+  legs in benchmarks.md and `7e38fc2763` repairing the host-row matrix
+  drift. Remaining: none under this name — any further matrix refresh
+  stays with BENCHMARK-HOST-ROW-MATRIX, and the fenced prose staleness
+  in benchmarks.md's w9/z113 update paragraphs ("await commit once the
+  claim frees") belongs to whichever lane next writes that doc.
 - **BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES.** Resolved — re-mines
   the producer fix named in BENCHMARK-COMPILE-ONLY-ROWS: the integer
   comparison-occurrence rejection that blocked benchmark subject compiles
@@ -6971,8 +6973,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   windows_x86_64 [peak-RSS leg stays `unavailable` — no `os.wait4`],
   uefi_x86_64 under QEMU/hardware). None is producible on a linux_x86_64
   build host; the local legs are compile-only rows owned by
-  **BENCHMARK-COMPILE-ONLY-ROWS** (three measured records already sit at
-  `~/bench-records-z57/` on the w9 machine pending commit). The producing
+  **BENCHMARK-COMPILE-ONLY-ROWS** — committed at `52ceeeabb7` (the
+  three measured cross-target records are in
+  `tools/benchmark/records/`). The producing
   surfaces are under live claims: `tools/benchmark` is held by
   BENCHMARK-COMPARISON-OCCURRENCE-GATE (expires 22:09Z) and
   `benchmarks.md` + `tools/tests/test_benchmark.py` by
@@ -7001,11 +7004,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `linux_arm64`; `macos_x86_64`/`uefi_x86_64` are not valid CLI-subject
   targets — they fail review settlement on the unbound `ProgramEntry` slot,
   not the compile). The producer-side blocker it names (integer
-  comparison-occurrence rejection) is already resolved at `f2f39039da`; the
-  three measured records sit staged on the w9 machine at
-  `~/bench-records-z57/` pending commit into `tools/benchmark/records/`
-  under the parent row, so no independent slice exists here. Re-verified at
-  `62c502f9f6` on linux x86-64.
+  comparison-occurrence rejection) is already resolved at `f2f39039da`;
+  the three measured records are committed at `52ceeeabb7` (the
+  `wrapping_square_sum__<windows_x86_64|macos_arm64|linux_arm64>__default.json`
+  records in `tools/benchmark/records/`), so no independent slice
+  exists here. Re-verified at `62c502f9f6` on linux x86-64;
+  records confirmed present on the tip `a51cb805cc`.
 - **BENCHMARK-CROSS-TARGET-COMPILE-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-LINUX-X64-ROW-REFRESH** — mined candidate; verify scope then implement.
 - **BENCHMARK-MACOS-ARM64-ROW.** Mined candidate; scope verified at
