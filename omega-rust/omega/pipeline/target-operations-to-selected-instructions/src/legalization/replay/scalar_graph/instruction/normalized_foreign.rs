@@ -92,8 +92,9 @@ pub(super) fn validate(
             Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
         })
         .collect::<Result<Vec<_>, LegalizationError>>()?;
-    if structural_arguments.len() != declaration.structural_parameters.len()
-        || (!structural_arguments.is_empty() && !declaration.scalar_parameters.is_empty())
+    // Lane-local custody rejoins the declaration's retained authored order.
+    if !declaration.has_valid_parameter_order()
+        || structural_arguments.len() != declaration.structural_parameters.len()
         || arguments.len() != declaration.scalar_parameters.len()
     {
         return Err(invalid);
@@ -101,22 +102,42 @@ pub(super) fn validate(
     // Each structural argument is re-derived from the boundary declaration and
     // the claimed plan position; the legalized row cannot substitute a place,
     // path, projected type, offset, or destination.
+    let callback = scalar_graph_input::normalized_foreign::native_callback_at(
+        native,
+        operation,
+        &call.binding.boundary_entry_plan,
+    )?;
+    let callback_ordinal = callback
+        .map(|callback| usize::try_from(callback.application.native_ordinal))
+        .transpose()
+        .map_err(|_| invalid.clone())?;
     let derived_structural = structural_arguments
         .iter()
         .zip(&declaration.structural_parameters)
         .enumerate()
-        .map(|(index, (semantic, declaration_parameter))| {
-            scalar_graph_input::normalized_foreign::structural_argument_at(
-                semantic,
-                index,
-                declaration_parameter,
-                call.binding.boundary_entry_plan.call.parameters.get(index),
-                &function.graph.parameters,
-                optimized,
-                native.target,
-                plan,
-            )
-        })
+        .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Structural))
+        .map(
+            |((index, (semantic, declaration_parameter)), semantic_position)| {
+                let native_position = semantic_position
+                    + usize::from(
+                        callback_ordinal.is_some_and(|ordinal| semantic_position >= ordinal),
+                    );
+                scalar_graph_input::normalized_foreign::structural_argument_at(
+                    semantic,
+                    index,
+                    declaration_parameter,
+                    call.binding
+                        .boundary_entry_plan
+                        .call
+                        .parameters
+                        .get(native_position),
+                    &function.graph.parameters,
+                    optimized,
+                    native.target,
+                    plan,
+                )
+            },
+        )
         .collect::<Result<Vec<_>, LegalizationError>>()?;
     let expected_result = match (result, &declaration.result) {
         (
@@ -156,28 +177,30 @@ pub(super) fn validate(
     // private placement while the declaration still counts only semantic
     // formals. The plan's retained roster supplies the binder/demand context
     // the materialized signature replays against.
-    let callback = scalar_graph_input::normalized_foreign::native_callback_at(
-        native,
-        operation,
-        &call.binding.boundary_entry_plan,
-    )?;
+    let mut scalars = scalar_shapes.iter().copied();
+    let mut structures = derived_structural
+        .iter()
+        .map(|argument| argument.destination.shape);
+    let mut parameters = declaration
+        .parameter_order
+        .iter()
+        .map(|kind| {
+            match kind {
+                terminal_psi::BoundaryParameterKind::Scalar => scalars.next(),
+                terminal_psi::BoundaryParameterKind::Structural => structures.next(),
+            }
+            .ok_or(invalid.clone())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if let Some(callback) = callback {
+        let ordinal = callback_ordinal.ok_or(invalid.clone())?;
+        if ordinal > parameters.len() {
+            return Err(invalid);
+        }
+        parameters.insert(ordinal, callback.application.shape);
+    }
     let signature = CallSignature {
-        parameters: if callback.is_some() {
-            call.binding
-                .boundary_entry_plan
-                .call
-                .parameters
-                .iter()
-                .map(|placement| placement.shape)
-                .collect()
-        } else if derived_structural.is_empty() {
-            scalar_shapes.clone()
-        } else {
-            derived_structural
-                .iter()
-                .map(|argument| argument.destination.shape)
-                .collect()
-        },
+        parameters,
         result: expected_result.map(|(_, shape)| shape),
     };
     let validated = match callback {
@@ -194,10 +217,6 @@ pub(super) fn validate(
         ),
     }
     .map_err(|_| invalid.clone())?;
-    let callback_ordinal = callback
-        .map(|callback| usize::try_from(callback.application.native_ordinal))
-        .transpose()
-        .map_err(|_| invalid.clone())?;
     if declarations.next().is_some()
         || *psi_operation != operation
         || *row_boundary != call.boundary
@@ -233,8 +252,8 @@ pub(super) fn validate(
             .zip(arguments)
             .zip(&declaration.scalar_parameters)
             .zip(&scalar_shapes)
-            .enumerate()
-            .any(|(index, (((argument, value), parameter), shape))| {
+            .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
+            .any(|((((argument, value), parameter), shape), index)| {
                 let ScalarType::Integer(integer_type) = parameter else {
                     return true;
                 };

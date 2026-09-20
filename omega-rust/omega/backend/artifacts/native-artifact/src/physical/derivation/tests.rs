@@ -645,7 +645,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
     use calling_conventions::{MachineRegister, ValueLocation, ValuePlacement, ValueShape};
     use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
     use terminal_psi::{
-        StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        BoundaryParameterKind, StructuralAccess, StructuralArgument, StructuralMultiplicity,
         StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
     };
 
@@ -700,7 +700,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
             arguments,
             parameters,
             &caller_parameters,
-            true,
+            &vec![BoundaryParameterKind::Structural; parameters.len()],
             false,
             placements,
             pointer,
@@ -796,8 +796,48 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         Err("normalized foreign D41 child changed its structural call occurrence")
     );
 
+    // Structural lane-local positions rejoin authored native positions even
+    // when scalar parameters precede and separate the borrowed pointers.
+    let interleaved_order = [
+        BoundaryParameterKind::Scalar,
+        BoundaryParameterKind::Structural,
+        BoundaryParameterKind::Scalar,
+        BoundaryParameterKind::Structural,
+    ];
+    let mut interleaved_placements = vec![
+        narrow[0].clone(),
+        placements[0].clone(),
+        narrow[0].clone(),
+        placements[1].clone(),
+    ];
+    assert_eq!(
+        normalized_foreign_structural_parameter_shapes(
+            &arguments,
+            &parameters,
+            &caller_parameters,
+            &interleaved_order,
+            false,
+            &interleaved_placements,
+            pointer,
+        ),
+        Ok(Some(vec![pointer, pointer]))
+    );
+    interleaved_placements.swap(0, 1);
+    assert!(
+        normalized_foreign_structural_parameter_shapes(
+            &arguments,
+            &parameters,
+            &caller_parameters,
+            &interleaved_order,
+            false,
+            &interleaved_placements,
+            pointer,
+        )
+        .is_err()
+    );
+
     // Valid but uncovered signature shapes retain no complete evidence: a
-    // scalar lane or callback beside the structural formals, an owned
+    // callback beside the structural formals, an owned
     // formal, a qualified or non-unrestricted formal, a non-field or empty
     // projection path, and an argument not rooted at a caller structural
     // parameter.
@@ -806,19 +846,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
             &arguments,
             &parameters,
             &caller_parameters,
-            false,
-            false,
-            &placements,
-            pointer,
-        ),
-        Ok(None)
-    );
-    assert_eq!(
-        normalized_foreign_structural_parameter_shapes(
-            &arguments,
-            &parameters,
-            &caller_parameters,
-            true,
+            &[BoundaryParameterKind::Structural; 2],
             true,
             &placements,
             pointer,

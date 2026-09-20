@@ -76,7 +76,10 @@ pub(super) fn emit(
     // into the exact pointer word the plan assigned: a register-resident
     // destination is a call operand, a stack destination is an outgoing slot
     // store of that pointer.
-    for (argument_index, argument) in call.structural_arguments.iter().enumerate() {
+    for (argument_index, argument) in
+        crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
+            .zip(&call.structural_arguments)
+    {
         let pointer = structural::place_pointer(
             builder,
             operation,

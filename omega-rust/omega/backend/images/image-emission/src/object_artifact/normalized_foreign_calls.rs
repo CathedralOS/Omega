@@ -344,9 +344,8 @@ fn producer_instruction(
 /// with the producer's allocated home-area slot and the same materialization
 /// span mechanics: the producing call must be the exact roster row the
 /// requirement names, and the consuming operand still resolves through the
-/// emitted copy or outgoing-slot store. Other sources, callback
-/// materialization, and mixed scalar/structural lanes fail closed rather
-/// than claiming custody they cannot prove.
+/// emitted copy or outgoing-slot store. Other sources and callback
+/// materialization fail closed rather than claiming custody they cannot prove.
 #[allow(clippy::too_many_arguments)]
 fn foreign_scalar_argument_custody<F>(
     function: &selected_instructions::SelectedFunction,
@@ -365,8 +364,6 @@ where
     let invalid = || ObjectError::InvalidForeignCallArgument { caller, owner };
     let plan = &record.call.binding.boundary_entry_plan.call;
     if !plan.callback_materializations.is_empty()
-        || (!record.call.scalar_arguments.is_empty()
-            && !record.call.structural_arguments.is_empty())
         || plan.parameters.len()
             != record.call.scalar_arguments.len() + record.call.structural_arguments.len()
     {
@@ -402,25 +399,34 @@ where
     {
         return Err(invalid());
     }
-    let mut register_operand = 0usize;
     let mut scalar_arguments = Vec::new();
-    for (index, argument) in record.call.scalar_arguments.iter().enumerate() {
+    for (scalar_ordinal, argument) in record.call.scalar_arguments.iter().enumerate() {
+        let native_position = usize::try_from(argument.parameter_index).map_err(|_| invalid())?;
         let ScalarType::Integer(integer) = argument.source.scalar_type() else {
             return Err(invalid());
         };
         if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
             || !matches!(integer.bits(), 8 | 16 | 32 | 64)
-            || argument.parameter_index != index as u32
-            || plan.parameters.get(index) != Some(&argument.placement)
+            || scalar_ordinal.checked_sub(1).is_some_and(|previous| {
+                record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
+            })
+            || plan.parameters.get(native_position) != Some(&argument.placement)
             || argument.placement.shape
                 != calling_conventions::ValueShape::integer(integer.bits() / 8, integer.bits() / 8)
         {
             return Err(invalid());
         }
-        let register_placed = matches!(
-            argument.placement.locations.as_slice(),
-            [ValueLocation::Register { .. }]
-        );
+        let register_operand = plan
+            .parameters
+            .iter()
+            .take(native_position)
+            .filter(|placement| {
+                matches!(
+                    placement.locations.as_slice(),
+                    [ValueLocation::Register { .. }]
+                )
+            })
+            .count();
         let (source, span) = match argument.source {
             target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                 defining_operation,
@@ -489,9 +495,6 @@ where
             }
             _ => return Err(invalid()),
         };
-        if register_placed {
-            register_operand += 1;
-        }
         scalar_arguments.push(machine_code::ForeignCallScalarArgumentRecord {
             parameter_index: argument.parameter_index,
             source,

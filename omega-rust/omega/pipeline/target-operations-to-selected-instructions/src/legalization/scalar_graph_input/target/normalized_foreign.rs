@@ -11,6 +11,11 @@
 //! admitted argument must join to this row by Terminal operation and exact
 //! registrar entry plan, and its context re-validates the materialized
 //! signature in place of the ordinary plan check.
+//!
+//! Structural formal positions index their own lane, not the native signature.
+//! The boundary declaration's parameter order is the authority for interleaving
+//! scalar values and referent pointers; callback slots offset that order only
+//! at the native boundary. Reconstruct both shapes and placements in that order.
 use super::super::{ScalarType, scalar_shape};
 use super::{
     AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, TargetFunction,
@@ -92,36 +97,52 @@ pub(super) fn validate(
             Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
         })
         .collect::<Result<Vec<_>, LegalizationError>>()?;
-    // The Terminal declaration splits scalar and structural formals into two
-    // lane-local lists and erases their authored interleave, so a structural
-    // argument rejoins its exact plan position only while the scalar lane is
-    // empty; a mixed signature fails closed rather than guessing an ordinal
-    // the artifact cannot prove.
-    if expected_structural.len() != declaration.structural_parameters.len()
+    // Lane-local custody rejoins the declaration's retained authored order.
+    if !declaration.has_valid_parameter_order()
+        || expected_structural.len() != declaration.structural_parameters.len()
         || expected_structural.len() != structural_arguments.len()
-        || (!expected_structural.is_empty() && !declaration.scalar_parameters.is_empty())
     {
         return Err(invalid);
     }
     // Structural transport uses the evaluated plan's ordered parameter rows.
     // The signature for plan revalidation is the computed destination shapes,
     // matching the producer's own derivation.
+    let callback = super::super::normalized_foreign::native_callback_at(
+        native,
+        *psi_operation,
+        &binding.boundary_entry_plan,
+    )?;
+    let callback_ordinal = callback
+        .map(|callback| usize::try_from(callback.application.native_ordinal))
+        .transpose()
+        .map_err(|_| invalid.clone())?;
     let structural = expected_structural
         .iter()
         .zip(&declaration.structural_parameters)
         .enumerate()
-        .map(|(index, (semantic, declaration_parameter))| {
-            super::super::normalized_foreign::structural_argument_at(
-                semantic,
-                index,
-                declaration_parameter,
-                binding.boundary_entry_plan.call.parameters.get(index),
-                parameters,
-                optimized,
-                native.target,
-                plan,
-            )
-        })
+        .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Structural))
+        .map(
+            |((index, (semantic, declaration_parameter)), semantic_position)| {
+                let native_position = semantic_position
+                    + usize::from(
+                        callback_ordinal.is_some_and(|ordinal| semantic_position >= ordinal),
+                    );
+                super::super::normalized_foreign::structural_argument_at(
+                    semantic,
+                    index,
+                    declaration_parameter,
+                    binding
+                        .boundary_entry_plan
+                        .call
+                        .parameters
+                        .get(native_position),
+                    parameters,
+                    optimized,
+                    native.target,
+                    plan,
+                )
+            },
+        )
         .collect::<Result<Vec<_>, LegalizationError>>()?;
     let expected_result = match (result, &declaration.result) {
         (
@@ -158,28 +179,28 @@ pub(super) fn validate(
     // registrar plan; the validated signature then spells every authored and
     // private placement while the declaration still counts only semantic
     // formals.
-    let callback = super::super::normalized_foreign::native_callback_at(
-        native,
-        *psi_operation,
-        &binding.boundary_entry_plan,
-    )?;
+    let mut scalars = scalar_shapes.iter().copied();
+    let mut structures = structural.iter().map(|argument| argument.destination.shape);
+    let mut parameters = declaration
+        .parameter_order
+        .iter()
+        .map(|kind| {
+            match kind {
+                terminal_psi::BoundaryParameterKind::Scalar => scalars.next(),
+                terminal_psi::BoundaryParameterKind::Structural => structures.next(),
+            }
+            .ok_or(invalid.clone())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if let Some(callback) = callback {
+        let ordinal = callback_ordinal.ok_or(invalid.clone())?;
+        if ordinal > parameters.len() {
+            return Err(invalid);
+        }
+        parameters.insert(ordinal, callback.application.shape);
+    }
     let signature = CallSignature {
-        parameters: if callback.is_some() {
-            binding
-                .boundary_entry_plan
-                .call
-                .parameters
-                .iter()
-                .map(|placement| placement.shape)
-                .collect()
-        } else if structural.is_empty() {
-            scalar_shapes.clone()
-        } else {
-            structural
-                .iter()
-                .map(|argument| argument.destination.shape)
-                .collect()
-        },
+        parameters,
         result: expected_result.map(|(_, shape)| shape),
     };
     let validated = match callback {
@@ -196,10 +217,6 @@ pub(super) fn validate(
         ),
     }
     .map_err(|_| invalid.clone())?;
-    let callback_ordinal = callback
-        .map(|callback| usize::try_from(callback.application.native_ordinal))
-        .transpose()
-        .map_err(|_| invalid.clone())?;
     if declarations.next().is_some()
         || psi_operation != expected_operation
         || boundary != expected_boundary
@@ -225,8 +242,8 @@ pub(super) fn validate(
             .zip(arguments)
             .zip(&declaration.scalar_parameters)
             .zip(&scalar_shapes)
-            .enumerate()
-            .any(|(index, (((argument, value), parameter), shape))| {
+            .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
+            .any(|((((argument, value), parameter), shape), index)| {
                 let ScalarType::Integer(integer_type) = parameter else {
                     return true;
                 };
@@ -247,10 +264,15 @@ pub(super) fn validate(
                     ] => *byte_size,
                     _ => return true,
                 };
-                argument.parameter_index
-                    != (index
-                        + usize::from(callback_ordinal.is_some_and(|ordinal| index >= ordinal)))
-                        as u32
+                let native_position =
+                    index + usize::from(callback_ordinal.is_some_and(|ordinal| index >= ordinal));
+                usize::try_from(argument.parameter_index).ok() != Some(native_position)
+                    || binding
+                        .boundary_entry_plan
+                        .call
+                        .parameters
+                        .get(native_position)
+                        != Some(&argument.placement)
                     || argument.placement.shape != *shape
                     || shape.byte_size != placed_byte_size
                     || argument.source.scalar_type() != ScalarType::Integer(*integer_type)

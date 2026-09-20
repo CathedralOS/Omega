@@ -66,7 +66,10 @@ pub(super) fn validate(
         let output = replay.check_copy(input, value, site, scalar_type)?;
         operands.push((argument.parameter_index, output));
     }
-    for (argument_index, argument) in call.structural_arguments.iter().enumerate() {
+    for (argument_index, argument) in
+        crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
+            .zip(&call.structural_arguments)
+    {
         let pointer = super::structural::place_pointer(
             replay,
             operation,

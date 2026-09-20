@@ -744,6 +744,7 @@ pub(crate) fn derive_normalized_foreign_child(
     }
 
     if foreign.operation_ordinal != occurrence.operation_ordinal()
+        || !declaration.has_valid_parameter_order()
         || arguments.len() != declaration.scalar_parameters.len()
         || foreign.scalar_arguments.len() != arguments.len()
     {
@@ -792,7 +793,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 structural_arguments,
                 &declaration.structural_parameters,
                 &caller.structural_parameters,
-                arguments.is_empty(),
+                &declaration.parameter_order,
                 foreign.callback_address.is_some()
                     || !foreign
                         .boundary_entry_plan
@@ -902,10 +903,43 @@ pub(crate) fn derive_normalized_foreign_child(
         .map(|callback| usize::try_from(callback.target.application.native_ordinal))
         .transpose()
         .map_err(|_| "normalized foreign D41 callback ordinal does not fit this target")?;
-    if callback_ordinal.is_some_and(|ordinal| ordinal > parameter_shapes.len()) {
+    if callback_ordinal.is_some_and(|ordinal| ordinal > declaration.parameter_order.len()) {
         return Err("normalized foreign D41 callback ordinal is outside its native signature");
     }
-    let mut native_parameter_shapes = structural_parameter_shapes.unwrap_or(parameter_shapes);
+    for (physical, semantic_position) in foreign
+        .scalar_arguments
+        .iter()
+        .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
+    {
+        let native_position = semantic_position
+            + usize::from(callback_ordinal.is_some_and(|ordinal| ordinal <= semantic_position));
+        if usize::try_from(physical.parameter_index).ok() != Some(native_position)
+            || foreign
+                .boundary_entry_plan
+                .call
+                .parameters
+                .get(native_position)
+                != Some(&physical.placement)
+        {
+            return Err("normalized foreign D41 child changed a scalar argument position");
+        }
+    }
+    // Terminal retains authored order independently of the physical proposal.
+    // Reconstruct that interleave instead of letting either lane claim the
+    // other lane's ABI positions, even when their word shapes happen to match.
+    let mut scalar_shapes = parameter_shapes.into_iter();
+    let mut structural_shapes = structural_parameter_shapes.into_iter().flatten();
+    let mut native_parameter_shapes = declaration
+        .parameter_order
+        .iter()
+        .map(|kind| {
+            match kind {
+                terminal_psi::BoundaryParameterKind::Scalar => scalar_shapes.next(),
+                terminal_psi::BoundaryParameterKind::Structural => structural_shapes.next(),
+            }
+            .ok_or("normalized foreign D41 child changed its parameter order")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     if let (Some(callback), Some(ordinal)) = (callback, callback_ordinal) {
         native_parameter_shapes.insert(ordinal, callback.target.application.shape);
     }
@@ -1637,32 +1671,43 @@ fn fragment_scalar_argument_custody_rejoin(
     {
         return false;
     }
-    let mut register_operand = 0usize;
-    for (index, (argument, physical)) in record
+    for (scalar_ordinal, (argument, physical)) in record
         .call
         .scalar_arguments
         .iter()
         .zip(&foreign.scalar_arguments)
         .enumerate()
     {
+        let Ok(native_position) = usize::try_from(argument.parameter_index) else {
+            return false;
+        };
         let ScalarType::Integer(integer) = argument.source.scalar_type() else {
             return false;
         };
         if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
             || !matches!(integer.bits(), 8 | 16 | 32 | 64)
-            || argument.parameter_index != index as u32
+            || scalar_ordinal.checked_sub(1).is_some_and(|previous| {
+                record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
+            })
             || physical.parameter_index != argument.parameter_index
             || physical.placement != argument.placement
-            || plan.parameters.get(index) != Some(&argument.placement)
+            || plan.parameters.get(native_position) != Some(&argument.placement)
             || argument.placement.shape
                 != calling_conventions::ValueShape::integer(integer.bits() / 8, integer.bits() / 8)
         {
             return false;
         }
-        let register_placed = matches!(
-            argument.placement.locations.as_slice(),
-            [calling_conventions::ValueLocation::Register { .. }]
-        );
+        let register_operand = plan
+            .parameters
+            .iter()
+            .take(native_position)
+            .filter(|placement| {
+                matches!(
+                    placement.locations.as_slice(),
+                    [calling_conventions::ValueLocation::Register { .. }]
+                )
+            })
+            .count();
         let span_rejoins = match (argument.source, physical.source) {
             (
                 target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
@@ -1731,9 +1776,6 @@ fn fragment_scalar_argument_custody_rejoin(
         };
         if !span_rejoins {
             return false;
-        }
-        if register_placed {
-            register_operand += 1;
         }
     }
     true
@@ -2169,8 +2211,8 @@ fn fixed_integer_shape(scalar_type: ScalarType) -> Option<calling_conventions::V
 /// position and access, that formal is borrowed, unrestricted, and
 /// unqualified, and the observed plan places each formal's referent pointer
 /// as exactly one pointer-width word. `Ok(None)` names a valid signature
-/// shape this lane cannot prove — a mixed scalar/structural signature, a
-/// callback-bearing signature, an owned or qualified formal, or an argument
+/// shape this lane cannot prove — a callback-bearing signature, an owned or
+/// qualified formal, or an argument
 /// that is not such a projection — so the artifact retains no complete
 /// physical evidence rather than claiming an unprovable custody join.
 /// `Err` names contradictory retained custody: an argument count, declared
@@ -2182,7 +2224,7 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
     structural_arguments: &[terminal_psi::StructuralArgument],
     structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
     caller_structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
-    scalar_lane_empty: bool,
+    parameter_order: &[terminal_psi::BoundaryParameterKind],
     callback_present: bool,
     plan_parameters: &[calling_conventions::ValuePlacement],
     pointer_shape: calling_conventions::ValueShape,
@@ -2193,23 +2235,31 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
     if structural_arguments.is_empty() {
         return Ok(Some(Vec::new()));
     }
-    // The Terminal declaration erases the authored formal interleave, so a
-    // structural argument rejoins its exact plan position only while the
-    // scalar lane is empty and no callback occupies a native parameter.
-    if !scalar_lane_empty || callback_present {
+    // Callback address custody is a separate native-only slot, not a
+    // structural formal. That combination is not yet covered by this lane.
+    if callback_present {
         return Ok(None);
     }
-    if plan_parameters.len() != structural_arguments.len() {
+    let structural_positions = parameter_order
+        .iter()
+        .enumerate()
+        .filter_map(|(position, kind)| {
+            (*kind == terminal_psi::BoundaryParameterKind::Structural).then_some(position)
+        });
+    if plan_parameters.len() != parameter_order.len()
+        || structural_positions.clone().count() != structural_arguments.len()
+    {
         return Err("normalized foreign D41 child changed its structural call custody");
     }
     let mut shapes = Vec::with_capacity(structural_arguments.len());
-    for (index, ((argument, parameter), placement)) in structural_arguments
+    for (lane_position, ((argument, parameter), native_position)) in structural_arguments
         .iter()
         .zip(structural_parameters)
-        .zip(plan_parameters)
+        .zip(structural_positions)
         .enumerate()
     {
-        if usize::try_from(parameter.position).ok() != Some(index)
+        let placement = &plan_parameters[native_position];
+        if usize::try_from(parameter.position).ok() != Some(lane_position)
             || argument.access != parameter.access
         {
             return Err("normalized foreign D41 child changed its structural call occurrence");
