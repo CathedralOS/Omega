@@ -7435,7 +7435,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   host). No independent slice exists.
 - **GAMMA-CERTIFICATE-NATIVE-CHECK** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
-- **GAMMA-CONTAINER-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
+- **GAMMA-CONTAINER-NATIVE-ACCEPTANCE.** Resolved — sibling stub of GAMMA-CERT-NATIVE-CONTAINERS: the gamma container's native acceptance surface already landed at `7a29238279` (`tests/gamma/seed-native-acceptance`), binding the canonical evaluator source/tape identities and stamping the shipped evaluator tape into every audited Alpha seed (elf/pe/macho) through the real materializer. Re-verified green on linux x86-64 at `2e1db3ba3e` (`sh tests/gamma/seed-native-acceptance/run.sh` — all three stamped containers accepted, native-execution receipt byte-exact on the linux seed). Remaining seed-execution legs on other hosts stay host-gated to macOS arm64 + Windows x64 seed hosts as recorded on the parent row. No independent slice exists. Sibling re-mines of this gate's surface: GAMMA-CERTIFICATE-NATIVE-ACCEPTANCE, GAMMA-NATIVE-CONTAINER-ACCEPTANCE, GAMMA-PROVISION-NATIVE-ACCEPTANCE.
 - **GAMMA-DERIVATION-CHECKER** — mined candidate; verify scope then implement.
 - **GAMMA-NATIVE-CERTIFICATE-ACCEPTANCE.** Resolved — sibling stub of
   GAMMA-CERT-NATIVE-CONTAINERS: the gamma certificate's native acceptance
