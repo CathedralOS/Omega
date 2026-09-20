@@ -7712,7 +7712,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   machine-emission VFMADD + MXCSR envelope + object records; (c) removal of
   the object_emission.rs, program_entry.rs, and optimization_stage.rs
   fences. Sibling alias stub on the same row: FMA-PROVIDER-PIPELINE-TRANSPORT.
-- **FRONTIER-EDGE-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
+- **FRONTIER-EDGE-DIAGNOSTIC-ORDER.** Resolved — sibling alias of the terminal-verifier cleanup-order row already repaired on `origin/main` (same resolution as EDGE-CLEANUP-ERROR-PRECEDENCE, which names the FRONTIER-EDGE-* stubs explicitly): edge validation consumes owned successor sources before the residual and trivial discard rosters (`validation/frontier/block_parameters.rs` documents the order; `terminators.rs` runs it), and `d96a0fda39` repinned `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to expect `EdgeAffineDiscardsInvalid`. Re-verified at `201d58c591` on linux x86-64: `cargo nextest run -p terminal-verifier -E 'test(/owned_reads/)'` — 26/26 pass. No independent slice remains. Sibling aliases: EDGE-CLEANUP-DIAGNOSTIC-ORDER, EDGE-CLEANUP-ERROR-PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER, STRUCTURAL-SUCCESSOR-DISCARD-ORDERING, VERIFIER-EDGE-CLEANUP-PHASE-ORDER, FRONTIER-EDGE-ERROR-ORDER, SUCCESSOR-DISCARD-ORDER.
 - **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-FULL-CHECK** — mined candidate; verify scope then implement.
