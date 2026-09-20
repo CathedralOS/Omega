@@ -46,7 +46,9 @@ driver and receipt refusals and every consuming gate's record.
 
 `tools/bootstrap/omega/compiler_env.sh` binds the
 `omega_compiler.epsilon.sources` manifest and repacked D closure against
-`bootstrap/5_omega/README.md` the same way.
+`bootstrap/5_omega/README.md` the same way, plus the gate-local customer
+entries the omega-parser, omega-outcome, and omega-executable gates append
+on top of the bound member bytes, each recorded in its gate's README.
 `tools/bootstrap/proofs/sources_env.sh` binds the
 `implementation.gamma.sources` and `theory.gamma.sources` manifests and their
 repacked member closures against `bootstrap/proofs/checker/README.md` and

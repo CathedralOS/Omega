@@ -29,5 +29,6 @@ materialize_delta_compiler "$PARSER_TMP/delta_compiler.gamma"
 materialize_delta_support "$PARSER_TMP/support.bin"
 materialize_epsilon_evaluator "$PARSER_TMP/epsilon_compiler.delta"
 materialize_omega_compiler "$PARSER_TMP/omega_compiler.epsilon"
+require_omega_parser_entry_identity
 materialize_gamma_evaluator "$PARSER_TMP/evaluator.exe" >/dev/null
 python3 "$GATE_DIR/gate.py" "$PARSER_TMP" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER"
