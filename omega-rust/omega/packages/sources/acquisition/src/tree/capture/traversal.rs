@@ -542,4 +542,45 @@ mod close_tests {
         ));
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn member_rewritten_in_place_with_restored_observations_rejects() {
+        // A same-inode rewrite restoring every compared indicator — type,
+        // length, permissions and the recorded modification time — still
+        // moves the kernel-managed change time, so the closing entry
+        // comparison rejects it. Editing a member's bytes does not move its
+        // parent's clock, so only the per-entry recheck can see this drift.
+        use std::io::Write;
+
+        let fixture = DirectoryFixture::new("close-in-place", &["a.omg", "b.omg"]);
+        let observation = fixture.observe();
+        // Kernel change time moves only when the edit lands in a later
+        // filesystem timestamp tick; coarse-clock hosts quantize metadata
+        // timestamps to jiffies, so the mutation has to wait out a tick.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let member = fixture.root.join("b.omg");
+        let recorded = fixture
+            .directory
+            .symlink_metadata(OsStr::new("b.omg"))
+            .expect("record member metadata");
+        let mut writer = std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&member)
+            .expect("rewrite member in place");
+        writer
+            .write_all(b"replaced bytes")
+            .expect("same-length replacement");
+        writer
+            .set_times(
+                std::fs::FileTimes::new()
+                    .set_modified(recorded.modified().expect("recorded modified").into_std()),
+            )
+            .expect("restore the recorded modification time");
+        assert!(matches!(
+            fixture.close(&observation),
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+    }
 }
