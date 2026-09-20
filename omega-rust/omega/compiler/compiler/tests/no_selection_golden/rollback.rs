@@ -81,6 +81,187 @@ fn dead_scalar_project(
     project_dir.join("main.omg")
 }
 
+fn selected_rule_project(
+    project_dir: std::path::PathBuf,
+    application: &str,
+    main_source: &str,
+    optimization: Optimization,
+    select_rule: bool,
+) -> std::path::PathBuf {
+    std::fs::create_dir_all(&project_dir).expect("create the selected-rule project directory");
+    std::fs::write(project_dir.join("main.omg"), main_source)
+        .expect("write the selected-rule project root");
+    let mut build_source = format!(
+        "machine build(builder: &mut Build) {{\n    builder.application(\"{application}\");\n"
+    );
+    build_source.push_str(concat!(
+        "    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n",
+        "    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n",
+        "    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n",
+        "    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n",
+    ));
+    if select_rule {
+        build_source.push_str(&format!(
+            "    builder.optimizations.enable(Optimization::{});\n",
+            optimization.build_case_name()
+        ));
+    }
+    build_source.push_str("}\n");
+    std::fs::write(project_dir.join("build.omg"), build_source)
+        .expect("write the selected-rule build file");
+    project_dir.join("main.omg")
+}
+
+fn assert_selected_rule_rollback_rejoins_ordinary(
+    application: &str,
+    main_source: &str,
+    optimization: Optimization,
+) {
+    for target in HOSTED_NATIVE_TARGETS {
+        let pair_dir = build_dir(&format!("{application}-pair"));
+        let selected_root = selected_rule_project(
+            pair_dir.join("selected"),
+            application,
+            main_source,
+            optimization,
+            true,
+        );
+        let ordinary_root = selected_rule_project(
+            pair_dir.join("ordinary"),
+            application,
+            main_source,
+            optimization,
+            false,
+        );
+        let output_dir = build_dir(target);
+        let report = compiler::compile(request_for(
+            selected_root,
+            target,
+            output_dir.clone(),
+            [optimization],
+        ))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!("selected-rule rollback compilation failed: {diagnostics:#?}")
+        });
+        let receipt = report
+            .optimization_rollback_receipt()
+            .expect("a nonempty rollback request must leave custody");
+        assert_eq!(
+            receipt.build_selected().as_slice(),
+            &[optimization],
+            "{target}"
+        );
+        assert_eq!(
+            receipt.requested_disabled().as_slice(),
+            &[optimization],
+            "{target}"
+        );
+        assert_eq!(
+            receipt.actually_disabled().as_slice(),
+            &[optimization],
+            "{target}"
+        );
+        assert!(receipt.effective().is_empty(), "{target}");
+
+        let rolled_back = report
+            .into_retained_native_artifact()
+            .expect("native compilation must retain its artifact");
+        let ordinary = compile_ordinary_retained_native(ordinary_root, target);
+        assert_eq!(
+            retained_native_snapshot(target, &rolled_back),
+            retained_native_snapshot(target, &ordinary),
+            "{target}"
+        );
+        assert_eq!(
+            rolled_back.semantic_bytes(),
+            ordinary.semantic_bytes(),
+            "{target}"
+        );
+        assert_eq!(
+            rolled_back.proof_bytes(),
+            ordinary.proof_bytes(),
+            "{target}"
+        );
+        assert_eq!(
+            rolled_back.object().text_bytes(),
+            ordinary.object().text_bytes(),
+            "{target}"
+        );
+        assert_eq!(
+            rolled_back.image().output().bytes,
+            ordinary.image().output().bytes,
+            "{target}"
+        );
+        let _ = std::fs::remove_dir_all(output_dir);
+        let _ = std::fs::remove_dir_all(pair_dir);
+    }
+}
+
+#[test]
+fn copy_propagation_rollback_rejoins_exact_ordinary_path_on_every_target() {
+    assert_selected_rule_rollback_rejoins_ordinary(
+        "copy-propagation-rollback",
+        concat!(
+            "data Main { }\n",
+            "machine Main::main(&mut self) {\n",
+            "    let copy_source: i32 = 3;\n",
+            "    let copy_alias: i32 = copy_source;\n",
+            "}\n",
+        ),
+        Optimization::CopyPropagation,
+    );
+}
+
+#[test]
+fn global_value_numbering_rollback_rejoins_exact_ordinary_path_on_every_target() {
+    assert_selected_rule_rollback_rejoins_ordinary(
+        "global-value-numbering-rollback",
+        concat!(
+            "data Main { }\n",
+            "machine Main::main(&mut self) {\n",
+            "    let left: i32 = 2;\n",
+            "    let right: i32 = 3;\n",
+            "    let first_sum: i32 = left + right;\n",
+            "    let second_sum: i32 = left + right;\n",
+            "}\n",
+        ),
+        Optimization::GlobalValueNumbering,
+    );
+}
+
+#[test]
+fn proof_check_elision_rollback_rejoins_exact_ordinary_path_on_every_target() {
+    assert_selected_rule_rollback_rejoins_ordinary(
+        "proof-check-elision-rollback",
+        concat!(
+            "data Main { numerator: u64; quotient: u64; }\n",
+            "machine Main::main(&mut self) {\n",
+            "    self.numerator = 8;\n",
+            "    self.quotient = self.numerator / self.numerator;\n",
+            "}\n",
+        ),
+        Optimization::ProofCheckElision,
+    );
+}
+
+#[test]
+fn sparse_conditional_constant_propagation_rollback_rejoins_exact_ordinary_path_on_every_target() {
+    assert_selected_rule_rollback_rejoins_ordinary(
+        "sparse-conditional-constant-propagation-rollback",
+        concat!(
+            "data Main { }\n",
+            "machine Main::main(&mut self) {\n",
+            "    let probe: i32 = 1;\n",
+            "    transition probe == 1 { true -> done() _ -> halt() }\n",
+            "    state done(&mut self) { }\n",
+            "    state halt(&mut self) { }\n",
+            "}\n",
+        ),
+        Optimization::SparseConditionalConstantPropagation,
+    );
+}
+
 fn compile_ordinary_retained_native(
     root_path: std::path::PathBuf,
     target: &str,
