@@ -9122,7 +9122,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PIPELINE-WRAPPER-OBJECT-ORPHAN claim still holds
   `native-realization/src/optimized_semantic_wrapper_object` + lib.rs +
   tests; claim returned exit 2 on the fenced paths.
-- **PORTABLE-PROCESS-EXIT-OBSERVATION** — mined candidate; verify scope then implement.
+- **PORTABLE-PROCESS-EXIT-OBSERVATION.** Mined candidate; scope verified at
+  9ff8673b31 — re-mines sibling row PROCESS-EXIT-PORTABLE-OBSERVATION
+  (verified at `b28abc01fe`, same surface word-for-word): the
+  portable-observation leg of the Process-exit contract parent — Terminal
+  observations must compare the exact semantic `i32` status and preserve
+  ordered preceding events. Residual primitives open as recorded there:
+  `psi/representations/terminal-psi/terminal_module/control_flow/
+  termination.rs` has no external-completion terminator (8 variants,
+  exhaustive matches repo-wide), and the terminal-codec deliberately
+  writes/rejects the terminal-external group with count zero until the
+  source-to-verifier migration retains the terminal transfer (per its
+  README fence note). The slice is inherently the parent's cross-stage
+  terminator + codec + verifier + interpreter + realization leg — no
+  file-local slice exists; coordinate with the parent owner lane.
 - **PORTABLE-REVIEW-LOCK.** Resolved — scope verified; the portable
   review/acceptance lock contract is already landed end-to-end. The spec's
   portability clauses
