@@ -63,9 +63,8 @@ fn run_stage(stage: &str, artifact_path: &Path, fixture: &str) {
 
 fn produce_portable_terminal_product() {
     let artifact_path = artifact_path();
-    let fixture = pass_canary(
-        &std::env::var(FIXTURE_ENV).expect("portable Terminal fixture selection"),
-    );
+    let fixture =
+        pass_canary(&std::env::var(FIXTURE_ENV).expect("portable Terminal fixture selection"));
     let report = compiler::compile(
         CompileRequest::new(CompilerOptions {
             root_path: fixture.join("main.omg"),
@@ -88,13 +87,54 @@ fn consume_portable_terminal_product() {
     let bytes = fs::read(artifact_path()).expect("read standalone Terminal Psi");
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
         .expect("consumer independently decodes the complete Psi product");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("consumer independently decodes the semantic module");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("decoded module carries its entry machine");
+    let bundle = terminal_codec::decode_proof_bundle(artifact.proof_bytes())
+        .expect("consumer independently decodes the proof bundle");
+    terminal_verifier::verify_module(
+        &module,
+        &bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("consumer's verifier discharges the reconstructed obligations");
+    let validated = terminal_verifier::validate_module(&module).expect("decoded module validates");
+    let reconstructed = terminal_verifier::reconstruct_execution_terminal_obligations(validated)
+        .expect("consumer independently reconstructs the obligation ledger");
+    let fixture = std::env::var(FIXTURE_ENV).expect("portable Terminal fixture selection");
+    if fixture_roster::OBLIGATION_BEARING_RELOAD_CANARIES.contains(&fixture.as_str()) {
+        assert!(
+            !reconstructed.obligations().is_empty(),
+            "reconstructed obligation ledger for {fixture} must not be empty"
+        );
+    }
+    let structural_arguments = entry
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(
+            |(index, parameter)| terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: index as u64 + 1,
+                structural_type: parameter.structural_type,
+                qualifications: parameter.qualifications.clone(),
+                path: Vec::new(),
+            },
+        )
+        .collect::<Vec<_>>();
     drop(artifact);
     let mut authority = RejectUnexpectedEffects;
     let execution = terminal_interpreter::interpret_serialized_terminal_artifact_measured(
         &bytes,
         &proof_admission::AdmissionProfile::default(),
         &[],
-        TerminalStructuralInputs::default(),
+        TerminalStructuralInputs {
+            arguments: &structural_arguments,
+            ..Default::default()
+        },
         &mut authority,
     )
     .expect("second invocation must decode, verify, and interpret standalone Terminal Psi");

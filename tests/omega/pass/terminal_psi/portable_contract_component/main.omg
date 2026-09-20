@@ -16,4 +16,8 @@ terminates;
 machine Main::main(&mut self)
 terminates;
 {
+    let diff: u32 = observed(3u32, 9u32);
+    transition diff == 6u32 { true -> ok() _ -> wrong() }
+    state ok() {}
+    state wrong() {}
 }
