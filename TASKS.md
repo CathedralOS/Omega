@@ -6020,7 +6020,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-CROSS-TARGET-COMPILE-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT** — mined candidate; verify scope then implement.
 - **BENCHMARK-HOST-ROW-MATRIX** — mined candidate; verify scope then implement.
-- **BENCHMARK-LINUX-ARM64-ROW** — mined candidate; verify scope then implement.
 - **BENCHMARK-LINUX-X64-ROW-REFRESH** — mined candidate; verify scope then implement.
 - **BENCHMARK-MACOS-ARM64-ROW** — mined candidate; verify scope then implement.
 - **BENCHMARK-MEASURABLE-SUBJECT-CORPUS** — mined candidate; verify scope then implement.
