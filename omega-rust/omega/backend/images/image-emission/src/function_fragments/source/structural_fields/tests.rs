@@ -601,6 +601,140 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
     }
 }
 
+#[test]
+fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    for scalar in field_types() {
+        let (mut function, mut target) = field_fixture(scalar);
+        let maps_field = StructuralFieldId::new(2).unwrap();
+        let array = StructuralTypeId::new(2).unwrap();
+        let element = StructuralTypeId::new(3).unwrap();
+        let leaf = match &mut function.operations[0] {
+            AbstractOperation::BooleanStructuralField { path, field, .. }
+            | AbstractOperation::IntegerStructuralField { path, field, .. } => {
+                *path = vec![Segment::Field(maps_field), Segment::FixedIndex(1)];
+                *field
+            }
+            _ => unreachable!(),
+        };
+        target.graph.structural_types = vec![
+            terminal_psi::StructuralTypeDeclaration {
+                id: function.structural_parameters[0].structural_type,
+                identity: "Root".into(),
+                shape: terminal_psi::StructuralTypeShape::Record {
+                    fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        id: maps_field,
+                        identity: "maps".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::Structural(array),
+                    }],
+                },
+            },
+            terminal_psi::StructuralTypeDeclaration {
+                id: array,
+                identity: "Maps".into(),
+                shape: terminal_psi::StructuralTypeShape::FixedArray { element, length: 2 },
+            },
+            terminal_psi::StructuralTypeDeclaration {
+                id: element,
+                identity: "Map".into(),
+                shape: terminal_psi::StructuralTypeShape::Record {
+                    fields: vec![terminal_psi::StructuralFieldDeclaration {
+                        id: leaf,
+                        identity: "value".into(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
+                    }],
+                },
+            },
+        ]
+        .into();
+        let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
+            &mut target.graph.blocks[0].operations[0]
+        else {
+            unreachable!()
+        };
+        source.path = vec![
+            StructuralPathSegment::Field("maps".into()),
+            StructuralPathSegment::FixedIndex(1),
+        ];
+        assert!(retained(&function, &function.operations[0], &target));
+        // A differing retained path cannot stand in for the exact literal
+        // element projection, in either segment kind.
+        for path in [
+            Vec::new(),
+            vec![StructuralPathSegment::Field("maps".into())],
+            vec![
+                StructuralPathSegment::Field("maps".into()),
+                StructuralPathSegment::FixedIndex(0),
+            ],
+            vec![
+                StructuralPathSegment::Field("maps".into()),
+                StructuralPathSegment::Field("1".into()),
+            ],
+            vec![StructuralPathSegment::FixedIndex(1)],
+        ] {
+            let mut changed = target.clone();
+            let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
+                &mut changed.graph.blocks[0].operations[0]
+            else {
+                unreachable!()
+            };
+            source.path = path;
+            assert!(!retained(&function, &function.operations[0], &changed));
+        }
+        // Every malformed canonical carrier stays fail-closed: an index
+        // outside the declared extent, a leading or mid-path index, a case
+        // segment, and a field carrier that is not a fixed array.
+        let mut out_of_bounds = function.clone();
+        match &mut out_of_bounds.operations[0] {
+            AbstractOperation::BooleanStructuralField { path, .. }
+            | AbstractOperation::IntegerStructuralField { path, .. } => {
+                *path = vec![Segment::Field(maps_field), Segment::FixedIndex(2)];
+            }
+            _ => unreachable!(),
+        }
+        assert!(!retained(
+            &out_of_bounds,
+            &out_of_bounds.operations[0],
+            &target
+        ));
+        for path in [
+            vec![Segment::FixedIndex(0), Segment::Field(maps_field)],
+            vec![
+                Segment::Field(maps_field),
+                Segment::FixedIndex(0),
+                Segment::Field(maps_field),
+            ],
+            vec![
+                Segment::Field(maps_field),
+                Segment::Case(semantic_vocabulary::StructuralCaseId::new(1).unwrap()),
+            ],
+        ] {
+            let mut invalid = function.clone();
+            match &mut invalid.operations[0] {
+                AbstractOperation::BooleanStructuralField { path: actual, .. }
+                | AbstractOperation::IntegerStructuralField { path: actual, .. } => {
+                    *actual = path;
+                }
+                _ => unreachable!(),
+            }
+            assert!(!retained(&invalid, &invalid.operations[0], &target));
+        }
+        let mut non_array = target.clone();
+        non_array.graph.structural_types.make_mut()[1].shape =
+            terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: leaf,
+                    identity: "value".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
+                }],
+            };
+        assert!(!retained(&function, &function.operations[0], &non_array));
+    }
+}
+
 fn owned_field_fixture(
     scalar_type: ScalarType,
     multiplicity: StructuralMultiplicity,
