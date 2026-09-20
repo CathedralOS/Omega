@@ -25,12 +25,13 @@ pub use native_artifact::{
 };
 pub use physical::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
-    CompilerBuiltinResult, CompilerBuiltinScalarArgument, NativeByteSpan,
-    NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
-    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceGap,
-    NativePhysicalEvidenceGapSubject, NativePhysicalEvidenceParts, NativePhysicalOccurrence,
-    NormalizedForeignCallImportField, NormalizedForeignCallRelocation,
-    NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
-    OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
-    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
+    CompilerBuiltinResult, CompilerBuiltinScalarArgument, DynamicCallDispatch,
+    DynamicCallDispatchParts, NativeByteSpan, NativeCompilerBuiltinCatalogIdentity,
+    NativeOptimizationProjection, NativePhysicalChild, NativePhysicalChildParts,
+    NativePhysicalEvidence, NativePhysicalEvidenceGap, NativePhysicalEvidenceGapSubject,
+    NativePhysicalEvidenceParts, NativePhysicalOccurrence, NormalizedForeignCallImportField,
+    NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
+    NormalizedForeignCallbackRelocations, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
+    PhysicalChildParent, PhysicalRelocationDisposition,
+    ValidatedOptimizedNativePhysicalEvidenceScope,
 };
