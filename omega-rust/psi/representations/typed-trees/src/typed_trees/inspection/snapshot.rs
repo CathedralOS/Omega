@@ -66,6 +66,18 @@ pub struct TypedTreesSnapshot {
     pub evidence_forwardings: Vec<EvidenceForwardingSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub proof_output_calls: Vec<ProofOutputCallSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub service_reaches: Vec<ServiceReachDefinitionSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub authored_service_reach_rows: Vec<AuthoredServiceReachRowSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub machine_specializations: Vec<MachineSpecializationSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub boundary_calling_plans: Vec<BoundaryCallingPlanSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub fused_service_erasures: Vec<FusedServiceErasureSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ranking_expression_custody: Vec<RankingExpressionCustodySnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -212,6 +224,110 @@ pub struct ProofOutputCallSnapshot {
     pub call: ExpressionSnapshot,
 }
 
+/// One flat source coordinate for reach-clause and custody spans.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SourceSpanSnapshot {
+    pub source_id: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+fn source_span_snapshot(span: &source::SourceSpan) -> SourceSpanSnapshot {
+    SourceSpanSnapshot {
+        source_id: span.source_id.0,
+        start: span.span.start,
+        end: span.span.end,
+    }
+}
+
+fn hex_digest(digest: &[u8; 32]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// One interned boundary-service identity with its normalized parent closure.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ServiceReachDefinitionSnapshot {
+    pub id: u32,
+    pub symbol: u32,
+    pub name: String,
+    pub parents: Vec<u32>,
+}
+
+/// One authored `reaches` target: exact boundary-trait identity plus its span.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AuthoredServiceReachTargetSnapshot {
+    pub service: u32,
+    pub span: SourceSpanSnapshot,
+}
+
+/// Provenance custody of one callable's authored `reaches` clauses.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AuthoredServiceReachRowSnapshot {
+    pub owner: u32,
+    pub keyword_spans: Vec<SourceSpanSnapshot>,
+    pub targets: Vec<AuthoredServiceReachTargetSnapshot>,
+    pub installation_bound: bool,
+}
+
+/// The audit identity of one compile-time machine specialization: template,
+/// instance, the canonical argument spellings and identities, and the
+/// commitments the checked-to-terminal consumer replays.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MachineSpecializationSnapshot {
+    pub template: u32,
+    pub instance: u32,
+    pub template_parameter_count: usize,
+    pub type_arguments: Vec<String>,
+    pub const_arguments: Vec<String>,
+    pub type_argument_identities: Vec<String>,
+    pub const_argument_identities: Vec<String>,
+    pub machine_arguments: Vec<u32>,
+    pub conformance_arguments: Vec<u32>,
+    pub inferred_conformance_arguments: Vec<u32>,
+    pub conformance_application_count: usize,
+    pub operator_realization_count: usize,
+    pub normalized_template_identity: String,
+    pub canonical_template_contract_byte_count: usize,
+    pub template_contract_report_fingerprint: u64,
+    pub template_contract_commitment: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accepted_template_commitment: Option<String>,
+    pub machine_argument_contract_report_fingerprints: Vec<u64>,
+    pub machine_argument_contract_commitments: Vec<String>,
+    pub conformance_argument_report_fingerprints: Vec<u64>,
+    pub report_fingerprint: u64,
+    pub commitment: String,
+}
+
+/// The canonical calling-policy identity selected for one boundary trait's
+/// concrete requirement machine.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BoundaryCallingPlanSnapshot {
+    pub boundary_trait: u32,
+    pub boundary_arguments: Vec<TypeReferenceSnapshot>,
+    pub requirement_machine: u32,
+    pub report_fingerprint: u64,
+    pub commitment: String,
+}
+
+/// A compiler-owned authorization to erase one exact routed service carrier.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FusedServiceErasureSnapshot {
+    pub requirement: u32,
+    pub provider_plan_digest: String,
+}
+
+/// The typed-expression handles retained for one machine's private ranking
+/// witness.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RankingExpressionCustodySnapshot {
+    pub machine: u32,
+    pub subjects: Vec<u32>,
+    pub view_arguments: Vec<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rank_range: Option<u32>,
+}
+
 impl TypedTreesSnapshot {
     pub fn from_typed_trees(program: &TypedTrees) -> Self {
         Self {
@@ -323,6 +439,22 @@ impl TypedTreesSnapshot {
                 type_constraint_count: program.type_reference_table.constraint_count(),
                 wire_schema_count: program.wire_schemas.len(),
                 wire_member_count: program.wire_members.len(),
+                service_reach_definition_count: program.service_reaches.definitions().len(),
+                authored_service_reach_row_count: program.authored_service_reach_rows.len(),
+                external_binding_count: program.external_bindings.identities().len(),
+                plan_laid_layout_count: program.plan_laid_layouts.len(),
+                placed_view_plan_count: program.placed_view_plans.len(),
+                wire_placement_count: program.wire_placements.len(),
+                wire_encode_obligation_count: program.wire_encode_obligations.len(),
+                wire_schema_plan_count: program.wire_schema_plans.len(),
+                machine_specialization_count: program.machine_specializations.len(),
+                boundary_calling_plan_count: program.boundary_calling_plans.len(),
+                fused_service_erasure_count: program.fused_service_erasures.len(),
+                open_index_normalization_count: program.open_index_normalizations.len(),
+                evidence_forwarding_count: program.evidence_forwardings.len(),
+                proof_output_call_count: program.proof_output_calls.len(),
+                ranking_expression_custody_count: program.ranking_expression_custody.len(),
+                pending_const_range_endpoint_count: program.pending_const_range_endpoints.len(),
             },
             authored_declaration_selections: program
                 .authored_declaration_selections()
@@ -410,6 +542,143 @@ impl TypedTreesSnapshot {
                         })
                         .collect(),
                     call: expression_snapshot(program, package.call),
+                })
+                .collect(),
+            service_reaches: program
+                .service_reaches
+                .definitions()
+                .iter()
+                .enumerate()
+                .map(|(index, definition)| ServiceReachDefinitionSnapshot {
+                    id: u32::try_from(index + 1).expect("service reach table fits u32"),
+                    symbol: definition.symbol.arena_index(),
+                    name: definition.name.clone(),
+                    parents: definition.parents.iter().map(|parent| parent.0).collect(),
+                })
+                .collect(),
+            authored_service_reach_rows: program
+                .authored_service_reach_rows
+                .iter()
+                .map(|row| AuthoredServiceReachRowSnapshot {
+                    owner: row.owner.arena_index(),
+                    keyword_spans: row
+                        .keyword_source_spans
+                        .iter()
+                        .map(source_span_snapshot)
+                        .collect(),
+                    targets: row
+                        .targets
+                        .iter()
+                        .map(|target| AuthoredServiceReachTargetSnapshot {
+                            service: target.service.arena_index(),
+                            span: source_span_snapshot(&target.source_span),
+                        })
+                        .collect(),
+                    installation_bound: row.installation_bound,
+                })
+                .collect(),
+            machine_specializations: program
+                .machine_specializations
+                .iter()
+                .map(|specialization| MachineSpecializationSnapshot {
+                    template: specialization.template.arena_index(),
+                    instance: specialization.instance.arena_index(),
+                    template_parameter_count: specialization.template_parameters.len(),
+                    type_arguments: specialization.type_arguments.clone(),
+                    const_arguments: specialization.const_arguments.clone(),
+                    type_argument_identities: specialization
+                        .type_argument_identities
+                        .clone(),
+                    const_argument_identities: specialization
+                        .const_argument_identities
+                        .clone(),
+                    machine_arguments: specialization
+                        .machine_arguments
+                        .iter()
+                        .map(|symbol| symbol.arena_index())
+                        .collect(),
+                    conformance_arguments: specialization
+                        .conformance_arguments
+                        .iter()
+                        .map(|symbol| symbol.arena_index())
+                        .collect(),
+                    inferred_conformance_arguments: specialization
+                        .inferred_conformance_arguments
+                        .iter()
+                        .map(|symbol| symbol.arena_index())
+                        .collect(),
+                    conformance_application_count: specialization
+                        .conformance_applications
+                        .len(),
+                    operator_realization_count: specialization.operator_realizations.len(),
+                    normalized_template_identity: specialization
+                        .normalized_template_identity
+                        .clone(),
+                    canonical_template_contract_byte_count: specialization
+                        .canonical_template_contract_bytes
+                        .len(),
+                    template_contract_report_fingerprint: specialization
+                        .template_contract_report_fingerprint,
+                    template_contract_commitment: hex_digest(
+                        &specialization.template_contract_commitment.as_bytes(),
+                    ),
+                    accepted_template_commitment: specialization
+                        .accepted_template_commitment
+                        .clone(),
+                    machine_argument_contract_report_fingerprints: specialization
+                        .machine_argument_contract_report_fingerprints
+                        .clone(),
+                    machine_argument_contract_commitments: specialization
+                        .machine_argument_contract_commitments
+                        .iter()
+                        .map(hex_digest)
+                        .collect(),
+                    conformance_argument_report_fingerprints: specialization
+                        .conformance_argument_report_fingerprints
+                        .clone(),
+                    report_fingerprint: specialization.report_fingerprint,
+                    commitment: hex_digest(&specialization.commitment.as_bytes()),
+                })
+                .collect(),
+            boundary_calling_plans: program
+                .boundary_calling_plans
+                .iter()
+                .map(|plan| BoundaryCallingPlanSnapshot {
+                    boundary_trait: plan.boundary_trait.arena_index(),
+                    boundary_arguments: plan
+                        .boundary_arguments
+                        .iter()
+                        .map(|argument| type_reference_snapshot(program, *argument))
+                        .collect(),
+                    requirement_machine: plan.requirement_machine.arena_index(),
+                    report_fingerprint: plan.report_fingerprint,
+                    commitment: hex_digest(&plan.commitment.as_bytes()),
+                })
+                .collect(),
+            fused_service_erasures: program
+                .fused_service_erasures
+                .iter()
+                .map(|authorization| FusedServiceErasureSnapshot {
+                    requirement: authorization.requirement.arena_index(),
+                    provider_plan_digest: hex_digest(&authorization.provider_plan_digest),
+                })
+                .collect(),
+            ranking_expression_custody: program
+                .ranking_expression_custody
+                .iter()
+                .map(|custody| RankingExpressionCustodySnapshot {
+                    machine: custody.machine.arena_index(),
+                    subjects: custody
+                        .subjects
+                        .iter()
+                        .map(|handle| handle.arena_index())
+                        .collect(),
+                    view_arguments: custody
+                        .view_arguments
+                        .iter()
+                        .map(|handle| handle.arena_index())
+                        .collect(),
+                    rank_range: custody.rank_range.map(|handle| handle.arena_index()),
                 })
                 .collect(),
         }
@@ -500,4 +769,20 @@ pub struct TypedTableSnapshot {
     pub type_constraint_count: usize,
     pub wire_schema_count: usize,
     pub wire_member_count: usize,
+    pub service_reach_definition_count: usize,
+    pub authored_service_reach_row_count: usize,
+    pub external_binding_count: usize,
+    pub plan_laid_layout_count: usize,
+    pub placed_view_plan_count: usize,
+    pub wire_placement_count: usize,
+    pub wire_encode_obligation_count: usize,
+    pub wire_schema_plan_count: usize,
+    pub machine_specialization_count: usize,
+    pub boundary_calling_plan_count: usize,
+    pub fused_service_erasure_count: usize,
+    pub open_index_normalization_count: usize,
+    pub evidence_forwarding_count: usize,
+    pub proof_output_call_count: usize,
+    pub ranking_expression_custody_count: usize,
+    pub pending_const_range_endpoint_count: usize,
 }
