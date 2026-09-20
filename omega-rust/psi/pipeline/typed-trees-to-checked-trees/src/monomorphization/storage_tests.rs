@@ -39,6 +39,47 @@ fn structural_endpoint_arguments_follow_their_machine_declaration_types() {
 }
 
 #[test]
+fn structural_endpoint_arguments_follow_their_data_field_scope() {
+    for declaration in [
+        "data Buffer { length: u64[0..=endpoint<[u8; 7]>()]; }",
+        "data Buffer { values: [u64[0..=endpoint<[u8; 7]>()]; 2]; }",
+        "data Buffer { case Ready(length: u64[0..=endpoint<[u8; 7]>()]); }",
+        "data Buffer<'item> { length: u64[0..=endpoint<[Borrowed<'item>; 1]>()]; }",
+    ] {
+        let mut program = typed(&format!(
+            "data Borrowed<'item> {{ value: &'item u8; }}
+             machine endpoint<T>() -> u64 {{ 7 }} {declaration}"
+        ));
+        crate::specialize_static_machine_calls(&mut program)
+            .unwrap_or_else(|errors| panic!("{declaration}: {errors:?}"));
+        assert!(!program.machine_specializations.is_empty(), "{declaration}");
+    }
+}
+
+#[test]
+fn structural_field_endpoint_cannot_borrow_a_consumers_lifetime_scope() {
+    for field in [
+        "length: u64[0..=endpoint<[Borrowed<'hidden>; 1]>()];",
+        "case Ready(length: u64[0..=endpoint<[Borrowed<'hidden>; 1]>()]);",
+    ] {
+        let mut program = typed(&format!(
+            "data Borrowed<'item> {{ value: &'item u8; }}
+             machine endpoint<T>() -> u64 {{ 7 }}
+             data Buffer {{ {field} }}
+             machine consumer<'hidden>(buffer: Buffer) {{}}"
+        ));
+        let errors = crate::specialize_static_machine_calls(&mut program)
+            .expect_err("a field type cannot borrow the nominal consumer's lifetime");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("undeclared lifetime")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn structural_endpoint_cannot_borrow_another_machine_lifetime_scope() {
     let mut program = typed(
         "data Borrowed<'item> { value: &'item u8; }
