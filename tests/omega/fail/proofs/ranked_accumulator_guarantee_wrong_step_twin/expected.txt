@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit from descend at statement 1: result <= previous; no exact incoming reference origin for previous
+machine `descend` cannot prove ensures contract proof fact `result <= previous` on the transition arm guarded by `n > 0 == true`
