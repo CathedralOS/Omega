@@ -214,8 +214,10 @@ evaluator source/tape identities in `tools/bootstrap/gamma/evaluator_env.sh`.
 No opcode transition moved; `M` remains a flat zeroed array and execution
 stays a function of tape and input alone. Checker-side,
 `implementation/admission/extents.gamma` applies the same 136,314,880-byte
-request bound — the earlier 8,388,608-byte figure predated this ledger's
-selection and refused the recorded request at admission.
+request bound and `implementation/comparison/session.gamma`'s
+`comparison_limit` carries the 67,108,864-unit work counter — the earlier
+8,388,608-byte and 655,360-unit figures predated this ledger's selection
+and refused the recorded request at admission and at session reservation.
 
 Recorded consequences of the larger extents: the exact/adjacent pair
 boundary is no longer executable in gate time, so

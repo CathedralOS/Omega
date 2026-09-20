@@ -23,10 +23,10 @@ implementation bytes.
 
 [`implementation.gamma.sources`](implementation/implementation.gamma.sources)
 is the ordered source authority: repacking it materializes 1,365 lines /
-62,355 bytes, SHA-256
-`2535cd1ab3dd164d8bf5cae152bf141ec2225c8509f4e4695462d809fda27156`.
+62,357 bytes, SHA-256
+`382531b910429c7111c2bc9e7dcce7e96394c45fa0a89b624debd061b69422b2`.
 The manifest itself is 9,046 bytes, SHA-256
-`85f37efbf08aee227f904f90b03c55c46e826add6fd531258011289633a3dcbc`;
+`21ba1a712dd68e3492abb46d435a906fab8bbc49b67557d13910512e2c975f5b`;
 `tools/bootstrap/proofs/sources_env.sh` checks both identities against every
 materialization and `tests/bootstrap/proofs-identity.sh` covers the refusals.
 A digest is an identity check on the member bytes, not a proof of the checker
