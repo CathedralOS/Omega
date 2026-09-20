@@ -61,6 +61,8 @@ pub struct TypedTreesSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub external_bindings: Vec<ExternalBindingSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub authored_declaration_selections: Vec<AuthoredDeclarationSelectionSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub evidence_forwardings: Vec<EvidenceForwardingSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub proof_output_calls: Vec<ProofOutputCallSnapshot>,
@@ -76,6 +78,126 @@ pub struct EvidenceForwardingSnapshot {
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_conformance: Option<u32>,
+}
+
+/// One authored-selection custody row: the opaque occurrence identity checked
+/// facts join through, with its source coordinate, authority class and target.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AuthoredDeclarationSelectionSnapshot {
+    pub occurrence_id: u64,
+    pub source_id: usize,
+    pub source_start: usize,
+    pub source_end: usize,
+    pub exposure: &'static str,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compiler_partition: Option<u64>,
+    pub target: AuthoredDeclarationSelectionTargetSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AuthoredDeclarationSelectionTargetSnapshot {
+    Resolved {
+        selected_symbol: u32,
+    },
+    Intrinsic {
+        intrinsic: &'static str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        detail: Option<String>,
+    },
+    LateBound {
+        binding: &'static str,
+    },
+}
+
+fn authored_declaration_selection_kind_name(
+    kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+) -> &'static str {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionKind as Kind;
+    match kind {
+        Kind::TypeReference => "type_reference",
+        Kind::StaticPathSegment => "static_path_segment",
+        Kind::MemberAccess => "member_access",
+        Kind::StructLiteralType => "struct_literal_type",
+        Kind::StructLiteralCase => "struct_literal_case",
+        Kind::StructLiteralField => "struct_literal_field",
+        Kind::CaseReference => "case_reference",
+        Kind::CaseMembership => "case_membership",
+        Kind::DomainMembership => "domain_membership",
+        Kind::DomainIssuerAuthorization => "domain_issuer_authorization",
+        Kind::Call => "call",
+        Kind::StaticArgument => "static_argument",
+        Kind::Operator => "operator",
+        Kind::Conformance => "conformance",
+    }
+}
+
+fn authored_declaration_selection_late_binding_name(
+    binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+) -> &'static str {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding as Binding;
+    match binding {
+        Binding::CheckedStaticPathSegment => "checked_static_path_segment",
+        Binding::CheckedMember => "checked_member",
+        Binding::CheckedStructLiteralType => "checked_struct_literal_type",
+        Binding::CheckedStructLiteralCase => "checked_struct_literal_case",
+        Binding::CheckedStructLiteralField => "checked_struct_literal_field",
+        Binding::CheckedCaseMembership => "checked_case_membership",
+        Binding::CheckedDomainMembership => "checked_domain_membership",
+        Binding::CheckedCall => "checked_call",
+        Binding::CheckedStaticArgument => "checked_static_argument",
+        Binding::CheckedOperator => "checked_operator",
+        Binding::CheckedConformance => "checked_conformance",
+    }
+}
+
+fn authored_declaration_selection_intrinsic_name(
+    intrinsic: language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic,
+) -> (&'static str, Option<String>) {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+    match intrinsic {
+        Intrinsic::BuiltinOperator => ("builtin_operator", None),
+        Intrinsic::CarryPermission(permission) => {
+            ("carry_permission", Some(format!("{permission:?}")))
+        }
+        Intrinsic::CollectionLength => ("collection_length", None),
+        Intrinsic::CollectionCapacity => ("collection_capacity", None),
+        Intrinsic::CollectionView(operation) => ("collection_view", Some(format!("{operation:?}"))),
+        Intrinsic::ByteSequencePredicate(predicate) => {
+            ("byte_sequence_predicate", Some(format!("{predicate:?}")))
+        }
+        Intrinsic::BuildProviderSelection => ("build_provider_selection", None),
+        Intrinsic::BuildRepresentationSelection => ("build_representation_selection", None),
+        Intrinsic::BuildServiceExclusion => ("build_service_exclusion", None),
+        Intrinsic::BuildOptimizationSelection => ("build_optimization_selection", None),
+        Intrinsic::BuildOptimizationReportRequest => ("build_optimization_report_request", None),
+        Intrinsic::BuildBoundaryAcceptance => ("build_boundary_acceptance", None),
+        Intrinsic::BuildWireCompatibilityRequest => ("build_wire_compatibility_request", None),
+        Intrinsic::BuildIncludedSourceHandoff => ("build_included_source_handoff", None),
+        Intrinsic::BuildLogWriteLine => ("build_log_write_line", None),
+        Intrinsic::WireEncode => ("wire_encode", None),
+        Intrinsic::WireDecode => ("wire_decode", None),
+        Intrinsic::InlineAssemblyOperation => ("inline_assembly_operation", None),
+    }
+}
+
+fn authored_declaration_selection_target_snapshot(
+    target: language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget,
+) -> AuthoredDeclarationSelectionTargetSnapshot {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+    match target {
+        Target::Resolved(selected) => AuthoredDeclarationSelectionTargetSnapshot::Resolved {
+            selected_symbol: selected.selected_symbol().arena_index(),
+        },
+        Target::Intrinsic(intrinsic) => {
+            let (intrinsic, detail) = authored_declaration_selection_intrinsic_name(intrinsic);
+            AuthoredDeclarationSelectionTargetSnapshot::Intrinsic { intrinsic, detail }
+        }
+        Target::LateBound(binding) => AuthoredDeclarationSelectionTargetSnapshot::LateBound {
+            binding: authored_declaration_selection_late_binding_name(binding),
+        },
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -202,6 +324,29 @@ impl TypedTreesSnapshot {
                 wire_schema_count: program.wire_schemas.len(),
                 wire_member_count: program.wire_members.len(),
             },
+            authored_declaration_selections: program
+                .authored_declaration_selections()
+                .iter()
+                .map(|selection| AuthoredDeclarationSelectionSnapshot {
+                    occurrence_id: selection.occurrence_id().ordinal(),
+                    source_id: selection.source_span().source_id.0,
+                    source_start: selection.source_span().span.start,
+                    source_end: selection.source_span().span.end,
+                    exposure: match selection.exposure() {
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation => {
+                            "private_implementation"
+                        }
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface => {
+                            "public_interface"
+                        }
+                    },
+                    kind: authored_declaration_selection_kind_name(selection.kind()),
+                    compiler_partition: selection
+                        .compiler_partition()
+                        .map(|partition| partition.ordinal()),
+                    target: authored_declaration_selection_target_snapshot(selection.target()),
+                })
+                .collect(),
             external_bindings: program
                 .external_bindings
                 .identities()

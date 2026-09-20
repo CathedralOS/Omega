@@ -88,6 +88,63 @@ fn snapshots_measure_root_and_full_table_census() {
 }
 
 #[test]
+fn snapshots_authored_declaration_selection_rows() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+    };
+
+    let mut program = TypedTrees::default();
+    let mut selections =
+        language_semantics::declaration_selection::AuthoredDeclarationSelections::default();
+    selections
+        .record_late_bound(
+            source::SourceSpan::new(source::SourceId(3), source::Span::new(20, 22)),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::MemberAccess,
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedMember,
+        )
+        .expect("late-bound selection records");
+    program.retain_authored_declaration_selections(selections);
+    let span = source::SourceSpan::new(source::SourceId(3), source::Span::new(10, 14));
+    let occurrence = program
+        .record_resolved_authored_declaration_selection_once(
+            span,
+            AuthoredDeclarationSelectionExposure::PublicInterface,
+            AuthoredDeclarationSelectionKind::Call,
+            symbols::SymbolHandle::from_arena_index(51),
+        )
+        .expect("resolved selection records");
+
+    let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
+
+    let [late_bound, resolved] = snapshot.authored_declaration_selections.as_slice() else {
+        panic!("two selection snapshots")
+    };
+    assert_eq!(resolved.occurrence_id, occurrence.ordinal());
+    assert_eq!(resolved.source_id, 3);
+    assert_eq!(resolved.source_start, 10);
+    assert_eq!(resolved.source_end, 14);
+    assert_eq!(resolved.exposure, "public_interface");
+    assert_eq!(resolved.kind, "call");
+    assert_eq!(resolved.compiler_partition, None);
+    assert_eq!(
+        resolved.target,
+        super::AuthoredDeclarationSelectionTargetSnapshot::Resolved {
+            selected_symbol: 51
+        }
+    );
+    assert_eq!(late_bound.kind, "member_access");
+    assert_eq!(
+        late_bound.target,
+        super::AuthoredDeclarationSelectionTargetSnapshot::LateBound {
+            binding: "checked_member"
+        }
+    );
+    assert_eq!(snapshot.tables.authored_declaration_selection_count, 2);
+    assert!(snapshot.to_json_pretty().is_ok());
+}
+
+#[test]
 fn snapshots_normalized_domain_semantic_roles() {
     let mut program = TypedTrees::default();
     let trait_definition = symbols::SymbolHandle::from_arena_index(25);
