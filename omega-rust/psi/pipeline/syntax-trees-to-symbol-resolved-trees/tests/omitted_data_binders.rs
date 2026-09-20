@@ -382,7 +382,7 @@ fn fixed_array_equation_never_reads_a_root_constant_for_a_module_length() {
     assert!(
         errors
             .iter()
-            .any(|error| error.message.contains("module constant `Count`")),
+            .any(|error| error.message.contains("conflicting fixed-array lengths")),
         "{errors:?}"
     );
 }

@@ -1,4 +1,4 @@
-//! Nominal equations recover arguments by declaration, not layout or spelling.
+//! Structural equations recover arguments by declaration, not layout or spelling.
 
 use compiler::{CheckedCompilation, CheckedCompileRequest, compile_to_checked};
 use diagnostics::Diagnostic;
@@ -126,6 +126,10 @@ fn rejects(sources: &[(&str, &str)], fragment: &str) {
 #[test]
 fn declared_application_recovers_element_and_capacity_natively() {
     let artifact = executes(&[("main.omg", SOURCE)]);
+    assert_native_seven(&artifact);
+}
+
+fn assert_native_seven(artifact: &terminal_codec::CanonicalTerminalArtifact) {
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
     let optimized = native_realization::optimize_artifact_sections(
         artifact.semantic_bytes(),
@@ -174,6 +178,122 @@ fn declared_application_recovers_element_and_capacity_natively() {
         all(target_os = "macos", target_arch = "aarch64")
     )))]
     eprintln!("SKIP: native application execution requires a supported Linux or macOS host");
+}
+
+#[test]
+fn module_owned_array_equation_uses_its_declaring_constant_natively() {
+    let layout = r#"
+module layout;
+const Count: u64 = 7;
+pub machine width<Backing, Element>() -> u64
+where Backing == [Element; Count]
+{ Count }
+"#;
+    let main =
+        "use layout; const Count: u64 = 4; machine recovered() -> u64 { layout::width<[u8; 7]>() }";
+    let artifact = executes(&[("main.omg", main), ("layout.omg", layout)]);
+    assert_native_seven(&artifact);
+    let reverse = layout.replace("width<Backing, Element>", "width<Element, Backing>");
+    drop(executes(&[
+        ("main.omg", &main.replace("width<[u8; 7]>()", "width<u8>()")),
+        ("layout.omg", &reverse),
+    ]));
+    rejects(
+        &[
+            (
+                "main.omg",
+                &main.replace("width<[u8; 7]>()", "width<[u8; 4]>()"),
+            ),
+            ("layout.omg", layout),
+        ],
+        "conflicting fixed-array lengths",
+    );
+}
+
+#[test]
+fn module_array_equations_select_imports_without_root_name_fallback() {
+    let main =
+        "use layout; const Count: u64 = 4; machine recovered() -> u64 { layout::width<[u8; 7]>() }";
+    let layout = r#"
+module layout;
+use dimensions::Count;
+pub machine width<Backing, Element>() -> u64
+where Backing == [Element; Count]
+{ 7 }
+"#;
+    let dimensions = "module dimensions; pub const Count: u64 = 7;";
+    drop(executes(&[
+        ("main.omg", main),
+        ("layout.omg", layout),
+        ("dimensions.omg", dimensions),
+    ]));
+    rejects(
+        &[
+            ("main.omg", main),
+            (
+                "layout.omg",
+                &layout.replace(
+                    "use dimensions::Count;",
+                    "use dimensions::Count; use other::Count;",
+                ),
+            ),
+            ("dimensions.omg", dimensions),
+            ("other.omg", "module other; pub const Count: u64 = 7;"),
+        ],
+        "unambiguous selected array length constant",
+    );
+    rejects(
+        &[
+            (
+                "main.omg",
+                &format!("module caller; {}", main.replace("[u8; 7]", "[u8; 4]")),
+            ),
+            (
+                "layout.omg",
+                &layout.replace("use dimensions::Count;", "use dimensions;"),
+            ),
+            ("dimensions.omg", dimensions),
+        ],
+        "unambiguous selected array length constant",
+    );
+}
+
+#[test]
+fn module_array_equations_validate_the_declared_constant_before_using_its_value() {
+    let main = "use layout; machine recovered() -> u64 { layout::width<[u8; 7]>() }";
+    for (declaration, fragment) in [
+        ("const Count: bool = true;", "integer array length constant"),
+        ("const Count: i64 = -1;", "outside the supported extent"),
+        ("const Count: u8 = 256;", "does not fit `u8`"),
+    ] {
+        let layout = format!(
+            "module layout; {declaration} pub machine width<Backing, Element>() -> u64 where Backing == [Element; Count] {{ 7 }}"
+        );
+        rejects(&[("main.omg", main), ("layout.omg", &layout)], fragment);
+    }
+}
+
+#[test]
+fn data_array_equations_check_selected_module_lengths_in_both_directions() {
+    let main = "use layout; const Count: u64 = 4;";
+    let layout = r#"
+module layout;
+const Count: u64 = 7;
+pub data Buffer<Backing, Element> where Backing == [Element; Count] { storage: Backing; }
+pub machine preserve(value: Buffer<[u8; 7]>) -> Buffer<[u8; 7], u8> { value }
+"#;
+    let reverse = layout
+        .replace("Buffer<Backing, Element>", "Buffer<Element, Backing>")
+        .replace("Buffer<[u8; 7]>", "Buffer<u8>")
+        .replace("Buffer<[u8; 7], u8>", "Buffer<u8, [u8; 7]>");
+    for declaration in [layout, &reverse] {
+        let project = Project::new(&[("main.omg", main), ("layout.omg", declaration)]);
+        // Returning the inferred instance as its explicit tuple checks that
+        // both applications selected the same data identity.
+        project
+            .check()
+            .unwrap_or_else(|errors| panic!("{errors:#?}"));
+    }
 }
 
 #[test]

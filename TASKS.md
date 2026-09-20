@@ -3487,9 +3487,8 @@ Owners include
   conflicting explicit binders and calls that keep no canonical range still
   reject. Data equations also decompose nested fixed arrays and construct an
   omitted backing type from bound element/extent arguments
-  (`type_equations/type_structure.rs`). Closed leaves use `ClosedArgumentIdentity`;
-  unresolved module lengths still reject. The
-  `compiler --test array_type_equations` integration target exercises inferred
+  (`type_equations/type_structure.rs`). Closed leaves use `ClosedArgumentIdentity`.
+  The `compiler --test array_type_equations` integration target exercises inferred
   and explicit identity through checking and recovered counts through source-free
   Terminal execution, including reverse construction (macOS ARM64). Templates
   retain array equations in syntax; unspecialized applications cannot discard

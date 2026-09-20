@@ -7,8 +7,11 @@
 //! source of array-length evaluation.
 
 use super::{Binding, Solver, collect_expression_binder_mentions};
-use crate::preparation::generic_data::closed_argument_identity;
+use crate::preparation::generic_data::{
+    canonicalize_selected_declared_const_definition, closed_argument_identity,
+};
 use diagnostics::Diagnostic;
+use language_semantics::const_value::DecodedCanonicalConstValue;
 use numerics::bignum::BigInt;
 use source::SourceSpan;
 use syntax_trees::SyntaxTrees;
@@ -336,6 +339,32 @@ impl Solver<'_, '_> {
                             ));
                         }
                     }
+                } else if let Some(selection) = self.selection {
+                    // The equation belongs to the template's source scope,
+                    // not its caller. Reuse exact declaration selection and
+                    // canonical constant validation before observing a length;
+                    // failed lookup must never fall back to the root-name map.
+                    let definition = selection.select(self.syntax, name)?.ok_or_else(|| {
+                        self.type_structure_error(
+                            "requires an unambiguous selected array length constant",
+                            name.source_span(),
+                        )
+                    })?;
+                    let value = canonicalize_selected_declared_const_definition(
+                        self.syntax,
+                        &definition,
+                        Some(selection),
+                    )
+                    .map_err(|reason| self.type_structure_error(&reason, name.source_span()))?;
+                    let Some(DecodedCanonicalConstValue::Integer { value, .. }) =
+                        value.decode_encoding()
+                    else {
+                        return Err(self.type_structure_error(
+                            "requires an integer array length constant",
+                            name.source_span(),
+                        ));
+                    };
+                    BigInt::from_i128(value)
                 } else {
                     crate::preparation::generic_data::module_constants::reject_module_constant_selection(
                         self.syntax, name.as_str(), name.source_span(),

@@ -748,7 +748,7 @@ impl<'base> ConstantSelection<'base> {
     /// Return exact declaration custody, not a handle from the header table.
     /// No match includes unresolved or ambiguous selection; callers must defer
     /// it to ordinary validation, never fall back to a lexical constant map.
-    pub(super) fn select(
+    pub(crate) fn select(
         &self,
         syntax: &SyntaxTrees,
         name: &Identifier,
