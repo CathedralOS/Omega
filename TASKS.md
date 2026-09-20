@@ -6628,7 +6628,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `ranked_preservation_compares_every_frontier_axis_in_diagnostic_order`.
   Sibling aliases: EDGE-CLEANUP-DIAGNOSTIC-ORDER, EDGE-CLEANUP-ERROR-
   PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER (resolved separately).
-- **BENCHMARK-COMPARISON-OCCURRENCE-GATE** — mined candidate; verify scope then implement.
+- **BENCHMARK-COMPARISON-OCCURRENCE-GATE** — Resolved at `749794ddeb`.
+  The recorded rejection (`Terminal proposal must retain every integer
+  comparison occurrence exactly once`, witnessed at `e48558bd41`) came from a
+  module-wide census counting builtin/generated `std` comparisons against
+  the selected-occurrence roster; `76dc49a99e` rescoped it to the
+  checked-boundary scope in `terminal_product/integer_comparisons.rs`
+  (also witnessed at `f2f39039da` per BENCHMARK-COMPILE-ONLY-ROWS).
+  This leg verified end-to-end on linux_x86_64: `cli_mvp` compiles past
+  the gate and `benchmark.py measure` produced a valid measured row
+  (`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`:
+  compile median 1,681,237 ms, run median 1.94 ms, exit 0 x5,
+  8,192-byte image, `validate` clean).
 - **BENCHMARK-COMPILE-ONLY-ROWS.** Mined candidate. Upstream:
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md) — produce committed
   `tools/benchmark/records/` rows for cross-target compile legs
