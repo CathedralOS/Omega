@@ -195,82 +195,121 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         })
     }
 
+    /// Exact maximum charge for walks beginning at `start_block` that commit
+    /// `end_edge`: operations, each call site's worst admitted callee bound,
+    /// and every crossed edge accrue exactly as the entry bound charges them,
+    /// so an interior conditional or case contributes its maximum arm rather
+    /// than a guessed successor. A walk that leaves the machine through
+    /// another terminal edge never commits `end_edge`; that execution is
+    /// covered by the other edge's own segment certificate. When no walk
+    /// commits the endpoint, the first dead end observed in traversal order
+    /// is the reported displacement.
     fn segment_bound(
         &self,
         start_block: BlockId,
         end_edge: EdgeId,
         memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     ) -> Result<u64, FixedFuelError> {
+        if !self.blocks.contains_key(&start_block) {
+            return Err(FixedFuelError::UnknownBlock(start_block));
+        }
+        let mut active_machines = BTreeSet::from([self.machine.id]);
+        let mut walk = SegmentWalk {
+            end_edge,
+            memoized_machines,
+            active_machines: &mut active_machines,
+            active_blocks: BTreeSet::new(),
+            settled: BTreeMap::new(),
+            first_dead_end: None,
+        };
+        match self.block_to_edge_bound(start_block, &mut walk)? {
+            Some(units) => Ok(units),
+            None => Err(walk
+                .first_dead_end
+                .unwrap_or(FixedFuelError::NoTerminalPath(self.machine.id))),
+        }
+    }
+
+    /// Maximum charge from the top of `current` until `end_edge` commits, or
+    /// `None` when no walk from `current` takes that edge. Acyclic branching
+    /// merges arms as a maximum; a block whose successors' walks are all dead
+    /// ends settles as `None` so a reconverging sibling reads it directly.
+    fn block_to_edge_bound(
+        &self,
+        current: BlockId,
+        walk: &mut SegmentWalk<'_>,
+    ) -> Result<Option<u64>, FixedFuelError> {
+        if let Some(bound) = walk.settled.get(&current) {
+            return Ok(*bound);
+        }
+        if !walk.active_blocks.insert(current) {
+            return Err(FixedFuelError::ControlCycle(current));
+        }
         let machine = self.machine;
-        let blocks = &self.blocks;
         let machines = &self.subject.machines;
         let dynamic_call_targets = &self.subject.dynamic_call_targets;
         let provider_candidates = &self.subject.provider_candidates;
         let schedule = TerminalFuelSchedule::CURRENT;
-        let mut active_machines = BTreeSet::from([machine.id]);
-        if !blocks.contains_key(&start_block) {
-            return Err(FixedFuelError::UnknownBlock(start_block));
-        }
-        let mut visited = BTreeSet::new();
-        let mut current = start_block;
+        let block = self
+            .blocks
+            .get(&current)
+            .copied()
+            .ok_or(FixedFuelError::UnknownBlock(current))?;
         let mut units = 0_u64;
-
-        loop {
-            if !visited.insert(current) {
-                return Err(FixedFuelError::ControlCycle(current));
-            }
-            let block = blocks
-                .get(&current)
-                .copied()
-                .ok_or(FixedFuelError::UnknownBlock(current))?;
-            for operation in &block.operations {
-                units = units
-                    .checked_add(schedule.operation_units(&operation.kind))
-                    .ok_or(FixedFuelError::BoundOverflow)?;
-                let callees = operation_callees(
-                    machine.id,
-                    operation,
-                    dynamic_call_targets,
-                    provider_candidates,
-                )?;
-                if !callees.is_empty() {
-                    // Mutually exclusive dispatch targets: the segment's call
-                    // charge is the maximum normal-return bound across the
-                    // candidates an admitted dispatch could select.
-                    let mut invoked_returned = None;
-                    for &callee in &callees {
-                        let callee_bounds = maximum_machine_outcomes(
-                            callee,
-                            machines,
-                            dynamic_call_targets,
-                            provider_candidates,
-                            schedule,
-                            memoized_machines,
-                            &mut active_machines,
-                        )?;
-                        invoked_returned =
-                            maximum_optional(invoked_returned, callee_bounds.returned);
-                    }
-                    units = units
-                        .checked_add(invoked_returned.ok_or(
-                            FixedFuelError::SegmentEndUnreachableAfterCall {
-                                block: current,
-                                callee: callees[0],
-                            },
-                        )?)
-                        .ok_or(FixedFuelError::BoundOverflow)?;
-                }
-            }
+        for operation in &block.operations {
             units = units
-                .checked_add(schedule.terminator_units(&block.terminator))
+                .checked_add(schedule.operation_units(&operation.kind))
                 .ok_or(FixedFuelError::BoundOverflow)?;
-            if block.terminator.edges().any(|edge| edge == end_edge) {
-                // The charged end edge commits before any nominal cleanup
-                // machines it suspends into; those run as ordinary in-module
-                // work inside this segment, so the bound composes them in
-                // order exactly like the entry bound does. Other terminators
-                // invoke no cleanup machines and return `units` unchanged.
-                return compose_cleanup_outcomes(
+            let callees = operation_callees(
+                machine.id,
+                operation,
+                dynamic_call_targets,
+                provider_candidates,
+            )?;
+            if !callees.is_empty() {
+                // Mutually exclusive dispatch targets: the segment's call
+                // charge is the maximum normal-return bound across the
+                // candidates an admitted dispatch could select.
+                let mut invoked_returned = None;
+                for &callee in &callees {
+                    let callee_bounds = maximum_machine_outcomes(
+                        callee,
+                        machines,
+                        dynamic_call_targets,
+                        provider_candidates,
+                        schedule,
+                        walk.memoized_machines,
+                        walk.active_machines,
+                    )?;
+                    invoked_returned = maximum_optional(invoked_returned, callee_bounds.returned);
+                }
+                let Some(invoked) = invoked_returned else {
+                    // No admitted dispatch target returns normally, so a walk
+                    // through this call can never commit the endpoint.
+                    walk.remember_dead_end(FixedFuelError::SegmentEndUnreachableAfterCall {
+                        block: current,
+                        callee: callees[0],
+                    });
+                    walk.active_blocks.remove(&current);
+                    walk.settled.insert(current, None);
+                    return Ok(None);
+                };
+                units = units
+                    .checked_add(invoked)
+                    .ok_or(FixedFuelError::BoundOverflow)?;
+            }
+        }
+        units = units
+            .checked_add(schedule.terminator_units(&block.terminator))
+            .ok_or(FixedFuelError::BoundOverflow)?;
+        let bound = if block.terminator.edges().any(|edge| edge == walk.end_edge) {
+            // The charged end edge commits before any nominal cleanup
+            // machines it suspends into; those run as ordinary in-module
+            // work inside this segment, so the bound composes them in
+            // order exactly like the entry bound does. Other terminators
+            // invoke no cleanup machines and return `units` unchanged.
+            Some(
+                compose_cleanup_outcomes(
                     terminator_cleanup_machines(&block.terminator),
                     OutcomeBounds {
                         returned: Some(units),
@@ -280,54 +319,74 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                     dynamic_call_targets,
                     provider_candidates,
                     schedule,
-                    memoized_machines,
-                    &mut active_machines,
+                    walk.memoized_machines,
+                    walk.active_machines,
                 )?
                 .maximum()
-                .ok_or(FixedFuelError::NoTerminalPath(machine.id));
-            }
-            match block.terminator {
-                Terminator::Jump { target, .. } => current = target,
-                Terminator::Conditional { .. } | Terminator::StructuralCase { .. } => {
-                    return Err(FixedFuelError::BranchingNotYetSupported(current));
+                .ok_or(FixedFuelError::NoTerminalPath(machine.id))?,
+            )
+        } else {
+            let successor = match &block.terminator {
+                Terminator::Jump { target, .. } => self.block_to_edge_bound(*target, walk)?,
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => maximum_optional(
+                    self.block_to_edge_bound(when_true.target, walk)?,
+                    self.block_to_edge_bound(when_false.target, walk)?,
+                ),
+                Terminator::StructuralCase { cases, .. } => {
+                    let mut bound = None;
+                    for case in cases {
+                        bound =
+                            maximum_optional(bound, self.block_to_edge_bound(case.target, walk)?);
+                    }
+                    bound
                 }
-                Terminator::Return { edge, .. } => {
-                    return Err(FixedFuelError::SegmentEndNotReached {
-                        requested: end_edge,
-                        reached_terminal: edge,
+                Terminator::Return { edge, .. }
+                | Terminator::ReturnUnit { edge, .. }
+                | Terminator::ReturnUnitPartialAffine { edge, .. }
+                | Terminator::ReturnUnitNominalAffine { edge, .. }
+                | Terminator::ReturnStructural { edge, .. }
+                | Terminator::Crash { edge, .. } => {
+                    walk.remember_dead_end(FixedFuelError::SegmentEndNotReached {
+                        requested: walk.end_edge,
+                        reached_terminal: *edge,
                     });
+                    None
                 }
-                Terminator::ReturnUnit { edge, .. } => {
-                    return Err(FixedFuelError::SegmentEndNotReached {
-                        requested: end_edge,
-                        reached_terminal: edge,
-                    });
-                }
-                Terminator::ReturnUnitPartialAffine { edge, .. } => {
-                    return Err(FixedFuelError::SegmentEndNotReached {
-                        requested: end_edge,
-                        reached_terminal: edge,
-                    });
-                }
-                Terminator::ReturnUnitNominalAffine { edge, .. } => {
-                    return Err(FixedFuelError::SegmentEndNotReached {
-                        requested: end_edge,
-                        reached_terminal: edge,
-                    });
-                }
-                Terminator::ReturnStructural { edge, .. } => {
-                    return Err(FixedFuelError::SegmentEndNotReached {
-                        requested: end_edge,
-                        reached_terminal: edge,
-                    });
-                }
-                Terminator::Crash { edge, .. } => {
-                    return Err(FixedFuelError::SegmentEndNotReached {
-                        requested: end_edge,
-                        reached_terminal: edge,
-                    });
-                }
-            }
+            };
+            successor
+                .map(|tail| units.checked_add(tail).ok_or(FixedFuelError::BoundOverflow))
+                .transpose()?
+        };
+        walk.active_blocks.remove(&current);
+        walk.settled.insert(current, bound);
+        Ok(bound)
+    }
+}
+
+/// One selected segment's traversal state. `settled` memoizes the suffix
+/// bound per block — with the endpoint fixed for the walk, the maximum charge
+/// from a block to committing `end_edge` is path-independent, so reconverging
+/// arms share it. `active_blocks` is the depth-first stack: a revisit is a
+/// real cycle, while a diamond simply reads the settled suffix. The first
+/// dead end encountered is retained so a wholly unreachable request still
+/// reports the terminal edge or all-crash call that displaced the endpoint.
+struct SegmentWalk<'a> {
+    end_edge: EdgeId,
+    memoized_machines: &'a mut BTreeMap<MachineId, OutcomeBounds>,
+    active_machines: &'a mut BTreeSet<MachineId>,
+    active_blocks: BTreeSet<BlockId>,
+    settled: BTreeMap<BlockId, Option<u64>>,
+    first_dead_end: Option<FixedFuelError>,
+}
+
+impl SegmentWalk<'_> {
+    fn remember_dead_end(&mut self, dead_end: FixedFuelError) {
+        if self.first_dead_end.is_none() {
+            self.first_dead_end = Some(dead_end);
         }
     }
 }

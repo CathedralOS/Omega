@@ -68,10 +68,11 @@ fn segment_row_comparison_binds_every_identity_endpoint_and_ceiling() {
 }
 
 mod machine_bounds {
+    use super::super::segment_partition::{PreparedFuelModule, PreparedSegments};
     use super::super::{
-        derive_fixed_segment_fuel, derive_maximum_entry_bound,
+        derive_fixed_safe_point_segments, derive_fixed_segment_fuel, derive_maximum_entry_bound,
         derive_validated_fixed_safe_point_segments, retain_validated_fixed_safe_point_segments,
-        validate_retained_fixed_safe_point_segments,
+        validate_fixed_segment_fuel, validate_retained_fixed_safe_point_segments,
     };
     use super::{
         BlockId, EdgeId, FixedFuelError, FuelScheduleIdentity, OperationKind, Proposition,
@@ -81,6 +82,7 @@ mod machine_bounds {
     use semantic_vocabulary::{
         ContractId, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
     };
+    use std::collections::BTreeMap;
     use terminal_psi::{
         Block, MachineContract, Operation, OperationResult, ProviderCandidateConformance,
         ProviderRefinement, ProviderSignature, TerminalBlockNaturalRank,
@@ -300,6 +302,19 @@ mod machine_bounds {
             kind: OperationKind::IntegerConstant {
                 value: IntegerValue::Unsigned(u128::from(value)),
             },
+        }
+    }
+
+    fn boolean_constant(operation_id: u64, result: u64, value: bool) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            id: id(operation_id),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id(result),
+                scalar_type: ScalarType::Boolean,
+                qualifications: Default::default(),
+            }),
+            kind: OperationKind::BooleanConstant { value },
         }
     }
 
@@ -839,6 +854,191 @@ mod machine_bounds {
             derive_maximum_entry_bound(&module, id(1)),
             Err(FixedFuelError::InvocationBoundCallee { .. })
         ));
+    }
+
+    /// A multi-block segment whose interior crosses a conditional needs no
+    /// successor selection: the bound is the maximum charge over the arms
+    /// that can commit the endpoint, matching the entry bound's rule.
+    #[test]
+    fn segment_bound_crosses_a_conditional_at_the_maximum_arm() {
+        // 1: [bconst] cond -> 2 | 3; 2: [iconst] jump -> 4; 3: jump -> 4;
+        // 4: return edge 40.
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, vec![integer_constant(12, 13, 0)], jump(20, 4)),
+                block(3, Vec::new(), jump(21, 4)),
+                block(4, Vec::new(), return_unit(40)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("diamond machine verifies");
+
+        let certificate = derive_fixed_segment_fuel(&verified, id(1), id(1), id(40))
+            .expect("a conditional interior composes the maximum arm");
+        // bconst 1 + cond edge 1 + max(arm 2: iconst+jump 2, arm 3: jump 1)
+        // + return edge 1 = 5.
+        assert_eq!(certificate.ceiling_units, 5);
+        validate_fixed_segment_fuel(&verified, &certificate)
+            .expect("independent replay reaches the same bound");
+    }
+
+    /// An arm that leaves the machine without committing the endpoint does
+    /// not bound this segment: that execution is covered by its own terminal
+    /// edge's certificate, so this bound follows the reaching arm alone.
+    #[test]
+    fn segment_bound_excludes_arms_that_never_commit_the_endpoint() {
+        // 1: [bconst] cond -> 2 | 3; 2: jump -> 4; 3: return edge 30;
+        // 4: return edge 40.
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, Vec::new(), jump(20, 4)),
+                block(3, Vec::new(), return_unit(30)),
+                block(4, Vec::new(), return_unit(40)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("early-return arm machine verifies");
+
+        let certificate = derive_fixed_segment_fuel(&verified, id(1), id(1), id(40))
+            .expect("the reaching arm still bounds the segment");
+        // bconst 1 + cond edge 1 + arm 2 (jump 1 + return edge 1) = 4;
+        // arm 3 returns through edge 30 and never commits edge 40.
+        assert_eq!(certificate.ceiling_units, 4);
+    }
+
+    /// When no walk commits the endpoint, derivation reports the first
+    /// terminal edge reached in traversal order — the same displacement the
+    /// linear walk reported before arms existed.
+    #[test]
+    fn segment_with_no_reaching_walk_reports_the_first_terminal() {
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, Vec::new(), return_unit(20)),
+                block(3, Vec::new(), return_unit(30)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("two-return machine verifies");
+
+        assert_eq!(
+            derive_fixed_segment_fuel(&verified, id(1), id(1), id(99)),
+            Err(FixedFuelError::SegmentEndNotReached {
+                requested: id(99),
+                reached_terminal: id(20),
+            })
+        );
+    }
+
+    /// An arm looping back into the walk is a real cycle, not a bounded
+    /// segment; derivation still fails closed rather than overcounting
+    /// iterations. Uses the internal surface because an unranked cycle never
+    /// reaches verification.
+    #[test]
+    fn segment_interior_cycle_reports_control_cycle() {
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, Vec::new(), jump(20, 1)),
+                block(3, Vec::new(), jump(21, 4)),
+                block(4, Vec::new(), return_unit(40)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared.segment_certificate(id(1), id(40), &mut BTreeMap::new()),
+            Err(FixedFuelError::ControlCycle(id(1)))
+        );
+    }
+
+    /// The safe-point catalog is unchanged by interior traversal: it still
+    /// emits one row per reachable block terminator edge, in canonical order.
+    #[test]
+    fn branched_catalog_still_partitions_at_every_reachable_edge() {
+        let walker = machine(
+            1,
+            1,
+            vec![
+                block(
+                    1,
+                    vec![boolean_constant(8, 9_000, true)],
+                    conditional(10, 2, 11, 3),
+                ),
+                block(2, vec![integer_constant(12, 13, 0)], jump(20, 4)),
+                block(3, Vec::new(), jump(21, 4)),
+                block(4, Vec::new(), return_unit(40)),
+            ],
+            None,
+        );
+        let module = module(1, vec![walker]);
+        let verified = terminal_verifier::verify_module(
+            &module,
+            &terminal_verifier::ProofBundle::default(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("diamond machine verifies");
+
+        let rows = derive_fixed_safe_point_segments(&verified, id(1))
+            .expect("complete catalog derives over a diamond");
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.start_block, row.end_edge, row.ceiling_units))
+                .collect::<Vec<_>>(),
+            vec![
+                (id(1), id(10), 2),
+                (id(1), id(11), 2),
+                (id(2), id(20), 2),
+                (id(3), id(21), 1),
+                (id(4), id(40), 1),
+            ]
+        );
     }
 
     /// A `StructuralCase` member's multi-way branch amplifies inside the
