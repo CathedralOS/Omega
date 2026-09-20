@@ -6376,7 +6376,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS** — mined candidate; verify scope then implement.
 - **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT** — mined candidate; verify scope then implement.
 - **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT** — mined candidate; verify scope then implement.
-- **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT** — mined candidate; verify scope then implement.
+- **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT** — mined candidate; scope verified
+  2026-09-20 (z105): re-mines the `control_flow/runtime_{integer,string}
+  _literal_dispatch_exit` pair in the known-baseline-failures InvalidUnitMachinePlan
+  family ([wiki/drafts/known_baseline_failures.md](wiki/drafts/known_baseline_failures.md):150).
+  The recorded attribution is stale — on `fcfb576fe9` both fixtures still fail
+  `pass_canaries_compile` but at a different stage: `selected ProgramEntry
+  establishment rejoins 0 Terminal attachment identities; expected one` from
+  `selected-dispatch/src/service_custody/root.rs` — neither `machines` nor
+  `composed_machines` in `terminal_unit_effects` carries an
+  attachment_type_identity for the bound (Main::main, entry state). Both
+  fixtures bind all four hosted ProgramEntry roots and pass the Fused-provider
+  prerequisite, so the moved failure is now the unit-effects plan emitting no
+  attachment identity for a literal-dispatch machine — the producing surfaces
+  (`typed-trees-to-checked-trees/src/execution/unit/*`,
+  terminal-production receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's
+  unit-plan lane and ENTRY-CONTENT-ROOTS' live claim (00:00Z). Sibling
+  family members are individually claimed this wave (CANARY-WIRE-EXACT-
+  ARRAY-WITHOUT-COUNT-EXIT 00:33Z, CANARY-ACQUIRES-THROUGH-HELPER-RETURN
+  23:30Z); the baseline doc entry needs its refresh when the family
+  attribution settles.
 - **CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT** — mined candidate; verify scope then implement.
 - **CANDIDATE-REVALIDATION-AT-SEARCH-SCALE** — mined candidate; verify scope then implement.
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
