@@ -149,7 +149,7 @@ impl CompileReport {
         }
     }
 
-    /// Publish artifact-only files or companions after native publication.
+    /// Publish artifact-only files or companions after primary product publication.
     /// Artifact-only builds need no executable entry or target code emission.
     pub fn publish_completed_build_outputs(
         mut self,
@@ -1019,8 +1019,11 @@ impl CompileReport {
                     && self.package_publication.is_none()
             }
             CompileOutputKind::TerminalArtifact => {
-                !self.wrote_output
-                    && self.retained_native_artifact.is_none()
+                // Terminal publication retains the canonical artifact in this
+                // same product kind. Both the unpublished and published states
+                // have custody. `wrote_output` controls publication order and
+                // prevents publishing the primary twice.
+                self.retained_native_artifact.is_none()
                     && self
                         .artifact
                         .as_ref()

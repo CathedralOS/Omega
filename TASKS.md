@@ -569,11 +569,10 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     through final completed-file publication. Preserve the ordinary artifact-only
     and native-companion routes in `omega/tests/completed_build_outputs.rs`,
     including check-only nonpublication, unchanged lock acceptance, and later
-    build failure. Add a post-build product-check failure control and two
+    build failure. Preserve the Terminal companion and post-build product-check
+    failure controls in `compiler/tests/build_snapshot_outputs.rs`. Exercise two
     occurrences using identical logical output names; neither may publish
-    another occurrence's bytes or a partially successful set. Terminal-only
-    publication also needs consistent post-publication report custody before
-    it can publish completed-file companions.
+    another occurrence's bytes or a partially successful set.
   - Complete host-backed capture/staging assurance and Windows execution
     coverage. Mutable-root copies in
     `packages/sources/acquisition/src/tree/filesystem.rs` now check the retained
