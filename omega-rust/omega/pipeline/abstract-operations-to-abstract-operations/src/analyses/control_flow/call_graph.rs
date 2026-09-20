@@ -1,9 +1,10 @@
-//! Direct call graph, recursion, and call-component construction.
+//! Machine transition graph, recursion, and call-component construction.
 
 use std::collections::BTreeMap;
 
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationUnit;
+use terminal_psi::TerminalAffineCleanupAction;
 
 use super::{CallGraphAnalysis, components::strongly_connected_components};
 
@@ -61,6 +62,20 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                 | O::CallDynamicUnit {
                     dynamic_dispatch, ..
                 } => callees.push(dynamic_dispatch.dispatch.realization),
+                O::CallStoredDynamicScalar {
+                    dynamic_dispatch, ..
+                } => callees.push(dynamic_dispatch.dispatch.realization),
+                O::Return {
+                    cleanup_actions, ..
+                }
+                | O::ReturnUnit {
+                    cleanup_actions, ..
+                } => callees.extend(cleanup_actions.iter().filter_map(|action| match action {
+                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                        Some(cleanup.cleanup_machine)
+                    }
+                    _ => None,
+                })),
                 _ => {}
             }
         }

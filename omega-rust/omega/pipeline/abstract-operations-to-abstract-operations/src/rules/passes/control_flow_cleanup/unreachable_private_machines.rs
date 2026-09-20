@@ -2,7 +2,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -13,7 +12,6 @@ use optimization_unit::{
     UnreachablePrivateMachinesRewrite,
 };
 use semantic_vocabulary::MachineId;
-use terminal_psi::TerminalAffineCleanupAction;
 
 use crate::{
     AnalysisProduct, CallGraphAnalysis, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -129,38 +127,11 @@ pub(in crate::rules::passes) fn rule_unreachable_private_machine_complement(
             .filter(|function| function.attachment.is_some())
             .map(|function| function.machine),
     );
-    let mut references = call_graph
+    let references = call_graph
         .callees
         .iter()
         .map(|(machine, callees)| (*machine, callees.iter().copied().collect::<BTreeSet<_>>()))
         .collect::<BTreeMap<_, _>>();
-    for function in &unit.functions {
-        let function_references = references.entry(function.machine).or_default();
-        for operation in function
-            .blocks
-            .iter()
-            .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
-        {
-            match operation {
-                O::Return {
-                    cleanup_actions, ..
-                }
-                | O::ReturnUnit {
-                    cleanup_actions, ..
-                } => {
-                    function_references.extend(cleanup_actions.iter().filter_map(|action| {
-                        match action {
-                            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                                Some(cleanup.cleanup_machine)
-                            }
-                            _ => None,
-                        }
-                    }));
-                }
-                _ => {}
-            }
-        }
-    }
     let mut work = reachable.iter().copied().collect::<Vec<_>>();
     while let Some(machine) = work.pop() {
         for callee in references.get(&machine).into_iter().flatten().copied() {
