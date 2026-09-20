@@ -8,9 +8,22 @@ assumption, or trusted bridge** — measured over identical pinned positive and
 negative proof cases.
 
 The record has two route columns. `route.current` is measured every run;
-`route.matching_logic_encoding` stays `pending` until the bounded slice under
-`tools/matching-logic-slice` exists — the comparison keeps honest about which
-side is measured and which is awaited.
+`route.matching_logic_encoding` is measured when the bounded slice under
+`tools/matching-logic-slice` exists, and stays `pending` on checkouts where
+it does not — the comparison keeps honest about which side is measured and
+which is awaited.
+
+When present, the encoding route's columns are:
+
+| Axis | Measured surface |
+|---|---|
+| `checker` | `tools/matching-logic-slice` — the bounded-slice certificate checker |
+| `translation` | `tools/matching-logic-sort-encoding` — the typed-to-one-sorted clause emitter |
+| `trusted_derivation` | empty inventory with a note: no derivation outside the checker decides a leg; the remaining floor is the host `python3` runtime |
+| `theory` | `rule_inventory.checkerRules` from the slice record, `rule_inventory.encodingClauses` summed over the sort-encoding corpus, and per-case clause/diagnostic rows |
+| `certificate` | summed `certificate_bytes` reported by the slice checker over its pinned cases |
+| `cases` | the slice checker's pinned corpus — verdict, `expect` polarity, per-run wall and in-checker elapsed time, admissions count |
+| `check_time_ms` | median in-checker `elapsed_ms` and subprocess wall time per case |
 
 ## Axes and what they count
 

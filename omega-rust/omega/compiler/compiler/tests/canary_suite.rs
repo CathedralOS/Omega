@@ -3720,6 +3720,11 @@ fn native_hosted_target() -> &'static str {
     "macos_arm64"
 }
 
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+fn native_hosted_target() -> &'static str {
+    "macos_x86_64"
+}
+
 fn pending_canary(path: &str) -> PathBuf {
     repo_root().join("tests/omega/pending").join(path)
 }
