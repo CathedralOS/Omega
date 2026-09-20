@@ -327,6 +327,30 @@ fn shared_reference_local_loads_a_helper_returned_leaf() {
     }
 }
 
+/// A `&` binding declared from an indexed carrier leaf resolves the element
+/// the literal index selects: the carrier's own construction supplies each
+/// element's referent.
+#[test]
+fn shared_reference_binding_from_an_indexed_carrier_leaf_derives_the_element_store() {
+    for (index, expected) in [
+        ("0", ("context", &[("Context", "scheduler")][..])),
+        ("1", ("holder", &[("Holder", "view"), ("Context", "scheduler")][..])),
+    ] {
+        let fixture = Fixture::with_machines(
+            &format!(
+                "let boxes: [RefBox; 2] = [RefBox {{ view: &context }}, RefBox {{ view: &holder.view }}]; let borrowed: &Context = boxes[{index}].view;"
+            ),
+            "borrowed.scheduler",
+            &[],
+            "data RefBox { view: &Context; }",
+        );
+        assert_eq!(
+            fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
+            Some(fixture.subject(expected.0, expected.1))
+        );
+    }
+}
+
 /// The binding stays unproven when no exact referent can be named: an
 /// unproven call route into the leaf store, a rebind reached through an
 /// unresolved `&mut` alias, or an indexed carrier load whose segment is
@@ -336,7 +360,7 @@ fn shared_reference_local_from_an_unproven_leaf_store_stays_unproven() {
     for statements in [
         "let mut boxed: RefBox = RefBox { view: &context }; boxed.view = choose(&holder, context, true); let borrowed: &Context = boxed.view;",
         "let mut boxed: RefBox = RefBox { view: &context }; let mb: &mut RefBox = &mut boxed; mb.view = &holder.view; let borrowed: &Context = boxed.view;",
-        "let boxes: [RefBox; 2] = [RefBox { view: &context }, RefBox { view: &holder.view }]; let borrowed: &Context = boxes[0].view;",
+        "let boxes: [RefBox; 2] = [RefBox { view: &context }, RefBox { view: &holder.view }]; let at: usize = slot_index(true); let borrowed: &Context = boxes[at].view;",
         "let boxed: RefBox = RefBox { view: &holder.view }; let borrowed: &Context = choose(&holder, context, true);",
         "let boxed: RefBox = RefBox { view: &holder.view }; let spare: RefBox = RefBox { view: &context }; let borrowed: &Context = pick(&boxed, &spare, true);",
     ] {
@@ -344,7 +368,7 @@ fn shared_reference_local_from_an_unproven_leaf_store_stays_unproven() {
             statements,
             "borrowed.scheduler",
             &[],
-            "data RefBox { view: &Context; } machine choose(former: &Holder, latter: &Context, flag: bool) -> &Context { transition flag { true -> &former.view false -> latter } } machine pick(a: &RefBox, b: &RefBox, flag: bool) -> &Context { transition flag { true -> a.view false -> b.view } }",
+            "data RefBox { view: &Context; } machine choose(former: &Holder, latter: &Context, flag: bool) -> &Context { transition flag { true -> &former.view false -> latter } } machine pick(a: &RefBox, b: &RefBox, flag: bool) -> &Context { transition flag { true -> a.view false -> b.view } } machine slot_index(flag: bool) -> usize { transition flag { true -> 0 false -> 1 } }",
         );
         assert_eq!(
             fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
