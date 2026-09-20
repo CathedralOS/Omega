@@ -52,12 +52,12 @@ pub(super) fn assign_top_level_symbols(
     });
     assign_conformance_parameter_symbols(program, symbols);
     attach_conformance_parameter_scopes(program);
-    let diagnostics = assign_machine_symbols(program, symbols, &mut root_children);
+    let mut diagnostics = assign_machine_symbols(program, symbols, &mut root_children);
     assign_proposition_symbols(program, symbols, &mut root_children);
     assign_mathematical_symbols(program, symbols, &mut root_children);
     assign_root_operator_symbols(program, symbols, &mut root_children);
     measures::assign_measure_symbols(program, symbols, &mut root_children);
-    assign_trait_symbols(program, symbols, &mut root_children);
+    diagnostics.extend(assign_trait_symbols(program, symbols, &mut root_children));
 
     program.wire_schemas.for_each_mut(|wire_schema| {
         if !wire_schema.symbol.is_valid() {
