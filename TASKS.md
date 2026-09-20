@@ -4781,6 +4781,11 @@ Owners include
   `InitialResidency`; and a fence joins no modification order yet disturbs
   none. The admitted-ordering matrix, fence legality, instruction-observed
   priors, and single-attempt custody were already independently rechecked.
+  `atomic_global_order_operations` now pins the matrix width-generically —
+  the AtomicU64 family under GlobalOrder/ReceivePublish and AtomicBool's
+  non-arithmetic load/store pair — plus the remaining legal Publish/Receive
+  and relaxed compare-exchange pairings; arithmetic fetch/swap/exchange
+  carriers stay unadmitted on a two-resident cell.
 
   Remaining work:
 
