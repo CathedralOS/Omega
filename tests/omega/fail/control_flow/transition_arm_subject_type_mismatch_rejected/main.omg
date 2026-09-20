@@ -1,0 +1,16 @@
+// An integer literal arm over a bool subject is a subject/pattern type
+// mismatch; the `_` fallback does not rescue it.
+
+data Main {
+    flag: bool;
+}
+
+machine Main::main(&mut self) {
+    transition self.flag {
+        1 -> a()
+        _ -> done()
+    }
+
+    state a(&mut self) {}
+    state done(&mut self) {}
+}

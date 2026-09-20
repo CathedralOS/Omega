@@ -155,6 +155,15 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         arm_bool_tuples.push(bool_tuple);
     }
 
+    // An empty block lowers to zero statements, so no later stage can tell a
+    // `transition {}` from no transition at all -- refuse it here while the
+    // braces are still visible.
+    if parsed_arms.is_empty() {
+        return Err(input.error_here(
+            "a transition block must carry at least one arm; an empty dispatch can never proceed",
+        ));
+    }
+
     for (name, initial_value) in subject_captures {
         let capture = syntax_trees.statements.insert(StatementNode::LocalData(
             syntax_trees::statement::TableLocalData {

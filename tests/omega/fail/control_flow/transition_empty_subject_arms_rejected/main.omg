@@ -1,0 +1,10 @@
+// A subject-bearing transition with zero arms can never proceed either:
+// matching against `flag` still dispatches on an empty arm set.
+
+data Main {
+    flag: bool;
+}
+
+machine Main::main(&mut self) {
+    transition self.flag { }
+}

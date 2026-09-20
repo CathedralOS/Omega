@@ -1,0 +1,10 @@
+// A transition block with zero arms can never proceed: it lowers to no
+// statements at all, so the dispatch is refused at parse.
+
+data Main {
+    flag: bool;
+}
+
+machine Main::main(&mut self) {
+    transition { }
+}
