@@ -505,7 +505,24 @@ pub(super) fn call_is_exact(
                             && matches!(
                                 argument.access,
                                 StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                            ))
+                            )
+                        // A selected field/index loan can also address the
+                        // backing of an owned parameter. Keep its owned ABI
+                        // home, not a fabricated incoming borrowed pointer.
+                        // This is candidate geometry only: admitted-image
+                        // replay binds the typed path, access and actual
+                        // address instructions. It also keeps inline-byte
+                        // adapters distinct from structural projections.
+                        || source.access == StructuralAccess::Owned
+                            && array_view.is_none()
+                            && !argument.path.is_empty()
+                            && matches!(
+                                argument.access,
+                                StructuralAccess::SharedBorrow
+                                    | StructuralAccess::MutableBorrow
+                                    | StructuralAccess::WriteOnlyBorrow
+                            )
+                            && super::graph_structural::function_is_exact(function, record.target))
                     && u64::from(argument.source_byte_offset)
                         .checked_add(referent_bytes)
                         .is_some_and(|end| end <= u64::from(source.shape.byte_size))
