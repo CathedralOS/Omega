@@ -5873,7 +5873,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BUILD-DEPEND-PURPOSE-AWARE-LOCKS** — mined candidate; verify scope then implement.
 - **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** — mined candidate; verify scope then implement.
 - **BUILD-DIR-ALIAS-RACE-DETECTION** — mined candidate; verify scope then implement.
-- **BUILD-DIR-HOST-ALIAS-COLLISIONS** — mined candidate; verify scope then implement.
+- **BUILD-DIR-HOST-ALIAS-COLLISIONS** — landed. Root-overlap admission now
+  compares spelling-independent keys (`overlap_key` folds `.`/`..`,
+  absolutizes relative spellings, resolves the longest existing prefix
+  through the host's canonical spelling incl. symlinked ancestors), so a
+  `..`/relative/symlinked `snapshot_dir` can no longer alias the source
+  root or build write root past the lexical `starts_with` fence, and
+  `ensure_write_roots` rejects a `--build-dir` that names the source root
+  or one of its ancestors (a covering write root would make read-only
+  sources writable). Nested-inside-source default remains admitted.
+  Residual: named-input snapshot dirs derive from the checked source
+  backing without re-running the fence (a `--build-dir` spelled exactly
+  `<snapshot>.input-N` still aliases that input's read root); race-window
+  aliases (symlink created between admission and first write) remain the
+  sibling BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION scope.
 - **BUILD-DIRECTORY-ALIAS-COLLISION** — mined candidate; verify scope then implement.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE** — mined candidate; verify scope then implement.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate; verify scope then implement.
