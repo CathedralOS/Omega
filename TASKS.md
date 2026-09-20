@@ -8233,7 +8233,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION and
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION name the same surface.
 - **OPTIMIZED-WRAPPER-OBJECT-RELOCATION** — mined candidate; verify scope then implement.
-- **OPTIMIZER-RULE-AXIS-GATE** — mined candidate; verify scope then implement.
+- **OPTIMIZER-RULE-AXIS-GATE.** Scope verified — re-mine of the optimizer
+  board's PER-RULE-COVERAGE axis gate (TASKS_OPTIMIZER.md, "every inventory
+  row and every rewrite reachable from a stage exercises each axis through
+  its stage's public entrance"). The checked per-rule axis table is landed
+  and green: `tests/architecture/optimizer_rollout/coverage.rs` derives the
+  rule set from `Optimization::ALL` and the stage catalogs, reconciles
+  names/phase/applicability/rollback, and fails a row that lacks an axis
+  without a closed absent-reason — re-verified at `8ccd793fa8` on linux
+  x86-64: `cargo nextest run -p omega-architecture-test -E
+  'test(exact_rule_rollout)'` PASS. The residual is the parent's own
+  remaining work — the missing disabled/exact-selection/identity/composition
+  legs through `optimize_selected_instructions` and native-differential for
+  the uncalled `rewrites/` modules, plus the shared rule-fixture matrix
+  harness — and every implementing surface (optimizer_rollout,
+  optimization-core, selected-instructions-to-selected-instructions,
+  tests/native-differential) is under sibling live claims this wave. No
+  independent slice exists here; the row stays a re-mine pointer to
+  PER-RULE-COVERAGE.
 - **ORPHAN-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
