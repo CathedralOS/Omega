@@ -30,12 +30,15 @@ static CURRENT_TRUST_GRAPH: OnceLock<Result<ValidatedTerminalTrustGraph, TrustGr
 const CODEC_SOURCE: &[u8] = include_bytes!("../lib.rs");
 // build.rs folds every Rust source under src/ into this closure, so the
 // canonical-bytes and decoder commitments change when any codec production
-// source changes; no file can join the codec surface unobserved. The named
-// sources below stay bound as the load-bearing entry points.
+// source changes; no file can join the codec surface unobserved. The manifest
+// is bound too, since it is the manifest's [lib]/target paths that keep the
+// compiled surface inside src/. The named sources below stay bound as the
+// load-bearing entry points.
 const CODEC_SOURCE_CLOSURE: &[u8] = include_bytes!(concat!(
     env!("OUT_DIR"),
     "/psi-terminal-codec-source-closure.bin"
 ));
+const CODEC_MANIFEST_SOURCE: &[u8] = include_bytes!("../../Cargo.toml");
 const MACHINE_WIRE_SOURCE: &[u8] = include_bytes!("semantic_module/machine_wire.rs");
 const BLOCK_WIRE_SOURCE: &[u8] = include_bytes!("semantic_module/block_wire.rs");
 const REACH_APPLICATION_WIRE_SOURCE: &[u8] =
@@ -544,6 +547,66 @@ mod tests {
         );
     }
 
+    // The closure covers src/, but only src/: a production source elsewhere in
+    // the crate, or a module-path redirection out of src/, would join the
+    // compiled codec surface without moving the commitment. Sweep the whole
+    // crate directory and require every Rust source to be covered (src/),
+    // bound (build.rs, whose bytes are a bound constant), or test-only
+    // (tests/, reachable solely through the declared `[[test]]` target —
+    // `autotests = false` in the bound manifest means no other path there can
+    // compile into a shipped artifact).
+    #[test]
+    fn codec_inventory_covers_the_whole_crate_directory() {
+        let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut sources = Vec::new();
+        collect_sources(crate_root, crate_root, &mut sources);
+        let mut untracked = Vec::new();
+        for (path, _) in &sources {
+            let path = path.as_str();
+            if path.starts_with("src/") || path == "build.rs" || path.starts_with("tests/") {
+                continue;
+            }
+            untracked.push(path.to_owned());
+        }
+        assert!(
+            untracked.is_empty(),
+            "untracked codec production sources outside the closure: {untracked:?}"
+        );
+    }
+
+    // A module-path attribute or the include macro inside src/ can compile a
+    // file the closure never committed. Neither spelling is used by codec
+    // sources; ban the tokens outright so an escape cannot hide a source from
+    // the commitment. This is a conservative substring tripwire, not a
+    // tokenizer: exotic whitespace spellings still slip past it, and a
+    // comment carrying either token fails and must be reworded.
+    #[test]
+    fn codec_sources_never_escape_the_closure_root() {
+        // Needles are assembled in pieces so this file (which is itself under
+        // src/) does not trip its own scan.
+        let banned = [
+            concat!("#[", "path"),
+            concat!("#[ ", "path"),
+            concat!("#[", "cfg_attr"),
+            concat!("include", "!"),
+            concat!("include ", "!"),
+        ];
+        let crate_src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sources = Vec::new();
+        collect_sources(&crate_src, &crate_src, &mut sources);
+        for (path, bytes) in &sources {
+            let text = std::str::from_utf8(bytes)
+                .unwrap_or_else(|_| panic!("codec source {path} is not UTF-8"));
+            for needle in banned {
+                assert!(
+                    !text.contains(needle),
+                    "codec source {path} contains `{needle}`, which can compile a \
+                     source the closure does not commit"
+                );
+            }
+        }
+    }
+
     #[test]
     fn current_graph_is_closed_canonical_and_explicitly_not_fully_derived() {
         let graph = current_terminal_trust_graph().expect("built-in trust graph validates");
@@ -859,6 +922,7 @@ mod tests {
     fn canonical_bytes_and_decoder_bind_signature_wire_and_declaration_validation() {
         let sources = [
             ("terminal-codec/source-closure", CODEC_SOURCE_CLOSURE),
+            ("terminal-codec/Cargo.toml", super::CODEC_MANIFEST_SOURCE),
             ("terminal-codec/lib.rs", super::CODEC_SOURCE),
             ("terminal-codec/machine_wire.rs", super::MACHINE_WIRE_SOURCE),
             ("terminal-codec/block_wire.rs", super::BLOCK_WIRE_SOURCE),
@@ -911,7 +975,7 @@ mod tests {
                 digest(&without_closure),
                 "dropping the codec source closure must change the commitment"
             );
-            for index in [5, 6] {
+            for index in [1, 6, 7] {
                 let mut substituted = sources;
                 substituted[index].1 = b"different implementation";
                 assert_ne!(node.digest(), digest(&substituted), "{}", sources[index].0);

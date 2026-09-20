@@ -1897,9 +1897,14 @@ Owners include
   verifier as trusted judgments. The codec implementation surface is
   inventoried like the verifier and representation closures:
   `terminal-codec/build.rs` folds every Rust source under its `src/` into
-  `terminal-codec/source-closure`, bound to the canonical-bytes root and the
-  decoder node so an unbound codec source cannot change unobserved
-  (`sections::trust_graph::tests::codec_source_closure_retains_every_source_exactly`).
+  `terminal-codec/source-closure`, bound alongside `terminal-codec/Cargo.toml`
+  (whose `[lib]`/`[[test]]`/`autotests` declarations fix the compiled surface)
+  to the canonical-bytes root and the decoder node so an unbound codec source
+  cannot change unobserved. A crate-directory sweep fails on any production
+  `.rs` outside `src/`, `build.rs`, or the declared `tests/` target, and the
+  module-path and include tokens that could compile a file the closure never
+  committed are banned
+  (`sections::trust_graph::tests::{codec_source_closure_retains_every_source_exactly,codec_inventory_covers_the_whole_crate_directory,codec_sources_never_escape_the_closure_root}`).
 
   Remaining work:
 
