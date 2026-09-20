@@ -1,18 +1,27 @@
 # RC native matrix — linux_x86_64 row
 
 Witnessed row of the release-candidate native matrix on the Linux x86-64
-host. Recorded at revision `0977a4249e` (2026-09-20), host
+host. Recorded at revision `6ef64f6dd6` (2026-09-20), host
 `x86_64-unknown-linux-gnu`, pinned toolchain `nightly-2026-09-04`,
 cargo-nextest (mbx unavailable). Every command below was executed on this
 host at that revision; legs that only cross-emit here are marked.
 
-Verdict: **red** — 24 pass / 14 fail across 38 legs. The
-source_evaluated hosted-receiver pair respelled in this revision window
-now passes (family 1 below is closed), and the sysv fixture respells
-landed with this row collapse every remaining leg onto one residual:
-hosted `ProgramEntry` is the only bindable root slot and admits no
-visible parameters or result, so the param-carrying boundary-machine
-fixtures cannot select an entry at all.
+Verdict: **red** — 24 pass / 14 fail across the 38-leg witness set,
+unchanged from the `0977a4249e` row: all 14 sysv legs still refuse at
+product admission with `native-artifact production requires one exact
+selected program entry` (hosted `ProgramEntry` is the only bindable root
+slot and admits no visible parameters or result). The gate command itself
+additionally fails earlier at this revision: `cargo nextest run -p
+omega-native-differential-test --all-targets` does not compile — the
+`pipeline_ownership` target carries five drift errors: four call sites
+still pass `*.optimized_target()` where `validate_optimized_selection_
+custody` (changed at `83766d57bf6`) now takes the retained
+`&Arc<ValidatedOptimizedTargetOperations>` owner handle
+(`optimized_target_owner()`), and the terminator-corruption match in
+`fixtures/ordinary_graph_controls.rs` misses the `Crash` arm added at
+`bf8769cce13`. That file family sits under the live
+STRUCTURAL-UNIT-CALL-GRAPH-JOINS claim (expires ~2026-09-20T20:13Z), so
+this row records the breakage without repairing it.
 
 ## Baseline gates
 
@@ -59,8 +68,9 @@ The 14 failures now reduce to one recorded residual:
    parameters or a result — the fixtures' whole point. A param/result-
    carrying boundary entry needs a root surface that does not exist yet.
    Owner family: **ENTRY-CONTENT-ROOTS** mechanism work, not fixture
-   spelling. The aarch64 siblings fail identically (11/11 at entry
-   selection), so the boundary-ABI corpus shares this one residual.
+   spelling. The aarch64 siblings no longer fail identically: their
+   fixtures still carry the pre-respell shapes, so they stop at checking
+   (see Row gaps) instead of reaching this residual.
 
    Closed legs since the `e76d715c8e` row:
    - `linux_hosted_receiver::linux_hosted_receiver_{normal_return_
@@ -79,8 +89,23 @@ The 14 failures now reduce to one recorded residual:
 ## Row gaps
 
 - Adjacent entry legs sampled for context and not counted above:
-  `program_entries_and_image_validation` x2 and `aarch64_entry_abi` x11
-  fail with the same entry-selection residual.
+  `program_entries_and_image_validation` now runs 9 pass / 5 fail (the
+  recorded row counted 2 fails); the failures split across three residuals
+  — entry selection (`catalog_checked_assembly`,
+  `structured_machine_control`), terminal-authority custody
+  (`immediate_port_io`, "root-reachable checked physical operation has no
+  selected provider requirement custody"), a missing
+  `05_capability_manifest.json` product
+  (`production_check_accepts_entry_agnostic_semantic_corpus`), and the
+  ProgramEntry attachment-identity rejoin
+  (`migrated_main_entries_are_selected_only_through_their_target_root_
+  bindings`, "rejoins 0 Terminal attachment identities" — the same gap the
+  Squalr `set_alignment` call-site leg is fenced on).
+  `aarch64_entry_abi` is 0/11 but the failure stage moved: the aarch64
+  fixtures were not respelled with the sysv set, so most legs now fail at
+  checking — exact-arithmetic `u64` overflow obligations (decision 17) and
+  borrowed-storage non-copy transfer errors — and only three reach the
+  same entry-selection residual as sysv.
 - `calling_policy_plans` counts include the module's linux_arm64 policy
   legs (host-independent plan evaluation); they are green.
 - Not run: `canary_suite` full corpus (recorded red elsewhere),
