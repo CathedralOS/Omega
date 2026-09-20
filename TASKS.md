@@ -7874,7 +7874,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GEOMETRY-ALIGNMENT-STRING-PARSING** — mined candidate; verify scope then implement.
 - **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
 - **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
-- **GEOMETRY-NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
+- **GEOMETRY-NAMED-TRAIT-OPERATORS.** Resolved — mined stub of the
+  resolved NAMED-TRAIT-OPERATORS surface (which names this row a sibling).
+  Named trait operator requirements are implemented end to end per chapter
+  14: trait-owned fixed token bindings resolve through
+  `authored_selections/operator_targets.rs` +
+  `monomorphization/selected_operator_providers.rs`, token uses consume
+  exactly one proof-static selected conformance, duplicate applicable
+  binders reject, bindings are unique per normalized operand telescope.
+  Re-verified at `9beef2b045` (linux x86-64): all 7
+  `tests/operators/trait_operator_bindings.rs` members pass
+  (`cargo nextest run -p typed-trees-to-checked-trees -E
+  'test(~trait_operator_bindings)'`). The geometry parity sentence this
+  stub was mined from names the same resolved surface; the app's remaining
+  gap is the GEOMETRY-PARITY set_alignment call-site gate, not operators.
+  Sibling stub on the same surface: SQUALR-NAMED-TRAIT-OPERATORS
+  (app-lane delegate).
 - **GEOMETRY-NATIVE.** Mined candidate (split-of:SQUALR-HEADLESS leg 1 /
   app-board GEOMETRY-PARITY, source:
   [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md)). Run the
