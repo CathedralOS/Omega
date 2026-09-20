@@ -15746,6 +15746,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   checked-trees-to-lowered-psi tests (WRITE-ONLY-BORROW family).
 - **SERVICE-ERA-REPLACEMENT-SUBSTRATE** — mined candidate; verify scope then implement.
 - **SHARED-RECEIVER-LOAN-ORIGIN.** Resolved — superseded on `origin/main` (verified e76d715c8e, linux-x86_64). The recorded failure `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence` ("state `code` requires an exact retained loan origin for its shared receiver", baseline row at 63f625f942, macOS arm64) now passes; the whole `package_compilation_inputs` run emits zero "loan origin" diagnostics. Fixed by the retained-lineage/borrow-evidence cluster (f8efecfb76/b336531455/2aba180197 family). Residual: 13 unrelated authority/provider-selection failures in the same target remain red under their own items. Re-verified at `0a0662ad27a` (linux x86-64): `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence` still passes — the resolution is current.
+||||||| parent of a846403760af (board: SHARED-MAPPING-REVOCATION — add missing resolved row)
+- **SHARED-MAPPING-REVOCATION.** Mined candidate — resolved on
+  `origin/main`: re-mines the shared-custody mapping revocation surface in
+  `psi/foundation/extents/src/mapping/mod.rs`, landed at `12e35ef7fdc`
+  ("gate zero-copy access on shared-custody mappings behind peer-write
+  revocation"). Shared-custody mappings cannot expose mutable access
+  (:657) and cannot produce a stable view until a peer-write-revocation
+  receipt completes (:680); `begin_peer_write_revocation` (:696) consumes
+  the mapping into a linear `PendingPeerWriteRevocation` whose completing
+  receipt must bind the exact active mapping, establish the revoked write
+  permission, and carry required invalidation facts (:739-761). Pinned by
+  `mapping/tests.rs`:
+  `shared_mapping_stable_loan_requires_completed_peer_write_revocation`
+  and `peer_write_revocation_receipt_binds_the_exact_mapping`. Per spec,
+  forced revocation is deliberately out of scope — `extents.md:125`
+  requires an explicit fallible provider quiescence/lifecycle protocol,
+  not an implicit mapping property. No independent slice exists.
 - **SHARED-WORD-PREFIX-NATIVE-RUN** — mined candidate; verify scope then implement.
 - **SIGNATURE-FREE-TRAIT-CANDIDATE-SCOPE** — mined candidate; verify scope then implement.
 - **SINGLE-PROGRAM-ENTRY-SELECTION.** Mined candidate; scope verified at
