@@ -2045,7 +2045,13 @@ Owners include
     forces an instance axiom. An open sum over a closed difference
     substitutes a checked numeral-operation equation `add n r = e` —
     interned once per evaluated operand triple — for the applicative
-    cancellation step. An already admitted open expression stays opaque
+    cancellation step. Correlated subtraction lower and upper bounds —
+    `min ≤ l − r` from `e + r ≤ l` and `l − r ≤ max` from `l ≤ e + r` —
+    use two fixed `add`/`sub` adjunction laws; a value root substitutes
+    through its cited definition, a closed sum's numeral substitutes the
+    checked `add e r = n` equation in reverse, and a landed endpoint
+    substitutes through its cited literal equality. An already admitted
+    open expression stays opaque
     if composing a child would introduce a resource refusal. The remaining
     fixed-integer scalar operations — multiply, divide, remainder, bitwise,
     shifts, casts and the value-level integer comparisons — denote one
@@ -2100,8 +2106,9 @@ Owners include
   named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
   transitivity on the denoted crossing, and interns closed mathematical
   terms by exact evaluated value. Subtraction order, the correlated
-  unsigned subtraction lower bound and correlated addition bounds with
-  open right addends use fixed arithmetic laws. Remaining bound-witness forms,
+  unsigned subtraction lower bound, correlated addition bounds with
+  open right addends and correlated subtraction bounds use fixed
+  arithmetic laws. Remaining bound-witness forms,
   nested canonical identity reversal, Boolean identities needing case
   analysis, and construction-budget fallback still
   use per-instance `rule_axiom`s. Addition and subtraction retain their operands;
