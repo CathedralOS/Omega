@@ -2039,6 +2039,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "memory/bump_allocator_restated_resident_index_mismatch",
     "memory/bump_allocator_grow_with_live_resident",
     "memory/bump_allocator_release_with_live_resident",
+    "memory/bump_allocator_shrink_beyond_buffer",
     "memory/weak_vacant_qualifier_drop",
     "contracts/proof_fact_indexed_domain_application_arity",
     "contracts/proof_fact_indexed_domain_application_mismatch",
