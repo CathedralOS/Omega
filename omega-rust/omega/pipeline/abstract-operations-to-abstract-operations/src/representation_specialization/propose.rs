@@ -1,16 +1,23 @@
 //! Optimizer module role: proposal leaf. Proven-case membership specialization candidates.
 //!
-//! A `StructuralCaseMembership` is foldable when its observed place's case is
-//! proven by the unit itself. Two proofs qualify: the place is an
-//! `OperationResult` whose same-function producer is `EstablishScalarCase`,
+//! A `StructuralCaseMembership` is foldable when the case of the position it
+//! observes is proven by the unit itself. At an empty path the observed
+//! position is the source place itself, and two proofs qualify: the place is
+//! an `OperationResult` whose same-function producer is `EstablishScalarCase`,
 //! so the place is assigned once by that producer and cannot be rewritten;
 //! or the place's declared structural type is a closed roster of exactly one
 //! case — `StructuralTypeShape::Sum` or `Mixed` — so every inhabitant holds
-//! that case regardless of producer. In both shapes the membership verdict is
+//! that case regardless of producer. At a non-empty path the observed
+//! position is nested, so the establishment proof no longer applies: only
+//! the roster at the resolved end type can prove the verdict. `Field`
+//! segments descend through `Record` and `Mixed` common fields by identity,
+//! `FixedIndex` descends a `FixedArray` element, and `Referent` crosses a
+//! `Reference` carrier. In each shape the membership verdict is
 //! `proven_case == case` at every site. Machines holding an authenticated
 //! cyclic component are frozen byte-exact for this family and never yield
-//! rows. Memberships with a non-empty path observe a nested position the
-//! root case does not fix and stay unfused.
+//! rows. Memberships whose resolved position is not a proven sole-case
+//! position — an unestablished multi-case root or a path ending on a
+//! multi-case roster — stay unfused.
 
 use super::{
     CaseMembershipPlan, CaseMembershipSpecializationCandidate, CaseMembershipSpecializationError,
@@ -20,7 +27,9 @@ use super::{
 };
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
-use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeShape};
+use terminal_psi::{
+    StructuralFieldType, StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
+};
 
 pub(super) fn all(
     session: &VerifiedPsiOptimizationSession,
@@ -64,16 +73,21 @@ pub(super) fn all(
 }
 
 /// Independently derived specialization plan for one place, or `None` when
-/// the place's case is not proven by the unit: neither established by an
-/// `EstablishScalarCase` in this function nor declared under a sole-case
-/// roster. An admissible plan carries every empty-path membership observing
-/// the place, in node order.
+/// no membership observing it is proven by the unit. An admissible plan
+/// carries every proven membership observing the place, in node order: each
+/// row's basis is the place's root proof at an empty path or the sole-case
+/// roster at the resolved nested position.
 pub(super) fn plan(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     place: PlaceId,
 ) -> Option<CaseMembershipPlan> {
-    let (proven_case, producer) = proof_basis(unit, function, place)?;
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)?;
+    let root_type = declared_structural_type(function, declaration);
+    let root_basis = proof_basis(unit, function, declaration);
     let mut memberships = Vec::new();
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
@@ -87,9 +101,21 @@ pub(super) fn plan(
             else {
                 continue;
             };
-            if *source != place || result.scalar_type != ScalarType::Boolean || !path.is_empty() {
+            if *source != place || result.scalar_type != ScalarType::Boolean {
                 continue;
             }
+            // An empty path observes the place's root case and uses its
+            // establishment-or-roster basis; a non-empty path observes a
+            // nested position only the resolved roster can prove.
+            let Some((proven_case, producer)) = (if path.is_empty() {
+                root_basis
+            } else {
+                root_type
+                    .and_then(|root| resolved_sole_case(unit, root, path))
+                    .map(|case| (case, None))
+            }) else {
+                continue;
+            };
             memberships.push(ResolvedCaseMembership {
                 site: NodeLocation {
                     machine: function.machine,
@@ -110,23 +136,18 @@ pub(super) fn plan(
     Some(CaseMembershipPlan {
         machine: function.machine,
         place,
-        producer,
-        proven_case,
+        producer: root_basis.and_then(|(_, producer)| producer),
         memberships,
     })
 }
 
-/// The case `place` is proven to hold, plus its establishment producer when
-/// the proof is one `EstablishScalarCase` operation result.
+/// The case `place`'s root is proven to hold, plus its establishment
+/// producer when the proof is one `EstablishScalarCase` operation result.
 fn proof_basis(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
-    place: PlaceId,
+    declaration: &StructuralPlaceDeclaration,
 ) -> Option<(semantic_vocabulary::StructuralCaseId, Option<OperationId>)> {
-    let declaration = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?;
     if let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind {
         let established = function
             .blocks
@@ -138,7 +159,9 @@ fn proof_basis(
                     result,
                     result_case,
                     ..
-                } if *psi_operation == producer && result.place == place => Some(*result_case),
+                } if *psi_operation == producer && result.place == declaration.id => {
+                    Some(*result_case)
+                }
                 _ => None,
             });
         if let Some(case) = established {
@@ -183,6 +206,21 @@ pub(super) fn declared_structural_type(
     }
 }
 
+/// The one case of the closed roster the `path` resolves to under the
+/// place's declared structural type, or `None` when the path fails to
+/// descend — a `Field` name absent from a `Record`/`Mixed` common-field
+/// roster, a `FixedIndex` on a non-array, a `Referent` crossing on a
+/// non-reference — or when the resolved end type is not a `Sum`/`Mixed`
+/// roster of exactly one case.
+pub(super) fn sole_case_at_path(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    declaration: &StructuralPlaceDeclaration,
+    path: &[StructuralPathSegment],
+) -> Option<semantic_vocabulary::StructuralCaseId> {
+    resolved_sole_case(unit, declared_structural_type(function, declaration)?, path)
+}
+
 /// The one case of a declared closed roster, or `None` when the place's
 /// declared type is not a sum shape or names more than one case.
 pub(super) fn sole_case(
@@ -190,13 +228,78 @@ pub(super) fn sole_case(
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
 ) -> Option<semantic_vocabulary::StructuralCaseId> {
-    let structural_type = declared_structural_type(function, declaration)?;
-    let declaration_type = unit
+    sole_case_at_path(unit, function, declaration, &[])
+}
+
+/// The sole case of the closed roster at `path`'s end under `root`, or
+/// `None` when the path fails to descend or the end type is not a sole-case
+/// `Sum`/`Mixed` roster.
+fn resolved_sole_case(
+    unit: &PsiOptimizationUnit,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<semantic_vocabulary::StructuralCaseId> {
+    let mut current = root;
+    for segment in path {
+        current = descended_type(unit, current, segment)?;
+    }
+    roster_sole_case(unit, current)
+}
+
+/// The structural type one path segment descends to under `current`, or
+/// `None` when the segment does not apply to `current`'s shape or names a
+/// field whose declared type is not structural.
+fn descended_type(
+    unit: &PsiOptimizationUnit,
+    current: StructuralTypeId,
+    segment: &StructuralPathSegment,
+) -> Option<StructuralTypeId> {
+    let shape = &unit
         .structural_types
         .as_slice()
         .iter()
-        .find(|entry| entry.id == structural_type)?;
-    let cases = match &declaration_type.shape {
+        .find(|entry| entry.id == current)?
+        .shape;
+    match segment {
+        StructuralPathSegment::Field(identity) => {
+            let fields = match shape {
+                StructuralTypeShape::Record { fields }
+                | StructuralTypeShape::Mixed { fields, .. } => fields,
+                _ => return None,
+            };
+            match fields
+                .iter()
+                .find(|field| field.identity == *identity)?
+                .field_type
+            {
+                StructuralFieldType::Structural(next) => Some(next),
+                _ => None,
+            }
+        }
+        StructuralPathSegment::FixedIndex(_) => match shape {
+            StructuralTypeShape::FixedArray { element, .. } => Some(*element),
+            _ => None,
+        },
+        StructuralPathSegment::Referent => match shape {
+            StructuralTypeShape::Reference { referent, .. } => Some(*referent),
+            _ => None,
+        },
+    }
+}
+
+/// The one case of `type_id`'s closed roster, or `None` when its shape is
+/// not a `Sum`/`Mixed` or names more than one case.
+fn roster_sole_case(
+    unit: &PsiOptimizationUnit,
+    type_id: StructuralTypeId,
+) -> Option<semantic_vocabulary::StructuralCaseId> {
+    let cases = match &unit
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|entry| entry.id == type_id)?
+        .shape
+    {
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return None,
     };

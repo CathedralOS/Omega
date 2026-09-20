@@ -18,9 +18,12 @@
 //! definitions, uses, and ownership events are unchanged.
 //!
 //! Memberships on places whose declared type holds more than one case and
-//! carries no `EstablishScalarCase` producer are not covered; memberships
-//! carrying a non-empty path observe a nested position the root case does
-//! not determine and decline. Only machines absent from the authenticated
+//! carries no `EstablishScalarCase` producer are not covered. A membership's
+//! non-empty path names a nested position — a `Record`/`Mixed` common field,
+//! a `FixedArray` element, or a `Reference` referent — which folds when the
+//! roster the path resolves to closes over exactly one case; positions that
+//! do not resolve to a sole-case roster decline. Only machines absent from
+//! the authenticated
 //! Terminal-cycle component roster are eligible: a machine containing a
 //! verified cyclic component is frozen byte-exact under
 //! `validate_frozen_component_blocks`. Proposal, independent validation, and

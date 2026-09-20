@@ -42,7 +42,6 @@ pub(crate) fn folded_node(
         || result.value != row.result
         || result.scalar_type != ScalarType::Boolean
         || *source != row.source
-        || !path.is_empty()
         || *case != row.observed_case
         || row.outcome != (row.proven_case == row.observed_case)
     {
@@ -51,7 +50,12 @@ pub(crate) fn folded_node(
     match row.producer {
         // The claimed producer must be the place's declared operation-result
         // producer and an `EstablishScalarCase` fixing the claimed case.
+        // Establishment proves only the place's root case, so a row carrying
+        // a path can never hold this basis.
         Some(producer) => {
+            if !path.is_empty() {
+                return Err(CaseMembershipSpecializationError::CandidateMismatch);
+            }
             let declared_producer = function
                 .structural_places
                 .iter()
@@ -82,15 +86,17 @@ pub(crate) fn folded_node(
                 return Err(CaseMembershipSpecializationError::CandidateMismatch);
             }
         }
-        // With no producer claim, the place's declared type must itself be a
-        // closed roster of exactly the claimed case.
+        // With no producer claim, the membership's path position must itself
+        // resolve to a closed roster of exactly the claimed case: the place's
+        // root type at an empty path, or the nested type its path descends to.
         None => {
             let declaration = function
                 .structural_places
                 .iter()
                 .find(|declaration| declaration.id == row.source);
-            if declaration.and_then(|declaration| propose::sole_case(unit, function, declaration))
-                != Some(row.proven_case)
+            if declaration.and_then(|declaration| {
+                propose::sole_case_at_path(unit, function, declaration, path)
+            }) != Some(row.proven_case)
             {
                 return Err(CaseMembershipSpecializationError::CandidateMismatch);
             }

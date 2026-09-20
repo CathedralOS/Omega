@@ -76,6 +76,49 @@ const SOLE_CASE_LOCAL_SOURCE: &str = r#"
     }
 "#;
 
+/// A membership descending into a parameter's sole-case record field: the
+/// nested position's closed roster proves the verdict even though the
+/// record root itself has no cases and no producer.
+const PATH_FIELD_SOURCE: &str = r#"
+    data Tag { case Only; }
+    data Rec { inner: Tag; }
+    machine probe(r: Rec) -> bool {
+        r.inner in Tag::Only
+    }
+"#;
+
+/// A two-segment path resolves through nested records to the same sole-case
+/// roster: the end type proves the verdict regardless of depth.
+const NESTED_PATH_SOURCE: &str = r#"
+    data Tag { case Only; }
+    data Mid { inner: Tag; }
+    data Out { mid: Mid; }
+    machine probe(r: Out) -> bool {
+        r.mid.inner in Tag::Only
+    }
+"#;
+
+/// A path descending into a multi-case field carries no roster proof: the
+/// membership observes a position whose case the unit cannot fix.
+const PATH_MULTI_CASE_SOURCE: &str = r#"
+    data Choice { case Empty; case Some(value: u32); }
+    data Rec { inner: Choice; }
+    machine probe(r: Rec) -> bool {
+        r.inner in Choice::Some
+    }
+"#;
+
+/// One parameter place observed at two path positions: the sole-case field
+/// folds while the multi-case field's membership stays an observation.
+const PATH_SPLIT_SOURCE: &str = r#"
+    data Tag { case Only; }
+    data Choice { case Empty; case Some(value: u32); }
+    data Duo { a: Tag; b: Choice; }
+    machine probe(r: Duo) -> bool {
+        (r.a in Tag::Only) == (r.b in Choice::Some)
+    }
+"#;
+
 /// No membership observes the established place at all: no candidate exists.
 const NO_MEMBERSHIP_SOURCE: &str = r#"
     data Choice { case Empty; case Some(value: u32); }
@@ -642,6 +685,196 @@ fn replay_rejects_forged_roster_rows() {
     );
 }
 
+#[test]
+fn path_field_membership_folds_on_sole_case_end() {
+    let session = lowered_session_entry(PATH_FIELD_SOURCE, "path-field membership", "probe");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+    let function = &unit.functions[0];
+    let place = function
+        .structural_places
+        .iter()
+        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
+        .expect("parameter place exists")
+        .id;
+    let (site, membership) = membership_on(&unit, machine, place).expect("membership exists");
+
+    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    assert_eq!(candidate.machine(), machine);
+    assert_eq!(candidate.place(), place);
+    assert_eq!(candidate.producer(), None);
+    let [row] = candidate.memberships() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site(), site);
+    assert_eq!(row.psi_operation(), membership.0);
+    assert_eq!(row.source(), place);
+    assert_eq!(row.producer(), None);
+    assert_eq!(row.observed_case(), row.proven_case());
+    assert!(row.outcome());
+
+    let validated =
+        validate_case_membership_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_case_membership_specialization(session, validated).expect("apply");
+    let folded = &applied.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::BooleanConstant { value: true, .. }
+    ));
+    assert!(
+        propose_case_membership_specializations(applied.session(), 4)
+            .expect("fixed-point proposal runs")
+            .is_empty(),
+        "the specialization reaches a fixed point"
+    );
+}
+
+#[test]
+fn nested_path_membership_folds_through_records() {
+    let session = lowered_session_entry(NESTED_PATH_SOURCE, "nested-path membership", "probe");
+
+    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    let [row] = candidate.memberships() else {
+        panic!("one folded membership")
+    };
+    assert!(row.outcome());
+
+    let validated =
+        validate_case_membership_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_case_membership_specialization(session, validated).expect("apply");
+    let folded = &applied.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == row.site().block)
+        .expect("block retained")
+        .nodes[usize::try_from(row.site().node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::BooleanConstant { value: true, .. }
+    ));
+}
+
+#[test]
+fn multi_case_path_membership_yields_no_candidate() {
+    let session = lowered_session_entry(PATH_MULTI_CASE_SOURCE, "multi-case path", "probe");
+    assert!(
+        propose_case_membership_specializations(&session, 4)
+            .expect("proposal runs")
+            .is_empty()
+    );
+}
+
+#[test]
+fn split_path_memberships_fold_only_the_proven_position() {
+    let session = lowered_session_entry(PATH_SPLIT_SOURCE, "split-path memberships", "probe");
+    let unit = session.unit().clone();
+    let machine = unit.functions[0].machine;
+    let function = &unit.functions[0];
+    let place = function
+        .structural_places
+        .iter()
+        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
+        .expect("parameter place exists")
+        .id;
+    let memberships = memberships_on(&unit, machine, place);
+    let find = |field: &str| {
+        memberships
+            .iter()
+            .find(|(_, _, path)| {
+                matches!(
+                    path.as_slice(),
+                    [terminal_psi::StructuralPathSegment::Field(name)] if name == field
+                )
+            })
+            .map(|(site, membership, _)| (*site, *membership))
+            .expect("membership at the named field exists")
+    };
+    let (_, (folded_op, _, _)) = find("a");
+    let (unproven_site, (unproven_op, _, unproven_case)) = find("b");
+
+    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("exactly one specialization candidate")
+    };
+    let [row] = candidate.memberships() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.psi_operation(), folded_op);
+    assert_ne!(row.psi_operation(), unproven_op);
+    assert!(row.outcome());
+
+    let validated =
+        validate_case_membership_specialization(&session, candidate).expect("independent replay");
+    let applied = apply_case_membership_specialization(session, validated).expect("apply");
+    let function = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+    let unproven_node = &function
+        .blocks
+        .iter()
+        .find(|block| block.id == unproven_site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(unproven_site.node).expect("index")];
+    // The unproven membership stays an observation over the same case.
+    assert!(matches!(
+        &unproven_node.operation,
+        AbstractOperation::StructuralCaseMembership {
+            psi_operation,
+            case,
+            ..
+        } if *psi_operation == unproven_op && *case == unproven_case
+    ));
+}
+
+#[test]
+fn replay_rejects_forged_path_rows() {
+    let session = lowered_session_entry(PATH_FIELD_SOURCE, "path-field membership", "probe");
+    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one specialization candidate")
+    };
+
+    // A forged producer on a path-proven row claims an establishment basis
+    // that cannot prove a nested position.
+    let mut forged = candidate.clone();
+    forged.memberships[0].producer = Some(forged.memberships[0].psi_operation);
+    assert_eq!(
+        validate_case_membership_specialization(&session, &forged).err(),
+        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    );
+
+    // A forged proven case at the resolved position mismatches the replayed
+    // roster.
+    let mut forged = candidate.clone();
+    forged.memberships[0].proven_case =
+        semantic_vocabulary::StructuralCaseId::new(forged.memberships[0].proven_case.get() + 7)
+            .expect("forged case identity");
+    assert_eq!(
+        validate_case_membership_specialization(&session, &forged).err(),
+        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    );
+
+    assert!(
+        validate_case_membership_specialization(&session, candidate).is_ok(),
+        "the exact path candidate still validates"
+    );
+}
+
 /// The only `OperationResult` place in these fixtures, its
 /// `EstablishScalarCase` producer, and the fixed case.
 fn established_place(
@@ -726,6 +959,57 @@ fn membership_on(
         }
     }
     None
+}
+
+/// Every `StructuralCaseMembership` observing `place`, in node order — its
+/// node location, (custody identity, result value, observed case), and path.
+fn memberships_on(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    place: PlaceId,
+) -> Vec<(
+    NodeLocation,
+    (
+        semantic_vocabulary::OperationId,
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::StructuralCaseId,
+    ),
+    Vec<terminal_psi::StructuralPathSegment>,
+)> {
+    let mut memberships = Vec::new();
+    let Some(function) = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+    else {
+        return memberships;
+    };
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let AbstractOperation::StructuralCaseMembership {
+                psi_operation,
+                result,
+                source,
+                path,
+                case,
+            } = &node.operation
+            else {
+                continue;
+            };
+            if *source == place {
+                memberships.push((
+                    NodeLocation {
+                        machine,
+                        block: block.id,
+                        node: u32::try_from(node_index).expect("node index fits u32"),
+                    },
+                    (*psi_operation, result.value, *case),
+                    path.clone(),
+                ));
+            }
+        }
+    }
+    memberships
 }
 
 fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationSession {
