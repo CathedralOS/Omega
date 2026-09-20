@@ -149,7 +149,13 @@ fn member_main() -> i32 {
         .join(",");
     let _ = writeln!(events, "TABLE {listing}");
     for (id, end) in &ends {
-        let _ = writeln!(events, "HOLD {id} {}", end.fd);
+        // The held end's kernel identity — pipe inode plus direction — is
+        // the token the installer's route table was bound to.
+        let token = match descriptor_token(end.fd as RawFd) {
+            Ok(token) => token,
+            Err(_) => return 4,
+        };
+        let _ = writeln!(events, "HOLD {id} {token}");
     }
     let _ = writeln!(events, "READY");
 
@@ -239,6 +245,9 @@ struct SpawnedEnd {
     /// The descriptor number — identical in supervisor and child because the
     /// end is inherited, not remapped.
     fd: u32,
+    /// The kernel-attested pipe token the member reported at the gate —
+    /// what invocation checks compare a presented token against.
+    token: u64,
 }
 
 /// A roster member as a real child process.
@@ -395,6 +404,7 @@ impl ProcessSupervisor for SpawnedSupervisor {
                 binding: assignment.binding,
                 role: assignment.role,
                 fd: fd as u32,
+                token: 0,
             });
         }
 
@@ -476,8 +486,13 @@ impl ProcessSupervisor for SpawnedSupervisor {
                 Some(("HOLD", held)) => {
                     let mut parts = held.split(' ');
                     let id = parts.next().and_then(|part| part.parse::<u32>().ok());
-                    let fd = parts.next().and_then(|part| part.parse::<u64>().ok());
-                    installed.push((EndpointId(id.expect("HOLD id")), fd.expect("HOLD fd")));
+                    let token = parts.next().and_then(|part| part.parse::<u64>().ok());
+                    let (id, token) = (id.expect("HOLD id"), token.expect("HOLD token"));
+                    let id = EndpointId(id);
+                    if let Some(end) = member.ends.iter_mut().find(|end| end.id == id) {
+                        end.token = token;
+                    }
+                    installed.push((id, token));
                 }
                 None if line == "READY" => break,
                 _ => {
@@ -560,10 +575,15 @@ fn spawned_payment_installation(
         .lifecycle
         .authorize(supervisor.installation_request(&request_bytes, occurrence, None))
         .expect("owner authorization");
-    prepare_installation(checked, authorization, StdPipeAdapter)
-        .expect("preparation admits real pipes")
-        .activate(supervisor)
-        .expect("activation admits the spawned roster")
+    prepare_installation(
+        checked,
+        authorization,
+        StdPipeAdapter,
+        payment_operation_schemas(),
+    )
+    .expect("preparation admits real pipes")
+    .activate(supervisor)
+    .expect("activation admits the spawned roster")
 }
 
 fn framed(operation: u32, payload: &[u8]) -> String {
@@ -614,12 +634,18 @@ fn spawned_members_hold_exactly_assigned_ends_and_flow_frames() {
     // request travels binding 0's request channel to authorization, the
     // response returns on the response channel.
     let api_request = installed.members()[0].end(0, ChannelEnd::RequestWrite).id;
+    let api_request_token = installed.members()[0]
+        .end(0, ChannelEnd::RequestWrite)
+        .token;
     let authorization_read = installed.members()[1].end(0, ChannelEnd::RequestRead).id;
     let authorization_response = installed.members()[1].end(0, ChannelEnd::ResponseWrite).id;
+    let authorization_response_token = installed.members()[1]
+        .end(0, ChannelEnd::ResponseWrite)
+        .token;
     let api_response = installed.members()[0].end(0, ChannelEnd::ResponseRead).id;
 
     let grant = installed
-        .authorize_send(api_request, 0)
+        .authorize_send(api_request, api_request_token)
         .expect("api's import invocation is granted");
     assert_eq!(grant.deliver_to, 1);
     installed.members_mut()[0]
@@ -646,7 +672,7 @@ fn spawned_members_hold_exactly_assigned_ends_and_flow_frames() {
     );
 
     let reply = installed
-        .authorize_respond(authorization_response, 1)
+        .authorize_respond(authorization_response, authorization_response_token)
         .expect("the reply stays on the response channel");
     assert_eq!(reply.deliver_to, 0);
     installed.members_mut()[1]
@@ -674,12 +700,15 @@ fn spawned_members_hold_exactly_assigned_ends_and_flow_frames() {
         })
     );
     let foreign = installed.members()[1].end(1, ChannelEnd::RequestWrite).id;
+    let foreign_token = installed.members()[1]
+        .end(1, ChannelEnd::RequestWrite)
+        .token;
     assert_eq!(
         installed.authorize_send(foreign, 0),
         Err(InvocationRefusal::SubstitutedMapping {
             endpoint: foreign,
-            expected: 1,
-            actual: 0,
+            expected: foreign_token,
+            presented: 0,
         })
     );
 
@@ -699,9 +728,12 @@ fn a_spawned_peer_failure_and_eof_close_their_binding() {
 
     // A completed binding-1 request: authorization asks billing to post.
     let authorization_request = installed.members()[1].end(1, ChannelEnd::RequestWrite).id;
+    let authorization_request_token = installed.members()[1]
+        .end(1, ChannelEnd::RequestWrite)
+        .token;
     let billing_read = installed.members()[2].end(1, ChannelEnd::RequestRead).id;
     installed
-        .authorize_send(authorization_request, 1)
+        .authorize_send(authorization_request, authorization_request_token)
         .expect("authorization's import invocation is granted");
     installed.members_mut()[1]
         .command(&format!(
@@ -729,16 +761,19 @@ fn a_spawned_peer_failure_and_eof_close_their_binding() {
     // The response can never arrive; the binding closes and stays closed.
     installed.close_binding(1);
     assert_eq!(
-        installed.authorize_send(authorization_request, 1),
+        installed.authorize_send(authorization_request, authorization_request_token),
         Err(InvocationRefusal::BindingClosed { binding: 1 })
     );
 
     // authorization dies too: api's pending request end sees EOF on read —
     // a dead peer cannot even refuse.
     let api_request = installed.members()[0].end(0, ChannelEnd::RequestWrite).id;
+    let api_request_token = installed.members()[0]
+        .end(0, ChannelEnd::RequestWrite)
+        .token;
     let api_response = installed.members()[0].end(0, ChannelEnd::ResponseRead).id;
     installed
-        .authorize_send(api_request, 0)
+        .authorize_send(api_request, api_request_token)
         .expect("a fresh request is granted");
     installed.members_mut()[1].command("DIE").unwrap();
     let deadline = Instant::now() + QUIESCE_DEADLINE;
@@ -758,7 +793,7 @@ fn a_spawned_peer_failure_and_eof_close_their_binding() {
     );
     installed.close_binding(0);
     assert_eq!(
-        installed.authorize_send(api_request, 0),
+        installed.authorize_send(api_request, api_request_token),
         Err(InvocationRefusal::BindingClosed { binding: 0 })
     );
 
@@ -778,8 +813,13 @@ fn a_mismatched_executable_refuses_before_any_member_entry() {
         .lifecycle
         .authorize(supervisor.installation_request(&request_bytes, 1, Some(1)))
         .expect("owner authorization");
-    let prepared = prepare_installation(checked, authorization, StdPipeAdapter)
-        .expect("preparation admits real pipes");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        StdPipeAdapter,
+        payment_operation_schemas(),
+    )
+    .expect("preparation admits real pipes");
     let failure = prepared
         .activate(&mut supervisor)
         .expect_err("authorization's artifact is not the spawned image");
@@ -800,12 +840,18 @@ fn a_spawned_garbage_frame_closes_the_binding() {
     let mut installed = spawned_payment_installation(&mut supervisor, 1);
 
     let api_request = installed.members()[0].end(0, ChannelEnd::RequestWrite).id;
+    let api_request_token = installed.members()[0]
+        .end(0, ChannelEnd::RequestWrite)
+        .token;
     let authorization_read = installed.members()[1].end(0, ChannelEnd::RequestRead).id;
     let authorization_response = installed.members()[1].end(0, ChannelEnd::ResponseWrite).id;
+    let authorization_response_token = installed.members()[1]
+        .end(0, ChannelEnd::ResponseWrite)
+        .token;
     let api_response = installed.members()[0].end(0, ChannelEnd::ResponseRead).id;
 
     installed
-        .authorize_send(api_request, 0)
+        .authorize_send(api_request, api_request_token)
         .expect("api's import invocation is granted");
     installed.members_mut()[0]
         .command(&format!(
@@ -833,7 +879,7 @@ fn a_spawned_garbage_frame_closes_the_binding() {
     // The response grant exists, but what arrives on the wire is not a
     // frame: decode fails and the binding closes by rule.
     installed
-        .authorize_respond(authorization_response, 1)
+        .authorize_respond(authorization_response, authorization_response_token)
         .expect("response channel granted");
     installed.members_mut()[1]
         .command(&format!("SEND {} 00ff", authorization_response.0))
@@ -848,7 +894,7 @@ fn a_spawned_garbage_frame_closes_the_binding() {
     );
     installed.close_binding(0);
     assert_eq!(
-        installed.authorize_send(api_request, 0),
+        installed.authorize_send(api_request, api_request_token),
         Err(InvocationRefusal::BindingClosed { binding: 0 })
     );
 

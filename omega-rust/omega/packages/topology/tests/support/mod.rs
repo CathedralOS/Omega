@@ -482,7 +482,7 @@ fn borrowed(descriptor: std::os::fd::RawFd) -> std::io::Result<std::fs::File> {
 /// same measurement the adapter records — stable across the exec that
 /// installed it here.
 #[cfg(unix)]
-fn descriptor_token(descriptor: std::os::fd::RawFd) -> std::io::Result<u64> {
+pub fn descriptor_token(descriptor: std::os::fd::RawFd) -> std::io::Result<u64> {
     use std::io::Write;
     use std::os::unix::fs::MetadataExt;
     let file = borrowed(descriptor)?;
