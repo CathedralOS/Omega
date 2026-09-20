@@ -394,3 +394,159 @@ ensures
     (mul(mul(a, b), c)) == (mul(mul(a, c), b))
 {
 }
+
+// LEAST UPPER BOUND: `nat_max(a, b)` is the larger endpoint, spelled
+// `a + (b -∸ a)` so no case analysis is needed to define it. A single
+// transition keeps facts unfolding through it exactly as they do through
+// `nat_gap`. The Cauchy quotient's composed modulus is
+// `nat_max(M1(2e), M2(2e))`, where two convergence witnesses each cover half the
+// doubled precision.
+machine nat_max(a: Nat, b: Nat) -> Nat {
+    let residual: Nat = saturating_sub(b, a);
+    transition { _ -> (add(a, residual)) }
+}
+
+// `a <= a + b`, premise-free -- induction on `b`. The Zero arm computes
+// through add's right identity and self-annihilation; the Succ arm rewrites
+// `add(a, Succ pb)` to `Succ(add(a, pb))` so the goal unfolds through
+// saturating_sub's Succ arm to `pred` of the inductive hypothesis.
+machine le_add_right_self(a: Nat, b: Nat) -> Nat
+terminates by b;
+ensures
+    (saturating_sub(a, (add(a, b)))) == Nat::Zero
+{
+    transition b {
+        Nat::Zero -> lars_zero(a)
+        Nat::Succ { prev as pb } -> lars_step(a, pb)
+    }
+
+    state lars_zero(a: Nat) -> Nat {
+        add_zero_right(a);
+        sub_self(a);
+        transition { _ -> Nat::Zero }
+    }
+
+    state lars_step(a: Nat, pb: Nat) -> Nat {
+        add_succ_law(a, pb);
+        transition { _ -> (le_add_right_self(a, pb)) }
+    }
+}
+
+// Left argument bound: `a <= nat_max(a, b)` -- the unfolding makes this
+// le_add_right_self at the residual.
+machine le_max_left(a: Nat, b: Nat) -> Nat
+ensures
+    (saturating_sub(a, (nat_max(a, b)))) == Nat::Zero
+{
+    le_add_right_self(a, (saturating_sub(b, a)));
+}
+
+// Right argument bound: `b <= nat_max(a, b)` -- induction on `a` with `b` free.
+// The Zero arm computes through sub_zero_right/add_zero_left; the Succ arms
+// case-split `b`, where the Succ x Succ arm strips both pairs and hands the
+// inductive hypothesis `b' <= nat_max(a', b')` back.
+machine le_max_right(a: Nat, b: Nat) -> Nat
+terminates by a;
+ensures
+    (saturating_sub(b, (nat_max(a, b)))) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> lmr_zero(b)
+        Nat::Succ { prev as pa } -> lmr_succ(pa, b)
+    }
+
+    state lmr_zero(b: Nat) -> Nat {
+        sub_zero_right(b);
+        add_zero_left(b);
+        sub_self(b);
+        transition { _ -> Nat::Zero }
+    }
+
+    state lmr_succ(pa: Nat, b: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> lmr_succ_zero(pa)
+            Nat::Succ { prev as pb } -> lmr_succ_succ(pa, pb)
+        }
+    }
+
+    state lmr_succ_zero(pa: Nat) -> Nat {
+        sub_zero_left((add(Nat::Succ { prev: pa }, (saturating_sub(Nat::Zero, (Nat::Succ { prev: pa }))))));
+        transition { _ -> Nat::Zero }
+    }
+
+    state lmr_succ_succ(pa: Nat, pb: Nat) -> Nat {
+        succ_sub_succ(pb, pa);
+        succ_sub_succ(pb, (add(pa, (saturating_sub(pb, pa)))));
+        transition { _ -> (le_max_right(pa, pb)) }
+    }
+}
+
+// Universal property: `a <= c` and `b <= c` entail `nat_max(a, b) <= c` --
+// induction on `a`. The a=Zero arm computes nat_max(0, b) = b and discharges on
+// the second premise; Succ arms case-split `b` then `c`, where the c=Zero
+// arm is vacuous (the first premise becomes `Succ pa <= Zero`, a constructor
+// clash) and the Succ x Succ x Succ arm strips all three pairs and recurses.
+// This is the discharge step callers of `doubled_nat_max_modulus` use to turn
+// per-modulus thresholds into the composed threshold.
+machine nat_max_le(a: Nat, b: Nat, c: Nat) -> Nat
+terminates by a;
+requires
+    (saturating_sub(a, c)) == Nat::Zero;
+    (saturating_sub(b, c)) == Nat::Zero
+ensures
+    (saturating_sub((nat_max(a, b)), c)) == Nat::Zero
+{
+    transition a {
+        Nat::Zero -> ml_zero(b, c)
+        Nat::Succ { prev as pa } -> ml_succ(pa, b, c)
+    }
+
+    state ml_zero(b: Nat, c: Nat) -> Nat {
+        sub_zero_right(b);
+        add_zero_left(b);
+        transition { _ -> Nat::Zero }
+    }
+
+    state ml_succ(pa: Nat, b: Nat, c: Nat) -> Nat {
+        transition b {
+            Nat::Zero -> ml_succ_zero(pa, c)
+            Nat::Succ { prev as pb } -> ml_succ_succ(pa, pb, c)
+        }
+    }
+
+    state ml_succ_zero(pa: Nat, c: Nat) -> Nat {
+        sub_zero_left((Nat::Succ { prev: pa }));
+        add_zero_right((Nat::Succ { prev: pa }));
+        transition { _ -> Nat::Zero }
+    }
+
+    state ml_succ_succ(pa: Nat, pb: Nat, c: Nat) -> Nat {
+        transition c {
+            Nat::Zero -> ml_ss_zero(pa, pb)
+            Nat::Succ { prev as pc } -> ml_ss_step(pa, pb, pc)
+        }
+    }
+
+    state ml_ss_zero(pa: Nat, pb: Nat) -> Nat {
+        transition { _ -> Nat::Zero }
+    }
+
+    state ml_ss_step(pa: Nat, pb: Nat, pc: Nat) -> Nat {
+        succ_sub_succ(pa, pc);
+        succ_sub_succ(pb, pc);
+        succ_sub_succ(pb, pa);
+        succ_sub_succ((add(pa, (saturating_sub(pb, pa)))), pc);
+        transition { _ -> (nat_max_le(pa, pb, pc)) }
+    }
+}
+
+// `nat_max(a, a) == a` -- the residual is self-annihilating. Callers instantiating
+// a composed modulus against a single witness use this to align the equality
+// premise.
+machine nat_max_self(a: Nat) -> Nat
+ensures
+    (nat_max(a, a)) == a
+{
+    sub_self(a);
+    add_zero_right(a);
+}
