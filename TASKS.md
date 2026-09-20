@@ -5612,6 +5612,106 @@ family and pin the documented behavior with a canary plus the fix if scoped.
 Each fuzz leg's full divergence detail lives in wave-9.outcomes.json entries
 with `result: fuzz_report`.
 
+
+## Mined items (swarm wave 9 mine legs)
+
+Candidates extracted by mine legs from `wiki/drafts/`, `TASKS_OPTIMIZER.md`,
+`TASKS_BOOTSTRAP.md`, and `samples/apps/squalr/TASKS.md`, deduplicated by the
+coordinator. Each item names its source doc; the mining session's full
+`mine_report` verdict is in `build/swarm/w9/wave-9.outcomes.json`. Claim the
+named paths, verify the gap is still open on current origin/main (close as
+`superseded` if a landing already fixed it), then implement per AGENTS.md
+validation scope.
+
+Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
+
+- **BASELINE-T2C-INDEXED-OPERAND-ACCESS.** `indexed_operand_access_preserves_shared_collection_and_owned_index` — `shared_collection_elements` adapts only slice shells; `Buffer` place vs `items: &Buffer` operand mismatch. Implement the settled attached-receiver indexing rule.
+- **BASELINE-VERIFIER-DIGEST-LEDGER.** Trusted-surface digest ledger re-recording for the twelve changed implementations + register `proof-admission/src/mathematical_core/tests/strict_layer.rs`.
+- **BASELINE-VERIFIER-ZERO-BYTE-ARRAY-FENCE.** Zero-length fixed byte array: decide whether the type-table fence or presentation rejects; fixture pins the type table (`InvalidStructuralArrayLength`).
+- **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` sees `EdgeAffineDiscardsInvalid` instead of `InvalidStructuralSuccessorArgument` — restore the documented consume-before-cleanup order.
+- **BASELINE-CANARY-PASS-CLUSTER.** Four unrepaired pass-canary failures in the canary suite section; triage and repair or retire each with attribution.
+- **BASELINE-PACKAGE-COMPILATION-INPUTS.** Two unrepaired failures under `package_compilation_inputs`.
+- **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Three unrepaired failures in the `terminal_psi_source` native-differential lane.
+- **BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP.** Unrepaired failure in the `pipeline_ownership` native-differential lane.
+
+Language/semantic gaps:
+
+- **FUZZ-CLUSTER-ZERO-BYTE-ARRAY.** Canonical item for the zero/empty fixed byte-array admission question (covers all ZERO-*-BYTE-ARRAY-* mining aliases).
+- **EMPTY-TRANSITION-AND-ARM-TYPE-DIAGNOSTICS.** (alias of FUZZ-EMPTY-TRANSITION-ARMS if fenced; else the pair).
+- **DUPLICATE-OVERLOAD-AND-VISIBILITY-ADMISSION.** Duplicate named-machine overloads, duplicate module `use`, and recursive-argument name collisions — pin admission rules with fail-canaries.
+- **MODULE-PRIVACY-ENCAPSULATION.** Non-pub member nameable cross-file (alias of FUZZ-MODULE-PRIVACY-HOLE).
+- **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Dynamic receiver/evidence loan origin across package boundaries.
+- **DYNAMIC-RECEIVER-LOAN-ORIGIN.** Dynamic receiver loan origin tracking.
+- **CONST-GENERIC-INFERRED-EXTENT-RANGE.** Inferred extent ranges for const-generic parameters.
+- **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics.
+- **STRUCTURAL-UNIT-LOWERING.** Structural-unit lowering gaps in checked-trees-to-lowered-psi.
+- **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
+- **STAGED-LOCAL-SEQUENCE-LOWERING.** Staged-local sequence lowering attribution and order.
+- **TERMINAL-SOURCE-CUSTODY-ORDER.** Terminal source-custody gate ordering.
+- **SUCCESSOR-DISCARD-ORDER.** Successor discard ordering in edge cleanup.
+- **CANARY-EXACT-ENTRY-SELECTION.** Exact entry selection for division/value canaries and entry binding.
+
+Omega-side / native:
+
+- **X86-FMA-PROVIDER-TRANSPORT.** x86 FMA provider transport (mined by 7 independent legs — highest-consensus gap).
+- **I32-REMAINDER-NATIVE-LEGALIZATION.** i32 remainder native legalization.
+- **INTEGER-DIVISION-ENTRY-SELECTION.** Integer division entry selection.
+- **FLOAT-FMA-NATIVE-TRANSPORT.** Float FMA native transport.
+
+Proof/evidence:
+
+- **PROOF-SEARCH-MEASUREMENT.** Proof-search cost measurement and instrumentation (consensus ×3).
+- **PROOF-DERIVATION-STORE-INDEX.** Semantic index for the derivation store/cache.
+- **PROOF-OBLIGATION-IDENTITY-KEY.** Semantic identity key for proof obligations.
+- **PROOF-INTERCHANGE-IMPORT.** External proof interchange: sort encoding, induction certificate, arithmetic import (3 mined aliases merged).
+- **INDUCTIVE-CARRIER-CERTIFICATE.** Inductive carrier certificate production.
+- **GAMMA-CERTIFICATE-PRODUCTION.** Gamma certificate production + check (includes GAMMA-CERTIFICATE-CHECK).
+- **PROOF-RULE-CLASSICALITY-AUDIT.** Audit proof rules for classical/constructive boundary (matching-logic lane).
+- **MATCHING-LOGIC-BOUNDED-SLICE.** Bounded matching-logic slice.
+- **MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT.** External proof import for matching logic.
+- **MATCHING-LOGIC-SORT-ENCODING.** Typed-to-one-sorted encoding.
+- **DERIVATION-RECHECK-CACHE.** Derivation recheck cache.
+
+Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`):
+
+- **LEARNED-OPTIMIZATION-COST-MODEL.** Learned cost model (includes LEARNED-COST-MODEL).
+- **BOUNDED-OPTIMIZATION-SEARCH.** Bounded candidate search + revalidation at scale (merges BOUNDED-CANDIDATE-SEARCH, CANDIDATE-REVALIDATION-AT-SEARCH-SCALE).
+- **GRAPH-COST-MODEL-STUDY.** Graph cost-model study.
+- **GENERAL-CYCLIC-EXECUTION-OPTIMIZER.** General cyclic execution optimizer.
+- **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Workload corpus + multiversing.
+- **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized variants.
+
+Build/packages:
+
+- **BUILD-PACKAGES-GATE.** RC build-and-packages gate closure work.
+- **C2L-BASELINE-FAILURE-ATTRIBUTION.** checked-trees-to-lowered-psi baseline-failure attribution set (boundary byte buffers, scalar return custody, operation proof-machine calls, unit failure attribution).
+- **DELTA-EXHAUSTION-ATTRIBUTION.** Delta compiler exhaustion attribution.
+- **BETA-ENCODER-DEFINITION-PACKAGE.** Beta encoder definition package.
+- **BETA-RECONSTRUCTION-REFUSAL.** Beta reconstruction refusal.
+
+Platform/cross-host (structurally gated — document host limits):
+
+- **MACOS-X64-HOST-PROFILE.** macOS x86_64 host profile (Intel gap).
+- **WINDOWS-SET-FILE-TIME-RESPELL.** Windows SetFileTime respell incl. unsigned carrier (merges FILESYSTEM-WINDOWS-FILETIME-RESPELL).
+- **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native validation.
+- **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows host.
+- **BENCHMARK-HOST-ROW-MATRIX.** Benchmark host-row matrix incl. Windows peak-RSS and UEFI rows.
+- **EPOCH-RESOURCE-SNAPSHOTS.** Epoch aggregate/resource snapshots + installation-era journal (merges EPOCH-AGGREGATE-SNAPSHOTS, INSTALLATION-ERA-JOURNAL, REPLACEMENT-ERA-JOURNAL, SERVICE-ERA-REPLACEMENT-SUBSTRATE).
+- **SHARED-MAPPING-REVOCATION.** Shared-mapping revocation and hostile shared-memory placement/remapping.
+- **DEVICE-EXTENT-ACCESS.** Device extent access.
+- **EXTERNAL-DATA-SCHEMA-CONVERSION.** External data schema conversion.
+
+Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
+
+- **SQUALR-CLI-COMMANDS.** Squalr CLI commands.
+- **SQUALR-ALIGNMENT-STRING-PARSING.** Alignment string parsing.
+- **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity.
+- **SQUALR-GEOMETRY-PARITY.** Geometry parity gaps + debug assertions.
+- **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators.
+- **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
+- **SQUALR-SEED-PARITY.** Seed parity.
+- **SQUALR-TARGETS-AND-THROUGHPUT.** Targets and throughput.
+
 ## Platform-gated verification
 
 - Run Linux host/time/filesystem and `IntegerAt` runtime paths on AArch64;
