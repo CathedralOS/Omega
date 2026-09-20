@@ -603,8 +603,9 @@ struct GenericCaseFactGate {
     /// equation against the closed argument identity.
     types: HashSet<String>,
     /// `const` binder names: rewritten to their literal argument inside
-    /// expression position only, so a mention in a membership value or domain
-    /// path, or in a nested type reference's name position, still refuses.
+    /// expression position and inside a membership fact's indexed domain
+    /// arguments, so a mention in a membership value or domain path, or in a
+    /// nested type reference's name position, still refuses.
     consts: HashSet<String>,
 }
 
@@ -675,6 +676,8 @@ fn generic_case_facts_unsupported(
             // The membership value must stay a place/name the
             // construction-side domain check can own, and the domain path is
             // a fixed declaration spelling: no binder may appear in either.
+            // The domain's index arguments substitute like type-reference
+            // positions, so `type`/`const` binders admit there.
             syntax::item::ProofFact::Membership(membership) => {
                 case_fact_expression_mentions(syntax_trees, membership.value, gate, false)
                     || syntax_trees
@@ -691,18 +694,22 @@ fn generic_case_facts_unsupported(
         })
 }
 
-/// An indexed application's argument is a type-position leaf: a named binder
-/// refuses like the domain path, and an open const expression refuses like the
-/// membership value.
+/// An indexed application's argument substitutes like a type position on the
+/// instance copy: a named `type` binder lands as the closed type argument and
+/// a named `const` binder as its literal, while value/machine/proposition
+/// binders still refuse. A const-expression argument admits `const` binders
+/// only; the copy's fresh `Name` leaves rewrite to their literals.
 fn membership_argument_mentions(
     syntax_trees: &SyntaxTrees,
     argument: syntax::types::TypeReferenceHandle,
     gate: &GenericCaseFactGate,
 ) -> bool {
     match syntax_trees.type_references.type_reference(argument) {
-        syntax::types::TypeReferenceNode::Named(name) => gate.mentions(name.as_str()),
+        syntax::types::TypeReferenceNode::Named(name) => {
+            gate.unsubstituted.contains(name.as_str()) && !gate.types.contains(name.as_str())
+        }
         syntax::types::TypeReferenceNode::ConstExpression(expression) => {
-            case_fact_expression_mentions(syntax_trees, *expression, gate, false)
+            case_fact_expression_mentions(syntax_trees, *expression, gate, true)
         }
         _ => false,
     }
