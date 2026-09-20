@@ -7418,6 +7418,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-PRODUCT-COMPILER-SOURCE clears the service-custody gate; sibling
   rows CROSS-COMPILER-DIFFERENTIAL and
   RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL name the same scope.
+  Re-verified at `ded56393da2` (linux x86-64): the custody gate itself is
+  unchanged — `selected-dispatch/service_custody` last moved at
+  `0e1977994b9` and the stop still emits at `root.rs:145`; the
+  `linux_dynamic_realization` pin suite reads 3/4 PASS. The fourth is a
+  new unrecorded baseline failure:
+  `aggregate_foreign_boundary_members_refuse_at_terminal_entry_establishment`
+  no longer reaches the pinned stop — the fixture now refuses earlier,
+  inside checked-trees-to-lowered-psi emission with
+  `Lowering(Unsupported("record store destination projected beyond its
+  authored root"))` (guard added by `9a81cd68774`); the `4607987316f` pin
+  is stale. `bde84d1765a`'s one-hop projected-receiver admit is adjacent
+  progress but does not touch establishment custody — the lane is still
+  red upstream of itself.
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **CTTL-FAILURE-ATTRIBUTION** — mined candidate; scope verified, resolved.
   Names the attribution pass over the `typed-trees-to-checked-trees` section
