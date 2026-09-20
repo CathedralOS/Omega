@@ -8130,7 +8130,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
   all Devin / swarm-w9-macos-x64-host-profile).
 - **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
-- **INTRINSIC-PHYSICAL-SPAN-ARMS** — mined candidate; verify scope then implement.
+- **INTRINSIC-PHYSICAL-SPAN-ARMS.** Resolved — re-mine of the intrinsic
+  span-arm surface already adjudicated on sibling **TV-INTRINSIC-SPAN-ARMS**
+  (verified `14e6f8f72e`). Verified at `96b4afed92e5`: every intrinsic
+  family that produces coverage occurrences has its span arm — IEEE FMA
+  joins `x86_scalar_fma_occurrences` fragments (`derive_fma_span`),
+  integer comparisons join `semantic_code_attribution` rows with
+  relocation-overlap rejection (`derive_integer_comparison_span`), float
+  comparisons take the fragment-publication arm
+  (`fragment_comparison::derive` under `fragment_publication`), and
+  structural returns arrive through the checked-body call span. All other
+  intrinsic realizations produce no occurrences — `checked_boundary_
+  operator_occurrences` (`lowered-psi-to-terminal-psi/boundary_operator_
+  custody/replay_scope.rs`) replays exactly the four families — so a
+  further arm has no demand side; occurrence replay for the remaining
+  families is **TV-OPERATOR-APPLICATIONS-REPLAY**'s scope. Sibling stubs
+  on the same surface: REMAINING-INTRINSIC-SPAN-ARMS,
+  TV-DYNAMIC-AND-INTRINSIC-SPANS.
 - **KNOWN-BASELINE-FAILURES-DOC-REFRESH.** Mined candidate; scope verified at
   `669925b8b9`: the item is a refresh sweep of
   `wiki/drafts/known_baseline_failures.md` — several board entries record
