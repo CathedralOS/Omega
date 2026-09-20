@@ -6769,7 +6769,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   surfaces are under live claims (UEFI-OS-HANDOFF until 20:00Z,
   UEFI-PHYSICAL-SEMANTIC-ENTRY 22:59Z, OPAQUE-BY-VALUE-BOUNDARY-ABI and
   TV-BOUNDARY-SETTLEMENTS-REPLAY into next day). No independent slice is
-  landable from this row.
+  landable from this row. Re-verified at `7110606f46` — the same-item
+  claim remains live and no new leg landed since `db3dfb4302`.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
