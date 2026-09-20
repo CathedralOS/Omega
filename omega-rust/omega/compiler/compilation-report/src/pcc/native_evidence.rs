@@ -58,6 +58,17 @@
 //! thunk legs already bind whatever bytes exist; inventing an entry claim
 //! would only shadow them.
 //!
+//! The declared extents are custody claims the container's own loadable map
+//! must ratify: no two declared extents may cover the same bytes, the text
+//! extent must sit inside a file range the container marks loadable and
+//! executable, the initialized-data extent inside one it marks writable,
+//! and an import-data extent inside some loadable range at all — ELF64
+//! `PT_LOAD` flags, PE32+ section characteristics, Mach-O 64 `LC_SEGMENT_64`
+//! protections. A sidecar that declared its inventory over bytes the loader
+//! maps under a different role would verify byte-for-byte while checking
+//! nothing the loader executes; the container's own declarations close
+//! that gap without trusting a producer annotation.
+//!
 //! What the section still does not establish is everything beyond this:
 //! instruction-row semantics inside compiler-function regions, the edges
 //! between instruction rows, premise availability and lowering
@@ -320,6 +331,154 @@ fn declared_entry_address(target: target::NativeTarget, executable_bytes: &[u8])
     }
 }
 
+/// A loadable file range the published container itself declares to its
+/// loader, with the access roles that range grants. The roles are the
+/// container's own claims — the evidence only checks that its declared
+/// extents sit inside ranges carrying the role the extent asserts.
+struct ContainerLoadableRange {
+    start: u64,
+    end: u64,
+    executable: bool,
+    writable: bool,
+}
+
+/// ELF64 little-endian: every `PT_LOAD` program header maps
+/// `[p_offset, p_offset + p_filesz)` with `p_flags` access bits (PF_X = 1,
+/// PF_W = 2). A container with no `PT_LOAD` entries declares no loadable
+/// claim this leg can check.
+fn elf64_loadable_ranges(bytes: &[u8]) -> Option<Vec<ContainerLoadableRange>> {
+    let identification = bytes.get(..16)?;
+    if identification[..4] != [0x7f, b'E', b'L', b'F']
+        || identification[4] != 2
+        || identification[5] != 1
+    {
+        return None;
+    }
+    let header_offset = usize::try_from(container_u64(bytes, 32)?).ok()?;
+    let entry_size = usize::from(container_u16(bytes, 54)?);
+    if entry_size < 56 {
+        return None;
+    }
+    let count = usize::from(container_u16(bytes, 56)?);
+    let mut ranges = Vec::new();
+    for index in 0..count {
+        let entry = header_offset.checked_add(index.checked_mul(entry_size)?)?;
+        if container_u32(bytes, entry)? != 1 {
+            continue;
+        }
+        let flags = container_u32(bytes, entry.checked_add(4)?)?;
+        let start = container_u64(bytes, entry.checked_add(8)?)?;
+        let end = start.checked_add(container_u64(bytes, entry.checked_add(32)?)?)?;
+        if end == start {
+            continue;
+        }
+        ranges.push(ContainerLoadableRange {
+            start,
+            end,
+            executable: flags & 1 != 0,
+            writable: flags & 2 != 0,
+        });
+    }
+    Some(ranges)
+}
+
+/// PE32+: every section header declares the raw file range it maps
+/// (`PointerToRawData`, `SizeOfRawData`) under COFF characteristics
+/// (`IMAGE_SCN_MEM_EXECUTE` = 0x2000_0000, `IMAGE_SCN_MEM_WRITE` =
+/// 0x8000_0000). A container with no sections carrying raw bytes declares
+/// no loadable claim this leg can check.
+fn pe32_plus_loadable_ranges(bytes: &[u8]) -> Option<Vec<ContainerLoadableRange>> {
+    if bytes.get(..2)? != *b"MZ" {
+        return None;
+    }
+    let pe_offset = usize::try_from(container_u32(bytes, 0x3c)?).ok()?;
+    if bytes.get(pe_offset..pe_offset.checked_add(4)?)? != *b"PE\0\0" {
+        return None;
+    }
+    let coff = pe_offset.checked_add(4)?;
+    let section_count = usize::from(container_u16(bytes, coff.checked_add(2)?)?);
+    let optional_size = usize::from(container_u16(bytes, coff.checked_add(16)?)?);
+    let mut section = coff.checked_add(20)?.checked_add(optional_size)?;
+    let mut ranges = Vec::new();
+    for _ in 0..section_count {
+        let raw_size = container_u32(bytes, section.checked_add(16)?)?;
+        let start = u64::from(container_u32(bytes, section.checked_add(20)?)?);
+        let characteristics = container_u32(bytes, section.checked_add(36)?)?;
+        section = section.checked_add(40)?;
+        if raw_size == 0 {
+            continue;
+        }
+        let end = start.checked_add(u64::from(raw_size))?;
+        ranges.push(ContainerLoadableRange {
+            start,
+            end,
+            executable: characteristics & 0x2000_0000 != 0,
+            writable: characteristics & 0x8000_0000 != 0,
+        });
+    }
+    Some(ranges)
+}
+
+/// Mach-O 64 little-endian: every `LC_SEGMENT_64` maps `[fileoff, fileoff +
+/// filesize)` under its `initprot` bits (VM_PROT_EXECUTE = 4,
+/// VM_PROT_WRITE = 2). A container declaring no mapped segment file range
+/// carries no loadable claim this leg can check.
+fn macho64_loadable_ranges(bytes: &[u8]) -> Option<Vec<ContainerLoadableRange>> {
+    const LC_SEGMENT_64: u32 = 0x19;
+    if container_u32(bytes, 0)? != 0xfeed_facf {
+        return None;
+    }
+    let command_count = usize::try_from(container_u32(bytes, 16)?).ok()?;
+    let mut command_offset = 32usize;
+    let mut ranges = Vec::new();
+    for _ in 0..command_count {
+        let command = container_u32(bytes, command_offset)?;
+        let command_size =
+            usize::try_from(container_u32(bytes, command_offset.checked_add(4)?)?).ok()?;
+        if command_size < 8 {
+            return None;
+        }
+        if command == LC_SEGMENT_64 {
+            let start = container_u64(bytes, command_offset.checked_add(40)?)?;
+            let end = start.checked_add(container_u64(bytes, command_offset.checked_add(48)?)?)?;
+            let initial_protection = container_u32(bytes, command_offset.checked_add(60)?)?;
+            if end != start {
+                ranges.push(ContainerLoadableRange {
+                    start,
+                    end,
+                    executable: initial_protection & 4 != 0,
+                    writable: initial_protection & 2 != 0,
+                });
+            }
+        }
+        command_offset = command_offset.checked_add(command_size)?;
+    }
+    Some(ranges)
+}
+
+/// The loadable file ranges the published container declares to its loader,
+/// re-derived from the artifact bytes alone for the declared object format.
+/// `None` means the bytes carry no checkable loadable claim — a container
+/// that does not parse as the declared format fails nothing new here, since
+/// every other leg still binds whatever bytes sit under the declared
+/// extents.
+fn declared_loadable_ranges(
+    target: target::NativeTarget,
+    executable_bytes: &[u8],
+) -> Option<Vec<ContainerLoadableRange>> {
+    match target.object_format {
+        target::ObjectFormat::Elf => elf64_loadable_ranges(executable_bytes),
+        target::ObjectFormat::Coff => pe32_plus_loadable_ranges(executable_bytes),
+        target::ObjectFormat::MachO => macho64_loadable_ranges(executable_bytes),
+    }
+}
+
+/// A declared extent as a file range, `None` for the canonical empty extent.
+fn declared_extent_range(file_offset: u64, byte_count: u64) -> Option<(u64, u64)> {
+    let end = file_offset.checked_add(byte_count)?;
+    (byte_count != 0).then_some((file_offset, end))
+}
+
 impl NativePlacedImageEvidence {
     /// Capture the placed-image evidence for one retained native artifact and
     /// the exact bytes about to be published. The final `.text` and
@@ -432,11 +591,14 @@ impl NativePlacedImageEvidence {
     /// actually sitting there, every claimed import thunk must decode to the
     /// declared target's closed thunk sequence — on aarch64 Mach-O
     /// additionally binding the decoded pointer load to exactly one committed
-    /// import-binding slot — and the container's own declared entry point,
-    /// when it carries one the declared format's checker can read, must name
-    /// the start of a placed region the text inventory just committed. A
-    /// section that lies about the artifact fails here, by name, before any
-    /// behavioral leg is attempted.
+    /// import-binding slot — the container's own declared entry point, when
+    /// it carries one the declared format's checker can read, must name the
+    /// start of a placed region the text inventory just committed — and the
+    /// declared extents must be disjoint and must sit inside the loadable
+    /// file ranges the container itself marks with the matching role
+    /// (executable for text, writable for initialized data, loadable at all
+    /// for import data). A section that lies about the artifact fails here,
+    /// by name, before any behavioral leg is attempted.
     pub fn replay_against(&self, executable_bytes: &[u8]) -> Result<(), String> {
         let text_bytes = declared_extent(
             executable_bytes,
@@ -533,6 +695,86 @@ impl NativePlacedImageEvidence {
             return Err(format!(
                 "the container-declared entry {entry:#x} does not start a placed executable region"
             ));
+        }
+
+        // Declared extents are custody claims the container itself must
+        // ratify: two extents may not double-cover the same bytes, the text
+        // extent must sit inside file ranges the container marks
+        // executable, the initialized-data extent inside ranges it marks
+        // writable, and an import-data extent inside some loadable range at
+        // all. Without this the sidecar could declare coverage over bytes
+        // the loader maps under a different role — or does not map — while
+        // the unchecked bytes still execute. A container that does not
+        // parse as the declared format, or declares no loadable ranges,
+        // leaves the leg silent.
+        let declared_extents = [
+            (
+                "executable text",
+                declared_extent_range(self.text_file_offset, self.inventory.text_byte_count as u64),
+            ),
+            (
+                "initialized data",
+                declared_extent_range(
+                    self.data_file_offset,
+                    self.data_inventory.data_byte_count as u64,
+                ),
+            ),
+            (
+                "import data",
+                declared_extent_range(
+                    self.import_data_file_offset,
+                    self.import_data_inventory.data_byte_count as u64,
+                ),
+            ),
+        ];
+        for (first_index, (first_name, first)) in declared_extents.iter().enumerate() {
+            let Some((first_start, first_end)) = *first else {
+                continue;
+            };
+            for (second_name, second) in declared_extents.iter().skip(first_index + 1) {
+                let Some((second_start, second_end)) = *second else {
+                    continue;
+                };
+                if first_start < second_end && second_start < first_end {
+                    return Err(format!(
+                        "the declared {first_name} and {second_name} extents overlap"
+                    ));
+                }
+            }
+        }
+        if let Some(ranges) = declared_loadable_ranges(self.target, executable_bytes)
+            && !ranges.is_empty()
+        {
+            for (name, extent, executable) in [
+                ("executable text", declared_extents[0].1, true),
+                ("initialized data", declared_extents[1].1, false),
+            ] {
+                if let Some((start, end)) = extent
+                    && !ranges.iter().any(|range| {
+                        (if executable {
+                            range.executable
+                        } else {
+                            range.writable
+                        }) && range.start <= start
+                            && end <= range.end
+                    })
+                {
+                    return Err(format!(
+                        "the declared {name} extent sits outside every {} loadable range the container declares",
+                        if executable { "executable" } else { "writable" }
+                    ));
+                }
+            }
+            if let Some((start, end)) = declared_extents[2].1
+                && !ranges
+                    .iter()
+                    .any(|range| range.start <= start && end <= range.end)
+            {
+                return Err(
+                    "the declared import-data extent sits outside every loadable range the container declares"
+                        .to_owned(),
+                );
+            }
         }
         Ok(())
     }
