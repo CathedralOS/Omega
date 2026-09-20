@@ -1,0 +1,19 @@
+// Portable-Terminal reload control carrying real contract obligations: a
+// requires-guarded call, an ensures clause, and an exact subtraction the
+// requires fact discharges. The consumer's verifier must reconstruct and
+// discharge every obligation from the serialized artifact envelope after
+// the producer's checked-tree state is discarded.
+data Main {}
+
+machine observed(low: u32, high: u32) -> u32
+requires low <= high;
+ensures true == true;
+terminates;
+{
+    high - low
+}
+
+machine Main::main(&mut self)
+terminates;
+{
+}
