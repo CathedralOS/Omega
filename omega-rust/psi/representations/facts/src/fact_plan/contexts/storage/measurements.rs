@@ -1,3 +1,21 @@
+//! Lookup-map measurement audit for the `groups` HashMap in `FactContexts`.
+//!
+//! Pipeline ownership rules admit an extra lookup map only on a measured
+//! reason; these two ignored tests are the measurement. Re-audited at
+//! 340e2b5ca4 on linux/x86_64 (`cargo test -p facts --lib -- --ignored
+//! --nocapture`): the index's exact-selection counts agree with the linear
+//! baseline on every shape, and the trade-off is confirmed asymmetric —
+//! `context_index_cost` pays ~8-12x more setup to build the map (562µs vs
+//! 46µs indexed vs baseline append at 64 machines, 8.2ms vs 698µs at 1024)
+//! while point lookups drop from quadratic scans of the whole arena
+//! (213,921,792 context visits at 1024 machines) to 4.5ms indexed from
+//! 5.1s baseline; `prepared_entry_group_cost` shows the prepared-group route
+//! is the smaller real gain (~1.25x on 20-pass clones at 1024 machines) and
+//! near-equal on cold shapes. The map's justification therefore stands only
+//! where query volume is high and prepared groups amortize setup — exactly
+//! the flow-checking pattern `FactContexts` serves. No timing is asserted;
+//! only the selected-count equalities are.
+
 use super::{
     Arena, ContextGroup, ContextLink, FactContext, FactContextGroup, FactContexts, ProgramPoint,
 };
