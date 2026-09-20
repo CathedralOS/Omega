@@ -341,7 +341,7 @@ pub(super) fn emit_forwarded_adapters(
 
 /// Append each validated compiler-private function's bytes under its private
 /// symbol, rejecting a symbol that collides with one already in the object.
-pub(super) fn emit_private_functions(
+pub(crate) fn emit_private_functions(
     validated_private_functions: Vec<ValidatedPrivateFunction<'_>>,
     object: &mut ObjectPlan,
     text_bytes: &mut Vec<u8>,

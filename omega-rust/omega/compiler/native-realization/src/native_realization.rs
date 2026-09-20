@@ -8,6 +8,7 @@ mod artifact_assembly;
 mod behavior_exclusions;
 mod boundary_applications;
 mod callback_custody;
+mod callback_thunks;
 mod input_preparation;
 mod object_emission;
 mod optimization_stage;

@@ -15,7 +15,7 @@ mod data_tables;
 mod function_validation;
 mod layout;
 mod relocations;
-mod text_emission;
+pub(crate) mod text_emission;
 
 /// Construct a self-contained object plan and exact text carrier.
 ///

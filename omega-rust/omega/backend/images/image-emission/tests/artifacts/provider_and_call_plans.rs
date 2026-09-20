@@ -1243,3 +1243,154 @@ pub(super) fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
         ],
     }
 }
+
+/// A minimal attached-entry program for the fragment private lane: one
+/// provisioned receiver keeps the entry nonempty so emission binds a real
+/// program text before the private rows.
+const PRIVATE_FRAGMENT_STORE: &str = r#"
+    data Main { value: i32; }
+    machine Main::launch(&mut self) {
+        self.value = 17;
+    }
+"#;
+
+/// A second distinct compiler-private callback function beside
+/// `callback_private_plan()`'s row so ordering survives as evidence.
+fn second_callback_private() -> machine_code::CompilerPrivateMachineCodeFunction {
+    let mut private = callback_private_plan().private_functions.remove(0);
+    private.identity = MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: SymbolHandle::from_parts(15, 4),
+            state: SymbolHandle::from_parts(17, 5),
+            segment_index: 0,
+        },
+        1,
+    )
+    .expect("second callback thunk identity");
+    private.private_symbol = "__omega_test_callback_thunk_b".into();
+    private.function.bytes = vec![0x48, 0x89, 0xf0, 0xc3];
+    private
+}
+
+#[test]
+fn fragment_route_materializes_private_functions_after_the_program_text() {
+    let compiled = super::fragment_container::compile_attached_entry(
+        PRIVATE_FRAGMENT_STORE,
+        "Main::launch",
+        TargetProfile::LinuxX64,
+    );
+    let roster = vec![
+        callback_private_plan().private_functions.remove(0),
+        second_callback_private(),
+    ];
+    let artifact = image_emission::build_function_fragment_object_artifact_with_private_functions(
+        std::sync::Arc::clone(&compiled.container),
+        &roster,
+    )
+    .expect("fragment artifact with private functions");
+    let program_len = compiled.artifact.text_bytes().len();
+    assert_eq!(artifact.private_functions().len(), 2);
+    assert!(
+        artifact
+            .text_bytes()
+            .starts_with(compiled.artifact.text_bytes())
+    );
+    let mut offset = program_len;
+    for (private, carrier) in roster.iter().zip(artifact.private_functions()) {
+        assert_eq!(carrier.identity, private.identity);
+        assert_eq!(carrier.source_psi, private.source_psi);
+        assert_eq!(carrier.function.machine, private.function.machine);
+        assert_eq!(carrier.function.scalar_abi, private.function.scalar_abi);
+        assert_eq!(carrier.function.text_offset, offset);
+        assert_eq!(carrier.function.byte_count, private.function.bytes.len());
+        assert_eq!(carrier.bytes(&artifact), private.function.bytes.as_slice());
+        let symbol = artifact
+            .object()
+            .layout
+            .symbols
+            .get(carrier.function.symbol);
+        assert_eq!(symbol.name, private.private_symbol.as_ref());
+        assert_eq!(symbol.kind, object_file::SymbolKind::Function);
+        assert_eq!(
+            symbol.section,
+            object_file::SymbolSection::Section(object_file::SectionKind::Text)
+        );
+        assert_eq!(symbol.offset, offset);
+        assert_eq!(symbol.size, private.function.bytes.len());
+        offset += private.function.bytes.len();
+    }
+    assert_eq!(artifact.text_bytes().len(), offset);
+    image_emission::validate_function_fragment_object_artifact_with_private_functions(
+        &compiled.container,
+        &artifact,
+        &roster,
+    )
+    .expect("the retained roster replays the private carriers");
+    image_emission::validate_function_fragment_object_artifact(&compiled.container, &artifact)
+        .expect("the retained container replays the private carriers");
+}
+
+#[test]
+fn fragment_route_rejects_foreign_duplicate_or_substituted_private_functions() {
+    let compiled = super::fragment_container::compile_attached_entry(
+        PRIVATE_FRAGMENT_STORE,
+        "Main::launch",
+        TargetProfile::LinuxX64,
+    );
+    let roster = vec![callback_private_plan().private_functions.remove(0)];
+    let mut foreign = roster.clone();
+    foreign[0].identity = MachineFunctionIdentity::source(StateKey {
+        machine: SymbolHandle::from_parts(19, 6),
+        state: SymbolHandle::from_parts(21, 7),
+        segment_index: 0,
+    });
+    assert!(matches!(
+        image_emission::build_function_fragment_object_artifact_with_private_functions(
+            std::sync::Arc::clone(&compiled.container),
+            &foreign,
+        ),
+        Err(
+            image_emission::FunctionFragmentObjectArtifactError::PrivateFunctions(
+                image_emission::ObjectError::InvalidPrivateFunctionIdentity
+            )
+        )
+    ));
+    let mut duplicate = roster.clone();
+    let mut second = second_callback_private();
+    second.private_symbol = roster[0].private_symbol.clone();
+    duplicate.push(second);
+    assert!(matches!(
+        image_emission::build_function_fragment_object_artifact_with_private_functions(
+            std::sync::Arc::clone(&compiled.container),
+            &duplicate,
+        ),
+        Err(
+            image_emission::FunctionFragmentObjectArtifactError::PrivateFunctions(
+                image_emission::ObjectError::PrivateFunctionSymbolCollision
+            )
+        )
+    ));
+    let artifact = image_emission::build_function_fragment_object_artifact_with_private_functions(
+        std::sync::Arc::clone(&compiled.container),
+        &roster,
+    )
+    .expect("fragment artifact with private functions");
+    let mut substituted = roster.clone();
+    substituted[0].private_symbol = "__omega_test_callback_other".into();
+    assert!(
+        image_emission::validate_function_fragment_object_artifact_with_private_functions(
+            &compiled.container,
+            &artifact,
+            &substituted,
+        )
+        .is_err()
+    );
+    assert!(
+        image_emission::validate_function_fragment_object_artifact_with_private_functions(
+            &compiled.container,
+            &artifact,
+            &[],
+        )
+        .is_err()
+    );
+}

@@ -24,6 +24,7 @@ pub use carriers::{
     ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
 };
 pub(crate) use construction::same_dynamic_table_application;
+pub(crate) use construction::text_emission::emit_private_functions;
 pub use construction::{
     build_admitted_x86_fma_object_artifact, build_feature_required_x86_fma_object_artifact,
     build_object_artifact, build_object_artifact_with_private_functions,
@@ -31,3 +32,4 @@ pub use construction::{
 pub use errors::ObjectError;
 pub use normalized_foreign_calls::derive_normalized_foreign_call_custody;
 pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
+pub(crate) use private_functions::validate_private_functions;
