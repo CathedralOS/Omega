@@ -10,13 +10,19 @@
 //! names keep counting toward membership: the capture premise is a quiescent
 //! tree, not merely a quiescent captured subset. Ancestor directories apply
 //! the same close sweep, so a replaced child directory cannot hide behind a
-//! retained handle. A mutation landing after a directory's own close is only
-//! visible to the resolver's later live-tree comparison — the sweep narrows
-//! the drift window, it does not make the whole tree atomic.
+//! retained handle. After the deepest close returns,
+//! `verify_captured_tree` re-observes every visited directory's member set
+//! and every captured member once more before publication, so a mutation
+//! landing in an already-closed subtree — or at the root after its own close
+//! — still rejects at capture time rather than waiting for the resolver's
+//! later live-tree comparison. The sweeps narrow drift detection to the
+//! capture window; a mutation racing the final sweep itself remains the
+//! boundary of the quiescent-tree premise.
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
+use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 
 use super::traversal_observations::{SourceEntry, SourceEntryKind, SourceTreePolicy};
@@ -26,6 +32,31 @@ use crate::tree::filesystem::{
     CapturedEntryObservation, io_error, open_captured_directory, raw_os_bytes,
     read_capability_file_bounded, require_unchanged_entry,
 };
+
+/// One visited directory's opening record, retained for the final whole-tree
+/// sweep: the member set listed at open plus the directory's own identity
+/// metadata, both re-verified after the traversal completes.
+pub(super) struct CapturedDirectoryObservation {
+    relative_path: PathBuf,
+    metadata: cap_std::fs::Metadata,
+    listed_names: Vec<OsString>,
+}
+
+/// One captured member's first no-follow observation, keyed by its
+/// root-relative path so the final sweep can re-observe it from the retained
+/// root handle after every directory's own close has run.
+pub(super) struct CapturedMemberObservation {
+    relative_path: PathBuf,
+    metadata: cap_std::fs::Metadata,
+}
+
+/// The tree-wide observation record a traversal accumulates for
+/// `verify_captured_tree`'s closing sweep.
+#[derive(Default)]
+pub(super) struct CapturedTreeObservations {
+    directories: Vec<CapturedDirectoryObservation>,
+    members: Vec<CapturedMemberObservation>,
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn visit_directory(
@@ -39,6 +70,7 @@ pub(super) fn visit_directory(
     policy: SourceTreePolicy,
     captured_file_bytes: &mut u64,
     entries: &mut Vec<SourceEntry>,
+    observations: &mut CapturedTreeObservations,
 ) -> Result<(), SourceResolveError> {
     if depth > limits.max_depth {
         return Err(SourceResolveError::TooDeep {
@@ -95,6 +127,10 @@ pub(super) fn visit_directory(
             name: name.clone(),
             metadata: metadata.clone(),
         });
+        observations.members.push(CapturedMemberObservation {
+            relative_path: logical_path.clone(),
+            metadata: metadata.clone(),
+        });
         if metadata.file_type().is_symlink() {
             let raw_target = read_and_validate_symlink_target(
                 root_directory,
@@ -132,6 +168,7 @@ pub(super) fn visit_directory(
                 policy,
                 captured_file_bytes,
                 entries,
+                observations,
             )?;
         } else if metadata.is_file() {
             let remaining = limits.max_bytes.checked_sub(*captured_file_bytes).ok_or(
@@ -167,7 +204,13 @@ pub(super) fn visit_directory(
         &opening_metadata,
         &entry_names_listed,
         &observed_entries,
-    )
+    )?;
+    observations.directories.push(CapturedDirectoryObservation {
+        relative_path: logical_dir,
+        metadata: opening_metadata,
+        listed_names: entry_names_listed,
+    });
+    Ok(())
 }
 
 /// Close one captured directory: the member set must still be exactly the
@@ -220,6 +263,98 @@ fn close_captured_directory(
         require_unchanged_entry(&observation.metadata, &metadata, &display_path)?;
     }
     Ok(())
+}
+
+/// The whole-tree counterpart of `close_captured_directory`, run once after
+/// the traversal completes: every directory already re-verified itself before
+/// its own visit returned, but a member created, removed, replaced or
+/// retargeted inside a subtree after that subtree closed is invisible to its
+/// parent's close. Re-observe every visited directory's member set and every
+/// captured member's identity here so drift landing anywhere in the tree
+/// during the capture window still rejects before publication. The per-member
+/// re-observation runs first — each directory entry's own kind and identity
+/// must still match before its handle is re-opened for the listing compare,
+/// so a directory swapped for a link cannot redirect the listing under the
+/// retained root capability.
+pub(super) fn verify_captured_tree(
+    root_directory: &CapabilityDirectory,
+    root: &Path,
+    observations: &CapturedTreeObservations,
+) -> Result<(), SourceResolveError> {
+    for member in &observations.members {
+        let display_path = root.join(&member.relative_path);
+        let metadata = match root_directory.symlink_metadata(&member.relative_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(SourceResolveError::LocalSourceChanged { path: display_path });
+            }
+            Err(error) => return Err(io_error(&display_path, error)),
+        };
+        require_unchanged_entry(&member.metadata, &metadata, &display_path)?;
+    }
+
+    for record in &observations.directories {
+        let display_path = root.join(&record.relative_path);
+        let opened;
+        let directory = if record.relative_path.as_os_str().is_empty() {
+            root_directory
+        } else {
+            opened = open_observed_directory(root_directory, &record.relative_path, &display_path)?;
+            &opened
+        };
+        let closing_metadata = directory
+            .dir_metadata()
+            .map_err(|error| io_error(&display_path, error))?;
+        require_unchanged_entry(&record.metadata, &closing_metadata, &display_path)?;
+
+        let mut closed_names: Vec<OsString> = Vec::new();
+        for entry in directory
+            .entries()
+            .map_err(|error| io_error(&display_path, error))?
+        {
+            closed_names.push(
+                entry
+                    .map_err(|error| io_error(&display_path, error))?
+                    .file_name(),
+            );
+        }
+        closed_names.sort();
+        if closed_names != record.listed_names {
+            return Err(SourceResolveError::LocalSourceChanged { path: display_path });
+        }
+    }
+    Ok(())
+}
+
+/// Re-open a visited directory under the retained root, no-follow at every
+/// component: a vanishing or re-kinded component is drift, not an I/O
+/// failure, so it reports the same `LocalSourceChanged` the per-directory
+/// close uses.
+fn open_observed_directory(
+    root_directory: &CapabilityDirectory,
+    relative_path: &Path,
+    display_path: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    let mut opened = root_directory
+        .try_clone()
+        .map_err(|error| io_error(display_path, error))?;
+    for component in relative_path.components() {
+        opened = match opened.open_dir_nofollow(component.as_os_str()) {
+            Ok(child) => child,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                ) =>
+            {
+                return Err(SourceResolveError::LocalSourceChanged {
+                    path: display_path.to_path_buf(),
+                });
+            }
+            Err(error) => return Err(io_error(display_path, error)),
+        };
+    }
+    Ok(opened)
 }
 
 /// Names the capture policy leaves out; identical for the opening listing and
@@ -587,6 +722,175 @@ mod close_tests {
             .expect("restore the recorded modification time");
         assert!(matches!(
             fixture.close(&observation),
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+    }
+}
+
+#[cfg(test)]
+mod tree_tests {
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+
+    use cap_fs_ext::DirExt;
+    use cap_std::ambient_authority;
+    use cap_std::fs::Dir as CapabilityDirectory;
+
+    use super::{
+        CapturedDirectoryObservation, CapturedMemberObservation, CapturedTreeObservations,
+        verify_captured_tree,
+    };
+    use crate::SourceResolveError;
+    use crate::test_support::temp_root;
+
+    struct TreeFixture {
+        root: PathBuf,
+        root_directory: CapabilityDirectory,
+    }
+
+    impl TreeFixture {
+        /// Builds `root/` with `a.omg` at the top level and
+        /// `sub/{b.omg,nested/c.omg}` beneath it.
+        fn new(name: &str) -> Self {
+            let root = temp_root(name);
+            std::fs::create_dir_all(root.join("sub/nested")).expect("create nested fixture");
+            std::fs::write(root.join("a.omg"), b"root bytes").expect("write root member");
+            std::fs::write(root.join("sub/b.omg"), b"nested bytes").expect("write nested member");
+            std::fs::write(root.join("sub/nested/c.omg"), b"deep bytes")
+                .expect("write deep member");
+            let root_directory = CapabilityDirectory::open_ambient_dir(&root, ambient_authority())
+                .expect("retain fixture root");
+            Self {
+                root,
+                root_directory,
+            }
+        }
+
+        /// Mirrors `visit_directory`'s accumulation: every visited directory's
+        /// opening metadata and member listing, and every member's first
+        /// no-follow observation, in traversal order.
+        fn observe(&self) -> CapturedTreeObservations {
+            let mut observations = CapturedTreeObservations::default();
+            Self::observe_directory(&self.root_directory, Path::new(""), &mut observations);
+            observations
+        }
+
+        fn observe_directory(
+            directory: &CapabilityDirectory,
+            relative: &Path,
+            observations: &mut CapturedTreeObservations,
+        ) {
+            let mut listed: Vec<OsString> = directory
+                .entries()
+                .expect("list directory")
+                .map(|entry| entry.expect("read directory entry").file_name())
+                .collect();
+            listed.sort();
+            observations.directories.push(CapturedDirectoryObservation {
+                relative_path: relative.to_path_buf(),
+                metadata: directory.dir_metadata().expect("observe directory"),
+                listed_names: listed.clone(),
+            });
+            for name in listed {
+                let child_relative = relative.join(&name);
+                let metadata = directory.symlink_metadata(&name).expect("observe member");
+                observations.members.push(CapturedMemberObservation {
+                    relative_path: child_relative.clone(),
+                    metadata: metadata.clone(),
+                });
+                if metadata.is_dir() {
+                    let child = directory.open_dir_nofollow(&name).expect("open member dir");
+                    Self::observe_directory(&child, &child_relative, observations);
+                }
+            }
+        }
+
+        fn verify(
+            &self,
+            observations: &CapturedTreeObservations,
+        ) -> Result<(), SourceResolveError> {
+            verify_captured_tree(&self.root_directory, &self.root, observations)
+        }
+    }
+
+    impl Drop for TreeFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn unchanged_tree_verifies() {
+        let fixture = TreeFixture::new("tree-unchanged");
+        let observations = fixture.observe();
+        fixture
+            .verify(&observations)
+            .expect("quiescent tree verifies");
+    }
+
+    #[test]
+    fn member_added_to_already_closed_subtree_rejects() {
+        // The subtree's own close already ran: only the final whole-tree
+        // sweep can see the new member.
+        let fixture = TreeFixture::new("tree-added-subtree");
+        let observations = fixture.observe();
+        std::fs::write(fixture.root.join("sub/new.omg"), b"late member")
+            .expect("add member after close");
+        assert!(matches!(
+            fixture.verify(&observations),
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+    }
+
+    #[test]
+    fn member_removed_from_root_rejects() {
+        let fixture = TreeFixture::new("tree-removed-root");
+        let observations = fixture.observe();
+        std::fs::remove_file(fixture.root.join("a.omg")).expect("remove root member");
+        assert!(matches!(
+            fixture.verify(&observations),
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+    }
+
+    #[test]
+    fn member_rewritten_in_already_closed_subtree_rejects() {
+        // Rewriting bytes in place keeps the member's name and kind; the
+        // moved modification/change indicators carry the drift.
+        let fixture = TreeFixture::new("tree-rewritten-subtree");
+        let observations = fixture.observe();
+        std::fs::write(fixture.root.join("sub/b.omg"), b"rewritten bytes longer")
+            .expect("rewrite member in place");
+        assert!(matches!(
+            fixture.verify(&observations),
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+    }
+
+    #[test]
+    fn child_directory_replaced_after_its_close_rejects() {
+        let fixture = TreeFixture::new("tree-replaced-dir");
+        let observations = fixture.observe();
+        std::fs::remove_dir_all(fixture.root.join("sub/nested")).expect("remove nested dir");
+        std::fs::create_dir_all(fixture.root.join("sub/nested")).expect("recreate nested dir");
+        assert!(matches!(
+            fixture.verify(&observations),
+            Err(SourceResolveError::LocalSourceChanged { .. })
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn link_retargeted_in_already_closed_subtree_rejects() {
+        let fixture = TreeFixture::new("tree-retargeted-link");
+        std::os::unix::fs::symlink("../a.omg", fixture.root.join("sub/linked.omg"))
+            .expect("create fixture link");
+        let observations = fixture.observe();
+        std::fs::remove_file(fixture.root.join("sub/linked.omg")).expect("remove link");
+        std::os::unix::fs::symlink("b.omg", fixture.root.join("sub/linked.omg"))
+            .expect("retarget link");
+        assert!(matches!(
+            fixture.verify(&observations),
             Err(SourceResolveError::LocalSourceChanged { .. })
         ));
     }
