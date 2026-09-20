@@ -62,6 +62,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `stage_validated_optimized_program_storage_semantic_wrapper_object` have no
     caller outside their own tests. Move the live part to its backend or
     representation owner, or delete it.
+    Disposition verified at `25709a6870`: the two modules are one coupled
+    chain — the encode stage's product is a typed parameter of the object
+    stage's entrance (`stage_..._object(settlement, object, encoding)`) and
+    its only non-test consumer — so the encoding leg cannot be deleted or
+    moved independently. Neither end of the chain is wired:
+    `plan_optimized_program_storage_semantic_wrapper` has no production
+    caller and `StagedValidatedOptimizedProgramStorageSemanticWrapperObject`
+    has no emission or installation consumer (`native_pipeline/report.rs`
+    still reports "wrapper bytes: unavailable"). The coupled disposition —
+    wiring the chain into the entry-realization route or joint removal —
+    is claimed this wave under OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION;
+    the surface stays off the locally-schedulable list until it settles.
   - Audit the remaining stage and coordinator crates the same way: a public
     stage entrance that no coordinator or successor stage calls is an orphan
     output.
