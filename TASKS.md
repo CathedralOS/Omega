@@ -7039,7 +7039,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OMEGA-D-REQUEST-AND-ENTRY-ROUTE, OMEGA-D-REQUEST-AND-SCALAR-COMPILATION,
   OMEGA-D-REQUEST-OUTCOME-TABLES.
 - **BOOTSTRAP-SEED-EXECUTION-HOSTS** — mined candidate; verify scope then implement.
-- **BUILD-DEPEND-PURPOSE-AWARE-LOCKS** — mined candidate; verify scope then implement.
+- **BUILD-DEPEND-PURPOSE-AWARE-LOCKS** — mined candidate; scope verified,
+  resolved — the purpose-aware lock landed at `748b07f622` ("packages: split
+  dependency declarations into product and build purposes"). Purpose rides
+  every resolved edge and the lock record: the canonical source-closure
+  subject writes purpose-split authored rows and purpose-tagged edges (text
+  v2; legacy v1 decodes as product-only), and locked recovery/comparison in
+  `resolution/graph/resolve/locked/comparison.rs` keys every edge by
+  (requester, purpose, ordinal), so a `build_depend` row resolves only
+  against a selection recorded under Build purpose — a wrong-purpose lock
+  edge or a dropped/repurposed row rejects instead of widening scope.
+  Witnessed green at `20a11975b8` (linux x86-64): `cargo nextest run -p
+  package-manager --test suite -E 'test(~purpose)'` — all 5
+  `dependency_purposes` tests pass, incl.
+  `purpose_tagged_edges_survive_acquisition_review_lock_and_recovery`,
+  `a_wrong_purpose_edge_in_the_lock_text_rejects`, and
+  `dropping_or_repurposing_a_build_row_rejects_locked_recovery`. Adjacent
+  unrelated failure recorded under unrelated_failures:
+  `source_diff_commands::cases::update_to_retargets_both_scope_rows_of_a_dual_purpose_package`
+  fails since `3cf600bbe3` (one-integration-binary consolidation) — the
+  fixture's child re-runs the suite binary with `--exact cases::<test>`,
+  which no longer matches the `source_diff_commands::cases::*` names, so the
+  child runs 0 tests.
 - **BUILD-DIR-ALIAS-RACE-DETECTION** — mined candidate; verify scope then implement.
   Verified scope: re-mines the race-window residual the landed
   BUILD-DIR-HOST-ALIAS-COLLISIONS work (commits `f0f902d6ef`,
