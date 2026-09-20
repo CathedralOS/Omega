@@ -1,0 +1,33 @@
+// wrapping_square_sum -- a dependency-free benchmark subject.
+//
+// Every other hosted sample `depend()`s on omega-language-std for its
+// console/exit services; this one intentionally declares no package edges so
+// the benchmark harness measures a compile with no dependency settlement at
+// all. The work is a self-transition loop summing squares under Wrapping:
+//
+//   acc += i * i   for i in 1..=2_000_000   (mod 2^64)
+//
+// `main` returns through the ordinary ProgramEntry completion, so the
+// runtime leg observes a deterministic clean exit on any hosted target
+// without needing a ProcessExit or Console provider.
+
+data Main {
+    acc: u64 in Wrapping;
+    i: u64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.acc = 0;
+    self.i = 1;
+    transition { _ -> loop_() }
+
+    state loop_(&mut self) {
+        transition self.i <= 2000000 { true -> step() _ -> done() }
+    }
+    state step(&mut self) {
+        self.acc = self.acc + self.i * self.i;
+        self.i = self.i + 1;
+        transition { _ -> loop_() }
+    }
+    state done(&mut self) {}
+}
