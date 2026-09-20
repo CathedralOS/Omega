@@ -6452,7 +6452,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   claimed by BENCHMARK-HOST-ROW-MATRIX). Fence note: `tools/benchmark`
   was held by BENCHMARK-COMPARISON-OCCURRENCE-GATE until
   2026-09-20T22:09:59Z during the z57 leg — records commit under it.
-- **BENCHMARK-COMPILE-ONLY-SUBJECTS** — mined candidate; verify scope then implement.
+- **BENCHMARK-COMPILE-ONLY-SUBJECTS.** Resolved — re-mine of
+  BENCHMARK-COMPILE-ONLY-ROWS' subject leg, fully decomposed and recorded
+  this wave. The dependency-free compile-only subject exists and is
+  exercised: `samples/cli/arithmetic/wrapping_square_sum` (`3dd805679c`)
+  compiled and published on `windows_x86_64`, `macos_arm64`, and
+  `linux_arm64` at `f2f39039da` after `76dc49a99e` cleared the
+  comparison-occurrence gate; schema-valid `measure --no-run` records for
+  the windows/macos legs were produced by z113 (`1a772e4ae1`,
+  benchmarks.md update) and the linux_arm64 row is committed
+  (`863002740df`). `macos_x86_64` and `uefi_x86_64` are non-applicable —
+  no bound required root slot `<target>::ProgramEntry`
+  (MACOS-X64-HOST-PROFILE owns the macOS gap). The only residual —
+  committing the produced JSONs into `tools/benchmark/records/` — is
+  fenced: `tools/benchmark` is held by BENCHMARK-COMPARISON-OCCURRENCE-GATE
+  until 22:09Z, and sibling claims cover every other implementing surface
+  (BENCHMARK-SUBJECT-CORPUS-EXPANSION adds subjects; DEPENDENCY-FREE-
+  RUNTIME-BENCHMARK-SUBJECT owns the runnable-subject leg;
+  BENCHMARK-HOST-ROW-MATRIX owns benchmarks.md). No unclaimed slice
+  remains. Sibling re-mine stubs on the same bullet:
+  BENCHMARK-CROSS-TARGET-COMPILE-LEGS, BENCHMARK-CROSS-TARGET-COMPILE-ROWS.
 - **BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES.** Resolved — re-mines
   the producer fix named in BENCHMARK-COMPILE-ONLY-ROWS: the integer
   comparison-occurrence rejection that blocked benchmark subject compiles
