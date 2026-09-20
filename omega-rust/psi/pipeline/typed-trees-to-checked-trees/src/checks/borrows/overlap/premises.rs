@@ -18,6 +18,10 @@
 //! each statement entry. They never enter the stable state-entry premise set.
 //! The exact callee contract and immutable captured result survive separately;
 //! both must rejoin before a reserved result can license separation.
+//! A `requires` row spelled as a transparent proposition application
+//! decomposes the instantiated formula under the same meaning gate, with each
+//! declared parameter bound to its actual argument's normalized bound;
+//! primitive and witness propositions carry no formula and supply nothing.
 
 use checked_trees::{
     BorrowCompatibilityPremise, BorrowCompatibilityPremiseRelation,
@@ -33,6 +37,7 @@ use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 use crate::checks::ranges::requirements::state_requires_facts;
 
 mod domains;
+mod propositions;
 
 #[derive(Clone, Copy)]
 enum PremiseScope<'program> {
@@ -47,6 +52,15 @@ enum PremiseScope<'program> {
     Call {
         guarantee: &'program AvailableGuarantee<'program>,
         result: symbols::SymbolHandle,
+    },
+    /// A transparent proposition formula evaluated in the machine scope of
+    /// the requires row: `parameters`/`arguments` pair the proposition's
+    /// declared value parameters with the application's actual expressions.
+    Proposition {
+        machine: &'program Machine,
+        state: &'program State,
+        parameters: &'program [typed_trees::signature::StateParameter],
+        arguments: &'program [ExpressionHandle],
     },
 }
 
@@ -67,6 +81,14 @@ impl PremiseScope<'_> {
             Self::Domain { definition, .. } => {
                 validation::has_builtin_domain_decomposed_guard_meaning(
                     program, definition, expression,
+                )
+            }
+            Self::Proposition { machine, state, .. } => {
+                validation::has_builtin_decomposed_guard_meaning(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
                 )
             }
         }
@@ -102,6 +124,28 @@ impl PremiseScope<'_> {
                 } else {
                     None
                 }
+            }
+            Self::Proposition {
+                parameters,
+                arguments,
+                ..
+            } => {
+                if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+                    && program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        == 1
+                    && path.head_symbol == path.symbol
+                    && let Some(index) = parameters
+                        .iter()
+                        .position(|parameter| parameter.symbol == path.symbol)
+                {
+                    return normalized_bound(program, arguments[index]);
+                }
+                normalized_bound(program, expression).and_then(|bound| {
+                    propositions::substitute_bound(program, bound, parameters, arguments)
+                })
             }
         }
     }
@@ -174,7 +218,16 @@ pub fn stated_ordering_premises(
                     &mut premises,
                 );
             }
-            typed_trees::domain::ProofFact::Proposition(_) => {}
+            typed_trees::domain::ProofFact::Proposition(application) => {
+                propositions::append_proposition_premises(
+                    program,
+                    machine,
+                    state,
+                    fact,
+                    application,
+                    &mut premises,
+                );
+            }
         }
     }
     for guard in incoming_guards

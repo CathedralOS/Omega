@@ -1,0 +1,22 @@
+// A primitive proposition owns no formula: `requires Distinct(...)` cannot
+// derive an ordering premise, so the same-index hazard still rejects.
+data Entry {
+    value: i32;
+}
+
+data Main {
+    entries: [Entry; 2];
+}
+
+proposition Distinct(left: u64, right: u64);
+
+machine Main::main(&mut self, left_index: u64 [0..=1], right_index: u64 [0..=1])
+requires
+    Distinct(left_index, right_index)
+{
+    let view: &mut [Entry] = self.entries.as_mut_slice();
+    let left: &mut Entry = &mut view[left_index];
+    let right: &mut Entry = &mut view[right_index];
+    left = Entry { value: 1 };
+    right = Entry { value: 2 };
+}
