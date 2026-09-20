@@ -6650,7 +6650,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-ENTRY-MANIFEST-BINDINGS** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
-- **OMEGA-PARSER-GATE-WINDOWS-VALIDATION** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-GATE-WINDOWS-VALIDATION.** Windows x64 validation leg of the
+  omega-parser bootstrap gate (sibling alias of OMEGA-PARSER-GATE-WINDOWS /
+  OMEGA-PARSER-GATE-WINDOWS-ROUTE). Landed: `tests/bootstrap/omega-parser/run.sh
+  --identity` — a host-free leg that validates every bound identity plus the
+  DCREQ request framing, customer assembly, and expected fixture on any
+  Python-3 host (verified green on Linux x86-64), so a Windows host can vet
+  the whole non-executing surface before the multi-hour run. Remaining: the
+  Windows x64 execution itself — `sh tests/bootstrap/omega-parser/run.sh` on a
+  MINGW/MSYS x64 host; no audited seed executes on Linux or macOS x86_64.
 - **OMEGA-PARSER-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-WINDOWS-ROUTE-VALIDATION** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER** — mined candidate; verify scope then implement.

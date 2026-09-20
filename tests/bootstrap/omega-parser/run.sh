@@ -10,12 +10,27 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/evaluator_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/omega/compiler_env.sh"
 
+IDENTITY_ONLY=0
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --identity ]; }; then
+    echo "usage: $0 [--identity]" >&2
+    exit 2
+fi
+if [ "$#" -eq 1 ]; then
+    IDENTITY_ONLY=1
+fi
+
 command -v python3 >/dev/null 2>&1 || {
     echo "Interpreted D parser: skipped (python3 absent)"
     exit 0
 }
 
-require_seed_execution_host "Interpreted D parser"
+# --identity validates every bound identity and assembles both byte streams
+# without executing the seed, so any Python-3 host (including Linux, or a
+# Windows host before the multi-hour run) can check the gate's whole
+# non-executing surface. The default run still requires a seed host.
+if [ "$IDENTITY_ONLY" = 0 ]; then
+    require_seed_execution_host "Interpreted D parser"
+fi
 
 PARSER_TMP=$(mktemp -d)
 trap 'rm -rf -- "$PARSER_TMP"' EXIT HUP INT TERM
@@ -28,4 +43,8 @@ materialize_epsilon_evaluator "$PARSER_TMP/epsilon_compiler.delta"
 materialize_omega_compiler "$PARSER_TMP/omega_compiler.epsilon"
 require_omega_parser_entry_identity
 materialize_gamma_evaluator "$PARSER_TMP/evaluator.exe" >/dev/null
-python3 "$GATE_DIR/gate.py" "$PARSER_TMP" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER"
+if [ "$IDENTITY_ONLY" = 1 ]; then
+    python3 "$GATE_DIR/gate.py" --identity "$PARSER_TMP" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER"
+else
+    python3 "$GATE_DIR/gate.py" "$PARSER_TMP" "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER"
+fi

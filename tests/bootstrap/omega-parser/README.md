@@ -19,6 +19,18 @@ the shared bootstrap paths and evaluator-stamping helpers; Python owns the
 same framing, invocation, and comparison logic on both hosts. No PowerShell
 installation is required. Windows execution has not yet been validated.
 
+The host-free identity leg validates everything except the two evaluator
+executions — the bound materializers, every pinned member/entry/customer
+identity, the DCREQ request framing, and the expected fixture — on any
+Python-3 host, including Linux or a Windows host before the multi-hour run:
+
+```sh
+sh tests/bootstrap/omega-parser/run.sh --identity
+```
+
+Verified green on Linux x86-64. The remaining leg is the Windows x64
+execution itself.
+
 The customer reuses one parser across twelve invocations. Three complete
 inputs cover decimal expressions and transition guards, a named struct literal,
 a cast domain, reference/array/constrained types, and an externally bound
