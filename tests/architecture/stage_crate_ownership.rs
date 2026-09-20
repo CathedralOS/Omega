@@ -326,3 +326,68 @@ fn stage_entrances_stay_connected_to_external_callers() {
         }
     }
 }
+
+fn rust_files(directory: &Path, files: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(directory).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            rust_files(&path, files);
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            files.push(path);
+        }
+    }
+}
+
+/// The selected-optimization stage keeps the same producer-history custody
+/// contract the register-home stage pinned in
+/// `representation_ownership::register_home_stages_read_current_data_not_producer_ancestry`:
+/// `StagedOptimized*` types retain their producer stages as replay and
+/// custody evidence only. Ordinary consumers read the current program and
+/// facts through direct accessors — `selected`, `register_environment`,
+/// `selections`, `liveness`, `ranges`, `legality` — instead of climbing
+/// `live_range_stage().liveness_stage().selected_stage().optimized_target()`.
+/// The surviving ancestry hops are validator inputs only: every file that
+/// touches `selected_stage()`, `liveness_stage()`, `live_range_stage()`, or
+/// `optimized_target_owner()` runs a `validate_*_custody` check, where the
+/// hop names the stage under inspection rather than reading it as data.
+#[test]
+fn selected_optimization_stages_read_current_data_not_producer_ancestry() {
+    let root = repository()
+        .join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src");
+    let mut files = Vec::new();
+    rust_files(&root, &mut files);
+    assert!(!files.is_empty());
+    for path in &files {
+        let source = std::fs::read_to_string(path).unwrap();
+        let name = path.display().to_string();
+        for data_read in [".optimized_target()", ".optimized()"] {
+            assert!(
+                !source.contains(data_read),
+                "{name} reads retained producer history as data: {data_read}"
+            );
+        }
+        for ancestry in [
+            "selected_stage()",
+            "liveness_stage()",
+            "live_range_stage()",
+            "optimized_target_owner()",
+        ] {
+            assert!(
+                !source.contains(ancestry) || source.contains("custody"),
+                "{name} walks producer ancestry outside a custody validator: {ancestry}"
+            );
+        }
+    }
+    let liveness_validation =
+        std::fs::read_to_string(root.join("analyses/liveness/staging/validation.rs")).unwrap();
+    assert!(
+        liveness_validation.contains("selected.optimized_target_owner()"),
+        "liveness custody dropped the retained proof-input handle"
+    );
+    let output =
+        std::fs::read_to_string(root.join("selected_optimization/optimization_output.rs")).unwrap();
+    assert!(
+        output.contains("into_replayed_evidence"),
+        "optimization output dropped the current-program/replay-evidence split"
+    );
+}
