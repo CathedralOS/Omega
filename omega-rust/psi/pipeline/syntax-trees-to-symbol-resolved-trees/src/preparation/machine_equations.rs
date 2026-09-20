@@ -103,6 +103,7 @@ pub(crate) fn complete(
     sources: SourceLinks,
     selection: &ConstantSelection<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
+    let mut completed_type_roots = Vec::new();
     for bound in trees
         .machines
         .iter()
@@ -165,6 +166,8 @@ pub(crate) fn complete(
                     selection,
                 )
                 .map_err(|error| vec![error])?;
+                completed_type_roots.extend(authored.machine_arguments.iter()
+                    .map(|argument| argument.type_reference).filter(|reference| reference.is_valid()));
                 syntax.expressions.replace_expression(
                     *original,
                     syntax_trees::expression::ExpressionNode::Call(authored),
@@ -213,10 +216,49 @@ pub(crate) fn complete(
             selection,
         )
         .map_err(|error| vec![error])?;
+        completed_type_roots.extend(
+            authored
+                .machine_arguments
+                .iter()
+                .map(|argument| argument.type_reference)
+                .filter(|reference| reference.is_valid()),
+        );
         syntax.statements.replace_statement(
             *original,
             syntax_trees::statement::StatementNode::Call(authored),
         );
+    }
+    // Completion may introduce nominal type applications after the compiler's
+    // earlier data-normalization pass. Rejoin that same owner only after all
+    // provisional source links have been consumed: matching a constructor does
+    // not discharge the constructor's own facts or nested equations.
+    // Retain descendants before synthesis rewrites parents to Named. A
+    // materialized outer record must not conceal an unsupported inner type.
+    let mut positions = Vec::new();
+    for &root in &completed_type_roots {
+        super::generic_data::collect_type_positions(syntax, root, &mut positions, false);
+    }
+    let mut warnings = Vec::new();
+    super::generic_data::desugar_generic_data_instances_with_selection(
+        syntax,
+        &mut warnings,
+        Some(selection),
+        &completed_type_roots,
+    )?;
+    // Synthesis deliberately leaves unsupported applications untouched.
+    // Matching one does not establish its formation obligations.
+    if positions.iter().any(|reference| {
+        matches!(
+            syntax.type_references.type_reference(*reference),
+            TypeReferenceNode::Generic { .. }
+        )
+    }) {
+        return Err(vec![Diagnostic::error(
+            "machine equation type argument retains an unnormalized data application",
+        )]);
+    }
+    for warning in warnings {
+        eprintln!("{warning}");
     }
     Ok(())
 }
@@ -266,6 +308,9 @@ fn require_closed_selected_arguments(
     for argument in arguments {
         if is_binder(argument.symbol) {
             return Err(reject());
+        }
+        if let Some(application) = &argument.application {
+            require_closed_selected_arguments(trees, &application.arguments)?;
         }
         if argument.type_reference.is_valid() {
             pending.push(argument.type_reference);
@@ -392,6 +437,9 @@ fn complete_arguments(
     for (argument, parameter) in supplied.iter().zip(&parameters) {
         let reference = match &parameter.kind {
             TypeParameterKind::Type if argument.type_reference.is_valid() => argument.type_reference,
+            TypeParameterKind::Type if argument.application.is_some() => {
+                application_argument_reference(syntax, argument, &parameter.kind, selection)?
+            }
             TypeParameterKind::Type if argument.const_literal.is_none() && argument.application.is_none() && argument.evidence_projection.is_none() && !argument.path.is_empty() => {
                 let name = argument.path.iter().map(|part| part.as_str()).collect::<Vec<_>>().join("::");
                 syntax.type_references.insert(TypeReferenceNode::Named(syntax_trees::identifier::Identifier::new(name, argument.path[0].source_span())))
@@ -440,6 +488,13 @@ fn complete_arguments(
         eprintln!("{warning}");
     }
     let mut completed = supplied.to_vec();
+    for ((argument, reference), parameter) in completed.iter_mut().zip(&tuple).zip(&parameters) {
+        if matches!(parameter.kind, TypeParameterKind::Type) && argument.application.is_some() {
+            argument.type_reference = *reference;
+            argument.path = Box::default();
+            argument.application = None;
+        }
+    }
     for (reference, parameter) in tuple.into_iter().zip(parameters).skip(supplied.len()) {
         let mut argument = StaticMachineArgument {
             type_reference: TypeReferenceHandle::invalid(),
@@ -473,4 +528,110 @@ fn complete_arguments(
         completed.push(argument);
     }
     Ok(completed.into_boxed_slice())
+}
+
+/// The selected type slot determines how a static application is read.
+/// Reuse the declaration's telescope rather than treating every static path as
+/// a type, and retain each occurrence's source context for normal selection.
+fn application_argument_reference(
+    syntax: &mut SyntaxTrees,
+    argument: &StaticMachineArgument,
+    kind: &TypeParameterKind,
+    selection: &ConstantSelection<'_>,
+) -> Result<TypeReferenceHandle, Diagnostic> {
+    let reject = |reason: &str| Diagnostic::error(format!("machine equation application {reason}"));
+    if argument.evidence_projection.is_some() {
+        return Err(reject("cannot use evidence as a type or integer argument"));
+    }
+    match kind {
+        TypeParameterKind::Const { type_reference } => {
+            let literal = argument
+                .const_literal
+                .as_ref()
+                .ok_or_else(|| reject("requires a closed integer constructor argument"))?;
+            let TypeReferenceNode::Named(carrier) =
+                syntax.type_references.type_reference(*type_reference)
+            else {
+                return Err(reject("requires a builtin integer constructor parameter"));
+            };
+            if literal.landing().is_some_and(|landing| {
+                landing.landed_type.name() != carrier.as_str()
+                    || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+            }) {
+                return Err(reject(
+                    "has a constructor argument with a different integer meaning",
+                ));
+            }
+            let (minimum, maximum) = type_equations::const_binder_envelope(carrier.as_str())
+                .ok_or_else(|| reject("requires a builtin integer constructor parameter"))?;
+            let value = literal
+                .value_bignum()
+                .ok_or_else(|| reject("requires an exact integer"))?;
+            if value < minimum || value > maximum {
+                return Err(reject(
+                    "has a constructor constant outside its declared carrier",
+                ));
+            }
+            Ok(syntax.type_references.insert(TypeReferenceNode::Named(
+                syntax_trees::identifier::Identifier::generated(value.to_string()),
+            )))
+        }
+        TypeParameterKind::Type => {
+            if argument.const_literal.is_some() {
+                return Err(reject("mixes type and value kinds"));
+            }
+            if argument.type_reference.is_valid() {
+                return Ok(argument.type_reference);
+            }
+            let Some(first) = argument.path.first() else {
+                return Err(reject("requires a selected type name"));
+            };
+            let name = syntax_trees::identifier::Identifier::new(
+                argument
+                    .path
+                    .iter()
+                    .map(|part| part.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::"),
+                first.source_span(),
+            );
+            let Some(application) = &argument.application else {
+                return Ok(syntax
+                    .type_references
+                    .insert(TypeReferenceNode::Named(name)));
+            };
+            let definition = selection.data(syntax, &name).map_err(Diagnostic::error)?;
+            if !application.lifetime_arguments.is_empty()
+                || !definition.lifetime_parameters.is_empty()
+            {
+                return Err(reject("requires lifetime-free constructor arguments"));
+            }
+            let parameters = syntax
+                .items
+                .type_parameters(definition.type_parameters)
+                .to_vec();
+            if parameters.len() != application.arguments.len() {
+                return Err(reject("requires a complete constructor argument tuple"));
+            }
+            let arguments = application
+                .arguments
+                .iter()
+                .zip(parameters)
+                .map(|(argument, parameter)| {
+                    application_argument_reference(syntax, argument, &parameter.kind, selection)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let arguments = syntax
+                .type_references
+                .insert_type_reference_handles(arguments);
+            Ok(syntax.type_references.insert(TypeReferenceNode::Generic {
+                base_name: name,
+                lifetime_arguments: Default::default(),
+                arguments,
+            }))
+        }
+        _ => Err(reject(
+            "requires type and integer const constructor parameters",
+        )),
+    }
 }

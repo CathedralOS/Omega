@@ -3488,7 +3488,7 @@ Owners include
   reject. Data equations also decompose nested fixed arrays and construct an
   omitted backing type from bound element/extent arguments
   (`type_equations/type_structure.rs`). Closed leaves use `ClosedArgumentIdentity`;
-  open generic elements and unresolved module lengths still reject. The
+  unresolved module lengths still reject. The
   `compiler --test array_type_equations` integration target exercises inferred
   and explicit identity through checking and recovered counts through source-free
   Terminal execution, including reverse construction (macOS ARM64). Templates
@@ -3505,6 +3505,16 @@ Owners include
   their equation syntax reject explicitly. Provisional normalization retains
   pending equations; transitive build-time invocation cannot execute them.
 
+  Lifetime-free declared applications with type and builtin-integer const
+  positions now share that traversal, including nested arrays/applications and
+  reverse construction. Machine completion retains selected declaration identity,
+  normalizes the completed type roots through ordinary data synthesis, and reuses
+  existing instances; matching never discharges a constructor's own constraints.
+  `compiler --test application_type_equations` exercises source-free Terminal
+  and macOS ARM64 native execution, data/machine inference, and rejection of
+  conflicting tuples, false constructor facts, hidden caller binders, and skipped
+  nested applications.
+
   Remaining work:
 
   - Static type equality in Psi type-role resolution and checking: `where`
@@ -3512,8 +3522,9 @@ Owners include
     rejection of type/value mixtures, the unspecialized body checked under
     every admitted alternative, and a static branch's equality fact dropped
     at its join. No machine-level customer or control exists.
-  - Structural matching by exact constructor and parameter position for open
-    declared generic applications (including array elements). Combine machine
+  - Extend constructor matching beyond its lifetime-free type/integer-const
+    cohort, preserving exact lifetime/reference and noninteger index identity.
+    Combine machine
     equations with existing argument/result inference rather than requiring a
     closed explicit prefix; retain obligations through generic forwarding and
     retained compilation extensions. Open and late-selected result receiver
