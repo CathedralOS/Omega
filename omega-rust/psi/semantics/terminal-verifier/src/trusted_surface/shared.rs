@@ -159,7 +159,7 @@ rows! {
         "scope:header-edge-arrival",
         PremiseScope,
         "a header block's incoming edges, each with its own reconstructed arrival set",
-        "block-invariant obligations are stated per arriving edge, never merged across edges",
+        "block-invariant obligations are stated per arriving edge, never merged across edges; a declared-predicate member whose fixed-shape elimination certificate the checker rejects stays a licensed premise introduction under this row — every accepted member is discharged under fact:header-invariant-members",
         &["scope:dominance-order"],
         &[tv!( "verification/reconstruction/scalar_block_invariants.rs"), tv!( "verification/reconstruction/machine_flow.rs")]
     );

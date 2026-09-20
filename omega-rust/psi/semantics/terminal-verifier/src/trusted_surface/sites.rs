@@ -199,6 +199,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         parent: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/path_facts/transport.rs",
         module: "tests",
     },
+    TestOnlySource {
+        path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/scalar_block_invariants/tests.rs",
+        parent: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/scalar_block_invariants.rs",
+        module: "tests",
+    },
 ];
 
 pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
@@ -1164,7 +1169,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction.rs",
-        sha256: Some("71368683c576bde3eb12c64453d3676df33c801c58362d5a369cfec52a0e0d82"),
+        sha256: Some("b66b82c6650158e8489572a1d0d3e4adfd5948f4d9e04751a9f212b791e4049b"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1239,7 +1244,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/scalar_block_invariants.rs",
-        sha256: Some("01b2a9e5b7f280102609650a147e018bfe7c8b379a993c79c88241196f3fd365"),
+        sha256: Some("7242e8f47b7595065f4a5a2ce0435ab85eed9a27f9c8be5ddff960241ea4153c"),
         inventory_machinery: false,
     },
     ImplementationSite {
