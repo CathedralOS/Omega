@@ -114,6 +114,60 @@ fn checked_admission_and_compilation_do_not_write_debug_dumps() {
     assert!(!fixture.root.join("build").exists());
 }
 
+/// Flag every file under `root` that is not an authored source, the published
+/// executable, or a member of the content-addressed `completed/` output set.
+fn collect_unexpected_publications(
+    root: &Path,
+    directory: &Path,
+    executable: &Path,
+    unexpected: &mut Vec<std::path::PathBuf>,
+) {
+    for entry in fs::read_dir(directory).expect("walk compiler output directory") {
+        let path = entry.expect("read directory entry").path();
+        if path.is_dir() {
+            collect_unexpected_publications(root, &path, executable, unexpected);
+            continue;
+        }
+        let relative = path.strip_prefix(root).expect("walked path under root");
+        let authored = matches!(relative.to_str(), Some("main.omg") | Some("build.omg"));
+        if !authored && path != executable && !relative.starts_with("build/completed") {
+            unexpected.push(path);
+        }
+    }
+}
+
+#[test]
+fn native_publication_writes_only_declared_products() {
+    let fixture = MultiTargetFixture::new(
+        "data Main { }\nmachine Main::main(&mut self) { }\n",
+        r#"machine build(builder: &mut Build) {
+    builder.application("no-observation-products");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    );
+    let report = compile(
+        fixture
+            .request()
+            .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(CompileOutcomes::into_single_report)
+    .expect("native artifact compile");
+    assert!(!fixture.root.join("build").exists());
+    let build_dir = fixture.root.join("build");
+    let report = report
+        .publish_retained_native_artifact(&build_dir)
+        .and_then(|report| report.publish_completed_build_outputs(&build_dir))
+        .expect("native publication");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("published executable custody")
+        .to_path_buf();
+    let mut unexpected = Vec::new();
+    collect_unexpected_publications(&fixture.root, &fixture.root, &executable, &mut unexpected);
+    assert!(unexpected.is_empty(), "unexpected files: {unexpected:?}");
+}
+
 #[test]
 fn exact_target_invocation_needs_no_authored_target_declaration() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
