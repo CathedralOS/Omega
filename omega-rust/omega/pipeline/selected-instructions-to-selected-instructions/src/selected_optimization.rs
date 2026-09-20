@@ -2,6 +2,9 @@
 
 pub(crate) mod optimization_output;
 
+#[cfg(test)]
+mod catalog_route_tests;
+
 use crate::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
     SelectedInstructionOptimizationOutput, StagedOptimizedLiveRanges,
