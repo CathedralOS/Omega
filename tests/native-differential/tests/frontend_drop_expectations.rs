@@ -701,3 +701,383 @@ machine Main::main(&mut self) reaches Console {
     );
     assert_eq!(outcome.exit_code, 7);
 }
+
+// ---- drop order -------------------------------------------------------------
+//
+// The probes above pin single-hook shapes; this block pins ORDER answers the
+// frontend gives today: the authored consume sequence decides which locals'
+// hooks are eligible at which point, and when several drop fences apply to one
+// declaration the diagnostics arrive in a fixed precedence order. The
+// reference interpreter still runs no observable cleanup, so cleanup ORDER is
+// pinned here only through admission and diagnostic sequencing — a future
+// cleanup-executing interpreter turns these into runtime-order witnesses and
+// should extend this block rather than change it silently.
+
+/// Several locals each carrying a nominal `drop` hook are admitted in one
+/// scope; both hooks are eligible at the same exit. Nothing about the order is
+/// observable today beyond admission.
+#[test]
+fn two_hooked_locals_in_one_scope_compile_and_interpret() {
+    let checked = compile(
+        "drop-order-two-hooks",
+        r#"
+use omega::language::core::service;
+use omega::language::std::console;
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Guard = Guard { handle: 1 };
+    let b: Guard = Guard { handle: 2 };
+    self.console.exit_process(70);
+}
+"#,
+    );
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "two hooked locals in one scope must interpret: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+/// Explicit consumes run in authored order in either direction: `drop(b)`
+/// before `drop(a)` is as admissible as `drop(a)` before `drop(b)` — the
+/// frontend does not impose a declaration-order fence on explicit consumes.
+#[test]
+fn explicit_consumes_in_authored_order_compile_and_interpret() {
+    let checked = compile(
+        "drop-order-reverse-explicit",
+        r#"
+use omega::language::core::drop;
+use omega::language::core::service;
+use omega::language::std::console;
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Guard = Guard { handle: 1 };
+    let b: Guard = Guard { handle: 2 };
+    drop(b);
+    drop(a);
+    self.console.exit_process(70);
+}
+"#,
+    );
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "reverse explicit consume order must interpret: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+/// Collect the frontend's diagnostics for a rejecting program as
+/// (message, has_source_span) rows in emission order.
+fn frontend_diagnostics(name: &str, source: &str) -> Vec<(String, bool)> {
+    let main_path = write_program(name, source);
+    match compile_to_checked(CheckedCompileRequest::new(&main_path, None)) {
+        Ok(_) => panic!("{name}: expected the frontend to reject this program; it compiled"),
+        Err(diagnostics) => diagnostics
+            .into_iter()
+            .map(|diagnostic| (diagnostic.message, diagnostic.source_span.is_some()))
+            .collect(),
+    }
+}
+
+/// Assert every fragment occurs in `messages` at a strictly later position than
+/// the fragment before it: the emitted diagnostic order, not just the set.
+fn assert_diagnostic_order(name: &str, diagnostics: &[(String, bool)], fragments: &[&str]) {
+    let mut from = 0usize;
+    for fragment in fragments {
+        let index = diagnostics
+            .iter()
+            .enumerate()
+            .skip(from)
+            .find(|(_, (message, _))| message.contains(fragment))
+            .map(|(index, _)| index)
+            .unwrap_or_else(|| {
+                panic!("{name}: no diagnostic containing {fragment:?} at index >= {from}: {diagnostics:?}")
+            });
+        from = index + 1;
+    }
+}
+
+/// Consuming an already-consumed local is a move violation, not a second
+/// cleanup: `drop(a); drop(a)` rejects with the affine-transfer diagnostic,
+/// which is what keeps consume order meaningful.
+#[test]
+fn second_consume_of_already_dropped_local_is_frontend_rejected() {
+    let diagnostics = frontend_diagnostics(
+        "drop-order-double-consume",
+        r#"
+use omega::language::core::drop;
+use omega::language::core::service;
+use omega::language::std::console;
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Guard = Guard { handle: 1 };
+    drop(a);
+    drop(a);
+    self.console.exit_process(70);
+}
+"#,
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|(message, _)| { message.contains("`a` was already transferred or consumed") }),
+        "double consume must reject with the affine-transfer diagnostic: {diagnostics:?}"
+    );
+}
+
+/// Re-establishing a consumed local through assignment does not order it back
+/// into the cleanup roster here: the local is immutable in this state, so the
+/// assignment fence answers instead.
+#[test]
+fn reassigning_consumed_local_is_frontend_rejected() {
+    frontend_rejects(
+        "drop-order-reassign-consumed",
+        r#"
+use omega::language::core::drop;
+use omega::language::core::service;
+use omega::language::std::console;
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Guard = Guard { handle: 1 };
+    drop(a);
+    a = Guard { handle: 9 };
+    self.console.exit_process(70);
+}
+"#,
+    );
+}
+
+/// `drop` accepts a field path, not only a whole local: `drop(a.handle)` is
+/// currently admitted and interprets. This pins the admitted operand width —
+/// a tightening to whole-locals-only is a deliberate expectation change.
+#[test]
+fn drop_of_field_path_is_currently_admitted() {
+    let checked = compile(
+        "drop-order-field-path",
+        r#"
+use omega::language::core::drop;
+use omega::language::core::service;
+use omega::language::std::console;
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Guard = Guard { handle: 1 };
+    drop(a.handle);
+    self.console.exit_process(70);
+}
+"#,
+    );
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "field-path consume currently interprets: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+/// The executable slice's helper list runs in authored order, not the helpers'
+/// declaration order: `Second::touch` before `First::touch` is admitted even
+/// though `First` is declared first.
+#[test]
+fn helper_calls_run_in_authored_order_compile_and_interpret() {
+    let checked = compile(
+        "drop-order-helpers-reversed",
+        r#"
+use omega::language::core::service;
+use omega::language::std::console;
+
+data First {
+}
+machine First::touch() {
+}
+data Second {
+}
+machine Second::touch() {
+}
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+    Second::touch();
+    First::touch();
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Guard = Guard { handle: 1 };
+    self.console.exit_process(70);
+}
+"#,
+    );
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "authored helper order must interpret: {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, 70);
+}
+
+/// When several drop fences apply at once the diagnostics arrive in a fixed
+/// precedence order: a reserved-spelling use inside a drop body reports FIRST
+/// (and is the only one of these carrying a source span), then the executable
+/// slice fence, then the callee signature check.
+#[test]
+fn nested_consume_inside_drop_body_orders_its_diagnostics() {
+    let diagnostics = frontend_diagnostics(
+        "drop-order-nested-consume",
+        r#"
+use omega::language::core::drop;
+use omega::language::core::service;
+use omega::language::std::console;
+
+data Tool {
+    id: i32;
+}
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::drop(&mut self) {
+    let t: Tool = Tool { id: 1 };
+    drop(t);
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Guard = Guard { handle: 1 };
+    self.console.exit_process(70);
+}
+"#,
+    );
+    assert_diagnostic_order(
+        "drop-order-nested-consume",
+        &diagnostics,
+        &[
+            "reserved cleanup machine `Guard::drop`",
+            "non-empty `drop` body outside the executable cleanup slice",
+            "expects 0 argument(s), got 1",
+        ],
+    );
+    let (reserved_message, reserved_spanned) = &diagnostics[0];
+    assert!(
+        reserved_message.contains("reserved cleanup machine"),
+        "the first diagnostic is the reserved-spelling fence: {diagnostics:?}"
+    );
+    assert!(
+        *reserved_spanned,
+        "the reserved-spelling fence carries a source span: {diagnostics:?}"
+    );
+}
+
+/// Inside one doubly-violating drop body the slice fence reports first and the
+/// per-statement signature diagnostics follow in authored order.
+#[test]
+fn slice_fence_diagnostic_precedes_helper_statement_diagnostics() {
+    let diagnostics = frontend_diagnostics(
+        "drop-order-slice-then-statements",
+        r#"
+use omega::language::core::service;
+use omega::language::std::console;
+
+data Guard {
+    handle: i32;
+}
+
+machine Guard::step(&mut self) {
+}
+
+machine Guard::drop(&mut self) {
+    self.handle = 1;
+    Guard::step(self);
+    Guard::step(self);
+}
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Guard = Guard { handle: 1 };
+    self.console.exit_process(70);
+}
+"#,
+    );
+    assert_diagnostic_order(
+        "drop-order-slice-then-statements",
+        &diagnostics,
+        &[
+            "non-empty `drop` body outside the executable cleanup slice",
+            "expects `&mut Self`, got `named value`",
+            "expects `&mut Self`, got `named value`",
+        ],
+    );
+}
