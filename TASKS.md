@@ -8547,7 +8547,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   independent unfenced slice exists here. Sibling re-mines:
   RC-PLATFORM-RUNNER-COVERAGE, HOSTED-PLATFORM-RUN-MATRIX.
 - **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
-- **RC-PORTABLE-PSI-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-PORTABLE-PSI-CLOSURE.** Resolved — re-mines the release-matrix gate
+  `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md), discharged by
+  the landed PORTABLE-TERMINAL-RELOAD surface:
+  `compiler::canary_suite
+  portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary`
+  produces a source-free Terminal Psi envelope in one process, then
+  reconstructs, verifies, and interprets it in a second — plus truncated,
+  mutated-section, and trailing-byte refusal legs. Fresh witness at
+  `a1daf35f2e` on linux x86-64: 1/1 PASS (32.1s). The "closure" this row
+  names is the envelope boundary itself — closing it is the matrix row, not
+  a separate deliverable; release closure still requires all eight gates on
+  one clean commit across the four required hosts. Sibling re-mines of the
+  same row: RC-PORTABLE-PSI, RC-PORTABLE-PSI-ENVELOPE, RC-PORTABLE-PSI-GATE,
+  RC-PORTABLE-PSI-RELOAD.
 - **RC-PORTABLE-PSI-ENVELOPE.** Resolved — re-mines the release-matrix gate
   `RC-PORTABLE-PSI` (wiki/drafts/rust_compiler_completion.md), already
   discharged by the landed PORTABLE-TERMINAL-RELOAD work and re-verified
