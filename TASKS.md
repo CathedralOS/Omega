@@ -8846,7 +8846,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-DIAGNOSTICS-GATE** — mined candidate; verify scope then implement.
 - **RC-DIAGNOSTICS-STABILITY** — mined candidate; scope verified, coverage recorded. Sibling row RC-DIAGNOSTICS-CLOSURE (this section) already carries the measurement and names this stub as a re-mine of its row: the fail-canary leg `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment` ran red at `e76d715c8e` (wiki/drafts/rc_diagnostics_linux_x86_64.md) — 10 drifted canaries in 127.3s, 8 stale `expected.txt` fragments + 2 silent acceptances, 9 fixtures fenced to the RC-DIAGNOSTICS-GATE worker. Closure = respell/land those legs on another row run; no independent slice on this row.
 - **RC-GATE-STABILITY-REPAIR** — mined candidate; verify scope then implement.
-- **RC-HOST-RUNNER-LANES** — mined candidate; verify scope then implement.
+- **RC-HOST-RUNNER-LANES** — mined candidate; scope verified at
+  `797e99ead7`, currently fully covered: re-mines the per-host runner lanes
+  of the release-record substrate — `tools/release/release_record.py` (landed
+  `210ffe3c93`) already encodes the four runner rows (linux_x86_64,
+  linux_arm64, macos_arm64, windows_x86_64) over the 8 RC gates, writing
+  `tools/release/records/<target>__<commit>.json` per row with `check`
+  re-validation. The residual is per-host evidence production, and every
+  lane carrying it is under a live claim this wave: RC-MATRIX-RUNNER
+  (`tools/release_matrix.py`, 00:54Z), RC-NATIVE-MATRIX-HOST-LEGS (00:15Z),
+  RC-NATIVE-MATRIX-HOST-RUNS (01:27Z), RC-NATIVE-MATRIX-LINUX-X86-64
+  (01:27Z), RC-NATIVE-MATRIX-LINUX-ARM64 (01:28Z), the
+  RC-NATIVE-MATRIX-MACOS-ARM64 cluster (Codex, through 02:27Z+1d),
+  RC-REPRESENTATIVE-PROGRAMS-PER-HOST (00:17Z),
+  NATIVE-MATRIX-MATCHING-HOSTS (01:53Z), and RC-RELEASE-RECORD-AND-CLOSURE
+  (02:03Z). A linux_x86_64 row producible from this host would still read
+  open — the matrix is red on main (fmt + omega-architecture-test per
+  REPAIR-ARCHITECTURE-SUITE-RED) — so no independently landable slice
+  exists. Sibling stubs on the same surface: RC-LINUX-ARM64-NATIVE-ROW,
+  RC-LINUX-X86-64-GATE-LEDGER, RC-MATRIX-RUNNER, RC-NATIVE-MATRIX and its
+  host-suffix family.
 - **RC-LINUX-ARM64-NATIVE-ROW** — mined candidate; verify scope then implement.
 - **RC-LINUX-X86-64-GATE-LEDGER** — mined candidate; verify scope then implement.
 - **RC-MATRIX-RUNNER** — mined candidate; verify scope then implement.
