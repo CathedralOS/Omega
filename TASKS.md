@@ -5822,7 +5822,21 @@ rejection, native-route `InvalidStructuralArrayLength` pin) green at
 - **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics.
 - **STRUCTURAL-UNIT-LOWERING.** Structural-unit lowering gaps in checked-trees-to-lowered-psi.
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
-- **STAGED-LOCAL-SEQUENCE-LOWERING.** Staged-local sequence lowering attribution and order.
+- **STAGED-LOCAL-SEQUENCE-LOWERING.** Resolved — staged-local sequence
+  lowering attribution and order is green on main at 6d00135b89: all seven
+  `checked_source_staged_local_*` native-differential legs pass on linux
+  x86-64 (`cargo nextest run -p omega-native-differential-test --test
+  terminal_psi_source -E 'test(~staged_local)'`, 7/7 — composes with
+  short-circuit return, carried through a jump argument, jump tuple,
+  guard, arm-local edge arguments, and sequences before an explicit
+  crash). The lowering lives in
+  `checked-trees-to-lowered-psi/src/returns/structural_scalar_return.rs`
+  (staged short-circuit binding ordering) and
+  `scalar_graph_module/short_circuit_staging.rs` — no unimplemented
+  sequence-leg remains; the sibling DIFFERENTIAL-STAGED-LOCAL-SEQUENCE
+  row already records the same verdict and the stale
+  `wiki/drafts/known_baseline_failures.md:447` row belongs to the
+  known-failures doc lane.
 - **TERMINAL-SOURCE-CUSTODY-ORDER.** Terminal source-custody gate ordering.
 - **SUCCESSOR-DISCARD-ORDER.** Resolved — same terminal-verifier cleanup-order
   row as EDGE-CLEANUP-ERROR-PRECEDENCE, already repaired on `origin/main`:
