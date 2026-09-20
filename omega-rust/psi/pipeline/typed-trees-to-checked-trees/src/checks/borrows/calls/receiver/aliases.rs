@@ -13,7 +13,7 @@ pub(super) struct ResolvedAlias {
 
 pub(super) struct ResolvedPlace {
     pub(super) place: CapturedPlace,
-    local_loan: Handle<BorrowLoanFact>,
+    pub(super) local_loan: Handle<BorrowLoanFact>,
 }
 
 pub(super) fn resolve_receiver(

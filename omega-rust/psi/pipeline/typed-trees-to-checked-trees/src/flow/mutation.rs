@@ -628,17 +628,11 @@ pub(crate) fn statement_storage_writes(
         return Some(Vec::new());
     }
     let places = if let StatementNode::RootBinding(binding) = statement {
-        let place = canonical_place_from_expression_in_state(
+        super::reference_expression_storage_places(
             program,
             state_symbol,
             statement_index,
             binding.receiver,
-        )?;
-        local_origins::rebase_local_write_places(
-            program,
-            state_symbol,
-            statement_index,
-            place,
             call_frames,
         )?
     } else {

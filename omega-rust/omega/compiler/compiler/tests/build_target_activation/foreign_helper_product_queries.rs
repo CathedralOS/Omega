@@ -408,6 +408,7 @@ fn owner_selected_product_description_binds_through_foreign_helper() {
 fn returned_owner_selected_description_binds_and_executes_after_foreign_helper_transport() {
     returned_description_native(
         "let returned: ProductEntryRef = setup::retain(entry);",
+        "builder",
         "returned",
         b"",
     );
@@ -415,13 +416,14 @@ fn returned_owner_selected_description_binds_and_executes_after_foreign_helper_t
 
 #[test]
 fn inline_owner_selected_description_binds_and_executes_after_foreign_helper_transport() {
-    returned_description_native("", "setup::retain(entry)", b"");
+    returned_description_native("", "builder", "setup::retain(entry)", b"");
 }
 
 #[test]
 fn inline_description_nested_calls_execute_their_build_effects_once() {
     returned_description_native(
         "",
+        "builder",
         "setup::retain_logged(builder, setup::retain(entry))",
         b"operand\n",
     );
@@ -429,10 +431,105 @@ fn inline_description_nested_calls_execute_their_build_effects_once() {
 
 #[test]
 fn inline_description_specialized_call_reaches_native_execution() {
-    returned_description_native("", "setup::retain_generic<u8>(entry, 7)", b"");
+    returned_description_native("", "builder", "setup::retain_generic<u8>(entry, 7)", b"");
 }
 
-fn returned_description_native(preparation: &str, operand: &str, expected_log: &[u8]) {
+#[test]
+fn returned_build_receiver_local_binds_and_executes_after_foreign_helper_return() {
+    for preparation in [
+        "let returned: &mut Build = setup::retain_build(builder);",
+        "let mut returned: &mut Build = setup::retain_build(builder);",
+    ] {
+        returned_description_native(preparation, "returned", "entry", b"");
+    }
+}
+
+#[test]
+fn computed_build_receiver_binds_and_executes_after_foreign_helper_return() {
+    returned_description_native("", "setup::retain_build(builder)", "entry", b"");
+}
+
+#[test]
+fn computed_build_receiver_preserves_explicit_lifetime_and_specialized_calls() {
+    for receiver in [
+        "setup::retain_build_named(builder)",
+        "setup::retain_build_generic<u8>(builder, 7)",
+    ] {
+        returned_description_native("", receiver, "entry", b"");
+    }
+}
+
+#[test]
+fn computed_build_receiver_nested_effects_execute_once_in_order() {
+    returned_description_native(
+        "",
+        "setup::retain_build_logged(setup::retain_build_inner_logged(builder))",
+        "setup::retain(entry)",
+        b"inner\nreceiver\n",
+    );
+}
+
+#[test]
+fn computed_build_receiver_preserves_nested_return_and_parent_loan() {
+    returned_description_native(
+        "let parent: &mut Build = &mut builder;",
+        "setup::retain_build(setup::retain_build(parent))",
+        "setup::retain(entry)",
+        b"",
+    );
+}
+
+#[test]
+fn returned_build_receiver_excludes_original_storage_during_later_operand() {
+    for binding in [
+        "setup::retain_build(builder).roots.bind(windows_x86_64::ProgramEntry, setup::touch(builder, entry));",
+        "setup::retain_build_named(builder).roots.bind(windows_x86_64::ProgramEntry, setup::touch(builder, entry));",
+        "(&mut builder).roots.bind(windows_x86_64::ProgramEntry, setup::touch(builder, entry));",
+        "setup::retain_build(builder).roots.bind(windows_x86_64::ProgramEntry, match setup::touch_array(builder)[0] { _ -> entry });",
+        "let held: &mut Build = setup::retain_build(builder); held.roots.bind(windows_x86_64::ProgramEntry, setup::touch(builder, entry));",
+    ] {
+        let helper = TempProject::new(
+            "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        );
+        fs::write(helper.0.join("setup.omg"),
+            "module setup;
+             pub machine retain_build(builder: &mut Build) -> &mut Build { transition { _ -> (builder) } }
+             pub machine retain_build_named<'build>(builder: &'build mut Build) -> &'build mut Build { transition { _ -> (builder) } }
+             pub machine touch(builder: &mut Build, entry: ProductEntryRef) -> ProductEntryRef {
+                 builder.log.write_line(\"conflict\"); transition { _ -> (entry) }
+             }
+             pub machine touch_array(builder: &mut Build) -> [u8; 1] {
+                 builder.log.write_line(\"conflict\"); transition { _ -> ([1]) }
+             }",
+        ).expect("conflicting access helper");
+        let project = TempProject::with_main(
+            "machine launch() { }",
+            &format!(
+                "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"receiver-conflict\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); {binding} }}"
+            ),
+        );
+        let diagnostics = compile_to_checked(CheckedCompileRequest {
+            package_inputs: Some(foreign_helper_inputs(&project, &helper)),
+            ..CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"))
+        })
+        .map(|_| ())
+        .expect_err("the receiver loan stays held across the description operand");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("exclusive receiver result")
+                    || diagnostic.message.contains("still active")
+            }),
+            "{binding}: {diagnostics:?}"
+        );
+    }
+}
+
+fn returned_description_native(
+    preparation: &str,
+    receiver: &str,
+    operand: &str,
+    expected_log: &[u8],
+) {
     let Some(profile) = target::TargetProfile::host_if_supported() else {
         eprintln!("SKIP: returned entry publication requires a supported hosted target");
         return;
@@ -442,6 +539,19 @@ fn returned_description_native(preparation: &str, operand: &str, expected_log: &
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine retain(entry: ProductEntryRef) -> ProductEntryRef { transition { _ -> (entry) } }
+         pub machine retain_build(builder: &mut Build) -> &mut Build { transition { _ -> (builder) } }
+         pub machine retain_build_named<'build>(builder: &'build mut Build) -> &'build mut Build {
+             transition { _ -> (builder) }
+         }
+         pub machine retain_build_generic<T [copy]>(builder: &mut Build, marker: T) -> &mut Build {
+             transition { _ -> (builder) }
+         }
+         pub machine retain_build_logged(builder: &mut Build) -> &mut Build {
+             builder.log.write_line(\"receiver\"); transition { _ -> (builder) }
+         }
+         pub machine retain_build_inner_logged(builder: &mut Build) -> &mut Build {
+             builder.log.write_line(\"inner\"); transition { _ -> (builder) }
+         }
          pub machine retain_logged(builder: &mut Build, entry: ProductEntryRef) -> ProductEntryRef {
              builder.log.write_line(\"operand\"); transition { _ -> (entry) }
          }
@@ -453,7 +563,7 @@ fn returned_description_native(preparation: &str, operand: &str, expected_log: &
     let project = TempProject::with_main(
         "machine launch() { }",
         &format!(
-            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"returned-entry\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"{slot}\"); {preparation} builder.roots.bind({slot}, {operand}); }}"
+            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"returned-entry\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"{slot}\"); {preparation} {receiver}.roots.bind({slot}, {operand}); }}"
         ),
     );
     let checked = compile_to_checked(CheckedCompileRequest {
@@ -499,12 +609,14 @@ fn returned_forged_description_does_not_gain_authority_from_its_result_type() {
     for binding in [
         "let entry: ProductEntryRef = setup::fabricate(); builder.roots.bind(windows_x86_64::ProgramEntry, entry);",
         "builder.roots.bind(windows_x86_64::ProgramEntry, setup::fabricate());",
+        "setup::retain_build(builder).roots.bind(windows_x86_64::ProgramEntry, setup::fabricate());",
     ] {
         let helper = TempProject::new(
             "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
         );
         fs::write(helper.0.join("setup.omg"),
-        "module setup; pub machine fabricate() -> ProductEntryRef { transition { _ -> (ProductEntryRef {}) } }",
+        "module setup; pub machine fabricate() -> ProductEntryRef { transition { _ -> (ProductEntryRef {}) } }
+         pub machine retain_build(builder: &mut Build) -> &mut Build { transition { _ -> (builder) } }",
     ).expect("forged result source");
         let project = TempProject::new(&format!(
             "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"forged-return\"); {binding} }}"
@@ -512,6 +624,7 @@ fn returned_forged_description_does_not_gain_authority_from_its_result_type() {
         let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
         request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
         let diagnostics = compile_to_checked(request)
+            .map(|_| ())
             .expect_err("an ordinary return cannot fabricate selection authority");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic

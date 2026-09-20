@@ -99,9 +99,7 @@ fn root_binding_statement_rejects_forged_build_and_non_mutable_receivers() {
         )
         .expect_err("binding requires exact mutable Build authority");
         assert!(
-            diagnostic
-                .message
-                .contains("compiler-issued &mut Build place"),
+            diagnostic.message.contains("compiler-issued &mut Build"),
             "{}",
             diagnostic.message
         );
@@ -125,11 +123,7 @@ fn root_binding_has_no_value_context_or_ordinary_bind_call_exception() {
         &checked_trees::CheckFacts::default(),
     )
     .expect_err("same-shaped ordinary receiver has no Build authority");
-    assert!(
-        diagnostic
-            .message
-            .contains("compiler-issued &mut Build place")
-    );
+    assert!(diagnostic.message.contains("compiler-issued &mut Build"));
 }
 
 #[test]
@@ -172,9 +166,11 @@ fn root_binding_helper_mutation_preserves_caller_loan_exclusion() {
     for helper_body in [
         "builder.roots.bind(Target::ProgramEntry, Product::start);",
         "let delegated: &mut Build = &mut builder; delegated.roots.bind(Target::ProgramEntry, Product::start);",
+        "retain(builder).roots.bind(Target::ProgramEntry, Product::start);",
+        "let returned: &mut Build = retain(builder); returned.roots.bind(Target::ProgramEntry, Product::start);",
     ] {
         let source = format!(
-            "data Build {{}} machine configure(builder: &mut Build) {{ {helper_body} }} machine build(builder: &mut Build) {{ let alias: &mut Build = &mut builder; configure(builder); alias.roots.bind(Target::ProgramEntry, Product::start); }}"
+            "data Build {{}} machine retain(builder: &mut Build) -> &mut Build {{ transition {{ _ -> (builder) }} }} machine configure(builder: &mut Build) {{ {helper_body} }} machine build(builder: &mut Build) {{ let alias: &mut Build = &mut builder; configure(builder); alias.roots.bind(Target::ProgramEntry, Product::start); }}"
         );
         let diagnostics = lower_typed_trees(typed_root_binding_fixture(&source, true))
             .expect_err("helper root binding must expose its exclusive receiver use to the caller");
@@ -188,14 +184,56 @@ fn root_binding_helper_mutation_preserves_caller_loan_exclusion() {
 }
 
 #[test]
+fn root_binding_computed_index_operand_retains_its_collection_access() {
+    let program = typed_root_binding_fixture(
+        "data Build {} data ProductEntryRef [copy] {}
+         machine entries(builder: &mut Build) -> [ProductEntryRef; 1] { [ProductEntryRef {}] }
+         machine build(builder: &mut Build) {
+             builder.roots.bind(Target::ProgramEntry, entries(builder)[0]);
+         }",
+        true,
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .expect("build machine");
+    let state = &program.machine_states(machine)[0];
+    let builder = program.state_parameters(state)[0].symbol;
+    let typed_trees::statement::StatementNode::RootBinding(binding) =
+        &program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("root binding");
+    };
+    let mut segments = arena::Arena::new();
+    let mut accesses = arena::Arena::new();
+    let span = crate::borrow::accesses::collect_call_argument_accesses(
+        &program,
+        &mut segments,
+        &mut accesses,
+        &[binding.implementation_operand],
+        state.symbol,
+        0,
+        machine.symbol,
+    );
+    assert!(
+        accesses
+            .span_or_empty(span)
+            .iter()
+            .any(|access| access.root_symbol == builder),
+        "the computed collection still evaluates its Build argument"
+    );
+}
+
+#[test]
 fn root_binding_rejects_uninitialized_receiver_and_live_shared_loan() {
     let source = "data Build {} machine build(builder: &mut Build) { let alias: &mut Build; alias.roots.bind(Target::ProgramEntry, Product::start); }";
     let diagnostics = lower_typed_trees(typed_root_binding_fixture(source, true))
         .expect_err("a type annotation cannot manufacture a live Build loan");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("available retained receiver loan origin")),
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("available loan authority")),
         "{diagnostics:?}"
     );
 

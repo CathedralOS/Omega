@@ -58,7 +58,11 @@ pub(super) fn collect_read_accesses(
         }
         ExpressionNode::Cast(cast) => collect_read_accesses(collection, cast.value),
         ExpressionNode::Indexed(indexed) => {
-            append_read_access(collection, expression);
+            if !append_read_access(collection, expression) {
+                // A computed collection has no retained source place, but its
+                // evaluation still observes the receiver and call operands.
+                collect_read_accesses(collection, indexed.collection);
+            }
 
             collect_read_accesses(collection, indexed.index);
         }

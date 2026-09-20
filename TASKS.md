@@ -584,19 +584,6 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     Re-run `mbx nextest run -p compiler --test build_target_activation --no-fail-fast --no-tests fail -E 'test(two_checked_instances)'`;
     eventual acceptance is successful compilation with the boundary trait,
     not weakening duplicate-schema rejection.
-  - Admit computed Build receivers through
-    ordinary checked call-result authority, effect traversal, and loan accounting.
-    `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
-    still requires a compiler-issued symbol-rooted `&mut Build` place. Establish
-    returned receiver custody through the ordinary checked loan/result path;
-    removing that fence or recognizing a particular helper spelling is not
-    acceptance. Retain receiver-before-description evaluation order and exact
-    call ordinals across effect, mutation/range, and ownership checks.
-    Preserve static declaration paths, bare-name disambiguation, inline
-    description expression checking, and activation-specific issuance checks.
-    Acceptance is a computed receiver binding a restricted issued description
-    through native publication/execution while forged and expired authority
-    still reject.
   - Extend the existing provider/description owners, with
     BUILD-DEPENDENCY-PURPOSES for separate contexts and
     BUILD-ADMISSION-CHECKPOINT for source custody.
@@ -613,7 +600,8 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   `compiler/tests/build_target_activation/{foreign_helper_product_queries,qualified_root_bindings,product_query_paths}.rs`.
   Preserve the ordinary-return-to-local, inline, nested-effect, and generic
   native tests alongside returned-forgery and expression-checking negatives in
-  the foreign-helper module.
+  the foreign-helper module, including computed receivers, named lifetimes,
+  retained parent loans, and conflicting later-operand accesses.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
