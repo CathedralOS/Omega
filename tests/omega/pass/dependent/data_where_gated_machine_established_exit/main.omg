@@ -1,15 +1,21 @@
-// RUN CANARY (exit 70). Machine-owned gated data starts as inaccessible zeroed
-// storage; assigning the witness establishes it before the boundary call.
+// RUN CANARY (exit 70). A provisioned entry receiver must satisfy its
+// carrier's facts in the all-zero image, so `health >= 1` cannot gate `Main`
+// itself. The gate rides an explicitly constructed local `Player` instead:
+// the entry machine builds the gated witness, and its field feeds the hosted
+// exit. `Player` is `[copy]` so the live local needs no affine cleanup at the
+// nonreturning boundary call.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main
+data Player [copy]
 where
     health >= 1,
 {
-    console: Service<Console>;
     health: i32;
 }
+data Main {
+    console: Service<Console>;
+}
 machine Main::main(&mut self) reaches Console {
-    self.health = 70;
-    self.console.exit_process(self.health);
+    let player: Player = Player { health: 70 };
+    self.console.exit_process(player.health);
 }
