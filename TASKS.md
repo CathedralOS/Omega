@@ -5678,7 +5678,7 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
 - **BOUNDED-OPTIMIZATION-SEARCH.** Bounded candidate search + revalidation at scale (merges BOUNDED-CANDIDATE-SEARCH, CANDIDATE-REVALIDATION-AT-SEARCH-SCALE).
 - **GRAPH-COST-MODEL-STUDY.** Graph cost-model study.
 - **GENERAL-CYCLIC-EXECUTION-OPTIMIZER.** General cyclic execution optimizer.
-- **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Workload corpus + multiversing.
+- **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Workload corpus + multiversing (workload versioning under multiple specialization variants).
 - **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized variants.
 
 Build/packages:
