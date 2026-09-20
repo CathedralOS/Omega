@@ -88,14 +88,14 @@ pub data SubmitOutcome<T, Arguments> {
 
 // One executor instance: its bounded submission queue, the wait word
 // producers and workers park on, and the routed worker-provider service
-// worker activations run under. `Service<WorkerProvider> in Bound` is the
+// worker activations run under. `Service<WorkerProvider>` is the
 // held selected capability — established by build composition, never
 // package-authored (service.omg), matching the spec rule that selection
 // grants no ambient authority: the executor must hold the capability.
 pub data Executor<T, Arguments, const N: u64> [linear] {
     queue: BoundedQueue<Submission<T, Arguments>, N>;
     wait_word: u64;
-    runtime: Service<WorkerProvider> in Bound;
+    runtime: Service<WorkerProvider>;
     open: bool;
 }
 

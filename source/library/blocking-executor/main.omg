@@ -29,7 +29,7 @@
 //   * Provider selection — `executor.omg` declares the package's own
 //     `WorkerProvider` boundary trait (the executor is a package, not a
 //     task-runtime mode) and `Executor` holds the selected slot as a
-//     `Service<WorkerProvider> in Bound` routed capability; applications
+//     `Service<WorkerProvider>` routed capability; applications
 //     pick the provider with `builder.select_provider`. Core's
 //     `TaskRuntime` is deliberately not named here: it is not public
 //     outside the bundled library, and the executor does not widen it.
