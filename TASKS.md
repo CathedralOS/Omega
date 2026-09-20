@@ -1145,9 +1145,16 @@ Owners include
   by that deriver (or an ISA-crate encoding surface for the real-mode
   trampoline) plus wiring so the test installs emitted bytes instead of
   the authored `trampoline_bytes` array in
-  `tests/omega/pass/memory/secondary_processor_canary`; (2) real receipt
-  ingress under BOUNDARY-ISSUANCE; (3) the Windows/macOS/QEMU legs, which
-  are host-unavailable here.
+  `tests/omega/pass/memory/secondary_processor_canary`. Leg (1) landed at
+  `d71c5ad8a6`: `machine-emission/src/startup_trampoline.rs` emits,
+  resolves and validates the x86-64 startup trampoline
+  (`emit/resolve/validate_x86_64_startup_trampoline`), and
+  `compiler/tests/secondary_processor_startup.rs` installs the emitted
+  bytes — re-verified green on linux_x86_64 at `0db54f596a` (all 4
+  `secondary_processor_startup` tests PASS, including
+  `authored_startup_contract_survives_terminal_and_native_production`).
+  Remaining: (2) real receipt ingress under BOUNDARY-ISSUANCE; (3) the
+  Windows/macOS/QEMU legs, which are host-unavailable here.
 
   Reuse installed-code, per-processor stack/state and retirement joins. Bind the
   provider-declared profile to its selected contract; low-memory/vector geometry
