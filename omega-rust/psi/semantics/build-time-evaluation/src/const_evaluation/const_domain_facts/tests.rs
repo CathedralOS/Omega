@@ -50,8 +50,15 @@ data Main { buffer: FixedBuffer<7>; }
 machine Main::main(&mut self) {}
 "#;
     let typed = typed(source);
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
-    let rows = facts
+    let rows = provider_rows(&typed);
+    (typed, rows)
+}
+
+/// The selected provider bodies for every resolved boundary-operator use in
+/// the fixture, rebound to `Provider::remainder`'s ordinary checked body.
+fn provider_rows(typed: &TypedTrees) -> Vec<SelectedBuildTimeProviderBody> {
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
+    facts
         .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
         .filter(|fact| {
             typed.operators().iter().any(|operator| {
@@ -69,15 +76,14 @@ machine Main::main(&mut self) {}
                 expression: fact.expression,
                 origin: fact.origin,
                 requirement: fact.selected_operator_symbol,
-                operands: fact.operands(&typed).unwrap(),
+                operands: fact.operands(typed).unwrap(),
                 provider_machine: provider.symbol,
                 provider_state: entry.symbol,
                 provider_type: provider.attached_data.as_ref().unwrap().as_str().to_owned(),
                 provider: checked_trees::CheckedProviderPlanCommitment::from_digest([7; 32]),
             }
         })
-        .collect();
-    (typed, rows)
+        .collect()
 }
 
 /// Every `where` fact on the named instance is the ordinary `true` fact a
@@ -206,5 +212,124 @@ machine Main::main(&mut self) {}
     assert!(
         instance_facts_are_proven(&typed, "FixedBuffer<7>"),
         "the membership folded to an ordinary `true` fact"
+    );
+}
+
+/// A nested `self in Inner` fact defers when the inner domain's machine --
+/// not the outer's -- is the one whose closure selects a boundary use: the
+/// membership arm of the deferral scan must recurse rather than only reading
+/// the outer domain's direct expression facts.
+#[test]
+fn nested_membership_defers_through_the_inner_domain() {
+    let mut typed = typed(
+        r#"
+data Math {}
+boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+data Provider {}
+machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left + right }
+machine is_sum(value: u64) -> bool { value % 2 == 9 }
+domain u64::Inner requires is_sum(self);
+domain u64::Outer requires self in Inner;
+data FixedBuffer<const N: u64>
+where
+    N in Outer,
+{
+    values: [u8; N];
+}
+data Main { buffer: FixedBuffer<7>; }
+machine Main::main(&mut self) {}
+"#,
+    );
+    assert!(
+        pending_memberships_need_operator_selection(&typed, None).unwrap(),
+        "the boundary use lives inside Inner's machine; the outer pending membership must still defer"
+    );
+    let pending = pending_memberships(&typed);
+    assert_eq!(pending.len(), 1);
+
+    // Under the selected provider rows the nested membership evaluates
+    // end-to-end: the provider's `left + right` body proves `7 + 2 == 9`.
+    let rows = provider_rows(&typed);
+    assert_eq!(rows.len(), 1);
+    crate::validate_selected_provider_bodies(&typed, &rows).unwrap();
+    evaluate_selected_domain_facts(
+        &mut typed,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &rows,
+        },
+    )
+    .unwrap_or_else(|errors| panic!("nested membership must prove under the provider: {errors:?}"));
+    assert!(
+        membership_is_proven(&typed, &pending[0]),
+        "the nested Inner membership folded to `true` through the selected provider body"
+    );
+}
+
+/// A machine fact that evaluates to `false` names the generic instance in a
+/// direct diagnostic -- it is a rejection, not a pending membership left
+/// authored.
+#[test]
+fn false_membership_rejects_naming_the_instance() {
+    let mut typed = typed(
+        r#"
+machine is_large(value: u64) -> bool { value > 100 }
+domain u64::Big requires is_large(self);
+data FixedBuffer<const N: u64>
+where
+    N in Big,
+{
+    values: [u8; N];
+}
+data Main { buffer: FixedBuffer<7>; }
+machine Main::main(&mut self) {}
+"#,
+    );
+    let pending = pending_memberships(&typed);
+    assert_eq!(pending.len(), 1);
+    let diagnostics =
+        evaluate_selected_domain_facts(&mut typed, None, SelectedBuildTimeOperators::default())
+            .expect_err("a fact machine returning `false` rejects the membership");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("const fact for generic instance `FixedBuffer<7>` is false")),
+        "{diagnostics:?}"
+    );
+    assert!(
+        !membership_is_proven(&typed, &pending[0]),
+        "a rejected membership stays authored, never folded to `true`"
+    );
+}
+
+/// A concrete literal beyond the evaluator's signed storage boundary is a
+/// reported failure, not a truncated or silently skipped membership.
+#[test]
+fn literal_beyond_i64_reports_the_signed_boundary() {
+    let mut typed = typed(
+        r#"
+machine is_anything(value: u64) -> bool { true }
+domain u64::Any requires is_anything(self);
+data Holder<const N: u64>
+where
+    N in Any,
+{
+    marker: u8;
+}
+data Main { holder: Holder<18446744073709551615>; }
+machine Main::main(&mut self) {}
+"#,
+    );
+    let pending = pending_memberships(&typed);
+    assert_eq!(pending.len(), 1);
+    let diagnostics =
+        evaluate_selected_domain_facts(&mut typed, None, SelectedBuildTimeOperators::default())
+            .expect_err("a literal past i64::MAX cannot evaluate silently");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("does not fit the build-time evaluator's signed integer boundary")),
+        "{diagnostics:?}"
     );
 }
