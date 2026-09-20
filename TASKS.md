@@ -6057,7 +6057,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BOOTSTRAP-EPSILON-EVALUATOR** — mined candidate; verify scope then implement.
 - **BOOTSTRAP-HOST-COVERAGE** — mined candidate; verify scope then implement.
 - **BOOTSTRAP-MACOS-ARM64-LEGS** — mined candidate; verify scope then implement.
-- **BOOTSTRAP-OMEGA-D-COMPILER** — mined candidate; verify scope then implement.
+- **BOOTSTRAP-OMEGA-D-COMPILER** — scope verified 2026-09-20: this mined stub
+  re-covers **OMEGA-D** in [TASKS_BOOTSTRAP.md](TASKS_BOOTSTRAP.md), the real
+  tracked item completing the Epsilon closure
+  `bootstrap/5_omega/omega_compiler.epsilon.sources` as the first full Omega
+  compiler (currently 16,152 lines / 8 members: representations, request/UTF-8,
+  lexical classification, lexer, parser, Alpha tape, scalar compilation,
+  outcome). No independent slice exists here: OMEGA-D was live-claimed by
+  Zergling-112 (lease expiring 2026-09-20T22:27Z) at verification time, its
+  bounded legs are the separate OMEGA-D-* board rows below, and its acceptance
+  (interpreted D compiles the Omega C closure to `omega0_compiler_bytecode.tape`)
+  additionally depends on OMEGA-PRODUCT-COMPILER-SOURCE (C is currently a
+  lexer plus partial parser under `source/psi/`). Sibling re-mines of the same
+  OMEGA-D clauses: OMEGA-D, OMEGA-D-COMPILER-REQUEST-TABLES,
+  OMEGA-D-ENTRY-ADAPTER, OMEGA-D-ENTRY-ADAPTER-RETIREMENT,
+  OMEGA-D-REAL-ENTRY-ROUTE, OMEGA-D-REQUEST-ADMISSION,
+  OMEGA-D-REQUEST-AND-ENTRY-ROUTE, OMEGA-D-REQUEST-AND-SCALAR-COMPILATION,
+  OMEGA-D-REQUEST-OUTCOME-TABLES.
 - **BOOTSTRAP-SEED-EXECUTION-HOSTS** — mined candidate; verify scope then implement.
 - **BOUNDED-CANDIDATE-SEARCH** — mined candidate; verify scope then implement.
 - **BUILD-DEPEND-PURPOSE-AWARE-LOCKS** — mined candidate; verify scope then implement.
