@@ -649,12 +649,15 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
     contract suffices. Sound guard evidence may establish unreachable
     behavior, but optional optimization and broad public ceilings are not
     absence proofs.
-  - Close the assertion customer's ordinary Unit/native lowering gaps through
-    CRASH-CONTRACT and the owning pipeline lanes. The native fixture currently
-    expects `UnsupportedControlFlow`, not the retired
-    `UnsupportedBoundaryCrashContract`; a Terminal verdict is not executable
-    completion. Add a direct Unit crash control instead of accepting only the
-    scalar-helper workaround.
+  - Close direct Unit crash planning through CRASH-CONTRACT and the owning
+    Unit control-flow lanes. `behavior_exclusions` now publishes the ordinary
+    no-op package and executes it on the host; its separate `direct-unit.omg`
+    control still stops at `DirectCheckingAssert::check`: state-graph jump
+    successor, transition form, state 2, statement 0, with no checked
+    transitive Unit plan. This also rejects an unselected direct-crash
+    candidate in the library. Replace the fail-closed frontier test with the
+    actual Trap-exclusion verdict once the body lowers, and realize the
+    admitted direct-crash body natively without the scalar-helper workaround.
 
   Owners: `build-evaluation/src/admission/behavior_exclusions.rs` and
   `checked-compilation-to-terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,

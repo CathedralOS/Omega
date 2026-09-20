@@ -5,7 +5,7 @@
 machine build(builder: &mut Build) {
     builder.application("checking-assert-app");
     builder.depend(Source::Path { location: "../assert-kit" });
-    builder.select_provider<Assert, CheckingAssert>();
+    builder.select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssert>();
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
     builder.exclude_crash(CrashCause::Trap);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
