@@ -1255,6 +1255,23 @@ Owners include
   Keep unrepresented runtime-indexed owned extraction rejected, not approximated
   by an arbitrary element or a helper-only proof.
 
+  Wave fence audit (z105, `d32183a35c`): every implementing leg this row names
+  is under a live claim — `Devin / conservation-contract` holds the compound
+  row freeform through 21:50Z, fencing both invoked-route fixtures
+  (`tests/omega/pass/core/content_conservation_contract`,
+  `content_retained_custody_round_trip` — entry bodies still empty),
+  `canary_suite/content_text_and_carriers.rs` + roster,
+  `value_custody/content_conservation.rs` + dir,
+  `checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`, and
+  `provider_installation/replay.rs`. The recorded fenced deficiency moved:
+  `attachment_type_identity` is now produced in t2c
+  `execution/unit/composed_control` (`assembly.rs`, `dynamic_join.rs`,
+  `dynamic_result.rs`) and ARCHITECTURE-CONTROL-GRAPH no longer appears in
+  live claims, so the 2026-09-19 witness (`Service<T> in Bound` root data
+  failing selected establishment on value-returning traits) needs
+  re-witnessing before assuming the fixtures still cannot check — but that
+  verification itself touches the sibling-fenced fixture roots.
+
 - **BOUNDARY-ISSUANCE.** Complete exact fresh-supply and receipt ingress under
   [external roots and issuance](wiki/spec/resources/authority.md#external-roots-and-issuance).
   This is distinct from conservation of existing accounts and from
