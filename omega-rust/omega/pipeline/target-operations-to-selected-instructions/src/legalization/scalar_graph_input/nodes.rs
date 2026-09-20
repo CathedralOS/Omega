@@ -151,9 +151,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             psi_operation,
             result,
             scalar_type,
-            crash_continuations,
             ..
-        } if scalar_shape(*scalar_type).is_some() && crash_continuations.is_empty() => {
+        } if scalar_shape(*scalar_type).is_some() => {
+            // A crash ceiling does not execute a crash or require unwinding.
+            // Ordinary call projection carries the exact continuation roster,
+            // and independent replay compares it with this source operation.
+            // The callee's no-successor leaves own actual crash emission.
             Ok((*psi_operation, *result))
         }
         AbstractOperation::IntegerBitwiseAnd {

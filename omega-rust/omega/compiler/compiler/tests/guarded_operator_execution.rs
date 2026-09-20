@@ -1,4 +1,4 @@
-//! A discharged invocation keeps its selected operator's published ceiling.
+//! Selected operator ceilings survive entry disproof and enclosing scalar calls.
 //! Reload Terminal and remove source before interpreting and emitting it, so
 //! independent consumers must establish safety from retained entry contracts.
 
@@ -27,8 +27,44 @@ impl Drop for SourceTree {
 
 #[test]
 fn guarded_operator_executes_after_source_removal() {
-    let directory =
-        std::env::temp_dir().join(format!("omega-guarded-operator-{}", std::process::id()));
+    assert_source_free_execution(
+        "safe",
+        &[
+            (&[0], false),
+            (&[1], true),
+            (&[2], false),
+            (&[i32::MAX], false),
+        ],
+        false,
+        "#include <stdint.h>\n#include <stdbool.h>\nextern bool omega_entry(int32_t value);\nint main(void) { return !omega_entry(0) && omega_entry(1) && !omega_entry(2) && !omega_entry(INT32_MAX) ? 0 : 1; }",
+    );
+}
+
+#[test]
+fn inferred_operator_ceiling_executes_through_wrapper_after_source_removal() {
+    assert_source_free_execution(
+        "wrapper",
+        &[
+            (&[0, 0], true),
+            (&[1, 2], false),
+            (&[i32::MIN, 0], false),
+            (&[i32::MAX, i32::MAX], true),
+        ],
+        true,
+        "#include <stdint.h>\n#include <stdbool.h>\nextern bool omega_entry(int32_t left, int32_t right);\nint main(void) { return omega_entry(0, 0) && !omega_entry(1, 2) && !omega_entry(INT32_MIN, 0) && omega_entry(INT32_MAX, INT32_MAX) ? 0 : 1; }",
+    );
+}
+
+fn assert_source_free_execution(
+    selected_machine: &str,
+    cases: &[(&[i32], bool)],
+    has_crash_ceiling: bool,
+    native_driver: &str,
+) {
+    let directory = std::env::temp_dir().join(format!(
+        "omega-guarded-operator-{selected_machine}-{}",
+        std::process::id()
+    ));
     std::fs::create_dir(&directory).expect("create guarded operator source tree");
     let tree = SourceTree(directory.clone());
     std::fs::write(
@@ -41,9 +77,9 @@ fn guarded_operator_executes_after_source_removal() {
         None,
     ))
     .expect("the unchanged guarded-operator customer checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "safe")
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, selected_machine)
         .produce_artifact()
-        .expect("entry requirements discharge the selected operator continuation");
+        .expect("selected operator and enclosing call retain verified crash contracts");
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
         .expect("reload independent Terminal artifact");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
@@ -54,7 +90,7 @@ fn guarded_operator_executes_after_source_removal() {
         }),
         "invocation disproof must not erase the published or substituted ceiling"
     );
-    assert!(
+    assert_eq!(
         module
             .machines
             .iter()
@@ -62,26 +98,31 @@ fn guarded_operator_executes_after_source_removal() {
             .unwrap()
             .contract
             .crash_routes
-            .is_empty()
+            .is_empty(),
+        !has_crash_ceiling,
     );
     drop(checked);
     drop(tree);
     assert!(!directory.exists());
 
-    for value in [0, 1, 2, i32::MAX] {
+    for (arguments, expected) in cases {
+        let arguments = arguments
+            .iter()
+            .map(|value| TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                value: IntegerValue::Signed(i128::from(*value)),
+            })
+            .collect::<Vec<_>>();
         let result = terminal_interpreter::interpret_terminal_artifact(
             artifact.semantic_bytes(),
             artifact.proof_bytes(),
             &proof_admission::AdmissionProfile::default(),
-            &[TerminalScalarValue::Integer {
-                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                value: IntegerValue::Signed(i128::from(value)),
-            }],
+            &arguments,
         )
         .expect("source-free guarded operator executes");
         assert_eq!(
             result,
-            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(value == 1))
+            TerminalExecutionResult::Scalar(TerminalScalarValue::Boolean(*expected))
         );
     }
 
@@ -123,7 +164,7 @@ fn guarded_operator_executes_after_source_removal() {
     native_function::assert_c_text(
         &image.output().final_text_bytes,
         object.entry_function().text_offset,
-        "#include <stdint.h>\n#include <stdbool.h>\nextern bool omega_entry(int32_t value);\nint main(void) { return !omega_entry(0) && omega_entry(1) && !omega_entry(2) && !omega_entry(INT32_MAX) ? 0 : 1; }",
+        native_driver,
     );
     #[cfg(not(any(
         all(
@@ -132,5 +173,10 @@ fn guarded_operator_executes_after_source_removal() {
         ),
         all(target_os = "macos", target_arch = "aarch64")
     )))]
-    eprintln!("SKIP: native guarded operator execution requires Linux x64/ARM64 or macOS ARM64");
+    {
+        let _ = native_driver;
+        eprintln!(
+            "SKIP: native guarded operator execution requires Linux x64/ARM64 or macOS ARM64"
+        );
+    }
 }

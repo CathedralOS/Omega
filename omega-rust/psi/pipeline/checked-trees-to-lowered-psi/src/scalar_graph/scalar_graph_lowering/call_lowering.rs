@@ -194,14 +194,11 @@ pub(crate) fn lower_scalar_call(
         ScalarCallCrashScope::CallerValues => checked_call.surviving_buckets().to_vec(),
         ScalarCallCrashScope::Arguments => target_routes.clone(),
     };
-    if crash_continuations.iter().any(|bucket| {
-        bucket.alternative_guards().iter().any(|guard| {
-            matches!(guard, checked_trees::CrashRouteGuard::Predicate(predicate)
-                if predicate.scalar_expression().is_none())
-        })
-    }) {
-        return unsupported("direct scalar call crash continuation lacks a checked scalar term");
-    }
+    // This summary only tells graph preparation whether the checked call can
+    // crash; an identity-only predicate suffices for that question. Emission
+    // lowers `target_routes` against evaluated arguments, not this refined
+    // summary. Its structured-term checks and independent callee substitution
+    // still reject an unsupported or mismatched executable continuation.
     Ok(LoweredDirectCallBinding {
         source_coordinate: SourceCallCoordinate {
             state: caller_state,
