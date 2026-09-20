@@ -221,6 +221,31 @@ fn natural_slice_writer_uses_ordinary_native_admission_without_losing_its_cycle(
 }
 
 #[test]
+fn native_admission_retains_the_accepted_ranked_cycle_roster() {
+    let (module, proof) = writer();
+    let profile = AdmissionProfile::default();
+    let verified = terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+    let expected = verified.accepted_control_cycles().to_vec();
+    assert_eq!(expected.len(), 1);
+    let semantic = terminal_codec::encode_module(&module).unwrap();
+    let evidence = terminal_codec::encode_proof_section(&module, &proof).unwrap();
+    let admitted = lower_artifact_for_native_realization(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &evidence,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .expect("ranked module admits natively");
+    assert_eq!(admitted.accepted_control_cycles(), expected.as_slice());
+    let input = admitted
+        .try_into_native_input()
+        .expect("empty placed-view roster");
+    assert_eq!(input.accepted_control_cycles(), expected.as_slice());
+}
+
+#[test]
 fn native_natural_routing_requires_exact_grouped_evidence() {
     let (module, proof) = writer();
     for mutation in 0..3 {
