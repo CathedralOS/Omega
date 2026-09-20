@@ -195,18 +195,24 @@ prerequisite to every lower-rung milestone.
   substitute for them. The
   [execution-storage audit](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
   bounds the compiler's call contexts, lexical rows, and temporary values, and
-  every producer phase now has a closed per-occurrence pair charge. That does
-  not bound cumulative pair allocation: the closed envelope exceeds the
-  40,265,318-pair arena from `N = 26`, so it cannot show that an admitted
-  source never ends in a raw Gamma heap failure.
+  every producer phase now has a closed per-occurrence pair charge. Cumulative
+  pair containment is now measured, not merely enveloped: the
+  [worst-shape study](tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+  counts the canonical closure's whole-producer immutable-pair allocation per
+  admitted extent axis under an instrumented reference interpreter and
+  projects 417,063,339 pairs at full extents — 8.2× under the selected
+  evaluator's 3,422,453,760-pair arena — so an admitted source does not end
+  in a raw Gamma heap failure. (The closed envelope alone still exceeds the
+  arena from `N = 238`; measurement, not the envelope, is the containment
+  evidence.)
 
   Remaining work:
 
-  - Establish whole-producer pair containment under the selected profile, by a
-    sharper structural argument or by measurement, not by another isolated
-    capture or name-path fast path. Keep cumulative compiler allocation
-    distinct from receipt size and from generated-application runtime
-    exhaustion, which is not a compiler outcome.
+  - Whole-producer pair containment under the selected profile is settled by
+    the measured worst-shape study (sibling row above). Further sharpening of
+    the closed envelope below the arena is not needed; keep cumulative
+    compiler allocation distinct from receipt size and from
+    generated-application runtime exhaustion, which is not a compiler outcome.
   - For a witnessed evaluator exhaustion during compilation, trace its
     allocation owner and observation contract first. A Gamma-owned failure is
     not DCOUT, and the
@@ -239,18 +245,18 @@ prerequisite to every lower-rung milestone.
   Delta mechanisms after these obligations close. These obligations do not
   block independent bootstrap work.
 
-  Flag: starting at `8a49b3e011`, the containment work is seven consecutive
+  Flag: starting at `8a49b3e011`, the containment work was seven consecutive
   accounting slices with no change in the customer's result. Two of them
   changed compiler algorithms to lower a bound coefficient (name-trie prepend
   `0ed76ef37c`, pairwise capture merge `116758c61f`) while every receipt
   stayed byte-identical. The cost review records the Epsilon subject's
-  cumulative allocation at 2,242,373 pairs, 5.6% of the arena, while the
-  resulting envelope is vacuous against the arena from `N = 26`, so per-phase
-  sharpening has no demonstrated end. Apply the
-  [scope checkpoint](AGENTS.md#scope-checkpoints): either one measured
-  worst-shape study per admitted extent settles containment, or the gap is
-  the [owner-escalation](bootstrap/MINIMIZATION.md#owner-escalation) finding
-  that a private bound cannot receive an explicit fail-closed profile.
+  cumulative allocation at 2,242,373 pairs, 0.07% of the current
+  3,422,453,760-pair arena, while the closed envelope is vacuous against it
+  from `N = 238`, so per-phase sharpening has no demonstrated end. The
+  [scope checkpoint](AGENTS.md#scope-checkpoints) resolved on its first
+  branch: the measured worst-shape study settles containment (projected
+  417,063,339 pairs at admitted extents, 8.2× under the arena), so no
+  owner-escalation for a fail-closed private profile is owed.
 
 ## P4 - Epsilon to Omega and self-hosting
 

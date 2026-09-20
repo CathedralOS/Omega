@@ -239,7 +239,7 @@ Therefore
 
 ```text
 traversal pairs <= 4 * floor(P / 2) + 3 * floor(P / 12)
-                <= 33,554,424 + 4,194,303 = 37,748,727 < 40,265,318
+                <= 33,554,424 + 4,194,303 = 37,748,727 < 3,422,453,760
 ```
 
 Serialization alone therefore cannot exhaust the selected pair arena: it adds

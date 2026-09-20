@@ -153,23 +153,21 @@ per-occurrence charge derived in the same style:
   identity, and each rebuilt branch level now prepends one fresh row at five
   pairs rather than copying up to 63 sibling rows.
 
-What remains open is whether these per-occurrence products stay below the
-40,265,318-pair arena for every admitted shape: the coarse checking,
-lowering, and shared-name envelope is at most `295*S + 34*N + 149` pairs
-— before the normalizer's own `45*G + 7*F + 1` term — no longer dominated by
-sibling-row copies in name rebuilds, though it can still exceed the arena at
-maximum source extents.
-The capture merge term is now logarithmic in batch count per collection, and
-its aggregate is closed by the emission audit's injective
-`(origin, ancestor cut)` charge: `sum(T) <= 32*N + 512*N*N`, giving
-program-wide capture allocation below
-`60,672*N*N + 5,680*N + 2,980*S + 1,118` pairs. Every producer term is now a
-closed function of the admitted extents, so the remaining question is whether
-the resulting closed envelope — still able to exceed the arena at maximum
-source extents — can be sharpened to the arena, or whether measured evidence
-settles it. This audit
-neither supplies a DCOUT heap refusal nor converts an outer Gamma failure
-into one.
+The cumulative question those per-occurrence products left open — whether
+the coarse envelope (at most `295*S + 34*N + 149` pairs for checking,
+lowering, and shared names, before the normalizer's `45*G + 7*F + 1`) plus
+the closed capture envelope `60,672*N*N + 5,680*N + 2,980*S + 1,118` fits the
+selected arena — is settled by measurement, not by the envelope itself: the
+envelope exceeds the 3,422,453,760-pair arena from `N = 238`, so it cannot
+serve as the containment proof. The
+[measured worst-shape study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+runs the canonical closure under an instrumented reference interpreter that
+counts every immutable-pair allocation, measures the scaled worst shape on
+each admitted extent axis, and projects 417,063,339 pairs at the full
+extents — 8.2× under the arena. The capture-chain regime at full width is
+bounded independently by the exact `(origin, ancestor cut)` incidence count
+and witnessed by canonical full-extent completions. This audit neither
+supplies a DCOUT heap refusal nor converts an outer Gamma failure into one.
 
 Generated Delta applications are different programs. Their recursion and live
 storage can still exhaust the selected evaluator or diverge. The compiler's

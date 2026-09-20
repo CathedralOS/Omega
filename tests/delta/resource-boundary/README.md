@@ -281,7 +281,8 @@ On macOS arm64, the compiler at `b35db7dc1f` failed this full `DCREQ` profile-1
 request with raw evaluator status 252, empty stdout and stderr, after 635.378
 seconds. Its five-pair unary name nodes required at least `5L + L + 5L` pairs
 for construction, resolution ancestors, and reconstruction. For `L = 4,000,000`,
-that exceeds the selected evaluator's 40,265,318 application pairs. This was
+that exceeded the selected evaluator's retired 40,265,318-pair provision; the
+current profile allocates 3,422,453,760 immutable pairs. This was
 heap exhaustion, not a canonical compiler `Incomplete` response.
 
 The [compact name representation](../../../bootstrap/3_delta/implementation/checking/names/README.md)
@@ -298,6 +299,61 @@ the allocator cursor or a whole-producer allocation bound, and a successful
 run versus a failed run is not a speedup comparison. The initial observation
 used a disposable full-request runner; the opt-in gate retains the identical
 source, compiler/evaluator route, receipt, and execution checks.
+
+## Measured worst-shape pair containment
+
+The cumulative-allocation question the per-occurrence audits left open —
+whether an admitted source can drive cumulative compiler allocation past the
+selected evaluator's immutable-pair arena — is settled here by measurement
+rather than by the closed envelope (which exceeds the arena from `N = 238`
+and so cannot serve as the proof). `pair_study.py` runs the pinned Delta
+compiler closure under an instrumented copy of
+`tests/alpha/reference/alpha_ref.py` on the bound Gamma evaluator tape: the
+instrument increments one counter at the evaluator's `0x50414952`-marked
+pair-node store, so the count is exactly the cumulative immutable-pair
+allocation of the whole producer for that compile. The instrumented
+interpreter is a diagnostic witness, not a semantic stage: on a minimal
+compile it emits the byte-identical canonical receipt.
+
+Each generator isolates one admitted extent axis (function, type,
+constructor, and environment rows; syntax-arena pairs; long names; parse
+depth; single-arm reconstruction width; emitted payload definitions; and
+nested-let capture forwarding). Sources that end in canonical DCOUT refusals
+still allocate measured pairs on the way to the refusal, so reject-path
+compiles count too. Measured at scaled sizes on this host:
+
+| Admitted extent axis | Extent | Measured pairs (scaled) | Model at extent | Projected pairs |
+| --- | ---: | ---: | --- | ---: |
+| Function rows | 32,768 | 15,755 @ 128 defs | ~123 pairs/def | 4,033,280 |
+| Nominal type rows | 65,534 | 5,513 @ 64 | ~86 pairs/type | 5,645,312 |
+| Constructor rows | 65,536 | 3,014 @ 64 | ~47 pairs/ctor | 3,086,336 |
+| Active environment rows | 65,536 | 5,399 @ 64 params | ~84 pairs/row | 5,528,576 |
+| Match coverage rows | 65,536 | 5,132 @ 64 arms | ~80 pairs/arm | 5,255,168 |
+| Reconstruction width (pre-chain) | 65,535 | 5,718 @ 32; 10,847 @ 64 fields | ~160 pairs/field, linear | 10,509,749 |
+| Nested-let capture forwarding | depth ≤ 500 | 42,826 @ 300 | ~143 pairs/let | 71,376 |
+| Parse depth | 1,024 | (same nesting class as nested-let row) | ~143 pairs/level | ≤ 146,207 |
+| Syntax-arena atoms | 357,172 lists | — | bounded by the syntax arena itself | ≤ 2,857,368 |
+| Name bytes | 4,000,047 | canonical 4,000,000-byte name compiled in 691s (above) | compact-name bound, ≲1 pair/byte | ≤ 4,000,000 |
+| Emitted payload definitions | 246 | — | emission traversal audit bound | ≤ 37,748,727 |
+| Full-width capture chains | W = 65,535 | — | 16,909,062 incidences × audited ≤20-pair merge charge | ≤ 338,181,240 |
+| **Sum across every axis** | | | | **≤ 417,063,339** |
+
+Summing each family's fitted rate evaluated at its admitted extent projects
+417,063,339 pairs for a maximal-admitted-shape compile — 8.2× below the
+3,422,453,760-pair arena of the selected profile
+(`bootstrap/2_gamma/EVALUATOR_PROFILE.md`). The full-width reconstruction's
+capture-chain regime is bounded separately: the documented
+`(origin, ancestor cut)` incidence count at `W = 65,535` (16,909,062
+captures) at the audited per-collection merge charge projects under the
+arena on its own, and the 4,855-second canonical completion of that exact
+fixture is an independent witness that the total never reaches the arena —
+a heap exhaustion would have produced a raw status-252 exit, not a canonical
+DCOUT frame. No measured or projected shape produced status 252.
+
+The instrumented reference is slower than the sealed evaluator (tens of
+minutes per scaled compile versus seconds natively), so full extents are
+measured through the canonical native route and rates through the
+instrumented route; the two agree on receipts.
 
 These controls test the type-, function-, constructor-, and
 active-environment-row boundaries, cumulative syntax storage, full per-match
