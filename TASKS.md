@@ -691,11 +691,13 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
     nominal cleanup now joins the walk: `Return`/`ReturnUnitNominalAffine`
     `cleanup_machine` edges are followed like static calls, an absent target
     is an evidence gap, and callback thunk bodies verify at their own
-    production site. Parameter dispatch still reports missing evidence;
-    preserve that rejection until its exact target set or conservative
-    contract suffices. Sound guard evidence may establish unreachable
-    behavior, but optional optimization and broad public ceilings are not
-    absence proofs.
+    production site. Parameter dispatch without a retained realization is
+    now bounded by the requirement's retained crash contract: an excluded
+    crash cause in it is a prohibited `DynamicCall` site, the closed bucket
+    list decides crash-only exclusion sets, and service/physical-authority
+    reach still reports missing evidence. Sound guard evidence may establish
+    unreachable behavior, but optional optimization and broad public ceilings
+    are not absence proofs.
   - Close direct Unit crash planning through CRASH-CONTRACT and the owning
     Unit control-flow lanes. `behavior_exclusions` now publishes the ordinary
     no-op package and executes it on the host; its separate `direct-unit.omg`

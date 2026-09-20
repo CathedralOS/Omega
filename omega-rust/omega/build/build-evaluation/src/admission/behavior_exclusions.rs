@@ -38,7 +38,11 @@
 //! admits every retained candidate plus the contract any external provider
 //! could only conform to. Bounded dynamic dispatches rejoin the module's
 //! dispatch catalog and cover their exact realization; calls through an
-//! existential descriptor parameter have no retained target and remain gaps.
+//! existential descriptor parameter have no retained target and are bounded
+//! by the requirement's retained crash contract — an excluded crash cause in
+//! it is a prohibited site, and the closed bucket list decides crash-only
+//! exclusion sets; service and physical-authority reach stay unenumerated
+//! and remain gaps.
 //!
 //! The build authoring surface is `builder.exclude_crash(CrashCause::X)`, a
 //! toolchain Build machine recorded only when executed against the original
@@ -276,6 +280,13 @@ pub enum ProhibitedSite {
         block: BlockId,
         operation: OperationId,
         boundary: BoundaryMachineId,
+    },
+    /// A bounded dynamic dispatch whose retained crash contract includes the
+    /// excluded cause. The target set stays unenumerated; the contract is the
+    /// bound on possible crash behavior.
+    DynamicCall {
+        block: BlockId,
+        operation: OperationId,
     },
     PortWrite {
         block: BlockId,
@@ -731,10 +742,22 @@ fn inspect_machine<'module>(
                         });
                     }
                 }
-                OperationKind::CallDynamicScalar { .. }
-                | OperationKind::CallDynamicParameterScalar { .. }
-                | OperationKind::CallDynamicUnit { .. }
-                | OperationKind::CallDynamicParameterUnit { .. } => {
+                OperationKind::CallDynamicScalar {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallDynamicParameterScalar {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallDynamicUnit {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallDynamicParameterUnit {
+                    crash_continuations,
+                    ..
+                } => {
                     match dynamic_dispatch_realization(module, machine.id, operation.id) {
                         Some(realization) => {
                             match module
@@ -750,6 +773,40 @@ fn inspect_machine<'module>(
                                     operation: Some(operation.id),
                                     kind: EvidenceGapKind::UnknownCallee(realization),
                                 }),
+                            }
+                        }
+                        None if !crash_continuations.is_empty() => {
+                            // The retained crash contract bounds the
+                            // unenumerated target's possible crash causes
+                            // exactly like a boundary's declared crash
+                            // routes: an excluded cause is a prohibited
+                            // site, and crash-only exclusion sets are
+                            // decided by the closed bucket list. Service and
+                            // physical-authority reach stay unenumerated, so
+                            // the site remains an evidence gap for those.
+                            for bucket in crash_continuations {
+                                if exclusions.excludes_crash_cause(bucket.cause) {
+                                    report.prohibited.push(ProhibitedBehavior {
+                                        exclusion: BehaviorExclusion::CrashCause(bucket.cause),
+                                        entry,
+                                        machine: machine.id,
+                                        site: ProhibitedSite::DynamicCall {
+                                            block: block.id,
+                                            operation: operation.id,
+                                        },
+                                    });
+                                }
+                            }
+                            if !exclusions.services().is_empty()
+                                || !exclusions.physical_authority_classes().is_empty()
+                            {
+                                report.gaps.push(EvidenceGap {
+                                    entry,
+                                    machine: machine.id,
+                                    block: Some(block.id),
+                                    operation: Some(operation.id),
+                                    kind: EvidenceGapKind::DynamicCall,
+                                });
                             }
                         }
                         None => report.gaps.push(EvidenceGap {
