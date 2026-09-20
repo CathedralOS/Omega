@@ -1,0 +1,2 @@
+domain `Player::Odd` proof fact `self.health` must have type `bool`
+domain `Holder::Invalid` proof fact `self.slot.value` must have type `bool`

@@ -1,6 +1,9 @@
 //! Corpus inputs used by the domain, control-flow, and structure tests.
 //! Native exits, abnormal termination, checked facts, and targets stay with their owners.
 
+// Checked source acceptance is owned by compiler/tests/domain_predicate_types.rs.
+pub(crate) const FILE_EXPECTATION_FAIL_CANARIES: &[&str] = &["domains/nonboolean_member_predicate"];
+
 pub(crate) const RUNTIME_COPY_THEN_READ_EXIT: &str = "arithmetic/runtime_copy_then_read_exit";
 pub(crate) const RUNTIME_I64_FULL_WIDTH_EXIT: &str = "arithmetic/runtime_i64_full_width_exit";
 pub(crate) const RUNTIME_CHAINED_STRING_APPEND_EXIT: &str =
@@ -246,6 +249,7 @@ pub(crate) const RECURSIVE_WALK_PASS_CANARIES: &[&str] = &[
 ];
 
 pub(crate) const PASS_CANARIES: &[&str] = &[
+    "domains/boolean_member_predicate",
     RUNTIME_COPY_THEN_READ_EXIT,
     RUNTIME_I64_FULL_WIDTH_EXIT,
     RUNTIME_CHAINED_STRING_APPEND_EXIT,

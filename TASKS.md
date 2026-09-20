@@ -5563,12 +5563,6 @@ New items mined from fuzz legs; each is a confirmed divergence from expected
 corpus polarity on origin/main. Claim the named paths under the parent corpus
 family and pin the documented behavior with a canary plus the fix if scoped.
 
-- **FUZZ-DOMAIN-NONBOOL-PREDICATE.** `domain Player::Odd requires self.health`
-  with `health: i32` (a bare non-boolean member access) compiles clean under
-  `omega --check`. Domain predicates should require a boolean-typed condition;
-  pin a fail-canary rejecting non-bool `requires` operands. Paths:
-  `tests/omega/fail/domains/`, `tests/omega/pass/domains/`, domain checking in
-  `omega-rust/psi/semantics/`.
 - **FUZZ-EMPTY-TRANSITION-ARMS.** A `transition` with zero arms produces no
   diagnostic (transition can never proceed), and an integer literal arm over a
   bool subject is silently accepted alongside a `_ ->` fallback. Pin
