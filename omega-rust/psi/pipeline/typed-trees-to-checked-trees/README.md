@@ -380,6 +380,11 @@ value it writes. The
 and its
 [subject](../../../../tests/omega/fail/termination/rank_range_subject_intervening_write/main.omg)/[endpoint](../../../../tests/omega/fail/termination/rank_range_endpoint_intervening_write/main.omg)
 controls pin that boundary.
+The ranking range in `terminates by ... in 0..N` remains valid source syntax.
+The query's legacy range-constrained entry inputs are migration debt under
+`REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the [board](../../../../TASKS.md), not a
+reason to retain scalar type suffixes. Contracts, guards, and domain predicates
+must retain their exact premise carriers after that migration.
 The [relational countdown](../../../../tests/omega/pass/termination/measure_field_relational_range/README.md)
 exercises that boundary. Computed scalar endpoints still need independent
 immutable-expression formation; the relational fallback cannot excuse overflow

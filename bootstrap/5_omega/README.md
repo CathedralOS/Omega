@@ -354,8 +354,7 @@ that `D` has semantic, lowering, or emission closure.
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
 over the same bare named type leaf, one unqualified `Base in Domain`
-constraint, one inclusive unsuffixed decimal-literal range
-`Base [minimum..=maximum]`, recursively nested fixed arrays `[Type; length]`
+constraint, recursively nested fixed arrays `[Type; length]`
 over bare named leaves with the same unsuffixed decimal length spelling and an
 optional outer domain, optional final member/case semicolons, mixed field/case
 order, and relative spans in separate live-prefix tables. A case reaches its
@@ -366,8 +365,12 @@ an outer Reference points backward to its complete referee tree and retains
 shared/mutable/write-only access plus an optional exact lifetime span.
 FixedArray and Slice nodes point backward to their element; FixedArray also
 retains the exact length span. SelfType and Unit need no payload.
-Domain constraints point into the general path arena; literal ranges and array
-lengths retain exact spans without interpreting their values. Bracket syntax
+Domain constraints point into the general path arena; array lengths retain exact
+spans without interpreting their values. D also still parses the removed scalar
+range-annotation suffix and retains its literal endpoint spans. That is migration
+debt under `REMOVE-BRACKETED-RANGE-ANNOTATIONS` in [the board](../../TASKS.md), not
+part of the accepted Omega language; bounds use contracts or named predicate
+domains. Bracket syntax
 uses a bounded invocation-local frame stack and emits named, array, and slice
 nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child

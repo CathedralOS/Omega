@@ -43,11 +43,15 @@ owns establishment gates.
 Branches refine the facts available on their own paths:
 
 ```omega
-data Player {
-    health: i32 [0..=100];
+data Player
+where
+    health in 0..=100,
+{
+    health: i32;
 }
 
-machine Player::take_damage(&mut self, amount: i32 [0..=100])
+machine Player::take_damage(&mut self, amount: i32)
+    requires amount in 0..=100
     ensures self.health in 0..=100
 {
     let next: i32 = self.health - amount;
@@ -60,7 +64,9 @@ machine Player::take_damage(&mut self, amount: i32 [0..=100])
         self.health = 0;
     }
 
-    state settle(&mut self, next: i32) {
+    state settle(&mut self, next: i32)
+    requires next in 0..=100
+    {
         self.health = next;
     }
 }

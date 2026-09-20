@@ -156,6 +156,13 @@ atom. A mutable input or role-less slot outside those sets may be stored to,
 while any store into a protected slot still invalidates the entry-relative
 ranking.
 
+These ranking ranges belong to `terminates by ... in 0..N`, not a scalar
+type-annotation suffix. The current premise-carrier query also protects legacy
+range-constrained entries. Removing those source annotations must preserve the
+same protection for facts supplied by contracts, guards, and domain predicates;
+`REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the [board](../../../../TASKS.md) tracks
+that migration without removing ranking-range reasoning.
+
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for
 scalar ranks, slice lengths, and exact direct-field coordinates. A declared
 scalar view beyond identity (`identity_views.rs`: `declared_scalar_view`,

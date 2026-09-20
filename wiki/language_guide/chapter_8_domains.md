@@ -443,9 +443,12 @@ A declaration may name a domain that excludes zero. The storage can still start
 zero-filled, but the value is gated until its facts are established:
 
 ```omega
+domain u8::Level requires self <= 100;
+domain u8::Rank requires self in 1..=9;
+
 data Config {
-    level: u8 [0..=100];
-    rank: u8 [1..=9];
+    level: u8::Level;
+    rank: u8::Rank;
 }
 
 let ready = Config { rank: 1 };  // omitted level is zero-valid
