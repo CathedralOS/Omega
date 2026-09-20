@@ -18,8 +18,9 @@ where
     end: u32;
 }
 
-machine Span::shift(&mut self, delta: u32 [0..=1000])
+machine Span::shift(&mut self, delta: u32)
 requires
+    delta <= 1000
     self.end <= u32::Maximum - delta
 {
     self.start = self.start + delta;

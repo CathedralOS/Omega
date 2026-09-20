@@ -50,10 +50,13 @@ The 14 failures now reduce to one recorded residual:
 
 1. **Param-carrying boundary entry cannot select a root** (14 sysv legs).
    Every fixture compiles through checking cleanly — the exact-arithmetic
-   obligation was respelled onto bounded `[0..=N]` operands and the
-   borrowed-storage result transfers now construct the returned record
+   obligation was respelled onto operands with legacy scalar range annotations,
+   and the borrowed-storage result transfers now construct the returned record
    from storage fields — and all 14 legs refuse at product admission with
    `native-artifact production requires one exact selected program entry`.
+   These are recorded outcomes for the unchanged fixtures, not acceptance of the
+   removed annotation syntax. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
+   [board](../../TASKS.md) owns their migration to contracts or named domains.
    `builder.roots.bind(linux_x86_64::ProgramEntry, Main::main)` does not
    fix them: the hosted `ProgramEntry` schema (`HostedApplication`,
    `visible_parameters: None`) rejects a machine that declares arrival

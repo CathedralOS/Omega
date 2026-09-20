@@ -91,9 +91,20 @@ each input value. This simple example could use an ordinary value parameter;
 value-indexed applications additionally connect parameter/result types, domains,
 and stored objects through the same bound subject.
 
-For example, `data Index<Limit: u32> { value: u32 [0..Limit]; }` relates a
-field to a possibly runtime limit. Constructing an instance owes the range;
-the declaration does not establish an inhabitant when Limit is zero. The index
+For example, this default-domain coupling relates a field to a possibly runtime
+limit:
+
+```omega
+data Index<Limit: u32>
+where
+    value < Limit,
+{
+    value: u32;
+}
+```
+
+Constructing an instance owes the coupling; the declaration does not establish
+an inhabitant when Limit is zero. The index
 can remain proof-only when its runtime value is not needed by any operation.
 
 Bodies must have a valid realization for their admitted arguments. A static-only
@@ -104,7 +115,7 @@ or convert a runtime type choice into an unrelated statically selected type.
 
 ## Runtime index identity and storage
 
-Type equations and range decomposition follow the static rules below; knowing
+Type equations and domain-application matching follow the rules below; knowing
 the type of a runtime argument does not make that argument's value static.
 
 An application binds the exact argument value at that program point under
@@ -182,16 +193,19 @@ A `where` type equation relates already declared binders. Its structural matchin
 may recover omitted type/value arguments from known type structure:
 
 ```omega
+domain<const Capacity: u64> u64::AtMost<Capacity>
+    requires self <= Capacity;
+
 data TinyBytes<Length, const Capacity: u64>
 where
-    Length == u64[0..=Capacity]
+    Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];
     length: Length;
 }
 ```
 
-`TinyBytes<u64[0..=256]>` binds Capacity to 256 without constructing a dummy
+`TinyBytes<u64::AtMost<256>>` binds Capacity to 256 without constructing a dummy
 Length value. The array has a static extent and length remains an ordinary
 runtime field. This illustrates the settled inference contract, not current
 parser or compiler support. Ordinary initialization and invariant checking
@@ -199,8 +213,8 @@ remain required. A general element-owning vector also needs its initialized
 prefix and element-disposition protocol; the equation does not supply those.
 
 Every recovered parameter has an explicit binder and declared kind. Match known
-structures by exact constructor and parameter position, including scalar range
-shells, fixed arrays, and declared generic applications. Repeated occurrences
+structures by exact constructor and parameter position, including domain
+applications, fixed arrays, and declared generic applications. Repeated occurrences
 must agree under defined normalization. An explicitly supplied argument is fixed;
 it cannot be overwritten by inference. Missing, cyclic, conflicting, or
 underdetermined bindings reject with a request for an explicit argument. An
@@ -217,25 +231,26 @@ does not introduce ambient conformance search or omit its required arguments.
 Inference selects arguments before checking ordinary compatibility. For example:
 
 ```omega
-machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 {
+machine upper_bound<const N: u64>(value: u64::AtMost<N>) -> u64 {
     N
 }
 ```
 
-Calling this with a value declared `u64[0..=256]` and omitting N selects 256
-from its declared range, not a tighter bound on that particular value. Explicit
-`upper_bound<512>(value)` can still satisfy ordinary range compatibility; there
-is no separate exact type equation on that call. In contrast, the TinyBytes
-equation requires Capacity to equal the matched endpoint, not merely contain it.
+Calling this with a value declared `u64::AtMost<256>` and omitting N selects 256
+from its explicit domain argument, not a tighter bound on that particular value.
+The applications `AtMost<256>` and `AtMost<512>` remain distinct; containment of their
+predicates supplies no implicit variance. An author can explicitly qualify a
+value for `AtMost<512>` after establishing its predicate, then pass that value to
+`upper_bound<512>`. The TinyBytes equation requires exact qualified type equality.
 
 Temporary branch facts, a literal's observed value, or a satisfier's stronger
 private contract cannot redefine declared type structure for this inference.
-They can prove obligations after selection. A larger compatible interval is not
-an alternative inferred endpoint. If an actual lacks the required declared range
-structure, supply the argument explicitly rather than deriving its type from a
-value. Endpoint expressions may be bound as a whole; matching `0..=N` can bind
-the expression `Limit + 1`, but solving `N * 2 == 256` is not structural inference.
-A `const` endpoint needs static inputs; a runtime endpoint can bind only where
+They can prove obligations after selection. If an actual lacks the required
+domain-application structure, supply the argument explicitly and establish the
+required qualification rather than deriving a type from a value's proved bounds.
+Index expressions may be bound as a whole; matching `AtMost<N>` can bind the
+argument `Limit + 1`, but solving `N * 2 == 256` is not structural inference.
+A `const` index needs static inputs; a runtime index can bind only where
 the value binder and its exact subject/lifetime rules permit dynamic values.
 
 A zero-argument machine `upper_bound<const N: u64>() -> u64 { N }` merely
@@ -243,39 +258,38 @@ returns an already bound N. `upper_bound<N>()` needs no reflection, and
 `upper_bound()` cannot discover an unconstrained N from nothing. No compiler
 primitive with the name upper_bound is required.
 
-## Canonical integer range matching
+## Canonical domain-index matching
 
-The same explicit integer interval has one normalized range meaning. In
-particular, `u64[0..257]` and `u64[0..=256]` match identically. Closed endpoint
-expressions evaluate under their exact selected arithmetic, then interval
-normalization expresses the inclusive upper bound in proof-integer arithmetic.
-Converting an exclusive end to its predecessor must not underflow or overflow a
-runtime carrier. Range formation, subject carrier, and endpoint evaluation retain
-their own obligations; normalization cannot repair an ill-formed expression.
-Runtime collection slicing keeps its separate executable endpoint rules.
+Closed domain arguments normalize under their declared carrier and exact selected
+arithmetic, using the ordinary static identity rules. For example,
+`u64::AtMost<128 + 128>` and `u64::AtMost<256>` name the same application.
+Argument formation and evaluation retain their own obligations; normalization
+cannot repair an ill-formed expression. Bounds inferred from contracts are proof
+facts, not an additional scalar type constructor or a source of generic arguments.
 
 Use transparent alias expansion and defined canonical normalization, not general
-predicate equivalence or heuristic theorem search. Symbolic endpoints retain
+predicate equivalence or heuristic theorem search. Symbolic indices retain
 their exact bindings and permitted normalized expressions. A repeated inferred
 parameter must match consistently; stronger proof automation must not change an
 application's inferred constants, storage layout, or public identity. Separately
 proved relationships may establish compatibility without renaming either index.
 
-Explicitly uninhabited intervals and domains remain legal. A decomposition
-request that lacks a unique usable endpoint rejects; emptiness cannot choose an
-arbitrary capacity. An opaque domain or an unbounded classification does not
-implicitly expose a finite bound. Additional domain predicates are not searched
-for a smaller maximum, and equal inhabitant sets do not collapse distinct domain
-identities. This is declared-interval normalization, not a general greatest-member
-operation or satisfiability solver.
+Explicitly uninhabited domains remain legal. Matching that lacks a unique index
+rejects; emptiness cannot choose an arbitrary capacity. An opaque domain or an
+unbounded classification does not implicitly expose a finite bound. Domain
+predicates are not searched for a maximum, and equal inhabitant sets do not
+collapse distinct domain identities. This is explicit application matching, not
+a general greatest-member operation or satisfiability solver. Ordinary interval
+reasoning may still discharge proof obligations without participating in type
+identity or inference.
 
 ## Explicitly derived bounded storage
 
-An author may deliberately use an extracted static endpoint as backing capacity,
-as in TinyBytes above. That is distinct from the compiler implicitly allocating
+An author may deliberately use an explicit static domain argument as backing
+capacity, as in TinyBytes above. That is distinct from the compiler implicitly allocating
 the maximum of every runtime binder's range. A static capacity can also be
 computed from explicitly supplied constants through an eligible ordinary machine
-under [semantic evaluation](evaluation.md). Extracting an endpoint already
+under [semantic evaluation](evaluation.md). Matching an argument already
 present in type structure needs no such computation or predicate reflection.
 
 The chosen capacity is an element count, not its representation's number of

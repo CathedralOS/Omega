@@ -50,6 +50,41 @@ implementation. They take precedence over adding another evidence carrier that
 has no exercising program. The finite definition of Rust-product completion is
 the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
+- **REMOVE-BRACKETED-RANGE-ANNOTATIONS.** (new-scope) Remove the revoked
+  scalar range suffix, such as `u64 [1..=8]`, from source admission and its
+  parallel type-constraint machinery. The owner decision is settled in
+  [domains](wiki/spec/language/domains.md#declaration-and-membership): ordinary
+  contracts and guards supply implicit bound facts; explicit qualifications
+  use domains. This is deletion and migration, not a compatibility mode or a
+  new compiler-provided range domain.
+
+  Owners: Psi's `tokens-to-syntax-trees/src/type_syntax/parse_type.rs`,
+  syntax/resolved/typed type-constraint representations,
+  `validation/src/proof_contracts/arithmetic_domains/`, and downstream
+  consumers of declared range constraints. Remove the authored Range variants,
+  range-shell generic matching, special endpoint folding, and diagnostics that
+  recommend the syntax; preserve ordinary interval analysis and proof facts.
+  Migrate libraries, product/compiler source, tests and samples, plus the
+  Epsilon-written Omega parser and its fixtures. This does not change Epsilon
+  or any other bootstrap language's own surface.
+
+  Customer: Squalr's `MemoryAlignment::get_size_in_bytes` returns plain `u64`
+  with `ensures result >= 1 && result <= 8`, or an explicit predicate domain.
+  Its caller's plain `u64` local must retain those facts for division/remainder
+  without restating a range annotation or inspecting the callee's private body.
+  Publish Squalr migration in its sub-repository before updating the gitlink.
+
+  Acceptance: reject the removed integer/float suffix on locals, parameters,
+  results and fields; reject an implementation returning zero against the
+  alignment contract; preserve postcondition transport through ordinary calls,
+  joins and write invalidation. Run Squalr's geometry command after migration.
+  Keep default-domain and case `where` couplings, explicit predicate domains,
+  slices/range membership/fixed arrays, and `[copy]`/`[linear]`/`[erased]`
+  unchanged. Migrate generic inference customers to explicit domain or type
+  arguments without extracting capacities from flow facts or adding implicit
+  variance between indexed domains. Delete obsolete positive syntax tests;
+  retain their useful arithmetic/ownership controls on the ordinary proof path.
+
 - **SQUALR-HEADLESS.** Drive the independently versioned
   [Squalr application](samples/apps/README.md) through its nested package builds
   and native execution: geometry first, then the supplied-byte scan and filtered
@@ -2375,7 +2410,8 @@ Owners include
     value through field-store planning, Terminal replay and native execution.
   - Runtime indexes. Terminal Psi has `WriteOnlyIndexedPrimitiveStore` with
     verifier, codec and interpreter support. No Psi producer emits it, a
-    declared `[0..=3]` index range still yields no plan, and Omega rejects it
+    legacy fixture bounding the index to 0 through 3 still yields no plan,
+    and Omega rejects it
     with `LoweringError::UnsupportedIndexedPrimitiveStore`
     (`terminal-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs`)
     because the abstract inventory has no runtime-index carrier or bounds
@@ -3451,7 +3487,8 @@ Owners include
     instantiate to the exact operand reference the first bare-`T` parameter
     position bound, at every expression owner (state, parameter telescope,
     domain predicate); composite returns (`Pair<T>`), dependent predicates
-    (`-> u64 [0..=left]`), unbound result parameters and ambiguous selections
+    (a result postcondition bounded by `left` or an indexed domain), unbound
+    result parameters and ambiguous selections
     remain unresolved rather than fabricating identity. A bound owned result
     (`T` := `Payload`) now enters the same branch-custody join as a declared
     `-> Payload`: both `match` arms are judged instead of the generic arm
@@ -3847,17 +3884,11 @@ Owners include
 
   Remaining work:
 
-  - Range bounds in parameter, result and local qualifications now admit a
-    runtime-bound subject: `-> u64[0..=Bound]` rebinds to the realized
-    trailing parameter inside the shared specialization, the caller's
-    inferred result indexes on the captured argument (`u64[0..=n]`), and the
-    strict scope-atom arithmetic engine discharges declared `u64[0..=n]`
-    bounds through Terminal publication and replay. Layout-determining uses
-    (array extents, `const` positions) still reject;
-    `fail/generics/value_generic_runtime_static_bound` is retired and
-    `pass/generics/value_generic_runtime_result_bound` is the acceptance
-    fixture. Domain-index qualifications forward through call-bound index
-    substitution: a call's const-position binder instantiation (`literal`,
+  - Preserve runtime-bound subjects in ordinary contracts and domain
+    qualifications while **REMOVE-BRACKETED-RANGE-ANNOTATIONS** migrates the
+    legacy result-bound fixtures. Layout-determining uses (array extents,
+    `const` positions) still reject. Domain-index qualifications forward through
+    call-bound index substitution: a call's const-position binder instantiation (`literal`,
     `const` binder, or runtime `Value` binder) rewrites the callee's declared
     `Coordinate<I>` membership to the caller's bound index in both index
     compatibility and requires-fact instantiation, so
@@ -3878,8 +3909,8 @@ Owners include
     The regression is `runtime_bound_stale_call_guard_rejects_publication`;
     owning source check is `typed-trees-to-checked-trees/src/checks/contracts/calls.rs`.
   - Parse and check value binders on data declarations:
-    `data Index<Limit: u32> { value: u32 [0..Limit]; }` owes the range at
-    construction, erases a proof-only index, and keeps an executable index as
+    `data Index<Limit: u32> where value < Limit, { value: u32; }` owes its
+    default domain at construction, erases a proof-only index, and keeps an executable index as
     ordinary data, an argument or an existing descriptor field.
   - Module-owned forms, once **MODULE-NAMESPACE-RESOLUTION** supplies exact
     lexical selection. No source-spelling fallback, and no runtime value used
@@ -3915,9 +3946,8 @@ Owners include
   finite families and dynamic interfaces; this item depends on neither it nor
   general reflection.
 
-  Flag: range bounds were the fence and are now scope-admitted; every other
-  type-position use of a runtime-bound binder still classifies as a
-  static-only use. The value-indexed data-field case (`u32 [0..Limit]`) is
+  Flag: legacy range-shell acceptance does not establish general runtime
+  domain-index support. The value-indexed data-field/default-domain case is
   the bullet-2 fence, and the suite's two "indexed scalar field" scenarios
   index a `[u8; 8]` receiver field with a literal, which involves no
   value-indexed type.
@@ -3935,157 +3965,71 @@ Owners include
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
-  and [canonical ranges](wiki/spec/language/generics.md#canonical-integer-range-matching)
-  for bounded containers deriving static backing from a declared length type.
-  Three Psi pieces exist, each keyed by the retained
-  `IntegerRangeNormalization` and not by a rendered spelling: declared-range
-  call inference
-  (`typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`),
-  build-time folding of closed endpoint calls
-  (`build-time-evaluation/src/const_evaluation/range_endpoints.rs`), and
-  structural `where Binder == <type>` equations that recover omitted const or
-  type binders in either direction. Data and closed explicit machine applications
-  use the same matcher
-  (`syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations.rs`).
-  These consumers share one canonical-range admission: declared-range
-  call inference runs before the const-call probe, evaluates each retained
-  call endpoint through the shared endpoint evaluator, and writes the folded
-  decimal literal back into canonical syntax, so `u64[0..=limit()]` and
-  `u64[0..limit() + 1]` arguments on data fields and machine parameters
-  select the same `u64[0..=256]` instance and recover its `Capacity`;
-  conflicting explicit binders and calls that keep no canonical range still
-  reject. Data equations also decompose nested fixed arrays and construct an
-  omitted backing type from bound element/extent arguments
-  (`type_equations/type_structure.rs`). Closed leaves use `ClosedArgumentIdentity`.
-  The `compiler --test array_type_equations` integration target exercises inferred
-  and explicit identity through checking and recovered counts through source-free
-  Terminal execution, including reverse construction (macOS ARM64). Templates
-  retain array equations in syntax; unspecialized applications cannot discard
-  those obligations. Closed explicit calls to free and attached machines recover trailing
-  type/const arguments from ranges and fixed arrays, construct omitted types,
-  and discharge complete supplied tuples. Actual static type arguments survive
-  resolution, caller-scope validation, specialization and normalized identity.
-  `compiler --test machine_type_equations` exercises source-free Terminal
-  execution, receiver mutation and receiver-free attached scalar calls through
-  four-target native publication and macOS ARM64 execution, and rejection of
-  conflicting tuples, open/noncall selections,
-  implicit cleanup, kind mixtures, forwarding, lifetime errors and unmet named
-  conformances. Open or retained applications lacking
-  their equation syntax reject explicitly. Provisional normalization retains
-  pending equations; transitive build-time invocation cannot execute them.
+  and [canonical domain indices](wiki/spec/language/generics.md#canonical-domain-index-matching)
+  for containers deriving backing from explicit type structure. Scalar
+  range-annotation shells are revoked: **REMOVE-BRACKETED-RANGE-ANNOTATIONS**
+  owns deleting that route and migrating its fixtures. Do not extend it or
+  infer capacities from interval facts.
 
-  Lifetime-free declared applications with type and builtin integer/Boolean const
-  positions share that traversal with arrays, slices and anonymous references,
-  including reverse construction. Machine completion retains selected declaration identity,
-  normalizes the completed type roots through ordinary data synthesis, and reuses
-  existing instances; matching never discharges a constructor's own constraints.
-  `compiler --test application_type_equations` exercises source-free Terminal
-  and macOS ARM64 native execution, data/machine inference, and rejection of
-  conflicting tuples, false constructor facts, hidden caller binders, and skipped
-  nested applications.
+  The shared structural matcher is
+  `syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations.rs`.
+  It matches fixed arrays and lifetime-free declared applications with
+  type/integer/Boolean const arguments, including reverse construction, and
+  retains pending equations until exact application checking. Reuse
+  `compiler --test array_type_equations`, `machine_type_equations`, and
+  `application_type_equations` for their independent non-range customers.
 
   Remaining work:
 
-  - Static type equality in Psi type-role resolution and checking: `where`
-    disjunctions such as `T == u16 || T == u32` on machines and requirements,
-    rejection of type/value mixtures, the unspecialized body checked under
-    every admitted alternative, and a static branch's equality fact dropped
-    at its join. No machine-level customer or control exists.
-  - Extend constructor matching beyond its lifetime-free type/integer/Boolean-const
-    cohort, preserving exact named lifetime and other const-index identities.
-    Named lifetimes lack selected lexical binder identity at this pre-resolution
-    matcher; neither spelling equality nor erased layout identity can supply it.
-    Keep `application_type_equations::reference_equations_` as the anonymous
-    reference/slice native control, including value-kind and occurs rejection.
-    Write-only static type arguments retain their independent
-    **WRITE-ONLY-BORROW** admission dependency.
-    Combine machine
-    equations with existing argument/result inference rather than requiring a
-    closed explicit prefix; retain obligations through generic forwarding and
-    retained compilation extensions. Open and late-selected result receiver
-    applications, operator supplies,
-    conformance realizations, machine/evidence/value binders, and staged
-    equation-bearing endpoint calls need their complete admission contexts.
-    Result receivers selected during typing reject equation-bearing methods:
-    they missed resolution's exact-target equation discharge, even with a full
-    explicit tuple. Keep that fence until the obligation follows late selection.
-    An open endpoint binds as one whole expression (`0..=N` may bind
-    `Limit + 1`); solving `N * 2 == 256` stays outside.
-  - Endpoint invocation admission for nominal parameters and Trapping positions,
-    trait-operator owners (owner-sensitive typed operations), and applications
-    that need inference in data-field types or machine/evidence binders.
-    Closed named and structural type/const applications retain their declaration's
-    type/lifetime scope in machine and data-field types; ordinary argument
-    inference closes machine-owned endpoint tuples without overriding explicit
-    type choices. `compiler --test bounded_slice_selectors` exercises a
-    computed bound driving declared-range inference through source-free Terminal
-    and native execution, with out-of-range argument and store rejection.
-    Wrapping/Saturating argument and result transport uses the shared scalar
-    evaluator, preserving policy through calls, arithmetic, Match and folded
-    endpoint literals. Its `policy_endpoint_values` controls cover native
-    inferred capacities and reject implicit policy changes or invalid initial
-    landings. Saturating left shift still needs its shared integer primitive;
-    partial narrowing keeps its independent conversion-evidence requirement.
-    Nested computed bounds retain their type obligations until folding and
-    specialization complete, including through nongeneric helpers. Extend the
-    existing whole-expression scalar evaluator and shared admission plan;
-    retain exact computed-result types and original selection custody. Do not
-    add an arithmetic evaluator, infer layout from flow bounds, or use the i64
-    compatibility interval in `validation` as type identity.
-    A range combined with Wrapping/Saturating also still hits ordinary
-    declaration checking in `validation/src/proof_contracts/arithmetic_domains/range_constraints.rs`;
-    endpoint admission alone cannot remove that storage/proof boundary.
-    Trapping parameters additionally depend on checked failure evidence under
-    **ARITHMETIC-POLICY-REALIZATION**. Do not merely add Trapping to
-    `range_endpoints/integer_type.rs`: at `59402436c4`, an experimental
-    `endpoint(value: u8 in Trapping) -> u64 { (value + 2) as u64 }`
-    folds `endpoint(5)`, but `endpoint(255)` reaches interpreter overflow
-    instead of rejecting before execution. The shared build-time admission
-    floor has no failure-discharge axis, and a concrete checked call's crash
-    summary still misses that unsupported arithmetic. Reuse the initializer
-    invocation proof route once it covers the primitive; require an admission
-    rejection for overflow and source-free native execution of the safe bound.
-  - Runtime `Value` binders in data equations, which reject today as not
-    statically recoverable. They depend on RUNTIME-VALUE-GENERICS; static
-    matching proceeds first.
-  - One normalizer for source equality, generic matching, canonical type
-    identity, static evaluation/layout and artifact readers. Synthesized
-    instances deduplicate by `ClosedArgumentIdentity`; their display name
-    stays diagnostic-only.
+  - Static type equality and finite disjunctions on machines and requirements:
+    check unspecialized bodies under every admitted alternative, reject
+    type/value mixtures, and discard branch-local equality at its join.
+  - Extend structural matching to explicit domain applications and named
+    lifetime/other const-index identities. An indexed predicate domain can
+    expose an authored capacity argument; its predicate is not searched for a
+    maximum. Distinct domain indices gain no implicit variance.
+    Named lifetimes require selected lexical identity, not equal spelling or
+    layout. Keep `application_type_equations::reference_equations_` as the
+    anonymous-reference/slice control. Write-only type arguments retain their
+    **WRITE-ONLY-BORROW** dependency.
+  - Combine equations with argument/result inference rather than requiring a
+    closed explicit prefix. Preserve obligations through forwarding, retained
+    compilation extensions, late-selected result receivers, operator supplies,
+    conformance realizations, and machine/evidence/value binders. A method
+    selected during typing must not evade the equation check that ordinarily
+    belongs to exact-target resolution.
+  - Normalize computed const arguments through ordinary semantic evaluation,
+    retaining complete type, policy, selection and invocation-admission
+    evidence. An open domain index binds as one whole expression; solving
+    `N * 2 == 256` remains outside structural matching. Do not repurpose the
+    old range-endpoint evaluator as a second domain-index evaluator.
+    Trapping calls depend on **ARITHMETIC-POLICY-REALIZATION**: require proved
+    failure exclusion before execution, not interpreter overflow as admission.
+    Nominal arguments and late-selected operators keep their exact owners.
+  - Runtime value binders in data equations depend on
+    **RUNTIME-VALUE-GENERICS**, not const-folding their captured subjects.
+  - Use one normalizer for source equality, matching, canonical type identity,
+    layout and artifact readers. Instances deduplicate by
+    `ClosedArgumentIdentity`; display names stay diagnostic-only.
 
-  Acceptance: `generics/omitted_data_binder_range_equation` (TinyBytes binds
-  omitted Capacity before layout; `u64[0..257]` and `u64[0..=256]` select one
-  instance) and `generics/declared_range_endpoint_inference` (checked,
-  Terminal and hosted native entry) stay as regressions. New customers:
-  primitive type equality and its static branches check all admitted
-  alternatives; an array- or application-structured equation binds an omitted
-  binder on a data template and on a machine application. Repeat and explicit
-  binder conflicts, absent/ambiguous endpoints, occurs cycles and
-  type/value-kind mismatch reject in each new structure. Explicit larger
-  compatible bounds stay distinct from exact type equations. Local flow
-  narrowing cannot alter inferred layout, and arbitrary domain predicates do
-  not collapse nominal identity. Preserve const staging, initialization,
-  stack supply and artifact replay.
+  Acceptance: TinyBytes from the spec infers Capacity from the explicit
+  `u64::AtMost<256>` application before layout; equivalent closed const
+  arguments select one instance. Array/application equations also bind omitted
+  arguments on data and machine applications. Repeated or explicit conflicts,
+  missing indices, occurs cycles, type/value-kind mismatches, false constructor
+  predicates and unmet conformance requirements reject. Flow narrowing cannot
+  alter inferred layout or collapse domain identities. Preserve const staging,
+  initialization, stack supply and source-free Terminal/native checking.
 
-  Borrowed-local mutation calls
-  (`declared_range_inference_local_effects_retain_pending_terminal_boundaries`)
-  still follow STATE-LOCAL-VALUE-FRONTIER. Do not add generic-specific storage
-  plans to resolve that independent lowering boundary.
-
-  The constructed-direction customer in
-  `generics/omitted_data_binder_range_equation` checks and evaluates ordinary
-  `Bytes<256>` field values and the recovered endpoint; explicit conflicting
-  length types and out-of-range initializers reject. Its nested backing array
-  still blocks Terminal execution. On macOS ARM64 at `f6adb89fb3` plus this
-  fixture, `omega inspect-terminal --machine constructed_value
-  tests/omega/pass/generics/omitted_data_binder_range_equation/main.omg`
-  with `RUST_MIN_STACK=67108864` reports no checked scalar control plan.
-  **STATE-LOCAL-VALUE-FRONTIER** owns nested fixed-array record establishment:
-  `execution/unit/mod.rs::scalar_graph_record_shapes` excludes the array,
-  and `scalar_graph/scalar_graph_lowering/structural_values.rs` only establishes
-  complete record fields. Preserve the backing array and connect its ordinary
-  zero initialization before claiming Terminal or native execution; deleting
-  storage or only widening the shape filter cannot deliver this customer.
+  Migrate the constructed-direction customer currently housed in
+  `generics/omitted_data_binder_range_equation` to a domain-index equation,
+  preserving its nested backing array and invalid-initializer controls.
+  At `f6adb89fb3` on macOS ARM64, its `constructed_value` probe has no
+  checked scalar control plan: **STATE-LOCAL-VALUE-FRONTIER** owns nested
+  fixed-array record establishment. Borrowed-local mutation in
+  `declared_range_inference_local_effects_retain_pending_terminal_boundaries`
+  has that same independent storage owner. Neither migration may delete the
+  backing storage or introduce generic-specific plans to make the probe pass.
 
 - **FINITE-GENERIC-DISPATCH.** Implement the
   [finite specialization contract](wiki/spec/language/generics.md#finite-specialization-boundary)
@@ -4531,8 +4475,10 @@ Owners include
   reference-result candidate (192fa77d3b), collection elements seed
   whole-extent field domains that runtime-indexed subjects and slice views
   narrow from (5292e6ec8c, which left only the four index rows), and the
-  sample's declared `u64 [0..=16]`/`[0..=15]` bounds let the single shared
-  statement transfer discharge those (4c09f582f1). The probe reports
+  sample's legacy scalar bound annotations let the single shared statement
+  transfer discharge those (4c09f582f1). Migrate those annotations under
+  **REMOVE-BRACKETED-RANGE-ANNOTATIONS**, preserving that proof coverage.
+  The probe reports
   no diagnostics on macOS ARM64 and, after two same-day upstream
   regressions were repaired, again on linux_x86_64 at 8421784e74:
   package-keyed domain semantic identity (3248d8c82c) pooled a package's

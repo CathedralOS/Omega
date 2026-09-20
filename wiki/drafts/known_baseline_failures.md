@@ -476,9 +476,13 @@ a63284e305 retired now pin the admission instead.)
 c7465c23bc (macOS arm64): `inline_const_generic_selectors_execute_distinct_inferred_extents`
 fails at checking with "machine `Main::endpoint` state `endpoint` terminal
 expression returns a value not provably within its declared range" for a
-`<const N: u64>` endpoint returning `u64 [0..=3]` from an inferred extent; a
+`<const N: u64>` endpoint returning a `u64` constrained to 0 through 3 by the
+legacy scalar range-annotation suffix, from an inferred extent; a
 generics checker gap (**STRUCTURAL-GENERIC-MATCHING** / **RUNTIME-VALUE-GENERICS**
-areas, both under live claims when recorded).
+areas, both under live claims when recorded). This historical diagnosis does not
+endorse the removed source syntax. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
+[board](../../TASKS.md) tracks migration of the compiler and unchanged fixture;
+no replacement-syntax validation is claimed here.
 
 ## Host note (macOS)
 

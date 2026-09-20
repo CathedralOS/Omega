@@ -1,8 +1,13 @@
 # Identity measure with constrained signature
 
-`Countdown::Remaining` declares its parameter and result over `u64 [0..=5]`.
-The refinement is the view's domain contract: it applies only when the ranked
-subject's enforced bounds fit inside every declared range. Here `remaining`
+This legacy fixture still declares bounded `u64` parameter/result types using
+the removed scalar range-annotation suffix. Migration to contracts or named
+predicate domains is tracked by `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
+[board](../../../../../TASKS.md); this README does not claim that migration has
+been implemented or tested.
+
+The existing refinement is the view's domain contract: it applies only when the
+ranked subject's enforced bounds fit inside every declared range. Here `remaining`
 carries exactly `0..=5`, so the identity forward is admissible and the range
 `0..=5` contains the produced rank.
 

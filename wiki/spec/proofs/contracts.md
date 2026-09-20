@@ -300,7 +300,7 @@ them. Development use is not consumer or release acceptance. A provider-slot
 grant covers only its exact selected plan; unselected or partial candidates
 cannot inherit that receipt merely by implementing the same requirement.
 
-A boundary claim that the checker can refute against declared ranges, domains,
+A boundary claim that the checker can refute against established bounds, domains,
 or accepted statements rejects even when granted. This veto is not a proof that
 the complete assumption set is consistent.
 

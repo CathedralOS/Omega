@@ -115,10 +115,11 @@ ruling or at least a note so later legs make the same choice:
   `Option<ScanFunctionScalar>` became `has_scan_function_scalar: bool` beside a
   `[copy]` payload field, and encoder emissions became a package-local
   `EmittedRegion` enum instead of `Optional<SnapshotRegionFilter>`.
-- Sibling-length bounds (`index: u64 [0..sibling.len]`) must be re-proven by an
-  explicit guard on every call arm that passes the bounded value, so the scan
-  loop forwards plain `u64` between states and enters each bounded leaf under a
-  restated `index < slice.len` guard.
+- The legacy range-annotated scan port restates an `index < slice.len` guard
+  on each call arm, forwarding plain `u64` between states. Migrate the leaf's
+  bound to `requires index < sibling.len` under
+  **REMOVE-BRACKETED-RANGE-ANNOTATIONS**, then distinguish any remaining
+  fact-transport limitation from the retired annotation syntax.
 - Bare `machine Name::state` only resolves when `Name` is a declared data type;
   upstream unit-struct namespaces became `[copy]` marker data (e.g.
   `ScannerScalarSingleElement`).

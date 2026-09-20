@@ -1,5 +1,12 @@
 # Numeric values and bounds
 
+Numeric bounds are propositions established by domains, contracts, and ordinary
+flow reasoning. A scalar carrier does not accept a separate bracketed range
+annotation. In particular, a call's `ensures` supplies facts about its result
+without a matching annotation on the receiving local. Explicit reusable
+qualification follows [domains](domains.md#declaration-and-membership); internal
+interval analysis does not introduce another authored type form.
+
 ## Literal landing and destinations
 
 A suffixed integer or float literal retains its chosen carrier or format through

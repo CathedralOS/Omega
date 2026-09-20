@@ -8,6 +8,12 @@ observation is `000000000041`. This fixture does not establish full Omega
 acceptance: `Complete` owns the retained syntax rows described by D's README,
 while `Incomplete` leaves those rows unavailable to consumers.
 
+The unchanged fixture includes the removed scalar range-annotation syntax.
+Its acceptance counts below document the legacy parser, not accepted Omega
+syntax. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
+[board](../../../TASKS.md) tracks fixture and parser migration; this note claims
+no validation of a replacement fixture.
+
 The first data input retains four fields. Each contributes a named base and one
 wrapper: fixed array, inclusive-range constraint, reference, and domain
 constraint. `finish_retain_type_base`, `finish_retain_type_array_node`,
@@ -43,7 +49,9 @@ offsets are authored input coordinates, not Epsilon customer coordinates.
 | Struct initializer after `self` rather than a named path | `23..24` (`{`) |
 | Outer reference in a cast target | `27..28` (`&`) |
 
-These are current D parser implementation boundaries, not claims that Omega
-rejects the corresponding language forms. All observations and row checks are
+The range-minimum and range-maximum rows concern the removed scalar annotation
+surface and need rejection/migration coverage. The other rows are current D
+parser implementation boundaries, not claims that Omega rejects those language
+forms. All observations and row checks are
 performed by the authored Epsilon customer; the host does not parse or lower
 the inputs or copy the parser guards.
