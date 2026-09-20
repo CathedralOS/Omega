@@ -5942,7 +5942,19 @@ Omega-side / native:
   Service-carrier custody item, not this one; the linux leg of the last test
   now emits its expected `requires explicit AVX+FMA3 admission` diagnostics
   again under this fix.
-- **I32-REMAINDER-NATIVE-LEGALIZATION.** i32 remainder native legalization.
+- **I32-REMAINDER-NATIVE-LEGALIZATION.** Landed at `3c1ead6df4`:
+  non-u64 exact divide/remainder now select the signed i64 entries
+  (`ExactDivideI64`/`ExactRemainderI64` — bare `cqo;idiv` on x86-64,
+  `sdiv`/`msub` on AArch64), so the `i32` remainder that kept
+  `prime_counter` off the native path legalizes. Re-witnessed on linux
+  x86-64 at `163670cf6d`:
+  `arithmetic_and_data::enum_and_comparison_canaries::
+  runtime_signed_division_exit_canary_runs` compiles i32 `-17 % 5` to a
+  native artifact and runs it to exit 70 (PASS, 84s). Sibling
+  resolutions already recorded on PRIME-COUNTER-I32-REMAINDER and
+  BENCHMARK-PRIME-COUNTER-ROW; the prime_counter measured benchmark row
+  itself stays with PRIME-COUNTER-BENCHMARK-ROW under its
+  `tools/benchmark` fences.
 - **INTEGER-DIVISION-ENTRY-SELECTION.** Integer division entry selection.
 - **FLOAT-FMA-NATIVE-TRANSPORT.** Scope verified at 4e523615fe — re-mines
   the transport legs already enumerated on sibling X86-FMA-PROVIDER-TRANSPORT:
