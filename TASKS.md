@@ -6541,7 +6541,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **REPOSITORY-BASELINE-GATE** — mined candidate; verify scope then implement.
 - **REPRESENTATION-OWNERSHIP** — mined candidate; verify scope then implement.
 - **REQUEST-BUILD-DIRECTORY-HOST-ALIAS-COVERAGE** — mined candidate; verify scope then implement.
-- **RESOLVER-SCOPE-CANDIDATE-FILTERING** — mined candidate; verify scope then implement.
 - **RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
 - **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH** — mined candidate; verify scope then implement.
 - **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
