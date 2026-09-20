@@ -8848,7 +8848,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ORPHAN-REWRITE-MODULES-CATALOG, STAGE-ENTRANCE-ORPHAN-AUDIT,
   PIPELINE-ORPHAN-ELIMINATION.
 - **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
-- **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
+- **ORPHAN-STAGE-OUTPUT-AUDIT.** Landed: `tests/architecture/optimizer_source_organization` now pins every rule-stage descriptor's declared consumers — each `output_marker` must be named by a listed coordinator/successor file or the audit reports an orphan stage output (the consumption direction of the `omega-rust/pipeline.md` placement rule; `next_rungs` previously covered only stage-internal children). All five rule stages have live consumers on origin, so this is a guard, not a repair. Remaining: sibling stubs ORPHAN-ENTRANCE-AUDIT and ORPHAN-STAGE-ENTRANCE-AUDIT still own the caller-side direction (an entrance no coordinator calls) and ORPHAN-REWRITE-MODULES-CATALOG the rewrite-module catalog sweep.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-DISCARD-ORDER.** Resolved — alias of the landed
   terminal-verifier cleanup-order surface. Owned-successor edges already
