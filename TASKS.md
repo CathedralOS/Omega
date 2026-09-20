@@ -7779,6 +7779,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   last group is a Psi crate, so it cannot take `optimization-core` (an Omega
   representation) as a dev-dependency without crossing the firewall and
   needs the harness relocated to a shared foundation crate first.
+
+  Coordination, checked 2026-09-20: none of the three remaining sets is
+  independently claimable. `component-publication` sits inside
+  **BACKEND-RUNTIME-STARTUP-MECHANICS**, `executable-installation` inside
+  **WIRE-RUNTIME-AND-INSTALLATION**, and `packages/topology/tests` inside
+  **TOPOLOGY-PLAN-VERIFICATION**, each under a live claim on the whole
+  directory. The migration is therefore a request to those holders rather
+  than a slice anyone can take; claiming this item alone yields no editable
+  path.
 - **CUSTODY-MUTATION-COVERAGE.** — mined candidate; scope verified at
   `ded56393da` (linux x86-64, claim 6f8aad97 until 05:23Z): the stub
   re-mines the optimizer-board item of the same name
