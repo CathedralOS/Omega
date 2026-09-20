@@ -1674,9 +1674,11 @@ Owners include
     decided on their canonical constants — strict order by the binary numeral
     laws, equality by `refl`, and a false relation by empty elimination
     through a checked false premise — so a closed right addend no longer
-    forces an instance axiom. An already admitted open expression stays opaque
-    if composing a child would introduce a resource refusal. Still to do: a
-    numeral-operation equation for an open sum over a closed difference and
+    forces an instance axiom. An open sum over a closed difference
+    substitutes a checked numeral-operation equation `add n r = e` —
+    interned once per evaluated operand triple — for the applicative
+    cancellation step. An already admitted open expression stays opaque
+    if composing a child would introduce a resource refusal. Still to do:
     other bound-witness forms, multiple-equation or nested transport, and
     transport outside the supported `Int` vocabulary. Other operations remain
     opaque; unsupported arithmetic derivations, including `x + 0 = x`, still
