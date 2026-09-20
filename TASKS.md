@@ -4375,6 +4375,19 @@ Owners include
     distinct tuple results and the rebound selected instance, not discard a
     result from a provider that ignores its width.
 
+  Coordination note (verified at `1f10f6fd40`, linux x86-64): both
+  remaining legs are dependency-gated *and* their implementing surfaces
+  are live-fenced this wave — the Psi dispatch leg writes into
+  `execution/unit/dynamic_scalar_calls/` + `dynamic_families.rs`, claimed
+  by GENERIC-DYNAMIC-FAMILY-DISPATCH (expires 2026-09-21T05:31Z) and
+  gated on RUNTIME-VALUE-GENERICS (live claim to 05:47Z), while the
+  native customer leg needs RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-
+  CUSTODY's legalizer admission (open row; `CallDynamicScalar` still
+  rejects with `Selection(Legalization(UnsupportedScalarOperation))`).
+  No unfenced slice exists under this item until those lanes land;
+  sibling stubs GENERIC-VIRTUAL-CALLS and FINITE-GENERIC-METHOD-FAMILIES
+  already record the same verdict.
+
   Acceptance: a source program dispatches widths 16/32/64 from a runtime value
   through one selected conformance with no handwritten suffix-method family,
   and executes natively. Source alternative order and duplicates normalize
