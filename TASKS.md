@@ -6579,23 +6579,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice/`, live claim);
   no encoding-to-checker translation is admitted authority.
 - **MATCHING-LOGIC-VERTICAL-SLICE** — mined candidate; verify scope then implement.
-- **MATCHING-LOGIC-VERTICAL-SLICE-COMPARISON** — mined candidate; verify scope then implement.
-  Verified scope: the name re-mines the "possible bounded comparison"
-  deliverable of `wiki/drafts/matching_logic.md` — one real vertical slice
-  (scalar propositions, equality, quantification, a Terminal state
-  transition, a reconstructed refinement obligation) compared on checker,
-  translation and theory size, certificate size and checking time, and every
-  imported rule/assumption/trusted bridge. That deliverable is
-  MATCHING-LOGIC-BOUNDED-SLICE's territory, and the doc is an exploratory
-  research note authorizing no implementation (per the landed annotation on
-  MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT): a comparison still needs a concrete
-  design, and any import route additionally needs a checked translation that
-  does not exist. The slice-production leg is under live claims —
-  MATCHING-LOGIC-BOUNDED-SLICE (Jarod / swarm-w9-matching-logic-bounded-slice)
-  and MATCHING-LOGIC-COMPARISON-METRICS (Devin / swarm-w9-bcf3a6cd) — so no
-  independent slice exists here. Sibling re-mines of the same doc surface:
-  MATCHING-LOGIC-SLICE-COMPARISON, MATCHING-LOGIC-VERTICAL-SLICE,
-  MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING.
 - **MATH-PROOFS-CALL-SELECTION-OCCURRENCE** — mined candidate; verify scope then implement.
 - **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
 - **MATHEMATICAL-FOUNDATIONS-REAL** — mined candidate; verify scope then implement.
