@@ -35,11 +35,10 @@ stderr, and expect exit 12 for both EOF and Enter. Never run an old artifact
 after compilation fails. Local-source locks bind the checkout; review again
 in a different checkout rather than copying its lock.
 
-Native completion remains open in [SAMPLE-CORPUS](../../../../TASKS.md).
-The checked entry retains the complete body and exact service call frames;
-the next observed native failure is `Terminal proposal must retain every
-integer comparison occurrence exactly once`. `CRASH-CONTRACT` owns the
-selected-comparison association and Terminal product validation boundary.
+The ordinary CLI route is verified on macOS ARM64: package update, explicit
+review decisions, resume, native compilation, and execution produce the exact
+stdout above, empty stderr, and exit 12 with both EOF and Enter. Windows x86-64
+and both Linux hosts remain open in [SAMPLE-CORPUS](../../../../TASKS.md).
 
 Run the native sample regression from the repository root:
 
