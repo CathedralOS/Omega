@@ -190,6 +190,12 @@ require_delta_compiler_identity
 require_epsilon_evaluator_identity
 require_omega_compiler_identity
 
+# Gate-local prefix entries are bound subjects too: the staged-compiler
+# development driver on the Delta edge sits on top of the bound closure as a
+# raw-source prefix, so a substituted entry would otherwise pass the chain
+# gate without touching any canonical member.
+require_delta_compiler_development_entry_identity
+
 # Every gate-local subject bound in the manifest env — each omega-* gate's
 # customer entry and the request fixture — packs on top of the bound compiler
 # prefix and is a separate bound input, never part of the manifested members.

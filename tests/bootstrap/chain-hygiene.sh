@@ -100,6 +100,20 @@ do
   git -C "$FIXTURE_ROOT" rm -q --cached "$tree/retired/unexpected.source"
   rm "$FIXTURE_ROOT/$tree/retired/unexpected.source"
 done
+# Gate-local prefix entries are bound subjects: corrupting one must fail the
+# chain gate even though every canonical compiler closure stays byte-exact.
+printf 'x' >> "$FIXTURE_ROOT/tests/delta/staged-compiler/development_driver.gamma"
+expect_result rejected 'modified staged-compiler prefix entry' 'development_driver.gamma'
+git -C "$FIXTURE_ROOT" checkout -- tests/delta/staged-compiler/development_driver.gamma
+
+printf 'x' >> "$FIXTURE_ROOT/tests/bootstrap/omega-parser/main.epsilon"
+expect_result rejected 'modified parser-gate prefix entry' 'main.epsilon'
+git -C "$FIXTURE_ROOT" checkout -- tests/bootstrap/omega-parser/main.epsilon
+
+printf 'x' >> "$FIXTURE_ROOT/tests/bootstrap/omega-executable/controls_b.epsilon"
+expect_result rejected 'modified executable-gate prefix entry' 'controls_b.epsilon'
+git -C "$FIXTURE_ROOT" checkout -- tests/bootstrap/omega-executable/controls_b.epsilon
+
 git -C "$FIXTURE_ROOT" add -f source/retired/.DS_Store
 expect_result rejected 'tracked file matching an ignore pattern'
 git -C "$FIXTURE_ROOT" rm -q --cached source/retired/.DS_Store
@@ -124,4 +138,4 @@ cp "$FIXTURE_PARENT/omega_compiler.epsilon.sources" \
   "$FIXTURE_ROOT/bootstrap/5_omega/omega_compiler.epsilon.sources"
 expect_result accepted 'restored manifests omit the Rust producer again'
 
-echo 'bootstrap owner inventory: 20 archive, checkout, flat-layout, and Rust-producer omission cases pass'
+echo 'bootstrap owner inventory: 23 archive, checkout, flat-layout, gate-prefix, and Rust-producer omission cases pass'
