@@ -50,7 +50,9 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmWriteCr0
             | BuiltinFunction::AsmWriteCr3
             | BuiltinFunction::AsmWriteCr4
-            | BuiltinFunction::AsmWriteBackInvalidate => {
+            | BuiltinFunction::AsmWriteBackInvalidate
+            | BuiltinFunction::AsmInvalidate
+            | BuiltinFunction::AsmWriteBackNoInvalidate => {
                 vec![TerminalAuthorityClass::MachineControl]
             }
             BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
@@ -66,6 +68,7 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmInstructionSyncBarrier
             | BuiltinFunction::AsmSpinPause
             | BuiltinFunction::AsmYieldHint
+            | BuiltinFunction::AsmNop
             | BuiltinFunction::AsmSnapshotFlags
             | BuiltinFunction::FloatIsNan
             | BuiltinFunction::FloatMultiplyThenAddF32

@@ -111,7 +111,9 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmWriteCr0
         | BuiltinFunction::AsmWriteCr3
         | BuiltinFunction::AsmWriteCr4
-        | BuiltinFunction::AsmWriteBackInvalidate => {
+        | BuiltinFunction::AsmWriteBackInvalidate
+        | BuiltinFunction::AsmInvalidate
+        | BuiltinFunction::AsmWriteBackNoInvalidate => {
             disposition([TerminalAuthorityClass::MachineControl])
         }
         BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
@@ -127,6 +129,7 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmInstructionSyncBarrier
         | BuiltinFunction::AsmSpinPause
         | BuiltinFunction::AsmYieldHint
+        | BuiltinFunction::AsmNop
         | BuiltinFunction::AsmSnapshotFlags
         | BuiltinFunction::FloatIsNan
         | BuiltinFunction::FloatMultiplyThenAddF32

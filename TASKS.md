@@ -6923,7 +6923,43 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   form, service admission for `svc`-class traps and `syscall`/`sysenter`, and
   catalog test-list updates (tests.rs is claimed elsewhere this wave).
 - **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
-- **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
+- **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verified scope and
+  landed one bounded catalog slice at the work branch. Verified shape at
+  `b46b34a87f`: the refusal grid is already complete (HiddenControlExit +
+  UnmodeledMemoryAccess lists are exhaustive pins), so expansion means new
+  CONTRACTED members of existing shapes, not new refusal coverage. Landed the
+  two kind-families the catalog's own doc names as its expansion axis —
+  `AsmCacheOperationKind` += `invd` (invalidate without writeback) and
+  `wbnoinvd` (writeback without invalidate), both serializing X86_64
+  MachineOwner zero-operand contracts beside `wbinvd`; `AsmSchedulingHintKind`
+  += `nop` (`Any` target, NoAuthority, elidable — the canonical pipeline
+  no-op). Per-member realization chain closed end to end: catalog row + kind
+  enum + kind helpers (`omega-rust/psi/foundation/language-core/src/
+  inline_assembly/mod.rs`), all `BuiltinFunction` sites including stable
+  ordinals 77–79 (`asm#invd`/`asm#wbnoinvd`/`asm#nop`), the statement-form
+  gate (`machine_calls/calls/call_gates.rs`), the authority-discharge
+  mnemonic map (`effects/asm_discharge.rs` — MachineOwner members only;
+  no-authority members deliberately unlisted there), the terminal-authority
+  classification + inventory test, and the interpreter comment. Parser and
+  interpreter arms are kind-generic (`from_intrinsic_name`), so new members
+  need no parser change. Witnessed: `language-core`+`symbols`+`validation`+`
+  checked-interpreter` nextest green (incl. extended discharge tests: hosted
+  `invd`/`wbnoinvd` name machine-owner authority; hosted `nop` admits; the
+  former unknown-mnemonic pin for `nop` moved to the contracted list).
+  Fixtures: `asm_cache_maintenance_compile` now spells all three cache ops;
+  both pipeline-directive pass fixtures gain `nop`; new fail canaries
+  `asm_invd_requires_machine_authority` and
+  `asm_wbnoinvd_requires_machine_authority` registered in
+  CACHE_OPERATION_FAIL_CANARIES. UNWITNESSED this wave: the canary suite —
+  `cargo check -p selected-instructions-to-selected-instructions` fails at
+  clean origin/main `29983459ec` (E0061: `crossed_window` gained a
+  `CrossingDirection` parameter in `block_edges.rs:293` that caller
+  `rewrites/relocation/admission.rs:126` never passes; preexisting, fenced to
+  the spill/sequencing workers), so `compiler` and everything downstream are
+  unbuildable until that lands. Residual legs recorded on the doc: operand-
+  bearing cache/TLB ops (`invlpg`, `clflush`) still refuse until a modeled
+  memory-operand contract exists; atomics, mode transitions and AArch64
+  system ops stay unrecognized per the same axis paragraph.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
 - **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
 - **ATOMICS-ORDERING-EVENT-MODEL.** Mined candidate — scope verified, real

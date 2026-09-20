@@ -431,8 +431,9 @@ impl<'program> Evaluator<'program> {
         // single-threaded tree walker: its evaluation order is already total.
         // CLI/STI cannot change an interrupt source
         // the interpreter does not model, so they are unit steps as well;
-        // `wbinvd` acts on caches the tree-walker's single-threaded memory
-        // model does not distinguish, so it is a unit step too.
+        // `wbinvd`/`invd`/`wbnoinvd` act on caches the tree-walker's
+        // single-threaded memory model does not distinguish, so they are unit
+        // steps too.
         // Port I/O (`asm#port_out`) has real device effects the interpreter
         // cannot reproduce and stays unsupported.
         if call.target.as_str() == "asm#hlt"
