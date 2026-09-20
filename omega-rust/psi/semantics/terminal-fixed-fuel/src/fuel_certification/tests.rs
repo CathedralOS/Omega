@@ -492,14 +492,44 @@ mod machine_bounds {
         );
     }
 
+    /// An unranked cycle reports the verifier-derived component identity and
+    /// the `Unranked` cause — not whichever block the traversal revisited —
+    /// and the topology-derived name equals the identity a producer ranking
+    /// row for that same component would carry.
     #[test]
-    fn unranked_cycle_still_reports_control_cycle() {
+    fn unranked_cycle_reports_component_identity_and_cause() {
         let mut walk = cyclic_machine(32, Vec::new());
         walk.ranked_scc = None;
+        let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
         let module = module(1, vec![walk]);
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Err(FixedFuelError::ControlCycle(id(2)))
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::Unranked,
+            })
+        );
+    }
+
+    /// The topology-derived identity is the canonical name: on a ranked
+    /// machine it equals the producer row's `control_cycle_identity`, so an
+    /// unranked component's report already names what ranking it would join.
+    #[test]
+    fn topology_derived_identity_matches_producer_identity() {
+        let walk = cyclic_machine(32, Vec::new());
+        let Some(TerminalRankedScc::Natural(components)) = &walk.ranked_scc else {
+            panic!("cyclic machine is Natural-ranked");
+        };
+        let members: Vec<BlockId> = components
+            .first()
+            .expect("one component")
+            .ranks
+            .iter()
+            .map(|rank| rank.block)
+            .collect();
+        assert_eq!(
+            terminal_verifier::cyclic_component_identity(&walk, &members),
+            terminal_verifier::control_cycle_identity(&walk, components.first().expect("one")),
         );
     }
 
@@ -989,12 +1019,16 @@ mod machine_bounds {
             ],
             None,
         );
+        let component = terminal_verifier::cyclic_component_identity(&walker, &[id(1), id(2)]);
         let module = module(1, vec![walker]);
         let subject = PreparedFuelModule::new(&module);
         let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
         assert_eq!(
             prepared.segment_certificate(id(1), id(40), &mut BTreeMap::new()),
-            Err(FixedFuelError::ControlCycle(id(1)))
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::Unranked,
+            })
         );
     }
 

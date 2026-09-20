@@ -4,6 +4,7 @@ use super::outcome_bounds::{
     NaturalGeometry, NaturalGraphNode, OutcomeBounds, boundary_call_candidates,
     compose_cleanup_outcomes, dynamic_call_targets, maximum_machine_outcomes, maximum_optional,
     natural_component_geometry, operation_callees, terminator_cleanup_machines,
+    unbounded_cycle_report,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId};
@@ -255,7 +256,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             return Ok(*bound);
         }
         if !walk.active_blocks.insert(current) {
-            return Err(FixedFuelError::ControlCycle(current));
+            return Err(unbounded_cycle_report(self.machine, current));
         }
         let machine = self.machine;
         let machines = &self.subject.machines;
