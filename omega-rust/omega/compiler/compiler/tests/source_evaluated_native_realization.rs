@@ -4,6 +4,8 @@
 
 #[path = "source_evaluated_native_realization/linux_arm64_hosted_receiver.rs"]
 mod linux_arm64_hosted_receiver;
+#[path = "source_evaluated_native_realization/linux_dynamic_execution.rs"]
+mod linux_dynamic_execution;
 #[path = "source_evaluated_native_realization/linux_dynamic_realization.rs"]
 mod linux_dynamic_realization;
 #[path = "source_evaluated_native_realization/linux_hosted_receiver.rs"]
