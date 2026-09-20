@@ -1115,6 +1115,49 @@ fn register_home_stages_read_current_data_not_producer_ancestry() {
 }
 
 #[test]
+fn selected_stages_read_current_data_not_producer_ancestry() {
+    // The staged selected-optimization types retain their producer stages as
+    // replay and custody evidence only. Ordinary consumers read the current
+    // program and facts through the direct accessors — selected,
+    // register_environment, selections, budget_per_pass, liveness, ranges,
+    // legality, allocator_availability — instead of climbing
+    // `live_range_stage().liveness_stage().selected_stage().optimized_target()`.
+    // `optimized_target_owner` is the single sanctioned ancestry walk: it
+    // returns the retained proof-input `Arc` downstream custody checks compare
+    // by identity. Named input hops (`live_range_stage`, `liveness_stage`,
+    // `selected_stage`, `legality_stage`, `source_legality_stage`,
+    // `source_segment_home_stage`, `transformation_stage`) stay inside the
+    // custody validators that receive the retained stage objects as evidence
+    // and the accessors that expose them.
+    let root = repository()
+        .join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src");
+    let mut files = Vec::new();
+    rust_files(&root, &mut files);
+    assert!(!files.is_empty());
+    for path in &files {
+        let source = std::fs::read_to_string(path).unwrap();
+        let name = path.display().to_string();
+        assert!(
+            !source.contains(".optimized_target()"),
+            "{name} reads the retained proof input as data"
+        );
+        for ancestry in [
+            "live_range_stage()",
+            "liveness_stage()",
+            "selected_stage()",
+            "source_legality_stage()",
+            "source_segment_home_stage()",
+            "transformation_stage()",
+        ] {
+            assert!(
+                !source.contains(ancestry) || source.contains("custody"),
+                "{name} walks producer ancestry outside custody evidence: {ancestry}"
+            );
+        }
+    }
+}
+
+#[test]
 fn physical_instruction_data_is_independent_of_optimizer_authority() {
     let owner = repository().join("omega-rust/omega/representations/physical-instructions");
     let representation = rust_source(&owner.join("src"));
