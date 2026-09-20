@@ -5841,7 +5841,42 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; verify scope then implement.
 - **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **BENCHMARK-COMPARISON-OCCURRENCE-GATE** — mined candidate; verify scope then implement.
-- **BENCHMARK-COMPILE-ONLY-ROWS** — mined candidate; verify scope then implement.
+- **BENCHMARK-COMPILE-ONLY-ROWS.** Mined candidate. Upstream:
+  [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md) — produce committed
+  `tools/benchmark/records/` rows for cross-target compile legs
+  (`benchmark.py measure --no-run` marks `runtime_ms` skipped): every
+  catalogued deployment profile beyond `linux_x86_64` —
+  `windows_x86_64`, `macos_arm64`, `macos_x86_64`, `linux_arm64`,
+  `uefi_x86_64` — is a compile-only row measurable on any build host whose
+  compiler publishes that target's artifact.
+  `samples/cli/arithmetic/wrapping_square_sum` (added 3dd805679c) is the
+  dependency-free subject — no `depend()` edges; its own project still
+  needs one-time package-review settlement per target.
+  The e48558bd41 integer-comparison-occurrence rejection
+  (BENCHMARK-COMPARISON-OCCURRENCE-GATE /
+  BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES own the producer fix)
+  is RESOLVED at f2f39039da — `76dc49a99e` ("distinguish selected
+  comparison custody from builtin operations") unblocked it: witnessed
+  `wrapping_square_sum` compiling and publishing on windows_x86_64,
+  macos_arm64, linux_arm64 (~24-28s each on a linux x86-64 host; the
+  dependency-free subject does not reach the deep-pipeline stage where
+  the rejection fired).
+  Settlement is per-target (`benchmark.py prepare --target <t>` per
+  profile). Two catalogued profiles are NOT valid CLI-subject targets:
+  `macos_x86_64` and `uefi_x86_64` fail review settlement with "no bound
+  required root slot `<target>::ProgramEntry`" — record them as
+  non-applicable, not as failed compiles (MACOS-X64-HOST-PROFILE owns
+  the x86_64 macOS host-profile gap).
+
+  Remaining: three compile-only records already measured at f2f39039da
+  (compile_time_ms ~23.8k/24.7k/28.2k, code_size_bytes 1024/16640/8192,
+  runtime_ms skipped, `validate` clean) sit ready on the wave-w9 z57
+  machine at `~/bench-records-z57/` — copy into
+  `tools/benchmark/records/` and commit when the fence clears; refresh
+  the host-row matrix (`benchmark.py matrix` into benchmarks.md —
+  claimed by BENCHMARK-HOST-ROW-MATRIX). Fence note: `tools/benchmark`
+  was held by BENCHMARK-COMPARISON-OCCURRENCE-GATE until
+  2026-09-20T22:09:59Z during the z57 leg — records commit under it.
 - **BENCHMARK-COMPILE-ONLY-SUBJECTS** — mined candidate; verify scope then implement.
 - **BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES** — mined candidate; verify scope then implement.
 - **BENCHMARK-CROSS-HOST-ROWS** — mined candidate; verify scope then implement.
