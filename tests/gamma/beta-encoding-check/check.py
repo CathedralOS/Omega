@@ -20,8 +20,13 @@ import time
 from pathlib import Path
 
 GATE_DIR = Path(__file__).resolve().parent
-sys.path.append(str(GATE_DIR.parent / "derivation-layout"))
+# beta-encoding-theory binds first: `gate`, `fixtures` and `mutations` exist
+# in both sibling directories, and this gate needs the theory's gate (its
+# `prepare` emits the theory through the evaluator) and fixtures. Modules
+# that exist only under derivation-layout (wire, groups, physical_cases)
+# still resolve from the second entry.
 sys.path.append(str(GATE_DIR.parent / "beta-encoding-theory"))
+sys.path.append(str(GATE_DIR.parent / "derivation-layout"))
 
 import full_subject  # noqa: E402
 import gate as theory_gate  # noqa: E402
