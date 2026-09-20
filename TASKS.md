@@ -6370,7 +6370,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CopyPropagation disabled) beside the same subject's default-selection
   rows, so no selection's measurements blur into another's. The matrix
   renders selection as its own isolating column
-  (wiki/drafts/benchmarks.md). Verified at `1edade1a48`:
+  (wiki/drafts/benchmarks.md). Verified at `1edade1a48` and again at
+  `1a772e4ae1` (non-default `sel-885944b13b84` row still on disk):
   `python3 tools/tests/test_benchmark.py` 21/21 green on linux x86-64.
   Open surface left to siblings: more *selection* rows (contrast/variant)
   and the unfilled host legs.
