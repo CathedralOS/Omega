@@ -8624,7 +8624,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tests/native-differential) is under sibling live claims this wave. No
   independent slice exists here; the row stays a re-mine pointer to
   PER-RULE-COVERAGE.
-- **ORPHAN-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
+- **ORPHAN-ENTRANCE-AUDIT.** Mined candidate — resolved; the audit exists
+  and is self-reconciling. Two landed artifacts cover it: the mechanical
+  [stage-entrance orphan audit](wiki/drafts/stage_entrance_orphan_audit.md)
+  (all 21 `omega-rust/*/pipeline/*` crates at `d3d3193d59`, 61 top-level
+  `pub fn`s resolved — no orphans beyond the already-cataloged rewrite
+  catalog, spill sequencing, and wrapper-placement surfaces), and the
+  in-tree `selected-instructions-to-selected-instructions/src/rewrites/
+  module_catalog.rs`, whose `REWRITE_MODULE_CATALOG` holds one disposition
+  row per `mod` with a reconcile test enforcing mod.rs order, `Routed`
+  caller/evidence presence, and `Orphaned` owner liveness against
+  TASKS_OPTIMIZER.md. Re-verified at `d210421f02`: catalog reads 38
+  Orphaned (35 EXACT-MACHINE-SIMPLIFICATIONS, 3 ALIAS-AWARE-MEMORY —
+  dead_store, load_forwarding, store_motion), 6 Routed, 8 Shared, 1
+  TestSupport; `unsequenced_spill_stages/` still 18 families. The
+  retain/delete residual is owned by the named items, not an audit.
+  Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS,
+  ORPHAN-REWRITE-MODULES-CATALOG, STAGE-ENTRANCE-ORPHAN-AUDIT,
+  PIPELINE-ORPHAN-ELIMINATION.
 - **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
