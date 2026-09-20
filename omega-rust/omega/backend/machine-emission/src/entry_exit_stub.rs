@@ -1025,19 +1025,19 @@ fn emission_report_fingerprint(emission: &X86_64DeriverStubEmission) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        X86_64DeriverStubEmissionError, X86_64DeriverStubMemberCall,
         emit_x86_64_deriver_entry_exit_stub, resolve_x86_64_deriver_stub_member_call,
         validate_x86_64_deriver_entry_exit_stub, validate_x86_64_resolved_deriver_stub,
+        X86_64DeriverStubEmissionError, X86_64DeriverStubMemberCall,
     };
     use calling_conventions::{
+        derive_x86_64_entry_exit_stub, evaluate_ordinary_boundary_entry_plan,
+        validate_boundary_entry_plan, validate_x86_64_installed_hardware_entry_facts,
         ArrivalContextId, BoundaryEntryPlan, CallSignature, CallingPolicy, EntryControl,
-        EntryStack, InstalledEntryFactIdentity, MachineRegister, MachineRegime, MachineState,
+        EntryStack, InstalledEntryFactIdentity, MachineRegime, MachineRegister, MachineState,
         MachineStateSet, Preemption, RegisterSet, StatePlan, ValidatedBoundaryEntryPlan,
         ValidatedX86_64DeriverStub, X86_64ArrivalMechanism, X86_64GateKind,
         X86_64HardwareStackSelection, X86_64InstalledArrivalContext,
         X86_64InstalledHardwareEntryFacts, X86_64TargetProfileIdentity,
-        derive_x86_64_entry_exit_stub, evaluate_ordinary_boundary_entry_plan,
-        validate_boundary_entry_plan, validate_x86_64_installed_hardware_entry_facts,
     };
     use semantic_vocabulary::MachineId;
 
@@ -1215,11 +1215,9 @@ mod tests {
         // Five `movabs rax, imm64 ; mov [rsp+o], rax` pairs precede the call.
         let call_offset = usize::from(emission.relocation.opcode_byte_offset);
         assert_eq!(emission.bytes[call_offset], 0xe8);
-        assert!(
-            emission.bytes[..call_offset]
-                .windows(10)
-                .any(|w| { w[..2] == [0x48, 0xb8] && w[2..10] == 1u64.to_le_bytes() })
-        );
+        assert!(emission.bytes[..call_offset]
+            .windows(10)
+            .any(|w| { w[..2] == [0x48, 0xb8] && w[2..10] == 1u64.to_le_bytes() }));
     }
 
     /// A 23-byte integer parameter fragments to three stack pieces whose
