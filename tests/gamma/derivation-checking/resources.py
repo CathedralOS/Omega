@@ -1,6 +1,6 @@
 """Actual full-checker proof tables, never injected comparison state."""
 
-from proof_wire import NAT, ZERO, checked, clause, failure, function, proof_row, record, theory, vector
+from proof_wire import NAT, ZERO, checked, clause, function, record, theory, vector
 
 
 def cases():
@@ -16,17 +16,15 @@ def cases():
                  definitions=definitions, repetitions=1, timeout=600)
     count = 163839
     rows = (first,) + (reflexivity,) * (count - 1)
-    # Before final comparisons, P+1 +6 +3(P-1) =4P+4 =655360.
-    coordinate = proof_row(rows[:-1], definitions, owners) + 8
-    assert coordinate == 2621604
-    yield vector("adjacent_final_root_comparison", failure(coordinate, 4, 2, 655360, 655361),
+    # The former 655,360-unit boundary sat inside the final comparisons; under
+    # the selected bound this table checks: 4P+8 = 655364 total.
+    yield vector("adjacent_final_root_comparison", checked(count, 655364),
                  rows, owners, definitions=definitions, repetitions=1, timeout=600)
     count = 262143
-    # Setup consumes 262144; 131072 Ref rows consume the remaining 393216.
-    coordinate = proof_row((reflexivity,) * 131072) + 4
-    assert coordinate == 2097268
+    # Setup consumes P+1 and each Ref row 3, so the table checks at 4P+5 =
+    # 1048577 units; proof-index and row reservations still share the counter.
     yield vector("proof_index_and_rows_share_work",
-                 failure(coordinate, 4, 2, 655360, 655361), (reflexivity,) * count,
+                 checked(count, 1048577), (reflexivity,) * count,
                  repetitions=1, timeout=600)
     count = 32768
     rows = (reflexivity,) + tuple(record(2, 1, 1, previous) for previous in range(1, count))
