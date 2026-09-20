@@ -96,6 +96,35 @@ source and tape. Artifact ownership must establish those facts independently.
 All five rules remain subject to actual use and mutation controls in the full
 encoding certificate; these generic tests do not complete P1.
 
+## Rule census on the complete certificate
+
+`tests/gamma/beta-encoding-theory/run.sh --full-subject` reproduces the
+complete derivation on any python3 host and counts each rule's emitted rows.
+Measured census: 1,018,733 unfolding, 1,157,751 transitivity, 936,662
+congruence, 69,828 reflexivity, and 0 symmetry rows; maximum premise depth 204
+against the 256 bound.
+
+All five rules are retained; the checker-leg of the retained-role decision is
+closed here. Symmetry is a primitive of the ground-equality calculus this
+checker implements, not a certificate-shaped convenience: the generic
+entrance checks arbitrary supplied derivations over a formed theory, and an
+equational derivation over this theory can have symmetric instances the
+producer happened not to emit. Removing it would narrow the checkable
+derivation class to this certificate's footprint while saving 555 source
+bytes — a caliber-fidelity loss with no admission benefit, since the unused
+rule costs nothing in the request or the provisions. Its controls already
+run in the checking gate: `positive` accepts a symmetry step and a
+five-rule connected derivation, `relations` mutates both endpoint fields,
+`references` mutates its premise row reference, and `resources` bounds a
+32,768-deep symmetry proof dag — real test weight, not dead rows.
+
+The encoding members of the same audit are decided in
+`bootstrap/proofs/beta_encoding`: the TokenClass chooser, the only theory
+member no clause body could ever call, is removed and the remaining
+unexercised members (S_EMPTY, A_EXHAUSTED, the 900 never-premised clauses)
+are retained for contract-visible reasons — the Source base case, the
+distinct exhaustion admission, and function totality on malformed input.
+
 ## Complete generic execution provision
 
 Outer admission limits the exact checker request to 136,314,880 bytes (130
