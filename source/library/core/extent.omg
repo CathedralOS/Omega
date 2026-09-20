@@ -10,6 +10,7 @@
 // an `Extent`; APIs that need an honest zero/empty state use `ExtentSlot`.
 //
 use omega::language::core::content;
+use omega::language::core::device;
 
 pub data Extent [linear] {
     base: addr;
@@ -43,7 +44,8 @@ requires
     no_wrap(self.base, self.length)
 established by
     ExtentRootProvider::grant,
-    ProgramStorageEntry::enter;
+    ProgramStorageEntry::enter,
+    DeviceLoanProvider::complete;
 
 // One stable semantic entry requirement owns the loader-provisioned image and
 // initial-storage roots. The active physical entry stack remains a separate
