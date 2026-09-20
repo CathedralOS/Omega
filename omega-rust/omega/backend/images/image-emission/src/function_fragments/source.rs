@@ -310,6 +310,9 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     let (body, target) = function(source, *callee)?;
                     // The graph owns its ABI directly; do not require a legacy
                     // scalar mirror after mandatory source/selection replay.
+                    // A permitted crash route needs no caller-side handling:
+                    // retain the exact selected-call roster instead of requiring
+                    // an empty ceiling. Actual crashes remain callee outcomes.
                     let call_plan = target
                         .scalar_abi
                         .as_ref()
@@ -321,10 +324,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                                 row.operation == *psi_operation && row.call.callee == *callee
                                     && row.call.call_plan == *plan
                                     && row.call.result_placement == plan.result
+                                    && row.call.crash_continuations == *crash_continuations
                             ).count() == 1)
                         && !matches!(body.result, AbstractFunctionResult::Unit)
                         && arguments.len() == body.parameters.len()
-                        && crash_continuations.is_empty()
                 }
                 AbstractOperation::CallUnit { psi_operation, .. } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none()),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation() == *psi_operation)

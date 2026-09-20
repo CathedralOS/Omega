@@ -501,6 +501,97 @@ fn publication_classification_uses_the_existing_unit_grammar() {
         &targeted, &changed, &unit
     ));
 }
+
+#[test]
+fn scalar_call_crash_rows_survive_legalization_and_selection_replay() {
+    use terminal_psi::{CrashCause, CrashRouteBucket, CrashRouteGuard};
+
+    let routes = vec![CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Truth],
+    }];
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let (mut source, _, _) = scalar_call_unit_fixture();
+        for operation in &mut source.functions[0].operations {
+            if let abstract_operations::AbstractOperation::Call {
+                crash_continuations,
+                ..
+            } = operation
+            {
+                *crash_continuations = routes.clone();
+            }
+        }
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legal = legalize_target_operations(&targeted, &source, &unit).unwrap();
+        validate_legalized_operations(&targeted, &source, &unit, legal.plan().clone()).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        assert_eq!(selected.plan().functions[0].calls.len(), 3);
+        for call in &selected.plan().functions[0].calls {
+            assert_eq!(call.call.crash_continuations, routes);
+        }
+        for change_cause in [false, true] {
+            let mut changed = legal.plan().clone();
+            let continuation =
+                &mut call_mut(&mut changed.scalar_functions[0], 0).crash_continuations;
+            assert_eq!(*continuation, routes);
+            if change_cause {
+                continuation[0].cause = CrashCause::Abort;
+            } else {
+                continuation.clear();
+            }
+            assert!(validate_legalized_operations(&targeted, &source, &unit, changed).is_err());
+            let mut changed = selected.plan().clone();
+            let continuation = &mut changed.functions[0].calls[0].call.crash_continuations;
+            if change_cause {
+                continuation[0].cause = CrashCause::Abort;
+            } else {
+                continuation.clear();
+            }
+            assert!(
+                crate::validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed,
+                )
+                .is_err()
+            );
+        }
+    }
+}
+
 fn register_arity_source(arity: usize) -> abstract_operations::AbstractOperationPlan {
     use abstract_operations::{AbstractBlockEntry, AbstractOperation, AbstractParameter};
     use semantic_vocabulary::{

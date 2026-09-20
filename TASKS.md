@@ -1576,12 +1576,10 @@ Owners include
   - Give the remaining crash-qualified uses a replayable Terminal carrier. A
     named `Namespace::requirement(...)` use has no emitted-operation join and
     fails closed in the producer, as do a non-scalar or miscounted operand
-    roster and a call operation. `wrapper`'s direct scalar call continuation
-    lacks a checked scalar term
-    (`scalar_graph/scalar_graph_lowering/call_lowering.rs`). A guarded float
-    operator route has no structured form because `CheckedBooleanExpression`
-    has no IEEE ordering over scalar float formals; `proofs/crash_routes.rs`
-    rejects it. A generic operator or a guard through a structural formal
+    roster and a call operation used as the selected operator's emitted carrier.
+    A guarded float operator still needs structured Terminal guard lowering:
+    `proofs/crash_routes/scalar_terms.rs` rejects `IeeeFloatComparison`.
+    A generic operator or a guard through a structural formal
     keeps identity only. Surviving routes are invocation-specific and may
     carry no portable `scalar_expression` after conservative `Truth` widening;
     copying checked rows onto `MachineContract` alone would not establish
