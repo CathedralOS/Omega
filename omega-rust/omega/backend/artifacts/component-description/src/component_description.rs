@@ -284,6 +284,13 @@ pub enum CustodyKind {
     DynamicDescriptorCustody,
     /// The exact live frontier carried across a possibly-suspending call.
     SuspensionFrontier,
+    /// Custody of a resource or code mapping the composition admits. The row
+    /// preserves custody only; it grants no remap or unmap authority.
+    Mapping,
+    /// Custody of a live code or resource lease held by the installed
+    /// component. The row preserves custody only; it grants no renewal or
+    /// release authority.
+    Lease,
 }
 
 impl CustodyKind {
@@ -297,6 +304,8 @@ impl CustodyKind {
             Self::BoundaryContentGuarantee => 6,
             Self::DynamicDescriptorCustody => 7,
             Self::SuspensionFrontier => 8,
+            Self::Mapping => 9,
+            Self::Lease => 10,
         }
     }
 
@@ -310,6 +319,8 @@ impl CustodyKind {
             6 => Some(Self::BoundaryContentGuarantee),
             7 => Some(Self::DynamicDescriptorCustody),
             8 => Some(Self::SuspensionFrontier),
+            9 => Some(Self::Mapping),
+            10 => Some(Self::Lease),
             _ => None,
         }
     }
@@ -360,6 +371,12 @@ pub enum ObligationKind {
     ProgressDemand,
     /// Admit per-occurrence resource capacity named by a boundary schema.
     ResourceAdmission,
+    /// Bind one exact resource or code mapping the composition demands at
+    /// installation.
+    Mapping,
+    /// Admit one per-occurrence code or resource lease the component requires
+    /// at installation.
+    Lease,
 }
 
 impl ObligationKind {
@@ -370,6 +387,8 @@ impl ObligationKind {
             Self::ImportBinding => 3,
             Self::ProgressDemand => 4,
             Self::ResourceAdmission => 5,
+            Self::Mapping => 6,
+            Self::Lease => 7,
         }
     }
 
@@ -380,6 +399,8 @@ impl ObligationKind {
             3 => Some(Self::ImportBinding),
             4 => Some(Self::ProgressDemand),
             5 => Some(Self::ResourceAdmission),
+            6 => Some(Self::Mapping),
+            7 => Some(Self::Lease),
             _ => None,
         }
     }
