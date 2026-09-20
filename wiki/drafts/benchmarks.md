@@ -52,6 +52,7 @@ when this block drifts.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28473.3 ms | measured 150872064 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | cli_mvp | default | measured 375860 ms | measured 237670400 B compile | measured 8192 B | measured 1.42244 ms |
+| linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-885944b13b84 | measured 3748.43 ms | measured 84189184 B compile | measured 8192 B | measured 4.02435 ms |
 | macos_arm64 | macOS ARM64 host | — | — | measurable | measurable | measurable | pending macOS ARM64 host |
 | macos_x86_64 | macOS x86-64 host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
 | windows_x86_64 | Windows x86-64 host | — | — | measurable | measurable | measurable | pending Windows x86-64 host |
@@ -61,9 +62,14 @@ when this block drifts.
 | alpha_bootstrap | bootstrap chain | — | — | unavailable (realized by the bootstrap chain's own compilers, not this compiler) | unavailable (realized by the bootstrap chain's own compilers, not this compiler) | unavailable (realized by the bootstrap chain's own compilers, not this compiler) | unavailable (realized by the bootstrap chain's own compilers, not this compiler) |
 <!-- benchmark-matrix:end -->
 
-The single measured row came from the w9 session on a Linux x86-64 host
-with a dev-profile `omega`; its numbers live in
-`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`.
+Two measured linux_x86_64 rows exist: the w9 session produced the
+dev-profile `omega` compile/run row for `cli_mvp` (record
+`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`), and a
+release-profile `omega` measured `wrapping_square_sum` under a non-default
+selection (`CopyPropagation` disabled; record
+`wrapping_square_sum__linux_x86_64__sel-885944b13b84.json` — the first
+selection-keyed row, covering the enabled/disabled dimension of the record
+space).
 `cli_mvp` is the canonical compile-and-run smoke subject (expected exit
 0, EOF-tolerant stdin); `prime_counter` was ruled out on this revision
 because its `i32` remainder operation does not legalize to a native
