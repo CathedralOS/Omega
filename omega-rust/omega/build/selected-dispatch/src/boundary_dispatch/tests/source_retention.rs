@@ -1,26 +1,10 @@
 use super::{
-    Arc, CheckedTrees, ProviderPlan, SOURCE, checked_fixture, selected_plan,
-    settle_selected_boundary_adapter_dispatch,
+    Arc, CheckedTrees, ProviderPlan, SOURCE, bind_fixture_fused_service_erasures, checked_fixture,
+    selected_every_plan, settle_selected_boundary_adapter_dispatch, typed_with_core_service,
 };
 use provider_planning::ProviderPlanDerivation;
 fn sourced_checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
-    let mut sources = source::SourceMap::default();
-    sources.add("selected-dispatch/main.omg".into(), SOURCE.into());
-    let tokens = source_files_to_tokens::Lexer::new(SOURCE)
-        .tokenize()
-        .expect("tokenize sourced dispatch fixture");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-        .expect("parse sourced dispatch fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve sourced dispatch fixture");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type sourced dispatch fixture");
+    let mut typed = typed_with_core_service("selected-dispatch/main.omg", SOURCE);
     let plans = provider_planning::derive_satisfies_plans(
         &typed,
         ProviderPlanDerivation::unevaluated(None),
@@ -28,6 +12,7 @@ fn sourced_checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
+    bind_fixture_fused_service_erasures(&mut typed, &selected_every_plan(&plans));
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("check sourced dispatch fixture");
     (checked, plans)
@@ -36,7 +21,7 @@ fn sourced_checked_fixture() -> (CheckedTrees, Vec<ProviderPlan>) {
 #[test]
 fn selection_retains_the_canonical_source_without_a_restoration_journal() {
     let (checked, plans) = sourced_checked_fixture();
-    let selected = selected_plan(&plans, "Echo");
+    let selected = selected_every_plan(&plans);
     let original = Arc::new(checked);
     let mut settled = Arc::clone(&original);
     settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
@@ -47,7 +32,7 @@ fn selection_retains_the_canonical_source_without_a_restoration_journal() {
 #[test]
 fn source_free_selection_needs_no_synthetic_source_aliases() {
     let (checked, plans) = checked_fixture();
-    let selected = selected_plan(&plans, "Echo");
+    let selected = selected_every_plan(&plans);
     let original = Arc::new(checked);
     let mut settled = Arc::clone(&original);
     settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
