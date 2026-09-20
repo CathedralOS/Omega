@@ -1,1 +1,1 @@
-root binding requires a compiler-issued &mut Build place
+root binding requires a compiler-issued &mut Build receiver
