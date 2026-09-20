@@ -4760,10 +4760,15 @@ Owners include
   `Executor.runtime` is now the plain closed-carrier spelling
   `Service<WorkerProvider>` (the retired `in Bound` qualification was
   dropped — the closed `Service` carrier rejects authored qualification).
-  The depend-and-consume consumer shape is proven on a scratch copy
-  (`builder.depend` + `use blocking_executor::executor` +
-  `select_provider` checks clean); a durable consumer fixture remains
-  unlanded.
+  The package self-check is pinned by
+  `task_runtime::blocking_executor_package_checks_with_the_closed_service_carrier`,
+  which compiles `source/library/blocking-executor/main.omg` to checked
+  trees and re-fails on the retired spelling. The depend-and-consume
+  consumer shape (`builder.depend` + `use blocking_executor::executor` +
+  unqualified `satisfies WorkerProvider::execute` + `select_provider`)
+  checks clean under `omega --check` on a scratch consumer, but the
+  checked-compile fixture harness does not wire `builder.depend` rows into
+  package inputs — a durable consumer fixture waits on that harness leg.
 
   Remaining legs: queue/executor machine bodies (generic-machine frontier,
   recorded in `source/library/core/fixed_vec.omg`; a concrete ring over
@@ -4772,8 +4777,9 @@ Owners include
   multiplicity checker wants "an explicit outcome mapping" — the
   conserved-claim join machinery), real provider admission for the
   type-attached `boundary requirement`s joining TR3-TR8's execution route,
-  a durable `builder.depend` consumer fixture, and the process-isolation
-  boundary for hung-worker recovery.
+  depend-edge wiring in the checked-compile fixture harness for a durable
+  consumer pin, and the process-isolation boundary for hung-worker
+  recovery.
 
 - **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
   congruence theorem, and optional precondition transport for quotient-owned

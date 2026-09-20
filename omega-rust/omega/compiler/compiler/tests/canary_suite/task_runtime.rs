@@ -1,6 +1,6 @@
 use super::{
     Diagnostic, check_canary, compile_canary_without_output, compile_reviewed_repository_fixture,
-    fail_canary, pass_canary,
+    fail_canary, pass_canary, repo_root,
 };
 use compiler::CheckedCompileRequest;
 
@@ -177,6 +177,34 @@ fn blocking_executor_custody_claims_hold_through_the_concrete_pin() {
             .iter()
             .any(|row| row.requirement_identity.contains("execute")),
         "the selected plan must carry the worker `execute` row"
+    );
+}
+
+#[test]
+fn blocking_executor_package_checks_with_the_closed_service_carrier() {
+    // BLOCKEXEC package pin: the bundled `blocking-executor` package itself
+    // must reach checked trees — its `Executor.runtime` field holds the
+    // plain `Service<WorkerProvider>` closed carrier, which an authored
+    // `in Bound` qualification would reject outright.
+    let package_root = repo_root().join("source/library/blocking-executor/main.omg");
+    let checked =
+        compile_reviewed_repository_fixture(CheckedCompileRequest::new(&package_root, None))
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "blocking-executor package should reach checked trees:\n{}",
+                    render(&diagnostics)
+                )
+            });
+
+    let executor = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Executor")
+        .expect("checked-in `Executor` declaration");
+    assert_eq!(
+        executor.properties.multiplicity,
+        language_semantics::Multiplicity::Linear,
+        "Executor must carry the `[linear]` claim"
     );
 }
 
