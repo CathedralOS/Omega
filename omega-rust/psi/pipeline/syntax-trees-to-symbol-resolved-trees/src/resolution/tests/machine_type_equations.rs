@@ -99,10 +99,10 @@ fn nested_caller_type_binder_cannot_be_reinterpreted_as_global_array_element() {
 }
 
 #[test]
-fn machine_equations_do_not_escape_through_implicit_attached_or_operator_supply() {
+fn machine_equations_do_not_escape_through_implicit_operator_or_conformance_supply() {
     for source in [
-        "data Item {} machine Item::chosen<Type>() -> u64 where Type == u64 { 0 }",
         "machine + chosen<Type>(left: u64, right: u64) -> u64 where Type == u64 { 0 }",
+        "trait Operation { machine chosen() -> u64; } machine chosen<Type>() -> u64 satisfies Operation::chosen where Type == u64 { 0 }",
     ] {
         let tokens = Lexer::new(source).tokenize().unwrap();
         let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
@@ -110,8 +110,98 @@ fn machine_equations_do_not_escape_through_implicit_attached_or_operator_supply(
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
-                .contains("explicit calls to a free machine")),
+                .contains("explicit calls; operator and conformance")),
             "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn unused_attached_equations_still_validate_type_and_value_kinds() {
+    let source =
+        "data Item {} machine Item::bad<Type, const Count: u64>() -> u64 where Type == Count { 0 }";
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let diagnostics = resolve(ResolutionRequest::new(&syntax)).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("equation mixes type and value")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn bare_attached_selection_retains_its_exact_owner_and_member_roster() {
+    use symbol_resolved_trees::expression::ExpressionNode;
+    for (module, selection) in [
+        ("", "Buffer::capacity"),
+        ("module scope;", "scope::Buffer::capacity"),
+    ] {
+        let source = format!(
+            "{module} data Buffer {{}} data Other {{}}
+             machine Buffer::capacity() -> u64 {{ 7 }}
+             machine Other::capacity() -> u64 {{ 9 }}
+             machine recovered() -> u64 {{ {selection} }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+        let expressions = &resolved.tables.bodies.expressions;
+        let path = expressions
+            .iter_expressions()
+            .find_map(|(_, expression)| match expression {
+                ExpressionNode::Name(path) if path.members.count() > 1 => Some(path),
+                _ => None,
+            })
+            .expect("bare attached selection");
+        let selected = &resolved.machines[0];
+        assert_eq!(resolved.symbols.get(path.symbol).parent, selected.symbol);
+        let members = expressions.name_path_member_symbols(path.member_symbols);
+        assert_eq!(members.len(), selection.split("::").count());
+        assert!(members.iter().all(|symbol| symbol.is_valid()));
+        assert_eq!(members[members.len() - 2], selected.attached_data_symbol);
+        assert_eq!(members.last(), Some(&path.symbol));
+    }
+}
+
+#[test]
+fn bare_attached_selection_cannot_reopen_a_shadowed_owner() {
+    use symbol_resolved_trees::expression::ExpressionNode;
+    for (caller, expected_kind) in [
+        (
+            "machine recovered(Buffer: u64) -> u64 { Buffer::capacity }",
+            symbols::SymbolKind::Parameter,
+        ),
+        (
+            "machine recovered<Buffer>() -> u64 { Buffer::capacity }",
+            symbols::SymbolKind::TypeParameter,
+        ),
+        (
+            "machine recovered() -> u64 { let Buffer: u64 = 0; Buffer::capacity }",
+            symbols::SymbolKind::Local,
+        ),
+    ] {
+        let source = format!(
+            "data Buffer {{}} machine Buffer::capacity<Type>() -> u64 where Type == u64 {{ 7 }} {caller}"
+        );
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
+        let path = resolved
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .find_map(|(_, expression)| match expression {
+                ExpressionNode::Name(path) if path.members.count() == 2 => Some(path),
+                _ => None,
+            })
+            .expect("shadowed qualified selection");
+        assert_eq!(resolved.symbols.get(path.head_symbol).kind, expected_kind);
+        assert!(
+            !path.symbol.is_valid(),
+            "an unresolved lexical suffix cannot select the global method"
         );
     }
 }
