@@ -53,6 +53,8 @@ pub struct PackagePolicyCallable {
     pub(crate) role: PackagePolicyCallableRole,
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) supply: PackageReviewCallableSupply,
+    /// Declared token binding, separate from selected operator realizations.
+    pub(crate) spelling: Option<language_core::OperatorSpelling>,
     pub(crate) lifetime_parameter_count: usize,
     pub(crate) type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(crate) conformance_bounds: Vec<PackageReviewConformanceBound>,

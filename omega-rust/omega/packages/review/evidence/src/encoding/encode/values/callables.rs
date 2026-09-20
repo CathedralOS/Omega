@@ -15,7 +15,7 @@ use crate::record::{
 
 use super::contracts::encode_callable_contract;
 use super::crashes::encode_crash;
-use super::declarations::encode_operator_coordinate;
+use super::declarations::{encode_operator_coordinate, operator_spelling_tag};
 use super::effects::{
     encode_capability_flow, encode_installation_reach, encode_mutation,
     encode_synchronous_invocation, encode_termination,
@@ -33,6 +33,10 @@ pub(crate) fn encode_callable(
     });
     encode_nominal(encoder, &callable.identity)?;
     encode_supply(encoder, callable.supply)?;
+    encoder.option(callable.spelling.as_ref(), |encoder, spelling| {
+        encoder.byte(operator_spelling_tag(*spelling));
+        Ok(())
+    })?;
     encoder.usize(callable.lifetime_parameter_count)?;
     encoder.sequence(&callable.type_parameters, encode_type_parameter)?;
     encoder.sequence(&callable.conformance_bounds, encode_conformance_bound)?;

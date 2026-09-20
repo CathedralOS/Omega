@@ -52,7 +52,7 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyCallables
         canonical: "u64".into(),
     };
     let mut callable = PackagePolicyCallable {
-        role: PackagePolicyCallableRole::Public, identity, supply: PackageReviewCallableSupply::CheckedBody,
+        role: PackagePolicyCallableRole::Public, identity, supply: PackageReviewCallableSupply::CheckedBody, spelling: None,
         lifetime_parameter_count: 2,
         type_parameters: Vec::new(), conformance_bounds: Vec::new(),
         parameters: ["left", "right"].into_iter().map(|name| PackageReviewCallableParameter {
@@ -343,7 +343,7 @@ fn every_prefix_version_and_trailing_field_rejects() {
     let mut changed = bytes.clone();
     changed[CALLABLE_POLICY_MAGIC.len()] = 255;
     assert_eq!(recover(&changed), Err(Error::UnsupportedVersion));
-    for version in [3_u16, 4] {
+    for version in [3_u16, 4, 5] {
         let mut previous = bytes.clone();
         previous[CALLABLE_POLICY_MAGIC.len()..CALLABLE_POLICY_MAGIC.len() + 2]
             .copy_from_slice(&version.to_le_bytes());

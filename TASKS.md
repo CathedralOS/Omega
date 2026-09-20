@@ -3287,10 +3287,6 @@ Owners include
     must query the complete operand tuple: `Wrapped + u64` with only a
     `(Wrapped, Wrapped)` binding reports a builtin overflow obligation instead
     of a missing operator.
-  - Package review. The callable identity carries the token
-    (`capture/semantics/conformances/policy_callables.rs`);
-    `CheckedPackageCallableReview` rows and trait `StateSignature` identities
-    do not, and need record/encoding extensions.
   - Native execution. `expressions/declared_operator_match_result` and
     `expressions/token_bound_machine_operand_selection` stay in
     `CHECKED_ONLY_PASS_CANARIES` because native admission rejects borrowed and

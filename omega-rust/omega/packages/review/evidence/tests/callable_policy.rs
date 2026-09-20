@@ -16,6 +16,8 @@ mod progress;
 mod reach_dependencies;
 #[path = "callable_policy/signatures.rs"]
 mod signatures;
+#[path = "callable_policy/token_bindings.rs"]
+mod token_bindings;
 use crate::support;
 
 use fixtures::Fixture;
