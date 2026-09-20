@@ -3,8 +3,9 @@
 // clamp(300,0,255)=255, clamp(-5,0,255)=0, clamp(128,0,255)=128;
 // exits 70 only when all three hold.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: i32;
     b: i32;
     c: i32;

@@ -12,8 +12,9 @@ domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
+use omega::language::core::service;
 
-boundary trait ObjectiveC {
+pub boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;
     machine register_selector(name: &[u8] in CString) -> u64;
     machine send(recv: u64, sel: u64) -> u64;
@@ -21,8 +22,8 @@ boundary trait ObjectiveC {
 }
 
 data Main {
-    console: Console;
-    objc: ObjectiveC;
+    console: Service<Console>;
+    objc: Service<ObjectiveC>;
     cls: u64;
     sel_alloc: u64;
     sel_init: u64;

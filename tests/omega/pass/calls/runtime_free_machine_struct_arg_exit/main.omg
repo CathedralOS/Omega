@@ -18,6 +18,7 @@
 // when both callees saw the real field values.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Job {
     id: i32 in Wrapping;
@@ -37,7 +38,7 @@ machine combine(pair: Pair) -> i32 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
 }
 

@@ -5,9 +5,10 @@
 // and cast to i32 for the exit code. Naive pointer-width (rides the 8-byte path);
 // native must match the interpreter.
 use omega_language_std::console;
+use omega::language::core::service;
 data EfiHandle { raw: addr; }
 data ConsolePtr { raw: addr; }
-data Main { console: Console; h: EfiHandle; c: ConsolePtr; r: i32; }
+data Main { console: Service<Console>; h: EfiHandle; c: ConsolePtr; r: i32; }
 machine Main::main(&mut self) reaches Console {
     self.h = EfiHandle { raw: 4096 };
     self.c = ConsolePtr { raw: 88 };

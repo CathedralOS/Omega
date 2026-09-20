@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // Two attached external TableFunction leaves in one image:
 // get_memory_map + exit_boot_services on the same trait. The table type owns
 // field placement, each leaf names its field, and the dispatch-only table
@@ -40,7 +41,7 @@ pub data EfiSystemTable {
     runtime_services: addr; boot_services: addr;
 }
 pub data Main {
-    bs: BootServices;
+    bs: Service<BootServices>;
     map_size: u64;
     key: u64;
     desc_size: u64;

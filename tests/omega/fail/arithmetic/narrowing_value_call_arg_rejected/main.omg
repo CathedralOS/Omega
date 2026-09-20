@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // FAIL canary: decision-17 narrowing at the VALUE-POSITION call-argument boundary.
 // `let v: i32 = self.take_i8(self.big)` where `big: i64 = 300` passes an i64 to an
 // i8 parameter -- a narrowing store that is not provably in range. This was the
@@ -9,14 +10,14 @@
 // dominating guards via the flow-sensitive value environment; explicit `as` casts
 // and provably-in-range values stay fine.
 
-boundary trait Console {
+pub boundary trait Console {
     machine exit_process(code: i32)
     reaches
         Console;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     big: i64 in Wrapping;
 }
 

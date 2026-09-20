@@ -8,6 +8,7 @@
 // Expected exit: 60.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // Wrapping DECLARED: the checksum sums slice elements, which carry no range
 // facts yet (the elements share the domain so the accumulation is single-domain).
@@ -25,7 +26,7 @@ machine Frame::sum(&self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     frame: Frame;
     pause: [u8; 256];
 }

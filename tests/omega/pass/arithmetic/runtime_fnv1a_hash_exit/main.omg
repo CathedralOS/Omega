@@ -6,8 +6,9 @@
 // is not merely native==interp -- it proves Omega's u32 wrapping XOR+multiply computes the CORRECT
 // hash. Differential (native must also match the interpreter). Match -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u32 in Wrapping; 3];
     i: i32 in Wrapping;
     hash: u32 in Wrapping;

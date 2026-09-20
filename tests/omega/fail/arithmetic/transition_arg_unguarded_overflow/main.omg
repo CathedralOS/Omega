@@ -3,7 +3,8 @@
 // `n - 1` is in range (no `n > 0` guard narrows it), so it is rejected. Fix by
 // guarding (`transition n > 0`) or opting into a domain.
 use omega::language::std::console;
-data Main { console: Console; ready: bool; }
+use omega::language::core::service;
+data Main { console: Service<Console>; ready: bool; }
 machine Main::step(&mut self, n: u32) {
     transition self.ready {
         true -> step(n - 1)

@@ -10,6 +10,7 @@
 // local-copy uses. Exits 70 when decoded.bytes[0] == 72.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Blob {
     #0 bytes: &[u8];
@@ -27,7 +28,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     source: [u8; 4];
     buffer: [u8; 64];
     written: u64;

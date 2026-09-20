@@ -1,8 +1,9 @@
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     unsigned_exact: i8;
     unsigned_exact_wide: i64;
     unsigned_wrapping: i8;

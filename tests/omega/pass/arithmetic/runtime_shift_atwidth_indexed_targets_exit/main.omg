@@ -19,8 +19,9 @@
 // 75 = exact-count u64 <<; 76 = exact-count i32 >>.
 
 use omega_language_std::console;
+use omega::language::core::service;
 data Holder { slot: u64; }
-data Main { console: Console; arr: [u64; 4]; sarr: [i32; 4]; h: Holder; k: u64; ks: i32; }
+data Main { console: Service<Console>; arr: [u64; 4]; sarr: [i32; 4]; h: Holder; k: u64; ks: i32; }
 machine Main::write_slot(&mut self, target: &mut Holder) {
     let a: u64 in Wrapping = (1 as u64 in Wrapping);
     let c: u64 in Wrapping = (70 as u64 in Wrapping);

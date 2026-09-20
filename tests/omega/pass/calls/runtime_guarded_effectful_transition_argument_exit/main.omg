@@ -6,9 +6,10 @@
 // source local, and nested calls inside a binary target argument. Exit 70
 // covers both engines.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     hits: u64 in Wrapping;
 }
 

@@ -15,8 +15,9 @@ use omega::language::core::float_operations;
 //   8. mixed integer/decimal arithmetic rounds once at f32, and
 //   9. a typed float peer requests the whole anonymous operand's exact value.
 use omega_language_std::console;
+use omega::language::core::service;
 
-data Main { console: Console; exact: f64; values: [f64; 1]; }
+data Main { console: Service<Console>; exact: f64; values: [f64; 1]; }
 
 machine Main::main(&mut self) reaches Console {
     let decimal: f64 = 0.1 + 0.2;

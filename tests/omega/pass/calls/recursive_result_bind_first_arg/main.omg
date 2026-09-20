@@ -15,7 +15,8 @@
 // is allocated by the AST-gated sweep, written by the return edge, and
 // read by name into the inline arg.
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 data Cnt { n: u64; }
 measure Cnt::Order(n: u64) -> u64 { n }
 machine Main::countdown(&mut self, c: Cnt)

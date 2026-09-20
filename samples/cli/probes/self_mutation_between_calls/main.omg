@@ -44,6 +44,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data State [copy] {
     // Wrapping so the value-return arithmetic below (`n * multiplier`,
@@ -56,7 +57,7 @@ data State [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     st: State;
     pause: [u8; 256];
 }

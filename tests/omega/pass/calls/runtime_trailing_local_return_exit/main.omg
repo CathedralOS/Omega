@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 // A machine whose TRAILING TERMINAL EXPRESSION IS A BARE LOCAL NAME must
 // return that local's value -- captured at its declaration, exactly like the
@@ -40,7 +41,7 @@ machine fixed() -> i32 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     b: Box1;
 }
 

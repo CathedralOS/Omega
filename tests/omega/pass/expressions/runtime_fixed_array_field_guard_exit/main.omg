@@ -10,13 +10,14 @@
 // offset exits non-70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell {
     value: i32;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cells: [Cell; 3];
 }
 

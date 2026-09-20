@@ -9,7 +9,8 @@
 // refuse with the position named
 // (fail/calls/nontail_value_self_call_rejected).
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::countdown(&mut self, remaining: u64) -> u64
 terminates by remaining;
 {

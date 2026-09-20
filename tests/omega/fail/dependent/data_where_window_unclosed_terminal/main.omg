@@ -2,6 +2,7 @@
 // carried to `broken`, which never restores the facts -- the exit call
 // (and the terminal exit) are consumption points and refuse.
 use omega::language::std::console;
+use omega::language::core::service;
 data MemoryMap
 where
     count <= len,
@@ -9,7 +10,7 @@ where
     len: u32;
     count: u32;
 }
-data Main { console: Console; map: MemoryMap; }
+data Main { console: Service<Console>; map: MemoryMap; }
 machine Main::main(&mut self) {
     self.map.len = 8;
     self.map.count = 3;

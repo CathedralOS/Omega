@@ -4,6 +4,7 @@
 // wire encoding lands.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data EventMessage {
     #0 bonus: i32;
@@ -16,7 +17,7 @@ data RoomEvent {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

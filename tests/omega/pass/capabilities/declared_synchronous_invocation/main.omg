@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // A bodyless boundary requirement publishes the callback binding it may enter
 // before return. The checked provider's helper-forwarded edge refines that
 // ceiling and remains visible in checked invocation metadata. The adapter's
@@ -5,11 +6,11 @@
 // self-forwarding binding; composition removes it and shifts `handler` back to
 // requirement parameter 0.
 
-boundary trait Handler {
+pub boundary trait Handler {
     machine handle();
 }
 
-boundary trait EventSource {
+pub boundary trait EventSource {
     machine fire(handler: &mut Handler)
     invokes handler;
 }

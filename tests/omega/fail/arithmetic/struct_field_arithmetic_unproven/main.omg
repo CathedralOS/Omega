@@ -2,8 +2,9 @@
 // the decision-17 exact-arith obligation (the struct-field hole is closed). With
 // no range refinement, `b.v + 1` is not provably in range.
 use omega::language::std::console;
+use omega::language::core::service;
 data Box { v: i32; }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::use_box(&mut self, b: Box) {
     let total: i32 = b.v + 1;
     self.console.exit_process(total);

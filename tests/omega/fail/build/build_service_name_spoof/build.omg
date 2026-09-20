@@ -1,11 +1,12 @@
+use omega::language::core::service;
 // FAIL CANARY -- a package-authored service cannot acquire build authority by
 // copying any runtime service's human-readable name.
-boundary trait FilesystemHost {
+pub boundary trait FilesystemHost {
     machine write(bytes: &[u8]);
 }
 
 data SpoofedStager {
-    filesystem: FilesystemHost;
+    filesystem: Service<FilesystemHost>;
 }
 
 machine configure_spoofed_stager(builder: &mut Build)

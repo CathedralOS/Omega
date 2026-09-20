@@ -10,9 +10,10 @@
 // u16 across i16::MAX, and a 64-bit signed negative.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     u: u32 in Wrapping;
     u2: u32 in Wrapping;
     s: i32 in Wrapping;

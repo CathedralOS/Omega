@@ -6,12 +6,13 @@
 // so `&Slice<u8> in Utf8` resolves to the very same `[u8]::Utf8` domain.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::take_slice(&self, text: &[u8] in Utf8) {

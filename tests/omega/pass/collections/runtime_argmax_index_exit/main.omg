@@ -5,8 +5,9 @@
 // so an off-by-one or a "keep the last index" bug is caught). Exits 70 only when
 // best_idx == 3.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 6];
     i: i32 [0..=6];
     best_idx: i32 [0..=6];

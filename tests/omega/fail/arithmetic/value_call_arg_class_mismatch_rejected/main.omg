@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // FAIL canary: a cross-CLASS argument at a VALUE-position call site --
 // `let v: i32 = self.take(self.b)` where `self.b` is a `bool` and `take`'s
 // parameter is `i32` -- is rejected at type-check. This was the 4th silent
@@ -10,14 +11,14 @@
 // computed args are untouched. Complements arg_class_mismatch_rejected (the
 // statement/transition/host arg positions).
 
-boundary trait Console {
+pub boundary trait Console {
     machine exit_process(code: i32)
     reaches
         Console;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     b: bool;
 }
 

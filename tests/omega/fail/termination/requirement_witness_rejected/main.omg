@@ -3,8 +3,9 @@
 // IMPLEMENTATION that discharges the inherited claim, never to the
 // requirement (there is no body to prove).
 use omega::language::std::console;
+use omega::language::core::service;
 trait Worker {
     machine run(&mut self, n: u64) -> u64 terminates by n;
 }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

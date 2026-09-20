@@ -10,9 +10,10 @@
 // neither the index nor the sentinel may be corrupted. All correct -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4] in Trapping;
     idx: i32 in Trapping;
     sentinel: i32 in Trapping;

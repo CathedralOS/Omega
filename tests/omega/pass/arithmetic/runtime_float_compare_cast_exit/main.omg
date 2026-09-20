@@ -8,6 +8,7 @@ use omega::language::core::float_operations;
 // differential oracle also checks native==interpreter.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Vec2 {
     x: f64;
@@ -15,7 +16,7 @@ data Vec2 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: f64;
     b: f64;
     r: f64;

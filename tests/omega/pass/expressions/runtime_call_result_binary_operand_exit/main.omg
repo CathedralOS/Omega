@@ -11,11 +11,12 @@
 // self.cell_index(cell) + 1)`.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data CellId { case R00; case R01; case R02; case R03; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     count: u64;
 }
 

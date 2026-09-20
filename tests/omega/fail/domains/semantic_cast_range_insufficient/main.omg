@@ -2,7 +2,8 @@
 // self >= 0 (the value MAY satisfy it at runtime -- undischarged, not
 // false), so the staged fence stays.
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 domain i64::Km
 requires
     self >= 0;

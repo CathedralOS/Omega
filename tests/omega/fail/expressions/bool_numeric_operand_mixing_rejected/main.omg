@@ -4,7 +4,8 @@
 // now does too (settled 2026-07-05, Zach). A comparison RESULT into a numeric slot
 // (`let n: i32 = a < b`) is a DIFFERENT, intended coercion and stays valid.
 use omega::language::std::console;
-data Main { console: Console; b: bool; }
+use omega::language::core::service;
+data Main { console: Service<Console>; b: bool; }
 machine Main::main(&mut self) {
     self.b = true;
     let n: i32 = self.b + 5;

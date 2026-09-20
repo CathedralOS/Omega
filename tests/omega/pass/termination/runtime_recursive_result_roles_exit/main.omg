@@ -7,7 +7,8 @@
 // (transition-arg self-recursion, measure-proved) and must deliver its
 // terminal 5 through the role's slot. Exit 70; distinct exits per role.
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 data Cnt { n: u64; }
 measure Cnt::Order(n: u64) -> u64 { n }
 machine Main::countdown(&mut self, c: Cnt)

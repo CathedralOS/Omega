@@ -15,8 +15,9 @@
 // and CGImageGetWidth(nil) == 0 -> exit 1.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
-boundary trait CoreGraphics {
+pub boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;
     machine bitmap_context(data: &mut [i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
     machine bitmap_context_image(ctx: u64) -> u64;
@@ -24,8 +25,8 @@ boundary trait CoreGraphics {
 }
 
 data Main {
-    console: Console;
-    cg: CoreGraphics;
+    console: Service<Console>;
+    cg: Service<CoreGraphics>;
     pixels: [i32; 16];
     space: u64;
     ctx: u64;

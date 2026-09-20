@@ -5,9 +5,10 @@
 // different runtime indices and self-checks. (Constant indices already worked.)
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 4];
     i: i32 in Trapping;
     a: i32;

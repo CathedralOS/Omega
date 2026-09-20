@@ -3,9 +3,10 @@
 // division by zero and 0/0 retain their IEEE infinity/NaN results.
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     maximum: f32 in Finite & Saturating;
     negative_maximum: f32 in Finite & Saturating;
     two: f32 in Finite & Saturating;

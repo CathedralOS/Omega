@@ -1,9 +1,10 @@
 // Echo only each completed reported prefix; normalize CRLF in this caller.
 // Fixed input extent and untouched suffix survive every read.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     line: [u8; 64];
 }
 

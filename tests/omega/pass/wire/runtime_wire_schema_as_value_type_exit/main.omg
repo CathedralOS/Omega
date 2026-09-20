@@ -13,6 +13,7 @@
 // other mutating call).
 // exits: 71 = value use wrong; 72 = encode wrong; 73 = roundtrip wrong.
 use omega_language_std::console;
+use omega::language::core::service;
 data Point {
     #0 x: u32;
     #1 y: u32;
@@ -22,7 +23,7 @@ data WireVerdict {
     case Sound;
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 32];
     written: u64;
     read: u64;

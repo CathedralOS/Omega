@@ -14,9 +14,10 @@ domain [u8]::NonEmpty
 requires
     non_empty(self);
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: &[u8] in NonEmpty;
 }
 

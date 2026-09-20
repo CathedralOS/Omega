@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // The builder pattern over NESTED-field owned `[u8; N] in Utf8` carriers (#66):
 // `self.line.text = "Room " + self.room.label` materializes the concat into the
 // nested target carrier's inline `{len, bytes}` storage, then a later state
@@ -23,13 +24,13 @@ data Line {
     text: [u8; 16] in Utf8;
 }
 
-boundary trait Console {
+pub boundary trait Console {
     machine write_line(text: &[u8] in Utf8);
     machine exit_process(return_code: i32);
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     room: Room;
     line: Line;
 }

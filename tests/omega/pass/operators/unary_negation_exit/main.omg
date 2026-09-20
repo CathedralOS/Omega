@@ -2,9 +2,10 @@
 // work in guards) and negation of a non-literal (`-self.v`, lowered to `0 - v`).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
     n: i32;
 }

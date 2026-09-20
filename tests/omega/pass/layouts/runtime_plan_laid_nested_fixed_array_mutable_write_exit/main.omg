@@ -3,6 +3,7 @@
 // whole-extent `At` placement.
 use omega_language_std::console;
 use omega::language::core::layout;
+use omega::language::core::service;
 
 data SpreadArray { }
 
@@ -33,7 +34,7 @@ data MatrixRecord {
 data MatrixView { value: SpreadArray<MatrixRecord>; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 32];
 }
 

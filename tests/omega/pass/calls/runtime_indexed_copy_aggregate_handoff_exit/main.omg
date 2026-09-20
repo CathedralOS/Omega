@@ -2,6 +2,7 @@
 // when it is passed to and returned from a value machine. The runtime index
 // keeps this on the indexed-place path instead of allowing literal folding.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Header [copy] {
     tag: u8;
@@ -70,7 +71,7 @@ machine HeaderStore::select(&self, index: u64 [0..=2]) -> Header {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     line: [u8; 8];
     owner: HeaderOwner;
     sink: HeaderSink;

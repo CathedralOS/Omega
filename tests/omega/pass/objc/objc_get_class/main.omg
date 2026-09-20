@@ -12,14 +12,15 @@ domain [u8]::ClassName
 requires
     no_nul(self);
 use omega::language::std::console;
+use omega::language::core::service;
 
-boundary trait ObjectiveC {
+pub boundary trait ObjectiveC {
     machine get_class(name: &[u8] in ClassName) -> u64;
 }
 
 data Main {
-    console: Console;
-    objc: ObjectiveC;
+    console: Service<Console>;
+    objc: Service<ObjectiveC>;
     cls: u64;
 }
 

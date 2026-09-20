@@ -2,6 +2,7 @@
 // declared u32/i32 carriers must not become valid by truncating at the store.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data NarrowScalars {
     #0 count: u32;
@@ -19,7 +20,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bad_read: u64;
     bad_verdict: WireVerdict;
     good_read: u64;

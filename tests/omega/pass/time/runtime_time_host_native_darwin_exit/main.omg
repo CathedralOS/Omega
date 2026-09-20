@@ -18,10 +18,11 @@
 use omega_language_std::time_host;
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
-    host: TimeHost;
+    console: Service<Console>;
+    host: Service<TimeHost>;
     first_ticks: u64;
     second_ticks: u64;
     frequency: u64;

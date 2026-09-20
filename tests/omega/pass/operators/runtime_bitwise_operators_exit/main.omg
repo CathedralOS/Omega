@@ -5,9 +5,10 @@
 // is disambiguated from a prefix reference by position.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: i32;
     b: i32;
     and_result: i32;

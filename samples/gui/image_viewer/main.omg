@@ -22,9 +22,10 @@ use omega_language_std::filesystem_host;
 // runs (invisible from Finder). No stdin — a windowed app must never block on
 // a console.
 use omega_language_std::console;
-boundary trait Clock { machine sleep(milliseconds: u32); }
-boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
-boundary trait Gui {
+use omega::language::core::service;
+pub boundary trait Clock { machine sleep(milliseconds: u32); }
+pub boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
+pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 13], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine get_dc(window: u64) -> u64;
     machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32;
@@ -37,11 +38,11 @@ boundary trait Gui {
 }
 
 data Main {
-    console: Console;
-    clock: Clock;
-    input: Input;
-    gui: Gui;
-    raw: FilesystemHost;
+    console: Service<Console>;
+    clock: Service<Clock>;
+    input: Service<Input>;
+    gui: Service<Gui>;
+    raw: Service<FilesystemHost>;
     cls: [u8; 7];
     title: [u8; 13];
     message: [u64; 6];

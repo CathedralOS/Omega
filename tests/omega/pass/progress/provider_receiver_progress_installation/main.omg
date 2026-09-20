@@ -1,9 +1,10 @@
-boundary trait Scheduler {
+use omega::language::core::service;
+pub boundary trait Scheduler {
     machine notify(&self, value: i32)
     requires self in WeakFair
     terminates;
 
-    machine grant(scheduler: Scheduler) -> Scheduler in WeakFair;
+    machine grant(scheduler: Service<Scheduler>) -> Service<Scheduler> in WeakFair;
 }
 
 domain Scheduler::WeakFair
@@ -18,12 +19,12 @@ linux_x86_64 machine SchedulerProvider::notify(&self, value: i32)
 satisfies Scheduler::notify
 via Binding::Syscall(1);
 
-machine SchedulerProvider::grant(scheduler: Scheduler) -> Scheduler in WeakFair
+machine SchedulerProvider::grant(scheduler: Service<Scheduler>) -> Service<Scheduler> in WeakFair
 satisfies Scheduler::grant
 via Binding::VtableField(grant);
 
 data Main {
-    scheduler: Scheduler;
+    scheduler: Service<Scheduler>;
 }
 
 machine Main::main(&mut self)

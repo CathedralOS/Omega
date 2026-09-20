@@ -16,6 +16,7 @@
 // written = 8.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data CounterMessage {
     #0 counter: u32;
@@ -30,7 +31,7 @@ data CounterSample {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

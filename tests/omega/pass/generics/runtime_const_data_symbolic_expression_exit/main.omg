@@ -2,6 +2,7 @@
 // spelling resolves scoped const operands; the forwarded spelling resolves an
 // enclosing const parameter plus a scoped const in the concrete clone.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Sizes {
 }
@@ -18,7 +19,7 @@ data ForwardedBuffer<const N: u64> {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     small: FixedBuffer<Sizes::BASE + Sizes::STEP>;
     forwarded: ForwardedBuffer<2>;
 }

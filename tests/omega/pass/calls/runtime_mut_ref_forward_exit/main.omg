@@ -8,9 +8,10 @@
 // exit 71 = the forwarded write missed self.c.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Counter { n: i32 in Wrapping; }
-data Main { console: Console; c: Counter; }
+data Main { console: Service<Console>; c: Counter; }
 
 machine Main::main(&mut self) reaches Console {
     transition { _ -> enter(&mut self.c) }

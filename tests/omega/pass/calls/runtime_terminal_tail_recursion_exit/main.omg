@@ -17,7 +17,8 @@
 // Non-decreasing and missing-base-case twins refuse:
 // fail/calls/terminal_tail_nondecreasing_rejected.
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
 terminates by n;
 {

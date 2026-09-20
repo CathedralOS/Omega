@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Item {
     value: i32;
@@ -6,7 +7,7 @@ data Item {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     items: [Item; 2];
     index: u64 [0..=1];
 }

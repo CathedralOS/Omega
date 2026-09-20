@@ -10,8 +10,9 @@
 // a3: write arr[k + 1] = v       a4: reversed literal arr[1 + k]
 // a5: backward arr[k - 1] under a dominating guard
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32 in Wrapping; 5];
     k: u64 [0..=3];
     acc: i32 in Wrapping;

@@ -7,6 +7,7 @@
 // If Trigger arm is unreachable or silently dropped: exit 71.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);
@@ -17,7 +18,7 @@ data AlarmEvent {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     fire_count: i32 in Saturating;
     pause: [u8; 256];
 }

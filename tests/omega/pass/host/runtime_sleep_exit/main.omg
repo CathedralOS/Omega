@@ -3,8 +3,9 @@
 // arg and a RUNTIME (field) arg, then exits 70; reaching `exit_process(70)` proves
 // both call forms obey the selected hosted ABI and return cleanly.
 use omega_language_std::console;
-boundary trait Clock { machine sleep(milliseconds: u32); }
-data Main { console: Console; clock: Clock; delay: u32 in Wrapping; }
+use omega::language::core::service;
+pub boundary trait Clock { machine sleep(milliseconds: u32); }
+data Main { console: Service<Console>; clock: Service<Clock>; delay: u32 in Wrapping; }
 machine Main::main(&mut self)
 reaches Clock, Console
 {

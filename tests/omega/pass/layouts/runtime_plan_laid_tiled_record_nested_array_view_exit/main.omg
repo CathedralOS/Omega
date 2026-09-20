@@ -4,6 +4,7 @@
 // array stride remain compiler-derived between and below two runtime indices.
 use omega_language_std::console;
 use omega::language::core::layout;
+use omega::language::core::service;
 
 data TiledRecordNestedArray { }
 
@@ -48,7 +49,7 @@ machine make_samples() -> Samples {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 28];
     outer: u64;
     inner: u64;

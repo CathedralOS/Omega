@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Exit {
     distance: i32;
@@ -9,7 +10,7 @@ data Room {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     rooms: [Room; 2];
 }
 

@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Evidence { case Only; }
 data Maybe<T> {
@@ -7,7 +8,7 @@ data Maybe<T> {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     integer: Maybe<i32>;
     boolean: Maybe<bool>;
 }

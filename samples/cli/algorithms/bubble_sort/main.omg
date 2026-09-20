@@ -16,9 +16,10 @@
 // Expected exit: 10.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 5];
     i: u64 [0..=5];  // guard-proven Exact counters: the loop-head bound
     j: u64 [0..=4];  // dominates each re-guarded increment

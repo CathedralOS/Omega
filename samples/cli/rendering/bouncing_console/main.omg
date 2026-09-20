@@ -7,6 +7,7 @@
 // Expected exit: 0.
 // Expected output contains: O
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
@@ -17,11 +18,11 @@ requires
 domain [u8; 1]::Utf8
 requires
     valid_utf8(self);
-boundary trait Clock { machine sleep(milliseconds: u32); }
+pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {
-    console: Console;
-    clock: Clock;
+    console: Service<Console>;
+    clock: Service<Clock>;
     line: [u8; 40] in Utf8;
     cr: [u8; 1] in Utf8;
     p: i32 [0..=40];     // ball column; each move is re-guarded so +1/-1 stays in range

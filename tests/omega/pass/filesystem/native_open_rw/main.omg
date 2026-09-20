@@ -4,9 +4,10 @@
 // overwrite with "ZZZ"; close; reopen read-only; read back "ZZZXYZ". Prints PASS.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     rdwr: i32;
     rdonly: i32;

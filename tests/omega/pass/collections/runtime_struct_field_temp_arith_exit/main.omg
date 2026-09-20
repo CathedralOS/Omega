@@ -7,6 +7,7 @@
 // arr[1] = Pt{30, 40} (with decoy Pt{99,99} at 0 and 2). Read arr[i].x and arr[i].y via field
 // temps and sum: 30 + 40 = 70. A wrong runtime index would read the decoy (99+99) -> discriminates.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Pt {
     x: i32 in Wrapping;
@@ -14,7 +15,7 @@ data Pt {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [Pt; 3];
     i: u32 in Wrapping;
     t1: i32 in Wrapping;

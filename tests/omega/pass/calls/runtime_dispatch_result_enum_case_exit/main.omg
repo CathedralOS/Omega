@@ -7,11 +7,12 @@
 // bare nullary cases tag-only). Unservable fields stay loud via the
 // call-result blocker. Differential.
 use omega_language_std::console;
+use omega::language::core::service;
 data Verdict {
     case Nope;
     case Yes(score: i32 in Wrapping);
 }
-data Main { console: Console; result: Verdict; }
+data Main { console: Service<Console>; result: Verdict; }
 machine Main::count(&mut self, i: u64, j: u64, acc: i32 in Wrapping)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> Verdict

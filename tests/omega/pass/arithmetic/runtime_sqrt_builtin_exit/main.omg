@@ -5,8 +5,9 @@ use omega::language::core::float_operations;
 // f64 sqrt(64)=8 and f32 sqrt(9)=3; exits 70 only when both hold
 // (native sqrtsd/sqrtss == the shared exact FloatSemantics square root).
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: f64;
     r: f64;
     y: f32;

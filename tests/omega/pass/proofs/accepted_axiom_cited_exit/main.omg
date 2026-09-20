@@ -1,6 +1,7 @@
 use omega::language::core::nat;
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 
 // An axiom about an UNPROVEN shape, cited by a lemma: the citation
 // delivers the accepted fact into the lemma's hypothesis base.

@@ -13,9 +13,10 @@
 // stays in range.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a8: i8;
     b8: i8;
 }

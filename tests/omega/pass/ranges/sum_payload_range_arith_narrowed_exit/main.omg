@@ -8,8 +8,9 @@
 // (`amount * 100`) stays unproven (fail canary sum_payload_arith_too_wide).
 // Cmd::Dim { amount: 7 } -> apply(7 * 10 = 70) -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
-data Main { console: Console; c: Cmd; }
+data Main { console: Service<Console>; c: Cmd; }
 machine Main::main(&mut self) reaches Console {
     self.c = Cmd::Dim { amount: 7 };
     transition self.c {

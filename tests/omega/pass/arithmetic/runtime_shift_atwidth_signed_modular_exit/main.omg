@@ -11,7 +11,8 @@
 // 72/73 = operand leg count 40/70 not masked.
 
 use omega_language_std::console;
-data Main { console: Console; n: i32 in Wrapping; }
+use omega::language::core::service;
+data Main { console: Service<Console>; n: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.n = 40;
     let a: i32 in Wrapping = 1;

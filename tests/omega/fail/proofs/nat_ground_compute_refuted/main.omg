@@ -4,7 +4,8 @@
 // claims over Nat REFUTE instead of silently certifying (N3).
 use omega::language::core::nat;
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine bogus()
 ensures

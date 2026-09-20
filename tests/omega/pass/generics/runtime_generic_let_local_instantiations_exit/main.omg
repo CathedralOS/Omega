@@ -7,8 +7,9 @@
 // scans machine-body type positions too, synthesizing a concrete record per
 // spelling. Reads 30 from the i32 box, true from the bool box; exits 30.
 use omega_language_std::console;
+use omega::language::core::service;
 data Box<T> { value: T; }
-data Main { console: Console; r: i32; }
+data Main { console: Service<Console>; r: i32; }
 machine Main::main(&mut self) reaches Console {
     let bi: Box<i32> = Box { value: 30 };
     let bb: Box<bool> = Box { value: true };

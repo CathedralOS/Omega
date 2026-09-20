@@ -5,6 +5,7 @@
 // call loudly instead of half-supporting it.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 domain [u8; 8]::Utf8
 requires
@@ -19,7 +20,7 @@ data NameListValue {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

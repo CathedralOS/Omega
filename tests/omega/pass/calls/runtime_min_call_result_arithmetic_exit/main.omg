@@ -11,9 +11,10 @@
 // compiles without the (separate) S4 min/max narrowing.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     seed: i32;
 }
 

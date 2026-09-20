@@ -22,6 +22,7 @@
 // Expected exit: 85.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Engine {
     rpm: i32;
@@ -43,7 +44,7 @@ data Dashboard {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     dash: Dashboard;
 }
 

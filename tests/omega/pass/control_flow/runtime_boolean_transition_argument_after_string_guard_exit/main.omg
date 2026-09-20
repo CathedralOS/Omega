@@ -2,6 +2,7 @@ domain [u8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Room {
     description: &[u8] in Utf8;
@@ -9,7 +10,7 @@ data Room {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     rooms: [Room; 2];
     copy: Room;
 }

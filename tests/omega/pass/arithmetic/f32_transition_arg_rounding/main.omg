@@ -8,7 +8,8 @@ use omega::language::core::float_operations;
 // through the params and over-accumulated to 16777218.
 
 use omega_language_std::console;
-data Main { console: Console; a: f32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; a: f32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 16777216.0;
     transition { _ -> step(self.a + 1.0) }   // inline arg (f64) -> f32 param rounds

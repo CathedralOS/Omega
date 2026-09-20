@@ -8,12 +8,13 @@
 // self.cell.value = 70 -> m.body -> read_cell derefs c.value -> 70 -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell { value: i32; }
 data Msg { body: &Cell; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cell: Cell;
 }
 

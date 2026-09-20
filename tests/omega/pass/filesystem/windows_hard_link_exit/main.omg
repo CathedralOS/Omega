@@ -14,9 +14,10 @@
 use omega_language_std::filesystem;
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     fs: Filesystem;
     unit_result: UnitResult;
     io_result: IoResult;

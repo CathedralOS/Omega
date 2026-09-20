@@ -1,13 +1,14 @@
+use omega::language::core::service;
 // R1/R4: a boundary contract may transport a symbolic bound through equality
 // between out-parameters. `size == cap && cap <= 8` proves the four-byte view
 // beginning at `size` fits in the twelve-byte region.
-boundary trait Firmware {
+pub boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
     ensures size == cap && cap <= 8;
 }
 
 data Main {
-    fw: Firmware;
+    fw: Service<Firmware>;
     buf: [u8; 12];
     size: u32;
     cap: u32;

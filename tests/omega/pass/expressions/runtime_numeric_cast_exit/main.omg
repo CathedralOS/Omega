@@ -9,9 +9,10 @@ use omega::language::core::float_operations;
 // to 4.0.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     real_value: f64;
     truncated: i32;
     widened: f64;

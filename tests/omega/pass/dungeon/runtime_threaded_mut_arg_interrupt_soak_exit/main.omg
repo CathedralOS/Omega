@@ -11,6 +11,7 @@
 // parks data in an interrupt-clobbered register, the pointer (or the count)
 // corrupts and the run crashes or exits 71 instead of 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Tally {
     value: u64;
@@ -27,7 +28,7 @@ machine Stepper::bump(
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     stepper: Stepper;
     tally: Tally;
 }

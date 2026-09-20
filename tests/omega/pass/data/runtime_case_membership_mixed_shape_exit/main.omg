@@ -9,6 +9,7 @@
 // three are right.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Command {
     consumed: bool;
@@ -18,7 +19,7 @@ data Command {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cmd: Command;
 }
 

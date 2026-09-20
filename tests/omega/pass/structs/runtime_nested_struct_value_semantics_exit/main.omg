@@ -8,6 +8,7 @@
 // Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Inner {
     v: i32 in Trapping;
@@ -24,7 +25,7 @@ data Point {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     o: Outer;
     src: Point;
     dst: Point;

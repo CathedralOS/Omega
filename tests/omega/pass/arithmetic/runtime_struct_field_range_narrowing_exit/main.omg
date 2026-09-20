@@ -3,8 +3,9 @@
 // reader so `b.v + 65` proves EXACT with no annotation. Sound because every
 // write to the field is range-enforced (construction + assignment). Box{v:5} -> 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Box { v: i32 [0..=15]; }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::use_box(&mut self, b: Box) reaches Console {
     let total: i32 = b.v + 65;
     self.console.exit_process(total);

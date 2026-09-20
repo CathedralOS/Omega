@@ -8,6 +8,7 @@
 //
 // Sum = pts[0].x + pts[1].x + pts[2].x + pts[2].y = 20 + 30 + 18 + 2 = 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Pt {
     x: i32 in Wrapping;
@@ -20,7 +21,7 @@ data Grid {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     g: Grid;
     s: i32 in Wrapping;
 }

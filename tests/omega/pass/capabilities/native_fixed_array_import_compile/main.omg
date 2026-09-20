@@ -1,5 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
+use omega::language::core::service;
 
 // ENT2c: fixed arrays are by-value aggregate shapes. They never decay to a
 // pointer merely because a native external leaf consumes them. The explicit
@@ -9,7 +10,7 @@ use omega::language::core::float_operations;
 // Each hosted target binds its own evaluated typed locator through a
 // target-scoped producer: PE by-name on Windows, versioned ELF on Linux,
 // and one Mach-O dylib symbol on macOS AArch64.
-boundary trait NativeFixedArrays {
+pub boundary trait NativeFixedArrays {
     machine take_bytes(value: [u8; 16]) -> i32;
     machine take_floats(value: [f32; 4]) -> i32;
     machine take_pointer(value: &[u8; 16]) -> i32;
@@ -104,7 +105,7 @@ machine take_floats(value: [f32; 4]) -> i32 satisfies NativeFixedArrays::take_fl
 machine take_pointer(value: &[u8; 16]) -> i32 satisfies NativeFixedArrays::take_pointer via take_pointer_binding();
 
 data Main {
-    foreign: NativeFixedArrays;
+    foreign: Service<NativeFixedArrays>;
     bytes: [u8; 16];
     floats: [f32; 4];
     status: i32;

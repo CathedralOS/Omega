@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // THE FIELD MODEL (extern brief SS12.1, decided 2026-07-04): the M1 greeting
 // re-authored with an external leaf attached to the vtable data type -- the
 // binding names the fn-ptr FIELD and the LAYOUT computes its
@@ -17,7 +18,7 @@ pub data EfiSystemTable {
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
-pub data Main { out: TextOutput; msg: [u16; 19]; }
+pub data Main { out: Service<TextOutput>; msg: [u16; 19]; }
 boundary machine Main::main(&self, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
 invokes TextOutput;

@@ -1,4 +1,5 @@
 use omega::language::core::task;
+use omega::language::core::service;
 
 // MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
 // parameter surface. `Worker::run` is selected statically and survives as the
@@ -28,7 +29,7 @@ data Token {
     id: u64;
 }
 
-boundary trait TokenIssuer {
+pub boundary trait TokenIssuer {
     machine issue(id: u64) -> Token
     ensures
         result in Carry::AcrossSuspend;
@@ -48,7 +49,7 @@ machine Task::settle<T>(self) { }
 
 data Main {
     runtime: &TaskRuntime;
-    issuer: TokenIssuer;
+    issuer: Service<TokenIssuer>;
 }
 
 machine Main::probe(&mut self) reaches TokenIssuer + TaskRuntime {

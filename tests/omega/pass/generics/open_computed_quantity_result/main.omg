@@ -1,5 +1,6 @@
 // PDI3: a generic result retains an erased expression over its input indices.
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain<T, const I: u64> T::Indexed<I>;
 
@@ -70,7 +71,7 @@ machine reorder_indexed<const A: u64, const B: u64>(
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

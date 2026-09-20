@@ -5,8 +5,9 @@
 // (`cube[1][1][k]` -- TWO const levels BELOW the runtime index -- lowers via
 // const-prefix peeling; pinned by runtime_nested_deep_const_prefix_exit.)
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     cube: [[[i32; 2]; 2]; 2];
     b: u64 [0..=1];
     got: i32;

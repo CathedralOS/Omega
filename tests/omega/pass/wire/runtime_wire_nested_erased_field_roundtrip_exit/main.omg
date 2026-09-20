@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Evidence { case Only; case Step(previous: Evidence); }
 
@@ -15,7 +16,7 @@ data Packet {
 data WireVerdict { case Invalid; case Sound; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 32];
     written: u64;
     read: u64;

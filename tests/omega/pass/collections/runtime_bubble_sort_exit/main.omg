@@ -6,9 +6,10 @@
 // INDEX is refused) shrinks each outer pass. Sorts [5,2,8,1,9,3] -> [1,2,3,5,8,9] and
 // self-checks four cells -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 6] in Trapping;
     i: i32 in Trapping;
     j: i32 in Trapping;

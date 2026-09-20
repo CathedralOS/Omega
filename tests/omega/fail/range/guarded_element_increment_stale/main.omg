@@ -2,8 +2,9 @@
 // collection (`tallies[2] = 5`) between the guard and the increment may alias
 // the guarded element (index-blind), so the fact drops and the store rejects.
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     tallies: [i32 [0..=16]; 4];
 }
 machine Main::main(&mut self) {

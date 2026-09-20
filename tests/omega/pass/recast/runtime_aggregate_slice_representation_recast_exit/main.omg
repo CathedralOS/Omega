@@ -6,6 +6,7 @@
 // of native padding per element, so success also proves element stride rather
 // than densely repacking scalar leaves.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Narrow {
     signed_value: i16 [0..=100];
@@ -23,7 +24,7 @@ data Exact {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     source: [Narrow; 2];
 }
 

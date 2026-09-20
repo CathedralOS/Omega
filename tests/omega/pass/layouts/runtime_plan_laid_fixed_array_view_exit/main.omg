@@ -4,6 +4,7 @@
 // u16 elements from the array field's validated extent.
 use omega_language_std::console;
 use omega::language::core::layout;
+use omega::language::core::service;
 
 data SpreadArray {
 }
@@ -37,7 +38,7 @@ data ArrayView {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 32];
 }
 

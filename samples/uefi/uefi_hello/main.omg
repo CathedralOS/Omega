@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // uefi_hello -- MILESTONE 1: an Omega UEFI application that prints "Hello from
 // Omega" on the firmware console. BOOT-VERIFIED under QEMU/OVMF (2026-07-04):
 // the serial console shows "Hello from Omega" and the image returns Success.
@@ -49,7 +50,7 @@ pub data EfiSystemTable {
 }
 
 pub data Main {
-    out: TextOutput;
+    out: Service<TextOutput>;
     // "Hello from Omega\r\n\0" as UTF-16 CHAR16 code units.
     msg: [u16; 19];
 }

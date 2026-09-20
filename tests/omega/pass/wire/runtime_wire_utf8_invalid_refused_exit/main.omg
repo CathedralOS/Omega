@@ -15,6 +15,7 @@ domain [u8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 data LabelMessage {
     #0 count: u32;
     #1 label: &[u8] in Utf8;
@@ -28,7 +29,7 @@ data WireVerdict {
     case Sound;
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     read: u64;
     verdict: WireVerdict;

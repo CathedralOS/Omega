@@ -9,8 +9,9 @@
 // intervening collection write still drops the fact (fail twins).
 // ZII tallies[2]=0 -> +1 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     tallies: [i32 [0..=16]; 4];
     k: u64 [0..=3];
 }

@@ -7,8 +7,9 @@
 // carries no valid symbol at the storage stage), so t keeps its slot and the
 // chain resolves through it. arr[1] = 8 > 5 -> exit 70 (the fold exits 71).
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4];
     i: i32 [0..=3];
 }

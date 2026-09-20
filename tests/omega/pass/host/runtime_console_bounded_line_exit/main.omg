@@ -1,9 +1,10 @@
 // The raw destination stays fixed. Emit all storage (including the untouched
 // tail), the next unread byte, then expose the stop reason/count in the exit.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     line: [u8; 4];
 }
 

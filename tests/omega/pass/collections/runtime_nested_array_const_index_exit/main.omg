@@ -6,9 +6,10 @@
 // refused, but the WRITE silently NO-OPS (see memory nested-runtime-indexed-write-gap). A runtime
 // ROW with a const column (`grid[i][0]`) does work. This canary stays in the working const subset.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [[i32; 2]; 2] in Wrapping;
     s: i32 in Wrapping;
 }

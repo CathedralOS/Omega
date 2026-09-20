@@ -4,8 +4,9 @@
 // or a wrong match arm takes the false path. Combines value-call enum return + multi-arm dispatch.
 // Differential: native == interp.
 use omega_language_std::console;
+use omega::language::core::service;
 data Sign { case Neg; case Zero; case Pos; }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::classify(&self, n: i32) -> Sign {
     transition n > 0 {
         true -> pos()

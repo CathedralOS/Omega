@@ -5,6 +5,7 @@
 // the program exits 70 (result == 122). Before specialization this exited 0.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Room {
     id: i32;
@@ -21,7 +22,7 @@ data Helper {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     helper: Helper;
 }
 

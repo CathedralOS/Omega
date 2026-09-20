@@ -6,6 +6,7 @@
 // array element, the struct-array element's field, and a scalar field. Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Point {
     x: i32 in Trapping;
@@ -19,7 +20,7 @@ data Bag {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bag: Bag;
 }
 

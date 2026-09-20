@@ -2,6 +2,7 @@
 // the public operator contract and exact ProviderPlan identity; execution in
 // both engines redirects to the selected ordinary machine.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data CheckedMath {}
 
@@ -19,7 +20,7 @@ ensures result == input + 0 && input == input
     transition { _ -> (input + 0) }
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self)
 reaches Console

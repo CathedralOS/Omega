@@ -5,8 +5,9 @@
 // admitted the range without folding it (or clamped it to the target), this
 // would falsely compile. MUST reject with the expected fragment.
 use omega::language::std::console;
+use omega::language::core::service;
 data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
-data Main { console: Console; c: Cmd; }
+data Main { console: Service<Console>; c: Cmd; }
 machine Main::main(&mut self) {
     self.c = Cmd::Dim { amount: 3 };
     transition self.c {

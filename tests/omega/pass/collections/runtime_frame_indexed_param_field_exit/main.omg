@@ -2,12 +2,13 @@
 // (`points[k].y` -- field_byte_offset in the frame-base-indexed copy).
 // points[1].y=42, k=1 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Point {
     x: i32;
     y: i32;
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     points: [Point; 3];
 }
 machine Main::main(&mut self) {

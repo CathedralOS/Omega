@@ -27,6 +27,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // Swaps copy these payload-free values out of borrowed array storage.
 data Color [copy] {
@@ -36,7 +37,7 @@ data Color [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     items: [Color; 3];
     r: u64 [0..=3];   // red prefix end: items[0..r] are Red
     w: u64 [0..=3];   // white cursor: items[r..w] are White

@@ -2,11 +2,12 @@
 // transitive reach remains visible at the root and cannot become build
 // authority merely by hiding behind a helper.
 use omega::language::std::console;
+use omega::language::core::service;
 
 machine write_build_log(builder: &mut Build)
 reaches Console
 {
-    let mut console: Console;
+    let mut console: Service<Console>;
     console.write_line("ordinary runtime boundary");
 }
 

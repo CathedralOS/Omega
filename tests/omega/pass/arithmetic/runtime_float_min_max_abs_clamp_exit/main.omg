@@ -7,8 +7,9 @@ use omega::language::core::float_operations;
 // matches exactly. Checks max(3,7)=7, min(3,7)=3, abs(-12)=12,
 // clamp(300,0,200)=200; sum = 7+3+12+200 = 222; exits 70 when it holds.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     mx: f64;
     mn: f64;
     ab: f64;

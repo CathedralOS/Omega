@@ -3,9 +3,10 @@
 // must dispatch as None.
 use omega::language::core::option;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Optional<i32>;
     b: Optional<i32>;
 }

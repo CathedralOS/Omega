@@ -2,7 +2,8 @@
 // the identity bridge must not collapse zero and one into generic constants.
 use omega::language::core::nat;
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine zero_is_not_one()
 ensures

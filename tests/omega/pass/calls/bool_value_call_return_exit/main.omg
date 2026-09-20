@@ -8,6 +8,7 @@
 // INLINED callee's float-local guard resolution, tracked in TASKS F3, not
 // bool delivery.)
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Probe { flag: u8; }
 machine Probe::is_set(&self) -> bool {
@@ -22,7 +23,7 @@ machine truthy(x: i32) -> bool {
     state no() -> bool { false }
 }
 
-data Main { console: Console; probe: Probe; }
+data Main { console: Service<Console>; probe: Probe; }
 machine Main::main(&mut self) reaches Console {
     self.probe.flag = 1;
     let a: bool = self.probe.is_set();

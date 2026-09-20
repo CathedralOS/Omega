@@ -3,6 +3,7 @@
 // element uses compiler-derived record padding and field offsets.
 use omega_language_std::console;
 use omega::language::core::layout;
+use omega::language::core::service;
 
 data SpreadRecordArray { }
 
@@ -38,7 +39,7 @@ data RecordArray {
 data RecordArrayView { value: SpreadRecordArray<RecordArray>; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 32];
 }
 

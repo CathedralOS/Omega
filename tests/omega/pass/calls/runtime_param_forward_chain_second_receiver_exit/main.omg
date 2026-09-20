@@ -8,6 +8,7 @@
 // target" decline). Re-borrows now collapse to the same target on both
 // Mutable evaluation arms. u.get() = 9 -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }
@@ -31,7 +32,7 @@ machine Holder::run(&mut self) -> i32 in Wrapping {
     transition true { true -> done(v) }
     state done(&mut self, v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
-data Main { console: Console; holder: Holder; flag: i32 in Wrapping; }
+data Main { console: Service<Console>; holder: Holder; flag: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.flag = self.holder.run();
     transition self.flag == 9 { true -> good() _ -> bad() }

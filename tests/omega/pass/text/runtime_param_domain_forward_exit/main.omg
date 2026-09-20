@@ -10,9 +10,10 @@ requires
 // dispatch is on `go` (a plain bool), so `text` is never value-narrowed.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

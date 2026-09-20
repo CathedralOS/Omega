@@ -5,9 +5,10 @@
 // file is present after create and absent after remove.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     fd: i32;
     rc: i32;

@@ -1,7 +1,8 @@
 // V1: VOID callee in VALUE position -- `let r: i32 = self.act()`.
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     n: i32;
 }
 machine Main::act(&mut self) {

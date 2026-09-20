@@ -2,9 +2,10 @@
 // includes 0, so `c / d` has no provable range and the ranged store rejects
 // (the fold requires a divisor interval that provably excludes zero).
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     c: i32 [0..=259];
     d: i32 [0..=26];
     y: i32 [0..=259];

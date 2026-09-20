@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8; 16]::Utf8
 requires
@@ -43,7 +44,7 @@ data Formatter {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     builder: Builder;
     formatter: Formatter;
     level: Level;

@@ -1,5 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
+use omega::language::core::service;
 
 // An erased result field has no AAPCS64 transfer operation. The stripped Pair
 // remains an HFA result whose two physical members spill from d0/d1.
@@ -13,7 +14,7 @@ data Pair {
     second: f64;
 }
 
-boundary trait HfaResultImport {
+pub boundary trait HfaResultImport {
     machine call(seed: i64) -> Pair;
 }
 
@@ -29,7 +30,7 @@ macos_arm64 machine hfa_result_binding() -> Binding<17, 22, 0> {
 macos_arm64 machine hfa_result_import(seed: i64) -> Pair satisfies HfaResultImport::call via hfa_result_binding();
 
 data Main {
-    foreign: HfaResultImport;
+    foreign: Service<HfaResultImport>;
     seed: i64;
     pair: Pair;
 }

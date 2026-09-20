@@ -12,12 +12,13 @@
 // b5: guard subject (cells[i].x == 42)
 // b6: indexed target from indexed operand (cells[i].y = cells[i].x + 1)
 use omega_language_std::console;
+use omega::language::core::service;
 data Cell {
     x: i32 [0..=100];
     y: i32 [0..=100];
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     cells: [Cell; 3];
     i: u64 [0..=2];
     r: i32;

@@ -5,8 +5,9 @@ use omega::language::core::float_operations;
 // unsigned negatives to zero, clamps u8/i8 at their own bounds, and preserves
 // the full u64 high half instead of applying a signed-i64 conversion ceiling.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: f64;
     f32v: f32;
     u8v: u8;

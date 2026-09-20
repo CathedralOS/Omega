@@ -1,11 +1,12 @@
 // FAIL CANARY. The zeroed health field does not satisfy health >= 1, so the
 // attached data cannot be consumed before a write establishes the gate.
 use omega::language::std::console;
+use omega::language::core::service;
 data Main
 where
     health >= 1,
 {
-    console: Console;
+    console: Service<Console>;
     health: i32;
 }
 machine Main::main(&mut self) {

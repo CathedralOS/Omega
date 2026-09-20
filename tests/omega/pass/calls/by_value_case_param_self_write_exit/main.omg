@@ -10,6 +10,7 @@
 // caller.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Event {
     case Idle;
@@ -21,7 +22,7 @@ data Register [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     register: Register;
 }
 

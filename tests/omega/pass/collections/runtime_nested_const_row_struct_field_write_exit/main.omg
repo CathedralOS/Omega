@@ -5,11 +5,12 @@
 // rows+2*4 instead of rows+2*8). Validates the written element AND both
 // neighbors AND another row (adjacent-clobber check). Exit 1 on success.
 use omega_language_std::console;
+use omega::language::core::service;
 data Row {
     data: [i32; 2];
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     rows: [Row; 3];
     j: u64 [0..=1];
     got: i32;

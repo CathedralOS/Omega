@@ -16,9 +16,10 @@
 // paths are verified by cross-emission + disassembly (this box cannot run them).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     counter: AtomicU32;
     pause: [u8; 256];
 }

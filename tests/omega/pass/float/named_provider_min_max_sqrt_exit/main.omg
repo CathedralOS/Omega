@@ -4,9 +4,10 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     min_nan_first32: f32;
     min_nan_second32: f32;
     max_nan_first32: f32;

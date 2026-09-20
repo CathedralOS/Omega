@@ -1,5 +1,6 @@
 // NEGATIVE 1: the law satisfier proves NOTHING (no ensures) -> must error.
 use omega::language::std::console;
+use omega::language::core::service;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2 {
     machine add(a: Self, b: Self) -> Self;
@@ -19,5 +20,5 @@ machine lawless(a: Peano, b: Peano, c: Peano)
 satisfies RingOps2::add_assoc
 {
 }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

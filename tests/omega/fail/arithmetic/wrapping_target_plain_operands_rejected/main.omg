@@ -4,8 +4,9 @@
 // the hint). The fix the hint teaches: domain an operand/intermediate
 // (`let t: i32 in Wrapping = ...`) or re-tag inline (`x as i32 in Wrapping`).
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     vals: [i32; 3];
 }
 machine Main::main(&mut self) {

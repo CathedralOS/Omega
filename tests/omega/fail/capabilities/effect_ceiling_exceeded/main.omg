@@ -1,9 +1,10 @@
+use omega::language::core::service;
 // When a concrete machine declares a `reaches` row, that row is a ceiling for
 // the machine's reached services. `Worker::run`
 // declares only `Console` but transitively reaches `Disk` through the
 // boundary write, so it exceeds its declared ceiling and is rejected.
 
-boundary trait Disk {
+pub boundary trait Disk {
     machine write(text: &[u8])
     reaches
         Disk;
@@ -13,7 +14,7 @@ boundary trait Console {
 }
 
 data Worker {
-    disk: Disk;
+    disk: Service<Disk>;
 }
 
 machine Worker::run(&mut self)

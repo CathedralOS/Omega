@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 trait Measure {
     machine measure(&self) -> i32;
@@ -21,7 +22,7 @@ data Holder<'item> {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     item: Item;
 }
 

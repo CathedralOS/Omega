@@ -4,9 +4,10 @@
 // 32-bit-truncated store/compare would wrongly match.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     big: i64;
 }
 

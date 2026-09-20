@@ -2,6 +2,7 @@
 // to silently bind 0 (the dungeon's `existing_index.is_some()` never stacked
 // items). Now a compile error.
 use omega::language::std::console;
+use omega::language::core::service;
 data Tally {
     count: i32;
 }
@@ -9,7 +10,7 @@ machine Tally::total(&self) -> i32 {
     transition { _ -> (self.count) }
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     tally: Tally;
 }
 machine Main::main(&mut self) {

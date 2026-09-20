@@ -3,9 +3,10 @@
 // that fact, a typed {0,1} byte may establish it for a shared view, and mutable
 // aliases are legal only when both sides preserve the same set.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     flag: bool;
     byte: u8 [0..=1];
 }

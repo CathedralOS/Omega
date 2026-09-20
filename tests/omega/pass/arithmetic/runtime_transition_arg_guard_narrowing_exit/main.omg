@@ -7,7 +7,8 @@
 // count_down(3): 3->2->1->0, then done() exits 70.
 
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 
 machine Main::count_down(&mut self, n: u32) reaches Console {
     transition n > 0 {

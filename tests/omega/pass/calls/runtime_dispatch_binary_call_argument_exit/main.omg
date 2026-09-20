@@ -4,11 +4,12 @@
 // the local slot; re-expanding its initializer as an unlowered CallArgument is
 // neither necessary nor sound.
 use omega_language_std::console;
+use omega::language::core::service;
 data CellId { case Empty; case R00; case R01; case R02; case R03; }
 data Room { cell: CellId; tag: i32; }
 data Level { rooms: [Room; 4]; room_count: u64; }
 data Builder { }
-data Main { console: Console; builder: Builder; level: Level; }
+data Main { console: Service<Console>; builder: Builder; level: Level; }
 
 machine Main::main(&mut self) reaches Console {
     self.builder.build(&mut self.level);

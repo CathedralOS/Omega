@@ -1,5 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
+use omega::language::core::service;
 
 // ENT2c: one by-value flat f64 record is one AAPCS64 HFA parameter. The
 // compiler test verifies that its two fragments reach v0/v1 from the same
@@ -9,7 +10,7 @@ data Pair {
     second: f64;
 }
 
-boundary trait HfaImport {
+pub boundary trait HfaImport {
     machine call(pair: Pair) -> i64;
 }
 
@@ -24,7 +25,7 @@ macos_arm64 machine hfa_binding() -> Binding<17, 15, 0> {
 
 macos_arm64 machine hfa_import(pair: Pair) -> i64 satisfies HfaImport::call via hfa_binding();
 
-data Main { foreign: HfaImport; pair: Pair; result: i64; }
+data Main { foreign: Service<HfaImport>; pair: Pair; result: i64; }
 machine Main::main(&mut self) reaches HfaImport {
     self.pair = Pair { first: 1.0, second: 2.0 };
     self.result = self.foreign.call(self.pair);

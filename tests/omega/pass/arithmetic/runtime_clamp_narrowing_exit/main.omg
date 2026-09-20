@@ -5,7 +5,8 @@
 // AND that the backend actually stores the clamped value (300 -> 100) in the
 // narrower slot. Native must match the interpreter.
 use omega_language_std::console;
-data Main { console: Console; x: i32; s: i8; }
+use omega::language::core::service;
+data Main { console: Service<Console>; x: i32; s: i8; }
 machine Main::main(&mut self) reaches Console {
     self.x = 300;
     self.s = clamp(self.x, 0, 100);

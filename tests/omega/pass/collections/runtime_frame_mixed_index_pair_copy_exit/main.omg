@@ -2,9 +2,10 @@
 // directions. The local arrays are frame-rooted, `self.index` is machine-held,
 // and `j`/`k` are frame-held state parameters.
 use omega_language_std::console;
+use omega::language::core::service;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     index: u64 [0..=3];
 }
 machine Main::main(&mut self) {

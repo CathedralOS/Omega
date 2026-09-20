@@ -10,13 +10,14 @@ domain [u8; 4]::Utf8
 requires
     valid_utf8(self);
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Holder {
     label: [u8; 4] in Utf8;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     holder: Holder;
 }
 

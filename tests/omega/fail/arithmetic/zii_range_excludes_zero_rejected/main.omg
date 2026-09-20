@@ -1,7 +1,8 @@
 // FAIL canary: a range that excludes zero now gates machine-attached storage.
 // Reading m before establishment cannot exploit its declared nonzero bound.
 use omega::language::std::console;
-data Main { console: Console; m: i32 [1..=100]; q: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; m: i32 [1..=100]; q: i32; }
 machine Main::main(&mut self) {
     self.q = 10 % self.m;
     self.console.exit_process(0);

@@ -24,6 +24,7 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Floats [copy] {
     low: f32;
@@ -34,7 +35,7 @@ data Floats [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: Floats;
     pause: [u8; 256];
 }

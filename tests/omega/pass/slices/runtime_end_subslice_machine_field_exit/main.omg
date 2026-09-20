@@ -8,13 +8,14 @@
 // the Machine-region-END mechanism from the domain guard. Exits 70 (len == 3).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Entry {
     value: i32;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     entries: [Entry; 4];
     k: u64;
 }

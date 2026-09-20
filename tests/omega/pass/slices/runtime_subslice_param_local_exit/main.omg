@@ -7,11 +7,12 @@
 // `tail.len` stayed 4.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Entry { value: i32; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     entries: [Entry; 4];
 }
 

@@ -5,9 +5,10 @@
 use omega_language_std::time;
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Duration;
     total_result: TotalResult;
     duration_result: DurationResult;

@@ -3,6 +3,7 @@
 // and element stride in both the interpreter and native lowering.
 use omega_language_std::console;
 use omega::language::core::layout;
+use omega::language::core::service;
 
 data SpreadArray {
 }
@@ -36,7 +37,7 @@ data ArrayView {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 32];
 }
 

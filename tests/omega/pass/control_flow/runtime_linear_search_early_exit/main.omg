@@ -5,9 +5,10 @@
 // search stops there. A wrong index, or failing to stop, would miss 2.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5] in Wrapping;
     target: i32 in Wrapping;
     i: u32 in Wrapping;

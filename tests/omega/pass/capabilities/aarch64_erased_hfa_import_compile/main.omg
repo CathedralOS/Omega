@@ -1,5 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
+use omega::language::core::service;
 
 // Evidence is semantic-only. The erased-stripped Pair is still a two-member
 // AAPCS64 HFA and must feed d0/d1 from one aggregate source place.
@@ -13,7 +14,7 @@ data Pair {
     second: f64;
 }
 
-boundary trait HfaImport {
+pub boundary trait HfaImport {
     machine call(pair: Pair) -> i64;
 }
 
@@ -29,7 +30,7 @@ macos_arm64 machine hfa_binding() -> Binding<17, 15, 0> {
 macos_arm64 machine hfa_import(pair: Pair) -> i64 satisfies HfaImport::call via hfa_binding();
 
 data Main {
-    foreign: HfaImport;
+    foreign: Service<HfaImport>;
     pair: Pair;
     result: i64;
 }

@@ -1,5 +1,6 @@
 // Raw bounded line input is normalized by this ASCII command protocol.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Command {
     case Look;
@@ -19,7 +20,7 @@ machine Parser::resolve(&mut self, line: &[u8], count: u64) -> Command {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     line: [u8; 32];
     parser: Parser;
     command: Command;

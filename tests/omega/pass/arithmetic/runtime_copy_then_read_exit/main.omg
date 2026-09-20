@@ -6,9 +6,10 @@
 // the stale literal instead of the copied value.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     src: i32;
     v: i32;
     w: i32;

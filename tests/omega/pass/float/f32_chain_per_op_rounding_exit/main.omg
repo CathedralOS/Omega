@@ -12,7 +12,8 @@ use omega::language::core::float_operations;
 // the whole chain plans `addss`. Exit 71 = a double-width intermediate
 // (or a width-mismatched nested op) crept back into an f32 chain.
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     let big: f32 = 16777216.0;
     let bumped: f32 = big + 1.0 + 1.0;

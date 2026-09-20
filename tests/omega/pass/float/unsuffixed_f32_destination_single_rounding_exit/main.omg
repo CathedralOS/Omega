@@ -17,11 +17,12 @@ use omega::language::core::float_operations;
 // exit 78/79/80 = the respective face still taking the old
 // f64-then-narrow route.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Sample [copy] { x: f32; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     f: f32;
     s: Sample;
 }

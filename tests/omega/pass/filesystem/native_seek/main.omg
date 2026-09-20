@@ -4,9 +4,10 @@
 // up. NOT registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot).
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     zero_off: i64;
     seek_end: i32;

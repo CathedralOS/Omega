@@ -4,6 +4,7 @@
 // If the bug is mixing payload + no-payload in any order, this will also fail.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data AlarmEvent {
     case Trigger;
@@ -14,7 +15,7 @@ data AlarmEvent {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     fire_count: i32 in Saturating;
     pause: [u8; 256];
 }

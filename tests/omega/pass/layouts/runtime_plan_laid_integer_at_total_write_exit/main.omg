@@ -2,6 +2,7 @@
 // admitted value has an encoding. Mutation may therefore narrow without a
 // per-value proof; the following projection must sign-extend it back to i64.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
@@ -47,7 +48,7 @@ machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
 
 data PortableByte { value: i64 [-128..=127]; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     packed: SignedByte<PortableByte>;
     source: i64 [-128..=127];
 }

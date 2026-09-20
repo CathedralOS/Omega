@@ -5,9 +5,10 @@
 // and field arithmetic accumulation. Discriminating: a miscounted loop or a dropped reset changes
 // the sum. Exit 70 iff sum == 36.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     i: i32 in Wrapping;
     j: i32 in Wrapping;
     k: i32 in Wrapping;

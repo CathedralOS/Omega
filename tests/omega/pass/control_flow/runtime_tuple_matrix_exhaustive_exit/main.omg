@@ -9,7 +9,8 @@
 // Uncovered matrices keep the loud refusal
 // (fail/control_flow/tuple_transition_uncovered_rejected).
 use omega_language_std::console;
-data Main { console: Console; out: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; out: i32; }
 machine Main::main(&mut self) reaches Console {
     let found: bool = true;
     let has_next: bool = false;

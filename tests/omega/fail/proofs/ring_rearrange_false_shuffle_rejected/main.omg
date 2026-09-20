@@ -5,6 +5,7 @@
 use omega::language::core::nat;
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 machine bogus_shuffle(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a;
@@ -17,5 +18,5 @@ ensures
     }
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

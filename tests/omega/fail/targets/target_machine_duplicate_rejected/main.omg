@@ -4,6 +4,7 @@
 // resolves to the HOST target on every machine, so both rows are selected on
 // any host and the duplicate fires host-portably.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Helper { seed: i32; }
 
@@ -14,7 +15,7 @@ local_unchecked machine Helper::pick(&self) -> i32 {
     transition { _ -> 7 }
 }
 
-data Main { console: Console; helper: Helper; }
+data Main { console: Service<Console>; helper: Helper; }
 
 machine Main::main(&mut self) {
     let a: i32 = self.helper.pick();

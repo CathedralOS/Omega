@@ -4,6 +4,7 @@
 // the frame-base-indexed resolver walks `container -> items` to the array
 // field's prefix offset. items[1].id=42, k=1 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Item {
     id: i32;
 }
@@ -19,7 +20,7 @@ machine Finder::find(&self, container: Box, k: u64 [0..=1]) -> i32 {
     transition { _ -> v }
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     bx: Box;
     worker: Finder;
 }

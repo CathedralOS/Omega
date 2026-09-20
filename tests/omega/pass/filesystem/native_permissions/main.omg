@@ -4,9 +4,10 @@
 // kernel enforces the mode. Prints PASS iff the write-open fails with EACCES.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     readonly: u32;
     wronly: i32;

@@ -10,6 +10,7 @@
 // is matched and its payload extracted. All correct -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell {
     case Empty;
@@ -23,7 +24,7 @@ data Item {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [Cell; 4];
     idx: u64;
     item: Item;

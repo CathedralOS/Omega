@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8; 32]::Utf8
 requires
@@ -72,7 +73,7 @@ machine Dungeon::enter_room(
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;

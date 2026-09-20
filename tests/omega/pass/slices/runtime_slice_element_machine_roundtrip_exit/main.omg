@@ -3,8 +3,9 @@
 // and the machine field kept ZII 0), write `s[2] = self.put`, and RMW
 // `s[0] = s[0] + 5`. Exact values distinguish every wrong-op face. -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4];
     got: i32;
     put: i32;

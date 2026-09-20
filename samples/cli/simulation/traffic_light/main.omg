@@ -9,6 +9,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // The three traffic-light phases. ZII (zero-initialized) is Red.
 // [copy] is required so Phase can be a field inside a [copy] aggregate.
@@ -27,7 +28,7 @@ data Light [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     light: Light;
     pause: [u8; 256];
 }

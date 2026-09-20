@@ -12,11 +12,12 @@
 // argument-overlap detector stages the call. Interpreter was always correct.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Summer {}
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32 in Wrapping; 4];
     summer: Summer;
 }

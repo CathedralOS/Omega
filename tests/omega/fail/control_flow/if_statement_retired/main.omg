@@ -2,8 +2,9 @@
 // it had no `else` and no continuation, so its dispatch could always fall
 // through. Dispatch is `transition`, whose arms must provably cover.
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32;
 }
 machine Main::main(&mut self) {

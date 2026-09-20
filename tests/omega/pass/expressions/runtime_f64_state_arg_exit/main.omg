@@ -15,9 +15,10 @@ use omega::language::core::float_operations;
 // Native x64:  exits 70 after the float-literal materialization fix.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     int_result: i32;
     flt_result: f64;
 }

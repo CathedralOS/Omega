@@ -16,6 +16,7 @@ requires
 // all three guard-position compares are right.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Pair {
     a: i32;
@@ -29,7 +30,7 @@ trait Equatable {
 PairEquatable: Pair satisfies Equatable;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     left: Pair;
     right: Pair;
 }

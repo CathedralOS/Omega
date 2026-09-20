@@ -5,9 +5,10 @@
 // machine-resident START loads off the machine base (its own relocation).
 // lo=1, hi=4 -> len 3 -> exit 3.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5];
     lo: u64;
     hi: u64;

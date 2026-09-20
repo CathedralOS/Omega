@@ -11,8 +11,9 @@
 // discharge each indexed access, and `Wrapping` on the loop/stack indices frees
 // the +1/-1 from an overflow obligation while the guards keep them in range.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     input: [i32; 4];
     stack: [i32; 4];
     i: i32 in Wrapping;

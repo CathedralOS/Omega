@@ -7,9 +7,10 @@
 // ancestor). Prints PASS iff Yes/No/Yes all match.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     noaccess: u32;
     fd: i32;

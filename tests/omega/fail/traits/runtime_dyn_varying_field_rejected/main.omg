@@ -8,7 +8,7 @@
 // the native route still refuses the shape at the transitive Unit-plan
 // admission wall. (Sound pattern today: guard on the selector and call a
 // concrete receiver per arm, i.e. two call sites.)
-use omega::language::std::console;
+
 trait Shape {
     machine code(&mut self) -> i32;
 }
@@ -27,14 +27,13 @@ SquareShape: Square satisfies Shape {
     Shape::code = Square::code;
 }
 data Main {
-    console: Console;
     c: Circle;
     q: Square;
     handler: dyn Shape;
     pick: i32;
     result: i32;
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) {
     self.pick = 1;
     transition self.pick == 0 {
         true -> set_circle()
@@ -55,6 +54,6 @@ machine Main::main(&mut self) reaches Console {
             false -> bad()
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(&mut self) { }
+    state bad(&mut self) { }
 }

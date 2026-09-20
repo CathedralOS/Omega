@@ -16,9 +16,10 @@ use omega::language::core::float_operations;
 // is empty.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     vals: [f64; 2];
 }
 

@@ -7,9 +7,10 @@
 // closes the last sub-case of the transition-value-return position.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     flag: bool;
 }
 

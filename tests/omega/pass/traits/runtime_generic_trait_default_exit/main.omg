@@ -1,6 +1,7 @@
 // Standalone generic conformance arguments specialize both the synthesized
 // default signature and the authored body it carries.
 use omega_language_std::console;
+use omega::language::core::service;
 
 trait Initializable<T> {
     machine assign(&mut self, value: T);
@@ -55,7 +56,7 @@ machine ForwardedCounter::store(&mut self, value: i32) {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     direct: DirectCounter;
     parent: ParentCounter;
     forwarded: ForwardedCounter;

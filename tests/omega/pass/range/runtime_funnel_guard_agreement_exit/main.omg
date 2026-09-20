@@ -6,9 +6,10 @@
 // `false` at `(Integer(0), Integer(0))`), and validation joins ALL incoming
 // edge envs per-place (interval union). sp=7 -> exit 7.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     sp: i32;
     y: i32 [0..=15];
 }

@@ -6,6 +6,7 @@
 // destructures two computed copy-record subjects, proving each is captured
 // exactly once before any field projection.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell {
     case Empty;
@@ -15,7 +16,7 @@ data Cell {
 data Point [copy] { x: i32; y: i32; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     left: Cell;
     right: Cell;
     calls: u32 in Wrapping;

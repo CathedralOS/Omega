@@ -8,6 +8,7 @@
 // all agree.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 trait Equatable {
     machine equals(&self, rhs: &Self) -> bool;
@@ -32,7 +33,7 @@ machine OverridePoint::equals(&self, rhs: &OverridePoint) -> bool {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Point;
     b: Point;
     c: Point;

@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // The DIRECT host-call-argument face (the last #37 sub-face): `table.con_out`
 // passed STRAIGHT into the named vtable-field call, no manual let. This used to fold
 // FLAT (frame_storage@72 -- slot 8 + con_out 64, silent firmware poison into
@@ -13,7 +14,7 @@ pub data EfiSystemTable {
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
-pub data Main { out: TextOutput; msg: [u16; 19]; }
+pub data Main { out: Service<TextOutput>; msg: [u16; 19]; }
 boundary machine Main::main(&self, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
 invokes TextOutput;

@@ -26,13 +26,14 @@
 
 use omega::language::core::numeric_conversion;
 use omega::language::core::float_operations;
+use omega::language::core::service;
 
 domain [u8]::CString
 requires
     no_nul(self);
 // The Objective-C runtime seam (libobjc). Human method names; the `_objc_*`/`_sel_*`
 // symbols live only in the darwin binding table.
-boundary trait ObjectiveC {
+pub boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;
     machine register_selector(name: &[u8] in CString) -> u64;
     machine send(recv: u64, sel: u64) -> u64;
@@ -55,7 +56,7 @@ boundary trait ObjectiveC {
 }
 
 // The Core Graphics seam (CoreGraphics framework) for the framebuffer blit.
-boundary trait CoreGraphics {
+pub boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;
     // `data` is READ-ONLY here: the framebuffer is snapshotted into the CGImage
     // (`bitmap_context_image`), never drawn into, so an immutable ref suffices —
@@ -73,8 +74,8 @@ boundary trait CoreGraphics {
 }
 
 data MacosGui {
-    objc: ObjectiveC;
-    cg: CoreGraphics;
+    objc: Service<ObjectiveC>;
+    cg: Service<CoreGraphics>;
     // The current window + its image-view content (single-window apps).
     window: u64;
     view: u64;
@@ -339,7 +340,7 @@ reaches ObjectiveC
 // value-call. Unmapped virtual-keys report "not down" (0) rather than querying a
 // wrong keycode.
 data MacosInput {
-    cg: CoreGraphics;
+    cg: Service<CoreGraphics>;
     keycode: u64;
     rc: u64;
 }

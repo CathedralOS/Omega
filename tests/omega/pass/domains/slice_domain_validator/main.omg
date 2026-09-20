@@ -3,6 +3,7 @@
 // resolves to the `[u8]::Utf8` domain (membership over a slice-carrier domain).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
@@ -12,7 +13,7 @@ ensures
     result in Utf8;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) {

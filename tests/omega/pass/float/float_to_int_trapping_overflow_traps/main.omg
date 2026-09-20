@@ -2,7 +2,8 @@ use omega::language::core::float_operations;
 
 // F4: a policy-tagged out-of-range float-to-int cast traps before the exit.
 use omega_language_std::console;
-data Main { console: Console; value: f64; out: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; value: f64; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.value = 100000000000000000000.0;
     self.out = (self.value as i32 in Trapping) as i32;

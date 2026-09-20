@@ -3,6 +3,7 @@
 // suffix [value] to the Member receiver -- the old catch-all DROPPED it and
 // read the receiver's first bytes (pad == 99) instead of value == 42.
 use omega_language_std::console;
+use omega::language::core::service;
 data Inner {
     pad: i32;
     value: i32;
@@ -11,7 +12,7 @@ data Box {
     inner: Inner;
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     bx: Box;
 }
 machine Main::grab(&self, b: Inner) -> i32 {

@@ -1,17 +1,18 @@
-data Cell {
+use omega::language::core::service;
+pub data Cell {
     value: i32;
 }
 
-data Message {
+pub data Message {
     body: &Cell;
 }
 
-boundary trait Scheduler {
+pub boundary trait Scheduler {
     machine park(message: Message) suspends;
 }
 
 data Main {
-    scheduler: Scheduler;
+    scheduler: Service<Scheduler>;
     cell: Cell;
 }
 

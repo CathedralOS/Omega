@@ -2,9 +2,10 @@
 // must reject `self.cells[2] = 100` -- before the indexed-target obligation,
 // element ranges were completely unenforced (the declaration was a lie).
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cells: [i32 [0..=7]; 4];
 }
 

@@ -6,9 +6,10 @@
 // disagrees would surface here.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a8: i8 in Saturating;
     b8: i8 in Saturating;
     r8: i8 in Saturating;

@@ -5,12 +5,13 @@
 // fields keep the decision-17 exact-arithmetic obligation dischargeable.
 // The runtime self-check accepts only 30 + 40 = 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Point {
     x: i32 [0..=100];
     y: i32 [0..=100];
     z: i32 [0..=100];
 }
-data Main { console: Console; point: Point; }
+data Main { console: Service<Console>; point: Point; }
 machine Main::main(&mut self) reaches Console {
     self.point = Point { x: 30, y: 40, z: 5 };
     let { x, y as vertical, z as _ } = self.point;

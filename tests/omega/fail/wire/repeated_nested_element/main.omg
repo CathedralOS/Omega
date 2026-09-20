@@ -4,6 +4,7 @@
 // rejects the encode call loudly instead of half-supporting it.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Point {
     #0 x: i32;
@@ -24,7 +25,7 @@ data PolygonValue {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

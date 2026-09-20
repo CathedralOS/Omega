@@ -16,6 +16,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // Severity levels. Error carries a numeric code.
 data LogLevel {
@@ -35,7 +36,7 @@ data Logger [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     logger: Logger;
     pause: [u8; 256];
 }

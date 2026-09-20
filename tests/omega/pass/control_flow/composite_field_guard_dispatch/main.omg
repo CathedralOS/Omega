@@ -2,6 +2,7 @@ domain [u8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
+use omega::language::core::service;
 data EventKind {
     case Quiet;
     case Treasure;
@@ -13,7 +14,7 @@ data Event {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     event: Event;
 }
 

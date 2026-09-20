@@ -5,9 +5,10 @@
 // unused index 1 is a decoy that a dropped index would surface. (Distinct from dot_product, which
 // uses the SAME index in a loop.)
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 3] in Wrapping;
     i: u32 in Wrapping;
     j: u32 in Wrapping;

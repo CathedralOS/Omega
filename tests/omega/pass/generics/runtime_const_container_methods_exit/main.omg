@@ -1,6 +1,7 @@
 // Parameter-free attached methods clone onto each const-specialized record,
 // preserving receiver identity and the instance's concrete fixed-array layout.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data FixedBuffer<const N: u64> {
     items: [i32 in Wrapping; N];
@@ -19,7 +20,7 @@ machine FixedBuffer::capacity<const N: u64>(&self, witness: &[u8; N]) -> u64 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     small: FixedBuffer<2>;
     large: FixedBuffer<4>;
 }

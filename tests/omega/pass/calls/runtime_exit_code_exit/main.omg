@@ -5,9 +5,10 @@
 // with that exact value (so a passing run is exit code 70, NOT 0 and NOT a literal).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
 }
 

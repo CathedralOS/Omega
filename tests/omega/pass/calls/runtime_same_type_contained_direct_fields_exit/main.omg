@@ -13,11 +13,12 @@
 // a starts 3 then +10 = 13; b starts 1 then +20 = 21. Independent -> exit 70.
 // A regression that aliased them would corrupt one -> exit 71.
 use omega_language_std::console;
+use omega::language::core::service;
 data Counter {
     value: i32 in Wrapping;
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Counter;
     b: Counter;
 }

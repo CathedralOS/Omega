@@ -3,9 +3,10 @@
 // a constraint the declaration claims but never checks. Rejected at the
 // declaration instead.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     n: i32;
     x: i32 [0..=n];
 }

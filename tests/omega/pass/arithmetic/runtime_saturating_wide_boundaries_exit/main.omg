@@ -11,8 +11,9 @@
 // Values are built through runtime fields so the const folder cannot pre-clamp.
 // Exits 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: i64 in Saturating;
     b: i64 in Saturating;
     u: u64 in Saturating;

@@ -8,6 +8,7 @@
 // Expected exit: 42.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // FULLY EXACT -- no overflow domain: each match arm passes its payload through a
 // guard hop (`radius < 101` etc.) into a compute state with a RANGED parameter, so
@@ -19,7 +20,7 @@ data Shape {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     shape: Shape;
     area: i32;
     pause: [u8; 256];

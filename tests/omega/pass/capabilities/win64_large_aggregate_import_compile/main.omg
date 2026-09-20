@@ -2,6 +2,7 @@
 // a 16-byte-aligned caller copy. The declared position still selects the
 // pointer register, so the record between two scalars occupies RDX.
 use omega::language::core::external_binding;
+use omega::language::core::service;
 
 data Triple {
     first: u64;
@@ -9,7 +10,7 @@ data Triple {
     third: u64;
 }
 
-boundary trait LargeAggregateImport {
+pub boundary trait LargeAggregateImport {
     machine send(before: u64, value: Triple, after: u64) -> i32;
 }
 
@@ -25,7 +26,7 @@ windows_x86_64 machine large_aggregate_binding() -> Binding<19, 33, 0> {
 windows_x86_64 machine large_aggregate_import(before: u64, value: Triple, after: u64) -> i32 satisfies LargeAggregateImport::send via large_aggregate_binding();
 
 data Main {
-    foreign: LargeAggregateImport;
+    foreign: Service<LargeAggregateImport>;
     before: u64;
     input: Triple;
     after: u64;

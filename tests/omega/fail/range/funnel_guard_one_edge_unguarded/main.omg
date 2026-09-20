@@ -2,9 +2,10 @@
 // UNGUARDED (`_ ->`), so no entry fact survives the join and the ranged copy
 // must reject.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     sp: i32;
     y: i32 [0..=15];
 }

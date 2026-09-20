@@ -5,8 +5,9 @@
 // runtime index. Pins BOTH consumers: machine-field target (`self.got = ..`)
 // and frame LET target (`let picked = ..`). grid[1][2]=42, j=2 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [[i32; 4]; 3];
     j: u64 [0..=3];
     got: i32;

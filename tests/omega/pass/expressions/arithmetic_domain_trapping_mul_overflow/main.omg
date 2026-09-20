@@ -4,9 +4,10 @@
 // arithmetic_domain_trapping_mul_overflow_aborts.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: u8 in Trapping;
     b: u8 in Trapping;
 }

@@ -10,9 +10,10 @@ use omega::language::core::float_operations;
 // only if every comparison evaluates correctly.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     computed: f64;
     negative: f64;
 }

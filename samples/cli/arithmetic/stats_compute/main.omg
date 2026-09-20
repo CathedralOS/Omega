@@ -20,6 +20,7 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Stats [copy] {
     // Running accumulator for sum and sum-of-squares.
@@ -34,7 +35,7 @@ data Stats [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     s: Stats;
     pause: [u8; 256];
 }

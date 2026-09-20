@@ -7,9 +7,10 @@
 // across nested loops, with no array indexing.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bits: u32 in Wrapping;
     i: u32 in Wrapping;
     j: u32 in Wrapping;

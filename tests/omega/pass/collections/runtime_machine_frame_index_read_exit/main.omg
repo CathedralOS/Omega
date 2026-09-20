@@ -3,8 +3,9 @@
 // indexed copy encoder now loads the index off a second (frame) base
 // relocation. arr[2]=9, k=2 -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4];
 }
 machine Main::main(&mut self) {

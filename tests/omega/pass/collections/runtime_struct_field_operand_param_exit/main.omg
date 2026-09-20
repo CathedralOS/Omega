@@ -1,12 +1,13 @@
 // Array-of-structs element field as a binary operand through a BY-VALUE
 // machine param (`pick(cells: [Cell; 3], i)` computing `cells[i].x + 5`).
 use omega_language_std::console;
+use omega::language::core::service;
 data Cell {
     x: i32 [0..=100];
     y: i32 [0..=100];
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     cells: [Cell; 3];
     r: i32;
 }

@@ -1,7 +1,8 @@
+use omega::language::core::service;
 domain [u8]::Utf8
 requires
     valid_utf8(self);
-boundary trait Console {
+pub boundary trait Console {
     machine write_line(text: &[u8] in Utf8);
 }
 
@@ -12,7 +13,7 @@ data Command {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     choice: Command;
     health: i32;
 }

@@ -1,4 +1,5 @@
-domain [u8]::Utf8
+use omega::language::core::service;
+pub domain [u8]::Utf8
 requires
     valid_utf8(self);
 // Chapter 18 "Capabilities And Authority Flow" (Derives, nested): a helper
@@ -8,16 +9,16 @@ requires
 // propagate `derives` up the call graph with the helper recorded as provenance
 // (`Worker::open_main_log derives via Worker::open_log`).
 
-data Folder {
+pub data Folder {
 }
 
-data File {
+pub data File {
 }
 
-domain File::Writable
+pub domain File::Writable
 established by Filesystem::open;
 
-boundary trait Filesystem {
+pub boundary trait Filesystem {
     machine open(folder: Folder, path: &[u8] in Utf8) -> File
     ensures
         result in File::Writable
@@ -26,7 +27,7 @@ boundary trait Filesystem {
 }
 
 data Worker {
-    fs: Filesystem;
+    fs: Service<Filesystem>;
 }
 
 machine Worker::open_log(&mut self, folder: Folder) -> File

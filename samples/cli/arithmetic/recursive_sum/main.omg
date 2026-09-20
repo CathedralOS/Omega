@@ -29,11 +29,12 @@
 // slices/recursive_subslice_element_accumulator_exit (oracle-matched).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Summer {}
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32 in Wrapping; 4];
     summer: Summer;
     pause: [u8; 256];

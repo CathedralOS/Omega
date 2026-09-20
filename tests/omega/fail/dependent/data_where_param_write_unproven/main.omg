@@ -4,6 +4,7 @@
 // values, so `count = 99` cannot prove `count <= len` and refuses
 // (before this rung the write bypassed the net entirely).
 use omega::language::std::console;
+use omega::language::core::service;
 data Tally
 where
     count <= len,
@@ -11,7 +12,7 @@ where
     len: u32;
     count: u32;
 }
-data Main { console: Console; tally: Tally; }
+data Main { console: Service<Console>; tally: Tally; }
 machine Main::corrupt(&mut self, target: &mut Tally) {
     target.count = 99;
 }

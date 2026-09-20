@@ -2,6 +2,7 @@
 // naming, domain-membership discharge, attached-machine specialization, and
 // both runtimes.
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain i8::Negative
 requires
@@ -18,7 +19,7 @@ machine SignedValue::value<const N: i8>(&self) -> i8 in Wrapping {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     signed: SignedValue<-2 ^ 7>;
     shifted_left: SignedValue<-2 << 2>;
     shifted_right: SignedValue<-2 >> 1>;

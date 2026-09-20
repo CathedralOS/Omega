@@ -7,6 +7,7 @@
 // arg correctly on both engines; a name-fallback mismatch would deliver
 // the decoy's 3.
 use omega_language_std::console;
+use omega::language::core::service;
 data Holder { pad: i32 in Wrapping; }
 machine Holder::deep(&mut self) -> i32 in Wrapping {
     self.pad = 2;
@@ -19,7 +20,7 @@ machine Holder::deep(&mut self) -> i32 in Wrapping {
     }
     state done(&mut self, out: i32 in Wrapping) -> i32 in Wrapping { out }
 }
-data Main { console: Console; holder: Holder; got: i32 in Wrapping; }
+data Main { console: Service<Console>; holder: Holder; got: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.got = self.holder.deep();
     transition self.got == 9 { true -> good() _ -> bad() }

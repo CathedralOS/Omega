@@ -9,6 +9,7 @@
 // key first when it strictly resolves. 10 + 2*20 + 3*30 = 140 checked
 // via per-index deliveries.
 use omega_language_std::console;
+use omega::language::core::service;
 data Store { x: i32 in Wrapping; y: i32 in Wrapping; z: i32 in Wrapping; }
 machine Store::pick(&mut self, idx: i32) -> i32 in Wrapping {
     transition idx == 0 {
@@ -34,7 +35,7 @@ machine Store::pick(&mut self, idx: i32) -> i32 in Wrapping {
         transition { _ -> (b) }
     }
 }
-data Main { console: Console; store: Store; a: i32 in Wrapping; b: i32 in Wrapping; c: i32 in Wrapping; }
+data Main { console: Service<Console>; store: Store; a: i32 in Wrapping; b: i32 in Wrapping; c: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.store.x = 10;
     self.store.y = 20;

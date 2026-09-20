@@ -2,9 +2,10 @@
 // derives its element count from exact byte tiling, and its descriptor keeps
 // pointer identity so indexed writes reach the original byte array.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bytes: [u8; 8];
 }
 

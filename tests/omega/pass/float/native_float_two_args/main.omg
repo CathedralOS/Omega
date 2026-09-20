@@ -12,15 +12,16 @@ use omega::language::core::float_operations;
 // FLOAT class before marshalling.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
-boundary trait Math {
+pub boundary trait Math {
     machine round_nearest(value: f64) -> i64;
     machine hypotenuse(x: f64, y: f64) -> f64;
 }
 
 data Main {
-    console: Console;
-    math: Math;
+    console: Service<Console>;
+    math: Service<Math>;
     a: f64;
     b: f64;
     hyp: f64;

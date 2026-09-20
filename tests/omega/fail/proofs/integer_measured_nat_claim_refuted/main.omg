@@ -3,7 +3,8 @@
 // all-Zero result.
 use omega::language::core::nat;
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine bogus(n: u64) -> Nat
 terminates;

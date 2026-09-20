@@ -6,7 +6,8 @@
 use omega::language::core::nat;
 
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 
 machine bogus_gcd(a: Nat, b: Nat) -> Nat
 terminates by b;

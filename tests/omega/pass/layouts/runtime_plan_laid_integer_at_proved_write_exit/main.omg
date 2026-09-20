@@ -2,6 +2,7 @@
 // total. This concrete write is nevertheless safe because the source carries
 // a checked declaration range wholly contained by signed 8-bit storage.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
@@ -48,7 +49,7 @@ machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
 data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     packed: SignedByte<PortableByte>;
     source: i64 [-128..=127];
     flow_source: i64;

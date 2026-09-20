@@ -9,7 +9,8 @@
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
-data Main { console: Console; fs: Filesystem; open_result: OpenResult; unit_result: UnitResult; meta_result: MetadataResult; rc: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; fs: Filesystem; open_result: OpenResult; unit_result: UnitResult; meta_result: MetadataResult; rc: i32; }
 machine Main::main(&mut self) reaches Console {
     self.open_result = self.fs.create("omega_setlen_probe.txt");
     transition self.open_result { OpenResult::Ok { file } -> extend(file) _ -> bad(71) }

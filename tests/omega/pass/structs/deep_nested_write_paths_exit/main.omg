@@ -11,12 +11,13 @@
 // exits: 71 = nested write wrong/bled; 72 = sum-in-struct dispatch wrong;
 // 73 = nested sum payload wrong; 74 = element field write wrong/bled.
 use omega_language_std::console;
+use omega::language::core::service;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Inner { a: u32; b: u32; }
 data Outer { first: Inner; second: Inner; }
 data Holder { tag: u32; msg: Msg; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     nested: Outer;
     holder: Holder;
     pair: [Inner; 2];

@@ -5,10 +5,11 @@
 // via the receiver-path walk (["p", "b"] -> the nested descent), where
 // the by-type walk read the FIRST BoxI (`a` = 5). y must be b's 9.
 use omega_language_std::console;
+use omega::language::core::service;
 data BoxI { value: i32; }
 machine BoxI::get(&self) -> i32 { transition { _ -> (self.value) } }
 data PairD { a: BoxI; b: BoxI; }
-data Main { console: Console; p: PairD; }
+data Main { console: Service<Console>; p: PairD; }
 machine Main::main(&mut self) reaches Console {
     self.p.a.value = 5;
     self.p.b.value = 9;

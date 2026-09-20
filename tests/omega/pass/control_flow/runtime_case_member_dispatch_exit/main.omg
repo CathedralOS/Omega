@@ -3,6 +3,7 @@
 // the matching arm, and the first case is the zero case.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Direction {
     case None;
@@ -12,7 +13,7 @@ data Direction {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     facing: Direction;
 }
 

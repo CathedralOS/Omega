@@ -1,1 +1,1 @@
-native-artifact Terminal production failed: Lowering(OperationProofUnavailable
+Terminal proposal must retain every integer comparison occurrence exactly once

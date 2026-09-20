@@ -8,9 +8,10 @@
 //   sum = nums[3] + nums[2] + nums[1] + nums[0] = 4 + 3 + 2 + 1 = 10.  Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 4] in Trapping;
     j: i32 in Trapping;
     sum: i32 in Trapping;

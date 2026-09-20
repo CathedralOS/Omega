@@ -10,6 +10,7 @@
 // real field values.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Pair {
     a: i32 in Wrapping;
@@ -24,7 +25,7 @@ machine Worker::run(pair: Pair) -> i32 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
 }
 

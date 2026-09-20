@@ -11,9 +11,10 @@
 // (4294967295) and take the `bad` arm. exit 70 = both correct; 71 = a misfire.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     s: i32;
     u: u32 in Wrapping;
     ys: i32;

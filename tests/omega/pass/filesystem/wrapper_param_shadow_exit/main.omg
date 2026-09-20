@@ -16,7 +16,8 @@
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
-data Main { console: Console; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; buffer: [u8; 64]; count: u64; bin_src: [u8; 5]; bin_back: [u8; 8]; }
+use omega::language::core::service;
+data Main { console: Service<Console>; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; buffer: [u8; 64]; count: u64; bin_src: [u8; 5]; bin_back: [u8; 8]; }
 machine Main::main(&mut self) reaches Console {
     self.bin_src[0] = 65;
     self.bin_src[1] = 13;

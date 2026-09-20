@@ -12,6 +12,7 @@
 // Total: 8 bytes.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Telemetry {
     #0 readings: &[i32];
@@ -22,7 +23,7 @@ data TelemetrySample {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     source: [i32; 4];
     buffer: [u8; 64];
     written: u64;

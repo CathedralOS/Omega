@@ -8,7 +8,7 @@
 // Data layout:
 //   Inner [copy] { value: i32; bonus: i32; }
 //   Outer [copy] { inner: Inner; count: i32; multiplier: i32; }
-//   Main  { console: Console; state: Outer; }
+//   Main  { console: Service<Console>; state: Outer; }
 //
 // Scripted operations (via sub-machines):
 //   1. set_value(10)    -> state.inner.value = 10
@@ -57,6 +57,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 // FULLY EXACT -- no overflow domain anywhere: range refinements make the final
 // `value + bonus + count * multiplier` verifiably bounded (<= 1000 + 1000 +
@@ -75,7 +76,7 @@ data Outer [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     state: Outer;
     pause: [u8; 256];
 }

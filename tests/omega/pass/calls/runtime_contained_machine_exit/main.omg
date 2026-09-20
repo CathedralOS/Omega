@@ -12,6 +12,7 @@
 // Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Counter {
     value: i32 in Wrapping;
@@ -28,7 +29,7 @@ machine Counter::get(&self) -> i32 in Wrapping {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     counter: Counter;
 }
 

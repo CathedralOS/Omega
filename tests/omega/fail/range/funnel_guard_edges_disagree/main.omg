@@ -3,9 +3,10 @@
 // side accepts only equivalent guards; the validation join keeps the union
 // [0, 31], which does not fit either).
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     sp: i32;
     y: i32 [0..=15];
 }

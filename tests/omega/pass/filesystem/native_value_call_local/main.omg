@@ -16,9 +16,10 @@
 // tests/omega/run/filesystem/wrapper_write_all_through_field).
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     fd: i32;
     n: i64;

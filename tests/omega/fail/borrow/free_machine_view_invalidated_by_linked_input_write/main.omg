@@ -6,6 +6,7 @@
 // aliasing violation.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Cell {
     value: i32;
@@ -16,7 +17,7 @@ data Bag {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     bag: Bag;
 }
 

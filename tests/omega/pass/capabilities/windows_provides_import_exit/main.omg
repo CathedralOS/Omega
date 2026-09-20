@@ -14,8 +14,9 @@
 // NATIVE-ONLY: the interpreter has no provider for authored bindings.
 use omega::language::core::external_binding;
 use omega_language_std::console;
-boundary trait Beeper { machine beep(value: i32) -> i32; }
-data Main { console: Console; beeper: Beeper; m: i32; v: i32; }
+use omega::language::core::service;
+pub boundary trait Beeper { machine beep(value: i32) -> i32; }
+data Main { console: Service<Console>; beeper: Service<Beeper>; m: i32; v: i32; }
 windows_x86_64 machine beeper_binding() -> Binding<10, 3, 0> {
     Binding::DllImport {
         import: DllImport::PeByName {

@@ -13,6 +13,7 @@
 // leaf result delivery.) Bind the call to a local first. Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Dir {
     case N;
@@ -24,7 +25,7 @@ data Vec2 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     code: i32 in Trapping;
     bare: Vec2;
     via_local: Vec2;

@@ -4,12 +4,13 @@
 // literal-as-`&[u8]` backend lowering before the corpus sweep relies on it.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain [u8]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::measure(&self, text: &[u8] in Utf8) -> u64 {

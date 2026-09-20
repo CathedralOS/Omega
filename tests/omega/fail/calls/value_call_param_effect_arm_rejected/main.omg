@@ -7,10 +7,11 @@
 // Unit plan unavailable; callers and the selected entry lose theirs, so the
 // closure check reports `missing a checked transitive machine plan` rather
 // than the retired `SIDE-EFFECTING arm state` emission fence.
-use omega::language::std::console;
+
 data Tally { count: i32 in Wrapping; }
 data Picker {}
-data Main { console: Console; picker: Picker; tally: Tally; v: i32; }
+data Main {
+    picker: Picker; tally: Tally; v: i32; }
 machine Picker::pick(&self, x: i32, tally: &mut Tally) -> i32 {
     transition x > 0 { true -> hi(tally) _ -> lo(tally) }
     state hi(&self, tally: &mut Tally) -> i32 {
@@ -22,10 +23,10 @@ machine Picker::pick(&self, x: i32, tally: &mut Tally) -> i32 {
         200
     }
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) {
     self.v = 5;
     let n: i32 = self.picker.pick(self.v, &mut self.tally);
     transition n == 100 { true -> report() _ -> bad(99) }
-    state report(&mut self) { self.console.exit_process(self.tally.count as i32); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+    state report(&mut self) { }
+    state bad(&mut self, code: i32) { }
 }

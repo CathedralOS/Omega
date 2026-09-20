@@ -13,9 +13,10 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     coeffs: [i32; 5] in Wrapping;
     i: i32 in Wrapping;
     x: i32 in Wrapping;

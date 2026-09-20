@@ -14,11 +14,12 @@
 // argument positions carry the same guard.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Foo { a: i32 in Wrapping; }
 data Bar { b: i32 in Wrapping; c: i32 in Wrapping; }
 
-data Main { console: Console; foo: Foo; bar: Bar; }
+data Main { console: Service<Console>; foo: Foo; bar: Bar; }
 
 machine Main::take_foo(&mut self, f: &Foo) -> i32 {
     transition { _ -> (f.a) }

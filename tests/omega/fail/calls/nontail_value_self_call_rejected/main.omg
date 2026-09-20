@@ -5,7 +5,8 @@
 // (The owner amendment CUT non-tail runtime recursion; depth lives in
 // storage the author sizes.)
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::triple(&mut self, n: u64) -> u64
 terminates by n;
 {

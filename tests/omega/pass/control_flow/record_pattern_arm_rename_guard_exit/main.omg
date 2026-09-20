@@ -3,8 +3,9 @@
 // type); the renamed binding participates in the if-guard rewrite.
 // Run-verified: 30 + 40 = 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Point { x: i32; y: i32; }
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) {
     self.judge(Point { x: 30, y: 40 });
 }

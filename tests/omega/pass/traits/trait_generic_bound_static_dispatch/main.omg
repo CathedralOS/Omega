@@ -3,6 +3,7 @@
 // lowers subject.increment() to Counter::increment; there is no runtime trait
 // dictionary. Expected exit: 1.
 use omega_language_std::console;
+use omega::language::core::service;
 
 trait Incrementable {
     machine increment(&mut self);
@@ -24,7 +25,7 @@ where
     subject.increment();
 }
 
-data Main { console: Console; counter: Counter; }
+data Main { console: Service<Console>; counter: Counter; }
 
 machine Main::main(&mut self) reaches Console {
     step(&mut self.counter);

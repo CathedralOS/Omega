@@ -2,9 +2,10 @@
 // target regardless of which element is written -- `self.cells[self.i] = 100`
 // must reject like the const-index face.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cells: [i32 [0..=7]; 4];
     i: u64 [0..=3];
 }

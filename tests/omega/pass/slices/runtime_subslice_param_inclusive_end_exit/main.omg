@@ -4,11 +4,12 @@
 // ptr = sub.ptr + 1*elem, len = 3 (elements 1, 2, 3).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Entry { value: i32; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     entries: [Entry; 5];
 }
 

@@ -3,9 +3,10 @@
 // outside 0..=100, so the fact-bearing source is not representation-
 // compatible with the mutable target even though their byte widths agree.
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     wide: u32 [0..=100];
 }
 

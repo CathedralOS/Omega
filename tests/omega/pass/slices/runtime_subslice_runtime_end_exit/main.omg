@@ -3,11 +3,12 @@
 // length is the runtime end value (end - 0), read from `end`'s frame slot.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Entry { value: i32; }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     entries: [Entry; 5];
 }
 

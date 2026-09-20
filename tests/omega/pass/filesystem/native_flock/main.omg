@@ -10,9 +10,10 @@
 // Prints PASS iff all four rc/errno match. Proves flock lowers + contends for real.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     rdonly: i32;
     fd1: i32;

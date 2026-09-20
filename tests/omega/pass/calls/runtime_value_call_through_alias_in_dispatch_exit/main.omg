@@ -12,6 +12,7 @@
 // `max(out.field, <call>+1)` through a &mut level alias.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Level {
     room_count: u64;
@@ -34,7 +35,7 @@ machine Store::build(&mut self, out: &mut Level) {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     store: Store;
     level: Level;
 }

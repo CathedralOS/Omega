@@ -14,9 +14,10 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     pause: [u8; 256];
     buffer: [u8; 8] in Utf8;
     value: i32;

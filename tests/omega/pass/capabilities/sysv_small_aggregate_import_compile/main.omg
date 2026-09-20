@@ -5,13 +5,14 @@
 // compiler-owned `Binding::DllImport` value carrying one exact versioned-ELF
 // import, so raw foreign bytes stay data.
 use omega::language::core::external_binding;
+use omega::language::core::service;
 
 data Pair {
     first: u64;
     second: u64;
 }
 
-boundary trait AggregateImport {
+pub boundary trait AggregateImport {
     machine call(tag: u64, pair: Pair) -> Pair;
 }
 
@@ -27,7 +28,7 @@ linux_x86_64 machine aggregate_binding() -> Binding<18, 32, 7> {
 
 linux_x86_64 machine aggregate_import(tag: u64, pair: Pair) -> Pair satisfies AggregateImport::call via aggregate_binding();
 
-data Main { foreign: AggregateImport; pair: Pair; result: Pair; }
+data Main { foreign: Service<AggregateImport>; pair: Pair; result: Pair; }
 machine Main::main(&mut self) reaches AggregateImport {
     self.pair = Pair { first: 1, second: 2 };
     self.result = self.foreign.call(7, self.pair);

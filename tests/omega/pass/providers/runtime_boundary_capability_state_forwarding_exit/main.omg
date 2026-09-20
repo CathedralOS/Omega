@@ -4,17 +4,18 @@
 // layout, while host-call lowering continues to use the capability's type and
 // selected provider identity.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
-machine forward_console(console: Console)
+machine forward_console(console: Service<Console>)
 reaches Console
 {
     transition { _ -> emit(console) }
 
-    state emit(console: Console) {
+    state emit(console: Service<Console>) {
         console.write_byte(75);
     }
 }

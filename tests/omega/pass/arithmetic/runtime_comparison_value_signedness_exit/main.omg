@@ -5,9 +5,10 @@
 // the operand width with the matching signed/unsigned setcc.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     si: i32;
     sj: i32;
     signed_gt: i32;

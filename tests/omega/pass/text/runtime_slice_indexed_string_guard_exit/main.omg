@@ -10,13 +10,14 @@ requires
 // selected NO compare at all and the first transition arm was taken
 // unconditionally -- an empty field "equalled" any literal.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Room {
     name: &[u8] in Utf8;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     rooms: [Room; 3];
 }
 

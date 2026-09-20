@@ -4,7 +4,8 @@
 // ISA's silent count-masking under Exact is an invented number and never
 // adopted.
 use omega::language::std::console;
-data Main { console: Console; n: u32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; n: u32; }
 machine Main::main(&mut self) {
     self.n = 1 << 40;
     self.console.exit_process(0);

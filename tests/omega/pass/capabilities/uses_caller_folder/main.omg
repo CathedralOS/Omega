@@ -1,4 +1,5 @@
-domain [u8]::Utf8
+use omega::language::core::service;
+pub domain [u8]::Utf8
 requires
     valid_utf8(self);
 // A library that USES a caller-provided capability. The `Folder` writer surface
@@ -6,7 +7,7 @@ requires
 // authority without ever minting its own. The boundary has no in-package
 // implementation, so it is an approved provider edge.
 
-boundary trait Folder {
+pub boundary trait Folder {
     machine write_line(text: &[u8] in Utf8)
     reaches
         Folder;
@@ -15,13 +16,13 @@ boundary trait Folder {
 data Librarian {
 }
 
-machine Librarian::archive(&self, folder: Folder) reaches Folder {
+machine Librarian::archive(&self, folder: Service<Folder>) reaches Folder {
     folder.write_line("archive entry");
 }
 
 data Main {
     librarian: Librarian;
-    folder: Folder;
+    folder: Service<Folder>;
 }
 
 machine Main::main(&mut self) {

@@ -8,9 +8,7 @@
 // machine. The native route still refuses it at the transitive Unit-plan
 // admission wall. The measured twin RUNS:
 // pass/calls/runtime_measured_tail_recursion_exit.
-use omega::language::std::console;
 data Main {
-    console: Console;
 }
 machine Main::countdown(&mut self, remaining: u64) -> u64
 {
@@ -19,12 +17,12 @@ machine Main::countdown(&mut self, remaining: u64) -> u64
         false -> 7
     }
 }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) {
     let value: u64 = self.countdown(2);
     transition value == 7 {
         true -> yes()
         false -> no()
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(&mut self) { }
+    state no(&mut self) { }
 }

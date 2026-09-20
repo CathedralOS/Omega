@@ -10,15 +10,16 @@ use omega::language::core::float_operations;
 // garbage -> round_nearest yields something else -> exit 1.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
-boundary trait Math {
+pub boundary trait Math {
     machine round_nearest(value: f64) -> i64;
     machine square_root(value: f64) -> f64;
 }
 
 data Main {
-    console: Console;
-    math: Math;
+    console: Service<Console>;
+    math: Service<Math>;
     input: f64;
     root: f64;
     n: i64;

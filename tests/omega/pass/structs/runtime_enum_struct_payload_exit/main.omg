@@ -13,6 +13,7 @@
 // the nested struct fields + the scalar. Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Point {
     x: i32 in Trapping;
@@ -26,7 +27,7 @@ data Event {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     ev: Event;
     r: i32 in Trapping;
 }

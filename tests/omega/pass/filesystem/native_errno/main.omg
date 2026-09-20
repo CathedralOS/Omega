@@ -4,9 +4,10 @@
 // works end-to-end. Prints PASS iff errno == 2.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     rdonly: i32;
     fd: i32;
     code: i32;

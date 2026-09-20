@@ -2,7 +2,8 @@
 // the operation, including when the left value is zero.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-data Main { console: Console; count: u32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; count: u32; }
 machine Main::main(&mut self) reaches Console {
     self.count = 32;
     let value: u32 in Trapping = (0 as u32 in Trapping);

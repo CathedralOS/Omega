@@ -13,6 +13,7 @@ use omega::language::core::float_operations;
 // All correct -> exit 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Point {
     x: f64;
@@ -20,7 +21,7 @@ data Point {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: f64;
     b: f64;
     sum: f64;

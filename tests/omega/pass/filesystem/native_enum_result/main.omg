@@ -12,6 +12,7 @@
 // (zero new failures).
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Pair [copy] {
     a: i64;
@@ -24,7 +25,7 @@ data PairResult {
 }
 
 data Probe {
-    host: FilesystemHost;
+    host: Service<FilesystemHost>;
     flag: bool;
 }
 
@@ -37,7 +38,7 @@ machine Probe::make(&mut self) -> PairResult {
 
 data Main {
     probe: Probe;
-    raw: FilesystemHost;
+    raw: Service<FilesystemHost>;
     n: i64;
     res: PairResult;
 }

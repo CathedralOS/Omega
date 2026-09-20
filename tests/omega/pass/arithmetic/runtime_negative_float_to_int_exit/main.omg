@@ -5,7 +5,8 @@ use omega::language::core::float_operations;
 // the results (a positive code) so the check is robust to how a shell reports a
 // negative process exit code.
 use omega_language_std::console;
-data Main { console: Console; a: f64; b: f64; ra: i32; rb: i32; }
+use omega::language::core::service;
+data Main { console: Service<Console>; a: f64; b: f64; ra: i32; rb: i32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 0.0 - 3.7;
     self.b = 0.0 - 100.0;

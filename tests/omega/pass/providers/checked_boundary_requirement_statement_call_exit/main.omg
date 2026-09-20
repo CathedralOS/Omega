@@ -4,6 +4,7 @@
 // authored requirement identity remains the source view.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 pub data CheckedMath {}
 
@@ -21,7 +22,7 @@ ensures result == input + 0 && input == input
     transition { _ -> (input + 0) }
 }
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 
 machine Main::main(&mut self)
 reaches Console

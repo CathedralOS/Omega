@@ -1,8 +1,9 @@
 // NO SILENT FALL-THROUGH: a value match without a default arm cannot cover
 // an integer subject; the dispatch needs `_`.
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     x: i32;
 }
 machine Main::main(&mut self) {

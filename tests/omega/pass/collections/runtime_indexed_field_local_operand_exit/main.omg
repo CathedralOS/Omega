@@ -9,9 +9,10 @@
 // 20, so t + 22 = 42 (a folded/dropped operand would read 0 -> 22 -> mismatch);
 // also sums a second indexed-field local. Native must match the interpreter.
 use omega_language_std::console;
+use omega::language::core::service;
 data Point { x: i32; y: i32; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     ps: [Point; 3];
     i: i32;
     r: i32 in Wrapping;

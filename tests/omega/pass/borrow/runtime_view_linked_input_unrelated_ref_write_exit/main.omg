@@ -9,6 +9,7 @@
 // linked view into `a` and the direct write into `b`.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Cell {
     value: i32;
@@ -19,7 +20,7 @@ data Bag {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     first: Bag;
     second: Bag;
 }

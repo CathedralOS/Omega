@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // RUN CANARY (stdin-driven, two invocations: "ok\n" -> exit 70, "no\n" -> 75).
 // The callee's ENTRY does a host call that writes self state (read_line into
 // self.buf), and BOTH leaf arms build their payloads from that state:
@@ -17,14 +18,14 @@
 // exit 70 = Ok payload delivered; 71 unused; 72 = Ok len lost (the mis-order);
 // 73 = Ok tail lost; 75 = Error kind delivered; 76 = Error kind lost.
 
-domain [u8]::Utf8
+pub domain [u8]::LineUtf8
 requires
     valid_utf8(self);
-domain [u8; 16]::Utf8
+pub domain [u8; 16]::LineUtf8
 requires
     valid_utf8(self);
-boundary trait Console {
-    machine read_line(out_line: &mut [u8; 16] in Utf8);
+pub boundary trait Console {
+    machine read_line(out_line: &mut [u8; 16] in LineUtf8);
     machine exit_process(return_code: i32);
 }
 
@@ -52,8 +53,8 @@ data BigResult {
 }
 
 data Probe {
-    console: Console;
-    buf: [u8; 16] in Utf8;
+    console: Service<Console>;
+    buf: [u8; 16] in LineUtf8;
 }
 
 machine Probe::classify(&mut self) -> i64 {
@@ -76,7 +77,7 @@ machine Probe::make(&mut self) -> BigResult reaches Console {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     probe: Probe;
     res: BigResult;
 }

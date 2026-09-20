@@ -7,9 +7,10 @@
 // bit shifted out was set. CRC-32 of "abc" is 891568578 (verified against zlib). Exits 70.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     data: [i32; 3] in Wrapping; // "abc"
     crc: u32 in Wrapping;
     b: u32 in Wrapping;

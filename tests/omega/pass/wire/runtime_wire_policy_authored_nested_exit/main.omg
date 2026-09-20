@@ -28,6 +28,7 @@
 // and every decoded field equals the original.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data RoomHeader {
     #0 room_id: u32;
@@ -57,7 +58,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
     read: u64;

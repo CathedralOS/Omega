@@ -10,8 +10,9 @@
 // Expected exit: 120
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 machine Main::fact(&mut self, n: u64, acc: u64 in Wrapping)
 terminates by n;

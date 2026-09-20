@@ -3,6 +3,7 @@
 // FALSE at the post-write valuation (strict store-time semantics; ch11
 // windows are the future relaxation).
 use omega::language::std::console;
+use omega::language::core::service;
 data MemoryMap
 where
     count <= len,
@@ -10,7 +11,7 @@ where
     len: u32;
     count: u32;
 }
-data Main { console: Console; map: MemoryMap; }
+data Main { console: Service<Console>; map: MemoryMap; }
 machine Main::main(&mut self) {
     self.map.count = 9;
     self.console.exit_process(70);

@@ -2,6 +2,7 @@
 // open indexed-domain result. The equality stays evidence; it does not merge
 // the two normalized domain identities.
 use omega_language_std::console;
+use omega::language::core::service;
 
 domain<T, const I: u64> T::Indexed<I>;
 domain<T, const I: u64, const J: u64> T::PairIndexed<I, J>;
@@ -94,7 +95,7 @@ machine retain_nested_result_fact<const A: u64>(
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

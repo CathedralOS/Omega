@@ -16,9 +16,10 @@
 // Expected: exit 70 (a1 = 9, a2 = 40, self.v = a1 + 61 = 70).
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32 in Wrapping;
 }
 

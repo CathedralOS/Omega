@@ -14,20 +14,21 @@ use omega::language::core::float_operations;
 // CoreGraphics is bindable as a directly-called framework (2nd dylib, no objc).
 
 use omega::language::std::console;
+use omega::language::core::service;
 
-boundary trait Math {
+pub boundary trait Math {
     machine round_nearest(value: f64) -> i64;
 }
 
-boundary trait CoreGraphics {
+pub boundary trait CoreGraphics {
     machine rect_max_x(x: f64, y: f64, w: f64, h: f64) -> f64;
     machine rect_max_y(x: f64, y: f64, w: f64, h: f64) -> f64;
 }
 
 data Main {
-    console: Console;
-    math: Math;
-    cg: CoreGraphics;
+    console: Service<Console>;
+    math: Service<Math>;
+    cg: Service<CoreGraphics>;
     x: f64;
     y: f64;
     w: f64;

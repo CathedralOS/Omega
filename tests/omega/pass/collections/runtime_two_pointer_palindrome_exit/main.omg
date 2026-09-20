@@ -7,9 +7,10 @@
 // guard is a separate, cleanly-errored gap (two runtime-indexed comparison operands).
 // The palindrome [3,7,9,7,3] is confirmed -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 5] in Trapping;
     i: i32 in Trapping;
     j: i32 in Trapping;

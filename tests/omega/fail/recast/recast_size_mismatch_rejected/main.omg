@@ -3,7 +3,8 @@
 // bytes) refuses at the rung-A scalar judgment (validation
 // recasts.rs).
 use omega::language::std::console;
-data Main { console: Console; x: i64; }
+use omega::language::core::service;
+data Main { console: Service<Console>; x: i64; }
 machine Main::main(&mut self) {
     self.x = 3;
     let v: &f32 = &self.x as &f32;

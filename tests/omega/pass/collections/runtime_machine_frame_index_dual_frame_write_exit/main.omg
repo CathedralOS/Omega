@@ -2,8 +2,9 @@
 // FRAME-resident params (`self.put(1, 44) { self.arr[k] = v }`) -- the
 // three-relocation case (frame source, machine re-load, frame index). -> 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4];
 }
 machine Main::main(&mut self) {

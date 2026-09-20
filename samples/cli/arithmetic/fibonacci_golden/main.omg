@@ -11,6 +11,7 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Fib [copy] {
     a: i32 in Wrapping;
@@ -20,7 +21,7 @@ data Fib [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     fib: Fib;
     fa: f64;
     fb: f64;

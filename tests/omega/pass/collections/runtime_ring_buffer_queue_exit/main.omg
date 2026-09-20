@@ -7,9 +7,10 @@
 // Each dequeue is checked against a running `expect` counter, so the canary fails loudly
 // (exits the wrong value) if FIFO order is ever violated. All 1..6 in order -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buf: [i32; 4] in Wrapping;
     head: i32 in Wrapping;   // next dequeue slot
     tail: i32 in Wrapping;   // next enqueue slot

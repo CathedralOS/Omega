@@ -19,6 +19,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Roller [copy] {
     rng_state: i32;
@@ -26,7 +27,7 @@ data Roller [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     roller: Roller;
     pause: [u8; 256];
 }

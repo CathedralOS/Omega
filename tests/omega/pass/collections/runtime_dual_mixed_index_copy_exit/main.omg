@@ -2,8 +2,9 @@
 // `arr[k] = arr[self.j]` (frame target idx / machine source idx) then
 // `arr[self.j] = arr[m]` (machine target idx / frame source idx). -> exit 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32; 4];
     j: u64 [0..=3];
 }

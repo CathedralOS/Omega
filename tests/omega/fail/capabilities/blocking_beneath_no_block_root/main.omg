@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // FFIVAL boundary-coherence gate: an externally callable root that omits
 // `blocks;` promises not to occupy its worker. Calling a blocking service
 // beneath that root cannot hide the operational behavior.
@@ -7,7 +8,7 @@ pub boundary trait WaitService {
 }
 
 pub data Main {
-    service: WaitService;
+    service: Service<WaitService>;
 }
 
 boundary machine Main::main(&mut self)

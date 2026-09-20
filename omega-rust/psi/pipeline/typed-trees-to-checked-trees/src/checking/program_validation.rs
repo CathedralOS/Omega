@@ -2,7 +2,9 @@ use diagnostics::Diagnostic;
 use flow_effects::{OperationalPlan, ServiceReachInferencePlan};
 use proof::obligations::ProofPlan;
 use typed_trees::TypedTrees;
+use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) struct ValidatedTypedProgram<'program> {
     pub(crate) proof_plan: ProofPlan<'program>,
@@ -31,6 +33,7 @@ pub(crate) fn validate_typed_program<'program>(
     let operational = validated.operational;
     validation::validate_behavior_plan(program, &operational)?;
     crate::checking::call_acknowledgements::validate_call_acknowledgements(program, &operational)?;
+    validate_no_bare_boundary_trait_values(program)?;
 
     Ok(ValidatedTypedProgram {
         proof_plan,
@@ -62,6 +65,172 @@ fn validate_atomic_result_custody(program: &TypedTrees) -> Result<(), Vec<Diagno
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+/// A bare boundary trait in value position does not denote a service carrier:
+/// fields, parameters, signature slots and returns name `Service<R>` instead.
+/// Borrows (`&T`, `&mut T`) and container members are other positions and stay
+/// out of this gate; only the outermost `Named`/`DynamicTrait`/`Generic` head
+/// (through `Constrained` shells) is inspected, so `Service<Console>` itself is
+/// never mistaken for a bare trait.
+fn validate_no_bare_boundary_trait_values(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    let mut check = |position: String, type_reference: TypeReferenceHandle| {
+        if let Some(trait_name) = bare_boundary_trait_name(program, type_reference) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{position} names bare boundary trait `{trait_name}` in value position; the intrinsic `Service<R>` carrier is the only service value spelling"
+            )));
+        }
+    };
+    for definition in program.data_definitions() {
+        for member in program.data_members(definition) {
+            match member {
+                DataMember::Field(field) => check(
+                    format!(
+                        "field `{}` on data `{}`",
+                        field.name.as_str(),
+                        definition.name.as_str()
+                    ),
+                    field.type_reference,
+                ),
+                DataMember::Variant(variant) => {
+                    for payload in program.data_payload_fields(variant) {
+                        check(
+                            format!(
+                                "payload field `{}` on case `{}` of data `{}`",
+                                payload.name.as_str(),
+                                variant.name.as_str(),
+                                definition.name.as_str()
+                            ),
+                            payload.type_reference,
+                        );
+                    }
+                }
+            }
+        }
+    }
+    for machine in program.machines() {
+        // A `satisfies` adapter on a boundary requirement may take the
+        // satisfied trait itself as one extra leading parameter — the
+        // self-forwarding receiver conformance slicing removes before
+        // arity/refinement. That slot is dispatch plumbing rather than a
+        // carried service, so its bare spelling stays admitted here.
+        let forwarding_receiver_symbols = program
+            .machine_trait_conformances(machine)
+            .iter()
+            .map(|conformance| conformance.symbol)
+            .filter(|symbol| {
+                program
+                    .traits()
+                    .iter()
+                    .any(|definition| definition.symbol == *symbol && definition.is_boundary)
+            })
+            .collect::<Vec<_>>();
+        for state in program.machine_states(machine) {
+            for (parameter_index, parameter) in program.state_parameters(state).iter().enumerate() {
+                if parameter_index == 0
+                    && !forwarding_receiver_symbols.is_empty()
+                    && bare_boundary_trait_symbol(program, parameter.type_reference)
+                        .is_some_and(|symbol| forwarding_receiver_symbols.contains(&symbol))
+                {
+                    continue;
+                }
+                check(
+                    format!(
+                        "parameter `{}` on `{}.{}`",
+                        parameter.name.as_str(),
+                        machine.name.as_str(),
+                        state.name.as_str()
+                    ),
+                    parameter.type_reference,
+                );
+            }
+            check(
+                format!(
+                    "return type of `{}.{}`",
+                    machine.name.as_str(),
+                    state.name.as_str()
+                ),
+                state.return_type,
+            );
+        }
+    }
+    for trait_definition in program.traits() {
+        for signature in program.trait_machine_signatures(trait_definition) {
+            for parameter in program.state_signature_parameters(signature) {
+                check(
+                    format!(
+                        "parameter `{}` on signature `{}.{}`",
+                        parameter.name.as_str(),
+                        trait_definition.name.as_str(),
+                        signature.name.as_str()
+                    ),
+                    parameter.type_reference,
+                );
+            }
+            check(
+                format!(
+                    "return type of signature `{}.{}`",
+                    trait_definition.name.as_str(),
+                    signature.name.as_str()
+                ),
+                signature.return_type,
+            );
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
+fn bare_boundary_trait_name(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<String> {
+    bare_boundary_trait_symbol_and_name(program, type_reference).map(|(_, name)| name)
+}
+
+fn bare_boundary_trait_symbol(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<symbols::SymbolHandle> {
+    bare_boundary_trait_symbol_and_name(program, type_reference).map(|(symbol, _)| symbol)
+}
+
+fn bare_boundary_trait_symbol_and_name(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> Option<(symbols::SymbolHandle, String)> {
+    loop {
+        if !program
+            .type_reference_table
+            .contains_type_reference(type_reference)
+        {
+            return None;
+        }
+        let symbol_and_name = match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                type_reference = *base_type;
+                continue;
+            }
+            TypeReferenceNode::Named { symbol, name }
+            | TypeReferenceNode::DynamicTrait { symbol, name, .. } => (*symbol, name.as_str()),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                ..
+            } => (*base_symbol, base_name.as_str()),
+            _ => return None,
+        };
+        let (symbol, name) = symbol_and_name;
+        return program
+            .traits()
+            .iter()
+            .any(|definition| definition.symbol == symbol && definition.is_boundary)
+            .then(|| (symbol, name.to_owned()));
     }
 }
 

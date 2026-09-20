@@ -9,9 +9,10 @@
 // hoist-temp typing walks interleaved Indexed/Member chains (rows[i].data[j]
 // minted an untypeable Unit temp before).
 use omega_language_std::console;
+use omega::language::core::service;
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
 data Main {
-    console: Console;
+    console: Service<Console>;
     grid: [[i32 in Wrapping; 4]; 3];
     rows: [Row; 3];
     i: u64 [0..=2];

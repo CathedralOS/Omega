@@ -3,6 +3,7 @@
 // remains valid.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Scalar {
     #0 value: u64;
@@ -18,7 +19,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     overlong_read: u64;
     overlong_verdict: WireVerdict;
     overflow_read: u64;

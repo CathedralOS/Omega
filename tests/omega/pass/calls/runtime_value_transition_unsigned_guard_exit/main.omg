@@ -10,9 +10,10 @@
 // B (20) and exits 71; a correct unsigned compare exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: u32;
     r: u32;
 }

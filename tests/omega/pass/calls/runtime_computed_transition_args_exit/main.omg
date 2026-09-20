@@ -11,9 +11,10 @@
 // result to a local/field first). Pinning the working shapes guards them against regressing
 // into that same failure mode.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: i32 in Wrapping;
     b: i32 in Wrapping;
     big: i32 in Wrapping;

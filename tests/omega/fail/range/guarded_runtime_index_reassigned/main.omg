@@ -2,8 +2,9 @@
 // reassigned between the guard and the increment, so the guard's fact about
 // `tallies[k-at-entry]` must not apply to `tallies[k-now]` -- reject.
 use omega::language::std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     tallies: [i32 [0..=16]; 4];
     k: u64 [0..=3];
 }

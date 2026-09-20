@@ -28,6 +28,7 @@ requires
 // object.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data LabelMessage {
     #0 count: u32;
@@ -45,7 +46,7 @@ data Command {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     buffer: [u8; 64];
     written: u64;
 }

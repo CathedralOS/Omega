@@ -5,6 +5,7 @@
 
 use omega::language::core::numeric_conversion;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Probe {
     bytes: [u8; 2];
@@ -28,7 +29,7 @@ machine Probe::decode(&mut self) -> i32 {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     probe: Probe;
     code: i32;
 }

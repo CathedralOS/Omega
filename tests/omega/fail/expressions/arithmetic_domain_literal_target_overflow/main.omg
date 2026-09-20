@@ -5,9 +5,10 @@
 // a domain (`u8 in Wrapping`/`Saturating`) or widen for a defined result.
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::main(&mut self) {

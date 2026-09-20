@@ -8,6 +8,7 @@
 // builder skips machines attached to generic TEMPLATE data even when they
 // declare no type params of their own.
 use omega_language_std::console;
+use omega::language::core::service;
 data Cell<T> {
     value: T;
     touched: i32 in Wrapping;
@@ -23,7 +24,7 @@ machine Cell::touch_count(&self) -> i32 in Wrapping {
     transition { _ -> (self.touched) }
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     a: Cell<i32>;
     b: Cell<bool>;
 }

@@ -22,10 +22,11 @@ use omega_language_std::time;
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
-    fs: FilesystemHost;
+    console: Service<Console>;
+    fs: Service<FilesystemHost>;
     time: Time;
     mode: i32;
     fd: i32;

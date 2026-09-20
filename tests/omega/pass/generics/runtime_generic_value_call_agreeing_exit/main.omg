@@ -4,7 +4,8 @@
 // let-bound and combined in an expression (the safe eager-capture pattern; see the shared-
 // result-slot fence). id(30) + id(40) = 70. Differential (native must match the interpreter).
 use omega_language_std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
 machine Main::main(&mut self) reaches Console {
     let a: i32 in Wrapping = self.id(30);

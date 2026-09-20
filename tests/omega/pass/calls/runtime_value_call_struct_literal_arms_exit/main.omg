@@ -10,6 +10,7 @@
 // enum CASE literal arm (`-> Token::Num { value: 9 }`). Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Dir {
     case N;
@@ -27,7 +28,7 @@ data Token {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
 machine Main::delta(&self, d: Dir) -> Vec2 {

@@ -4,9 +4,10 @@
 // Prints PASS. NOT registered in ACTIVE_PASS_CANARIES yet.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     read_flags: i32;
     cap: u64;

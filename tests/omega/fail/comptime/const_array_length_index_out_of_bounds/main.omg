@@ -6,9 +6,10 @@
 // would size the field right but let the write through).
 
 use omega::language::std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     slots: [i64; table_size()];
 }
 

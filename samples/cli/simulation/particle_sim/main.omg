@@ -22,6 +22,7 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Particle [copy] {
     position: f64;
@@ -30,7 +31,7 @@ data Particle [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     p: Particle;
     pause: [u8; 256];
 }

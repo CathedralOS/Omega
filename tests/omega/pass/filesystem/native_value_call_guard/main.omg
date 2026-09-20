@@ -12,9 +12,10 @@
 // regresses (returns true).
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Probe {
-    host: FilesystemHost;
+    host: Service<FilesystemHost>;
 }
 
 machine Probe::check(&mut self) -> bool reaches FilesystemHost {
@@ -26,7 +27,7 @@ machine Probe::check(&mut self) -> bool reaches FilesystemHost {
 
 data Main {
     probe: Probe;
-    raw: FilesystemHost;
+    raw: Service<FilesystemHost>;
     n: i64;
     here: bool;
 }

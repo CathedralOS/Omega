@@ -4,9 +4,10 @@
 // Seed 2463534242 -> one xorshift step -> low byte 99. Self-checks and exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     state: u32 in Wrapping;
     scratch: u32 in Wrapping;
     output: i32;

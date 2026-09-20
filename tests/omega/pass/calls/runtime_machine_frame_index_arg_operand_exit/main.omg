@@ -5,11 +5,12 @@
 // range instead of becoming an unprovable ranged-local store.
 // 9+30=39 -> report(9) -> 1.
 use omega_language_std::console;
+use omega::language::core::service;
 data Cell {
     v: i32 [0..=50];
 }
 data Main {
-    console: Console;
+    console: Service<Console>;
     arr: [i32 [0..=40]; 4];
     cells: [Cell; 3];
 }

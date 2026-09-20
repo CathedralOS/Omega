@@ -1,25 +1,26 @@
+use omega::language::core::service;
 // Chapter 18 makes a boundary trait signature's `requires` the CALLER's proof
 // obligation, the same way a boundary trait machine's `requires` is. Calls
 // through platform-typed contained objects never produced a call obligation
 // (the platform signature target was invisible to borrow/contract collection),
 // so the platform contract was vacuous; it must reject.
 
-data Item {
+pub data Item {
     value: i32;
 }
 
-domain Item::Ready
+pub domain Item::Ready
 requires
     self.value > 0;
 
-boundary trait Console {
+pub boundary trait Console {
     machine show(item: &Item)
     requires
         item in Item::Ready;
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     item: Item;
 }
 

@@ -2,7 +2,8 @@
 // position is only blessed when the TARGET parameter is u64-classed; a u32
 // param keeps the loud rejection (Fire H's negative face).
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) {
     transition { _ -> fwd(18446744073709551614) }
     state fwd(&mut self, n: u32) {

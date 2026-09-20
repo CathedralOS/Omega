@@ -1,13 +1,14 @@
 // Microsoft x64 returns 1/2/4/8-byte records by value in RAX. The compiler
 // test pins the eight-byte spill into the aggregate result place.
 use omega::language::core::external_binding;
+use omega::language::core::service;
 
 data Pair32 {
     first: u32;
     second: u32;
 }
 
-boundary trait DirectAggregateResultImport {
+pub boundary trait DirectAggregateResultImport {
     machine receive(seed: u64) -> Pair32;
 }
 
@@ -23,7 +24,7 @@ windows_x86_64 machine direct_aggregate_result_binding() -> Binding<19, 31, 0> {
 windows_x86_64 machine direct_aggregate_result_import(seed: u64) -> Pair32 satisfies DirectAggregateResultImport::receive via direct_aggregate_result_binding();
 
 data Main {
-    foreign: DirectAggregateResultImport;
+    foreign: Service<DirectAggregateResultImport>;
     seed: u64;
     result: Pair32;
 }

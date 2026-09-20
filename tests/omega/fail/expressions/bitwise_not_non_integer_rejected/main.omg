@@ -1,4 +1,5 @@
 // Integer complement is spelled `~`; it never reinterprets Boolean storage.
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) { let flag: bool = true; let value: bool = ~flag; self.console.exit_process(0); }

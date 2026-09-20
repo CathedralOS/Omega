@@ -3,7 +3,8 @@ use omega::language::core::float_operations;
 // PASS canary (F5), abort-style: Trapping float division by zero must trap.
 // exits: 7 = SAILED PAST the trap.
 use omega_language_std::console;
-data Main { console: Console; a: f64 in Trapping; z: f64 in Trapping; r: f64 in Trapping; }
+use omega::language::core::service;
+data Main { console: Service<Console>; a: f64 in Trapping; z: f64 in Trapping; r: f64 in Trapping; }
 machine Main::main(&mut self) reaches Console {
     self.a = 5.0;
     self.r = self.a / self.z;

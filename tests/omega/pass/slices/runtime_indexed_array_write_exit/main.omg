@@ -6,9 +6,10 @@
 // nums[3] back to confirm it holds 103. Exits 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 5];
     i: i32 in Trapping;
     v: i32 in Trapping;

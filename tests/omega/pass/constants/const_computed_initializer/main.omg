@@ -2,12 +2,13 @@
 // landed -- see pass/modules/computed_constant_initializers): const
 // initializers admit computed arithmetic expressions, not just literals.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Limits { ceiling: i32; }
 
 const Limits::CEILING: i32 = 60 + 10;
 
-data Main { console: Console; }
+data Main { console: Service<Console>; }
 machine Main::main(&mut self) reaches Console {
     self.console.exit_process(0);
 }

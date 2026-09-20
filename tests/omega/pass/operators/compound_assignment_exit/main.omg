@@ -4,9 +4,10 @@
 // not the stale entry-value constant fold.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     v: i32;
 }
 

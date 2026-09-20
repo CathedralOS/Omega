@@ -7,6 +7,7 @@
 // LocalStorage operation, after the callee's effects.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
+use omega::language::core::service;
 
 data Tally {
     calls: u64;
@@ -14,7 +15,7 @@ data Tally {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     tally: Tally;
 }
 

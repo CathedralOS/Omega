@@ -13,6 +13,7 @@
 // exits: 70 = every element read back exactly; 71 = a case, payload or
 // common field was lost inside the array.
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Kind [copy] {
     case Plain;
@@ -26,7 +27,7 @@ data Token [copy] {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     tokens: [Token; 16] in Trapping;
     count: u64 [0..=16];
     total: u64 in Trapping;

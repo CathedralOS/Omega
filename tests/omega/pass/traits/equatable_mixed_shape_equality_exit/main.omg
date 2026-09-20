@@ -8,6 +8,7 @@
 // factor/distribute mutual recursion this shape first exposed.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data RoomEvent {
     consumed: bool;
@@ -22,7 +23,7 @@ trait Equatable {
 RoomEventEquatable: RoomEvent satisfies Equatable;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     left: RoomEvent;
     right: RoomEvent;
 }

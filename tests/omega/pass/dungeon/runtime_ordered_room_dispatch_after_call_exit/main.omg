@@ -1,4 +1,5 @@
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Tracker {
     room_zero_seen: bool;
@@ -33,7 +34,7 @@ machine Tracker::mark_room(&mut self, room_index: u64) {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     tracker: Tracker;
     current_room: u64;
     fountain_used: bool;

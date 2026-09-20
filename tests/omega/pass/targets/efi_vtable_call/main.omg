@@ -1,3 +1,4 @@
+use omega::language::core::service;
 // *** THE GREETING -- MILESTONE 1: an Omega UEFI application prints "Hello from
 // Omega" through the firmware's SimpleTextOutput protocol. BOOT-VERIFIED under
 // QEMU/OVMF (2026-07-04): serial console shows "Hello from Omega",
@@ -18,7 +19,7 @@ pub data EfiSystemTable {
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
-pub data Main { out: TextOutput; msg: [u16; 19]; }
+pub data Main { out: Service<TextOutput>; msg: [u16; 19]; }
 boundary machine Main::main(&self, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
 invokes TextOutput;

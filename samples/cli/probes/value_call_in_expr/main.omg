@@ -32,11 +32,12 @@
 // calls/transition_arg_local_from_embedded_call_exit.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Calc {}
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     base: i32 in Saturating;
     calc: Calc;
     pause: [u8; 256];

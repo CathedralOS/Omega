@@ -19,9 +19,10 @@ requires
     valid_utf8(self);
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     prefix: [u8; 8] in Utf8;
     line: [u8; 16] in Utf8;
     suffix: [u8; 8] in Utf8;

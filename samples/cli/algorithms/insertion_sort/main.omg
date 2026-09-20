@@ -46,13 +46,14 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Sorter [copy] {
     arr: [i32; 6];
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     s: Sorter;
     pause: [u8; 256];
 }

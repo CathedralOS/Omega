@@ -9,8 +9,9 @@
 // store; second relocation at +17). nums[2] must land the CAPTURED 99, not the
 // overwritten 0 -> exit 70.
 use omega_language_std::console;
+use omega::language::core::service;
 data Main {
-    console: Console;
+    console: Service<Console>;
     nums: [i32; 4];
     i: i32 [0..=3];
     v: i32;

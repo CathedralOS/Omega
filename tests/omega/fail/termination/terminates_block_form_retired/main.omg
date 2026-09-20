@@ -2,7 +2,8 @@
 // RETIRED -- the ranking witness spells as `terminates by <subjects>
 // [-> View] [in <range>];`, the guarantee alone as bare `terminates;`.
 use omega::language::std::console;
-data Main { console: Console; }
+use omega::language::core::service;
+data Main { console: Service<Console>; }
 machine countdown(n: u64) -> u64
 terminates {
     decreases n;

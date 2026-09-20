@@ -7,8 +7,9 @@
 // variant dispatched (tag corrupted); 72 = a payload field read the wrong value.
 
 use omega_language_std::console;
+use omega::language::core::service;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
-data Main { console: Console; stored: Msg; }
+data Main { console: Service<Console>; stored: Msg; }
 
 machine Main::main(&mut self) {
     self.stored = Msg::Pong { y: 10, z: 20 };

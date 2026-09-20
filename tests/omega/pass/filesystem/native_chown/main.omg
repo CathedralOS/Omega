@@ -10,9 +10,10 @@
 // kernel permission semantics.
 
 use omega_language_std::filesystem_host;
+use omega::language::core::service;
 
 data Main {
-    fs: FilesystemHost;
+    fs: Service<FilesystemHost>;
     mode: i32;
     rdonly: i32;
     fd: i32;

@@ -16,9 +16,10 @@
 // The program exits with the value it computed. Expected exit: 35.
 
 use omega_language_std::console;
+use omega::language::core::service;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     // Wrapping DECLARED (program/stack/tok/a/b/acc): the operand values flow
     // through array elements, which carry no range facts yet.
     program: [i32; 16] in Wrapping;
