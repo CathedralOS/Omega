@@ -732,10 +732,11 @@ fn hex_decode(text: &str) -> Vec<u8> {
 /// description bytes, admitting profile identity[32]}` per instance. The
 /// package recomputes every composition fact from these bytes; nothing here
 /// is a plan fragment.
-pub fn components_input(components: &[AdmittedComponent]) -> Vec<u8> {
+pub fn components_input(components: &[impl Borrow<AdmittedComponent>]) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&(components.len() as u32).to_le_bytes());
     for admission in components {
+        let admission = admission.borrow();
         // The admitted description is exactly `describe_module`'s canonical
         // encoding of the verified module.
         let bytes = describe_module(admission.component.module());
