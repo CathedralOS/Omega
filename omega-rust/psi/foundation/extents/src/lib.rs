@@ -28,7 +28,8 @@ mod tests;
 
 pub use extent::diagnostic::ExtentDiagnostic;
 pub use extent::{
-    AttenuationError, Extent, MergeError, OwnedExtentPartition, OwnedPartitionError, SplitError,
+    AttenuationError, Extent, ExtentSharingMode, MergeError, OwnedExtentPartition,
+    OwnedPartitionError, SplitError,
 };
 pub use external_loans::{
     CompletionObligations, ExternalBorrowerId, ExternalCompletionError, ExternalCompletionFactId,
