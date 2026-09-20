@@ -385,7 +385,11 @@ fn source_opaque_operation_equations_have_kernel_transport() {
         unreachable!()
     };
     let target = &certificate.proof;
-    let ProofRule::ValueEqualityTransport { premise, equalities } = &target.rule else {
+    let ProofRule::ValueEqualityTransport {
+        premise,
+        equalities,
+    } = &target.rule
+    else {
         unreachable!()
     };
     let site = questions
@@ -413,7 +417,10 @@ fn source_opaque_operation_equations_have_kernel_transport() {
         },
     ) = &premise.conclusion
     else {
-        panic!("guard premise is `1 <= x * t`, got {:?}", premise.conclusion)
+        panic!(
+            "guard premise is `1 <= x * t`, got {:?}",
+            premise.conclusion
+        )
     };
     assert_eq!(equalities.len(), 3);
     let Proposition::Equal(
@@ -445,10 +452,7 @@ fn source_opaque_operation_equations_have_kernel_transport() {
     else {
         panic!("multiply operand is the multiplied value")
     };
-    let ScalarTerm::Value {
-        id: premise_t, ..
-    } = premise_factor.as_ref()
-    else {
+    let ScalarTerm::Value { id: premise_t, .. } = premise_factor.as_ref() else {
         panic!("premise operand is the rewritten value")
     };
     assert_eq!(*bound_s, *multiplied_s);
