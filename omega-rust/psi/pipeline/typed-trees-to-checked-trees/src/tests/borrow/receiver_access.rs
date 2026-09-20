@@ -475,3 +475,104 @@ fn owned_record_child_cannot_be_transferred_twice() {
         "{diagnostics:#?}"
     );
 }
+
+fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::SymbolHandle {
+    checked
+        .machines()
+        .iter()
+        .find(|machine| {
+            machine.name.as_str() == name || machine.name.as_str().ends_with(&format!("::{name}"))
+        })
+        .unwrap_or_else(|| panic!("missing machine `{name}`"))
+        .symbol
+}
+
+fn indexed_shared_receiver_source(caller_access: &str) -> String {
+    format!(
+        "data Cell {{ value: u64; }}
+         data Rack {{ cells: [Cell; 2]; }}
+         machine Cell::get(&self) -> u64 {{ self.value }}
+         machine Rack::run({caller_access} self) -> u64 {{ self.cells[1].get() }}"
+    )
+}
+
+#[test]
+fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
+    for caller_access in ["&mut", "&"] {
+        let checked = check_source(&indexed_shared_receiver_source(caller_access))
+            .expect("shared indexed receiver must check");
+        let run = machine_named(&checked, "run");
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(run)
+            .unwrap_or_else(|| {
+                panic!("`{caller_access}` caller keeps a Unit plan for a shared indexed receiver")
+            });
+        let calls = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+                    structural_arguments,
+                    ..
+                } => Some(structural_arguments),
+                _ => None,
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+        let [receiver] = calls.as_slice() else {
+            panic!("the indexed receiver call passes exactly one structural argument: {calls:#?}")
+        };
+        assert!(
+            matches!(
+                receiver.access,
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+            ) && receiver.path.iter().any(|segment| matches!(
+                segment,
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1)
+            )),
+            "the receiver argument lends the literal-indexed element shared: {receiver:#?}"
+        );
+    }
+}
+
+#[test]
+fn mutable_self_mixed_field_index_path_can_supply_shared_receiver() {
+    let checked = check_source(
+        "data Cell { value: u64; }
+         data Rack { cells: [Cell; 2]; }
+         data Shelf { rack: Rack; }
+         machine Cell::get(&self) -> u64 { self.value }
+         machine Shelf::run(&mut self) -> u64 { self.rack.cells[0].get() }",
+    )
+    .expect("shared mixed-path receiver must check");
+    let run = machine_named(&checked, "run");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(run)
+            .is_some(),
+        "a mixed field/index shared receiver keeps the caller's Unit plan"
+    );
+}
+
+#[test]
+fn dynamic_indexed_element_still_cannot_supply_shared_receiver() {
+    let checked = check_source(
+        "data Cell { value: u64; }
+         data Rack { cells: [Cell; 2]; }
+         machine Cell::get(&self) -> u64 { self.value }
+         machine Rack::run(&mut self, i: u64 [0..=1]) -> u64 { self.cells[i].get() }",
+    )
+    .expect("dynamic indexed receiver still checks at the source stage");
+    let run = machine_named(&checked, "run");
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(
+        plans.for_machine(run).is_none() && plans.omission_for_machine(run).is_some(),
+        "a runtime index stays outside the admitted receiver projection"
+    );
+}

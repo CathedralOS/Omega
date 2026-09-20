@@ -2366,10 +2366,16 @@ Owners include
   Remaining work:
 
   - Complete mixed field/index paths and other admitted source owners through
-    receiver preparation, native lowering and replay. `receiver_calls/mod.rs`
-    still limits mutable receiver projections to fields, and native
-    `structural_call.rs`/`exact_borrowed_projection` retain borrowed-parent
-    restrictions for indexed projections. Terminal's owned-root array and
+    receiver preparation, native lowering and replay. Literal-indexed and
+    mixed `Field`/`FixedIndex` paths now lend to `SharedBorrow` receivers:
+    `receiver_calls/mod.rs` admits them for every borrowed target, and the
+    lowered/native `exact_borrowed_projection` route plus `argument_custody`
+    replay already consume the emitted records
+    (`receiver_access::mutable_self_literal_indexed_element_can_supply_shared_receiver`,
+    `mutable_self_mixed_field_index_path_can_supply_shared_receiver`,
+    `dynamic_indexed_element_still_cannot_supply_shared_receiver`). Explicit
+    shared indexed arguments and dynamic `Index` segments still stop in
+    `execution/unit/calls`. Terminal's owned-root array and
     construction-local restrictions remain separate; do not infer their
     availability merely from a parameter declaration.
   - Record matching-host runtime results for both Linux targets and Windows.
