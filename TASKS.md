@@ -7036,9 +7036,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   materializer, non-host at its own recorded hole offset), and verifies the
   native-container contract (`tests/alpha/container.py`: format structure,
   executable entry, loader imports/signature, `[length][tape][zeros]` hole)
-  on every Python-3 host. Verified passing on linux x86-64 at `ffb0497618`
-  (`sh tests/gamma/seed-native-acceptance/run.sh` — identity + both stamped
-  containers accepted). Remaining is structurally host-gated, not a
+  on every Python-3 host. Verified passing on linux x86-64 at `ffb0497618`;
+  re-verified green at `95019d341a9`
+  (`sh tests/gamma/seed-native-acceptance/run.sh` — evaluator identity bound,
+  ELF/PE/Mach-O stamped containers accepted, native receipt byte-exact). Remaining is structurally host-gated, not a
   Rust/shell leg: the native-execution leg (`ALPHA_SEED_EXECUTABLE=1`)
   reports an explicit skip unless the host execs an audited seed — macOS
   arm64 + Windows x64 seed-execution hosts (Windows tracked under
