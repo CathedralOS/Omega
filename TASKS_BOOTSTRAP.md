@@ -368,6 +368,7 @@ prerequisite to every lower-rung milestone.
   omega-parser/outcome/executable chain runs (the parser gate's Windows
   route is itself unvalidated). The D→omega0 and omega0→omega tapes are not
   yet produced (OMEGA-C), so whole-chain reconstruction currently ends at
-  interpreted D. Beta-owned gap outside this fence:
-  `tests/beta/compiler/reconstruction.sh` still crashes execing the Windows
-  PE seed on unsupported hosts instead of refusing.
+  interpreted D. Every Beta compiler-exec entrypoint — reconstruction,
+  the compiler diamond, and `tools/bootstrap/beta/build.sh` — now refuses
+  (exit 2) on hosts that cannot run the audited seed rather than crashing
+  on the Windows PE container.
