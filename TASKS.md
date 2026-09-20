@@ -9954,18 +9954,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SCALAR-SCAN-AND-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-DISPATCH** — mined candidate; verify scope then implement.
-- **SCAN-SCALAR-SCAN** — verified e0927237: already landed via the squalr
+- **SCAN-SCALAR-SCAN** — verified e0927237: landed via the squalr
   pin advance `05416dd1a0` → Squalr-Omega `43329a3` ("squalr: port scalar
-  scan, run-length encoder, and element-scan dispatch"). The scalar leg is
-  present in the pinned app: `ScalarIterativeScan` pull driver over
+  scan, run-length encoder, and element-scan dispatch"). The scalar leg was
+  present in that pin: `ScalarIterativeScan` pull driver over
   current/previous u64 windows, `ScannerScalarSingleElement`, and
   `SnapshotRegionFilterRunLengthEncoder` preserving upstream
   stride/byte_advance semantics, selected by `ElementScanDispatcher` for
-  Scalar plans. Re-verified on linux-x86_64: `omega --check` clean on both
-  packages at the pin (squalr-engine-api 24 files, squalr-engine-scanning
-  28 files). Row consumed. Siblings SCALAR-SCAN-AND-DISPATCH,
+  Scalar plans. Verified on linux-x86_64 at `e0927237`: `omega --check`
+  clean on both packages (squalr-engine-api 24 files, squalr-engine-scanning
+  28 files). **Re-opened at `1edade1a480`**: the recorded gitlink moved to
+  `5ea4a17f3b` ("pin Squalr with clone/serialization parity",
+  `472563ca4c4`), which sits on a republished squalr lineage diverged from
+  `43329a3` at `420cabe8` — the published tree carries no scalar-scan
+  sources (squalr-engine-scanning is reduced to its package boundary;
+  only `snapshot_region_filter.omg` remains under
+  `squalr-engine-api/src/structures/scanning/`). The scalar leg therefore
+  exists only on the pre-republish lineage. Residual: re-port the scalar
+  scan/element-scan dispatch on the published squalr lineage, or have the
+  coordinator repin. Siblings SCALAR-SCAN-AND-DISPATCH,
   SCAN-SCALAR-DISPATCH, SCAN-SCALAR-COMPARISON-DISPATCH decompose the same
-  landed commit.
+  original commit and share this reopened state.
 - **SCHEDULING-RELOCATION-ADMISSION** — mined candidate; verify scope then implement.
 - **SCHEDULING-RELOCATION-UNIFICATION** — mined candidate; verify scope then implement.
 - **SCOPED-LOOKUP-MAP-AUDIT** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build.
