@@ -2,12 +2,15 @@
 //! migration is validated against the build's compatibility demands, and
 //! the report the compiler emits is built from the same walk.
 
+use std::collections::BTreeMap;
+
 use arena::HandleSpan;
 use artifacts::{
     WireCaseReportEntry, WireCompatibilityDemandReportEntry, WireCompatibilityFactReport,
     WireCompatibilityVerdicts, WireFieldRelevance, WireFieldReportEntry, WireProtocolReport,
     WireRealizationOrigin, WireSchemaReportEntry, WireTrustClass, WireVersionReportEntry,
 };
+use checked_interpreter::WireCodecVerification;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::wire::{WireMember, WireSchema};
@@ -16,7 +19,42 @@ pub fn validate_wire_protocol(
     typed: &TypedTrees,
     compatibility_demands: &[crate::WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_wire_protocol_report(&build_wire_protocol_report(typed, compatibility_demands))
+    // Independent verification of every generated codec FIRST: a codec that
+    // provably diverges from the public compact_binary requirement is a
+    // compile-time diagnostic, not an admission.
+    let verifications: BTreeMap<String, Result<WireCodecVerification, String>> = typed
+        .wire_schemas()
+        .iter()
+        .map(|schema| {
+            (
+                qualified_schema_path(typed, schema.symbol, schema.name.as_str()),
+                checked_interpreter::verify_wire_schema_codec(typed, schema),
+            )
+        })
+        .collect();
+    let report = build_wire_protocol_report(typed, compatibility_demands, &verifications);
+    let verification_diagnostics: Vec<Diagnostic> = verifications
+        .iter()
+        .filter_map(|(path, result)| {
+            result.as_ref().err().map(|divergence| {
+                Diagnostic::error(format!(
+                    "generated wire codec `{path}` failed independent verification against the \
+                     public compact_binary requirement: {divergence}"
+                ))
+            })
+        })
+        .collect();
+    match (
+        validate_wire_protocol_report(&report),
+        verification_diagnostics,
+    ) {
+        (Ok(()), empty) if empty.is_empty() => Ok(()),
+        (Ok(()), diagnostics) => Err(diagnostics),
+        (Err(mut report_diagnostics), mut verification_diagnostics) => {
+            report_diagnostics.append(&mut verification_diagnostics);
+            Err(report_diagnostics)
+        }
+    }
 }
 
 fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<Diagnostic>> {
@@ -63,6 +101,7 @@ struct SchemaRow {
 fn build_wire_protocol_report(
     typed: &TypedTrees,
     compatibility_demands: &[crate::WireCompatibilityDemand],
+    verifications: &BTreeMap<String, Result<WireCodecVerification, String>>,
 ) -> WireProtocolReport {
     let mut rows = typed
         .wire_schemas()
@@ -148,15 +187,63 @@ fn build_wire_protocol_report(
         schema.realization_origin = Some(WireRealizationOrigin::Generated {
             generator: "Omega compiler compact_binary generator".to_owned(),
         });
-        schema.trust_class = Some(WireTrustClass::Admitted {
-            authority: "Omega compiler".to_owned(),
-        });
-        schema.realization_evidence = vec![
-            "normalized compact_binary plan validated against the schema walk".to_owned(),
-            "generated body is not yet independently checked against the public codec requirement"
-                .to_owned(),
-            "differential canaries are validation evidence, not derived-contract proof".to_owned(),
-        ];
+        let plan_evidence =
+            "normalized compact_binary plan validated against the schema walk".to_owned();
+        match verifications.get(&row.qualified_path) {
+            // The whole requirement exercised and passed: the codec's trust
+            // is derived from the check, not the generator's authority.
+            Some(Ok(verification)) if verification.gaps.is_empty() => {
+                schema.trust_class = Some(WireTrustClass::Derived);
+                schema.realization_evidence = vec![
+                    plan_evidence,
+                    format!(
+                        "independently checked against the public codec requirement: {}",
+                        verification.checks.join("; ")
+                    ),
+                ];
+            }
+            // Partially exercised: report what was verified, keep the
+            // generator's authority for what was not.
+            Some(Ok(verification)) => {
+                schema.trust_class = Some(WireTrustClass::Admitted {
+                    authority: "Omega compiler".to_owned(),
+                });
+                schema.realization_evidence = vec![
+                    plan_evidence,
+                    format!(
+                        "independent verification passed: {}",
+                        verification.checks.join("; ")
+                    ),
+                    format!(
+                        "coverage gap keeps generator-admitted trust: {}",
+                        verification.gaps.join("; ")
+                    ),
+                ];
+            }
+            // A proven divergence: validation turns it into a diagnostic;
+            // the row still records why the codec is untrusted.
+            Some(Err(divergence)) => {
+                schema.trust_class = Some(WireTrustClass::Admitted {
+                    authority: "Omega compiler".to_owned(),
+                });
+                schema.realization_evidence = vec![
+                    plan_evidence,
+                    format!("independent verification found a codec divergence: {divergence}"),
+                ];
+            }
+            None => {
+                schema.trust_class = Some(WireTrustClass::Admitted {
+                    authority: "Omega compiler".to_owned(),
+                });
+                schema.realization_evidence = vec![
+                    plan_evidence,
+                    "generated body is not yet independently checked against the public codec requirement"
+                        .to_owned(),
+                    "differential canaries are validation evidence, not derived-contract proof"
+                        .to_owned(),
+                ];
+            }
+        }
     }
     rows.sort_by(|left, right| left.entry.name.cmp(&right.entry.name));
     let demands = compatibility_demands

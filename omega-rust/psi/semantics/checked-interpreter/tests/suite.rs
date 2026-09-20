@@ -20,3 +20,4 @@ mod token_bound_machine_calls;
 mod trait_operators;
 mod unsigned_ranking_views;
 mod value_dispatch;
+mod wire_codec_verification;
