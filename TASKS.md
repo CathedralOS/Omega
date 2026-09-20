@@ -16523,6 +16523,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Row consumed — the residual
   stays on the live **TRANSLATION-VALIDATION.** item in
   TASKS_OPTIMIZER.md.
+||||||| parent of 2adba9e9ba22 (board: TV-OPERATOR-APPLICATIONS-REPLAY — scope verified, real frontier fenced)
+- **TV-OPERATOR-APPLICATIONS-REPLAY** — mined candidate; verify scope then implement.
+- **TV-OPERATOR-APPLICATIONS-REPLAY.** Mined candidate; scope verified at
+  `a51cb805cc1` — real frontier, fenced this wave. Names the occurrence
+  replay residual recorded on resolved sibling TV-INTRINSIC-SPAN-ARMS:
+  `lowered-psi-to-terminal-psi/.../boundary_operator_custody/replay_scope.rs:102-105`
+  replays exactly four families (local_initializers/IEEE FMA,
+  structural_returns, float_comparisons, integer_comparisons); remaining
+  intrinsic kinds and the `CallDynamic*` operations produce no occurrences,
+  so their span arms would join nothing. Ordered legs: (a) new occurrence
+  replay family here with demand/realization companions; (b) span arms
+  joining the emitted dynamic-call records (`dynamic_calls`,
+  `stored_dynamic_calls`, `dynamic_parameter_calls`, `forwarded_dynamic_*`)
+  — descriptor-materializing records additionally need relocation custody
+  beyond the single window `derive_span` models (AArch64 table addressing
+  emits two windows) plus a conformance-table symbol join;
+  parameter-routed calls are register-indirect. Blocking fence:
+  `native-artifact/src/physical` is path-claimed under
+  PHYSICAL-ACCESS-PROFILES (Devin / dev-88738) this wave, and the adjacent
+  surface is item-claimed under INTRINSIC-PHYSICAL-SPAN-ARMS (Jarod,
+  ~05:04Z) — the demand/realization companions live inside that fence.
+  The replay-side leg alone produces occurrences with no downstream
+  consumer; the full slice resumes after the fences drain.
 - **UNSEQUENCED-SPILL-DISPOSITION.** Mined candidate; scope verified at
   a4ffd1aff8 — fifth mined stub for the same directory; the full verified
   scope, family inventory, dependency chain and fence map are recorded on
