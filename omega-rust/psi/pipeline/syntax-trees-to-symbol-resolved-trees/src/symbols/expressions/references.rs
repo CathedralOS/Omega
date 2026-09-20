@@ -333,7 +333,7 @@ pub(in crate::symbols) fn assign_name_symbol(
         lookup_state = SymbolHandle::invalid();
     }
 
-    let (head_symbol, symbol) = resolve_state_scoped_table_path(
+    let (head_symbol, mut symbol) = resolve_state_scoped_table_path(
         symbols,
         machine.symbol,
         lookup_state,
@@ -354,13 +354,31 @@ pub(in crate::symbols) fn assign_name_symbol(
         return;
     }
 
-    let member_symbols = resolve_state_scoped_table_path_member_symbols(
+    let mut member_symbols = resolve_state_scoped_table_path_member_symbols(
         symbols,
         machine.symbol,
         lookup_state,
         expression_table,
         path,
     );
+    // Attached machines are not children of their carrier in the symbol tree.
+    // A bare qualified selection must retain the same exact declaration as a
+    // call, otherwise equation/non-value checks see an unresolved leaf. Keep
+    // the lexical head chosen above; never reopen lookup by the leaf spelling.
+    if !path.is_self_value && !symbol.is_valid() && head_symbol.is_valid() {
+        let members = expression_table.name_path_members(path.members);
+        if let [_, suffix @ .., target] = members {
+            let mut owner_path = resolve_path_members_from_head(symbols, head_symbol, suffix);
+            if let Some(owner) = owner_path.last() {
+                let selected = machine.attached_call_target(symbols, *owner, target);
+                if selected.is_valid() {
+                    owner_path.push(selected);
+                    member_symbols = owner_path;
+                    symbol = selected;
+                }
+            }
+        }
+    }
     if symbol.is_valid()
         && member_symbols.len() == path.members.count() as usize
         && member_symbols.iter().all(|symbol| symbol.is_valid())

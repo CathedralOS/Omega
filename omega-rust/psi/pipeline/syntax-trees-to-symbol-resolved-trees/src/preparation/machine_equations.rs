@@ -54,11 +54,12 @@ pub(crate) fn validate_declarations(syntax: &SyntaxTrees) -> Result<(), Vec<Diag
         if machine.where_facts.is_empty() {
             continue;
         }
-        if machine.attached_data.is_some()
-            || machine.spelling.is_some()
-            || !machine.satisfies.is_empty()
-        {
-            return Err(vec![Diagnostic::error("machine structural equations currently require explicit calls to a free machine; attached, operator, and conformance supplies retain undisclosed equations").with_source_span(machine.name.source_span())]);
+        // Explicit attached calls have the same selected declaration and
+        // source links as free calls, so their tuples use `complete` below.
+        // Implicit operator/conformance selection still needs its own complete
+        // application context; an attachment alone is not such a selection.
+        if machine.spelling.is_some() || !machine.satisfies.is_empty() {
+            return Err(vec![Diagnostic::error("machine structural equations currently require explicit calls; operator and conformance supplies retain undisclosed equations").with_source_span(machine.name.source_span())]);
         }
         if machine.type_parameters.is_empty() {
             return Err(vec![
@@ -170,7 +171,9 @@ pub(crate) fn complete(
                 );
             }
             symbol_resolved_trees::expression::ExpressionNode::Name(path)
-                if selected_machine(trees, path.symbol)
+                // `self` names the receiver storage through its owning state;
+                // it is not a first-class selection of that state's machine.
+                if !path.is_self_value && selected_machine(trees, path.symbol)
                     .is_some_and(|index| trees.machines[index].has_structural_type_equations) =>
             {
                 return Err(vec![Diagnostic::error(

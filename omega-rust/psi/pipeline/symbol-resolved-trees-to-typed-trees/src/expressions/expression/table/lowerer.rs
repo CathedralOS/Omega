@@ -375,6 +375,22 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 } else {
                     call.target_symbol
                 };
+                // Structural equations are discharged against an exact target
+                // during resolution. A target first discovered from its result
+                // receiver here did not participate in that application check.
+                // Retain the obligation instead of treating explicit arguments
+                // as evidence that they satisfied the declaration's equations.
+                if !call.target_symbol.is_valid()
+                    && let Some(program) = self.program
+                    && program.machines.iter().any(|machine| {
+                        machine.has_structural_type_equations
+                            && machine.symbol == program.symbols.get(target_symbol).parent
+                    })
+                {
+                    return Err(Diagnostic::error(
+                        "late-selected receiver method retains an undischarged structural type equation; use a closed explicitly selected receiver",
+                    ).with_source_span(call.target.source_span()));
+                }
                 let machine_arguments =
                     if private_layout_operation.is_some() || quotient_operation.is_some() {
                         // `Slot` is a sealed proof-static selector, not an

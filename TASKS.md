@@ -3508,13 +3508,15 @@ Owners include
   and explicit identity through checking and recovered counts through source-free
   Terminal execution, including reverse construction (macOS ARM64). Templates
   retain array equations in syntax; unspecialized applications cannot discard
-  those obligations. Closed explicit calls to free machines also recover trailing
+  those obligations. Closed explicit calls to free and attached machines recover trailing
   type/const arguments from ranges and fixed arrays, construct omitted types,
   and discharge complete supplied tuples. Actual static type arguments survive
   resolution, caller-scope validation, specialization and normalized identity.
   `compiler --test machine_type_equations` exercises source-free Terminal
-  execution and conflicting tuples, kind mixtures, forwarding, lifetime scope,
-  and named conformance obligations. Open or retained applications lacking
+  execution, receiver mutation through four-target native publication and macOS
+  ARM64 execution, and rejection of conflicting tuples, open/noncall selections,
+  implicit cleanup, kind mixtures, forwarding, lifetime errors and unmet named
+  conformances. Open or retained applications lacking
   their equation syntax reject explicitly. Provisional normalization retains
   pending equations; transitive build-time invocation cannot execute them.
 
@@ -3529,11 +3531,20 @@ Owners include
     declared generic applications (including array elements). Combine machine
     equations with existing argument/result inference rather than requiring a
     closed explicit prefix; retain obligations through generic forwarding and
-    retained compilation extensions. Attached machines, operator supplies,
+    retained compilation extensions. Open and late-selected result receiver
+    applications, operator supplies,
     conformance realizations, machine/evidence/value binders, and staged
     equation-bearing endpoint calls need their complete admission contexts.
+    Result receivers selected during typing reject equation-bearing methods:
+    they missed resolution's exact-target equation discharge, even with a full
+    explicit tuple. Keep that fence until the obligation follows late selection.
     An open endpoint binds as one whole expression (`0..=N` may bind
     `Limit + 1`); solving `N * 2 == 256` stays outside.
+    Zero-receiver attached scalar calls also need the ordinary shared-call
+    lowering route in `checked-trees-to-lowered-psi/src/scalar_graph`:
+    `Buffer::capacity<[u8; 7]>()` checks, but Terminal production rejects the
+    same bounded-static-realization gate as nongeneric `Buffer::capacity()`.
+    Receiver-method equation discharge does not depend on that separate gap.
   - Endpoint invocation admission for nominal parameters, already-landed policy
     arguments, Trapping parameters and policy-qualified results,
     trait-operator owners (owner-sensitive typed operations), and applications
