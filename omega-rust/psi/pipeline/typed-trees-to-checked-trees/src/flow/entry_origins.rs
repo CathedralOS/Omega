@@ -81,13 +81,38 @@ fn parameter_edges(
     let states = program.machine_states(machine);
     let mut edges = Vec::new();
     for (source_index, source) in states.iter().enumerate() {
-        for statement in program.statement_table.statements(source.statement_nodes) {
+        for (statement_index, statement) in program
+            .statement_table
+            .statements(source.statement_nodes)
+            .iter()
+            .enumerate()
+        {
             let StatementNode::Transition(transition) = statement else {
                 continue;
             };
             if transition.exit != TransitionExit::Ordinary {
                 continue;
             }
+            // Immutable scalar-typed bindings declared before this transition
+            // hold their initializers forever; a transition argument in such
+            // local custody still names the bound parameter's origin.
+            // Mutable or non-scalar locals stay out — their storage could
+            // name a different referent or value later.
+            let local_inits = program.statement_table.statements(source.statement_nodes)
+                [..statement_index]
+                .iter()
+                .filter_map(|statement| {
+                    let StatementNode::LocalData(local) = statement else {
+                        return None;
+                    };
+                    (!local.is_mutable
+                        && local.initial_value.is_valid()
+                        && program
+                            .primitive_type_reference(local.type_reference)
+                            .is_some_and(|primitive| primitive.accepts_integer_literal()))
+                    .then_some((local.symbol, local.initial_value))
+                })
+                .collect::<Vec<_>>();
             for target in [transition.target, transition.continuation] {
                 if !target.is_valid() {
                     continue;
@@ -144,8 +169,41 @@ fn parameter_edges(
                             {
                                 return None;
                             }
+                            // Follow immutable scalar locals back through
+                            // their initializers to the bound name; the chain
+                            // is short and acyclic because each hop lands on
+                            // a strictly earlier-declared binding.
+                            let mut cursor = name.head_symbol;
+                            for _ in 0..local_inits.len() {
+                                if program
+                                    .state_parameters(source)
+                                    .iter()
+                                    .any(|candidate| candidate.symbol == cursor)
+                                {
+                                    break;
+                                }
+                                let Some((_, initial)) =
+                                    local_inits.iter().rfind(|(symbol, _)| *symbol == cursor)
+                                else {
+                                    break;
+                                };
+                                match program.expression_table.expression(*initial) {
+                                    ExpressionNode::Name(bound)
+                                        if bound.head_symbol.is_valid()
+                                            && bound.symbol == bound.head_symbol
+                                            && program
+                                                .expression_table
+                                                .name_path_members(bound.members)
+                                                .len()
+                                                == 1 =>
+                                    {
+                                        cursor = bound.head_symbol;
+                                    }
+                                    _ => break,
+                                }
+                            }
                             program.state_parameters(source).iter().find(|candidate| {
-                                candidate.symbol == name.head_symbol
+                                candidate.symbol == cursor
                                     && ((reference_type(program, candidate.type_reference)
                                         && reference_type(program, parameter.type_reference))
                                         || (immutable_scalar(program, candidate)
