@@ -8011,7 +8011,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   shared place/loan sequencer extension is STATE-LOCAL-VALUE-FRONTIER's. No
   independent slice exists here.
 - **ZERO-BYTE-ARRAY-FENCE-PLACEMENT** — mined candidate; verify scope then implement.
-- **ZERO-EXTENT-BYTE-ARRAY-ADMISSION** — mined candidate; verify scope then implement.
+- **ZERO-EXTENT-BYTE-ARRAY-ADMISSION.** Resolved — re-mines the admission
+  half of the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row. `[u8; 0]` is a
+  first-class empty value admitted at check in locals, constants,
+  parameters, returns, record fields, and nested arrays, constructed
+  exactly by `[]` or `""` (`pass/collections/zero_length_byte_array_admission`,
+  driven by `zero_length_byte_array_is_admitted_at_check`). Re-verified
+  green at `aecc5533d3`: `cargo nextest run -p compiler --test
+  canary_suite -E 'test(~zero_length_byte_array)'` →
+  `zero_length_byte_array_is_admitted_at_check` +
+  `zero_length_byte_array_use_fences_reject_at_check` 2/2 PASS on linux
+  x86-64. Sibling re-mines of the same cluster: FIXED-ARRAY-ZERO-EXTENT-FENCE,
+  ZERO-BYTE-ARRAY-FENCE-PLACEMENT, ZERO-EXTENT-BYTE-ARRAY-FENCE,
+  ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE,
+  ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE. The remaining named residual is the
+  native-route corpus pin, which the landed row assigns to the
+  ACTIVE_FAIL roster — not this stub.
 - **ZERO-EXTENT-BYTE-ARRAY-FENCE.** Resolved — re-mines the fence half of
   the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row. The use-site fences are
   already pinned: unprovable index into `[u8; 0]` rejects at check, fixed
