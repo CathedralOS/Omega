@@ -324,3 +324,26 @@ pub const FLOAT_TRAPPING_ARITHMETIC_PASS_CANARIES: &[&str] = &[
     FLOAT_FLOAT_TRAPPING_PROPAGATED_NAN_TRAPS,
     FLOAT_FLOAT_TRAPPING_PROPAGATED_INFINITY_TRAPS,
 ];
+
+/// Fail canaries whose refusal lives in the production stages behind checked
+/// semantics (`checked-trees-to-lowered-psi` and its consumers). They need
+/// the rooted native-artifact route -- a `Check` stop never reaches the
+/// lowering wall -- but bind a non-native `ProgramEntry`, so they carry an
+/// explicit target like `CROSS_TARGET_FAIL_CANARIES`.
+pub const CROSS_TARGET_PRODUCTION_FAIL_CANARIES: &[(&str, &str)] = &[
+    // Checked `let`/`boundary let` declarations reach the lowering consumer;
+    // production refuses because no Terminal evidence encoding carries them
+    // yet. The fixture binds only `linux_x86_64::ProgramEntry`.
+    (
+        "proofs/mathematical_declaration_lowering_rejected",
+        "linux_x86_64",
+    ),
+    // Checked semantics admits the conditional claim join as evidence;
+    // `checked-trees-to-lowered-psi` refuses it pending Terminal
+    // exit-alternative correspondence. The fixture binds only
+    // `linux_x86_64::ProgramEntry`.
+    (
+        "ownership/linear_ambiguous_state_result_mapping",
+        "linux_x86_64",
+    ),
+];
