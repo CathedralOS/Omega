@@ -4,24 +4,43 @@ use super::{observations, structural_case};
 use crate::lowering::shared::*;
 use target_operations::{TargetControlSuccessor, TargetControlTerminator};
 
-fn plain_home_cleanup(
+// An unobserved owned arrival has no live storage home, so its discard keys
+// on the arrival declaration — the same owned affine contract a realized home
+// would report.
+fn owned_arrival(function: &AbstractFunction, place: PlaceId) -> bool {
+    function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .block_entries
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .any(|parameter| {
+            parameter.place == place
+                && parameter.access == StructuralAccess::Owned
+                && parameter.multiplicity == StructuralMultiplicity::Affine
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && function.entry_claims.is_empty()
+        })
+}
+
+fn owned_root_type(
+    live: &LiveDefinitions,
     function: &AbstractFunction,
-    live: &mut LiveDefinitions,
-    structural_types: &StructuralTypeLookup<'_>,
-    actions: &[TerminalAffineCleanupAction],
-) -> Result<bool, LoweringError> {
-    let mut discarded = BTreeSet::new();
-    for action in actions {
-        let TerminalAffineCleanupAction::DiscardRoot(place) = action else {
-            return Ok(false);
-        };
-        if !discarded.insert(*place) {
-            return Ok(false);
-        }
-        // An unobserved owned arrival has no live storage home, so its discard
-        // keys on the arrival declaration — the same owned affine contract a
-        // realized home would report.
-        let arrival = function
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    if let Some(home) = live.structural_homes.get(&place) {
+        return (home.multiplicity() == StructuralMultiplicity::Affine
+            && !home.has_claims()
+            && home.qualifications().is_empty()
+            && home.projected_qualifications().is_empty())
+        .then_some(home.structural_type());
+    }
+    if owned_arrival(function, place) {
+        return function
             .structural_parameters
             .iter()
             .chain(
@@ -30,33 +49,99 @@ fn plain_home_cleanup(
                     .iter()
                     .flat_map(|block| &block.structural_parameters),
             )
-            .any(|parameter| {
-                parameter.place == *place
-                    && parameter.access == StructuralAccess::Owned
-                    && parameter.multiplicity == StructuralMultiplicity::Affine
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
-                    && function.entry_claims.is_empty()
-            });
-        let admitted = live.structural_homes.get(place).is_some_and(|home| {
-            home.multiplicity() == StructuralMultiplicity::Affine
-                && !home.has_claims()
-                && home.qualifications().is_empty()
-                && home.projected_qualifications().is_empty()
-        }) || arrival
-            || live
-                .references
-                .get(&(*place, Vec::new()))
-                .is_some_and(|leaf| leaf.result.multiplicity == StructuralMultiplicity::Affine);
-        // A suspended referent root cannot be discarded while its loan lives.
-        if !admitted || super::references::is_suspended_root(live, *place) {
-            return Ok(false);
+            .find(|parameter| parameter.place == place)
+            .map(|parameter| parameter.structural_type);
+    }
+    live.references.get(&(place, Vec::new())).and_then(|leaf| {
+        (leaf.result.multiplicity == StructuralMultiplicity::Affine)
+            .then_some(leaf.result.structural_type)
+    })
+}
+
+fn live_home_or_arrival(
+    live: &LiveDefinitions,
+    function: &AbstractFunction,
+    place: PlaceId,
+) -> bool {
+    owned_root_type(live, function, place).is_some()
+}
+
+fn residual_cleanup(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    structural_types: &StructuralTypeLookup<'_>,
+    discard: &terminal_psi::StructuralAffineDiscard,
+    discharged_roots: &BTreeSet<PlaceId>,
+    discharged_residuals: &BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
+) -> bool {
+    // A residual is a strictly projected subtree of a live root; the verifier
+    // names maximal complements of moved paths, never a whole root.
+    if discard.path.is_empty()
+        || discharged_roots.contains(&discard.place)
+        || discharged_residuals.iter().any(|(place, path)| {
+            *place == discard.place
+                && (path.starts_with(&discard.path) || discard.path.starts_with(path))
+        })
+    {
+        return false;
+    }
+    // Only a plain subtree needs no executable disposal; a loan anchored
+    // inside or above the discarded boundary has no custody to move to. The
+    // retained path must also resolve to the declared residual type.
+    if super::references::contains_reference(structural_types, discard.structural_type)
+        || live.references.keys().any(|(carrier, leaf_path)| {
+            *carrier == discard.place
+                && (leaf_path.starts_with(&discard.path) || discard.path.starts_with(leaf_path))
+        })
+    {
+        return false;
+    }
+    owned_root_type(live, function, discard.place).is_some_and(|root| {
+        structural_types.subtree(root, &discard.path) == Some(discard.structural_type)
+    }) && !super::references::is_suspended_root(live, discard.place)
+}
+
+fn plain_home_cleanup(
+    function: &AbstractFunction,
+    live: &mut LiveDefinitions,
+    structural_types: &StructuralTypeLookup<'_>,
+    actions: &[TerminalAffineCleanupAction],
+) -> Result<bool, LoweringError> {
+    let mut discarded_roots = BTreeSet::new();
+    let mut discarded_residuals = BTreeSet::new();
+    for action in actions {
+        match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => {
+                if !discarded_roots.insert(*place) {
+                    return Ok(false);
+                }
+                if !live_home_or_arrival(live, function, *place)
+                    || super::references::is_suspended_root(live, *place)
+                {
+                    return Ok(false);
+                }
+            }
+            TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                if !residual_cleanup(
+                    function,
+                    live,
+                    structural_types,
+                    discard,
+                    &discarded_roots,
+                    &discarded_residuals,
+                ) {
+                    return Ok(false);
+                }
+                discarded_residuals.insert((discard.place, discard.path.clone()));
+            }
+            TerminalAffineCleanupAction::InvokeNominal(_) => return Ok(false),
         }
     }
     // Admission is staged before custody moves: a discarded owner also ends
     // every reference leaf it carries, in the verified reverse-declaration
-    // order. This removes loan custody, never referent storage.
-    for place in discarded {
+    // order. This removes loan custody, never referent storage. Residual
+    // discards carry plain subtrees only, so they move no loan custody.
+    for place in discarded_roots {
         super::references::discard_owned(function, structural_types, live, place)?;
     }
     Ok(true)
@@ -300,7 +385,30 @@ pub(super) fn lower_terminator(
             trivial_affine_discards,
             residual_affine_discards,
         } => {
-            if !residual_affine_discards.is_empty() {
+            // A residual boundary overlapping a transferred subtree would
+            // dispose of moved storage; residuals live strictly beside the
+            // edge's projected arguments.
+            if residual_affine_discards.iter().any(|discard| {
+                structural_bindings.iter().any(|binding| {
+                    binding.argument.place == discard.place
+                        && (binding.argument.path.starts_with(&discard.path)
+                            || discard.path.starts_with(&binding.argument.path))
+                })
+            }) {
+                return Err(invalid());
+            }
+            let mut cleanup_actions = trivial_affine_discards
+                .iter()
+                .copied()
+                .map(TerminalAffineCleanupAction::DiscardRoot)
+                .collect::<Vec<_>>();
+            cleanup_actions.extend(
+                residual_affine_discards
+                    .iter()
+                    .cloned()
+                    .map(TerminalAffineCleanupAction::DiscardResidual),
+            );
+            if !plain_home_cleanup(function, live, structural_types, &cleanup_actions)? {
                 return Err(invalid());
             }
             provenance.edges.push(*psi_edge);
@@ -310,7 +418,7 @@ pub(super) fn lower_terminator(
                     target: *target,
                     bindings: bindings.clone(),
                     structural_bindings: structural_bindings.clone(),
-                    cleanup_actions: cleanup(live, trivial_affine_discards)?,
+                    cleanup_actions,
                 },
             })
         }
