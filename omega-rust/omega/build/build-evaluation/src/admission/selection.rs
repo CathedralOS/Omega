@@ -14,6 +14,69 @@ pub struct SelectedProgramEntry<'config> {
     pub slot: target::ProgramEntrySlotDeclaration,
 }
 
+/// The product target of one admitted Build activation. Query compatibility is
+/// supplied to Psi through its role-specific interface: target slot catalogs
+/// and source admission stay here, beside final ProgramEntry settlement.
+pub(crate) struct ProductEntryQueryCompatibility {
+    pub selected_profile: Option<target::TargetProfile>,
+}
+
+impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompatibility {
+    fn validate_entry(
+        &self,
+        typed: &TypedTrees,
+        machine_symbol: symbols::SymbolHandle,
+        slot: &str,
+    ) -> Result<(), String> {
+        let (owner, name) = slot.rsplit_once("::").ok_or_else(|| {
+            format!("root slot `{slot}` is not target-qualified; expected `target::ProgramEntry`")
+        })?;
+        let profile = target::TargetProfile::from_root_slot_owner(owner).map_err(|_| {
+            format!("root slot `{slot}` belongs to unknown target profile `{owner}`")
+        })?;
+        let required = profile.required_root_slot(name).ok_or_else(|| {
+            format!(
+                "target profile `{}` declares no required root slot `{slot}`",
+                profile.target_name()
+            )
+        })?;
+        // Inactive static matrix bindings are handled separately below. An
+        // executed query, including one whose result is dropped, describes
+        // this activation's product and cannot issue another target's entry.
+        if self.selected_profile != Some(profile) {
+            return Err(format!(
+                "product entry slot `{slot}` does not match the selected product target"
+            ));
+        }
+        let slot = required.program_entry().ok_or_else(|| {
+            format!("root slot `{slot}` does not have a supported ProgramEntry signature")
+        })?;
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .ok_or_else(|| {
+                "product entry is not a declaration in the admitted program".to_owned()
+            })?;
+        validate_program_entry_source_compatibility(
+            typed,
+            SelectedProgramEntry {
+                machine_name: machine.name.as_str(),
+                machine_symbol,
+                slot,
+            },
+        )
+        .map(|_| ())
+        .map_err(|diagnostics| {
+            diagnostics
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })
+    }
+}
+
 /// Resolve the selected target's `ProgramEntry` binding. This is the first
 /// implemented target-root slot; other root-slot kinds reject rather than
 /// being accepted and then ignored. A build file may describe a target matrix:
@@ -126,15 +189,24 @@ pub fn selected_program_entry_machine<'config>(
     }
 }
 
-/// Validate the source half of the currently implemented `ProgramEntry`
+/// Validate only the static source compatibility of `ProgramEntry`.
 /// schema. Hosted targets expose no arrival parameters: the selected machine
 /// is either free or has exactly one mutable `self` receiver for later bridge
 /// provisioning. Freestanding parameters must exactly match the canonical
 /// typed positions on the target-selected arrival requirement.
-pub fn validate_selected_program_entry_shape(
-    typed: &TypedTrees,
+///
+/// Both description issuance and final admission use this decision. It does
+/// not require the provider or layout choices the build is still computing.
+fn validate_program_entry_source_compatibility<'typed>(
+    typed: &'typed TypedTrees,
     selected: SelectedProgramEntry<'_>,
-) -> Result<program_entry_plan::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
+) -> Result<
+    (
+        &'typed typed_trees::machine::Machine,
+        &'typed typed_trees::state::State,
+    ),
+    Vec<Diagnostic>,
+> {
     let machine_name = selected.machine_name;
     let Some(machine) = typed
         .machines()
@@ -180,12 +252,14 @@ pub fn validate_selected_program_entry_shape(
             "entry machine `{machine_name}` has a receiver, but `ProgramEntry` provisions it as an exclusive `&mut self` loan"
         )));
     }
+    // Build and product checked instances may share a receiver spelling.
+    // Only this machine's attached declaration supplies its zero-image rule.
     if !self_parameters.is_empty()
         && let Some(attached_data) = machine.attached_data.as_ref()
         && let Some(definition) = typed
             .data_definitions()
             .iter()
-            .find(|definition| definition.name.as_str() == attached_data.as_str())
+            .find(|definition| definition.symbol == machine.attached_data_symbol)
         && typed_trees_to_checked_trees::data_requires_establishment(typed, definition)
     {
         diagnostics.push(Diagnostic::error(format!(
@@ -259,6 +333,27 @@ pub fn validate_selected_program_entry_shape(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
+    Ok((machine, entry))
+}
+
+/// Recheck the selected source signature and retain its final layout evidence.
+/// An earlier product description neither settles providers nor authorizes
+/// omission of this check against the completed product.
+pub fn validate_selected_program_entry_shape(
+    typed: &TypedTrees,
+    selected: SelectedProgramEntry<'_>,
+) -> Result<program_entry_plan::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
+    let (machine, entry) = validate_program_entry_source_compatibility(typed, selected)?;
+    let machine_name = selected.machine_name;
+    let parameters = typed.state_parameters(entry);
+    let self_parameters = parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .collect::<Vec<_>>();
+    let visible = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
     let receiver = self_parameters.first().map_or(
         program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
         |receiver| program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {

@@ -24,6 +24,7 @@ impl<'program> Evaluator<'program> {
             executed_root_bindings: Vec::new(),
             executed_behavior_exclusions: Vec::new(),
             product_entry_descriptions: Vec::new(),
+            product_entry_compatibility: None,
             product_schema_descriptions: Vec::new(),
             product_provider_descriptions: Vec::new(),
             stdin,

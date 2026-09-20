@@ -970,7 +970,7 @@ fn delegated_root_binding_requires_a_product_entry_ref_operand() {
 fn product_description_binds_only_the_slot_it_was_selected_for() {
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }",
-        "machine build(builder: &mut Build) { builder.application(\"slot-mismatch\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"linux_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+        "machine build(builder: &mut Build) { builder.application(\"slot-mismatch\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(linux_x86_64::ProgramEntry, entry); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),

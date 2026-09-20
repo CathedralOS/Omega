@@ -566,6 +566,7 @@ impl BuildTimeAdmissionPlan {
         let value = checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest {
+                product_entry_compatibility: None,
                 operators: &self.selected_operators,
                 ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
             },
@@ -593,6 +594,7 @@ impl BuildTimeAdmissionPlan {
         let value = checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest {
+                product_entry_compatibility: None,
                 operators: &self.selected_operators,
                 ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
             },
@@ -687,6 +689,7 @@ impl BuildTimeAdmissionPlan {
         let measured = checked_interpreter::evaluate_build_time_machine(
             program,
             BuildMachineEvaluationRequest {
+                product_entry_compatibility: None,
                 operators: &self.selected_operators,
                 ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
             },

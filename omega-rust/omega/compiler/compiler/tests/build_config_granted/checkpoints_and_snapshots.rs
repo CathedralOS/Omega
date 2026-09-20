@@ -7,6 +7,53 @@ use checked_interpreter::FilesystemSponsor;
 use compiler::{CheckedCompileRequest, compile_to_checked};
 
 #[test]
+fn filesystem_build_checks_product_entry_signature_before_issuing_description() {
+    for (label, source, compatible) in [
+        ("compatible-entry", "machine launch() { }", true),
+        ("incompatible-entry", "machine launch(value: u8) { }", false),
+    ] {
+        let project = Project::new(label);
+        project.write("main.omg", source);
+        project.write("build.omg", r#"machine build(builder: &mut Build) {
+    builder.application("entry-query");
+    let artifact: BuildPath = builder.output.resolve("marker.txt");
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "queried");
+    let closed: i32 = builder.output.close(descriptor);
+    let description: ProductEntryRef = builder.product.entry("launch", "windows_x86_64::ProgramEntry");
+}"#);
+        let (session, sponsor, build_dir) = bound_build_output_session(label);
+        set_canonical_source_tree_permissions(&project.root, true);
+        let result = compile_to_checked(CheckedCompileRequest {
+            build_dir: Some(build_dir),
+            package_inputs: Some(package_inputs(&project.root)),
+            filesystem_sponsor: Some(sponsor),
+            ..CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"))
+        });
+        set_canonical_source_tree_permissions(&project.root, false);
+        if compatible {
+            let checked = result.expect("granted execution retains the compatibility owner");
+            assert!(
+                checked
+                    .build_observation_summary()
+                    .is_some_and(|observation| observation.filesystem_host_observed())
+            );
+        } else {
+            let diagnostics = result
+                .map(|_| ())
+                .expect_err("discarded incompatible query must reject");
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("hosted `ProgramEntry` exposes no arrival parameters")),
+                "{diagnostics:?}"
+            );
+        }
+        std::fs::remove_dir_all(session).expect("remove test's sponsored output session");
+    }
+}
+
+#[test]
 fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
     let profile = target::TargetProfile::WindowsX64;
     let project = Project::new("generated-source");

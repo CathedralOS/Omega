@@ -134,6 +134,7 @@ fn pending_type_bound_blocks_transitive_invocation_before_interpretation() {
         let error = crate::evaluate_build_machine_measured(
             &prepared,
             crate::BuildMachineInvocation {
+                product_entry_compatibility: None,
                 machine: crate::PreparedBuildMachine::Name("wrapper"),
                 arguments: Vec::new(),
                 mode,

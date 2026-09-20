@@ -238,12 +238,7 @@ impl<'program> Evaluator<'program> {
                 })
                 .collect::<Vec<_>>(),
         };
-        let [machine] = candidates.as_slice() else {
-            if !candidates.is_empty() {
-                return Err(Halt::Trap(format!(
-                    "product entry `{name}` is ambiguous within its package"
-                )));
-            }
+        if candidates.is_empty() {
             // The probe spelling is the declaration part of the path: for a
             // qualified query it is the segment after the resolved or
             // unrecognized alias.
@@ -266,7 +261,40 @@ impl<'program> Evaluator<'program> {
                 )
             };
             return Err(Halt::Trap(message));
-        };
+        }
+        let compatibility = self.product_entry_compatibility.ok_or_else(|| {
+            Halt::Trap(
+                "product entry selection requires the build owner's slot compatibility check"
+                    .to_owned(),
+            )
+        })?;
+        // Visibility is settled before signature filtering, so a query cannot
+        // expose an inaccessible declaration through compatibility diagnostics.
+        // The expected slot selects among authorized candidates; declaration
+        // order and equal names never choose an implementation.
+        let mut selected = None;
+        let mut rejection = None;
+        for candidate in candidates {
+            match compatibility.validate_entry(self.program, candidate.symbol, slot) {
+                Ok(()) => {
+                    if selected.is_some() {
+                        return Err(Halt::Trap(format!(
+                            "product entry `{name}` is ambiguous: more than one visible declaration is compatible with slot `{slot}`"
+                        )));
+                    }
+                    selected = Some(candidate);
+                }
+                Err(reason) => {
+                    rejection.get_or_insert(reason);
+                }
+            }
+        }
+        let machine = selected.ok_or_else(|| {
+            Halt::Trap(format!(
+                "product entry `{name}` is incompatible with slot `{slot}`: {}",
+                rejection.as_deref().unwrap_or("no compatible declaration")
+            ))
+        })?;
         let index = self.product_entry_descriptions.len();
         self.product_entry_descriptions
             .try_reserve(1)
@@ -313,5 +341,44 @@ impl<'program> Evaluator<'program> {
                 "product entry operands must be byte data, got {other:?}"
             ))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Evaluator, Halt};
+
+    #[test]
+    fn product_entry_description_requires_the_slot_compatibility_owner() {
+        let source = "machine launch() { }";
+        let mut sources = source::SourceMap::default();
+        sources.add("main.omg".into(), source.into());
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                sources: Some(std::sync::Arc::new(sources)),
+                ..syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax)
+            },
+        )
+        .expect("resolved");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("typed");
+        let mut evaluator = Evaluator::new(&typed, &[]);
+        let result = evaluator.issue_product_entry_description(
+            b"launch",
+            b"unvalidated-slot",
+            source::SourceSpan::default(),
+        );
+        let Err(Halt::Trap(message)) = result else {
+            panic!("missing compatibility owner must trap");
+        };
+        assert!(
+            message.contains("requires the build owner's slot compatibility check"),
+            "{message}"
+        );
+        assert!(evaluator.product_entry_descriptions.is_empty());
     }
 }

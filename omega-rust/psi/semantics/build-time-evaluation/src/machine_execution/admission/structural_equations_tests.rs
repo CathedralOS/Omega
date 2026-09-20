@@ -47,6 +47,7 @@ fn provisional_wrapper_cannot_execute_a_specialized_pending_equation() {
     let rejection = evaluate_build_machine_measured(
         &prepared,
         BuildMachineInvocation {
+            product_entry_compatibility: None,
             machine: PreparedBuildMachine::Name("wrapper"),
             arguments: Vec::new(),
             mode: BuildMachineExecutionMode::Pure,
@@ -64,6 +65,7 @@ fn provisional_wrapper_cannot_execute_a_specialized_pending_equation() {
         evaluate_build_machine_measured(
             &prepared,
             BuildMachineInvocation {
+                product_entry_compatibility: None,
                 machine: PreparedBuildMachine::Name("independent"),
                 arguments: Vec::new(),
                 mode: BuildMachineExecutionMode::Pure,
