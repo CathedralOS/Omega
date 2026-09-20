@@ -9522,7 +9522,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   discard diagnostic. Return-style terminators order their custody gates in
   `terminators.rs`'s `close_*` bodies (partial custody and restoration debt
   before rosters, reference release, terminal self-receiver, live-claim
-  sweep). Verified at `14e6f8f72e` on linux x86-64: `cargo nextest run -p
+  sweep). Verified at `14e6f8f72e` on linux x86-64; re-verified at
+  `42ac67775fd`: `cargo nextest run -p
   terminal-verifier structural_scalar_fields` is 62/62 green including the
   pinning test. Sibling mined rows resolved to the same landed order:
   EDGE-CLEANUP-ERROR-PRECEDENCE, SUCCESSOR-DISCARD-ORDER,
