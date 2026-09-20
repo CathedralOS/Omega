@@ -55,6 +55,7 @@ pub const NUMERIC_SIGNED_CONVERSION_SURFACE: &str = "core/numeric_signed_convers
 pub const NUMERIC_TRAPPING_CONVERSION_OVERFLOW: &str = "core/numeric_trapping_conversion_overflow";
 pub const NUMERIC_CROSS_SIGNED_CONVERSION_SURFACE: &str =
     "core/numeric_cross_signed_conversion_surface";
+pub const WAIT_WAKE_BOUNDARY_SURFACE: &str = "core/wait_wake_boundary_surface";
 pub const RUNTIME_SUBSLICE_LEN_EXIT: &str = "slices/runtime_subslice_len_exit";
 pub const RUNTIME_SLICE_INDEX_READ_DISPATCH_EXIT: &str =
     "slices/runtime_slice_index_read_dispatch_exit";
@@ -161,6 +162,7 @@ pub const PASS_CANARIES: &[&str] = &[
     NUMERIC_SIGNED_CONVERSION_SURFACE,
     NUMERIC_TRAPPING_CONVERSION_OVERFLOW,
     NUMERIC_CROSS_SIGNED_CONVERSION_SURFACE,
+    WAIT_WAKE_BOUNDARY_SURFACE,
     RUNTIME_SUBSLICE_LEN_EXIT,
     RUNTIME_SLICE_INDEX_READ_DISPATCH_EXIT,
     RUNTIME_SLICE_INDEX_COPY_EXIT,
