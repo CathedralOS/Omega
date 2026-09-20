@@ -1,20 +1,20 @@
 use super::{
-    check_canary, compile_canary_without_output, compile_reviewed_repository_fixture, fail_canary,
-    pass_canary, repo_root, Diagnostic,
+    BuildDeclaration, PackageDependencyBinding, PackageKeyIdentity, PackageSourceBinding,
+    compile_to_checked, extract_build_declaration, fixture_package_identity,
 };
 use super::{
-    compile_to_checked, extract_build_declaration, fixture_package_identity, BuildDeclaration,
-    PackageDependencyBinding, PackageKeyIdentity, PackageSourceBinding,
+    Diagnostic, check_canary, compile_canary_without_output, compile_reviewed_repository_fixture,
+    fail_canary, pass_canary, repo_root,
 };
-use build_declarations::{project_build_entry_syntax, project_dependency_rows, DependencyPurpose};
+use build_declarations::{DependencyPurpose, project_build_entry_syntax, project_dependency_rows};
 use compiler::CheckedCompileRequest;
 use package_compilation::PackageCompilationInputs;
 use source_files_to_tokens::Lexer;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[path = "../fixture_rosters/task_runtime.rs"]
