@@ -205,21 +205,22 @@ pub(super) fn expression_borrows_carrier_binding(
                 TypeReferenceNode::Reference { access, .. } => access.is_exclusive(),
                 _ => false,
             }
-        }) && frozen_bindings::binding_source(program, target, aliases).is_some_and(|source| {
-            source
-                .segments
-                .iter()
-                .all(|segment| matches!(segment, PlaceSegment::Field { .. }))
-                && stored.iter().any(|local| {
-                    local.local_symbol == source.root
-                        && program.symbols.get(local.local_symbol).kind
-                            == symbols::SymbolKind::Local
-                        && local
-                            .references
-                            .iter()
-                            .any(|leaf| leaf.local_segments == source.segments)
-                })
-        });
+        }) && frozen_bindings::binding_source(program, target, aliases)
+            .is_some_and(|source| {
+                source
+                    .segments
+                    .iter()
+                    .all(|segment| matches!(segment, PlaceSegment::Field { .. }))
+                    && stored.iter().any(|local| {
+                        local.local_symbol == source.root
+                            && program.symbols.get(local.local_symbol).kind
+                                == symbols::SymbolKind::Local
+                            && local
+                                .references
+                                .iter()
+                                .any(|leaf| leaf.local_segments == source.segments)
+                    })
+            });
         if reborrows_proven_leaf {
             return false;
         }
