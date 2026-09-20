@@ -1343,6 +1343,244 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
 }
 
 #[test]
+fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_field() {
+    let boundary = BoundaryMachineId::new(261).unwrap();
+    let machine = MachineId::new(262).unwrap();
+    let descriptor_place = PlaceId::new(263).unwrap();
+    let holder_place = PlaceId::new(264).unwrap();
+    let bytes = StructuralTypeId::new(265).unwrap();
+    let holder = StructuralTypeId::new(266).unwrap();
+    let i64_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    let mut next_field = 267_u64;
+    let mut field = |identity: &str, field_type: terminal_psi::StructuralFieldType| {
+        let declaration = terminal_psi::StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(next_field).unwrap(),
+            identity: identity.to_owned(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type,
+        };
+        next_field += 1;
+        declaration
+    };
+    let catalog = abstract_operations::StructuralTypeCatalog::from(vec![
+        terminal_psi::StructuralTypeDeclaration {
+            id: bytes,
+            identity: "bytes".into(),
+            shape: terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView,
+            ),
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: holder,
+            identity: "Holder".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![
+                    field(
+                        "slice",
+                        terminal_psi::StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                        ),
+                    ),
+                    field(
+                        "tail",
+                        terminal_psi::StructuralFieldType::Scalar(i64_scalar),
+                    ),
+                ],
+            },
+        },
+    ]);
+    let structural_types = StructuralTypeLookup::new(&catalog);
+    let descriptor_source = TargetStructuralParameter {
+        place: descriptor_place,
+        structural_type: bytes,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+        projected_qualifications: Vec::new(),
+        shape: ValueShape::borrowed_reference(16, 8),
+        placement: ValuePlacement {
+            shape: ValueShape::integer(16, 8),
+            locations: vec![ValueLocation::Stack {
+                stack_byte_offset: 0,
+                value_byte_offset: 0,
+                byte_size: 16,
+                alignment: 8,
+            }],
+        },
+    };
+    let holder_source = TargetStructuralParameter {
+        place: holder_place,
+        structural_type: holder,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        access: terminal_psi::StructuralAccess::MutableBorrow,
+        projected_qualifications: Vec::new(),
+        shape: ValueShape::borrowed_reference(24, 8),
+        placement: ValuePlacement {
+            shape: ValueShape::integer(24, 8),
+            locations: vec![ValueLocation::Stack {
+                stack_byte_offset: 32,
+                value_byte_offset: 0,
+                byte_size: 24,
+                alignment: 8,
+            }],
+        },
+    };
+    let parameters_by_place = BTreeMap::from([
+        (descriptor_place, &descriptor_source),
+        (holder_place, &holder_source),
+    ]);
+    let mut declaration = declaration(boundary, Vec::new());
+    declaration.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+    declaration.structural_parameters = vec![structural_formal(
+        0,
+        bytes,
+        terminal_psi::StructuralAccess::SharedBorrow,
+    )];
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![ValueShape::integer(16, 8)],
+                result: None,
+            },
+        )
+        .expect("descriptor entry plan")
+        .plan()
+        .clone();
+        for (place, path) in [
+            (descriptor_place, Vec::new()),
+            (
+                holder_place,
+                vec![terminal_psi::StructuralPathSegment::Field("slice".into())],
+            ),
+        ] {
+            let arguments = vec![terminal_psi::StructuralArgument {
+                place,
+                path: path.clone(),
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            }];
+            let lowered = lower_normalized_foreign_structural_arguments(
+                boundary,
+                machine,
+                target,
+                &declaration,
+                &arguments,
+                &plan,
+                &structural_types,
+                &parameters_by_place,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                None,
+            )
+            .expect("borrowed-view descriptor argument lowers");
+            let [argument] = lowered.as_slice() else {
+                panic!("expected exactly one structural argument")
+            };
+            assert_eq!(argument.place, place);
+            assert_eq!(
+                argument.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+            );
+            assert_eq!(argument.path, path);
+            assert_eq!(argument.structural_type, bytes);
+            assert_eq!(argument.shape, ValueShape::borrowed_reference(16, 8));
+            assert_eq!(argument.source_byte_offset, 0);
+            assert_eq!(argument.fixed_array_length, None);
+            assert_eq!(argument.element_stride, None);
+            assert_eq!(argument.destination, plan.call.parameters[0]);
+            assert_eq!(
+                argument.destination.shape,
+                ValueShape::integer(16, 8),
+                "the descriptor's two words transport by value under the aggregate classification"
+            );
+            assert!(matches!(
+                argument.destination.locations.as_slice(),
+                [
+                    ValueLocation::Register {
+                        value_byte_offset: 0,
+                        byte_size: 8,
+                        ..
+                    },
+                    ValueLocation::Register {
+                        value_byte_offset: 8,
+                        byte_size: 8,
+                        ..
+                    },
+                ]
+            ));
+        }
+    }
+
+    // A whole-place borrow still requires the descriptor root, a descriptor
+    // formal must join an indirect destination, and a path landing on an
+    // ordinary leaf cannot pass a descriptor formal.
+    let x64 = NativeTarget::linux_x64();
+    let thin_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(x64),
+        &CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        },
+    )
+    .expect("thin-pointer entry plan")
+    .plan()
+    .clone();
+    let descriptor_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(x64),
+        &CallSignature {
+            parameters: vec![ValueShape::integer(16, 8)],
+            result: None,
+        },
+    )
+    .expect("descriptor entry plan")
+    .plan()
+    .clone();
+    for (argument, plan) in [
+        (
+            terminal_psi::StructuralArgument {
+                place: holder_place,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            },
+            &descriptor_plan,
+        ),
+        (
+            terminal_psi::StructuralArgument {
+                place: descriptor_place,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            },
+            &thin_plan,
+        ),
+        (
+            terminal_psi::StructuralArgument {
+                place: holder_place,
+                path: vec![terminal_psi::StructuralPathSegment::Field("tail".into())],
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            },
+            &descriptor_plan,
+        ),
+    ] {
+        assert!(
+            lower_normalized_foreign_structural_arguments(
+                boundary,
+                machine,
+                x64,
+                &declaration,
+                std::slice::from_ref(&argument),
+                plan,
+                &structural_types,
+                &parameters_by_place,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+                None,
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn normalized_foreign_structural_mutations_fail_closed() {
     let boundary = BoundaryMachineId::new(221).unwrap();
     let machine = MachineId::new(222).unwrap();
