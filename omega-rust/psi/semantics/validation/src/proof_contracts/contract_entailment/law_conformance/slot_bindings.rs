@@ -16,12 +16,12 @@ pub(crate) fn carrier_slot_bindings(
     carrier: typed_trees::types::TypeReferenceHandle,
     prefer_alias: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<(String, String)> {
-    let mut bindings: Vec<(String, String)> = Vec::new();
+) -> Vec<(String, (String, symbols::SymbolHandle))> {
+    let mut bindings: Vec<(String, (String, symbols::SymbolHandle))> = Vec::new();
 
     for requirement in program.trait_machine_signatures(trait_definition) {
         // (slot machine name, alias) candidates for this carrier.
-        let mut candidates: Vec<(String, Option<String>)> = Vec::new();
+        let mut candidates: Vec<((String, symbols::SymbolHandle), Option<String>)> = Vec::new();
         for candidate in program.machines() {
             for conformance in program.machine_trait_conformances(candidate) {
                 if conformance.symbol != trait_definition.symbol {
@@ -56,7 +56,7 @@ pub(crate) fn carrier_slot_bindings(
                     continue;
                 }
                 candidates.push((
-                    candidate.name.as_str().to_owned(),
+                    (candidate.name.as_str().to_owned(), candidate_entry.symbol),
                     conformance
                         .alias
                         .as_ref()
@@ -113,18 +113,23 @@ pub(crate) fn carrier_slot_bindings(
 pub(crate) fn rewrite_slot_applications(
     term: &StructuralTerm,
     slot_names: &[String],
-    slot_bindings: &[(String, String)],
+    slot_bindings: &[(String, (String, symbols::SymbolHandle))],
     missing: &mut Vec<String>,
 ) -> StructuralTerm {
     match term {
-        StructuralTerm::Application { machine, arguments } => {
+        StructuralTerm::Application {
+            target,
+            selections,
+            machine,
+            arguments,
+        } => {
             let arguments = arguments
                 .iter()
                 .map(|argument| {
                     rewrite_slot_applications(argument, slot_names, slot_bindings, missing)
                 })
                 .collect();
-            let machine = if slot_names.iter().any(|slot| slot == machine) {
+            let (machine, target) = if slot_names.iter().any(|slot| slot == machine) {
                 match slot_bindings
                     .iter()
                     .find(|(slot, _)| slot == machine)
@@ -133,14 +138,40 @@ pub(crate) fn rewrite_slot_applications(
                     Some(bound) => bound,
                     None => {
                         missing.push(machine.clone());
-                        machine.clone()
+                        (machine.clone(), *target)
                     }
                 }
             } else {
-                machine.clone()
+                (machine.clone(), *target)
             };
-            StructuralTerm::Application { machine, arguments }
+            StructuralTerm::Application {
+                target,
+                selections: selections.clone(),
+                machine,
+                arguments,
+            }
         }
+        StructuralTerm::ScalarBinary {
+            operator,
+            meaning,
+            left,
+            right,
+        } => StructuralTerm::ScalarBinary {
+            operator: *operator,
+            meaning: *meaning,
+            left: Box::new(rewrite_slot_applications(
+                left,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+            right: Box::new(rewrite_slot_applications(
+                right,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+        },
         StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
             data: data.clone(),
             case: case.clone(),
@@ -155,6 +186,7 @@ pub(crate) fn rewrite_slot_applications(
                 .collect(),
         },
         StructuralTerm::CallProjection {
+            selections,
             target,
             machine,
             result_type,
@@ -162,6 +194,7 @@ pub(crate) fn rewrite_slot_applications(
             field_name,
             arguments,
         } => StructuralTerm::CallProjection {
+            selections: selections.clone(),
             target: *target,
             machine: machine.clone(),
             result_type: *result_type,
@@ -174,12 +207,25 @@ pub(crate) fn rewrite_slot_applications(
                 })
                 .collect(),
         },
+        StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
+            subject: Box::new(rewrite_slot_applications(
+                subject,
+                slot_names,
+                slot_bindings,
+                missing,
+            )),
+            path: path.clone(),
+        },
         other => other.clone(),
     }
 }
 
 pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -> bool {
     match term {
+        StructuralTerm::ScalarBinary { left, right, .. } => {
+            term_mentions_variable(left, variable) || term_mentions_variable(right, variable)
+        }
+        StructuralTerm::Projection { subject, .. } => term_mentions_variable(subject, variable),
         StructuralTerm::Variable(name) => name == variable,
         StructuralTerm::Constructor { fields, .. } => fields
             .iter()
@@ -237,10 +283,13 @@ pub(crate) fn diagnostic_shape_match(
                     })
         }
         (
-            StructuralTerm::Application { machine, arguments },
+            StructuralTerm::Application {
+                machine, arguments, ..
+            },
             StructuralTerm::Application {
                 machine: machine_t,
                 arguments: arguments_t,
+                ..
             },
         ) => {
             machine == machine_t
@@ -308,7 +357,9 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
                 format!("{data}::{case} {{ {} }}", rendered.join(", "))
             }
         }
-        StructuralTerm::Application { machine, arguments } => {
+        StructuralTerm::Application {
+            machine, arguments, ..
+        } => {
             let rendered: Vec<String> = arguments.iter().map(display_structural_term).collect();
             format!("{machine}({})", rendered.join(", "))
         }
@@ -320,6 +371,19 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
         } => {
             let rendered: Vec<String> = arguments.iter().map(display_structural_term).collect();
             format!("{machine}({}).{field_name}", rendered.join(", "))
+        }
+        StructuralTerm::ScalarBinary {
+            operator,
+            meaning,
+            left,
+            right,
+        } => format!(
+            "binary:{operator:?}:{meaning:?}({},{})",
+            display_structural_term(left),
+            display_structural_term(right)
+        ),
+        StructuralTerm::Projection { subject, path } => {
+            format!("{}.{path}", display_structural_term(subject))
         }
         StructuralTerm::Opaque(display) => display.clone(),
     }

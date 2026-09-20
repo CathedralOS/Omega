@@ -227,19 +227,42 @@ fn structurally_substitutable_fact(program: &TypedTrees, expression: ExpressionH
     })
 }
 
-/// Opaque display text is not a substitutable term. Applications are withheld
-/// too: the legacy normalizer can turn their bodies into unsubstituted display
-/// text even when the input application is structural. Neither a receiver
-/// prefix rewrite nor equal-looking normalized text establishes exact operands.
-/// Extend this judgment when that normalizer preserves argument and selected
-/// callable identity; do not replace unknown with successful normalization.
+/// Only fully substituted concrete free applications cross this boundary.
+/// Their exact entry identity survives shared normalization. Receiver calls,
+/// static applications and opaque display text remain unsupported here.
 fn term_has_complete_substitution(program: &TypedTrees, term: &StructuralTerm) -> bool {
     match term {
         StructuralTerm::BoundValue(_)
         | StructuralTerm::BoundProjection { .. }
+        | StructuralTerm::Projection { .. }
         | StructuralTerm::Opaque(_)
-        | StructuralTerm::Application { .. }
         | StructuralTerm::CallProjection { .. } => false,
+        StructuralTerm::Application {
+            target,
+            selections,
+            arguments,
+            ..
+        } => {
+            selections.is_empty()
+                && super::structural_terms::selected_application_machine(program, *target)
+                    .is_some_and(|machine| {
+                        machine.attached_data.is_none()
+                            && program.machine_type_parameters(machine).is_empty()
+                            && program
+                                .machine_states(machine)
+                                .first()
+                                .is_some_and(|state| {
+                                    program.state_parameters(state).len() == arguments.len()
+                                })
+                    })
+                && arguments
+                    .iter()
+                    .all(|argument| term_has_complete_substitution(program, argument))
+        }
+        StructuralTerm::ScalarBinary { left, right, .. } => {
+            term_has_complete_substitution(program, left)
+                && term_has_complete_substitution(program, right)
+        }
         StructuralTerm::Variable(_) | StructuralTerm::Integer(_) => true,
         StructuralTerm::Constructor { data, case, fields } => {
             constructor_fields_are_complete(program, data, case, fields)

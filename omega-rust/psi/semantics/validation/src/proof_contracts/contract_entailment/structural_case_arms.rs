@@ -33,8 +33,6 @@ mod tests;
 /// every goal holds vacuously, mirroring the polynomial engine's rule.
 /// One recognized case arm of a structurally-inductive proof machine.
 pub(crate) struct StructuralCaseArm {
-    /// The machine's short (call-target) name, for self-application search.
-    pub(crate) machine_name: String,
     /// Entry parameter names, positionally matching self-call arguments.
     pub(crate) parameter_names: Vec<String>,
     /// Case refinements accumulated along the path to this leaf. A variable
@@ -140,13 +138,6 @@ pub(crate) fn recognize_guarded_structural_value_arms(
         .iter()
         .map(|name| (name.clone(), StructuralTerm::Variable(name.clone())))
         .collect();
-    let machine_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or(machine.name.as_str())
-        .to_owned();
 
     [first_target, second_target]
         .into_iter()
@@ -157,7 +148,6 @@ pub(crate) fn recognize_guarded_structural_value_arms(
                 return None;
             };
             Some(StructuralCaseArm {
-                machine_name: machine_name.clone(),
                 parameter_names: parameter_names.clone(),
                 case_hypotheses: Vec::new(),
                 case_equations: Vec::new(),
@@ -233,13 +223,6 @@ pub(super) fn recognize_structural_case_arms_with_requirement(
 ) -> Option<Vec<StructuralCaseArm>> {
     let states = program.machine_states(machine);
     let root = states.first()?;
-    let machine_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or(machine.name.as_str())
-        .to_owned();
     let parameter_names: Vec<String> = program
         .state_parameters(root)
         .iter()
@@ -259,7 +242,6 @@ pub(super) fn recognize_structural_case_arms_with_requirement(
         diagnostics,
         states,
         root,
-        &machine_name,
         &parameter_names,
         environment,
         Vec::new(),
@@ -283,7 +265,6 @@ fn recognize_structural_state_leaves(
     diagnostics: &mut Vec<Diagnostic>,
     states: &[typed_trees::state::State],
     state: &typed_trees::state::State,
-    machine_name: &str,
     parameter_names: &[String],
     mut environment: Vec<(String, StructuralTerm)>,
     case_hypotheses: Vec<(String, StructuralTerm)>,
@@ -407,7 +388,6 @@ fn recognize_structural_state_leaves(
                 judge,
                 classification,
                 diagnostics,
-                machine_name,
                 parameter_names,
                 case_hypotheses,
                 case_equations,
@@ -528,7 +508,6 @@ fn recognize_structural_state_leaves(
                         judge,
                         classification,
                         diagnostics,
-                        machine_name,
                         parameter_names,
                         branch_hypotheses,
                         branch_equations,
@@ -571,7 +550,6 @@ fn recognize_structural_state_leaves(
                         diagnostics,
                         states,
                         target_state,
-                        machine_name,
                         parameter_names,
                         target_environment,
                         branch_hypotheses,
@@ -601,7 +579,6 @@ fn finalize_structural_case_arm(
     judge: &StructuralJudge<'_>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
-    machine_name: &str,
     parameter_names: &[String],
     case_hypotheses: Vec<(String, StructuralTerm)>,
     case_equations: Vec<(StructuralTerm, StructuralTerm)>,
@@ -621,7 +598,6 @@ fn finalize_structural_case_arm(
     intake_available_self_induction_hypotheses(
         program,
         machine,
-        machine_name,
         parameter_names,
         &value,
         &mut arm_judge,
@@ -648,7 +624,6 @@ fn finalize_structural_case_arm(
             intake_available_self_induction_hypotheses(
                 program,
                 machine,
-                machine_name,
                 parameter_names,
                 &value,
                 &mut arm_judge,
@@ -657,7 +632,6 @@ fn finalize_structural_case_arm(
     }
 
     StructuralCaseArm {
-        machine_name: machine_name.to_owned(),
         parameter_names: parameter_names.to_vec(),
         case_hypotheses,
         case_equations,

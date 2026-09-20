@@ -18,7 +18,6 @@ use typed_trees::signature::SignatureContractKind;
 pub(crate) fn intake_available_self_induction_hypotheses(
     program: &TypedTrees,
     machine: &Machine,
-    machine_name: &str,
     parameter_names: &[String],
     value: &StructuralTerm,
     judge: &mut StructuralJudge<'_>,
@@ -53,7 +52,14 @@ pub(crate) fn intake_available_self_induction_hypotheses(
     }
 
     let mut applications = Vec::new();
-    StructuralJudge::self_applications(value, machine_name, &mut applications);
+    StructuralJudge::self_applications(
+        value,
+        program
+            .machine_states(machine)
+            .first()
+            .map_or(symbols::SymbolHandle::invalid(), |state| state.symbol),
+        &mut applications,
+    );
     for application in applications {
         let StructuralTerm::Application { arguments, .. } = &application else {
             continue;

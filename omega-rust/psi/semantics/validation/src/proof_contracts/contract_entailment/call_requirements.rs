@@ -260,25 +260,12 @@ fn intake_state_induction(
         .iter()
         .map(|parameter| parameter.name.as_str().to_owned())
         .collect::<Vec<_>>();
-    let machine_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or(machine.name.as_str());
     let mut applications = Vec::new();
-    StructuralJudge::self_applications(&value, machine_name, &mut applications);
+    StructuralJudge::self_applications(&value, entry.symbol, &mut applications);
     if applications.len() != 1 {
         return;
     }
-    intake_available_self_induction_hypotheses(
-        program,
-        machine,
-        machine_name,
-        &parameters,
-        &value,
-        judge,
-    );
+    intake_available_self_induction_hypotheses(program, machine, &parameters, &value, judge);
 }
 
 /// Follow exact immutable local definitions, including ordinary call hoisting.

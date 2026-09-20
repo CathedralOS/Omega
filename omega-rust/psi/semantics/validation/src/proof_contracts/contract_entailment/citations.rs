@@ -29,6 +29,7 @@ use typed_trees::statement::StatementNode;
 #[derive(Clone)]
 pub(super) struct CitationTarget {
     symbol: SymbolHandle,
+    machine_arguments: Vec<typed_trees::expression::StaticMachineArgument>,
     result_binding: SymbolHandle,
     has_static_selection: bool,
 }
@@ -352,6 +353,7 @@ pub(crate) fn citation_call_in_statement<'program>(
         StatementNode::Call(call) if call.receiver.is_empty() => Some((
             CitationTarget {
                 symbol: call.target_symbol,
+                machine_arguments: call.machine_arguments.to_vec(),
                 result_binding: SymbolHandle::invalid(),
                 has_static_selection: !call.machine_arguments.is_empty()
                     || call.static_machine_parameter.is_valid()
@@ -376,6 +378,7 @@ pub(crate) fn citation_call_in_statement<'program>(
             Some((
                 CitationTarget {
                     symbol: call.target_symbol,
+                    machine_arguments: call.machine_arguments.to_vec(),
                     result_binding: local_data.symbol,
                     has_static_selection: !call.machine_arguments.is_empty()
                         || call.static_machine_parameter.is_valid()
@@ -403,16 +406,7 @@ pub(crate) fn intake_citation_for_edge(
     binder: Option<&str>,
     _call_expression: ExpressionHandle,
 ) {
-    let Some(callee) = program.machines().iter().find(|candidate| {
-        candidate.attached_data.is_none()
-            && candidate
-                .name
-                .as_str()
-                .rsplit("::")
-                .next()
-                .unwrap_or(candidate.name.as_str())
-                == call.target.as_str()
-    }) else {
+    let Some(callee) = selected_citation_machine(program, call.target_symbol) else {
         return;
     };
     let Some(entry) = program.machine_states(callee).first() else {
@@ -431,6 +425,8 @@ pub(crate) fn intake_citation_for_edge(
         argument_terms.push(term);
     }
     let call_term = StructuralTerm::Application {
+        target: call.target_symbol,
+        selections: call.machine_arguments.to_vec(),
         machine: call.target.as_str().to_owned(),
         arguments: argument_terms.clone(),
     };
@@ -527,16 +523,7 @@ pub(crate) fn intake_statement_citation_for_edge(
     judge: &mut StructuralJudge<'_>,
     call: &typed_trees::statement::TableCall,
 ) {
-    let Some(callee) = program.machines().iter().find(|candidate| {
-        candidate.attached_data.is_none()
-            && candidate
-                .name
-                .as_str()
-                .rsplit("::")
-                .next()
-                .unwrap_or(candidate.name.as_str())
-                == call.target.as_str()
-    }) else {
+    let Some(callee) = selected_citation_machine(program, call.target_symbol) else {
         return;
     };
     let Some(entry) = program.machine_states(callee).first() else {
@@ -555,6 +542,8 @@ pub(crate) fn intake_statement_citation_for_edge(
         argument_terms.push(term);
     }
     let call_term = StructuralTerm::Application {
+        target: call.target_symbol,
+        selections: call.machine_arguments.to_vec(),
         machine: call.target.as_str().to_owned(),
         arguments: argument_terms.clone(),
     };
@@ -755,6 +744,8 @@ pub(crate) fn instantiate_citation(
     map.push((
         RESULT_BINDER.to_owned(),
         StructuralTerm::Application {
+            target: target.symbol,
+            selections: target.machine_arguments.clone(),
             machine: callee.name.as_str().to_owned(),
             arguments: argument_terms.to_vec(),
         },

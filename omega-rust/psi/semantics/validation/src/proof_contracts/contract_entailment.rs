@@ -579,7 +579,10 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
             if !machine_has_requires || all_facts_are_expressions {
                 StructuralJudge::self_applications(
                     &arm.value,
-                    &arm.machine_name,
+                    program
+                        .machine_states(machine)
+                        .first()
+                        .map_or(SymbolHandle::invalid(), |state| state.symbol),
                     &mut applications,
                 );
             }
