@@ -7152,7 +7152,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   it; no leg may report an unexecuted host result as passing.
 - **SEED-PARITY-ALIGNMENT** — mined candidate; verify scope then implement.
 - **SEED-PARITY-ASSERTIONS** — mined candidate; verify scope then implement.
-- **SEED-PARITY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
 - **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES** — mined candidate; verify scope then implement.
 - **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **SELECTED-OPTIMIZATION-ANCESTRY-READS** — mined candidate; scope verified, already landed. Same settled surface as SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL (annotated sibling, this section): the staged types expose `selected`/`selections`/`budget_per_pass`/`liveness`/`ranges`/`legality` directly, `83766d57bf` moved custody reads to the retained `optimized_target_owner` handle, and `tests/ancestry_contract.rs` pins the contract — zero `.optimized_target()` data reads and no unsanctioned `selected_stage()` walks. Re-verified at `54d5dc1cb1`: `cargo nextest run -p selected-instructions-to-selected-instructions --test ancestry_contract` 2/2 green on linux x86-64.
