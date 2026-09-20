@@ -296,6 +296,29 @@ fn close_structural_case(
     Ok(())
 }
 
+/// An owned `self` receiver is the language's terminal-consumer input: the
+/// caller hands it into the machine and the machine consumes it by
+/// completing, so claims rooted at its parameter place retire and its place
+/// leaves owned custody at every successful exit edge. This is checked
+/// rather than asserted: `is_self` is admitted only on the declared
+/// attachment type and only once, and a borrowed receiver carries `access`
+/// other than `Owned`, so no parameter outside the consumed receiver can
+/// route a claim through this rule. Claims rooted anywhere else remain
+/// subject to the ordinary live-claim checks.
+fn consume_terminal_self_receiver(
+    machine: &terminal_psi::TerminalMachine,
+    frontier: &mut StructuralOwnershipFrontier,
+) {
+    for parameter in &machine.structural_parameters {
+        if parameter.is_self && parameter.access == StructuralAccess::Owned {
+            frontier
+                .claims
+                .retain(|_, claim| claim.input != Some(parameter.place));
+            frontier.owned_places.remove(&parameter.place);
+        }
+    }
+}
+
 /// Closes a block whose terminator is `ReturnUnit`.
 fn close_return_unit(
     walk: &FrontierWalk<'_>,
@@ -344,6 +367,7 @@ fn close_return_unit(
         trivial_affine_discards,
     )?;
     require_no_references(machine, &frontier.references)?;
+    consume_terminal_self_receiver(machine, &mut frontier);
     if let Some((claim, _)) = frontier
         .claims
         .iter()
@@ -446,6 +470,7 @@ fn close_return_unit_partial_affine(
             place: *place,
         });
     }
+    consume_terminal_self_receiver(machine, &mut frontier);
     if let Some((claim, _)) = frontier
         .claims
         .iter()
@@ -490,6 +515,7 @@ fn close_return_unit_nominal_affine(
             place: *place,
         });
     }
+    consume_terminal_self_receiver(machine, &mut frontier);
     if !frontier.partial_custody_paths.is_empty()
         || !frontier.claims.is_empty()
         || !frontier.owned_places.is_empty()
@@ -506,7 +532,7 @@ fn close_return_unit_nominal_affine(
 fn close_return(
     walk: &FrontierWalk<'_>,
     block: &terminal_psi::Block,
-    frontier: StructuralOwnershipFrontier,
+    mut frontier: StructuralOwnershipFrontier,
 ) -> Result<(), ModuleError> {
     let FrontierWalk {
         module,
@@ -521,6 +547,7 @@ fn close_return(
     else {
         unreachable!("dispatched close_return")
     };
+    consume_terminal_self_receiver(machine, &mut frontier);
     if let Some((claim, _)) = frontier
         .claims
         .iter()
@@ -746,6 +773,10 @@ fn close_return_structural(
         trivial_affine_discards,
     )?;
     require_no_references(machine, &frontier.references)?;
+    // The consumed receiver's claims retire here only when it was not the
+    // returned source: a `self` result's claims left through
+    // `returned_claims` above and no longer key on its place.
+    consume_terminal_self_receiver(machine, &mut frontier);
     if let Some(claim) = frontier.claims.keys().next() {
         return Err(ModuleError::LiveClaimAtStructuralReturn {
             machine: machine.id,

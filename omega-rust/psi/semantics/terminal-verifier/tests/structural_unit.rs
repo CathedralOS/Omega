@@ -26,6 +26,8 @@ mod provider_attachments_and_cleanup_targets;
 mod reference_results;
 #[path = "structural_unit/result_residuals.rs"]
 mod result_residuals;
+#[path = "structural_unit/self_claim_retirement.rs"]
+mod self_claim_retirement;
 #[path = "structural_unit/write_only_attenuation.rs"]
 mod write_only_attenuation;
 
