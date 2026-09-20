@@ -202,7 +202,14 @@ def census(stepper, proofs, theory):
     return rules, clause_summary, unused_functions, unused_constructors
 
 
-def produce():
+def build():
+    """Produce the complete derivation and assembled request sections.
+
+    Returns every artifact the certificate consumers need: the decoded
+    owner/witness/proof rows, the encoded sections, the whole request, and
+    the Stepper/Theory for term lookup.  Keeps the pinned identity checks
+    and prints of the production gate; adds no admission decision.
+    """
     started = time.monotonic()
 
     expected_theory = identity.fixed_identity()
@@ -244,8 +251,37 @@ def produce():
     request_digest = hashlib.sha256(request).hexdigest()
     check_wire(request, owners, left_ref, right_ref, witnesses, proofs)
 
+    return {
+        "theory_bytes": theory_bytes,
+        "theory": theory,
+        "stepper": stepper,
+        "owners": owners,
+        "left_ref": left_ref,
+        "right_ref": right_ref,
+        "witnesses": witnesses,
+        "proofs": proofs,
+        "owner_section": owner_section,
+        "certificate_section": certificate_section,
+        "request": request,
+        "request_digest": request_digest,
+        "seconds": time.monotonic() - started,
+    }
+
+
+def produce():
+    ctx = build()
+    stepper = ctx["stepper"]
+    theory = ctx["theory"]
+    owners = ctx["owners"]
+    witnesses = ctx["witnesses"]
+    proofs = ctx["proofs"]
+    owner_section = ctx["owner_section"]
+    certificate_section = ctx["certificate_section"]
+    request = ctx["request"]
+    request_digest = ctx["request_digest"]
+
     rule_counts, clause_summary, unused_functions, unused_ctors = (
-        census(stepper, stepper.proofs, theory))
+        census(stepper, proofs, theory))
     depths = premise_depths(stepper.proofs)
 
     measured = {
@@ -265,7 +301,7 @@ def produce():
             raise SystemExit(
                 f"full subject: {key}={measured[key]}, recorded {expected}")
 
-    elapsed = time.monotonic() - started
+    elapsed = ctx["seconds"]
     print(f"full subject: owner_terms={measured['owner_terms']} "
           f"owner_bytes={measured['owner_bytes']} "
           f"witness_terms={measured['witness_terms']} "

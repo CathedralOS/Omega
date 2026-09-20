@@ -5982,7 +5982,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BETA-ENCODING-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-CERTIFICATE-PRODUCTION** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
-- **BETA-ENCODING-MUTATION-REJECTION** — mined candidate; verify scope then implement.
+- **BETA-ENCODING-MUTATION-REJECTION.** Full-subject mutation controls for the Beta encoding certificate per `bootstrap/proofs/beta_encoding/ACCEPTANCE.md`: through the checked-in Stepper, mutate each covered element (source, tape, assertions, theory identity, rule ids/clauses, substitution, premises, sorts, arities, partition joints, endpoints, final-root selection) and require rejection — invalid or exhausted input must not accept after a valid prefix. Harness lives in `tests/gamma/beta-encoding-theory/` as a new run.sh mode using the existing full-subject derivation.
 - **BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-SELECTED-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
 - **BETA-NATIVE-SELF-RECONSTRUCTION** — mined candidate; verify scope then implement.
