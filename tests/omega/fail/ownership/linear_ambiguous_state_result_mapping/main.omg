@@ -22,15 +22,16 @@ machine Main::issue(&mut self) -> Pair {
     let left: Receipt = Receipt { code: 1 };
     let right: Receipt = Receipt { code: 2 };
     // Each output path names a different input on different terminal arms, so
-    // the checked callee cannot publish one normalized outcome map.
+    // the checked callee can only record a conditional claim join. Checked
+    // semantics admits the join as evidence; production refuses because
+    // Terminal has no exit-alternative correspondence for it yet.
     transition { _ -> Main::pack(false, left, right) }
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) {
     let returned: Pair = self.issue();
     let left: Receipt = returned.left;
     let right: Receipt = returned.right;
     Receipt::ack(left);
     Receipt::ack(right);
-    0
 }

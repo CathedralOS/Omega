@@ -1549,7 +1549,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "operators/named_operator_result_overload_duplicate_dispatch",
     "ownership/copy_linear_conflict",
     "ownership/borrowed_storage_boundary_call",
-    "ownership/linear_ambiguous_state_result_mapping",
     "ownership/linear_mixed_branch_treatment",
     "ownership/linear_live_overwrite",
     "ownership/linear_transparent_record_sibling_scope_loss",
@@ -2558,6 +2557,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "traits/trait_generic_bound_static_dispatch",
     "calls/recursive_result_bind_first_arg",
     "calls/guarded_value_call_arm_exit",
+    "calls/guarded_value_call_computed_argument_exit",
     "calls/nested_machine_continuation",
     "calls/runtime_branching_callee_chain_exit",
     "calls/runtime_call_guard",
@@ -4632,6 +4632,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_std_math_sin_cos_exit",
     "calls/runtime_value_call_terminal_exit",
     "calls/guarded_value_call_arm_exit",
+    "calls/guarded_value_call_computed_argument_exit",
     "constants/runtime_free_const_exit",
     "proofs/runtime_core_nat_declared_exit",
     "proofs/runtime_core_rat_declared_exit",
@@ -4924,7 +4925,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/provider_type_target_default_conflict",
     "providers/scoped_provider_selection_outside_build",
     "host/terminal_host_call_value",
-    "calls/guarded_value_call_terminal_rejected",
     "boundary/entry_typed_params_unmarked",
     "wire/layout_domain_on_stored_bytes",
     "wire/layout_domain_grammar_not_implemented",
@@ -4958,6 +4958,11 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // Checked `let`/`boundary let` declarations reach the lowering consumer;
     // no Terminal evidence encoding carries them yet, so production refuses.
     "proofs/mathematical_declaration_lowering_rejected",
+    // Checked semantics admits the conditional claim join as evidence;
+    // `checked-trees-to-lowered-psi` refuses it pending Terminal
+    // exit-alternative correspondence. The fixture binds only
+    // `linux_x86_64::ProgramEntry` and runs the production route.
+    "ownership/linear_ambiguous_state_result_mapping",
     // The v0 freestanding-authority discharge is wired into the typed->checked
     // settlement transition, so a hosted build (no `freestanding = true` in
     // build.omg) rejects asm instructions whose catalog contract requires
