@@ -7995,7 +7995,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   document scope.
 - **PIPELINE-ORPHAN-ELIMINATION** — mined candidate; verify scope then implement.
 - **PIPELINE-OWNER-CONSOLIDATION** — mined candidate; verify scope then implement.
-- **PIPELINE-PLACEMENT-AUDIT** — mined candidate; verify scope then implement.
+- **PIPELINE-PLACEMENT-AUDIT.** Resolved — sibling stub of the landed
+  pipeline audit family (see PIPELINE-ROUTE-CONFORMANCE-AUDIT). The crate
+  placement rule ("folders must expose the connected X-to-Y, Y-to-Y, Y-to-Z
+  sequence") is already pinned by `tests/architecture/` audits, all green at
+  `cdee121ee9`: `stage_crate_ownership`'s
+  `stage_crates_name_unique_transforms_with_real_entrypoints`,
+  `stage_chain_has_no_orphan_inputs_or_outputs`,
+  `pipeline_ownership_document_links_every_stage_crate`, and
+  `stage_entrances_stay_connected_to_external_callers`; plus
+  `route_conformance`'s `route_rows_chain_each_output_into_the_next_input`,
+  `every_pipeline_crate_is_a_documented_route_owner`,
+  `pipeline_crate_names_and_packages_follow_the_route_shape`, and
+  `transform_crates_live_only_in_pipeline_directories`. No independent slice
+  exists. (Unrelated: `representation_ownership::
+  exit_replay_checks_claimed_records_without_reentering_the_producer` is red
+  at base — `stage.rs` carries 2 `validation::validate(` calls against the
+  pin's 3 — a stale count pin on the exit-contract lane, not placement.)
 - **PIPELINE-REWRITE-CATALOG-WIRING** — mined candidate; verify scope then implement.
 - **PIPELINE-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
 - **PIPELINE-REWRITES-OWNERSHIP-AUDIT** — resolved; the audit landed at `0a3b9344ac2` as [pipeline_rewrites_ownership_audit.md](wiki/drafts/pipeline_rewrites_ownership_audit.md) (recorded against `40e9234d97`). Every rewrite-bearing module tree (`rules`/`rules/passes`, `ranked_rewrites`, sis2sis `rewrites` (93 families), sis2rh `rewrites`) audited against the AGENTS.md ownership rules — all transformation code in the three pipeline optimization crates, zero orphan modules, no misplaced apply/transform entry points; one watch item on candidate construction in `optimization-unit/rewrite`. Sibling re-mines of the same surface: PIPELINE-REWRITE-ORPHANS, PIPELINE-REWRITE-CATALOG-WIRING, PIPELINE-ORPHAN-ELIMINATION, PIPELINE-PLACEMENT-AUDIT.
