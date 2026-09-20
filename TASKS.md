@@ -7589,7 +7589,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **EFI-MATRIX-PROMOTION** — mined candidate; verify scope then implement.
 - **ENCODER-CANDIDATE-CONTINUATION** — mined candidate; verify scope then implement.
 - **ENCODER-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
-- **ENTRY-MECHANICS-RUNTIME-CONSOLIDATION** — mined candidate; verify scope then implement.
+- **ENTRY-MECHANICS-RUNTIME-CONSOLIDATION.** Mined candidate — resolved,
+  covered. Named sibling alias on the settled
+  STARTUP-ENTRY-MECHANICS-OWNERSHIP surface (resolved by audit at
+  `be03555d17`): entry/exit mechanics already sit under one owner —
+  `backend/runtime/external-roots/src/root_entry` (validation,
+  admission, provider execution, progress-profile installation) plus
+  `platform_bringup` for UEFI bootstrap; `program-entry-plan` is
+  data-only, and `_start` resolution + `entry_settlement` are emission
+  detail/orchestration, not a second mechanics site.
+  `tests/architecture/layering.rs` pins the ownership rows; the runtime
+  side was settled by BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS (free
+  Unit entries emit process adapters on linux_x86_64/linux_arm64,
+  ELF `e_entry` round-trips through final-image validation). No
+  independent consolidation slice exists. Sibling aliases:
+  STARTUP-ENTRY-MECHANICS, STARTUP-ENTRY-PLACEHOLDER-SWEEP,
+  STARTUP-ENTRY-RUNTIME-MECHANICS, BACKEND-RUNTIME-STARTUP-*.
 - **ENTRYPOINT-MODULE-LAYOUT-GATE.** Resolved — the gate already exists and
   is green on main: `tests/architecture/entrypoint_module_layout.rs`
   codifies the AGENTS.md/omega-rust README discoverability contract as a
