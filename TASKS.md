@@ -7680,7 +7680,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-D-SCALAR-EMISSION-EXTENSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-OPERATION-FRONTIER** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-SEQUENCING** — mined candidate; verify scope then implement.
-- **OMEGA-D-STANDALONE-REQUEST-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-D-STANDALONE-REQUEST-ROUTE.** Resolved — landed alias: the
+  standalone OCREQ V1 request route is D's shipped path. `c30f4a5ece` added
+  the request-route entry (`main_ocreq.epsilon`: D's own
+  `OmegaRequestStructure::check` plus subject re-walk); `ab7f8c651c`
+  (OMEGA-D-REAL-ENTRY-ROUTE) made it the omega-executable gate's default and
+  bound entry selection to the target's `alpha_bootstrap::ProgramEntry`
+  contract — the retired raw-source adapter survives only as `--diagnostic`
+  refusal coverage; `fe4a90641b` (CHAIN-MANIFEST) bound the canonical request
+  entry as `OMEGA_REQUEST_ENTRY_*` pins refused by `omega-identity.sh`.
+  Verified at `8a37f82686` on Linux x86-64: the gate frames and serves the
+  canonical sealed request natively through the full Alpha→D chain
+  (`tests/bootstrap/omega-request/run.sh` reaches its customer leg; at the
+  current D closure it reports an evaluator-level `Incomplete` observation
+  rather than the published OCOUT refusal frame). The open semantic-admission
+  phases — package keys, ordering, graph, snapshot, commitment, and the
+  provision ordering under them — belong to the OMEGA-D-REQUEST-* siblings;
+  end-to-end compilation acceptance belongs to OMEGA-D. Sibling stub
+  OMEGA-D-REQUEST-ROUTE-ENTRY mines the same landed binding — dedupe.
 - **OMEGA-ENTRY-MANIFEST-BINDINGS** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
