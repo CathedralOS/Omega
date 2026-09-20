@@ -6805,6 +6805,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; verify scope then implement.
 - **DELTA-POST-FRONTEND-ALLOCATION-STRESS** — mined candidate; verify scope then implement.
 - **DEPENDENCY-FREE-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
+- **DEPENDENCY-FREE-MEASURABLE-SUBJECT.** Mined candidate — resolved,
+  subject landed: `samples/cli/arithmetic/wrapping_square_sum` (added
+  `3dd805679c`) is the committed dependency-free benchmark subject —
+  witnessed compiling and publishing on `windows_x86_64`, `macos_arm64`,
+  and `linux_arm64` (~24-28s each), with committed records for
+  linux_arm64 default and linux_x86_64 selection
+  (`tools/benchmark/records/wrapping_square_sum__*`). The remaining legs
+  are per-host record production under BENCHMARK-*-ROW items, not a new
+  subject. Sibling stubs on the same surface:
+  DEPENDENCY-FREE-BENCHMARK-SUBJECT, DEPENDENCY-FREE-RUNTIME-BENCHMARK-
+  SUBJECT, BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT,
+  BENCHMARK-MEASURABLE-SUBJECT-CORPUS.
 - **DEPENDENCY-FREE-RUNTIME-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
 - **DEPENDENT-RELATIONAL-PROOF-SUPPORT.** Resolved — the mined sentence
   (chapter_12: "implementation support for relational proofs and views
