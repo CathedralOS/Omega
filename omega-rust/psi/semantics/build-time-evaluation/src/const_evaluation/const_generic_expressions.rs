@@ -496,6 +496,26 @@ pub(super) fn expression_custody(
                 }
                 continue;
             }
+            // Selection kinds that name a declaration other than a constant
+            // value (member fields, literal carriers, case/type projections,
+            // domain and conformance rows) carry no value origin here; the
+            // selected declaration's own evaluation owns them.
+            if matches!(
+                selection.kind(),
+                Kind::TypeReference
+                    | Kind::MemberAccess
+                    | Kind::StructLiteralType
+                    | Kind::StructLiteralCase
+                    | Kind::StructLiteralField
+                    | Kind::CaseReference
+                    | Kind::CaseMembership
+                    | Kind::DomainMembership
+                    | Kind::DomainIssuerAuthorization
+                    | Kind::StaticArgument
+                    | Kind::Conformance
+            ) {
+                continue;
+            }
             let Target::Resolved(selected) = selection.target() else {
                 return Err(
                     "evaluated constant reference has no exact declaration selection".to_owned(),
@@ -547,6 +567,10 @@ pub(super) fn expression_custody(
             pending.push(unary.operand);
         } else if let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) {
             pending.push(cast.value);
+        } else if let ExpressionNode::Member(member) =
+            program.expression_table.expression(expression)
+        {
+            pending.push(member.receiver);
         } else if let ExpressionNode::Match(dispatch) =
             program.expression_table.expression(expression)
         {

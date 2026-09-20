@@ -51,7 +51,9 @@ use numerics::{
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use typed_trees::{
     TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator},
+    expression::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, TableMemberExpression, UnaryOperator,
+    },
     machine::Machine,
     state::State,
     types::PrimitiveType,
@@ -302,6 +304,27 @@ fn evaluate_scalar_in(
     ))
 }
 
+/// A member read on a materialized record literal evaluates the selected
+/// field's own value expression; the literal itself never enters scalar
+/// custody, so only the field expression is offered to the evaluator.
+fn member_field_value(
+    program: &TypedTrees,
+    member: &TableMemberExpression,
+) -> Result<ExpressionHandle, String> {
+    let ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(member.receiver)
+    else {
+        return Err("constant member read needs a materialized record receiver".to_owned());
+    };
+    program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .find(|field| field.field_symbol == member.member_symbol || field.name == member.member)
+        .map(|field| field.value)
+        .ok_or_else(|| "constant member read has no selected record field".to_owned())
+}
+
 fn evaluate_expression(
     program: &TypedTrees,
     context: EvaluationContext<'_>,
@@ -429,6 +452,9 @@ fn evaluate_expression(
                             pending.push(Step::Enter(binary.right));
                         }
                         pending.push(Step::Enter(binary.left));
+                    }
+                    ExpressionNode::Member(member) => {
+                        pending.push(Step::Enter(member_field_value(program, member)?));
                     }
                     _ => return Err("unsupported node in exact integer constant expression".into()),
                 }
@@ -824,6 +850,9 @@ fn validate_shapes(
                     pending.push((expression, true));
                     pending.push((binary.right, false));
                     pending.push((binary.left, false));
+                }
+                ExpressionNode::Member(member) => {
+                    pending.push((member_field_value(program, member)?, false));
                 }
                 _ => return Err("unsupported node in exact scalar constant expression".into()),
             }

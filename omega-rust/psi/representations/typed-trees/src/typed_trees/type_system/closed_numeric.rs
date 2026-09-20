@@ -170,6 +170,26 @@ fn evaluate_value<const ALLOW_DECIMAL_LITERALS: bool>(
                         pending.push(Step::Leave(expression));
                         pending.push(Step::Enter(*selected));
                     }
+                    ExpressionNode::Member(member) => {
+                        // A member read on a materialized record literal is the
+                        // selected field's own value expression; the literal
+                        // carries no numeric value of its own.
+                        let ExpressionNode::StructLiteral(literal) =
+                            program.expression_table.expression(member.receiver)
+                        else {
+                            return None;
+                        };
+                        let value = program
+                            .expression_table
+                            .struct_fields(literal.fields)
+                            .iter()
+                            .find(|field| {
+                                field.field_symbol == member.member_symbol
+                                    || field.name == member.member
+                            })?
+                            .value;
+                        pending.push(Step::Enter(value));
+                    }
                     ExpressionNode::Integer(literal) if literal.landing().is_none() => values.push(
                         NumericValue::anonymous(BigRational::from_integer(literal.value_bignum()?)),
                     ),

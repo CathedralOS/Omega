@@ -74,3 +74,43 @@ fn computed_nominal_indices_keep_exact_module_carriers_and_private_dependencies(
         TerminalExecutionResult::Scalar(super::array_construction::integer(14, 64))
     );
 }
+
+#[test]
+fn computed_nominal_member_read_evaluates_in_constant_position() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings;
+        pub data Config [copy] { cap: u64; enabled: bool; }
+        const TABLE: Config = Config { cap: 9, enabled: true };
+        pub data Limit<const N: u64> [copy] { cap: u64 }
+        const WINDOW: Limit<3> = Limit { cap: 4 };
+        pub const CAP: u64 = TABLE.cap * 2;
+        pub const WINDOW_CAP: u64 = WINDOW.cap;",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use settings;
+        machine read() -> u64 { settings::CAP + settings::WINDOW_CAP }",
+    );
+    let checked = compile(&root, root_inputs(&root));
+    let dependencies = super::selections(&checked, "settings::TABLE", super::identity(1));
+    assert!(!dependencies.is_empty());
+    assert!(dependencies.iter().all(|selection| selection.exposure() ==
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation));
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
+        .produce_artifact()
+        .expect("module-owned record member constant reaches Terminal");
+    drop(checked);
+    assert_eq!(
+        interpret_terminal_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+        )
+        .expect("source-free module-owned member constant consumer"),
+        TerminalExecutionResult::Scalar(super::array_construction::integer(22, 64))
+    );
+}
