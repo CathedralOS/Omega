@@ -328,9 +328,16 @@ fn canonical_relative_path_bytes(relative: &Path) -> Vec<u8> {
 
 #[cfg(test)]
 mod close_tests {
-    use super::*;
-    use crate::test_support::temp_root;
+    use std::ffi::{OsStr, OsString};
+    use std::path::PathBuf;
+
     use cap_std::ambient_authority;
+    use cap_std::fs::Dir as CapabilityDirectory;
+
+    use super::close_captured_directory;
+    use crate::SourceResolveError;
+    use crate::test_support::temp_root;
+    use crate::tree::filesystem::CapturedEntryObservation;
 
     struct DirectoryFixture {
         root: PathBuf,
