@@ -8736,7 +8736,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-mine names are listed on the WRAPPER-OBJECT-OWNERSHIP row;
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION and
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION name the same surface.
-- **OPTIMIZED-WRAPPER-OBJECT-RELOCATION** — mined candidate; verify scope then implement.
+- **OPTIMIZED-WRAPPER-OBJECT-RELOCATION.** Resolved — scope verified,
+  covered: same settled surface as resolved siblings
+  OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP (TASKS.md ~6904),
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION (TASKS.md ~8508), and
+  WRAPPER-OBJECT-OWNERSHIP (TASKS.md ~10586). The
+  `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
+  keep/move/delete decision is an enumerated bullet of
+  PIPELINE-OWNER-CONSOLIDATION (TASKS_OPTIMIZER.md:57); the codec-move leg
+  this stub asks for is deferred to DURABLE-CODEC-RELOCATION /
+  REPRESENTATION-OWNERSHIP pending that owner decision; the first real
+  caller of `stage_validated_optimized_program_storage_semantic_wrapper_object`
+  is a UEFI-PHYSICAL-SEMANTIC-ENTRY bullet. Re-verified at `9ff8673b310`:
+  both wrapper modules still sit under `native-realization/src/`
+  unrelocated and both module entrances have no caller outside their own
+  tests (lib.rs re-export only). No independent slice exists here.
+  Sibling stubs on the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP,
+  SEMANTIC-WRAPPER-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION,
+  SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE,
+  OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION,
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION, PIPELINE-WRAPPER-OBJECT-ORPHAN.
 - **OPTIMIZER-RULE-AXIS-GATE.** Scope verified — re-mine of the optimizer
   board's PER-RULE-COVERAGE axis gate (TASKS_OPTIMIZER.md, "every inventory
   row and every rewrite reachable from a stage exercises each axis through
