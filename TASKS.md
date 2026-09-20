@@ -9764,7 +9764,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DOMAIN-REFINEMENT-CHAINS-EXTRA holds `facts/field_domain.rs` (22:36Z).
   Sibling re-mine names: BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR.
 - **PSI-PARAMETER-ORIGIN-LOCAL-CUSTODY** — mined candidate; verify scope then implement.
-- **QUOTIENT-RUNTIME-REALIZATION** — mined candidate; verify scope then implement.
+- **QUOTIENT-RUNTIME-REALIZATION** — mined candidate; scope verified at
+  `d74f2145b9`. Re-mines the "executable quotient lowering" leg that
+  QUOTIENT-THEOREM-LIFT deliberately defers: today a `Quotient::define`/`lift`
+  batch is retained proof-only — `retain_checked_quotient_correspondences`
+  installs `RetainedQuotientCorrespondence` rows (binding `public_operation` to
+  its `representative` machine application plus congruence/theorem evidence) and
+  module validation rejects any nonempty table with
+  `ModuleError::NonExecutableQuotientCorrespondence` "until executable quotient
+  lowering exists". Realization is a separate judgment per
+  wiki/spec/proofs/quotients.md#representative-layer-and-executable-realization —
+  the spec's runtime rules are authored (construction retains the representative
+  and its ABI unchanged; constant materialization may emit the representative
+  uncanonicalized; a lifted operation's runtime plan is a call of its
+  representative machine over the representative arguments), and the retained
+  correspondence rows already carry every binding a lowering step needs. But no
+  value path reaches that lowering today: every checked-stage site exits calls
+  whose `quotient_operation.is_some()` (contracts/exits/scalars/calls.rs:209,
+  contracts/evidence.rs:63/330, ranges/*, termination/progress/origins.rs:230),
+  so "the production entrance sees no request". The dependency chain is ordered:
+  QUOTIENT-THEOREM-LIFT's remaining legs give quotient operations a checked
+  source route at all (checked-corpus admission + CLI/package-review exercise),
+  then the checks-side value-path exits admit covered `quotient_operation`
+  calls, then lowering resolves each call through the retained correspondence to
+  the representative machine (axiom-dependent equality additionally needs the
+  named transitive-assumption-closure dependency, quotients.md#formation). No
+  independent slice exists under this name until the admission legs land.
 - **RANKED-CALLEE-NATIVE-COMPOSITION** — mined candidate; scope verified, re-mine of the surface sibling RANKED-PROJECTED-RECEIVER-COMPOSITION resolved at `6ef64f6dd6` (immediately below). "Native composition of ranked callees" names the same GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: composed argument references, call/return, cleanup, callee-measure checking, and composed resource evidence for ranked callees reaching native lowering — versus today's whole-entry-only native admission (`terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`, "Ranked native admission" admits only whole ranked modules). It is an extend-the-common-graph leg, not a separate item. Every implementing surface is live-fenced this wave: `execution/unit/{control,state_graph,composed_control}` (GENERAL-CYCLIC-EXECUTION, 19:37Z), `receiver_calls` (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native `lowering/control_flow` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice exists; the residual stays on the parent optimizer rows. Sibling re-mine names: RANKED-NATIVE-ADMISSION.
 - **RANKED-NATIVE-ADMISSION.** Mined candidate — resolved, re-mine of
   the same surface the sibling RANKED-CALLEE-NATIVE-COMPOSITION row
