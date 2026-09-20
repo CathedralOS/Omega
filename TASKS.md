@@ -7335,7 +7335,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `wiki/drafts/known_baseline_failures.md`; sibling subsets C2L-SCALAR-
   RETURN-SOURCE-CUSTODY-FAILURES / CHECKED-TREES-TO-LOWERED-PSI-
   UNATTRIBUTED-SET remain named on the parent row.
-- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
+- **CANARY-ACQUIRES-THROUGH-HELPER-RETURN.** Mined candidate — resolved
+  at `27deadf4122` (linux x86-64). The rostered fixture
+  `tests/omega/pass/capabilities/acquires_through_helper_return` is green
+  through the whole route: `pass_canaries_compile` filtered to it passes
+  (17s, native-artifact Terminal production included — the earlier red at
+  `1fc01bb690` was the signature-phase `InvalidUnitMachinePlan` family)
+  and `capability_flows_retain_exact_direct_and_propagated_sites` passes,
+  pinning the propagated provenance rows (`Backup::stage acquires via
+  Vault::pick`, `Main::main acquires via Backup::stage`). The checked/
+  lowering gap the prior reading named is closed: `Main::main`'s local
+  construction no longer stops at the signature for the
+  authority-propagating helper-return shape. No slice remains.
 - **CANARY-CORE-NAME-COLLISION** — mined candidate; verify scope then implement.
 - **CANARY-DUPLICATE-OVERLOAD-DECLARATIONS** — mined candidate; verify scope then implement.
 - **CANARY-NATIVE-WRAPPER-WRITE-ALL-RESULT.** Mined candidate; scope
