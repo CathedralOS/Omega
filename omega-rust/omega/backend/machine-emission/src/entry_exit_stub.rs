@@ -333,10 +333,15 @@ struct StubEncodingPlan {
     mask_at_entry: bool,
     synthesize_error_code: bool,
     saved_registers: Vec<MachineRegister>,
-    /// Bytes of outgoing stack-argument area; the frame anchor lives at
-    /// `reserved_frame_bytes = align16(stack_bytes + 8)` with the anchor word
-    /// stored at `[rsp + stack_bytes]`.
+    /// Bytes of outgoing stack-argument area, from the contract's
+    /// member-call frame — the single derivation emission and composed stack
+    /// accounting share. The frame anchor word is stored at
+    /// `[rsp + stack_bytes]`.
     stack_bytes: u64,
+    /// Bytes `sub rsp` reserves below the save area — the contract's
+    /// `member_call_frame.reserved_bytes`: the outgoing area plus the 8-byte
+    /// anchor slot, rounded to the established 16-byte alignment.
+    reserved_frame_bytes: u64,
     stack_operands: Vec<StackOperand>,
     register_operands: Vec<(MachineRegister, u64)>,
 }
@@ -344,10 +349,6 @@ struct StubEncodingPlan {
 impl StubEncodingPlan {
     fn anchor_offset(&self) -> u64 {
         self.stack_bytes
-    }
-
-    fn reserved_frame_bytes(&self) -> u64 {
-        (self.stack_bytes + 8).next_multiple_of(16)
     }
 
     fn footprint(&self) -> X86_64DeriverStubEmissionFootprint {
@@ -358,7 +359,7 @@ impl StubEncodingPlan {
             transient_writes: RegisterSet::new(transient),
             writes_flags: true,
             masks_maskable_interrupts: self.mask_at_entry,
-            reserved_frame_bytes: self.reserved_frame_bytes(),
+            reserved_frame_bytes: self.reserved_frame_bytes,
             frame_is_balanced: true,
         }
     }
@@ -503,21 +504,28 @@ fn project_encoding_plan(
         }
     }
 
+    // Every staged stack operand must fit inside the contract's declared
+    // outgoing stack-argument area: both derivations read the same
+    // fingerprint-pinned boundary plan, so a wider staged extent means the
+    // plan drifted rather than a free mismatch.
     let argument_end = stack_operands
         .iter()
         .map(|operand| u64::from(operand.outgoing_byte_offset) + u64::from(operand.byte_width))
         .max()
         .unwrap_or(0);
-    let stack_bytes = argument_end.next_multiple_of(8);
+    if argument_end > stub.stub().member_call_frame.outgoing_stack_bytes {
+        return Err(X86_64DeriverStubEmissionError::StagingRangeOverflow);
+    }
     let plan = StubEncodingPlan {
         mask_at_entry,
         synthesize_error_code: disposition == X86_64ErrorCodeDisposition::StubSynthesized,
         saved_registers,
-        stack_bytes,
+        stack_bytes: stub.stub().member_call_frame.outgoing_stack_bytes,
+        reserved_frame_bytes: stub.stub().member_call_frame.reserved_bytes,
         stack_operands,
         register_operands,
     };
-    if plan.reserved_frame_bytes() > i32::MAX as u64 {
+    if plan.reserved_frame_bytes > i32::MAX as u64 {
         return Err(X86_64DeriverStubEmissionError::StagingRangeOverflow);
     }
     Ok(plan)
@@ -579,7 +587,7 @@ fn encode_stub(plan: &StubEncodingPlan) -> Result<EncodedStub, X86_64DeriverStub
     }
     bytes.extend([0x48, 0x89, 0xe0]); // mov rax, rsp — capture the save-area top
     bytes.extend([0x48, 0x83, 0xe4, 0xf0]); // and rsp, -16
-    append_sub_rsp(&mut bytes, plan.reserved_frame_bytes())?;
+    append_sub_rsp(&mut bytes, plan.reserved_frame_bytes)?;
     append_store_rsp(&mut bytes, plan.anchor_offset(), 8)?; // mov [rsp+S], rax
     for operand in &plan.stack_operands {
         append_movabs(&mut bytes, MachineRegister::X86Rax, operand.word);
@@ -750,7 +758,7 @@ fn decoded_expectation(plan: &StubEncodingPlan, encoded: &EncodedStub) -> Decode
             .iter()
             .map(|register| gpr_code(*register).expect("projected GPR"))
             .collect(),
-        reserved_frame_bytes: plan.reserved_frame_bytes(),
+        reserved_frame_bytes: plan.reserved_frame_bytes,
         anchor_offset: plan.anchor_offset(),
         stack_operands: plan
             .stack_operands

@@ -19,7 +19,8 @@ use crate::{
     ExternalRootDiagnostic, ExternalRootEntryClaim, ExternalRootId, FixedFuelLocalEvidence,
     ProviderExecutionId, ProviderPlanId, RootEffectId, RootProviderId, StackLocalEvidence,
     StateValidationReceiptId, TrustReceiptId, ValidatedExternalRoot, validate_external_root,
-    validate_installed_entry_fuel, validate_installed_entry_stack,
+    validate_installed_deriver_stub_entry_stack, validate_installed_entry_fuel,
+    validate_installed_entry_stack,
 };
 
 /// Evidence that an opaque provider cannot escape the boundary's admitted
@@ -1125,15 +1126,27 @@ impl ProviderExecution {
                     .into(),
             ));
         }
-        if let StackLocalEvidence::TerminalEntry(binding) = root_stack_summary.body_evidence() {
-            validate_installed_entry_stack(binding, installed_code, self.entry).map_err(
-                |_| {
-                    ExternalRootDiagnostic(
-                        "terminal stack root evidence is not bound to the exact installed code and selected entry"
-                            .into(),
-                    )
-                },
-            )?;
+        match root_stack_summary.body_evidence() {
+            StackLocalEvidence::TerminalEntry(binding) => {
+                validate_installed_entry_stack(binding, installed_code, self.entry).map_err(
+                    |_| {
+                        ExternalRootDiagnostic(
+                            "terminal stack root evidence is not bound to the exact installed code and selected entry"
+                                .into(),
+                        )
+                    },
+                )?;
+            }
+            StackLocalEvidence::DeriverStubEntry(binding) => {
+                validate_installed_deriver_stub_entry_stack(binding, installed_code, self.entry)
+                    .map_err(|_| {
+                        ExternalRootDiagnostic(
+                            "deriver stub stack root evidence is not bound to the exact installed code and selected entry"
+                                .into(),
+                        )
+                    })?;
+            }
+            StackLocalEvidence::AdmittedProvider { .. } => {}
         }
         let root_fuel_summary = self
             .root_evidence
