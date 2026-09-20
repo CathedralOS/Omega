@@ -12135,7 +12135,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
   WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
 - **WINDOWS-PEAK-MEMORY-MEASUREMENT** — mined candidate; verify scope then implement.
-- **WINDOWS-SET-FILE-TIME-CARRIER.** Mined candidate — resolved: scope verified, landed.
+- **WINDOWS-SET-FILE-TIME-CARRIER.** Mined candidate — resolved: scope verified, landed; re-verified at `e5bbe53956` (fixture still carries `widen_u8_to_u64` assembly + `narrow_u64_to_i64_wrapping` at `windows_set_file_time_exit/main.omg:74-79`; still registered in `CHECKED_ONLY_PASS_CANARIES`, `canary_suite.rs:1020`).
   The stub re-mines the unsigned-carrier clause of
   WINDOWS-SET-FILE-TIME-RESPELL (merged with
   FILESYSTEM-WINDOWS-FILETIME-RESPELL), which landed at `ff782bdf21` —
