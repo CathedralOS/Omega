@@ -117,6 +117,89 @@ fn dependent_and_application_result_types_preserve_their_shape() {
 }
 
 #[test]
+fn arrow_and_application_parameter_types_preserve_their_shape() {
+    let typed =
+        lower_source("let compose(f: A -> B, g: B -> C, x: A): C = g(f(x));").expect("types");
+
+    let definition = &typed.mathematical_definitions()[0];
+    let parameters = typed.mathematical_parameters(definition.parameters);
+    assert_eq!(parameters.len(), 3);
+    assert!(matches!(
+        typed.mathematical_type(parameters[0].ty),
+        MathematicalType::Arrow { .. }
+    ));
+    assert!(matches!(
+        typed.mathematical_type(parameters[1].ty),
+        MathematicalType::Arrow { .. }
+    ));
+    assert!(matches!(
+        typed.mathematical_type(parameters[2].ty),
+        MathematicalType::Ordinary(_)
+    ));
+
+    let typed = lower_source("let apply(F: C(x, y), x: u64): F = term;").expect("types");
+    let definition = &typed.mathematical_definitions()[0];
+    let parameters = typed.mathematical_parameters(definition.parameters);
+    let MathematicalType::Application { arguments, .. } = typed.mathematical_type(parameters[0].ty)
+    else {
+        panic!("a type-level application parameter stays an application")
+    };
+    assert_eq!(
+        typed.expression_table.expression_handles(*arguments).len(),
+        2
+    );
+}
+
+#[test]
+fn curried_application_result_preserves_nested_shape() {
+    let typed = lower_source("let fam(x: u64, y: u64): F(x)(y) = term;").expect("types");
+
+    let definition = &typed.mathematical_definitions()[0];
+    let MathematicalType::Application { callee, arguments } =
+        typed.mathematical_type(definition.result)
+    else {
+        panic!("an iterated application result stays an application")
+    };
+    assert!(matches!(
+        typed.mathematical_type(*callee),
+        MathematicalType::Application { .. }
+    ));
+    assert_eq!(
+        typed.expression_table.expression_handles(*arguments).len(),
+        1
+    );
+}
+
+#[test]
+fn boundary_let_retains_binders_and_visibility() {
+    let typed = lower_source("pub boundary let choose<A: core::Type>(x: A): A;").expect("types");
+
+    let definition = &typed.mathematical_definitions()[0];
+    assert!(definition.is_public);
+    assert_eq!(definition.body, MathematicalBody::Assumption);
+    let binders = typed.data_type_parameters.span_or_empty(definition.binders);
+    assert_eq!(binders.len(), 1);
+    assert_eq!(binders[0].name.to_string(), "A");
+    let typed_trees::data::TypeParameterKind::Value { type_reference } = binders[0].kind else {
+        panic!("`A: core::Type` keeps its authored value-binder carrier")
+    };
+    assert!(type_reference.is_valid());
+}
+
+#[test]
+fn definition_bodies_retain_call_expressions() {
+    let typed = lower_source("let f(x: u64): u64 = g(x);").expect("types");
+
+    let MathematicalBody::Definition(term) = typed.mathematical_definitions()[0].body else {
+        panic!("a `let` body types as a transparent definition term")
+    };
+    assert!(matches!(
+        typed.expression_table.expression(term),
+        typed_trees::expression::ExpressionNode::Call(_)
+    ));
+}
+
+#[test]
 fn erased_parameter_relevance_carries_through() {
     let typed = lower_source("let keep(proof [erased]: P): Q = term;").expect("types");
 
