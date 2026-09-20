@@ -9900,7 +9900,38 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STAGED-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **STAGED-LOCAL-CRASH-LOWERING** — mined candidate; verify scope then implement.
 - **STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION.** Resolved — re-mines the explicit-crash leg of the resolved STAGED-LOCAL-SEQUENCE-LOWERING row (:5798). The lowering attribution is recorded there: staged short-circuit binding ordering lives in `checked-trees-to-lowered-psi/src/returns/structural_scalar_return.rs` + `scalar_graph_module/short_circuit_staging.rs`; the crash-adjacent leg is `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`, green. Re-verified at `a4ffd1aff8`: `cargo nextest run -p omega-native-differential-test --test terminal_psi_source -E 'test(~staged_local)'` — 7/7 pass on linux x86-64 (crash sequence, short-circuit guard/return/jump-tuple, jump-argument carry, arm-local edge arguments). The stale `wiki/drafts/known_baseline_failures.md:447` entry (`UnsupportedControlFlow(MachineId(1))`, expectation from `2694d433d3`) belongs to the known-failures doc lane, not this stub. Sibling re-mine of the same row: STAGED-LOCAL-CRASH-LOWERING (:8969); DIFFERENTIAL-STAGED-LOCAL-SEQUENCE (:6916) already records the same verdict.
-- **STALE-CUSTODY-GATE-EXPECTATIONS** — mined candidate; verify scope then implement.
+- **STALE-CUSTODY-GATE-EXPECTATIONS** — scope verified at `10d93dd448d`:
+  the custody-gate expectation slice left by TERMINAL-SOURCE-CUSTODY-GATE-ORDER
+  is current, not stale. All five custody-named fail fixtures
+  (`core/content_retained_custody_from_borrow`,
+  `core/placement_custody_wrong_arity_rejected`,
+  `memory/bump_allocator_cast_minted_resident`,
+  `memory/bump_allocator_cast_minted_vacant`,
+  `proofs/quotient_routed_carrier_content_rejected`) still reject with their
+  pinned fragments under
+  `fail_canaries_reject_with_expected_diagnostic_fragment` — the landed
+  custody ordering repins no custody-gate expectation. The actual stale
+  expected.txt census at this revision is 12 drifted canaries in 118.5s
+  (was 10 at `e76d715c8e`):
+  `expressions/indexed_qualified_call_argument_mismatch`,
+  `providers/provider_selection_outside_build`,
+  `build/program_entry_binding_outside_build` (known residual already
+  assigned to RC-DIAGNOSTICS-GATE by PROGRAM-ENTRY-SELECTION-DIVISION),
+  `comptime/fuel_exhausted_const_array_length`,
+  `generics/colon_bound_rejected`,
+  `generics/const_data_machine_call_requires_zero_arguments`,
+  `generics/const_data_machine_call_requires_pure`,
+  `domains/boundary_operator_mutation_invalidates_domain`,
+  `providers/slot_plan_ambiguous`, plus three silent acceptances:
+  `ownership/linear_ambiguous_state_result_mapping`,
+  `calls/guarded_value_call_terminal_rejected` (both previously recorded),
+  and new silent acceptance
+  `calls/machine_self_call_recursion_rejected`. Repinning the
+  diagnostic-drift fixtures and investigating the silent acceptances is
+  RC-DIAGNOSTICS-GATE's named lane (its fence ledger stands); no
+  custody-specific stale-expectation slice remains on this row.
+  Unrelated roster drift also observed: 6 unregistered fail fixtures under
+  `tests/omega/fail` (roster.rs inventory check red at base).
 - **STANDALONE-REQUEST-CONTRACT.** Resolved by audit at `280c4a83b6` — the standalone-request contract is `wiki/spec/build/compiler_request.md` (OCREQ v1 framing + OCOUT outcome frames): its outer framing, canonical subject/invocation field and tag tables, assigned `Reject` inventory, and named `Incomplete` provisions are already settled there. The legs the doc names as open — semantic phases over decoded fields, and producers recording the assigned codes so refusals publish frames — are explicitly assigned to OMEGA-D/OMEGA-C on the bootstrap board (`TASKS_BOOTSTRAP.md` P4), where the OCREQ request entry is already bound (`tools/bootstrap/omega/compiler_env.sh`, `tests/bootstrap/omega-request`, `tests/bootstrap/omega-outcome`, including added provisions 25–26) and the spec doc itself is claim-held by the OMEGA-D owner this wave. The Rust reference compiler deliberately carries no wire contract — `CompileRequest` "is not a canonical OCREQ frame and grants no bootstrap authority" (`compiler/src/compiler/request.rs`) — and the Rust-side standalone invocation contract (`--build-input`/`--optional-build-input` → `BuildSourceCaptureRequest` canonical/duplicate/nesting admission → `BuildSnapshotRequest::scoped` → `capture_scoped_source_input` declared-member capture with required-member coverage and stable recapture) is implemented and pinned (`package-compilation` scoped-request tests, `build-time-evaluation` standalone-request test, `compiler` batch-vs-standalone equivalence test). No Rust-side gap; residual work is the bootstrap board's.
 - **STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **STARTUP-ENTRY-MECHANICS-OWNERSHIP.** Resolved by audit at `be03555d17` — startup/entry mechanics already sit under backend runtime ownership per `omega-rust/pipeline.md`: `backend/runtime/external-roots/src/root_entry` owns entry/exit mechanics (validation, admission, provider execution, progress-profile installation) and `platform_bringup` owns UEFI bootstrap + secondary-processor startup; `backend/plans/program-entry-plan` is data-only planning (its lib.rs owns "no emitted bytes, installation state, or legacy backend pipeline"); `_start` symbol resolution under `backend/images/image-{elf,macho}` and `compiler/native-realization/src/entry_settlement` are emission detail and realization orchestration, not mechanics. No placeholder crate owns startup mechanics; `tests/architecture/layering.rs` already pins the external-roots ownership rows. Sibling aliases (STARTUP-ENTRY-MECHANICS, STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS, BACKEND-RUNTIME-STARTUP-*, ENTRY-MECHANICS-RUNTIME-CONSOLIDATION) remain separate stubs.
