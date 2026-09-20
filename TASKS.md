@@ -2757,14 +2757,31 @@ Owners include
     from_selected_provider_closure` and the replayed boundary realization
     (`Dedicated` stack class joined to the member's declared class), then
     `validate_external_root` → ledger `install` → `admit_interrupt_table_
-    member` for the divide-error vector. Remaining on this leg: the entry
-    stub identity, provider-admitted resource columns and fuel/state
-    receipts are still test-admitted shapes until deriver-owned entry/exit
-    code exists; a second `InterruptEntry`-inheriting trait emits a
-    duplicate requirement identity and
-    `with_installation_reach_resolutions` rejects it, so the timer root
+    member` for the divide-error vector. The deriver-owned entry/exit stub
+    contract now exists:
+    `calling-conventions/src/stack_realizations/entry_exit_stub.rs` —
+    `derive_x86_64_entry_exit_stub` binds a member's sealed
+    `ValidatedX86_64InstalledHardwareEntryFacts` to its exact admitted
+    boundary plan (commitment + fingerprint, InterruptReturn, X86Long64,
+    matching stack disposition and per-context preemption) and derives
+    per-context error-code normalization (hardware-pushed vs
+    stub-synthesized), frame/save-area bytes, the saved-state footprint, the
+    member-body envelope (exactly the plan's permitted transitive use) and
+    the interrupt-return exit realization. Every member candidate's
+    `machine_state` column in the compiler test — including the authored
+    divide-error member — now carries that derived envelope, which
+    `validate_external_root` ceiling-checks against the plan. Remaining on
+    this leg: the emitted stub bytes and their sealed entry targets still
+    need machine-emission/image-emission code that consumes this contract;
+    the stack column still rides the opaque-adapter shape until
+    `produce_x86_64_installed_hardware_entry_facts` +
+    `bind_x86_64_target_direct_entry_stack_realization` get emitted
+    Terminal-body evidence; provider-admitted resource columns and
+    fuel/state receipts remain test-admitted shapes; a second
+    `InterruptEntry`-inheriting trait emits a duplicate requirement identity
+    and `with_installation_reach_resolutions` rejects it, so the timer root
     waits on a distinct-requirement or multi-resolution seam; emitted-image
-    machine-state evidence still needs the stub leg.
+    machine-state evidence still needs the stub-byte leg.
   - Descriptor table. The authored half now exists:
     `tests/omega/pass/memory/interrupt_table_canary` is a Cathedral-side
     package whose `InterruptGate` layout splits the entry-offset fields into
