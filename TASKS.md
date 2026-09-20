@@ -6278,7 +6278,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
 - **BENCHMARK-ROW-RESUMPTION** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-CONTRAST-ROWS** — mined candidate; verify scope then implement.
-- **BENCHMARK-SELECTION-ISOLATION-ROWS** — mined candidate; verify scope then implement.
+- **BENCHMARK-SELECTION-ISOLATION-ROWS.** Resolved — the per-selection row
+  isolation the name asks for is the record contract itself and is already
+  exercised on `origin/main`: one versioned JSON per
+  (subject, target, exact rule selection) — `selection_label` renders the
+  empty selection as `default` and a non-empty enable/disable set as a
+  `sel-<hash>` label, `test_unsorted_selection_rejected` pins sorted-unique
+  exact rule names, and `30d1d3fc56` landed the first non-default row
+  (`wrapping_square_sum__linux_x86_64__sel-885944b13b84.json`,
+  CopyPropagation disabled) beside the same subject's default-selection
+  rows, so no selection's measurements blur into another's. The matrix
+  renders selection as its own isolating column
+  (wiki/drafts/benchmarks.md). Verified at `1edade1a48`:
+  `python3 tools/tests/test_benchmark.py` 21/21 green on linux x86-64.
+  Open surface left to siblings: more *selection* rows (contrast/variant)
+  and the unfilled host legs.
 - **BENCHMARK-SELECTION-MATRIX** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-ROW-COVERAGE** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-ROW-MATRIX** — mined candidate; verify scope then implement.
