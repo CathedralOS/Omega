@@ -320,7 +320,7 @@ cargo nextest run -p checked-trees-to-lowered-psi --test owned_scalar_cycles --n
 `omega inspect-terminal --machine walk --target macos_arm64 main.omg` reports
 the verified Natural component and `fixed_fuel status=unknown`: the existing
 fixed-work deriver does not close this graph. The
-[inspection command](../../../omega/src/command/inspect_terminal/README.md)
+[inspection command](../../../omega/tests/inspect_terminal.rs)
 keeps proof checking mandatory and fixed-work evidence separate; termination
 alone cannot supply a work ceiling. Here the `Limits` field reads occur only
 in erased ranking expressions; this customer does not require runtime field
