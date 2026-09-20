@@ -12,7 +12,10 @@ use crate::review::{
 };
 use checked_interpreter::InterpretOptions;
 
-fn accept_project(project: &TemporaryProject, target: target::TargetProfile) -> PackageLock {
+pub(super) fn accept_project(
+    project: &TemporaryProject,
+    target: target::TargetProfile,
+) -> PackageLock {
     let prepared = prepare_local_project(
         &project.entry(),
         LocalProjectPreparationOptions {
