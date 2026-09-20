@@ -6205,7 +6205,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; verify scope then implement.
-- **PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE** — mined candidate; verify scope then implement.
