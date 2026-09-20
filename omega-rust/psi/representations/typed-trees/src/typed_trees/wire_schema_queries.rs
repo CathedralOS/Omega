@@ -6,12 +6,15 @@ use arena::HandleSpan;
 
 impl TypedTrees {
     /// Record a schema's derived wire plan: placements land contiguously in
-    /// the placement arena; the plan holds their span.
+    /// the placement arena; the plan holds their span. `policy_verified` is
+    /// true only when the authored grammar policy was evaluated for this
+    /// schema and agreed with the derived placements.
     pub fn record_wire_schema_plan(
         &mut self,
         schema: symbols::SymbolHandle,
         placements: impl IntoIterator<Item = wire::WirePlacement>,
         encode_obligations: impl IntoIterator<Item = wire::WireEncodeObligation>,
+        policy_verified: bool,
     ) {
         let span = self.wire_placements.insert_many(placements);
         let obligations = self.wire_encode_obligations.insert_many(encode_obligations);
@@ -19,6 +22,7 @@ impl TypedTrees {
             schema,
             placements: span,
             encode_obligations: obligations,
+            policy_verified,
         });
     }
 
@@ -32,6 +36,16 @@ impl TypedTrees {
             .iter()
             .find(|plan| plan.schema == schema)
             .and_then(|plan| self.wire_placements.span(plan.placements))
+    }
+
+    /// Whether the schema's recorded plan was checked against the authored
+    /// grammar policy. `false` when no plan was recorded (the pass skipped
+    /// the schema) or no `CompactBinary::plan` policy was defined.
+    pub fn wire_schema_plan_policy_verified(&self, schema: symbols::SymbolHandle) -> bool {
+        self.wire_schema_plans
+            .iter()
+            .find(|plan| plan.schema == schema)
+            .is_some_and(|plan| plan.policy_verified)
     }
 
     /// Dynamic encode obligations retained beside one schema's placements.

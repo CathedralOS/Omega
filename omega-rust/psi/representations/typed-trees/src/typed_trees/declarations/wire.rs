@@ -40,6 +40,13 @@ pub struct WireSchemaPlan {
     /// Runtime resource obligations retained by the generated encoder. These
     /// are derived from carrier semantics, not authored placement policy.
     pub encode_obligations: HandleSpan<WireEncodeObligation>,
+    /// Whether the program's authored grammar policy
+    /// (`CompactBinary::plan`) was evaluated against this schema's
+    /// materialized facts and agreed with the schema-walk plan -- the
+    /// retained fact that the generated codec's plan was independently
+    /// checked against an authored statement of the public requirement
+    /// rather than trusted from the generator alone.
+    pub policy_verified: bool,
 }
 
 /// A dynamic obligation carried by a normalized wire encoder plan.

@@ -74,6 +74,94 @@ machine Main::main(&mut self) { }
 }
 
 #[test]
+fn authored_grammar_policy_marks_the_plan_policy_verified() {
+    // INDEPENDENT VERIFICATION: when the program authors
+    // `CompactBinary::plan` and it agrees with the codec walk, the recorded
+    // plan carries `policy_verified` -- the generated codec's plan was
+    // checked against an authored statement of the public requirement, not
+    // trusted from the generator alone (codec spec: an unverified generated
+    // realization remains compiler-admitted). Programs without the policy
+    // record unverified plans.
+    let main_path = write_program(
+        "policy-verified",
+        r#"
+data Packet { #1 seed: u64; #2 label: &[u8]; }
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data FieldPlan [copy] { case Varint(tag: u64); case LengthPrefixed(tag: u64); }
+data Plan { fields: [FieldPlan; 32]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
+
+data CompactBinary { fields: [FieldPlan; 32]; }
+machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
+    self.fields[0] = FieldPlan::Varint { tag: 1 };
+    self.fields[1] = FieldPlan::LengthPrefixed { tag: 2 };
+    Plan {
+        fields: self.fields,
+        entry_count: schema.field_count,
+        size_fixed: 0,
+        size_is_dynamic: true,
+        align: 1,
+    }
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
+        .expect("a policy program agreeing with the walk should compile");
+    let schema = checked
+        .typed
+        .wire_schemas()
+        .iter()
+        .find(|schema| schema.name.as_str() == "Packet")
+        .expect("Packet schema");
+    let plan = checked
+        .typed
+        .wire_schema_plan(schema.symbol)
+        .expect("Packet should carry a derived wire plan");
+    assert_eq!(
+        plan,
+        [
+            WirePlacement::Varint { tag: 1 },
+            WirePlacement::LengthPrefixed { tag: 2 }
+        ]
+    );
+    assert!(
+        checked
+            .typed
+            .wire_schema_plan_policy_verified(schema.symbol),
+        "a plan the authored grammar policy agreed with is independently verified"
+    );
+
+    let unverified_path = write_program(
+        "no-policy",
+        r#"
+data Packet { #1 seed: u64; #2 label: &[u8]; }
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&unverified_path, None))
+        .expect("the policy-free twin should compile");
+    let schema = checked
+        .typed
+        .wire_schemas()
+        .iter()
+        .find(|schema| schema.name.as_str() == "Packet")
+        .expect("Packet schema");
+    assert!(
+        !checked
+            .typed
+            .wire_schema_plan_policy_verified(schema.symbol),
+        "without the authored grammar policy the generated plan stays generator-admitted"
+    );
+}
+
+#[test]
 fn full_width_unsigned_policy_tags_are_not_reinterpreted_as_signed() {
     let main_path = write_program(
         "full-width-tag",
