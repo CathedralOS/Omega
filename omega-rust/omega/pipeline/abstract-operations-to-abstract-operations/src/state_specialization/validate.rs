@@ -1,20 +1,23 @@
 //! Optimizer module role: validation leaf. Independent plan replay and exact custody reconstruction.
 //!
-//! Validation never trusts the candidate's specialization rows: it re-derives
-//! the dispatch plan from the authenticated cycle roster and a recomputed
-//! sparse-constant analysis, requires the claimed rows to equal the replayed
-//! rows exactly, rebuilds the output itself, and binds the result through the
-//! candidate identity. The custody walk then proves the transformed function
-//! differs only at the fused predecessor sites and that each fused edge
-//! carries the incoming edge's custody followed by the resolved arm edge's —
-//! a forged or mismatched edge source changes the reconstructed function and
-//! fails the comparison before the transformed unit is re-validated.
+//! Validation never trusts the candidate's specialization rows: it re-admits
+//! every declared row against the shared admission predicates — the dispatch
+//! shape evidence and per-edge admissibility proposal also uses — without
+//! re-running the producer's own plan enumeration, requires the rows to be a
+//! sorted, distinct, strict subset of the incoming edges (fusing them all
+//! would orphan the dispatch state), rebuilds the output itself, and binds
+//! the result through the candidate identity. The custody walk then proves
+//! the transformed function differs only at the fused predecessor sites and
+//! that each fused edge carries the incoming edge's custody followed by the
+//! resolved arm edge's — a forged or mismatched edge source changes the
+//! reconstructed function and fails the comparison before the transformed
+//! unit is re-validated.
 
 use super::{
     AnalysisProduct, DispatchSpecializationPlan, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationUnit, PsiRealizationSite, StateArgumentSpecializationCandidate,
     StateArgumentSpecializationError, ValidatedStateArgumentSpecialization,
-    VerifiedPsiOptimizationSession, apply, candidate_identity, compute_analysis, propose,
+    VerifiedPsiOptimizationSession, admission, apply, candidate_identity, compute_analysis,
 };
 use optimization_core::AnalysisKind;
 use semantic_vocabulary::MachineId;
@@ -48,18 +51,67 @@ pub(super) fn candidate(
     else {
         return Err(StateArgumentSpecializationError::CandidateMismatch);
     };
-    let Some(plan) = propose::plan(unit, function, candidate.dispatch, &constants) else {
+    let Some(evidence) =
+        admission::dispatch_evidence(unit, function, candidate.dispatch, &constants)
+    else {
         return Err(StateArgumentSpecializationError::UnknownDispatch);
     };
-    if plan.edges.is_empty() {
+    if candidate.specializations.is_empty() {
         return Err(StateArgumentSpecializationError::AlreadySpecialized);
     }
-    if plan.machine != candidate.machine
-        || plan.dispatch != candidate.dispatch
-        || plan.edges != candidate.specializations
+    // The declared roster must be strictly ordered by supplying edge — that
+    // canonical order is also what rejects a duplicated incoming edge.
+    if candidate
+        .specializations
+        .windows(2)
+        .any(|pair| pair[0].incoming_edge() >= pair[1].incoming_edge())
     {
         return Err(StateArgumentSpecializationError::CandidateMismatch);
     }
+    // Fusing every incoming edge would leave the dispatch state unreachable;
+    // a declared set covering the complete incoming roster is refused.
+    if candidate.specializations.len()
+        >= admission::incoming_edges(function, candidate.dispatch).len()
+    {
+        return Err(StateArgumentSpecializationError::CandidateMismatch);
+    }
+    for declared in &candidate.specializations {
+        if declared.predecessor().machine != candidate.machine {
+            return Err(StateArgumentSpecializationError::CandidateMismatch);
+        }
+        let index = usize::try_from(declared.predecessor().node)
+            .map_err(|_| StateArgumentSpecializationError::CandidateMismatch)?;
+        let owner_node = function
+            .blocks
+            .iter()
+            .find(|block| block.id == declared.predecessor().block)
+            .and_then(|block| block.nodes.get(index))
+            .ok_or(StateArgumentSpecializationError::CandidateMismatch)?;
+        let edge = owner_node
+            .successors
+            .iter()
+            .find(|edge| {
+                edge.psi_edge == declared.incoming_edge() && edge.target == candidate.dispatch
+            })
+            .ok_or(StateArgumentSpecializationError::CandidateMismatch)?;
+        let admitted = admission::admit_incoming_edge(
+            &evidence,
+            declared.predecessor().block,
+            index,
+            owner_node,
+            edge,
+            &constants,
+        )
+        .ok_or(StateArgumentSpecializationError::CandidateMismatch)?;
+        if admitted != *declared {
+            return Err(StateArgumentSpecializationError::CandidateMismatch);
+        }
+    }
+    let plan = DispatchSpecializationPlan {
+        machine: candidate.machine,
+        dispatch: candidate.dispatch,
+        edges: candidate.specializations.clone(),
+    };
     let output = apply::realize(unit, &plan)?;
     let expected_identity = candidate_identity(
         unit.identity,

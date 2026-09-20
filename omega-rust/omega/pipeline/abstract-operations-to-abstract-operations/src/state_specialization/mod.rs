@@ -27,7 +27,7 @@ use optimization_core::{
     OptimizationValidatorIdentity,
 };
 use optimization_unit::{
-    NodeLocation, OptimizationEdge, ProvenanceDisposition, ProvenanceRewrite,
+    NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
     PsiTransformationLedger, PsiTransformationRecord, ValueUse,
     recompute_psi_optimization_unit_identity,
@@ -41,6 +41,7 @@ use crate::{
     compute_analysis,
 };
 
+mod admission;
 mod apply;
 mod model;
 pub(crate) mod propose;
