@@ -321,6 +321,141 @@ fn installation_reach_resolution_is_exact_bounded_selected_evidence() {
     assert!(outside.contains("exceeds its published upper bound"));
 }
 
+/// Two root traits inheriting `InterruptEntry` each carry the parent's exact
+/// `InterruptEntry::enter` requirement identity in their provider-plan rows —
+/// provenance keeps the declaring trait's identity so conformance matching
+/// stays exact. Their installation-reach resolutions therefore share one
+/// requirement identity and are distinguished only by the selected plan that
+/// realized the row.
+fn interrupt_root_candidate(name: &str, trait_name: &str) -> ProviderPlan {
+    let mut plan = candidate(name, "enter");
+    plan.schema.trait_name = trait_name.into();
+    plan.schema.methods[0].requirement_owner = "InterruptEntry".into();
+    plan.schema.methods[0].requirement_identity = "InterruptEntry::enter".into();
+    plan.rows[0].requirement_identity = "InterruptEntry::enter".into();
+    plan
+}
+
+#[test]
+fn shared_inherited_requirement_resolves_per_selected_root_plan() {
+    let fatal = interrupt_root_candidate("FatalExceptionProvider", "FatalExceptionRoot");
+    let timer = interrupt_root_candidate("TimerProvider", "TimerRoot");
+    let acknowledgement = candidate("Acknowledgement", "complete");
+    let fatal_plan = fatal.report_fingerprint();
+    let timer_plan = timer.report_fingerprint();
+    let acknowledgement_plan = acknowledgement.report_fingerprint();
+    let shared_requirement = "InterruptEntry::enter".to_owned();
+    let acknowledgement_requirement = acknowledgement.schema.methods[0]
+        .requirement_identity
+        .clone();
+    let build = || {
+        SelectedProviderPlanFacts::from_selection(
+            &[fatal.clone(), timer.clone(), acknowledgement.clone()],
+            &[
+                fatal.name.clone(),
+                timer.name.clone(),
+                acknowledgement.name.clone(),
+            ],
+        )
+        .expect("distinct root boundary slots select together")
+    };
+    let resolutions = || {
+        vec![
+            InstallationReachResolution {
+                requirement_identity: shared_requirement.clone(),
+                provider_plan_report_identity: fatal_plan,
+                upper_bound: vec!["MachineControl".into(), "PortIo".into()],
+                resolved_row: vec!["PortIo".into()],
+            },
+            InstallationReachResolution {
+                requirement_identity: shared_requirement.clone(),
+                provider_plan_report_identity: timer_plan,
+                upper_bound: vec!["MachineControl".into(), "PortIo".into()],
+                resolved_row: vec!["MachineControl".into()],
+            },
+            InstallationReachResolution {
+                requirement_identity: acknowledgement_requirement.clone(),
+                provider_plan_report_identity: acknowledgement_plan,
+                upper_bound: vec!["PortIo".into()],
+                resolved_row: vec!["PortIo".into()],
+            },
+        ]
+    };
+    let selected = build()
+        .with_installation_reach_resolutions(resolutions())
+        .expect("one shared requirement identity resolves once per selected plan");
+
+    assert!(
+        selected
+            .installation_reach_resolution(&shared_requirement)
+            .is_none()
+    );
+    assert!(
+        selected
+            .resolve_installation_reach(&[], std::slice::from_ref(&shared_requirement))
+            .expect_err("an ambiguous shared requirement cannot resolve unscoped")
+            .contains("more than one selected provider plan")
+    );
+    assert!(
+        selected
+            .resolve_installation_reach(&[], &["Missing::requirement".into()])
+            .expect_err("absence still rejects unscoped")
+            .contains("remains unresolved at final admission")
+    );
+
+    assert_eq!(
+        selected
+            .installation_reach_resolution_for_plan(fatal_plan, &shared_requirement)
+            .map(|row| row.resolved_row.as_slice()),
+        Some(["PortIo".to_owned()].as_slice())
+    );
+    assert_eq!(
+        selected
+            .installation_reach_resolution_for_plan(timer_plan, &shared_requirement)
+            .map(|row| row.resolved_row.as_slice()),
+        Some(["MachineControl".to_owned()].as_slice())
+    );
+    assert_eq!(
+        selected
+            .resolve_installation_reach_for_plan(
+                &["RootConcrete".into()],
+                &[
+                    shared_requirement.clone(),
+                    acknowledgement_requirement.clone()
+                ],
+                timer_plan,
+            )
+            .expect("the timer root binds its own row plus singly-realized requirements"),
+        ["MachineControl", "PortIo", "RootConcrete"]
+    );
+    assert!(
+        selected
+            .resolve_installation_reach_for_plan(&[], &["MachineControl::halt".into()], timer_plan,)
+            .expect_err("a requirement absent from every plan still rejects")
+            .contains("remains unresolved at final admission")
+    );
+    assert!(
+        selected
+            .resolve_installation_reach_for_plan(
+                &[],
+                std::slice::from_ref(&shared_requirement),
+                acknowledgement_plan,
+            )
+            .expect_err("a shared requirement realized elsewhere is ambiguous for this root")
+            .contains("none under provider plan")
+    );
+
+    assert!(
+        build()
+            .with_installation_reach_resolutions(vec![
+                resolutions()[0].clone(),
+                resolutions()[0].clone(),
+            ])
+            .expect_err("the exact requirement/plan pair still cannot repeat")
+            .contains("more than one selected resolution under provider plan")
+    );
+}
+
 #[test]
 fn absent_duplicate_and_partial_selections_reject() {
     let complete = candidate("Complete", "run");

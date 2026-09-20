@@ -2766,10 +2766,23 @@ Owners include
     `produce_x86_64_installed_hardware_entry_facts` +
     `bind_x86_64_target_direct_entry_stack_realization` get emitted
     Terminal-body evidence; provider-admitted resource columns and
-    fuel/state receipts remain test-admitted shapes; a second
-    `InterruptEntry`-inheriting trait emits a duplicate requirement identity
-    and `with_installation_reach_resolutions` rejects it, so the timer root
-    waits on a distinct-requirement or multi-resolution seam; emitted-image
+    fuel/state receipts remain test-admitted shapes; the multi-resolution
+    seam now exists — `with_installation_reach_resolutions` keys the roster
+    by (requirement identity, provider plan report identity) and
+    `installation_reach_resolution_for_plan`/`resolve_installation_reach_for_plan`
+    bind a shared identity like `InterruptEntry::enter` through the root's own
+    selected plan while unscoped lookups fail closed on ambiguity — so a
+    second `InterruptEntry`-inheriting trait no longer trips roster
+    uniqueness; remaining seams for the timer member: provider-planning's
+    `derive_selected_installation_reach_resolutions` + nested-reach
+    substitution (`installation_reach.rs`) still name requirements by
+    identity alone, `ResolvedRootServiceReach::from_*` constructors
+    (`root_validation.rs`) must adopt the plan-scoped resolvers with the
+    candidate's plan identity, `receipt_binding.rs`'s admitted-evidence
+    match may still reject a shared requirement that satisfies multiple
+    granted plans, and the authored `TimerRoot` + acknowledge/record/wake
+    member still needs declaring in `interrupt_table_canary` plus the
+    compiler-side `admit_interrupt_table_member` drive; emitted-image
     machine-state evidence still needs the stub-byte leg.
   - Descriptor table. The authored half now exists:
     `tests/omega/pass/memory/interrupt_table_canary` is a Cathedral-side
