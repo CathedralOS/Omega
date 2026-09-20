@@ -18,6 +18,7 @@ pub(in crate::encoding::recovery::policy) fn target(
             4 => PackageReviewRepresentationTargetProfile::UefiX64,
             5 => PackageReviewRepresentationTargetProfile::CrossPlatformCli,
             6 => PackageReviewRepresentationTargetProfile::LocalUnchecked,
+            7 => PackageReviewRepresentationTargetProfile::MacosX64,
             _ => return Err(Error::InvalidTag),
         },
         architecture: match reader.byte()? {

@@ -5703,6 +5703,15 @@ Build/packages:
 Platform/cross-host (structurally gated — document host limits):
 
 - **MACOS-X64-HOST-PROFILE.** macOS x86_64 host profile (Intel gap).
+  `TargetProfile::MacosX64` catalogues the host (`macos_x86_64` / `MacosX86_64`,
+  `NativeTarget` x86-64 + Mach-O), so `host()` resolves there and the profile
+  survives into checked admission, which refuses on the missing
+  `targets/macos_x86_64` provider package. Remaining legs: the
+  `ProgramEntryPhysicalContractPackage::MacosX64` entry contract +
+  `targets/macos_x86_64/` source library, the x86-64 Mach-O writer
+  (`image_output.rs` refuses `(MachO, X86_64)` today), the `native_hosted_target()`
+  cfg arm in `compiler/tests/canary_suite.rs`, and a real
+  x86_64-apple-darwin host run.
 - **WINDOWS-SET-FILE-TIME-RESPELL.** Windows SetFileTime respell incl. unsigned carrier (merges FILESYSTEM-WINDOWS-FILETIME-RESPELL).
 - **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native validation.
 - **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows host.

@@ -26,7 +26,8 @@ pub(crate) fn invocation_target_profile(
             Diagnostic::error(
                 "no target was named and this host has no catalogued Omega deployment \
                  profile; name an exact target (linux_arm64, linux_x86_64, macos_arm64, \
-                 windows_x86_64, uefi_x86_64, cross_platform_cli, or local_unchecked)",
+                 macos_x86_64, windows_x86_64, uefi_x86_64, cross_platform_cli, or \
+                 local_unchecked)",
             )
         }),
     }

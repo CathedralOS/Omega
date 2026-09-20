@@ -11,6 +11,7 @@ pub enum PackageReviewRepresentationTargetProfile {
     UefiX64,
     CrossPlatformCli,
     LocalUnchecked,
+    MacosX64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

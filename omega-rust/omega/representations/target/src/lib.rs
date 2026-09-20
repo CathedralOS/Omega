@@ -84,6 +84,13 @@ pub enum TargetProfile {
     LinuxArm64,
     LinuxX64,
     MacosArm64,
+    /// The macOS x86-64 host profile. Recognition catalogues the Intel-macOS
+    /// host so `host()` resolves and `macos_x86_64` names a selected target;
+    /// realization still awaits its physical entry contract package and an
+    /// x86-64 Mach-O image writer — `program_entry_slot` keeps the hosted
+    /// compatibility fields empty and image emission refuses
+    /// `(MachO, X86_64)` until those legs land.
+    MacosX64,
     WindowsX64,
     UefiX64,
     CrossPlatformCli,
@@ -256,10 +263,11 @@ impl TargetProfile {
     /// Consumers that retain profile-indexed evidence must use this catalog
     /// rather than maintaining a parallel list that can drift from the
     /// compiler's accepted source-visible cases.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::LinuxArm64,
         Self::LinuxX64,
         Self::MacosArm64,
+        Self::MacosX64,
         Self::WindowsX64,
         Self::UefiX64,
         Self::CrossPlatformCli,
@@ -272,6 +280,7 @@ impl TargetProfile {
             Self::LinuxArm64 => "omega.target-profile.v1:linux_arm64",
             Self::LinuxX64 => "omega.target-profile.v1:linux_x86_64",
             Self::MacosArm64 => "omega.target-profile.v1:macos_arm64",
+            Self::MacosX64 => "omega.target-profile.v1:macos_x86_64",
             Self::WindowsX64 => "omega.target-profile.v1:windows_x86_64",
             Self::UefiX64 => "omega.target-profile.v1:uefi_x86_64",
             Self::CrossPlatformCli => "omega.target-profile.v1:cross_platform_cli",
@@ -286,14 +295,16 @@ impl TargetProfile {
 
     /// The catalogued deployment profile this host admits, when one exists.
     ///
-    /// A host with a usable `NativeTarget` triple but no catalogued profile
-    /// (macOS x86-64, for example) returns `None`. Callers that admit the
+    /// A host whose `NativeTarget` triple has no catalogued profile returns
+    /// `None`. Callers that admit the
     /// compiler host for interpreted work — build-scope source selection and
     /// build machine execution — must carry that absence rather than panic or
     /// name a foreign profile.
     pub fn host_if_supported() -> Option<Self> {
         if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
             Some(Self::MacosArm64)
+        } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
+            Some(Self::MacosX64)
         } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
             Some(Self::LinuxArm64)
         } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
@@ -316,7 +327,7 @@ impl TargetProfile {
                     || profile.legacy_cli_alias() == Some(target_name)
             })
             .ok_or_else(|| Diagnostic::error(format!(
-                "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, windows_x86_64, uefi_x86_64, cross_platform_cli, local_unchecked, or alpha_bootstrap"
+                "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, macos_x86_64, windows_x86_64, uefi_x86_64, cross_platform_cli, local_unchecked, or alpha_bootstrap"
             )))
     }
 
@@ -344,6 +355,7 @@ impl TargetProfile {
             Self::LinuxArm64 => "linux_arm64",
             Self::LinuxX64 => "linux_x86_64",
             Self::MacosArm64 => "macos_arm64",
+            Self::MacosX64 => "macos_x86_64",
             Self::WindowsX64 => "windows_x86_64",
             Self::UefiX64 => "uefi_x86_64",
             Self::CrossPlatformCli => "cross_platform_cli",
@@ -359,6 +371,7 @@ impl TargetProfile {
             Self::UefiX64 => Some("uefi_x64"),
             Self::LinuxArm64
             | Self::MacosArm64
+            | Self::MacosX64
             | Self::CrossPlatformCli
             | Self::LocalUnchecked
             | Self::AlphaBootstrap => None,
@@ -373,6 +386,7 @@ impl TargetProfile {
             Self::LinuxArm64 => "LinuxArm64",
             Self::LinuxX64 => "LinuxX86_64",
             Self::MacosArm64 => "MacosArm64",
+            Self::MacosX64 => "MacosX86_64",
             Self::WindowsX64 => "WindowsX86_64",
             Self::UefiX64 => "UefiX86_64",
             Self::CrossPlatformCli => "CrossPlatformCli",
@@ -386,6 +400,7 @@ impl TargetProfile {
             "LinuxArm64" => Some(Self::LinuxArm64),
             "LinuxX86_64" => Some(Self::LinuxX64),
             "MacosArm64" => Some(Self::MacosArm64),
+            "MacosX86_64" => Some(Self::MacosX64),
             "WindowsX86_64" => Some(Self::WindowsX64),
             "UefiX86_64" => Some(Self::UefiX64),
             "CrossPlatformCli" => Some(Self::CrossPlatformCli),
@@ -400,6 +415,7 @@ impl TargetProfile {
             Self::LinuxArm64 => "linux_arm64",
             Self::LinuxX64 => "linux_x86_64",
             Self::MacosArm64 => "macos_arm64",
+            Self::MacosX64 => "macos_x86_64",
             Self::WindowsX64 => "windows_x86_64",
             Self::UefiX64 => "uefi_x86_64",
             Self::CrossPlatformCli => "cross_platform_cli",
@@ -424,6 +440,7 @@ impl TargetProfile {
             Self::LinuxArm64 => NativeTarget::linux_arm64(),
             Self::LinuxX64 => NativeTarget::linux_x64(),
             Self::MacosArm64 => NativeTarget::macos_arm64(),
+            Self::MacosX64 => NativeTarget::macos_x64(),
             Self::WindowsX64 => NativeTarget::windows_x64(),
             Self::UefiX64 => NativeTarget::uefi_x64(),
             Self::CrossPlatformCli | Self::LocalUnchecked => NativeTarget::host(),
@@ -629,6 +646,18 @@ impl NativeTarget {
     pub fn macos_arm64() -> Self {
         Self {
             architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::MachO,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    /// The macOS x86-64 native shape. Image emission admits Mach-O only for
+    /// AArch64, so this triple carries catalog facts while
+    /// `can_emit_executable_image` keeps refusing the pair.
+    pub fn macos_x64() -> Self {
+        Self {
+            architecture: Architecture::X86_64,
             object_format: ObjectFormat::MachO,
             pointer_size: 8,
             pointer_alignment: 8,
@@ -906,5 +935,71 @@ mod tests {
                 "{unknown} must stay an unknown target profile"
             );
         }
+    }
+
+    #[test]
+    fn macos_x64_profile_catalogues_the_intel_macos_host() {
+        let profile = TargetProfile::MacosX64;
+        assert_eq!(
+            TargetProfile::ALL.iter().position(|p| *p == profile),
+            Some(3)
+        );
+        assert_eq!(
+            TargetProfile::from_omega_target_name(Some("macos_x86_64")).unwrap(),
+            profile
+        );
+        assert_eq!(
+            TargetProfile::from_canonical_target_name("macos_x86_64").unwrap(),
+            profile
+        );
+        assert_eq!(
+            TargetProfile::from_root_slot_owner("macos_x86_64").unwrap(),
+            profile
+        );
+        assert_eq!(
+            TargetProfile::from_build_case_name("MacosX86_64"),
+            Some(profile)
+        );
+        assert_eq!(profile.target_name(), "macos_x86_64");
+        assert_eq!(profile.root_slot_owner_name(), "macos_x86_64");
+        assert_eq!(profile.legacy_cli_alias(), None);
+        assert_eq!(
+            profile.identity().as_str(),
+            "omega.target-profile.v1:macos_x86_64"
+        );
+        assert_eq!(profile.build_case_name(), "MacosX86_64");
+
+        // The triple is real: an x86-64 Mach-O image is a valid host shape,
+        // it just has no writer in this toolchain yet.
+        let native = profile.native_target();
+        assert_eq!(native.architecture, super::Architecture::X86_64);
+        assert_eq!(native.object_format, super::ObjectFormat::MachO);
+        assert_eq!(native.pointer_size, 8);
+        assert_eq!(native.pointer_alignment, 8);
+        assert_eq!(profile.native_realization(), Some(native));
+
+        // The slot schema comes from the same catch-all row the hosted
+        // compatibility profiles use: no toolchain physical-contract package
+        // applies until the macOS x86-64 entry bridge lands.
+        let slot = profile.program_entry_slot();
+        assert_eq!(slot.owner, profile);
+        assert_eq!(slot.slot_name, "ProgramEntry");
+        assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
+        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        assert_eq!(slot.boundary_schema, None);
+        assert_eq!(slot.physical_arrival_requirement, None);
+        assert_eq!(slot.physical_contract_package, None);
+        assert_eq!(slot.physical_calling_convention, None);
+        assert_eq!(slot.semantic_calling_convention, None);
+        assert_eq!(
+            slot.semantic_arrival_requirement,
+            "ProgramStorageEntry::enter"
+        );
+        assert_eq!(
+            profile
+                .required_root_slot("ProgramEntry")
+                .map(|slot| slot.slot_name()),
+            Some("ProgramEntry")
+        );
     }
 }
