@@ -5794,7 +5794,22 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
   and `execution/unit/receiver_calls` held by sibling claims). Sibling re-mines
   of this surface: RANKED-PROJECTED-RECEIVER-COMPOSITION.
 - **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Workload corpus + multiversing (workload versioning under multiple specialization variants). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: these are far-future extensions gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification; the versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records, and specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question.
-- **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized variants.
+- **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized
+  variants — resolved as an answered analysis question.
+  `wiki/drafts/specialized_variant_identity_impact.md` records the verdict and
+  its claims verified current at `36ffc8af87`/friends: unit identity digests
+  complete canonical content (`optimization-unit`), the specialization chain
+  re-derives candidate/output identities and rejects `StaleCandidateRevision` /
+  `OutputIdentityMismatch` (`state_specialization`), `MachineFunctionIdentity`
+  still has exactly `Source | ProgramStorageEntryWrapper | CallbackThunk`
+  (function-identity), fragment emission digests the plan (machine-code), and
+  object-file symbol lookup fails closed on duplicates. No variant function
+  kind exists and none is authorized — a variant-emitting pass remains gated on
+  the learned-optimization/workload surface (WORKLOAD-CORPUS-AND-MULTIVERSIONING
+  names the same gate). The doc's remaining questions (which specialization
+  coordinates a variant kind binds; private symbol naming for variants;
+  variant-aware replacement compatibility) are design inputs for that future
+  pass, not a bounded leg.
 
 Build/packages:
 
