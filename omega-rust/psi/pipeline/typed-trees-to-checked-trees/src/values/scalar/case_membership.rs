@@ -58,24 +58,33 @@ pub(super) fn lower(
     let ExpressionNode::Name(selected) = program.expression_table.expression(binary.right) else {
         return None;
     };
-    let case = program
-        .data_definitions()
-        .iter()
-        .flat_map(|data| program.data_members(data))
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(case) if case.symbol == selected.symbol => {
-                Some(case)
-            }
-            _ => None,
-        })?;
     Some(CheckedBooleanExpression::StructuralCaseMembership {
         subject: CheckedStructuralParameterField {
             parameter_position,
             path,
         },
-        case: case
-            .identity
+        case: structural_case_name(program, selected.symbol)?,
+    })
+}
+
+/// The discriminant key a checked case-membership test stores: the declared
+/// `#<decimal>` identity an authored discriminant value writes, or the case's
+/// declared name when no identity exists.
+pub(super) fn structural_case_name(
+    program: &TypedTrees,
+    selected: symbols::SymbolHandle,
+) -> Option<String> {
+    let case = program
+        .data_definitions()
+        .iter()
+        .flat_map(|data| program.data_members(data))
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Variant(case) if case.symbol == selected => Some(case),
+            _ => None,
+        })?;
+    Some(
+        case.identity
             .map(|identity| format!("#{identity}"))
             .unwrap_or_else(|| case.name.as_str().to_owned()),
-    })
+    )
 }

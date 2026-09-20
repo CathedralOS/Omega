@@ -46,6 +46,7 @@ mod structural_control_cases;
 mod structural_return_cases;
 mod structural_scalar_store;
 mod unit_cleanup;
+mod value_case_dispatch;
 
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;

@@ -117,17 +117,24 @@ pub(super) fn append_move_events_for_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
-            // Each arm retains its authored scope. Only the selected arm
-            // commits; multiplicity checking publishes separate transfer
-            // receipts instead of flattening these into statement events.
-            append_move_events_for_expression(
-                program,
-                sink,
-                state_symbol,
-                statement_index,
-                dispatch.subject,
-                source,
-            );
+            // A discriminant dispatch reads only the subject's case tag, like
+            // the membership-test exemption above: the observed place is not
+            // extracted. Subjects are parameter field paths, immutable locals,
+            // or fresh constructions, none of which move owned operands out of
+            // the tag read.
+            let tag_observed =
+                validation::match_case_dispatch(program, sink.machine, sink.state, dispatch)
+                    .is_some();
+            if !tag_observed {
+                append_move_events_for_expression(
+                    program,
+                    sink,
+                    state_symbol,
+                    statement_index,
+                    dispatch.subject,
+                    source,
+                );
+            }
             for (ordinal, arm) in program
                 .expression_table
                 .match_arms(dispatch.arms)
