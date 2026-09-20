@@ -5099,19 +5099,25 @@ Owners include
     identity rule ("declaration `EquivalenceClass` has non-hermetic source
     origin `User`", `normalized_hermetic_symbol_identity`: a standalone
     source has no `package:` provenance); the same program as a managed
-    project (`build.omg` binding `Main::main`) is admitted, `lower_typed_trees`
-    succeeds, and the first checked-stage refusal is
-    `finalize_checked_authored_selections`
+    project (`build.omg` binding `Main::main`) is admitted through the
+    checked route and stops at `finalize_checked_authored_selections`
     (`typed-trees-to-checked-trees/src/authored_selections/finalization.rs`,
     "authored Call declaration selection occurrence N remained unresolved
-    after successful checking (CheckedCall)") because the request call has no
-    resolved target or checked call fact (`call_targets.rs::checked_call_target`
-    returns invalid); the value-path exits listed above drop the request
-    silently before that. After that the admitted request needs a checked
-    value plan (a proof-only result binding of the representative call)
-    through those exits and an authored-selection resolution for the sealed
-    request call. The parked branch `work/quotient-validation-admit`
-    (typed-summary admission at validation) is superseded by this route.
+    after successful checking (CheckedCall)") because the sealed request
+    call selects compiler vocabulary, not a declaration. A second prepared
+    patch resolves that occurrence proof-only as
+    `AuthoredDeclarationSelectionIntrinsic::{QuotientDefine, QuotientLift}`
+    (`language-semantics/src/declaration_selection/mod.rs`,
+    `finalization.rs`, `typed-trees inspection/snapshot.rs`; the request's
+    flow occurrence keeps no callee, the value-path exits keep skipping it);
+    with both patches `omega --check` on the managed direct `define`
+    compiles (exit 0) while the standalone refusal is unchanged. Both
+    patches wait for the `checking.rs` claim; after them the admitted
+    request still has no checked value plan (a proof-only result binding of
+    the representative call) and no Terminal row on this route until
+    `lower_machine` runs on a machine whose closure carries it. The parked
+    branch `work/quotient-validation-admit` (typed-summary admission at
+    validation) is superseded by this route.
   - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
     language-semantics, codec, verifier and review rows belong to
     **PROOF-CONTRACT-MIGRATION**.
