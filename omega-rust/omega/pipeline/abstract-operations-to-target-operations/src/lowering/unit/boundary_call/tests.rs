@@ -1979,3 +1979,318 @@ fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
         );
     }
 }
+
+fn lower_direct_port_read_call(
+    target: NativeTarget,
+    boundary: BoundaryMachineId,
+    operation: &super::AbstractOperation,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+    realization: target_operations::BoundaryRealization,
+    places: &BTreeMap<PlaceId, TargetStructuralParameter>,
+) -> Result<
+    (
+        Vec<target_operations::TargetUnitOperation>,
+        BTreeMap<ValueId, KnownUnitInteger>,
+    ),
+    LoweringError,
+> {
+    let function = function(Vec::new());
+    let catalog: abstract_operations::StructuralTypeCatalog = Vec::new().into();
+    let lookup = StructuralTypeLookup::new(&catalog);
+    let boundary_machines = BTreeMap::from([(boundary, declaration)]);
+    let settlements = BTreeMap::from([(
+        boundary,
+        target_operations::BoundarySettlementBinding {
+            boundary,
+            execution: target_operations::BoundaryExecutionBinding::AdmittedProvider(
+                target_operations::ProviderExecutionBinding::from_execution_record(
+                    target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+                    11,
+                    13,
+                    17,
+                    23,
+                )
+                .expect("nonzero provider identities"),
+            ),
+            realization: target_operations::BoundarySettlementRealization::Builtin(realization),
+        },
+    )]);
+    let parameters_by_place = places
+        .iter()
+        .map(|(place, parameter)| (*place, parameter))
+        .collect();
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let established_byte_sequences = BTreeMap::new();
+    let mut scalar_values = BTreeMap::new();
+    let mut scalar_homes = BTreeMap::new();
+    let sources = Sources::default();
+    let mut operations = Vec::new();
+    let mut provenance = target_operations::TerminalPsiProvenance::default();
+    let mut nonreturning = false;
+    super::lower_boundary_call(
+        operation,
+        &function,
+        target,
+        &lookup,
+        &boundary_machines,
+        &settlements,
+        &BTreeMap::new(),
+        &parameters_by_place,
+        &mut shape_cache,
+        &mut active,
+        &established_byte_sequences,
+        &mut scalar_values,
+        &mut scalar_homes,
+        &sources.booleans,
+        &sources.ieee_float_constants,
+        &sources.scalar_block_parameters,
+        &mut operations,
+        &mut provenance,
+        &mut nonreturning,
+    )?;
+    Ok((operations, scalar_values))
+}
+
+#[test]
+fn direct_port_read_u8_settlement_carries_exact_scalar_home() {
+    let boundary = BoundaryMachineId::new(31).unwrap();
+    let psi_operation = OperationId::new(32).unwrap();
+    let result = ValueId::new(33).unwrap();
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let mut declaration = declaration(boundary, Vec::new());
+    declaration.result = terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(u8_type));
+    let operation = super::AbstractOperation::BoundaryCall {
+        psi_operation,
+        result: abstract_operations::AbstractBoundaryResult::Scalar(
+            abstract_operations::AbstractResult {
+                value: result,
+                scalar_type: ScalarType::Integer(u8_type),
+            },
+        ),
+        boundary,
+        arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+    };
+    let (operations, scalar_values) = lower_direct_port_read_call(
+        NativeTarget::linux_x64(),
+        boundary,
+        &operation,
+        &declaration,
+        target_operations::BoundaryRealization::DirectPortReadU8(
+            target_operations::DirectPortReadU8Realization {
+                service: semantic_vocabulary::ServiceId::new(41).unwrap(),
+                port: 0x3f8,
+            },
+        ),
+        &BTreeMap::new(),
+    )
+    .expect("exact direct port-read settlement lowers");
+    let expected_home = TargetUnitScalarHomeRequirement {
+        defining_operation: psi_operation,
+        source_value: result,
+        scalar_type: ScalarType::Integer(u8_type),
+        shape: ValueShape::integer(1, 1),
+    };
+    assert_eq!(operations.len(), 1);
+    let target_operations::TargetUnitOperation::BoundarySettlement {
+        result: lowered_result,
+        realization: lowered_realization,
+        arguments,
+        scalar_arguments,
+        byte_sequence_arguments,
+        completion_claim_sources,
+        completion_receipts,
+        ..
+    } = &operations[0]
+    else {
+        panic!("expected one boundary settlement operation");
+    };
+    assert_eq!(
+        *lowered_result,
+        target_operations::TargetBoundaryResult::Scalar(expected_home)
+    );
+    assert_eq!(
+        *lowered_realization,
+        target_operations::BoundaryRealization::DirectPortReadU8(
+            target_operations::DirectPortReadU8Realization {
+                service: semantic_vocabulary::ServiceId::new(41).unwrap(),
+                port: 0x3f8,
+            }
+        )
+    );
+    assert!(arguments.is_empty());
+    assert!(scalar_arguments.is_empty());
+    assert!(byte_sequence_arguments.is_empty());
+    assert!(completion_claim_sources.is_empty());
+    assert!(completion_receipts.is_empty());
+    assert_eq!(
+        scalar_values.get(&result),
+        Some(&KnownUnitInteger::Home(expected_home))
+    );
+}
+
+#[test]
+fn direct_port_read_u8_settlement_rejects_mutations() {
+    let boundary = BoundaryMachineId::new(51).unwrap();
+    let psi_operation = OperationId::new(52).unwrap();
+    let result = ValueId::new(53).unwrap();
+    let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let mut declaration = declaration(boundary, Vec::new());
+    declaration.result = terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(u8_type));
+    let realization = || {
+        target_operations::BoundaryRealization::DirectPortReadU8(
+            target_operations::DirectPortReadU8Realization {
+                service: semantic_vocabulary::ServiceId::new(55).unwrap(),
+                port: 0x60,
+            },
+        )
+    };
+    let call = |result_type: ScalarType| super::AbstractOperation::BoundaryCall {
+        psi_operation,
+        result: abstract_operations::AbstractBoundaryResult::Scalar(
+            abstract_operations::AbstractResult {
+                value: result,
+                scalar_type: result_type,
+            },
+        ),
+        boundary,
+        arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+    };
+    // A non-u8 scalar result has no honest one-byte port-read row.
+    assert!(
+        lower_direct_port_read_call(
+            NativeTarget::linux_x64(),
+            boundary,
+            &call(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
+            )),
+            &declaration,
+            realization(),
+            &BTreeMap::new(),
+        )
+        .is_err()
+    );
+    // The declaration must itself promise the one-byte scalar result.
+    let mut unit_result_declaration = declaration.clone();
+    unit_result_declaration.result = terminal_psi::BoundaryMachineResult::Unit;
+    assert!(
+        lower_direct_port_read_call(
+            NativeTarget::linux_x64(),
+            boundary,
+            &call(ScalarType::Integer(u8_type)),
+            &unit_result_declaration,
+            realization(),
+            &BTreeMap::new(),
+        )
+        .is_err()
+    );
+    // The `in al, dx` encoding exists on x86-64 only.
+    assert!(
+        lower_direct_port_read_call(
+            NativeTarget::linux_arm64(),
+            boundary,
+            &call(ScalarType::Integer(u8_type)),
+            &declaration,
+            realization(),
+            &BTreeMap::new(),
+        )
+        .is_err()
+    );
+    // Runtime scalar arguments are not part of the closed port-read shape.
+    let mut with_argument = call(ScalarType::Integer(u8_type));
+    let super::AbstractOperation::BoundaryCall { arguments, .. } = &mut with_argument else {
+        panic!("expected a boundary call");
+    };
+    arguments.push(ValueId::new(56).unwrap());
+    assert!(
+        lower_direct_port_read_call(
+            NativeTarget::linux_x64(),
+            boundary,
+            &with_argument,
+            &declaration,
+            realization(),
+            &BTreeMap::new(),
+        )
+        .is_err()
+    );
+    // A structural argument must rejoin a declared caller place.
+    let mut with_structural = call(ScalarType::Integer(u8_type));
+    let super::AbstractOperation::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut with_structural
+    else {
+        panic!("expected a boundary call");
+    };
+    structural_arguments.push(terminal_psi::StructuralArgument {
+        place: PlaceId::new(57).unwrap(),
+        path: Vec::new(),
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+    });
+    assert!(
+        lower_direct_port_read_call(
+            NativeTarget::linux_x64(),
+            boundary,
+            &with_structural,
+            &declaration,
+            realization(),
+            &BTreeMap::new(),
+        )
+        .is_err()
+    );
+    // Other closed realizations still cannot carry a scalar result.
+    assert!(
+        lower_direct_port_read_call(
+            NativeTarget::linux_x64(),
+            boundary,
+            &call(ScalarType::Integer(u8_type)),
+            &declaration,
+            target_operations::BoundaryRealization::HostedWriteByteI32(
+                target_operations::HostedWriteByteI32Realization
+            ),
+            &BTreeMap::new(),
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn direct_port_read_u8_rejects_unit_result() {
+    let boundary = BoundaryMachineId::new(61).unwrap();
+    let psi_operation = OperationId::new(62).unwrap();
+    let mut declaration = declaration(boundary, Vec::new());
+    declaration.result = terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+    ));
+    let operation = super::AbstractOperation::BoundaryCall {
+        psi_operation,
+        result: abstract_operations::AbstractBoundaryResult::Unit,
+        boundary,
+        arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+    };
+    assert!(
+        lower_direct_port_read_call(
+            NativeTarget::linux_x64(),
+            boundary,
+            &operation,
+            &declaration,
+            target_operations::BoundaryRealization::DirectPortReadU8(
+                target_operations::DirectPortReadU8Realization {
+                    service: semantic_vocabulary::ServiceId::new(63).unwrap(),
+                    port: 0x3f8,
+                },
+            ),
+            &BTreeMap::new(),
+        )
+        .is_err()
+    );
+}
