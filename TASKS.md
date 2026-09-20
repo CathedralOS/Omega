@@ -9936,7 +9936,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   work (native surfaces fenced by PLACED-ACCESS-NATIVE-OPS); the geometric
   request bound for partition routes belongs to CONSERVATION-CONTRACT /
   TERMINAL-CONTENT-CLAIMS under BUMP-ALLOCATOR-CANARY's routing.
-- **PLACE-ALIAS-ANALYSIS-PRODUCER** — landed. `AnalysisKind::PlaceAliases` now
+- **PLACE-ALIAS-ANALYSIS-PRODUCER.** Landed; re-verified at `baad84f97f` —
+  `analyses/semantic/place_aliases.rs:88` still exports `relation`. `AnalysisKind::PlaceAliases` now
   has a producer in `abstract-operations-to-abstract-operations`' analysis
   catalog: `PlaceAliasesAnalysis` carries each machine's complete
   declared-root roster and deduplicated verifier live-claim views (root plus
