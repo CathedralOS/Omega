@@ -6739,7 +6739,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
 - **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
 - **GEOMETRY-NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
-- **GEOMETRY-NATIVE** — mined candidate; verify scope then implement.
+- **GEOMETRY-NATIVE.** Mined candidate (split-of:SQUALR-HEADLESS leg 1 /
+  app-board GEOMETRY-PARITY, source:
+  [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md)). Run the
+  geometry app natively on hosts beyond the verified macOS ARM64 evidence:
+  `python tools/verify.py native --timeout 600 --omega <executable>` inside
+  the pinned `samples/apps/squalr` (4b1f7a6) — `omega run --keep
+  squalr-tests/main.omg`, exit 0 with `Squalr geometry: PASS`.
+  **Linux x86-64 PASS (w9 z57 witness, d82697ffca):** release-profile
+  `omega`, Python 3.10 + `tomli` shim, `RUST_MIN_STACK=67108864` —
+  `Squalr geometry: PASS`, exit 0, 173.2s end-to-end (vs 167.2s macOS
+  ARM64). A debug-profile `omega` does NOT work for this leg: the
+  per-checkout `omega update` evaluation took ~62 min and the compile
+  leg exceeded the 30-min timeout; the release build compiles+runs in
+  ~3 min. Windows x86-64 and Linux ARM64 remain unrecorded.
+  Fresh-checkout ceremony (required before any run): the tracked
+  `squalr-tests/omega.lock` is bound to the committing checkout's
+  canonical path (`ExternalLocal` lineage) and rejects other checkouts
+  with "fresh source key or immutable content differs" — copy the app
+  tree to scratch (its fenced path is wholesale-claimed by
+  SQUALR-TARGETS-AND-THROUGHPUT), remove the stale lock, `omega update
+  --project squalr-tests` → accept the six pending decisions in
+  `build/package-manager/review-<target>.txt` → `omega update --resume`.
+  `verify.py` requires Python >=3.11 (`tomllib`); on 3.10 hosts run with
+  a `tomli`-backed `tomllib` shim on `PYTHONPATH`.
 - **GEOMETRY-PARITY** — mined candidate; verify scope then implement.
 - **GEOMETRY-REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **GEOMETRY-WINDOWS-LEG** — mined candidate; verify scope then implement.
