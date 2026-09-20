@@ -2,33 +2,35 @@ use super::model::{
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
 };
 
-/// One substitutable field of [`StagedOptimizedRegisterHomeCustodyReceipt`](super::StagedOptimizedRegisterHomeCustodyReceipt). The custody matrix
-/// substitutes exactly one field per leg so a rejection attributes to that
-/// claim alone. Every field is representable in memory; the receipt has no
-/// wire form, so no field is canonical-encoding-closed. The independent
-/// checker is `validate_optimized_register_home_custody`, and joined
-/// `replay_allocation` surfaces its rejection as
-/// `AllocationReplayError::ReceiptMismatch`.
-#[derive(Debug, Clone, Copy)]
-pub enum OptimizedRegisterHomeCustodyFieldForTest {
-    Psi,
-    Target,
-    Entry,
-    Optimization,
-    Projection,
-    Manifest,
-    OptimizationUnit,
-    FuelSchedule,
-    RegisterEnvironment,
-    AllocatorAvailability,
-    Selected,
-    Liveness,
-    Ranges,
-    Legality,
-    Homes,
-    PostAllocationManifest,
-    FunctionCount,
-    AssignmentCount,
+optimization_core::custody_field_inventory! {
+    /// One substitutable field of [`StagedOptimizedRegisterHomeCustodyReceipt`](super::StagedOptimizedRegisterHomeCustodyReceipt). The custody matrix
+    /// substitutes exactly one field per leg so a rejection attributes to that
+    /// claim alone. Every field is representable in memory; the receipt has no
+    /// wire form, so no field is canonical-encoding-closed. The independent
+    /// checker is `validate_optimized_register_home_custody`, and joined
+    /// `replay_allocation` surfaces its rejection as
+    /// `AllocationReplayError::ReceiptMismatch`. The declared inventory drives
+    /// the shared `run_one_field_substitution_matrix` driver.
+    pub enum OptimizedRegisterHomeCustodyFieldForTest {
+        Psi,
+        Target,
+        Entry,
+        Optimization,
+        Projection,
+        Manifest,
+        OptimizationUnit,
+        FuelSchedule,
+        RegisterEnvironment,
+        AllocatorAvailability,
+        Selected,
+        Liveness,
+        Ranges,
+        Legality,
+        Homes,
+        PostAllocationManifest,
+        FunctionCount,
+        AssignmentCount,
+    }
 }
 
 impl StagedOptimizedRegisterHomes {

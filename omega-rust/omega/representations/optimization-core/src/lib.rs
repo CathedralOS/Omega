@@ -9,6 +9,8 @@
 
 mod contracts;
 mod decisions;
+#[cfg(any(test, feature = "test-support"))]
+mod mutation_matrix;
 pub use decisions::*;
 mod report_request;
 pub use report_request::OptimizationReportRequest;
@@ -50,6 +52,10 @@ pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
     OptimizationFactReferenceDecodeError, OptimizationManifestDecodeError,
     OptimizationPassManifestRecord, OptimizationWorkUsage,
+};
+#[cfg(any(test, feature = "test-support"))]
+pub use mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
 };
 pub use selection::{
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
