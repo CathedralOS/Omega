@@ -5,8 +5,10 @@
 //! remain in ordinary checking; this only identifies the selected value. Each
 //! local hop moves back to its declaration prefix and requires stable contents
 //! and pristine storage. We conservatively version the whole local, not an
-//! individual element. Authored indexing and dynamic selectors keep the
-//! ordinary symbolic provenance path, never builtin constructor substitution.
+//! individual element. The syntax-only entrance accepts literal selectors;
+//! checked_projection supplies point-specific scalar evidence for computed
+//! selectors. Authored indexing and unknown selectors never become builtin
+//! constructor substitutions.
 
 use super::{MAX_ENTRY_PROVENANCE_DEPTH, PlaceSegment, entry_operand_at, member_hop_path};
 use checked_trees::CrashPredicateExpression;
@@ -25,6 +27,29 @@ pub(super) fn entry_value(
     expression: ExpressionHandle,
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
+    entry_value_with_selector(
+        program,
+        machine_symbol,
+        state_symbol,
+        before_statement,
+        expression,
+        depth,
+        &mut |_, _, expression| literal_index(program, expression),
+    )
+}
+
+/// The caller supplies evaluated index evidence at the projection's own
+/// statement prefix. Following a saved local changes that prefix; consulting
+/// the eventual consumer's facts would replay a newer selector value.
+pub(super) fn entry_value_with_selector(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    before_statement: usize,
+    expression: ExpressionHandle,
+    depth: u32,
+    selector: &mut impl FnMut(&State, usize, ExpressionHandle) -> Option<usize>,
+) -> Option<CrashPredicateExpression> {
     let machine = program
         .machines()
         .iter()
@@ -41,7 +66,21 @@ pub(super) fn entry_value(
         expression,
         &[],
         depth,
+        selector,
     )
+}
+
+fn literal_index(program: &TypedTrees, expression: ExpressionHandle) -> Option<usize> {
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if literal.landing().is_some_and(|landing| {
+        landing.landed_type == numerics::literals::LandedIntegerType::Addr
+            || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+    }) {
+        return None;
+    }
+    usize::try_from(literal.value_u64()?).ok()
 }
 
 fn projected_entry_value(
@@ -52,6 +91,7 @@ fn projected_entry_value(
     expression: ExpressionHandle,
     segments: &[facts::PlaceSegment],
     depth: u32,
+    selector: &mut impl FnMut(&State, usize, ExpressionHandle) -> Option<usize>,
 ) -> Option<CrashPredicateExpression> {
     if depth >= MAX_ENTRY_PROVENANCE_DEPTH
         || !program.expression_table.expression_is_valid(expression)
@@ -64,21 +104,7 @@ fn projected_entry_value(
             {
                 return None;
             }
-            // Expression-only integer folding erases arithmetic widths and
-            // domains. It cannot authorize a saved-value projection: a
-            // wrapping selector could otherwise name the wrong element.
-            let ExpressionNode::Integer(literal) =
-                program.expression_table.expression(indexed.index)
-            else {
-                return None;
-            };
-            if literal.landing().is_some_and(|landing| {
-                landing.landed_type == numerics::literals::LandedIntegerType::Addr
-                    || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
-            }) {
-                return None;
-            }
-            let element_index = usize::try_from(literal.value_u64()?).ok()?;
+            let element_index = selector(state, before_statement, indexed.index)?;
             let mut projection = vec![facts::PlaceSegment::FixedIndex {
                 index: element_index,
             }];
@@ -91,6 +117,7 @@ fn projected_entry_value(
                 indexed.collection,
                 &projection,
                 depth + 1,
+                selector,
             )
         }
         ExpressionNode::Member(member) => {
@@ -112,6 +139,7 @@ fn projected_entry_value(
                 member.receiver,
                 &projection,
                 depth + 1,
+                selector,
             )
         }
         ExpressionNode::Name(path)
@@ -179,6 +207,7 @@ fn projected_entry_value(
                     projection.expression,
                     &projection.remaining,
                     depth + 1,
+                    selector,
                 )
             }
         }

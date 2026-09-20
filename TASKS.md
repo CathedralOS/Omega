@@ -3444,9 +3444,12 @@ Owners include
     operand widths and selected-operation custody.
   - Extend concrete failure discharge in `const_initializers/invocations.rs`
     beyond ordinary scalar invocations, lossless fixed-integer widening and
-    literal-index projections through pristine constructed locals.
-    Partial/value-changing casts, dynamic/computed indexed reads, call-produced
-    values and other origins the concrete probe cannot decide still widen
+    proven-index projections through pristine constructed locals.
+    Preserve `machine_initializers::computed_table_selector_discharge_reaches_source_free_native_execution`
+    and its failure controls: computed indices reuse checked scalar operations
+    and facts at the original projection, including saved rows and later selector
+    mutation. Partial/value-changing casts, indices without an exact live value,
+    call-produced values and other origins the concrete probe cannot decide still widen
     conservatively; they need checked evidence
     (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`, shared
     with **CRASH-CONTRACT**), not successful interpretation or provider-body

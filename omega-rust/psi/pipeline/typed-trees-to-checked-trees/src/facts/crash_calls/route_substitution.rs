@@ -189,6 +189,17 @@ pub(crate) fn call_argument_substitution(
                 before_statement,
                 argument,
             )
+            .or_else(|| {
+                crate::facts::crash_entry_values::checked_projected_entry_value(
+                    program,
+                    operators,
+                    semantic,
+                    flow,
+                    state_flow,
+                    before_statement,
+                    argument,
+                )
+            })
         });
         // Scalar annotations live in the dense primitive namespace: only
         // primitive-typed formals occupy a slot, regardless of aggregate
