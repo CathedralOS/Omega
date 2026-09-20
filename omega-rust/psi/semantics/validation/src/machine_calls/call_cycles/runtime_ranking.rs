@@ -443,6 +443,7 @@ pub(super) fn check_component(
                             // subject it denotes at this arrival.
                             match comparison::argument_comparison(
                                 program,
+                                machine.symbol,
                                 &ranks[position],
                                 *argument,
                                 &site_guards,
