@@ -8843,7 +8843,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RANKED-PROJECTED-RECEIVER-COMPOSITION.** Scope verified at 6ef64f6dd6 — named sibling re-mine of the GENERAL-CYCLIC-EXECUTION-OPTIMIZER surface: ranked callees on projected receivers (wiki/spec/language/termination.md#ranked-callees-on-projected-receivers) need composed argument references, call/return, cleanup, callee measure checking, and composed resource evidence beyond today's whole-entry-only admission — an extend-the-common-graph item, not a new optimizer. Verified live: the native side admits only whole ranked modules (terminal-psi-to-abstract-operations/src/artifact_admission/native.rs; README "Ranked native admission") and call_source_custody/projected_receivers covers projection custody, not ranked call/return composition. The implementing surfaces are fenced by live claims — checked-side execution/unit/{control,state_graph}+composed_control (GENERAL-CYCLIC-EXECUTION, exp 19:37Z), receiver_calls (STRUCTURAL-BORROW-IDENTITY, 21:38Z), native-side lowering/control_flow (STRUCTURAL-UNIT-CALL-GRAPH-JOINS, 20:13Z). No independent unclaimed slice remains here.
 - **RC-BUILD-AND-PACKAGES** — mined candidate; verify scope then implement.
 - **RC-BUILD-AND-PACKAGES-GATE** — mined candidate; verify scope then implement.
-- **RC-CLOSURE-EVIDENCE-RETENTION** — mined candidate; verify scope then implement.
+- **RC-CLOSURE-EVIDENCE-RETENTION.** Scope verified at `797e99ead7` —
+  mined candidate naming the post-closure directive in
+  [rust_compiler_completion](wiki/drafts/rust_compiler_completion.md):
+  "Delete the plan after closure, retaining the release evidence and
+  maintained regression gates with their owners." The obligation is
+  conditional on the release contract closing, which is open — the
+  RC-REPOSITORY gate measured 4/5 commands red at `f1e9a3733d`
+  ([rc_repository_baseline_linux_x86_64](wiki/drafts/rc_repository_baseline_linux_x86_64.md))
+  and the release record at `e12b9e8e06`
+  ([release_record_e12b9e8e06](wiki/drafts/release_record_e12b9e8e06.md))
+  shows RC-REPOSITORY + RC-DIAGNOSTICS fail with four rows not run.
+  The retention substrate is already landed and exercised:
+  `tools/release/release_record.py` writes schema
+  `omega-release-record/1` records with `records/` output, and the
+  per-host gate evidence docs (`wiki/drafts/rc_*_linux_x86_64.md`,
+  `rc_native_matrix_*`) are retained under their owner rows. The
+  maintained-gate side of the clause is satisfied by the gates'
+  continued presence in the matrix itself — deletion is the gated
+  action, and it stays until closure. No independent slice exists
+  before the contract closes; residual stays on the open gate rows
+  (RC-REPOSITORY-CLOSURE, RC-* gate/cluster rows).
 - **RC-DIAGNOSTICS** — mined candidate; verify scope then implement.
 - **RC-DIAGNOSTICS-CLOSURE.** — recorded at
   `wiki/drafts/rc_diagnostics_linux_x86_64.md` (revision e76d715c8e,
