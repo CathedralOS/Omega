@@ -455,9 +455,7 @@ const EXPLICIT_ENTRY_SIMULATION_SAMPLES: &[&str] = &[
     "stopwatch",
     "traffic_light",
 ];
-const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &[
-    "structural_proofs",
-];
+const EXPLICIT_ENTRY_PROOF_SAMPLES: &[&str] = &["structural_proofs"];
 
 /// Parse a `// Expected exit: N` annotation (any casing) from a sample's source.
 /// The COLON is required: a comment merely MENTIONING the phrase ("this sample
