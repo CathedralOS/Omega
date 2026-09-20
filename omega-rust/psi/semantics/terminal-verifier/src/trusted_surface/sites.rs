@@ -614,7 +614,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/optimization/sparse_conditional_constant_propagation.rs",
-        sha256: Some("d5961335f363246038b81ddee881393866f790163a07c4ce7ad1eb68deb06040"),
+        sha256: Some("92db19ecbbafbac18607753c77fd93583501809fabec15ff8ffc84febef0dc79"),
         inventory_machinery: false,
     },
     ImplementationSite {
