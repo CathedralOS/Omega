@@ -118,13 +118,14 @@ pub(crate) fn validate_call_node(
     };
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
-    crate::proof_contracts::contract_entailment::validate_const_range_call(
+    crate::proof_contracts::contract_entailment::validate_const_range_call_in_environment(
         program,
         current_machine,
         current_state,
         call.target_symbol,
         &call.machine_arguments,
         arguments,
+        Some(value_env),
         diagnostics,
     );
     if call_gates::validate_named_conformance_call(&scope, arguments, diagnostics) {
