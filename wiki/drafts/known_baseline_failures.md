@@ -354,26 +354,20 @@ scalar-return custody, provider attachment, and the attached-unit
 borrowed-self case continue (the last under a new diagnostic — see the
 Service<R> family). The current failure set attributes to six families:
 
-- Stale bare boundary-trait fixture spelling (33 tests). All 30 failing
-  library `tests::*` cases (`attached_unit_cases`, `composed_operand_catalogs`,
-  `composed_unit_nested_control`, `dynamic_composed_unit`,
-  `indexed_primitive_storage`, `structural_control_cases`) plus
-  `tests/unit_plan_omissions.rs` ×3 panic at `src/tests.rs:82` /
-  `tests/unit_plan_omissions.rs:16` on the same source check:
-  ``field `console`/`runtime`/`output` on data `Main`/`Carrier` names
-  bare boundary trait `Console`/`Output`/`TaskRuntime` in value
-  position; the intrinsic `Service<R>` carrier is the only service value
-  spelling``. The check in
-  `typed-trees-to-checked-trees/src/checking/program_validation.rs` landed
-  in 32f5182254 (2026-09-20) with fixture migration in the same-day
-  0e1977994b; these fixtures still spell `console: Console` in value
-  position. This is the ENTRY-CONTENT-ROOTS residual recorded on the board:
-  unmigrated raw fixtures migrate to `&'s mut <boundary trait>` receivers or
-  get `service.omg` injected, and fixtures that need service-activation
-  semantics stay red until the receiver-lifecycle leg lands. Fixture fences:
-  `src/tests` is under the PROOF-CERTIFICATION-BRIDGE claim and
-  `checked-trees-to-lowered-psi/tests` under WRITE-ONLY-BORROW's
-  integer-entry-ranges claim.
+- Repaired: the bare boundary-trait fixture spelling (33 tests) is gone.
+  The 21 `console: Console` and `output: Output` spellings across the
+  library `tests::*` sources became `Service<R>` carrier fields at
+  00a69f066b0, and `tests/unit_plan_omissions.rs`'s 4 `runtime: TaskRuntime`
+  spellings became `&'s mut TaskRuntime` receivers at 37e309e6060. Verified
+  at 00e1da7ae2a on macOS arm64: `cargo nextest run -p
+  checked-trees-to-lowered-psi --no-fail-fast` reports 2199 run, 2174
+  passed, and not one `validate_no_bare_boundary_trait_values` rejection in
+  the log. Every declared boundary trait in those trees was scanned for a
+  value-position field and none remains. The 30 library cases pass, and the
+  3 `unit_plan_omissions` members moved into the missing-transitive-machine-
+  plan family below, stopping at `signature`-phase local construction; the
+  shared-borrow negative control still pins that stop.
+
 - Missing checked transitive machine plan (16 tests).
   `provider_attachment_source` ×6 stop at `signature` and
   `unit_state_graph::provider_attachments` ×9 plus
@@ -456,7 +450,8 @@ Residual attribution at 9d07a59a48 (2026-09-20, Linux x86-64), same command:
 2146 run, 2088 passed, 58 failed (57 FAIL plus the same proof-search member,
 killed externally after >1440s — the same blowup, still unbisected). Every
 failure maps onto the six families above with identical diagnostics —
-33 bare `Service<R>` spellings, 16 missing transitive machine plans, 3
+the bare `Service<R>` spellings (since repaired, see above), 16 missing
+transitive machine plans, 3
 site_guard crash-namespace rejections, 4 scalar-return custody cases, 1
 `established by` qualification, 1 blowup — so the residual tail is empty.
 The three added tests since d8d48fe4ff all pass. One boundary-timing note:
@@ -469,8 +464,9 @@ run, 2088 passed (10 slow), 58 failed — the same 57 FAIL members plus the
 same nonterminating
 `mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`,
 killed externally after >1400s at ~570% CPU. Every failure maps onto the
-six families above with verbatim-identical diagnostics — 33 bare
-`Service<R>` spellings, 16 missing transitive machine plans, 3 site_guard
+six families above with verbatim-identical diagnostics — the bare
+`Service<R>` spellings (since repaired), 16 missing transitive machine
+plans, 3 site_guard
 crash-namespace rejections, 4 scalar-return custody cases, 1 `established
 by` qualification, 1 blowup — so the residual tail is still empty. The two
 crate-local commits since 9d07a59a48 (400c353604 machine_lowering
