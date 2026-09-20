@@ -6802,7 +6802,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `python3 tools/tests/test_benchmark.py` 21/21 green on linux x86-64.
   Open surface left to siblings: more *selection* rows (contrast/variant)
   and the unfilled host legs.
-- **BENCHMARK-SELECTION-MATRIX** — mined candidate; verify scope then implement.
+- **BENCHMARK-SELECTION-MATRIX.** Mined candidate; scope verified,
+  resolved — named verbatim by resolved sibling
+  BENCHMARK-SELECTION-ROW-COVERAGE as a sibling re-mine of the same
+  coverage. That coverage is landed: `tools/benchmark/records/` holds
+  six committed rows (`cli_mvp__linux_x86_64__default`,
+  `wrapping_square_sum` on `linux_x86_64` under two non-default
+  selections — `sel-885944b13b84` at `7ec604d7ef`,
+  `sel-9c09e32a82fb` at `0969a3ea96a` — and cross-compile rows for
+  `linux_arm64`, `macos_arm64`, `windows_x86_64` at `52ceeeabb7b`,
+  runtime legs `skipped` per contract); the host-row matrix pins were
+  repaired under the same row (`test_unmeasured_host_legs_stay_explicit`
+  now pins `cross_platform_cli`/`local_unchecked`) and the
+  `wiki/drafts/benchmarks.md` embedded matrix is regenerated to the
+  six-row census; `python3 tools/tests/test_benchmark.py` 21/21 green
+  on linux x86-64. The remaining gap — a re-measured `linux_x86_64`
+  default-selection row at a newer revision — stays with
+  BENCHMARK-LINUX-X64-ROW-REFRESH. No independent slice exists;
+  sibling stubs BENCHMARK-SELECTION-ROW-MATRIX,
+  BENCHMARK-SELECTION-VARIANT-ROWS and BENCHMARK-SELECTION-CONTRAST-ROWS
+  mine the same coverage.
 - **BENCHMARK-SELECTION-ROW-COVERAGE.** Mined candidate; scope verified,
   coverage landed — `tools/benchmark/records/` now holds three committed
   rows, up from the lone `cli_mvp/linux_x86_64/default` row this stub named:
