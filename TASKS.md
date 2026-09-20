@@ -6233,7 +6233,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **LIFETIME-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-MEASUREMENT-AUDIT** — mined candidate; verify scope then implement.
-- **LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; verify scope then implement.
+- **LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; scope verified, family repaired. `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff records the boundary-byte-buffer group of checked-trees-to-lowered-psi as green now (with crash-member byte entries and the ordered-boolean row); this stub mines a failure family that no longer fails. The live residual families in that crate are already owned: the bare boundary-trait fixture spelling by ENTRY-CONTENT-ROOTS, and the remaining scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION. No independent slice remains on this row.
 - **LOWERED-CRASH-MEMBER-BYTE-ENTRIES** — mined candidate; verify scope then implement.
 - **LOWERED-OPERATION-PROOF-MACHINE-CALLS** — mined candidate; verify scope then implement.
 - **LOWERED-PSI-BASELINE-TAIL** — mined candidate; verify scope then implement.
