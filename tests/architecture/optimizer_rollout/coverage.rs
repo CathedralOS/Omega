@@ -306,6 +306,41 @@ const COVERAGE: &[RuleCoverage] = &[
             "forged_run_axes_fail_publication_replay",
         ),
     },
+    RuleCoverage {
+        rule: "StateSpecialization",
+        positive: covered(
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "positive_fuses_the_constant_supplied_dispatch_edge",
+        ),
+        negative: covered(
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "negative_leaves_an_empty_unit_untouched",
+        ),
+        boundary: covered(
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "boundary_declines_an_all_constant_dispatch",
+        ),
+        disabled: covered(
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "disabled_sibling_selection_leaves_the_unit_untouched",
+        ),
+        budget: covered(
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "measured_budget_admits_exact_usage_and_refuses_one_less",
+        ),
+        determinism: covered(
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "repeated_runs_are_deterministic",
+        ),
+        fixed_point: covered(
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "published_unit_is_a_legal_second_input_fixed_point",
+        ),
+        corruption: covered(
+            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "forged_run_axes_fail_publication_replay",
+        ),
+    },
     // -- SelectedLowering selection members: literal-fold test files beside
     //    the rule, driven through `run_selected_lowering_optimizations`.
     RuleCoverage {

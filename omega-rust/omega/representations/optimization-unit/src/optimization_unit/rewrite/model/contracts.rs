@@ -32,6 +32,7 @@ pub enum PsiRewritePatch {
     EliminateProofCertifiedScalarIdentity(ProofCertifiedScalarIdentityRewrite),
     PruneUnreachablePrivateMachines(UnreachablePrivateMachinesRewrite),
     EliminateTotalScalarIdentity(TotalScalarIdentityRewrite),
+    SpecializeStateArgument(StateArgumentSpecializationRewrite),
 }
 
 impl PsiRewritePatch {

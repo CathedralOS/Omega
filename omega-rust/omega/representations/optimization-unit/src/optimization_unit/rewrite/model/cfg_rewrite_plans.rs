@@ -112,3 +112,33 @@ pub struct SharedJumpFusionRewrite {
 pub struct UnreachablePrivateMachinesRewrite {
     pub machines: Vec<crate::PrunedMachineCustody>,
 }
+
+/// One exact constant-bound state-argument route through a shared dispatch
+/// state. The row records the unconditional incoming edge being fused
+/// (`incoming_edge` owned by `predecessor`), the dispatch `parameter` that edge
+/// binds to the proven-`constant` `argument`, and the dispatch arm edges the
+/// constant resolves (`taken_edge` toward `resolved_target`; `rejected_edge`
+/// remains on every other incoming path).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SpecializedStateEdgeRow {
+    pub incoming_edge: EdgeId,
+    pub predecessor: NodeLocation,
+    pub parameter: ValueId,
+    pub argument: ValueId,
+    pub constant: bool,
+    pub taken_edge: EdgeId,
+    pub rejected_edge: EdgeId,
+    pub resolved_target: BlockId,
+}
+
+/// Specialize every constant-supplied incoming edge of one parameter-dispatch
+/// `Conditional` block. Each listed edge is retargeted onto its resolved arm
+/// while the dispatch state stays reachable for every other incoming path, so
+/// the rewrite never removes the dispatch block itself. Rows are canonical in
+/// `incoming_edge` order.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StateArgumentSpecializationRewrite {
+    pub machine: MachineId,
+    pub dispatch: BlockId,
+    pub edges: Vec<SpecializedStateEdgeRow>,
+}

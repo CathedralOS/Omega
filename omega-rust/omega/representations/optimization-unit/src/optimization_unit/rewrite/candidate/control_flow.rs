@@ -7,7 +7,7 @@ use super::super::{
     PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness,
     RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarConstantFactIdentity,
     ScalarEvaluationWitness, ScalarSubstitution, SharedJumpFusionRewrite,
-    UnreachablePrivateMachinesRewrite,
+    StateArgumentSpecializationRewrite, UnreachablePrivateMachinesRewrite,
 };
 impl PsiRewriteCandidate {
     pub fn new_redundant_block_parameter(
@@ -181,6 +181,27 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::StructuralIdentity,
             predicted_cost_delta,
             PsiRewritePatch::FuseSharedTerminalJump(patch),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_state_argument_specialization(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: StateArgumentSpecializationRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::SpecializeStateArgument(patch),
         )
     }
 

@@ -56,6 +56,13 @@ pub(super) fn derive(
         PsiRewritePatch::EliminateTotalScalarIdentity(patch) => {
             PsiRewriteDecisionPoint::Node(patch.location)
         }
+        PsiRewritePatch::SpecializeStateArgument(patch) => {
+            PsiRewriteDecisionPoint::Node(NodeLocation {
+                machine: patch.machine,
+                block: patch.dispatch,
+                node: 0,
+            })
+        }
         PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
             if patch.machines.is_empty() || patch.machines.windows(2).any(|pair| pair[0] >= pair[1])
             {

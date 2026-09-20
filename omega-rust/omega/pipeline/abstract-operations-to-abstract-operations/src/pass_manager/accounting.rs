@@ -269,6 +269,10 @@ pub(super) fn convergence_measure(
         optimization_core::OptimizationPassIdentity::from_canonical_bytes(
             b"omega.psi-pass.global-value-numbering.v14",
         );
+    let state_specialization_pass =
+        optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+            b"omega.psi-pass.state-specialization.v1",
+        );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
     } else if registry.pass() == Some(copy_pass) {
@@ -283,7 +287,77 @@ pub(super) fn convergence_measure(
             .flat_map(|function| &function.blocks)
             .map(|block| block.nodes.len() as u64)
             .sum()
+    } else if registry.pass() == Some(state_specialization_pass) {
+        dispatch_chain_depth_measure(unit)
     } else {
         integer_evaluation_operation_count(unit)
     }
+}
+
+/// Non-decreasing convergence measure for the state-specialization pass: the
+/// sum, over every edge, of the dispatch-nesting depth of its target — where a
+/// dispatch block (a single `Conditional` node) contributes `1 + max` of its
+/// arm targets' depths and any other block contributes `0`. Fusing one
+/// constant-supplied incoming edge retargets it from a dispatch (depth `>= 1`)
+/// to a resolved arm target (depth `< dispatch depth`), so every committed
+/// rewrite strictly lowers the measure even when the resolved target is itself
+/// a dispatch. Eligible machines are acyclic; an on-stack revisit contributes
+/// `0` so the traversal is total on arbitrary input.
+fn dispatch_chain_depth_measure(unit: &PsiOptimizationUnit) -> u64 {
+    use std::collections::BTreeSet;
+
+    use abstract_operations::AbstractOperation;
+    use optimization_unit::PsiOptimizationFunction;
+    use semantic_vocabulary::BlockId;
+
+    fn depth(
+        function: &PsiOptimizationFunction,
+        block: BlockId,
+        memo: &mut BTreeMap<BlockId, u64>,
+        visiting: &mut BTreeSet<BlockId>,
+    ) -> u64 {
+        if let Some(cached) = memo.get(&block) {
+            return *cached;
+        }
+        if !visiting.insert(block) {
+            return 0;
+        }
+        let resolved = function
+            .blocks
+            .iter()
+            .find(|candidate| candidate.id == block)
+            .and_then(|owner| match owner.nodes.as_slice() {
+                [node] => match &node.operation {
+                    AbstractOperation::Conditional { .. } => Some(
+                        node.successors
+                            .iter()
+                            .map(|edge| depth(function, edge.target, memo, visiting))
+                            .max()
+                            .unwrap_or(0)
+                            + 1,
+                    ),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .unwrap_or(0);
+        visiting.remove(&block);
+        memo.insert(block, resolved);
+        resolved
+    }
+
+    unit.functions
+        .iter()
+        .map(|function| {
+            let mut memo = BTreeMap::new();
+            let mut visiting = BTreeSet::new();
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .flat_map(|node| &node.successors)
+                .map(|edge| depth(function, edge.target, &mut memo, &mut visiting))
+                .sum::<u64>()
+        })
+        .sum()
 }

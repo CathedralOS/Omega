@@ -18,6 +18,7 @@ use crate::validate_proof_check_elision_candidate;
 use crate::validate_redundant_block_parameter_candidate;
 use crate::validate_scalar_evaluation_candidate;
 use crate::validate_shared_jump_fusion_candidate;
+use crate::validate_state_argument_specialization_candidate;
 use crate::validate_total_scalar_identity_candidate;
 use crate::validate_unreachable_private_machines_candidate;
 
@@ -74,6 +75,9 @@ pub fn validate_psi_rewrite_candidate(
         }
         PsiRewritePatch::PruneUnreachablePrivateMachines(_) => {
             validate_unreachable_private_machines_candidate(input, candidate)
+        }
+        PsiRewritePatch::SpecializeStateArgument(_) => {
+            validate_state_argument_specialization_candidate(input, candidate)
         }
     }
 }

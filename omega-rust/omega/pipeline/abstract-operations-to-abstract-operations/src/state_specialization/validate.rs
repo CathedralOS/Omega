@@ -17,6 +17,7 @@ use super::{
     VerifiedPsiOptimizationSession, apply, candidate_identity, compute_analysis, propose,
 };
 use optimization_core::AnalysisKind;
+use semantic_vocabulary::MachineId;
 
 pub(super) fn candidate(
     session: &VerifiedPsiOptimizationSession,
@@ -127,6 +128,19 @@ fn reconstruct_provenance(
     if *output_function != expected_function {
         return Err(StateArgumentSpecializationError::CandidateMismatch);
     }
+    provenance_rows(input_function, machine, plan)
+}
+
+/// The accepted custody ledger for one specialization plan: each fused edge
+/// records the incoming edge's retained occurrence, the resolved arm edge's
+/// fan-out onto the fused edge, and the resolved edge's surviving dispatch
+/// occurrence. Shared between bespoke validation and the pass rule's candidate
+/// construction so both publish identical provenance.
+pub(crate) fn provenance_rows(
+    input_function: &optimization_unit::PsiOptimizationFunction,
+    machine: MachineId,
+    plan: &DispatchSpecializationPlan,
+) -> Result<Vec<ProvenanceRewrite>, StateArgumentSpecializationError> {
     let mut rows = Vec::new();
     for row in &plan.edges {
         let incoming = find_edge(input_function, row.incoming_edge)?;
