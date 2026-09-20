@@ -7289,7 +7289,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **HOSTILE-SHARED-MEMORY-PLACEMENT** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-REMAPPING** — mined candidate; verify scope then implement.
 - **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; verify scope then implement.
-- **INDEXING-ATTACHED-RECEIVER-BORROW** — mined candidate; verify scope then implement.
+- **INDEXING-ATTACHED-RECEIVER-BORROW.** Mined candidate — resolved,
+  covered on `origin/main` (verified `669925b8b9`, linux x86-64). The
+  indexing-through-borrowed-attached-receiver surface is implemented and
+  pinned: `tests/multiplicity/borrowed_case_payloads.rs` exercises
+  `self.kinds[slot]` transitions under `&self`/`&mut self` custody
+  (borrowed_indexed_affine_case_observation_preserves_array), loan
+  lifetime across successors, and consumption of index arguments;
+  `tests/multiplicity/borrowed_observations.rs` pins reborrows into the
+  attached receiver and rejects a borrowed indexed collection moving
+  into an owned receiver; affine extraction still rejects. Scoped run:
+  9/9 `borrowed_indexed`/`indexed_case`/`indexed_observation` tests
+  PASS. Sibling stub on the same surface:
+  INDEXED-OPERAND-ATTACHED-RECEIVER.
 - **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE** — mined candidate; verify scope then implement.
