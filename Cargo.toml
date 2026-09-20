@@ -133,6 +133,13 @@ version = "0.1.0"
 [profile.dev]
 debug = 0
 
+# Native publication repeatedly replays mathematical certificates. Optimizing
+# just their checker materially shortens that path without optimizing every
+# compiler crate on each edit. The test profile inherits this package override;
+# development assertions and overflow checks remain enabled.
+[profile.dev.package.proof-admission]
+opt-level = 3
+
 # The workspace's test binaries are enormous and short-lived. Full DWARF made
 # a three-test, zero-runtime frontend regression spend over a minute in codegen
 # on a 14-core development host. Compiler diagnostics remain unchanged; panic
