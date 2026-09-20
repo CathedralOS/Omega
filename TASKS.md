@@ -10144,6 +10144,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   dispatch. Folds into SELECTED-REWRITE-CATALOG-EXECUTION /
   EXACT-MACHINE-SIMPLIFICATIONS; no independent slice (see sibling
   SELECTED-REWRITE-CATALOG-DISPOSITION's owner-chain routing).
+  Re-verified at `12ecbe98f8`: `rewrites/module_catalog.rs` retains 42
+  `Orphaned` rows and `optimize_selected_instructions` still dispatches
+  only the selected-lowering run. Implementing surfaces are all under live
+  claims — `rewrites/{mod.rs,module_catalog.rs}` under
+  ORPHAN-REWRITE-MODULES-CATALOG (2026-09-20T20:33Z),
+  `rewrites/selected_lowering/{catalog.rs,tests.rs,literal_fold/...}`
+  under COMPOSABLE-PAIR-DESCRIPTORS (23:57Z), and the retirement-pin
+  surface `tests/architecture/optimizer_source_organization` under
+  ORPHAN-STAGE-OUTPUT-AUDIT (22:30Z). Claim on the catalog surface
+  returned exit 2.
 - **SELECTED-STAGE-RULE-CATALOG** — mined candidate; verify scope then implement.
 - **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`:
   this mined stub re-covers open work already owned by
