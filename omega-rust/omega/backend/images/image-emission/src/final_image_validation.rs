@@ -1016,11 +1016,12 @@ fn validate_linux_x86_scalar_exit_shim(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{decode_aarch64_page_target, decode_x86_relative_target};
     use crate::object_artifact::same_dynamic_table_application;
     use image::{
-        FinalExecutableTextDigest, FinalImageLayout, ImageOutputKind, PlacedDataRegionInventory,
-        PlacedExecutableRegionInventory, PlacedExecutableRegionInventoryDigest,
+        EmittedImageOutput, FinalExecutableTextDigest, FinalImageLayout, ImageOutputKind,
+        PlacedDataRegionInventory, PlacedExecutableRegionInventory,
+        PlacedExecutableRegionInventoryDigest,
     };
     use terminal_psi::{
         ClosedConformanceApplication, ClosedConformanceParameterBinding,

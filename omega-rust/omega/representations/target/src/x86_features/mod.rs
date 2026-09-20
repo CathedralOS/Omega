@@ -455,7 +455,11 @@ const fn slot_tag(slot: X86ScalarFmaSlot) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AdmittedX86ScalarFmaProvider, TargetProfile, X86_SCALAR_FMA_REQUIRED_FEATURES,
+        X86DeploymentFeatures, X86FeatureRequirement, X86ScalarFmaAdmissionError,
+        X86ScalarFmaDifferentialReceipt, X86ScalarFmaSlot, X86TargetFeature,
+    };
 
     fn differential_receipts() -> [X86ScalarFmaDifferentialReceipt; 2] {
         [

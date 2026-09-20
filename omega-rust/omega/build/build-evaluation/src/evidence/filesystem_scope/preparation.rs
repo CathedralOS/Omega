@@ -219,7 +219,9 @@ pub fn prepare_filesystem_scope(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        AtomicU64, BuildMachineFilesystemSponsor, Ordering, Path, prepare_filesystem_scope,
+    };
     use build_time_evaluation::BuildMachineFilesystemAccess;
     use package_compilation::BuildSourceCaptureObligation;
     use std::path::PathBuf;
