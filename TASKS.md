@@ -8879,7 +8879,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PRODUCER-CHECKER-BOUNDARY-AUDIT** — mined candidate; verify scope then implement.
 - **PRODUCER-CHECKER-DECISION-SEPARATION** — mined candidate; verify scope then implement.
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; bounded audit at `8734480a01`, no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
-- **PRODUCER-CHECKER-SHARING-AUDIT** — mined candidate; verify scope then implement.
+- **PRODUCER-CHECKER-SHARING-AUDIT.** Mined candidate — resolved:
+  re-mines the producer/checker decision-sharing audit already bounded
+  on sibling row PRODUCER-CHECKER-DECISION-SHARING-AUDIT (directly
+  above). Re-verified at `9ff8673b310`: `proof/src/checker/
+  derivation_cache.rs` still re-runs `candidate.verify()` through the
+  admission kernel on every hit (rejected candidates count toward
+  `rejected_candidates` and fall through to fresh derivation), and
+  `build-evaluation .../independent_components.rs::
+  verify_independent_component_descriptions` re-verifies each attached
+  description under the build's own admission request. No decision
+  sharing found on the named reuse surfaces; the open residual
+  (exhaustive whole-tree verifier-callsite audit) is recorded there,
+  not here.
 - **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
 - **PROGRAM-ENTRY-SELECTION-EXACTNESS** — mined candidate; verify scope then implement.
 - **PROMOTION-REJOIN-EVIDENCE** — mined candidate; verify scope then implement.
