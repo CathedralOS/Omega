@@ -5750,7 +5750,16 @@ Platform/cross-host (structurally gated — document host limits):
   cfg arm in `compiler/tests/canary_suite.rs`, and a real
   x86_64-apple-darwin host run.
 - **WINDOWS-SET-FILE-TIME-RESPELL.** Windows SetFileTime respell incl. unsigned carrier (merges FILESYSTEM-WINDOWS-FILETIME-RESPELL).
-- **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native validation.
+- **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native
+  validation. Landed: `tests/alpha/container.sh` (+ `container.py`), wired as a
+  host-free `alpha-beta-edge.sh` leg, validates both committed containers as
+  native executables on any Python-3 host — bound identity for the non-host
+  seed too (previously only the host-selected seed was bound), PE32+/Mach-O
+  structure, entry in executable code, required loader imports/code signature,
+  and the recorded hole offset equal to the tape section's raw extent on
+  pristine, stamped, and cross-stamped copies. Seed execution still requires
+  the native host: macOS arm64 is covered by the conformance gates, Windows
+  x64 by ALPHA-WINDOWS-CONFORMANCE-HOST.
 - **ALPHA-WINDOWS-CONFORMANCE-HOST.** Alpha Windows conformance on a Windows
   host. The edge gate's provenance leg now runs the committed forge
   (`tools/bootstrap/alpha/forge.py --check`) on any Python-3 host, including

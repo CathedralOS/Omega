@@ -23,12 +23,21 @@ ALPHA_SEED_ARM64_MACOS_SHA256=3a9cc3112f9f7645fca00716c347865d1b160f56d458fb6340
 ALPHA_SEED_X64_WINDOWS_SIZE=16782336
 ALPHA_SEED_X64_WINDOWS_SHA256=4ee9ee0f97c1b11c5a7ef32ffd05f1eeb193d1e9b327cb89df9ac54431aad701
 
+# Each container's stamping hole file offset, recorded beside the bound
+# identities so non-host gates can address either container. The hole is the
+# raw extent of the container's tape section (`.tape` in the PE32+, `__tape`
+# in the Mach-O); tests/alpha/container.sh pins that equality, so a rebuilt or
+# re-signed container that moved the section is refused here rather than
+# stamped into the wrong bytes.
+ALPHA_SEED_ARM64_MACOS_HOLE_OFF=32768
+ALPHA_SEED_X64_WINDOWS_HOLE_OFF=5120
+
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)
     ALPHA_SEED=alpha_arm64_macos
     ALPHA_SEED_SIZE=$ALPHA_SEED_ARM64_MACOS_SIZE
     ALPHA_SEED_SHA256=$ALPHA_SEED_ARM64_MACOS_SHA256
-    HOLE_OFF=32768
+    HOLE_OFF=$ALPHA_SEED_ARM64_MACOS_HOLE_OFF
     HOLE_SIZE=$ALPHA_SEED_HOLE_SIZE
     SEED_SIGN=1
     ;;
@@ -36,7 +45,7 @@ case "$(uname -s)-$(uname -m)" in
     ALPHA_SEED=alpha_x64_windows.exe
     ALPHA_SEED_SIZE=$ALPHA_SEED_X64_WINDOWS_SIZE
     ALPHA_SEED_SHA256=$ALPHA_SEED_X64_WINDOWS_SHA256
-    HOLE_OFF=5120
+    HOLE_OFF=$ALPHA_SEED_X64_WINDOWS_HOLE_OFF
     HOLE_SIZE=$ALPHA_SEED_HOLE_SIZE
     SEED_SIGN=0
     ;;
