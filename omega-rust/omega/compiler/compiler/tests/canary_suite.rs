@@ -976,6 +976,12 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "filesystem/native_metadata_times",
     "filesystem/native_set_times",
     "filesystem/native_stat",
+    // FUZZ-HOST-SCALAR-FIELD-STORE pin: a scalar host-call result stored
+    // straight into a field target is the intended allowance (the composite
+    // ByteRead field target is what refuses); checked semantics admits it.
+    // Native realization stays gated on fused-provider selection for an
+    // entry-side FilesystemHost service, matching the `native_*` family above.
+    "filesystem/scalar_host_call_field_store",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
