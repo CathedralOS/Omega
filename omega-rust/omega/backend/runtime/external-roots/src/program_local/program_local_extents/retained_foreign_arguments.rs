@@ -39,6 +39,48 @@ impl RetainedForeignArgumentId {
     }
 }
 
+/// Range and rights of a foreign argument a boundary call retains. Access
+/// polarity and disposition are deliberately absent: they are properties of
+/// the authored custody row, and a caller that could name them would choose
+/// the retention contract instead of following it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedForeignArgumentRange {
+    offset: u64,
+    length: u64,
+    rights: ExtentRights,
+}
+
+impl RetainedForeignArgumentRange {
+    pub fn new(
+        offset: u64,
+        length: u64,
+        rights: ExtentRights,
+    ) -> Result<Self, ExternalRootDiagnostic> {
+        if length == 0 {
+            return Err(ExternalRootDiagnostic(
+                "retained foreign argument range must be nonempty".into(),
+            ));
+        }
+        Ok(Self {
+            offset,
+            length,
+            rights,
+        })
+    }
+
+    pub const fn offset(&self) -> u64 {
+        self.offset
+    }
+
+    pub const fn length(&self) -> u64 {
+        self.length
+    }
+
+    pub const fn rights(&self) -> &ExtentRights {
+        &self.rights
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetainedForeignArgumentRequest {
     offset: u64,
@@ -378,6 +420,65 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
             era,
             RetainedForeignCustody::Snapshot(backing),
         ))
+    }
+
+    /// Retain the backing of the argument a boundary call loans to the
+    /// foreign side, under the invoked boundary's authored custody row. The
+    /// row — not a caller's method choice — selects the disposition: a
+    /// `RetainedBorrow` row names the exact source parameter place and
+    /// authorizes one shared lifetime loan, so this entry binds the argument
+    /// at the row's own source position and records it as
+    /// `LifetimeBorrowed`/`Shared`. Other authored guarantee rows authorize
+    /// no retention; moved and snapshot dispositions have no authored
+    /// Terminal row yet and cannot be selected here.
+    pub fn retain_foreign_argument_under_custody(
+        &mut self,
+        arguments: &[&Extent],
+        range: RetainedForeignArgumentRange,
+        guarantee: &terminal_psi::BoundaryContentGuarantee,
+    ) -> Result<RetainedForeignArgument, ExternalRootDiagnostic> {
+        let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(custody) = guarantee else {
+            return Err(ExternalRootDiagnostic(
+                "boundary content guarantee does not authorize foreign argument retention".into(),
+            ));
+        };
+        if custody.access != terminal_psi::StructuralAccess::SharedBorrow {
+            return Err(ExternalRootDiagnostic(
+                "retained foreign argument custody is not the authored shared borrow".into(),
+            ));
+        }
+        let terminal_psi::RetainedBorrowPlace {
+            version: semantic_vocabulary::ContentPlaceVersion::Entry,
+            root:
+                terminal_psi::RetainedBorrowPlaceRoot::Parameter {
+                    position,
+                    is_self: false,
+                    ..
+                },
+            segments,
+        } = &custody.source
+        else {
+            return Err(ExternalRootDiagnostic(
+                "retained foreign argument custody source is not an entry parameter".into(),
+            ));
+        };
+        if !segments.is_empty() {
+            return Err(ExternalRootDiagnostic(
+                "retained foreign argument custody source is not a direct parameter".into(),
+            ));
+        }
+        let extent = arguments.get(*position as usize).ok_or_else(|| {
+            ExternalRootDiagnostic(
+                "retained foreign argument custody source has no argument at its position".into(),
+            )
+        })?;
+        let request = RetainedForeignArgumentRequest::new(
+            range.offset,
+            range.length,
+            RetainedForeignAccess::Shared,
+            range.rights,
+        )?;
+        self.retain_foreign_argument_borrowed(extent, request)
     }
 
     pub fn release_retained_foreign_argument(

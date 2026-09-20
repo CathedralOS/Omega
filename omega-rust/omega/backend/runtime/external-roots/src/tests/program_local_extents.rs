@@ -10,7 +10,8 @@ use super::{
 };
 use crate::{
     EstablishedProgramLocalRoot, ProgramLocalExtentRegistry, ProgramLocalRootCohortMember,
-    RetainedForeignAccess, RetainedForeignArgumentDisposition, RetainedForeignArgumentRequest,
+    RetainedForeignAccess, RetainedForeignArgumentDisposition, RetainedForeignArgumentRange,
+    RetainedForeignArgumentRequest,
 };
 use extents::{
     AddressSpaceId, Extent, ExtentLineageId, ExtentProvenanceId, ExtentRightId, ExtentRights,
@@ -819,6 +820,227 @@ fn retained_foreign_argument_borrowed_pins_the_account_until_release() {
         .expect("retirement succeeds after releases");
     assert_eq!(registry.live_retained_foreign_arguments(), 0);
     assert_eq!(lifecycle.program_local_root_authority_holds(10), Some(0));
+}
+
+fn retained_borrow_custody(
+    source_position: u32,
+    access: terminal_psi::StructuralAccess,
+) -> terminal_psi::BoundaryContentGuarantee {
+    let semantic_domain = semantic_vocabulary::DomainSemanticId::new(41).expect("domain");
+    let content_domain = semantic_vocabulary::ContentDomainId::new(41).expect("content domain");
+    let projection = move |carrier: &str| terminal_psi::RetainedBorrowContentProjection {
+        semantic_domain,
+        carrier_identity: carrier.to_owned(),
+        projection: terminal_psi::StructuralContentProjection {
+            identity: semantic_vocabulary::ContentProjectionIdentity {
+                domain: content_domain,
+                projection_report_fingerprint: 7,
+            },
+            algebra: semantic_vocabulary::ContentAlgebra {
+                kind: semantic_vocabulary::ContentAlgebraKind::CountedQuantity,
+                parameter: "named(name(BufferSlot))".to_owned(),
+            },
+            expression: semantic_vocabulary::ContentProjectionExpression::CountedQuantity(
+                semantic_vocabulary::ContentProjectionScalar::Natural("1".to_owned()),
+            ),
+        },
+    };
+    terminal_psi::BoundaryContentGuarantee::RetainedBorrow(terminal_psi::RetainedBorrowCustody {
+        callable_identity: "Reader::submit".to_owned(),
+        source: terminal_psi::RetainedBorrowPlace {
+            version: semantic_vocabulary::ContentPlaceVersion::Entry,
+            root: terminal_psi::RetainedBorrowPlaceRoot::Parameter {
+                position: source_position,
+                identity: "buffer".to_owned(),
+                is_self: false,
+            },
+            segments: Vec::new(),
+        },
+        result: terminal_psi::RetainedBorrowPlace {
+            version: semantic_vocabulary::ContentPlaceVersion::Current,
+            root: terminal_psi::RetainedBorrowPlaceRoot::Result,
+            segments: Vec::new(),
+        },
+        access,
+        callable_lifetime_parameter_count: 1,
+        callable_lifetime_parameter_ordinal: 0,
+        result_nominal_identity: "PendingRead".to_owned(),
+        result_multiplicity: terminal_psi::StructuralMultiplicity::Linear,
+        result_lifetime_argument_count: 1,
+        result_lifetime_argument_ordinal: 0,
+        result_lifetime_slot_is_erased: true,
+        retained_semantic_domain: semantic_domain,
+        source_projection: projection("Buffer"),
+        result_projection: projection("PendingRead"),
+    })
+}
+
+#[test]
+fn retained_foreign_argument_under_custody_uses_the_authored_row() {
+    let entry = entry_id(1);
+    let mut code = installed_code(1, entry);
+    let code_identity = code.identity().normalized_identity();
+    let module = program_local_extent_module();
+    let catalog = program_local_root_catalog(&module);
+    let terminal = program_local_terminal_object(&module);
+    let (mut root_ledger, root, _open_root) =
+        install_program_local_required_root(&mut code, entry, vec![program_local_claim()]);
+    let mut installation = root_ledger
+        .claim_program_local_root_installation_ledger()
+        .expect("sole program-local cohort verifier");
+    let [prebinding] = installation
+        .derive_eligible_prebindings(&catalog, &terminal, [&root])
+        .expect("verified installed Extent prebinding")
+        .try_into()
+        .expect("one producer schema");
+    let mut lifecycle = program_local_lifecycle(
+        790,
+        10,
+        root.installed_artifact_occurrence_digest(),
+        code_identity,
+        "TestRoot::entry",
+    );
+    let lease = program_local_epoch_lease(&mut lifecycle, 890, 10, "TestRoot::entry");
+    let mut runtime = installation
+        .seal_epoch_cohort(
+            &lifecycle,
+            [ProgramLocalRootCohortMember::new(
+                prebinding.identity(),
+                &root,
+                lease,
+            )],
+        )
+        .expect("exact Extent epoch cohort")
+        .into_runtime();
+    let activation = program_local_activation(&mut lifecycle, 990, 10);
+    let established = installation
+        .establish(
+            &mut runtime,
+            &lifecycle,
+            &activation,
+            program_local_extent_subject(&root, &activation, 1090, 0x4000, 0x100),
+        )
+        .expect("exact interval subject establishes its root");
+    let mut registry = ProgramLocalExtentRegistry::new();
+    let extent = registry
+        .materialize(
+            established,
+            installed_backing_extent(700, 0x4000, 0x100, 30),
+        )
+        .expect("established interval materializes over its installed backing");
+
+    let rights = ExtentRights::from_normalized_identities([extent_id(
+        100,
+        ExtentRightId::from_normalized_identity,
+    )]);
+
+    // The authored row's SharedBorrow access and source parameter position
+    // drive the retention; the caller supplies only the retained range and
+    // the boundary's guarantee row.
+    let guarantee = retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow);
+    let retained = registry
+        .retain_foreign_argument_under_custody(
+            &[&extent],
+            RetainedForeignArgumentRange::new(0x10, 0x20, rights.clone()).unwrap(),
+            &guarantee,
+        )
+        .expect("authored custody row selects the shared borrow retention");
+    assert_eq!(retained.base(), 0x4010);
+    assert_eq!(retained.length(), 0x20);
+    assert_eq!(retained.era().normalized_identity(), 30);
+    assert_eq!(
+        retained.disposition(),
+        RetainedForeignArgumentDisposition::LifetimeBorrowed
+    );
+
+    // A conservation row authorizes no retention.
+    let conservation = terminal_psi::BoundaryContentGuarantee::Conservation(
+        terminal_psi::ContentConservationGuarantee {
+            structural_places: Vec::new(),
+            conservation: semantic_vocabulary::ContentConservation::new(
+                semantic_vocabulary::ContentAlgebra {
+                    kind: semantic_vocabulary::ContentAlgebraKind::CountedQuantity,
+                    parameter: "named(name(BufferSlot))".to_owned(),
+                },
+                semantic_vocabulary::ContentTerm::Separate(Vec::new()),
+                semantic_vocabulary::ContentTerm::Separate(Vec::new()),
+            ),
+            report_fingerprint: 7,
+        },
+    );
+    assert!(
+        registry
+            .retain_foreign_argument_under_custody(
+                &[&extent],
+                RetainedForeignArgumentRange::new(0x80, 0x10, rights.clone()).unwrap(),
+                &conservation,
+            )
+            .expect_err("conservation row authorizes no retention")
+            .0
+            .contains("does not authorize")
+    );
+
+    // A row whose authored access is not the shared borrow cannot retain.
+    let mutable = retained_borrow_custody(0, terminal_psi::StructuralAccess::MutableBorrow);
+    assert!(
+        registry
+            .retain_foreign_argument_under_custody(
+                &[&extent],
+                RetainedForeignArgumentRange::new(0x80, 0x10, rights.clone()).unwrap(),
+                &mutable,
+            )
+            .expect_err("non-shared authored access rejects")
+            .0
+            .contains("shared borrow")
+    );
+
+    // The row's own source position selects the argument; a position with no
+    // argument rejects rather than falling back to a caller's pick.
+    let absent_source = retained_borrow_custody(3, terminal_psi::StructuralAccess::SharedBorrow);
+    assert!(
+        registry
+            .retain_foreign_argument_under_custody(
+                &[&extent],
+                RetainedForeignArgumentRange::new(0x80, 0x10, rights.clone()).unwrap(),
+                &absent_source,
+            )
+            .expect_err("source position beyond the argument list rejects")
+            .0
+            .contains("no argument")
+    );
+
+    // A range outside the argument's backing still rejects against the
+    // ledger's own backing bounds.
+    assert!(
+        registry
+            .retain_foreign_argument_under_custody(
+                &[&extent],
+                RetainedForeignArgumentRange::new(0x80, 0x100, rights.clone()).unwrap(),
+                &guarantee,
+            )
+            .expect_err("range outside the argument backing rejects")
+            .0
+            .contains("exceeds")
+    );
+
+    // The held loan pins the account exactly like a borrowed retention.
+    let rejected = registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect_err("live custody retention blocks retirement");
+    assert!(rejected.diagnostic().0.contains("live retained"));
+    let extent = (*rejected).into_extent();
+    let released = registry
+        .release_retained_foreign_argument(retained)
+        .expect("release custody retention");
+    assert!(released.returned().is_none());
+    assert_eq!(
+        released.disposition(),
+        RetainedForeignArgumentDisposition::LifetimeBorrowed
+    );
+    registry
+        .retire(extent, &mut installation, &mut lifecycle)
+        .expect("retirement succeeds after release");
+    assert_eq!(registry.live_retained_foreign_arguments(), 0);
 }
 
 #[test]
