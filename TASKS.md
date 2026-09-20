@@ -6485,7 +6485,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-PCC-REPLAY-HOSTILE-EVIDENCE** — mined candidate; verify scope then implement.
 - **RC-PLATFORM-RUN-RECORDS** — mined candidate; verify scope then implement.
 - **RC-PLATFORM-RUNNER-COVERAGE** — mined candidate; verify scope then implement.
-- **RC-PORTABLE-PSI** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-ENVELOPE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-GATE** — mined candidate; verify scope then implement.
