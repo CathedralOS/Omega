@@ -12,6 +12,7 @@ use terminal_psi::{
 
 use super::OperationSemanticError;
 use crate::semantic_rows::OperationSemanticTag;
+use crate::static_path::runtime_structural_path_tip;
 
 /// Resolve the inline capacity presented to a boundary's mutable byte parameter.
 /// The operand retains its owning field; this establishes neither type equality
@@ -53,7 +54,7 @@ pub fn shared_boundary_buffer_capacity<'types>(
 
 fn inline_byte_field_capacity<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
-    mut root_type: StructuralTypeId,
+    root_type: StructuralTypeId,
     argument: &StructuralArgument,
     expected: &StructuralParameterDeclaration,
     access: StructuralAccess,
@@ -73,30 +74,7 @@ fn inline_byte_field_capacity<'types>(
     let (StructuralPathSegment::Field(identity), prefix) = argument.path.split_last()? else {
         return None;
     };
-    for segment in prefix {
-        let declaration = types
-            .clone()
-            .find(|declaration| declaration.id == root_type)?;
-        root_type = match (segment, &declaration.shape) {
-            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
-                let field = fields
-                    .iter()
-                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-                let StructuralFieldType::Structural(next) = field.field_type else {
-                    return None;
-                };
-                next
-            }
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            _ => return None,
-        };
-    }
-    let declaration = types
-        .clone()
-        .find(|declaration| declaration.id == root_type)?;
+    let declaration = runtime_structural_path_tip(types.clone(), root_type, prefix)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return None;
     };

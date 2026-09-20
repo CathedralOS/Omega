@@ -21,6 +21,7 @@ mod scalar_array;
 mod scalar_leaf_schema;
 mod scalar_leaf_semantics;
 mod semantic_rows;
+mod static_path;
 mod structural_effect;
 #[cfg(test)]
 mod tests;
@@ -56,6 +57,7 @@ pub use semantic_rows::{
     OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
     exact_operation_semantic_row_in, is_unconditionally_total_scalar, operation_semantic_row,
 };
+pub use static_path::{canonical_structural_path_tip, runtime_structural_path_tip};
 pub use structural_effect::{
     StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,
     StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy, StructuralEffectGoalShape,

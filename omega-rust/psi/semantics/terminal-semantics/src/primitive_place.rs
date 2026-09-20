@@ -1,51 +1,17 @@
 //! Exact static projections ending in a primitive structural referent.
 
+use crate::static_path::canonical_structural_path_tip;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, ScalarType, StructuralTypeId};
-use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
 
 /// Reconstruct the primitive leaf from declaration identities and fixed bounds.
 /// This grants no access or establishment authority for the root.
 pub fn primitive_place_type<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    mut root: StructuralTypeId,
+    root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<ScalarType> {
-    for segment in path {
-        let mut matching = declarations
-            .clone()
-            .filter(|declaration| declaration.id == root);
-        let declaration = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
-        root = match (segment, &declaration.shape) {
-            (
-                CanonicalStructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
-            ) => {
-                let mut matching = fields.iter().filter(|field| field.id == *identity);
-                let field = matching.next()?;
-                if matching.next().is_some() || field.relevance.is_erased() {
-                    return None;
-                }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
-                child
-            }
-            (
-                CanonicalStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            _ => return None,
-        };
-    }
-    let mut matching = declarations.filter(|declaration| declaration.id == root);
-    let declaration = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
-    match declaration.shape {
+    match canonical_structural_path_tip(declarations, root, path)?.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
         _ => None,
     }
@@ -57,46 +23,10 @@ pub fn primitive_place_type<'a>(
 /// operand, not a path segment, so it never appears here.
 pub fn fixed_array_place_shape<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    mut root: StructuralTypeId,
+    root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<(ScalarType, u64)> {
-    for segment in path {
-        let mut matching = declarations
-            .clone()
-            .filter(|declaration| declaration.id == root);
-        let declaration = matching.next()?;
-        if matching.next().is_some() {
-            return None;
-        }
-        root = match (segment, &declaration.shape) {
-            (
-                CanonicalStructuralPathSegment::Field(identity),
-                StructuralTypeShape::Record { fields },
-            ) => {
-                let mut matching = fields.iter().filter(|field| field.id == *identity);
-                let field = matching.next()?;
-                if matching.next().is_some() || field.relevance.is_erased() {
-                    return None;
-                }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
-                child
-            }
-            (
-                CanonicalStructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if index < length => *element,
-            _ => return None,
-        };
-    }
-    let mut matching = declarations
-        .clone()
-        .filter(|declaration| declaration.id == root);
-    let declaration = matching.next()?;
-    if matching.next().is_some() {
-        return None;
-    }
+    let declaration = canonical_structural_path_tip(declarations.clone(), root, path)?;
     let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
         return None;
     };
@@ -114,11 +44,11 @@ pub fn fixed_array_place_shape<'a>(
 #[cfg(test)]
 mod tests {
     use super::{
-        CanonicalStructuralPathSegment, ScalarType, StructuralFieldType, StructuralTypeDeclaration,
-        StructuralTypeId, StructuralTypeShape, primitive_place_type,
+        CanonicalStructuralPathSegment, ScalarType, StructuralTypeDeclaration, StructuralTypeId,
+        StructuralTypeShape, primitive_place_type,
     };
     use semantic_vocabulary::{IntegerSign, IntegerType, StructuralFieldId};
-    use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
+    use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
 
     #[test]
     fn primitive_projection_checks_selected_fields_and_extents_not_unrelated_erased_metadata() {

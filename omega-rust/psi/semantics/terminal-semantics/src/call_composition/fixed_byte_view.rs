@@ -1,10 +1,11 @@
 //! Exact fixed-array extent for mutable byte-view borrowing at admitted calls.
 
+use crate::static_path::runtime_structural_path_tip;
 use semantic_vocabulary::{IntegerSign, ScalarType};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 /// Rejoin a mutable byte-view argument to initialized fixed-u8-array storage.
@@ -33,24 +34,15 @@ pub fn mutable_fixed_byte_array_extent<'types>(
     {
         return None;
     }
-    let mut structural_type = actual.structural_type;
-    for segment in &argument.path {
-        let StructuralPathSegment::Field(identity) = segment else {
-            return None;
-        };
-        let declaration = types.clone().find(|row| row.id == structural_type)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return None;
-        };
-        let field = fields
-            .iter()
-            .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-        let StructuralFieldType::Structural(next) = field.field_type else {
-            return None;
-        };
-        structural_type = next;
+    if !argument
+        .path
+        .iter()
+        .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+    {
+        return None;
     }
-    let declaration = types.clone().find(|row| row.id == structural_type)?;
+    let declaration =
+        runtime_structural_path_tip(types.clone(), actual.structural_type, &argument.path)?;
     let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
         return None;
     };
