@@ -172,7 +172,8 @@ fn boolean_reads(expression: &CheckedBooleanExpression, receiver: u32) -> bool {
         | CheckedBooleanExpression::Or { left, right } => {
             boolean_reads(left, receiver) || boolean_reads(right, receiver)
         }
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar_reads(left, receiver) || scalar_reads(right, receiver)
         }
         CheckedBooleanExpression::IeeeFloatComparison { left, right, .. }

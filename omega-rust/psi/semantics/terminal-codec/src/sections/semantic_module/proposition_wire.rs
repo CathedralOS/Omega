@@ -101,6 +101,18 @@ pub(crate) fn encode_proposition(
             encode_ieee_float_field(writer, left)?;
             encode_ieee_float_field(writer, right)?;
         }
+        Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        } => {
+            writer.u8(17);
+            encode_ieee_float_comparison_kind(writer, *kind);
+            encode_ieee_float_format(writer, *format);
+            encode_scalar_term(writer, left, 0)?;
+            encode_scalar_term(writer, right, 0)?;
+        }
         Proposition::ByteSequenceEqual { left, right } => {
             writer.u8(12);
             encode_byte_sequence_field(writer, left)?;
@@ -198,6 +210,12 @@ pub(crate) fn decode_proposition(
             decode_integer_math_term(reader, 0)?,
             decode_integer_math_term(reader, 0)?,
         ),
+        17 => Proposition::ScalarIeeeFloatComparison {
+            kind: decode_ieee_float_comparison_kind(reader)?,
+            format: decode_ieee_float_format(reader)?,
+            left: decode_scalar_term(reader, 0)?,
+            right: decode_scalar_term(reader, 0)?,
+        },
         tag => return Err(CodecError::InvalidTag("Proposition", tag)),
     })
 }

@@ -524,6 +524,15 @@ pub enum CheckedBooleanExpression {
         left: Box<CheckedScalarExpression>,
         right: Box<CheckedScalarExpression>,
     },
+    /// Atomic IEEE comparison between scalar terms (parameters and composed
+    /// float expressions), as opposed to the structural-leaf form below. It is
+    /// deliberately not represented as generic/reflexive scalar equality: IEEE
+    /// equality is non-reflexive at NaN and distinguishes signed zero.
+    ScalarIeeeFloatComparison {
+        kind: CheckedIeeeFloatComparisonKind,
+        left: Box<CheckedScalarExpression>,
+        right: Box<CheckedScalarExpression>,
+    },
     /// Atomic IEEE comparison between exact relevant structural leaves. It is
     /// deliberately not represented as generic/reflexive scalar equality.
     IeeeFloatComparison {

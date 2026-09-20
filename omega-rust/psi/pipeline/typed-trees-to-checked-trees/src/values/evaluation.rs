@@ -314,6 +314,7 @@ fn boolean(
             })
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => None,

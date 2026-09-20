@@ -637,6 +637,7 @@ fn lower_checked_boolean_expression_with_parameters(
             LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case }
         }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::ErasedParameter { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. } => {
