@@ -1291,9 +1291,10 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
         }
         _ => return Err("unsupported builtin integer constant operation policy".into()),
     }
-    .ok_or(
-        "integer constant operation overflows, divides by zero, or has an invalid shift count",
-    )?;
+    .ok_or(format!(
+        "{} integer constant operation overflows, divides by zero, or has an invalid shift count",
+        policy.name()
+    ))?;
     Ok(Value::Landed(left_carrier, result, policy))
 }
 
