@@ -315,6 +315,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   across the required hosted matrix. Record unavailable hosts explicitly;
   scoped reruns do not establish a new complete baseline.
 
+  z168 wave state: `samples/` and the integration harness
+  (`compiler/tests/samples_compile.rs`) are fenced to six live claims —
+  FFIVAL, SQUALR-TARGETS-AND-THROUGHPUT, BENCHMARK-PROOF-SUBJECT-SELECTION
+  (also `samples_compile.rs`, 22:34Z), PROOF-SAMPLES-CHECKED-CALL-SELECTION,
+  BENCHMARK-SUBJECT-CORPUS-EXPANSION (00:34Z), and SAMPLE-CORPUS/wire-protocol
+  (01:08Z). The linux x86-64 focused oracle
+  (`samples_with_documented_exit_run_correctly`) was left running past
+  28 minutes at `12ecbe98f8` — per-sample native compile+run is the slow
+  leg; its result belongs to whichever claim holder refreshes the table.
+
   `calendar`'s next native dependency is **ARITHMETIC-POLICY-REALIZATION**:
   its numeric helpers reach `checked trapping conversion requires runtime
   policy realization` in `checked-trees-to-lowered-psi/src/expression_preparation/`.
