@@ -331,9 +331,10 @@ impl CompileRequest {
                     profile
                 )));
             }
+            let staging = options.build_dir_identity();
             if targets
                 .iter()
-                .any(|target| target.options.build_dir() == options.build_dir())
+                .any(|target| target.options.build_dir_identity() == staging)
             {
                 diagnostics.push(Diagnostic::error(format!("target configurations name the same build directory `{}`; each target requires separate staging", options.build_dir().display())));
             }
