@@ -438,6 +438,7 @@ fn build_permuted_cycle_frame_equation<'program>(
                         call.target_symbol,
                         call.target.as_str(),
                         &receiver_members,
+                        &[],
                         None,
                         arguments,
                         machine,

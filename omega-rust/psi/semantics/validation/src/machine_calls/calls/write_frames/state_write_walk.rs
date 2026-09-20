@@ -786,6 +786,7 @@ fn walk_state_write_prefix_inner(
                         nested_call.target_symbol,
                         nested_call.target.as_str(),
                         &nested_receiver_members,
+                        &[],
                         None,
                         arguments,
                         machine,
