@@ -1,5 +1,5 @@
 //! The existing runtime-complement addition customer retains a kernel-derived
-//! upper bound, with fixed arithmetic assumptions visible in its exact closure.
+//! bounds, with fixed arithmetic assumptions visible in their exact closures.
 
 use std::path::Path;
 
@@ -11,37 +11,48 @@ use proof_admission::{
 use semantic_vocabulary::{Proposition, ScalarTerm};
 use terminal_psi::{EvidenceRoute, ProofNode, ProofRule};
 
-fn correlated_add(proof: &ProofNode) -> Option<&ProofNode> {
+fn correlated_add(proof: &ProofNode, lower: bool) -> Option<&ProofNode> {
     match &proof.rule {
         ProofRule::IntegerAffineBound { witness, .. }
             if matches!(witness.target, ScalarTerm::ExactIntegerAdd { .. })
-                && matches!(
-                    &proof.conclusion,
-                    Proposition::IntegerMathLessOrEqual(
-                        semantic_vocabulary::IntegerMathTerm::Add(_, _),
-                        _
-                    )
-                ) =>
+                && match &proof.conclusion {
+                    Proposition::IntegerMathLessOrEqual(left, right) => matches!(
+                        if lower { right } else { left },
+                        semantic_vocabulary::IntegerMathTerm::Add(_, _)
+                    ),
+                    _ => false,
+                } =>
         {
             Some(proof)
         }
-        ProofRule::ConjunctionIntroduction(children) => children.iter().find_map(correlated_add),
+        ProofRule::ConjunctionIntroduction(children) => children
+            .iter()
+            .find_map(|child| correlated_add(child, lower)),
         ProofRule::IntegerOrderSubstitution {
             relation, equality, ..
-        } => correlated_add(relation).or_else(|| correlated_add(equality)),
+        } => correlated_add(relation, lower).or_else(|| correlated_add(equality, lower)),
         ProofRule::ValueEqualityTransport { premise, .. }
         | ProofRule::PredicateDenotation { premise }
         | ProofRule::IntegerOrderWeakening { relation: premise }
         | ProofRule::ConjunctionElimination {
             conjunction: premise,
             ..
-        } => correlated_add(premise),
+        } => correlated_add(premise, lower),
         _ => None,
     }
 }
 
 #[test]
 fn source_correlated_add_bound_has_checked_kernel_evidence() {
+    check_source_correlated_add_bound("terminal_exact_add_u64_runtime_bound", false);
+}
+
+#[test]
+fn source_correlated_add_lower_bound_has_checked_kernel_evidence() {
+    check_source_correlated_add_bound("terminal_exact_add_signed_nonpositive_bound", true);
+}
+
+fn check_source_correlated_add_bound(machine_name: &str, lower: bool) {
     let source = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
@@ -49,12 +60,9 @@ fn source_correlated_add_bound_has_checked_kernel_evidence() {
         .join("tests/omega/pass/terminal_psi/integer_control_contract/main.omg");
     let checked = compile_to_checked(CheckedCompileRequest::new(&source, Some("linux_x86_64")))
         .expect("existing exact arithmetic source customer checks");
-    let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked,
-        "terminal_exact_add_u64_runtime_bound",
-    )
-    .produce_artifact()
-    .expect("existing customer produces Terminal");
+    let artifact = terminal_production::TerminalProductionRequest::new(&checked, machine_name)
+        .produce_artifact()
+        .expect("existing customer produces Terminal");
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let bundle = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
     terminal_verifier::verify_module(
@@ -90,7 +98,7 @@ fn source_correlated_add_bound_has_checked_kernel_evidence() {
             let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
                 panic!("exact add requires retained certificate")
             };
-            let target = correlated_add(&certificate.proof).unwrap_or_else(|| {
+            let target = correlated_add(&certificate.proof, lower).unwrap_or_else(|| {
                 panic!("expected correlated add witness: {:?}", certificate.proof)
             });
             witnessed += 1;
@@ -113,18 +121,19 @@ fn source_correlated_add_bound_has_checked_kernel_evidence() {
             assert!(matches!(witness_right.as_ref(), ScalarTerm::Value { id, .. } if *id == right));
             assert_eq!(
                 root_bound.conclusion,
-                Proposition::LessOrEqual(witness_left.as_ref().clone(), witness.root.clone())
+                if lower {
+                    Proposition::LessOrEqual(witness.root.clone(), witness_left.as_ref().clone())
+                } else {
+                    Proposition::LessOrEqual(witness_left.as_ref().clone(), witness.root.clone())
+                }
             );
             let [definition_index] = witness.definition_axioms.as_slice() else {
                 panic!("source complement retains one exact subtraction definition")
             };
-            let [Some(literal_index)] = witness.literal_axioms.as_slice() else {
-                panic!("source runtime maximum retains one literal landing")
-            };
             let Proposition::Equal(
                 root,
                 ScalarTerm::ExactIntegerSubtract {
-                    left: maximum,
+                    left: endpoint,
                     right: decrement,
                     ..
                 },
@@ -134,15 +143,31 @@ fn source_correlated_add_bound_has_checked_kernel_evidence() {
             };
             assert_eq!(root, &witness.root);
             assert_eq!(decrement, witness_right);
-            let Proposition::Equal(landed, ScalarTerm::Integer { value, .. }) =
-                &site.semantic_axioms[*literal_index]
-            else {
-                panic!("runtime maximum must retain its literal equality")
+            let [literal_index] = witness.literal_axioms.as_slice() else {
+                panic!("source complement retains one endpoint landing coordinate")
             };
-            assert_eq!(landed, maximum.as_ref());
+            let endpoint_value = if let Some(literal_index) = literal_index {
+                let Proposition::Equal(landed, ScalarTerm::Integer { value, .. }) =
+                    &site.semantic_axioms[*literal_index]
+                else {
+                    panic!("runtime endpoint must retain its literal equality")
+                };
+                assert_eq!(landed, endpoint.as_ref());
+                *value
+            } else {
+                assert!(
+                    lower,
+                    "the original upper customer retains its runtime landing"
+                );
+                endpoint.integer_value().expect("closed endpoint").1
+            };
             assert_eq!(
-                *value,
-                semantic_vocabulary::IntegerValue::Unsigned(u64::MAX as u128)
+                endpoint_value,
+                if lower {
+                    semantic_vocabulary::IntegerValue::Signed(i32::MIN as i128)
+                } else {
+                    semantic_vocabulary::IntegerValue::Unsigned(u64::MAX as u128)
+                }
             );
             let context = validated.value_context(machine).unwrap();
             let parameters = machine
@@ -190,15 +215,20 @@ fn source_correlated_add_bound_has_checked_kernel_evidence() {
                 );
             }
             let closure = certificate_assumption_closure(&denoted.arena, &denoted.certificate);
-            // The complete closure includes Int, zero and odd (0..=2).
-            // Positions 3..=66 are the shared binary definitions of MAX's
-            // prefixes, not assumptions. The remaining assumptions retain
-            // the input context vocabulary, integer operations/order and the
-            // fixed monotonicity, cancellation and equality transport laws.
+            // The exact closure retains the input vocabulary and fixed
+            // monotonicity, cancellation and equality transport laws. Numeral
+            // prefixes have checked bodies: MAX uses positions 3..=66, while
+            // the signed customer's zero, MIN prefixes and negation are
+            // interleaved with the independently reconstructed context.
             // This is the target bound's closure, not a claim that unrelated
             // rules in the complete operation certificate are axiom-free.
-            assert_eq!(denoted.certificate.signature.len(), 95);
-            assert_eq!(closure, (0..3).chain(67..95).collect());
+            if lower {
+                assert_eq!(denoted.certificate.signature.len(), 64);
+                assert_eq!(closure, (0..16).chain([17, 49]).chain(51..64).collect());
+            } else {
+                assert_eq!(denoted.certificate.signature.len(), 95);
+                assert_eq!(closure, (0..3).chain(67..95).collect());
+            }
             let definitions = denoted
                 .certificate
                 .signature
@@ -208,9 +238,19 @@ fn source_correlated_add_bound_has_checked_kernel_evidence() {
                     declaration.body.is_some().then_some(position)
                 })
                 .collect::<Vec<_>>();
-            assert_eq!(definitions, (3..67).collect::<Vec<_>>());
+            if lower {
+                assert_eq!(
+                    definitions,
+                    [16].into_iter()
+                        .chain(18..49)
+                        .chain([50])
+                        .collect::<Vec<_>>()
+                );
+            } else {
+                assert_eq!(definitions, (3..67).collect::<Vec<_>>());
+            }
             eprintln!(
-                "source complement definition={definition_index}, literal={literal_index}; guard={:?}",
+                "source complement definition={definition_index}, literal={literal_index:?}; guard={:?}",
                 root_bound.rule
             );
             eprintln!(

@@ -1637,10 +1637,11 @@ Owners include
     irreflexivity and checked empty elimination. These laws remain explicit
     assumptions. Mathematical subtraction shares that operation. Open addition
     also retains its operands;
-    correlated upper bounds with an open right addend use fixed addition
-    monotonicity and subtraction cancellation, including exact SSA subtraction
-    definitions and maximum-value equalities. An already admitted open expression
-    stays opaque if composing a child would introduce a resource refusal. Still
+    correlated lower and upper bounds with an open right addend use fixed
+    addition monotonicity and subtraction cancellation, including exact SSA
+    subtraction definitions and carrier-endpoint equalities. An already admitted
+    open expression stays opaque if composing a child would introduce a resource
+    refusal. Still
     to do: closed endpoint bridges for correlated addition, other bound-witness forms,
     multiple-equation or nested transport, and transport outside the supported
     `Int` vocabulary. Other operations remain opaque; unsupported arithmetic
@@ -1684,7 +1685,7 @@ Owners include
   named `Π` laws over `Int` (`integer_law`), `J`-derives `Id` symmetry and
   transitivity on the denoted crossing, and interns closed mathematical
   terms by exact evaluated value. Subtraction order, the correlated
-  unsigned subtraction lower bound and correlated addition upper bounds with
+  unsigned subtraction lower bound and correlated addition bounds with
   open right addends use fixed arithmetic laws. Remaining bound-witness forms and
   multiple-equation, nested or non-`Int` transport instances still use
   per-instance `rule_axiom`s. Addition and subtraction retain their operands;

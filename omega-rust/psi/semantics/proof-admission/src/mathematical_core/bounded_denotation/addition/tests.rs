@@ -8,7 +8,17 @@ use std::collections::BTreeSet;
 
 #[test]
 fn correlated_add_upper_uses_fixed_laws_and_checks_original_operands() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    check_correlated_add_bound(IntegerType::new(IntegerSign::Unsigned, 64).unwrap(), false);
+}
+
+#[test]
+fn correlated_add_lower_uses_fixed_laws_and_checks_original_operands() {
+    for width in [8, 32, 64, 128] {
+        check_correlated_add_bound(IntegerType::new(IntegerSign::Signed, width).unwrap(), true);
+    }
+}
+
+fn check_correlated_add_bound(integer: IntegerType, lower: bool) {
     let scalar = ScalarType::Integer(integer);
     let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
     let math = |index| IntegerMathTerm::MathValue {
@@ -19,13 +29,26 @@ fn correlated_add_upper_uses_fixed_laws_and_checks_original_operands() {
         (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
     )
     .unwrap();
-    let maximum = ScalarTerm::integer(integer, integer.maximum_value()).unwrap();
-    let root = ScalarTerm::exact_integer_subtract(integer, maximum, value(2)).unwrap();
-    let premise = Proposition::LessOrEqual(value(1), root.clone());
-    let goal = Proposition::IntegerMathLessOrEqual(
-        IntegerMathTerm::Add(Box::new(math(1)), Box::new(math(2))),
-        IntegerMathTerm::literal(integer.maximum_value()),
-    );
+    let endpoint = if lower {
+        integer.minimum_value()
+    } else {
+        integer.maximum_value()
+    };
+    let endpoint_term = ScalarTerm::integer(integer, endpoint).unwrap();
+    let root =
+        ScalarTerm::exact_integer_subtract(integer, endpoint_term.clone(), value(2)).unwrap();
+    let premise = if lower {
+        Proposition::LessOrEqual(root.clone(), value(1))
+    } else {
+        Proposition::LessOrEqual(value(1), root.clone())
+    };
+    let sum = IntegerMathTerm::Add(Box::new(math(1)), Box::new(math(2)));
+    let endpoint_math = IntegerMathTerm::literal(endpoint);
+    let goal = if lower {
+        Proposition::IntegerMathLessOrEqual(endpoint_math, sum)
+    } else {
+        Proposition::IntegerMathLessOrEqual(sum, endpoint_math)
+    };
     let proof = ProofNode {
         conclusion: goal.clone(),
         rule: ProofRule::IntegerAffineBound {
@@ -63,12 +86,7 @@ fn correlated_add_upper_uses_fixed_laws_and_checks_original_operands() {
     assert_eq!(elaboration.denotation.addition.laws.len(), 2);
     for wrong_root in [
         value(3),
-        ScalarTerm::exact_integer_subtract(
-            integer,
-            ScalarTerm::integer(integer, IntegerValue::Unsigned(u64::MAX as u128)).unwrap(),
-            value(3),
-        )
-        .unwrap(),
+        ScalarTerm::exact_integer_subtract(integer, endpoint_term, value(3)).unwrap(),
     ] {
         let mut invalid = proof.clone();
         let ProofRule::IntegerAffineBound { witness, .. } = &mut invalid.rule else {
@@ -233,12 +251,15 @@ fn open_addition_preserves_previously_skipped_numeric_resource_refusals() {
 }
 
 #[test]
-fn correlated_add_upper_transports_ssa_root_and_maximum() {
-    for (sign, width) in [
-        (IntegerSign::Unsigned, 8),
-        (IntegerSign::Unsigned, 64),
-        (IntegerSign::Unsigned, 128),
-        (IntegerSign::Signed, 128),
+fn correlated_add_bounds_transport_ssa_roots_and_carrier_endpoints() {
+    for (sign, width, lower) in [
+        (IntegerSign::Unsigned, 8, false),
+        (IntegerSign::Unsigned, 64, false),
+        (IntegerSign::Unsigned, 128, false),
+        (IntegerSign::Signed, 128, false),
+        (IntegerSign::Signed, 32, true),
+        (IntegerSign::Signed, 64, true),
+        (IntegerSign::Signed, 128, true),
     ] {
         let integer = IntegerType::new(sign, width).unwrap();
         let scalar = ScalarType::Integer(integer);
@@ -252,16 +273,27 @@ fn correlated_add_upper_transports_ssa_root_and_maximum() {
         } else {
             value(1)
         };
-        let premise = Proposition::LessOrEqual(left.clone(), value(3));
-        let maximum = ScalarTerm::integer(integer, integer.maximum_value()).unwrap();
+        let premise = if lower {
+            Proposition::LessOrEqual(value(3), left.clone())
+        } else {
+            Proposition::LessOrEqual(left.clone(), value(3))
+        };
+        let endpoint = if lower {
+            integer.minimum_value()
+        } else {
+            integer.maximum_value()
+        };
+        let endpoint = ScalarTerm::integer(integer, endpoint).unwrap();
         let difference = ScalarTerm::exact_integer_subtract(integer, value(4), value(2)).unwrap();
-        let goal = Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::Add(
-                Box::new(mathematical(&left)),
-                Box::new(mathematical(&value(2))),
-            ),
-            mathematical(&maximum),
+        let sum = IntegerMathTerm::Add(
+            Box::new(mathematical(&left)),
+            Box::new(mathematical(&value(2))),
         );
+        let goal = if lower {
+            Proposition::IntegerMathLessOrEqual(mathematical(&endpoint), sum)
+        } else {
+            Proposition::IntegerMathLessOrEqual(sum, mathematical(&endpoint))
+        };
         for reversed in [false, true] {
             let equality = |left, right| {
                 if reversed {
@@ -271,7 +303,7 @@ fn correlated_add_upper_transports_ssa_root_and_maximum() {
                 }
             };
             let axioms = [
-                equality(value(4), maximum.clone()),
+                equality(value(4), endpoint.clone()),
                 equality(value(3), difference.clone()),
             ];
             let proof = ProofNode {

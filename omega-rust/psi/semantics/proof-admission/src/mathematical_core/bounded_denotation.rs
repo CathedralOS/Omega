@@ -97,9 +97,9 @@
 //! checked empty elimination. The checked correlated unsigned subtraction bound
 //! applies fixed self-subtraction and nonstrict right-antitonicity laws to
 //! derive nonnegativity; closed instances use binary order or contradictory
-//! premise elimination. Correlated addition upper bounds with an open right addend
+//! premise elimination. Correlated addition bounds with an open right addend
 //! apply fixed addition monotonicity and subtraction cancellation; exact SSA
-//! root and maximum equalities use endpoint transport. Closed right addends retain
+//! root and carrier-endpoint equalities use endpoint transport. Closed right addends retain
 //! the instance fallback rather than assuming numeral-operation conversion.
 //! Other witness-bearing bound rules, multiple-equation
 //! or nested transports and denotation-conversion instances outside the
@@ -2454,10 +2454,11 @@ impl<'a> Elaboration<'a> {
                 for &index in &cited {
                     definitions.push(self.cited_axiom(index)?);
                 }
-                if let Some(evidence) = self.denotation.correlated_add_upper_evidence(
+                if let Some(evidence) = self.denotation.correlated_add_bound_evidence(
                     &root_bound.conclusion,
                     root,
                     witness,
+                    &proof.conclusion,
                     &definitions,
                 )? {
                     self.rules.insert(AcceptedProofRule::IntegerAffineBound);
