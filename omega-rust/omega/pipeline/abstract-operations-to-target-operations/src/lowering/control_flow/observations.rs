@@ -2,8 +2,8 @@
 
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::lowering::scalar::{
-    KnownInteger, KnownScalar, byte_views, equal_boolean, equal_integer, negate_boolean,
-    order_integer, scalar_parameter_location,
+    KnownInteger, KnownScalar, byte_views, equal_boolean, equal_integer, order_integer,
+    scalar_parameter_location,
 };
 use crate::lowering::shared::*;
 #[cfg(test)]
@@ -333,17 +333,27 @@ pub(super) fn lower(
             result,
             operand,
         } => {
-            let operand = values
+            let known_operand = values
                 .get(operand)
                 .cloned()
                 .ok_or(LoweringError::UnknownValue(*operand))?;
-            let known = negate_boolean(operand, *psi_operation, *result)?;
+            let TargetScalarExpression::Boolean(operand_expression) =
+                known_operand.into_expression(*operand)?
+            else {
+                return Err(LoweringError::ValueTypeMismatch(*result));
+            };
+            // The ordered graph still owns this negation's operation and fuel.
+            // Folding a literal or cancelling nested negations here would lose
+            // that occurrence without an optimizer rewrite and its evidence.
             provenance.operations.push(*psi_operation);
             (
                 *psi_operation,
                 *result,
                 ScalarType::Boolean,
-                known.into_expression(*result)?,
+                TargetScalarExpression::Boolean(TargetBooleanExpression::Not {
+                    psi_operation: *psi_operation,
+                    operand: Box::new(operand_expression),
+                }),
             )
         }
         AbstractOperation::IntegerEqual {
