@@ -737,16 +737,126 @@ fn returning_foreign_call_restores_floating_controls_before_the_next_call() {
     execute_mixed_arguments_probe(true);
 }
 
+/// One static boundary occurrence executes four times. The foreign oracle
+/// checks the argument and total call count; a valid image or one successful
+/// call alone does not establish ranked execution.
+#[test]
+fn ranked_foreign_call_executes_every_iteration() {
+    let probe = Probe::new();
+    fs::write(
+        &probe.main,
+        r#"use omega::language::core::external_binding;
+boundary trait Trace {
+    machine record(remaining: u64);
+}
+macos_arm64 machine record_binding() -> Binding<31, 6, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "@executable_path/libshift.dylib",
+            symbol: "_shift",
+        },
+    }
+}
+machine record_leaf(remaining: u64) satisfies Trace::record via record_binding();
+data Main { }
+machine Main::spin(&mut self, remaining: u64) terminates by remaining; reaches Trace {
+    Trace::record(7);
+    transition remaining == 0 {
+        true -> done()
+        _ -> self.spin(remaining - 1)
+    }
+    state done(&mut self) { }
+}
+machine Main::main(&mut self) { self.spin(3); }
+"#,
+    )
+    .unwrap();
+    fs::write(
+        probe.root.join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.application("ranked-foreign-caller");
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
+"#,
+    )
+    .unwrap();
+    let (artifact, _, _) = realize_probe(&probe, 64 * 1024);
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let ranked_machines = module
+        .machines
+        .iter()
+        .filter(|machine| machine.ranked_scc.is_some())
+        .collect::<Vec<_>>();
+    let [ranked_machine] = ranked_machines.as_slice() else {
+        panic!("the program must retain one ranked machine")
+    };
+    let [call] = artifact.image().foreign_calls() else {
+        panic!("four dynamic calls must retain one static foreign-call occurrence")
+    };
+    assert_eq!(call.machine, ranked_machine.id);
+    let evidence = artifact
+        .physical_evidence()
+        .expect("ranked foreign calls must retain complete physical evidence");
+    assert!(artifact.physical_evidence_gap().is_none());
+    let boundary_children = evidence
+        .children()
+        .iter()
+        .filter(|child| {
+            matches!(
+                child.occurrence(),
+                native_artifact::NativePhysicalOccurrence::Boundary(_)
+            )
+        })
+        .collect::<Vec<_>>();
+    let [child] = boundary_children.as_slice() else {
+        panic!("one static foreign-call occurrence must have one physical child")
+    };
+    let native_artifact::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCallImportField(
+        field,
+    ) = child.relocation()
+    else {
+        panic!("the ranked child must retain the exact unresolved import field")
+    };
+    assert_eq!(field.caller(), ranked_machine.id);
+    assert_eq!(Some(field.operation()), call.owner.operation());
+    assert_eq!(field.offset(), call.text_offset);
+    let provider_source = r#"
+#include <stdint.h>
+#include <stdio.h>
+static unsigned calls = 0;
+void shift(uint64_t value) {
+    if (calls >= 4 || value != 7) {
+        puts("ranked foreign arguments: FAIL");
+        fflush(stdout);
+        return;
+    }
+    calls += 1;
+    if (calls == 4) {
+        puts("ranked foreign arguments: PASS");
+        fflush(stdout);
+    }
+}
+"#;
+    execute_foreign_probe(
+        &probe,
+        &artifact,
+        provider_source,
+        b"ranked foreign arguments: PASS\n",
+    );
+    let mut parts = artifact.into_parts();
+    let mut changed = parts.physical_evidence.take().unwrap().into_parts();
+    changed.children.clear();
+    parts.physical_evidence =
+        Some(native_artifact::NativePhysicalEvidence::from_replayed_parts(changed));
+    assert!(
+        native_artifact::NativeArtifact::from_replayed_parts(parts).is_err(),
+        "a missing ranked child must fail independent replay"
+    );
+}
+
 fn execute_mixed_arguments_probe(perturb_floating_controls: bool) {
     let (probe, artifact) = realize_mixed_arguments_probe();
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        use std::process::{Command, Stdio};
-        let provider = probe.root.join("shift.c");
-        fs::write(
-            &provider,
-            r#"
+    let provider_source = r#"
 #include <stdint.h>
 #include <stdio.h>
 typedef struct { int32_t x; int32_t y; } Point;
@@ -783,12 +893,30 @@ int32_t shift(int32_t delta, const Point *point, int32_t bias) {
     return -1;
 }
 "#
-            .replace(
-                "PERTURB_FLOATING_CONTROLS",
-                if perturb_floating_controls { "1" } else { "0" },
-            ),
-        )
-        .unwrap();
+    .replace(
+        "PERTURB_FLOATING_CONTROLS",
+        if perturb_floating_controls { "1" } else { "0" },
+    );
+    execute_foreign_probe(
+        &probe,
+        &artifact,
+        &provider_source,
+        b"mixed foreign arguments: PASS\n",
+    );
+}
+
+fn execute_foreign_probe(
+    probe: &Probe,
+    artifact: &native_artifact::NativeArtifact,
+    provider_source: &str,
+    expected_stdout: &[u8],
+) {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::{Command, Stdio};
+        let provider = probe.root.join("shift.c");
+        fs::write(&provider, provider_source).unwrap();
         let compile = Command::new("cc")
             .arg("-dynamiclib")
             .arg(&provider)
@@ -801,7 +929,7 @@ int32_t shift(int32_t delta, const Point *point, int32_t bias) {
             "{}",
             String::from_utf8_lossy(&compile.stderr)
         );
-        let executable = probe.root.join("mixed-arguments");
+        let executable = probe.root.join("foreign-arguments");
         fs::write(&executable, &artifact.image().output().bytes).unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
         let mut child = Command::new(&executable)
@@ -817,18 +945,18 @@ int32_t shift(int32_t delta, const Point *point, int32_t bias) {
             if std::time::Instant::now() >= deadline {
                 child.kill().unwrap();
                 let output = child.wait_with_output().unwrap();
-                panic!("mixed foreign-call image timed out: {output:?}");
+                panic!("foreign-call image timed out: {output:?}");
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         let output = child.wait_with_output().unwrap();
         assert!(output.status.success(), "{output:?}");
-        assert_eq!(output.stdout, b"mixed foreign arguments: PASS\n");
+        assert_eq!(output.stdout, expected_stdout);
         assert!(output.stderr.is_empty(), "{output:?}");
     }
     #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
     {
-        let _ = (probe, artifact, perturb_floating_controls);
-        eprintln!("SKIP mixed foreign-call execution: requires macOS ARM64 and cc");
+        let _ = (probe, artifact, provider_source, expected_stdout);
+        eprintln!("SKIP foreign-call execution: requires macOS ARM64 and cc");
     }
 }
