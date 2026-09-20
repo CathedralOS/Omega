@@ -6062,7 +6062,20 @@ validation scope.
 Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 
 - **BASELINE-CANARY-PASS-CLUSTER.** Four unrepaired pass-canary failures in the canary suite section; triage and repair or retire each with attribution. w9 leg (this wave): `calls/statement_call_recursive_argument_compile` repaired — fixture's `Nat`/`add` collided with `core/nat.omg` exports (added 2026-09-17); renamed to `Peano`/`peano_add`, and the `read_line`/`extent_shape` diagnostics proved collision collateral. `operators/runtime_integer_division_value` repaired — added the missing `build.omg` entry binds and re-scoped operands to `u64` (the realized `ExactIntegerDivide` carrier); signed `i32` exact division remains attributed to the unsigned-quotient/arithmetic-policy lane (t2s fenced by CORPUS-RED-FAMILY this wave). `atomics/atomic_field_declared` GREEN on Linux at 4607987316 — its recorded failure is the macOS hosted-receiver bridge owned by ENTRY-CONTENT-ROOTS; retired here as host-bound. `filesystem/windows_set_file_time_exit` — owned by WINDOWS-SET-FILE-TIME-RESPELL (in flight); doc already names the unsigned-carrier re-spelling. Doc rows in `wiki/drafts/known_baseline_failures.md` were fenced to another wave member; update pending.
-- **BASELINE-PACKAGE-COMPILATION-INPUTS.** Two unrepaired failures under `package_compilation_inputs`.
+- **BASELINE-PACKAGE-COMPILATION-INPUTS.** Scope verified at `1f7301b71020` — the
+  gap is still open but the count was stale: `cargo nextest run -p compiler --test
+  package_compilation_inputs --no-fail-fast` reports 194 run, 191 passed, **three**
+  failed (401s, linux x86-64), not two. They are three distinct causes, not one
+  surface, so they do not close together:
+  - `artifact_identities_and_entries::free_process_exit_helper_lowers_without_a_synthetic_attachment`
+    — "provider selection operand does not resolve to one visible product declaration".
+  - `artifact_identities_and_entries::accepted_package_uefi_binding_selects_exact_ordinary_schema`
+    — "authored Call declaration selection occurrence 1672 remained unresolved".
+  - `module_template_methods::instantiated_methods_keep_each_package_use_authority`
+    — "duplicate data `Envelope`".
+  The first two are provider/selection resolution; the third is a package-use
+  authority collision on an instantiated template method. Re-run the command above
+  before attributing any of them, since the roster moves.
 - **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Three unrepaired failures in the `terminal_psi_source` native-differential lane.
 - **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** (new-scope) Unrepaired
   failure in `external-roots`:
