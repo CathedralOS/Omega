@@ -5055,13 +5055,20 @@ Owners include
     (`checked-trees-to-lowered-psi/src/proofs/quotient_correspondence.rs`,
     called from `lower_terminal_selection`) runs the extractor on
     `CheckedTrees::typed` whenever a call carries `quotient_operation`,
-    installs the complete admitted batch, and refuses any other shape as
-    `LoweringError::UnadmittedQuotientRequest`; a nonempty table then stops
-    at the execution gate (`ModuleError::NonExecutableQuotientCorrespondence`)
-    as the spec requires. Nothing reaches it yet because
+    answering termination eligibility from `facts.termination` through
+    validation's `CheckedTerminationOracle` (the typed machine carries no
+    guarantee on the compiler route; the checked stage proves termination
+    after validation), installs the complete admitted batch, and refuses any
+    other shape as `LoweringError::UnadmittedQuotientRequest`; a nonempty
+    table then stops at the execution gate
+    (`ModuleError::NonExecutableQuotientCorrespondence`) as the spec
+    requires. Nothing reaches it yet because
     `reject_quotient_operation_requests`
     (`validation/src/proof_contracts/quotients/formation_collection.rs`, via
-    `validate_quotients`) still rejects every request before checked trees
+    `validate_quotients`, which answers termination from the typed summaries
+    and so cannot admit on the compiler route — `omega --check` on a total
+    direct `define` stops at "the termination fence, the selected theorem
+    termination fence") still rejects every request before checked trees
     exist, and `typed-trees-to-checked-trees` exits every value path whose
     call carries `quotient_operation`: `build_checked_value_computation_plans`
     (`values/scalar/computations.rs`), `nested_structural_call_sites` /
@@ -5075,9 +5082,13 @@ Owners include
     (`execution/unit/returns/guarded_call_returns.rs`), `call_result_place`
     (`checks/termination/progress/origins.rs`) and
     `retain_call_expression_machines` (`product_pruning/dependencies.rs`).
-    Next: let validation admit the extractor's batch instead of rejecting
-    it, then give the admitted request a checked value plan (a proof-only
-    result binding of the representative call) through those exits.
+    Next: the parked branch `work/quotient-validation-admit` makes
+    validation admit exactly the extractable batch (typed summaries only);
+    for the compiler route the admission must run where checked termination
+    exists — after `build_check_facts` in `lower_typed_trees`, answering the
+    oracle from `facts.termination` — and then the admitted request needs a
+    checked value plan (a proof-only result binding of the representative
+    call) through those exits.
   - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
     language-semantics, codec, verifier and review rows belong to
     **PROOF-CONTRACT-MIGRATION**.
