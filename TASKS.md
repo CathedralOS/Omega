@@ -7624,7 +7624,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   INDEXED-OPERAND-ATTACHED-RECEIVER.
 - **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
-- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE.** Mined candidate —
+  resolved, covered. Member of the INTEGER-COMPARISON-OCCURRENCE-*
+  re-mine family under BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES.
+  The producer-coverage leg is what the landed pin checks: the
+  `terminal_product::integer_comparisons` gate (repaired `76dc49a99e`)
+  counts selected integer occurrences against the artifact-bound
+  checked scope, and `compiler`'s `integer_comparison_publication`
+  suite
+  (`selected_comparison_publication_preserves_complete_custody_among_builtins`,
+  PASS on linux x86-64 at `f2f39039da`) requires complete custody
+  coverage of the producer's selected occurrences among builtins —
+  provider coverage for genuinely selected occurrences is the
+  residual that pin already exercises. Siblings:
+  INTEGER-COMPARISON-OCCURRENCE-{PRODUCER,RETENTION,STD-COVERAGE},
+  COMPARISON-OCCURRENCE-PRODUCER-COVERAGE,
+  BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE.
 - **INTEGER-COMPARISON-OCCURRENCE-RETENTION** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-STD-COVERAGE.** Resolved — member of the
   INTEGER-COMPARISON-OCCURRENCE-* re-mine family named under
