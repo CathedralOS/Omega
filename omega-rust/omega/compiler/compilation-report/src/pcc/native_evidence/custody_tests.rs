@@ -2370,3 +2370,301 @@ fn import_data_inventory_decodes_only_binding_slots_on_coff() {
         &bad_offset,
     );
 }
+
+// ---------------------------------------------------------------------
+// Container-declared entry custody: the entry point a container declares
+// to its loader is re-derived from the published bytes and must land on
+// the start of a placed region the committed text inventory covers.
+// ---------------------------------------------------------------------
+
+/// A minimal ELF64 little-endian header declaring `entry_va` in `e_entry`,
+/// zero-padded so the declared text extent still lands at
+/// [`TEXT_FILE_OFFSET`].
+fn elf64_header(entry_va: u64) -> Vec<u8> {
+    let mut header = vec![0u8; TEXT_FILE_OFFSET as usize];
+    header[..4].copy_from_slice(&[0x7f, b'E', b'L', b'F']);
+    header[4] = 2; // ELFCLASS64
+    header[5] = 1; // little-endian
+    header[24..32].copy_from_slice(&entry_va.to_le_bytes());
+    header
+}
+
+/// An honest (x86_64, Elf) pair whose container declares `entry_va`: the
+/// three-region [`placed_inventory`] fixture lands `entry`/`host_call`/`tail`
+/// at `0x4010_0000`/`+8`/`+16` with unclassified gaps at `+4` and `+12`.
+fn elf_entry_pair(entry_va: u64) -> (NativePlacedImageEvidence, Vec<u8>) {
+    let text: [u8; TEXT_LEN] = std::array::from_fn(|index| (index * 7 + 3) as u8);
+    let data: [u8; DATA_LEN] = std::array::from_fn(|index| (index * 11 + 5) as u8);
+    let mut executable = elf64_header(entry_va);
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&data);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target::NativeTarget::linux_x64(),
+        TEXT_FILE_OFFSET,
+        placed_inventory(&text),
+        DATA_FILE_OFFSET,
+        placed_data_inventory(&data),
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    (evidence, executable)
+}
+
+/// The file offset the PE fixture lays text at: the PE32+ header surface
+/// through `ImageBase` already runs past 0xB8.
+const COFF_TEXT_FILE_OFFSET: u64 = 0x200;
+
+/// A minimal PE32+ container header: the DOS stub's `e_lfanew` names the
+/// PE signature at 0x80, and the optional header carries `image_base` and
+/// `entry_rva`. Padded so the declared text extent stays at
+/// [`COFF_TEXT_FILE_OFFSET`].
+fn pe32_plus_header(image_base: u64, entry_rva: u32) -> Vec<u8> {
+    const PE_OFFSET: usize = 0x80;
+    let mut header = vec![0u8; COFF_TEXT_FILE_OFFSET as usize];
+    header[..2].copy_from_slice(&[b'M', b'Z']);
+    header[0x3c..0x40].copy_from_slice(&(PE_OFFSET as u32).to_le_bytes());
+    header[PE_OFFSET..PE_OFFSET + 4].copy_from_slice(&[b'P', b'E', 0, 0]);
+    let optional = PE_OFFSET + 24;
+    header[optional..optional + 2].copy_from_slice(&0x20bu16.to_le_bytes());
+    header[optional + 16..optional + 20].copy_from_slice(&entry_rva.to_le_bytes());
+    header[optional + 24..optional + 32].copy_from_slice(&image_base.to_le_bytes());
+    header
+}
+
+/// An honest (x86_64, Coff) pair: one `entry` region covers the whole text
+/// extent, placed at `image_base + entry_rva` so the declared entry and the
+/// committed region agree iff the fixture caller keeps them equal.
+fn coff_entry_pair(image_base: u64, entry_rva: u32) -> (NativePlacedImageEvidence, Vec<u8>) {
+    const TEXT_RVA: u64 = 0x1000;
+    let target = target::NativeTarget::windows_x64();
+    let text: [u8; TEXT_LEN] = std::array::from_fn(|index| (index * 7 + 3) as u8);
+    let data: [u8; DATA_LEN] = std::array::from_fn(|index| (index * 11 + 5) as u8);
+    let mut image = FinalImage::with_capacity(
+        target,
+        FinalImageMemory {
+            text: text.to_vec(),
+            ..FinalImageMemory::default()
+        },
+        Default::default(),
+        0,
+        0,
+        0,
+    );
+    image.executable_regions.push(FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        byte_count: TEXT_LEN,
+        symbol: "entry".into(),
+        footprint: None,
+    });
+    let executable_inventory = image::place_executable_regions(
+        &image,
+        FinalImageLayout {
+            text_address: image_base + TEXT_RVA,
+            ..FinalImageLayout::default()
+        },
+    )
+    .expect("the Coff entry fixture places");
+    let data_inventory = placed_data_inventory(&data);
+    let mut executable = pe32_plus_header(image_base, entry_rva);
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&data);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target,
+        COFF_TEXT_FILE_OFFSET,
+        executable_inventory,
+        COFF_TEXT_FILE_OFFSET + TEXT_LEN as u64,
+        data_inventory,
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    (evidence, executable)
+}
+
+/// A minimal Mach-O 64 little-endian header: `mach_header_64` declaring two
+/// load commands — the emitted `__TEXT` `LC_SEGMENT_64` (`vmaddr`,
+/// `fileoff`) and `LC_MAIN` carrying `entryoff`. `sizeofcmds` and `ncmds`
+/// stay honest so the command walk is real.
+fn macho64_header(vmaddr: u64, fileoff: u64, entryoff: u64) -> Vec<u8> {
+    const SEGMENT_64_SIZE: usize = 72;
+    const MAIN_SIZE: usize = 24;
+    let mut header = vec![0u8; 32 + SEGMENT_64_SIZE + MAIN_SIZE];
+    header[..4].copy_from_slice(&0xfeed_facfu32.to_le_bytes());
+    header[16..20].copy_from_slice(&2u32.to_le_bytes());
+    header[20..24].copy_from_slice(&((SEGMENT_64_SIZE + MAIN_SIZE) as u32).to_le_bytes());
+    let segment = 32;
+    header[segment..segment + 4].copy_from_slice(&0x19u32.to_le_bytes());
+    header[segment + 4..segment + 8].copy_from_slice(&(SEGMENT_64_SIZE as u32).to_le_bytes());
+    header[segment + 8..segment + 24].copy_from_slice(b"__TEXT\0\0\0\0\0\0\0\0\0\0");
+    header[segment + 24..segment + 32].copy_from_slice(&vmaddr.to_le_bytes());
+    header[segment + 40..segment + 48].copy_from_slice(&fileoff.to_le_bytes());
+    let main = segment + SEGMENT_64_SIZE;
+    header[main..main + 4].copy_from_slice(&0x8000_0028u32.to_le_bytes());
+    header[main + 4..main + 8].copy_from_slice(&(MAIN_SIZE as u32).to_le_bytes());
+    header[main + 8..main + 16].copy_from_slice(&entryoff.to_le_bytes());
+    header
+}
+
+/// An honest (aarch64, MachO) pair: the emitted `__TEXT` segment maps the
+/// header bytes themselves (`vmaddr` = `MACHO_EXECUTABLE_BASE`,
+/// `fileoff` = 0), the text extent begins right after the load commands,
+/// and `LC_MAIN` names `entryoff` inside it. One `entry` region covers the
+/// whole extent, so the declared entry and the committed boundary agree iff
+/// `vmaddr + entryoff` equals the placed `text_address`.
+fn macho_entry_pair(entryoff: u64) -> (NativePlacedImageEvidence, Vec<u8>) {
+    const MACHO_EXECUTABLE_BASE: u64 = 0x1_0000_0000;
+    const TEXT_FILE_AT: u64 = 128;
+    let target = target::NativeTarget::macos_arm64();
+    let text: [u8; TEXT_LEN] = std::array::from_fn(|index| (index * 7 + 3) as u8);
+    let data: [u8; DATA_LEN] = std::array::from_fn(|index| (index * 11 + 5) as u8);
+    let mut image = FinalImage::with_capacity(
+        target,
+        FinalImageMemory {
+            text: text.to_vec(),
+            ..FinalImageMemory::default()
+        },
+        Default::default(),
+        0,
+        0,
+        0,
+    );
+    image.executable_regions.push(FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        byte_count: TEXT_LEN,
+        symbol: "entry".into(),
+        footprint: None,
+    });
+    let executable_inventory = image::place_executable_regions(
+        &image,
+        FinalImageLayout {
+            text_address: MACHO_EXECUTABLE_BASE + TEXT_FILE_AT,
+            ..FinalImageLayout::default()
+        },
+    )
+    .expect("the Mach-O entry fixture places");
+    let data_inventory = placed_data_inventory(&data);
+    let mut executable = macho64_header(MACHO_EXECUTABLE_BASE, 0, entryoff);
+    assert_eq!(executable.len() as u64, TEXT_FILE_AT);
+    executable.extend_from_slice(&text);
+    executable.extend_from_slice(&data);
+    executable.extend_from_slice(&[0x00u8; 32]);
+    let evidence = NativePlacedImageEvidence::from_parts(
+        target,
+        TEXT_FILE_AT,
+        executable_inventory,
+        TEXT_FILE_AT + TEXT_LEN as u64,
+        data_inventory,
+        0,
+        image::PlacedDataRegionInventory::empty(),
+    );
+    (evidence, executable)
+}
+
+fn entry_rejection(evidence: &NativePlacedImageEvidence, executable: &[u8]) -> String {
+    evidence
+        .replay_against(executable)
+        .expect_err("a misplaced declared entry must fail custody replay")
+}
+
+/// The declared-entry leg across the three emitted container families: a
+/// loader-visible entry that names a placed region start replays; one that
+/// lands mid-region, on an unclassified gap boundary, or outside the
+/// committed coverage rejects by name; a container carrying no checkable
+/// entry claim leaves the leg silent.
+#[test]
+fn container_declared_entry_lands_on_a_committed_region_boundary() {
+    // ELF64: `e_entry` is the entry virtual address outright.
+    for entry in [0x4010_0000, 0x4010_0008, 0x4010_0010] {
+        let (evidence, executable) = elf_entry_pair(entry);
+        evidence
+            .replay_against(&executable)
+            .unwrap_or_else(|reason| panic!("region-start entry {entry:#x} must replay: {reason}"));
+    }
+    // Mid-region and gap-start entries are not placed boundaries — the gap
+    // start shares a file boundary but claims no checked region.
+    for entry in [0x4010_0002, 0x4010_0004, 0x4010_000c, 0x4010_1000] {
+        let (evidence, executable) = elf_entry_pair(entry);
+        let reason = entry_rejection(&evidence, &executable);
+        assert!(
+            reason.contains("does not start a placed executable region"),
+            "entry {entry:#x} rejected for the wrong reason: {reason}"
+        );
+    }
+    // A null entry and a container that does not parse as ELF64 both leave
+    // the leg silent.
+    for entry in [0] {
+        let (evidence, executable) = elf_entry_pair(entry);
+        evidence
+            .replay_against(&executable)
+            .expect("a null e_entry declares no checkable entry");
+    }
+    let (evidence, executable) = honest_pair();
+    evidence
+        .replay_against(&executable)
+        .expect("a container without ELF magic declares no checkable entry");
+
+    // The same rejection surfaces through the product leg as a named
+    // rejection on the native inventory, not an opaque custody failure.
+    let (evidence, executable) = elf_entry_pair(0x4010_0002);
+    let sidecar = native_sidecar(&executable, evidence.to_bytes());
+    let outcome =
+        verify_native_proof_sidecar(&executable, &sidecar.to_bytes(), &offered_policy(&sidecar));
+    assert!(
+        rejecting_subject(outcome).contains("native executable inventory"),
+        "a mid-region entry must reject on the native inventory"
+    );
+
+    // PE32+: `ImageBase + AddressOfEntryPoint` is the entry virtual address.
+    const IMAGE_BASE: u64 = 0x1_4000_0000;
+    const TEXT_RVA: u32 = 0x1000;
+    let (evidence, executable) = coff_entry_pair(IMAGE_BASE, TEXT_RVA);
+    evidence
+        .replay_against(&executable)
+        .expect("the Coff entry at the placed text start replays");
+    for entry_rva in [TEXT_RVA + 1, TEXT_RVA + TEXT_LEN as u32] {
+        let (evidence, executable) = coff_entry_pair(IMAGE_BASE, entry_rva);
+        let reason = entry_rejection(&evidence, &executable);
+        assert!(
+            reason.contains("does not start a placed executable region"),
+            "Coff entry RVA {entry_rva:#x} rejected for the wrong reason: {reason}"
+        );
+    }
+    let (evidence, executable) = coff_entry_pair(IMAGE_BASE, 0);
+    evidence
+        .replay_against(&executable)
+        .expect("a null AddressOfEntryPoint declares no checkable entry");
+
+    // Mach-O 64: `LC_MAIN`'s `entryoff` maps through `__TEXT`'s
+    // `vmaddr`/`fileoff`; the text extent begins at file offset 128.
+    const TEXT_FILE_AT: u64 = 128;
+    let (evidence, executable) = macho_entry_pair(TEXT_FILE_AT);
+    evidence
+        .replay_against(&executable)
+        .expect("the Mach-O entry at the placed text start replays");
+    for entryoff in [TEXT_FILE_AT + 1, TEXT_FILE_AT + TEXT_LEN as u64] {
+        let (evidence, executable) = macho_entry_pair(entryoff);
+        let reason = entry_rejection(&evidence, &executable);
+        assert!(
+            reason.contains("does not start a placed executable region"),
+            "Mach-O entryoff {entryoff:#x} rejected for the wrong reason: {reason}"
+        );
+    }
+    // An `entryoff` below `__TEXT`'s `fileoff` is not inside the segment —
+    // no checkable entry claim: raise `fileoff` past `entryoff` so the
+    // mapping underflows.
+    let (evidence, mut executable) = macho_entry_pair(8);
+    executable[72..80].copy_from_slice(&16u64.to_le_bytes());
+    evidence
+        .replay_against(&executable)
+        .expect("an entry file offset outside __TEXT declares no checkable claim");
+    // And a container whose command walk never names `LC_MAIN` declares no
+    // checkable entry either.
+    let (evidence, mut executable) = macho_entry_pair(TEXT_FILE_AT);
+    executable[104..108].copy_from_slice(&0x2u32.to_le_bytes()); // LC_SEGMENT instead of LC_MAIN
+    evidence
+        .replay_against(&executable)
+        .expect("a Mach-O container without LC_MAIN declares no checkable entry");
+}

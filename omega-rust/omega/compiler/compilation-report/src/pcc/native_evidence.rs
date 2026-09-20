@@ -47,11 +47,22 @@
 //! bytes *do* rather than only where they sit: the indirect target of every
 //! call through an import is verified, not trusted.
 //!
+//! The container's own entry declaration is custody of the same kind:
+//! ELF64 `e_entry`, PE32+ `ImageBase + AddressOfEntryPoint`, and Mach-O 64
+//! `LC_MAIN`'s entry offset mapped through `__TEXT` are re-derived from the
+//! committed bytes alone, and the declared entry virtual address must equal
+//! the start address of some placed executable region. A container whose
+//! loader-visible entry does not land on a checked instruction boundary is
+//! a claim about control flow the bytes do not carry. A container that does
+//! not parse as the declared format stays silent here — its extents and
+//! thunk legs already bind whatever bytes exist; inventing an entry claim
+//! would only shadow them.
+//!
 //! What the section still does not establish is everything beyond this:
-//! instruction-row semantics inside compiler-function regions, entries and
-//! incoming edges, premise availability and lowering correspondence all
-//! still need the native semantic and certification owners. The product leg
-//! keeps reporting `Incomplete` for
+//! instruction-row semantics inside compiler-function regions, the edges
+//! between instruction rows, premise availability and lowering
+//! correspondence all still need the native semantic and certification
+//! owners. The product leg keeps reporting `Incomplete` for
 //! them rather than letting coverage stand in for behavior, which is the
 //! failure the deleted custody scheme committed.
 //!
@@ -195,6 +206,120 @@ fn import_thunk_form(target: target::NativeTarget) -> Option<(usize, StateFootpr
     }
 }
 
+/// Little-endian readers over the published container — the container's own
+/// declared fields, not evidence wire bytes. Reads are bounds-checked
+/// arithmetic-free: a hostile header can only end the leg, never panic it.
+fn container_u16(bytes: &[u8], at: usize) -> Option<u16> {
+    Some(u16::from_le_bytes(
+        bytes.get(at..at.checked_add(2)?)?.try_into().ok()?,
+    ))
+}
+
+fn container_u32(bytes: &[u8], at: usize) -> Option<u32> {
+    Some(u32::from_le_bytes(
+        bytes.get(at..at.checked_add(4)?)?.try_into().ok()?,
+    ))
+}
+
+fn container_u64(bytes: &[u8], at: usize) -> Option<u64> {
+    Some(u64::from_le_bytes(
+        bytes.get(at..at.checked_add(8)?)?.try_into().ok()?,
+    ))
+}
+
+/// ELF64 little-endian: `e_entry` at header offset 24 is the loader-visible
+/// entry virtual address. A null entry declares none.
+fn elf64_entry_address(bytes: &[u8]) -> Option<u64> {
+    let identification = bytes.get(..16)?;
+    if identification[..4] != [0x7f, b'E', b'L', b'F']
+        || identification[4] != 2
+        || identification[5] != 1
+    {
+        return None;
+    }
+    let entry = container_u64(bytes, 24)?;
+    (entry != 0).then_some(entry)
+}
+
+/// PE32+: the MZ stub's `e_lfanew` names the PE signature, the optional
+/// header carries `AddressOfEntryPoint` as an RVA the loader relocates by
+/// `ImageBase`. A null RVA declares no entry.
+fn pe32_plus_entry_address(bytes: &[u8]) -> Option<u64> {
+    if bytes.get(..2)? != *b"MZ" {
+        return None;
+    }
+    let pe_offset = usize::try_from(container_u32(bytes, 0x3c)?).ok()?;
+    if bytes.get(pe_offset..pe_offset.checked_add(4)?)? != *b"PE\0\0" {
+        return None;
+    }
+    let optional = pe_offset.checked_add(24)?;
+    if container_u16(bytes, optional)? != 0x20b {
+        return None;
+    }
+    let entry_rva = container_u32(bytes, optional.checked_add(16)?)?;
+    if entry_rva == 0 {
+        return None;
+    }
+    let image_base = container_u64(bytes, optional.checked_add(24)?)?;
+    image_base.checked_add(u64::from(entry_rva))
+}
+
+/// Mach-O 64 little-endian: `LC_MAIN` carries the entry's file offset, which
+/// the `__TEXT` segment's `vmaddr`/`fileoff` pair maps to a virtual address.
+/// A container with no `LC_MAIN` or no `__TEXT` segment declares no entry
+/// claim this leg can check.
+fn macho64_entry_address(bytes: &[u8]) -> Option<u64> {
+    const LC_SEGMENT_64: u32 = 0x19;
+    const LC_MAIN: u32 = 0x8000_0028;
+    if container_u32(bytes, 0)? != 0xfeed_facf {
+        return None;
+    }
+    let command_count = usize::try_from(container_u32(bytes, 16)?).ok()?;
+    let mut command_offset = 32usize;
+    let mut text_segment = None;
+    let mut entry_file_offset = None;
+    for _ in 0..command_count {
+        let command = container_u32(bytes, command_offset)?;
+        let command_size =
+            usize::try_from(container_u32(bytes, command_offset.checked_add(4)?)?).ok()?;
+        if command_size < 8 {
+            return None;
+        }
+        match command {
+            LC_SEGMENT_64 => {
+                if bytes.get(command_offset.checked_add(8)?..command_offset.checked_add(24)?)?
+                    == b"__TEXT\0\0\0\0\0\0\0\0\0\0"
+                {
+                    let vmaddr = container_u64(bytes, command_offset.checked_add(24)?)?;
+                    let file_offset = container_u64(bytes, command_offset.checked_add(40)?)?;
+                    text_segment = Some((vmaddr, file_offset));
+                }
+            }
+            LC_MAIN => {
+                entry_file_offset = Some(container_u64(bytes, command_offset.checked_add(8)?)?);
+            }
+            _ => {}
+        }
+        command_offset = command_offset.checked_add(command_size)?;
+    }
+    let (vmaddr, file_offset) = text_segment?;
+    let in_segment = entry_file_offset?.checked_sub(file_offset)?;
+    vmaddr.checked_add(in_segment)
+}
+
+/// The entry point the published container declares to its loader,
+/// re-derived from the artifact bytes alone for the declared object format.
+/// `None` means the bytes carry no checkable entry claim — a container that
+/// does not parse as the declared format fails nothing new here, since every
+/// other leg still binds whatever bytes sit under the declared extents.
+fn declared_entry_address(target: target::NativeTarget, executable_bytes: &[u8]) -> Option<u64> {
+    match target.object_format {
+        target::ObjectFormat::Elf => elf64_entry_address(executable_bytes),
+        target::ObjectFormat::Coff => pe32_plus_entry_address(executable_bytes),
+        target::ObjectFormat::MachO => macho64_entry_address(executable_bytes),
+    }
+}
+
 impl NativePlacedImageEvidence {
     /// Capture the placed-image evidence for one retained native artifact and
     /// the exact bytes about to be published. The final `.text` and
@@ -302,13 +427,16 @@ impl NativePlacedImageEvidence {
     }
 
     /// Replay the checkable legs of this evidence against the exact published
-    /// bytes: both declared extents must lie inside the artifact, both
-    /// retained inventories must re-derive byte for byte over the bytes
-    /// actually sitting there, and every claimed import thunk must decode to
-    /// the declared target's closed thunk sequence — on aarch64 Mach-O
+    /// bytes: every declared extent must lie inside the artifact, every
+    /// retained inventory must re-derive byte for byte over the bytes
+    /// actually sitting there, every claimed import thunk must decode to the
+    /// declared target's closed thunk sequence — on aarch64 Mach-O
     /// additionally binding the decoded pointer load to exactly one committed
-    /// import-binding slot. A section that lies about the artifact fails
-    /// here, by name, before any behavioral leg is attempted.
+    /// import-binding slot — and the container's own declared entry point,
+    /// when it carries one the declared format's checker can read, must name
+    /// the start of a placed region the text inventory just committed. A
+    /// section that lies about the artifact fails here, by name, before any
+    /// behavioral leg is attempted.
     pub fn replay_against(&self, executable_bytes: &[u8]) -> Result<(), String> {
         let text_bytes = declared_extent(
             executable_bytes,
@@ -387,6 +515,24 @@ impl NativePlacedImageEvidence {
                 .map_err(|diagnostic| diagnostic.message)?;
             }
             _ => {}
+        }
+
+        // The container's declared entry is a custody claim over the same
+        // committed bytes: it must name the start of a placed region the
+        // inventory above just re-derived — a checked instruction boundary
+        // inside verified text, not a trusted producer annotation. A
+        // container family carrying no checkable entry declaration leaves
+        // the leg silent.
+        if let Some(entry) = declared_entry_address(self.target, executable_bytes)
+            && !self
+                .inventory
+                .regions
+                .iter()
+                .any(|region| region.address == entry)
+        {
+            return Err(format!(
+                "the container-declared entry {entry:#x} does not start a placed executable region"
+            ));
         }
         Ok(())
     }

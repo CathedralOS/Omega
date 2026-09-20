@@ -1344,7 +1344,12 @@ Owners include
   import, each offset grounded in the applied `.rela.plt` `r_offset`
   binding write and each symbol naming the versioned locator's dynsym
   spelling; Mach-O's slots already ride the data inventory and the static
-  ELF lane still refuses imports outright. That still
+  ELF lane still refuses imports outright. Replay also
+  re-derives the container's own declared entry — ELF64 `e_entry`, PE32+
+  `ImageBase + AddressOfEntryPoint`, Mach-O 64 `LC_MAIN` mapped through the
+  `__TEXT` segment — from the committed bytes alone and requires it to name
+  the start of a placed executable region; a loader-visible entry that lands
+  off a committed boundary rejects. That still
   establishes custody and thunk
   realization only, which is why the sidecar offers
   `omega.native-placed-image-coverage.v1` rather than a behavioral guarantee,
@@ -1359,7 +1364,10 @@ Owners include
 
   - Instruction rows decoded from the published text and checked against the
     closed semantics of the declared target.
-  - Entries and incoming edges over those same bytes.
+  - Entries and incoming edges over those decoded rows — the custody half
+    (the container-declared entry landing on a placed boundary) is landed;
+    the semantic half (control-flow edges and entry obligations inside
+    compiler-function regions) is not.
   - Premise availability and lowering correspondence: either transform the
     Terminal obligations the Psi product carries into native rows, or prove the
     native obligations directly. Hashes of producer validation reports and an
