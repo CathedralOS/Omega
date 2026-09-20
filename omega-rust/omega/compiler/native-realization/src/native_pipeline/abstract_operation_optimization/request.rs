@@ -81,7 +81,7 @@ impl From<ExplicitOptimizationRequest> for OptimizationPipelineRequest {
     }
 }
 
-/// Compiler-owned bounded baseline for the experimental optimized lane.
+/// Compiler-owned bounded baseline for optimization and physical staging.
 /// Every value is a per-pass-group ceiling; this is not a source-visible
 /// optimization level or an intensity preset.
 pub fn compiler_baseline_request_v1(
@@ -91,7 +91,11 @@ pub fn compiler_baseline_request_v1(
 }
 
 fn compiler_baseline_budget_v1() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 10_000)
+    // Physical preservation counts input traversal under both validation_steps
+    // and iterations; these are not solely optimizer fixed-point rounds. Keep
+    // their capacities aligned so mandatory identity staging can use the same
+    // bounded work allowance. Producers and independent replay still meter it.
+    OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 100_000)
         .expect("compiler baseline optimizer ceilings are nonzero")
 }
 
