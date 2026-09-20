@@ -83,6 +83,10 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IntegerStructuralField { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
+        // Restoration windows carry custody, not a scalar result a
+        // dead-scalar rule may retire; the pair stays ineligible.
+        | O::MoveStructuralField { .. }
+        | O::StoreStructuralField { .. }
         | O::Jump { .. }
         | O::Conditional { .. }
         | O::StructuralCase { .. }

@@ -275,6 +275,11 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::IntegerStructuralField { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
+        // A restoration window's fields are structural places and
+        // declarations — custody identity, never scalar uses a block
+        // parameter rewrite may substitute.
+        | O::MoveStructuralField { .. }
+        | O::StoreStructuralField { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => {}

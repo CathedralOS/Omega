@@ -74,6 +74,16 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::ReleaseReference { source, .. } => {
             places.insert(*source);
         }
+        O::MoveStructuralField { source, result, .. } => {
+            places.insert(source.place);
+            places.insert(result.place);
+        }
+        O::StoreStructuralField {
+            destination, value, ..
+        } => {
+            places.insert(destination.place);
+            places.insert(value.place);
+        }
         O::StructuralByteSequenceFieldStore {
             destination,
             source,
@@ -200,6 +210,14 @@ pub(super) fn collect_operation_structural_places(
             ..
         }
         | AbstractOperation::EstablishReference {
+            psi_operation,
+            result,
+            ..
+        }
+        // The extraction's moved subtree is a fresh structural operation
+        // result; its place joins the catalog exactly like an
+        // establishment's.
+        | AbstractOperation::MoveStructuralField {
             psi_operation,
             result,
             ..

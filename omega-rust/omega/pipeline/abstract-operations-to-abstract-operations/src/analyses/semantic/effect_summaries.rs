@@ -383,6 +383,11 @@ fn operation_effect(
         | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::StructuralScalarFieldStore { .. }
+        // A restoration window extracts and reseats storage beneath a
+        // mutable-borrowed root: structural state, unobservable from scalar
+        // consumers but never erasable, duplicable, or reorderable.
+        | O::MoveStructuralField { .. }
+        | O::StoreStructuralField { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }

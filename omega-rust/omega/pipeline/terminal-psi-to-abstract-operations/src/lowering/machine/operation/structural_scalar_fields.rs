@@ -191,7 +191,7 @@ fn readable_source_type(machine: &TerminalMachine, source: PlaceId) -> Option<St
     .then_some(result.structural_type)
 }
 
-fn exact_parameter(
+pub(super) fn exact_parameter(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<StructuralParameterDeclaration> {
@@ -261,7 +261,7 @@ fn dominating_scalar_type(
     found_operation.then_some(definition).flatten()
 }
 
-fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bool {
+pub(super) fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bool {
     machine
         .structural_parameters
         .iter()

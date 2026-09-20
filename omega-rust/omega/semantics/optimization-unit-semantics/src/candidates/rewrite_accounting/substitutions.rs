@@ -159,6 +159,11 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::IntegerStructuralField { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
+        // A restoration window's fields are structural places and
+        // declarations — custody identity, never scalar uses a value
+        // substitution may rewrite.
+        | O::MoveStructuralField { .. }
+        | O::StoreStructuralField { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => {}

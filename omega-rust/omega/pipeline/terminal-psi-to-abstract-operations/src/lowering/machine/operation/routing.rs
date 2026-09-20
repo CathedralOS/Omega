@@ -6,9 +6,9 @@ use abstract_operations::AbstractOperation;
 use terminal_psi::{OperationKind, TerminalDynamicDispatchCatalog, TerminalMachine};
 
 use super::{
-    LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, boolean, calls, effects,
-    ieee_float, integer_bitwise, integer_constants_and_relations, integer_conversion, shifts,
-    structural_establishment, structural_scalar_fields,
+    LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, boolean, borrowed_windows,
+    calls, effects, ieee_float, integer_bitwise, integer_constants_and_relations,
+    integer_conversion, shifts, structural_establishment, structural_scalar_fields,
 };
 use crate::lowering::LoweringError;
 
@@ -269,9 +269,7 @@ pub(super) fn lower(
             structural_scalar_fields::lower(operation, block, machine, structural_types)
         }
         OperationKind::MoveStructuralField { .. } | OperationKind::StoreStructuralField { .. } => {
-            Err(LoweringError::UnsupportedBorrowedStorageWindow(
-                operation.id,
-            ))
+            borrowed_windows::lower(operation, machine, structural_types)
         }
         OperationKind::Call { .. } => calls::lower(
             operation,

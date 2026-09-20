@@ -424,6 +424,84 @@ pub(crate) fn validate_structural_root_operations(
                         });
                     }
                 }
+                O::MoveStructuralField {
+                    psi_operation,
+                    result,
+                    source,
+                    path,
+                    field,
+                } => {
+                    // Replay the verified static shape: the exact borrowed
+                    // parameter row, a declared structural field beneath the
+                    // spelled path, and a fresh operation-result place of
+                    // exactly that type under clean exact-once custody.
+                    let valid = borrowed_window_root(function, source, &place_kinds)
+                        && window_field_type(
+                            structural_types,
+                            source.structural_type,
+                            path,
+                            *field,
+                        ) == Some(result.structural_type)
+                        && matches!(
+                            result.multiplicity,
+                            terminal_psi::StructuralMultiplicity::Unrestricted
+                                | terminal_psi::StructuralMultiplicity::Affine
+                        )
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.claims.is_empty()
+                        && matches!(
+                            place_kinds.get(&result.place),
+                            Some(StructuralPlaceKind::OperationResult {
+                                producer,
+                                structural_type,
+                            }) if *producer == *psi_operation
+                                && *structural_type == result.structural_type
+                        );
+                    if !valid {
+                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                            machine: Some(function.machine),
+                        });
+                    }
+                }
+                O::StoreStructuralField {
+                    destination,
+                    path,
+                    field,
+                    value,
+                    ..
+                } => {
+                    // The repair targets the same borrowed root authority and
+                    // consumes one owned whole place of the declared field
+                    // type. Whether a window is open there is debt evidence
+                    // the Terminal verifier retained; the unit keeps the
+                    // static contract honest.
+                    let valid = borrowed_window_root(function, destination, &place_kinds)
+                        && value.access == terminal_psi::StructuralAccess::Owned
+                        && value.path.is_empty()
+                        && window_field_type(
+                            structural_types,
+                            destination.structural_type,
+                            path,
+                            *field,
+                        )
+                        .is_some_and(|field_type| {
+                            crate::unit_validation::structural_source_contract(
+                                function,
+                                value.place,
+                                false,
+                            )
+                            .is_some_and(|signature| {
+                                signature.structural_type == field_type
+                                    && signature.is_unqualified()
+                            })
+                        });
+                    if !valid {
+                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                            machine: Some(function.machine),
+                        });
+                    }
+                }
                 O::ReturnStructural { source, .. } => {
                     let Some(signature) = function.result.structural() else {
                         return Err(
@@ -611,6 +689,7 @@ fn readable_field_type(
                     | O::EstablishScalarArray { result, .. }
                     | O::EstablishScalarCase { result, .. }
                     | O::EstablishReference { result, .. }
+                    | O::MoveStructuralField { result, .. }
                     | O::CallStructural { result, .. }
                     | O::BoundaryCall {
                         result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -624,4 +703,69 @@ fn readable_field_type(
         return None;
     }
     Some(signature.structural_type)
+}
+
+/// The borrowed machine parameter a restoration-window operation may name,
+/// replayed against the unit's retained rows: the exact declaration,
+/// mutable-borrow authority, a transferable multiplicity, and no
+/// qualifications or entry claims — the same static contract the Terminal
+/// verifier's `borrowed_window_root` admitted.
+fn borrowed_window_root(
+    function: &PsiOptimizationFunction,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    place_kinds: &BTreeMap<PlaceId, StructuralPlaceKind>,
+) -> bool {
+    function
+        .structural_parameters
+        .iter()
+        .find(|candidate| candidate.place == parameter.place)
+        == Some(parameter)
+        && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+        && matches!(
+            parameter.multiplicity,
+            terminal_psi::StructuralMultiplicity::Unrestricted
+                | terminal_psi::StructuralMultiplicity::Affine
+        )
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && function
+            .entry_claim_declarations
+            .iter()
+            .all(|claim| claim.input != parameter.place)
+        && function
+            .content_entry_claims
+            .iter()
+            .all(|claim| claim.input.root != parameter.place)
+        && matches!(
+            place_kinds.get(&parameter.place),
+            Some(StructuralPlaceKind::Parameter { position, is_self })
+                if *position == parameter.position && *is_self == parameter.is_self
+        )
+}
+
+/// The declared `Structural` type of the field a window operation names,
+/// resolved beneath the borrowed root through the spelled path. `None` means
+/// the place does not host a structural field there.
+fn window_field_type(
+    structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<StructuralTypeId> {
+    let parent =
+        super::super::structural_catalog::resolve_structural_path(structural_types, root, path)?;
+    let declaration = structural_types.get(&parent)?;
+    let fields = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Record { fields }
+        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+        _ => return None,
+    };
+    match fields
+        .iter()
+        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
+        .field_type
+    {
+        terminal_psi::StructuralFieldType::Structural(field_type) => Some(field_type),
+        _ => None,
+    }
 }

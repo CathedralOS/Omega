@@ -29,6 +29,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
+        | O::MoveStructuralField { .. }
+        | O::StoreStructuralField { .. }
         | O::EstablishRecord { .. } => structural::encode(bytes, operation),
 
         O::AtomicEvent { .. } => atomic::encode(bytes, operation),

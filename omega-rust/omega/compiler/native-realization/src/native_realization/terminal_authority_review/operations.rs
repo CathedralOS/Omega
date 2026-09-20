@@ -84,6 +84,11 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         // they carry no call, boundary, or physical edge of their own.
         | AbstractOperation::EstablishReference { .. }
         | AbstractOperation::ReleaseReference { .. }
+        // Restoration-window extraction and repair are structural custody
+        // events on the borrowed root; they carry no call, boundary, or
+        // physical edge either.
+        | AbstractOperation::MoveStructuralField { .. }
+        | AbstractOperation::StoreStructuralField { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
         | AbstractOperation::IeeeFloatCompare { .. }

@@ -214,6 +214,34 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             bytes.id(*source);
         }
+        O::MoveStructuralField {
+            psi_operation,
+            result,
+            source,
+            path,
+            field,
+        } => {
+            bytes.u8(81);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            encode_structural_parameter(bytes, source);
+            bytes.slice(path, encode_structural_path_segment);
+            bytes.id(*field);
+        }
+        O::StoreStructuralField {
+            psi_operation,
+            destination,
+            path,
+            field,
+            value,
+        } => {
+            bytes.u8(82);
+            bytes.id(*psi_operation);
+            encode_structural_parameter(bytes, destination);
+            bytes.slice(path, encode_structural_path_segment);
+            bytes.id(*field);
+            encode_structural_argument(bytes, value);
+        }
         _ => unreachable!("operation family routing admitted a non-structural operation"),
     }
 }
