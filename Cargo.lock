@@ -912,6 +912,7 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "image",
+ "isa-x86_64",
  "object-file",
  "sha2",
  "target",

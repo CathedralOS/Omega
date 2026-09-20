@@ -1,0 +1,19 @@
+// Complete macos_x86_64 Console provider closure over compiler-known native
+// byte/runtime leaves. Friendly line and write adapters live in std/console.omg on the
+// same nominal provider type.
+// Unmigrated sibling leaves retain transitional payload-free `via` syntax.
+// Byte output and process exit are inferred from their exact realization
+// symbols, normalized signatures, package custody, and selected target.
+macos_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
+    satisfies Console::read_byte
+    via Binding::CompilerIntrinsic
+    crashes Trap
+    blocks;
+macos_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+macos_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+
+macos_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
+    defaults.select_provider<Console, ConsoleNativeProvider>();
+}

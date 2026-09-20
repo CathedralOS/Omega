@@ -634,18 +634,19 @@ impl NativePlacedImageEvidence {
                 continue;
             }
             match (self.target.architecture, self.target.object_format) {
-                (target::Architecture::X86_64, target::ObjectFormat::Coff) => {
+                (target::Architecture::X86_64, target::ObjectFormat::Coff)
+                | (target::Architecture::X86_64, target::ObjectFormat::MachO) => {
                     let bytes = text_bytes
                         .get(region.section_offset..region.section_offset + region.byte_count)
                         .ok_or_else(|| {
                             format!(
-                                "Coff import thunk `{}` is out of the declared text extent",
+                                "import thunk `{}` is out of the declared text extent",
                                 region.symbol
                             )
                         })?;
                     if isa_x86_64::decode_x86_64_import_thunk(bytes).is_none() {
                         return Err(format!(
-                            "Coff import thunk `{}` does not decode to jmp [rip+disp32]",
+                            "import thunk `{}` does not decode to jmp [rip+disp32]",
                             region.symbol
                         ));
                     }
@@ -659,6 +660,14 @@ impl NativePlacedImageEvidence {
         match (self.target.architecture, self.target.object_format) {
             (target::Architecture::Aarch64, target::ObjectFormat::MachO) => {
                 image_macho::validate_macho_aarch64_import_binding_pairing(
+                    text_bytes,
+                    &self.inventory,
+                    &self.data_inventory,
+                )
+                .map_err(|diagnostic| diagnostic.message)?;
+            }
+            (target::Architecture::X86_64, target::ObjectFormat::MachO) => {
+                image_macho::validate_macho_x86_64_import_binding_pairing(
                     text_bytes,
                     &self.inventory,
                     &self.data_inventory,
