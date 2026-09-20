@@ -4,6 +4,15 @@ Run `sh tests/gamma/beta-encoding-check/run.sh` from the repository root, on
 macOS arm64 or Windows x64 Git Bash; other hosts report unsupported. An absent
 Python skips rather than fails.
 
+`sh tests/gamma/beta-encoding-check/run.sh --reference-vm` is the diagnostic
+leg on any host with `cc` and python3: it compiles the gate-local Alpha VM
+[alpha_vm.c](alpha_vm.c), drives the pinned evaluator tape through it instead
+of a stamped seed, and otherwise runs the identical packing, emission,
+production, and check. The reference leg's observation is a recorded reading,
+never artifact admission — the audited seeds remain the admission route, and
+a divergent reference result is a gate failure to investigate, not a verdict
+to accept.
+
 The gate checks the complete certificate for the owner proposition
 
 ```text
