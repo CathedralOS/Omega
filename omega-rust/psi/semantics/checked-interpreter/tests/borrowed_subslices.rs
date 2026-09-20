@@ -7,11 +7,15 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
+    try_checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics}"))
+}
+
+fn try_checked(source: &str) -> Result<checked_trees::CheckedTrees, String> {
     let tokens = Lexer::new(source).tokenize().expect("subslice tokens");
     let syntax = parse_syntax_trees(&tokens).expect("subslice syntax");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("subslice symbols");
     let typed = lower_symbol_resolved_trees(&resolved).expect("subslice types");
-    lower_typed_trees(typed).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    lower_typed_trees(typed).map_err(|diagnostics| format!("{diagnostics:#?}"))
 }
 
 fn execute(source: &str) -> InterpretOutcome {
@@ -218,11 +222,15 @@ fn independently_bounded_selector_calls_execute_in_source_order() {
 
 #[test]
 fn inline_const_generic_selectors_execute_distinct_inferred_extents() {
+    // The generic body must establish its promised endpoint bound for every
+    // admitted N, not just the two concrete applications exercised below.
     for (before_endpoint, after_endpoint, pair_length, triple_length) in
         [("..", "", 2, 3), ("", "..", 2, 1), ("..=", "", 3, 4)]
     {
         assert_seven(&format!("data Main {{}}
-            machine Main::endpoint<const N: u64>(&self, witness: &[u8; N]) -> u64 [0..=3] {{
+            machine Main::endpoint<const N: u64>(&self, witness: &[u8; N]) -> u64 [0..=3]
+            requires N <= 3
+            {{
                 N
             }}
             machine Main::window(&self, items: &[i32; 4]) -> i32 {{
@@ -238,6 +246,41 @@ fn inline_const_generic_selectors_execute_distinct_inferred_extents() {
                 selector.window(&values)
             }}"));
     }
+}
+
+#[test]
+fn generic_endpoint_bounds_require_the_exact_returned_binder() {
+    for (parameters, requirement, body) in [
+        ("const N: u64", "", "N"),
+        ("const N: u64, const M: u64", "requires M <= 3", "N"),
+        ("const N: u64", "requires N <= 3", "let N: u64 = 4; N"),
+    ] {
+        let source =
+            format!("machine endpoint<{parameters}>() -> u64 [0..=3] {requirement} {{ {body} }}");
+        let diagnostics = try_checked(&source).expect_err("unproved endpoint must reject");
+        assert!(
+            diagnostics.contains("return") && diagnostics.contains("range")
+                || diagnostics.contains("bounded return"),
+            "{source}: {diagnostics}",
+        );
+    }
+}
+
+#[test]
+fn inferred_endpoint_extent_must_satisfy_the_generic_requirement() {
+    let diagnostics = try_checked(
+        "data Main {}
+         machine Main::endpoint<const N: u64>(&self, witness: &[u8; N]) -> u64
+         requires N <= 3
+         { N }
+         machine main() -> u64 {
+             let selector: Main = Main {};
+             let oversized: [u8; 4] = [0, 0, 0, 0];
+             selector.endpoint(&oversized)
+         }",
+    )
+    .expect_err("inference cannot discard the endpoint's declared requirement");
+    assert!(diagnostics.contains("requires"), "{diagnostics}");
 }
 
 #[test]
