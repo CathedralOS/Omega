@@ -22,6 +22,7 @@ pub use replacements::{PackagePolicyReplacementSite, PackagePolicySourceReplacem
 use crate::declarations::BuildDeclarationKind;
 use crate::lock::PackageLockTarget;
 use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
+use crate::review::timings;
 use crate::review::{
     CompilerIssuedPackageReviewSet, ReviewOnlyRootRoleChange, ReviewOnlyRootRoleContract,
 };
@@ -40,6 +41,7 @@ pub fn compare_package_policy_changes(
     candidate_sources: &ExactTargetPackageSourceClosure<'_>,
     limits: PackagePolicyChangeLimits,
 ) -> Result<PackagePolicyChangeSet, PackagePolicyChangeError> {
+    let _stage = timings::stage("policy_change_comparison");
     let mut budget = Budget::new(limits);
     if accepted.is_some_and(|old| old.target() != candidate_sources.target_profile()) {
         return Err(PackagePolicyChangeError::TargetMismatch);

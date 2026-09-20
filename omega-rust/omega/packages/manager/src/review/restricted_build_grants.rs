@@ -24,6 +24,7 @@ use crate::lock::{
     PackageAcceptanceRow, PackageCheckedContext, PackageLockError, PackageLockTarget,
     PackagePolicyAcceptance,
 };
+use crate::review::timings;
 
 /// One normalized restricted build request a checked package occurrence
 /// projected without identical retained accepted-request meaning. Its
@@ -155,6 +156,7 @@ pub fn ungranted_restricted_build_requests(
     accepted: &PackageLockTarget,
     reviews: &CompilerIssuedPackageReviewSet,
 ) -> Result<Vec<UngrantedRestrictedBuildRequest>, PackageLockError> {
+    let _stage = timings::stage("restricted_build_grant_join");
     let checkpoint = RestrictedBuildCheckpoint::derive(accepted);
     let mut ungranted = Vec::new();
     for review in reviews.reviews() {

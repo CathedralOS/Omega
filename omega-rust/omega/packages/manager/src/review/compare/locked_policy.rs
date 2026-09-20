@@ -2,6 +2,7 @@
 
 use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;
+use crate::review::timings;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
 use std::fmt;
 
@@ -75,6 +76,7 @@ pub fn compare_locked_package_policies(
     accepted: &PackageLockTarget,
     reviews: &CompilerIssuedPackageReviewSet,
 ) -> Result<Vec<PackageKey>, LockedPolicyComparisonError> {
+    let _stage = timings::stage("locked_policy_comparison");
     let sources = accepted.source().packages();
     let mut joined = Vec::new();
     joined
