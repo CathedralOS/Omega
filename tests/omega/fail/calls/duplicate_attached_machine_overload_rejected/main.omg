@@ -1,0 +1,17 @@
+// Two attached machines with the same owner path and identical parameter
+// signatures admit no overload distinction: the result dispatch set is
+// empty, and predicate-only result refinements do not distinguish
+// overloads.
+data Helper { seed: i32; }
+
+machine Helper::pick(&self) -> i32 {
+    transition { _ -> 7 }
+}
+
+machine Helper::pick(&self) -> i32 {
+    transition { _ -> 9 }
+}
+
+data Main { helper: Helper; }
+
+machine Main::main(&mut self) {}

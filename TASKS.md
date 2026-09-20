@@ -7698,7 +7698,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   entry-selection correctness is CANARY-EXACT-ENTRY-SELECTION's live
   claim (owner 'Devin / canary-exact-entry-selection', expires
   2026-09-20T21:52Z).
-- **DUPLICATE-NAMED-MACHINE-OVERLOAD** — mined candidate; verify scope then implement.
+- **DIVISION-VALUE-ENTRY-SELECTION** — resolved; the mined row names the
+  `operators/runtime_integer_division_value` "native-artifact production
+  requires one exact selected program entry" failure, already repaired on
+  `origin/main` at `e5912f303a` (authored `build.omg` binds
+  `ProgramEntry` on all four hosted targets; operands re-scoped to `u64`,
+  the realized `ExactIntegerDivide` carrier). Verified green at `28a3cc7fea`:
+  `OMEGA_PASS_CANARY_FILTER=operators/runtime_integer_division_value
+  cargo nextest run -p compiler --test canary_suite -E
+  'test(pass_canaries_compile)'` passes on linux x86-64. Sibling umbrella
+  CANARY-EXACT-ENTRY-SELECTION stays live for any remaining entry-binding
+  members; signed `i32` exact division remains with
+  ARITHMETIC-POLICY-REALIZATION.
+- **DUPLICATE-NAMED-MACHINE-OVERLOAD** — implemented on
+  `zergling/z197-duplicate-named-machine-overload`: member calls through an
+  attached result-overload family (`self.helper.pick()` with same-named
+  `Helper::pick` overloads) no longer fail-closed at the unresolved-value-call
+  fence. `MachineScope::attached_call_target` treated the family's ambiguous
+  same-name lookup as invisible; it now accepts membership in the ambiguity set
+  and keeps the first visible member as the provisional binding, which
+  `resolve_named_result_overloads` rebinds to the destination's dispatch set.
+  Pins: pass `domains/runtime_result_domain_attached_overload_exit` (native run,
+  exit 70 only when each member call binds the matching overload), fail
+  `calls/duplicate_attached_machine_overload_rejected` (identical attached
+  duplicates still reject at declaration validation).
 - **DUPLICATE-OVERLOAD-RESOLUTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-RELOCATION.** Mined candidate. Upstream: the
