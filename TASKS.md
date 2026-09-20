@@ -6125,7 +6125,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `object_artifact/call_sites.rs` re-derives the call facet via
   `evaluate_call_plan` but never re-derives `boundary_entry_plan.state`;
   compare the retained state facet to the ordinary-entry re-derivation.
-- **ALIGNMENT-STRING-PARSING** — mined candidate; verify scope then implement.
+- **ALIGNMENT-STRING-PARSING.** Mined candidate — scope verified,
+  covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING: the
+  alignment-string parsing gap inside the Squalr app's geometry lane
+  (TASKS.md:6086; the parity audit at :6088 attributes it to that row).
+  Its only implementing surface is the `samples/apps/squalr` submodule,
+  held under sibling claims (SQUALR-TARGETS-AND-THROUGHPUT,
+  SQUALR-CLONE-SERIALIZATION, SQUALR-REGION-ALIGNMENT-EXPANSION); the
+  residual set_alignment call-site gate is a compiler entry-mechanics
+  item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
+  stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
+  GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
 - **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
