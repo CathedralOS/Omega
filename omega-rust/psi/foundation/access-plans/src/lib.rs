@@ -110,8 +110,8 @@ pub use resources::resource_compatibility::{
 };
 pub use resources::resource_profile::{
     AtomicCapability, AtomicTransferRule, ExternalCapability, ExternalReadBehavior,
-    ResourceProfile, ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
-    ValidatedResourceProfile,
+    PeerWritability, ResourceProfile, ResourceProfileId, ResourceRegion, StableCapability,
+    TransferRule, ValidatedResourceProfile,
 };
 pub use resources::resource_profile_admission::{
     AdmittedResourceProfile, ResourceProfileAdmissionError, ResourceProfileGrant,

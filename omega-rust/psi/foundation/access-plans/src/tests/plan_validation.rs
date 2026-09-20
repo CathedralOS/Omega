@@ -7,10 +7,10 @@ use crate::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessOperation, AccessPlan,
     AtomicAccessOperation, AtomicCapability, AtomicPermissions, AtomicTransferRule, BorrowPolarity,
     BoundaryReach, BoundaryServiceReachId, EffectiveSupplyKind, ExternalCapability, ExternalRead,
-    FieldAccess, LogicalFieldFragment, ObservationModel, PlacementAdmissionId, PlacementPlan,
-    RelativeEffectFootprint, ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId,
-    ResourceRegion, StableCapability, TransferRule, admit_placement, place, validate_access_plan,
-    validate_placement_plan,
+    FieldAccess, LogicalFieldFragment, ObservationModel, PeerWritability, PlacementAdmissionId,
+    PlacementPlan, RelativeEffectFootprint, ResourceProfile, ResourceProfileGrant,
+    ResourceProfileReceiptId, ResourceRegion, StableCapability, TransferRule, admit_placement,
+    place, validate_access_plan, validate_placement_plan,
 };
 use language_core::atomic::AtomicOrderingPlan;
 use language_core::atomic::MemoryOrdering;
@@ -786,6 +786,7 @@ fn atomic_shared_page_exposes_only_atomic_mutation() {
         regions: vec![ResourceRegion {
             offset: 0,
             length: 4,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::None,
             atomic: AtomicCapability::Access {

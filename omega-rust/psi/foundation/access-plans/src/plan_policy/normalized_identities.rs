@@ -1,8 +1,8 @@
 use crate::access_plan::AccessLayoutCommitment;
 use crate::{
     AccessExposure, AccessPlan, AccessPlanId, AtomicCapability, AtomicPermissions, BoundaryReach,
-    ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PlacementPlanId,
-    ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
+    ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PeerWritability,
+    PlacementPlanId, ResourceProfileId, ResourceRegion, StableCapability, TransferRule,
 };
 use extents::{ExtentContentInterpretation, ExtentContentInterpretationId};
 use layout_plans::{
@@ -261,6 +261,13 @@ pub(crate) fn non_authoritative_resource_profile_compatibility_fingerprint(
                 }
             }
         }
+        hash_byte(
+            &mut hash,
+            match region.peer {
+                PeerWritability::Exclusive => 0,
+                PeerWritability::HostileShared => 1,
+            },
+        );
         hash_u64(&mut hash, region.reach.services().len() as u64);
         for service in region.reach.services() {
             hash_u64(&mut hash, service.normalized_identity());

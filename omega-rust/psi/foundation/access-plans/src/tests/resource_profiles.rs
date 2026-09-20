@@ -7,7 +7,7 @@ use crate::{
     AccessExposure, AccessOperation, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
     AtomicTransferRule, BoundaryReach, BoundaryServiceReachId, EffectFootprint,
     EffectiveSupplyKind, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
-    PlacementAdmissionId, PlacementPlan, ResourceProfile, ResourceProfileGrant,
+    PeerWritability, PlacementAdmissionId, PlacementPlan, ResourceProfile, ResourceProfileGrant,
     ResourceProfileReceiptId, ResourceRegion, StableCapability, TransferRule, admit_placement,
     effect_footprints_conflict, place, validate_placement_plan, validate_placement_resources,
     validate_resource_profile,
@@ -23,6 +23,7 @@ fn resource_profiles_normalize_disjoint_regions_and_restrict_subranges() {
     let stable = ResourceRegion {
         offset: 0,
         length: 4,
+        peer: PeerWritability::Exclusive,
         stable: StableCapability::ReadWrite,
         external: ExternalCapability::None,
         atomic: AtomicCapability::None,
@@ -39,6 +40,7 @@ fn resource_profiles_normalize_disjoint_regions_and_restrict_subranges() {
                 ResourceRegion {
                     offset: 8,
                     length: 8,
+                    peer: PeerWritability::Exclusive,
                     stable: StableCapability::None,
                     external: ExternalCapability::Access {
                         read: ExternalReadBehavior::Repeatable,
@@ -91,6 +93,7 @@ fn resource_profiles_normalize_disjoint_regions_and_restrict_subranges() {
                 ResourceRegion {
                     offset: 2,
                     length: 4,
+                    peer: PeerWritability::Exclusive,
                     stable: StableCapability::Read,
                     external: ExternalCapability::None,
                     atomic: AtomicCapability::None,
@@ -112,6 +115,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
             regions: vec![ResourceRegion {
                 offset: 0,
                 length: 12,
+                peer: PeerWritability::Exclusive,
                 stable: StableCapability::ReadWrite,
                 external: ExternalCapability::None,
                 atomic: AtomicCapability::None,
@@ -137,6 +141,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
             regions: vec![ResourceRegion {
                 offset: 0,
                 length: 12,
+                peer: PeerWritability::Exclusive,
                 stable: StableCapability::None,
                 external: ExternalCapability::Access {
                     read: ExternalReadBehavior::Repeatable,
@@ -165,6 +170,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
             regions: vec![ResourceRegion {
                 offset: 0,
                 length: 12,
+                peer: PeerWritability::Exclusive,
                 stable: StableCapability::None,
                 external: ExternalCapability::Access {
                     read: ExternalReadBehavior::Repeatable,
@@ -269,6 +275,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
             regions: vec![ResourceRegion {
                 offset: 0,
                 length: 4,
+                peer: PeerWritability::Exclusive,
                 stable: StableCapability::None,
                 external: ExternalCapability::None,
                 atomic: AtomicCapability::Access {
@@ -339,6 +346,7 @@ fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
         regions: vec![ResourceRegion {
             offset: 4,
             length: 4,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
@@ -509,6 +517,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
             regions: vec![ResourceRegion {
                 offset: 0,
                 length: 8,
+                peer: PeerWritability::Exclusive,
                 stable: StableCapability::None,
                 external: ExternalCapability::Access {
                     read: ExternalReadBehavior::Repeatable,
@@ -572,6 +581,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
         regions: vec![ResourceRegion {
             offset: 0,
             length: 4,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
@@ -611,6 +621,7 @@ fn admitted_profile_binds_rights_provenance_era_and_returns_rejected_loan() {
         regions: vec![ResourceRegion {
             offset: 0,
             length: 12,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
@@ -697,4 +708,106 @@ fn effect_conflicts_use_whole_transfer_containers() {
         next_word,
         AccessOperation::Write,
     ));
+}
+
+/// A region a hostile writable peer can still rewrite cannot honestly
+/// claim `Stable` supply: zero-copy stable placement would read bytes the
+/// peer may change after validation. `External` and `Atomic` supply stay
+/// honest — every authorized access is one exact-width event under
+/// mutation — and adjacent regions never merge across a peer boundary.
+#[test]
+fn hostile_shared_regions_never_supply_stable() {
+    let hostile_stable = validate_resource_profile(
+        ResourceProfile {
+            regions: vec![ResourceRegion {
+                offset: 0,
+                length: 8,
+                peer: PeerWritability::HostileShared,
+                stable: StableCapability::Read,
+                external: ExternalCapability::None,
+                atomic: AtomicCapability::None,
+                reach: BoundaryReach::default(),
+            }],
+        },
+        8,
+    )
+    .expect_err("stable supply over hostile-shared memory is incoherent");
+    assert!(
+        hostile_stable.0.contains("hostile-shared"),
+        "the rejection names the violated rule: {hostile_stable}"
+    );
+
+    let transfers = vec![TransferRule {
+        width_bits: 32,
+        alignment_bytes: 4,
+    }];
+    let hostile_external = validate_resource_profile(
+        ResourceProfile {
+            regions: vec![
+                ResourceRegion {
+                    offset: 0,
+                    length: 4,
+                    peer: PeerWritability::HostileShared,
+                    stable: StableCapability::None,
+                    external: ExternalCapability::Access {
+                        read: ExternalReadBehavior::Repeatable,
+                        write: true,
+                        transfers: transfers.clone(),
+                    },
+                    atomic: AtomicCapability::None,
+                    reach: uart_reach(),
+                },
+                ResourceRegion {
+                    offset: 4,
+                    length: 4,
+                    peer: PeerWritability::Exclusive,
+                    stable: StableCapability::Read,
+                    external: ExternalCapability::None,
+                    atomic: AtomicCapability::None,
+                    reach: uart_reach(),
+                },
+            ],
+        },
+        8,
+    )
+    .expect("hostile external supply is coherent beside exclusive stable");
+    assert_eq!(
+        hostile_external.regions().len(),
+        2,
+        "adjacent regions never merge across a peer boundary"
+    );
+
+    // Restriction retains the peer claim, and the claim participates in the
+    // normalized profile identity.
+    let child = hostile_external
+        .restrict(0, 4, &uart_reach())
+        .expect("restrict retains the hostile peer claim");
+    assert_eq!(child.regions()[0].peer, PeerWritability::HostileShared);
+
+    let profile_with = |peer: PeerWritability| {
+        validate_resource_profile(
+            ResourceProfile {
+                regions: vec![ResourceRegion {
+                    offset: 0,
+                    length: 4,
+                    peer,
+                    stable: StableCapability::None,
+                    external: ExternalCapability::Access {
+                        read: ExternalReadBehavior::Repeatable,
+                        write: true,
+                        transfers: transfers.clone(),
+                    },
+                    atomic: AtomicCapability::None,
+                    reach: uart_reach(),
+                }],
+            },
+            4,
+        )
+        .expect("peer claim alone cannot invalidate a profile")
+    };
+    assert_ne!(
+        profile_with(PeerWritability::Exclusive).identity(),
+        profile_with(PeerWritability::HostileShared).identity(),
+        "the peer claim participates in normalized identity"
+    );
 }
