@@ -72,10 +72,13 @@ fn resolve_git_package_closure_from_lanes(
         root.source_limits(),
     )
     .map_err(ResolveGitPackageClosureError::RootWorkspace)?;
+    let cache_dir = git_cache
+        .checked_source_cache_dir()
+        .map_err(ResolveGitPackageClosureError::Root)?;
 
     resolve_registered_package_closure(
         PackageRootSourceRequest::Git(request.clone()),
-        root.into_custody(),
+        root.into_custody().with_checked_source_cache_dir(cache_dir),
         closure_limits,
         workspace_cache,
         git_cache,

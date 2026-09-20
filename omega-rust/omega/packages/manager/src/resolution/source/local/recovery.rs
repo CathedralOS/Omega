@@ -2,8 +2,8 @@
 
 use super::super::projection::project_package_build;
 use super::super::{
-    PackageSourceCustody, PackageSourceMaterialization, PackageSourceNavigation,
-    PackageSourceSelectionEvidence, ResolvePackageSourceError,
+    CHECKED_SOURCE_CACHE_LANE, PackageSourceCustody, PackageSourceMaterialization,
+    PackageSourceNavigation, PackageSourceSelectionEvidence, ResolvePackageSourceError,
 };
 use crate::declarations::PackageKey;
 use package_source::local::operations::{
@@ -36,15 +36,23 @@ pub(crate) fn recover_cached_external_local_source(
     let declaration = project_package_build(&source.root, true)?;
     verify_package_source_snapshot(&source.root, expected, current.source_limits())?;
     storage.verify_path_identity()?;
-    Ok(Some(PackageSourceCustody::from_resolved_parts(
-        PackageKey::new(declaration.name, current.key().source_lineage().clone()),
-        declaration.role,
-        ImmutableSourceResolution::external_local(expected.clone()),
-        PackageSourceMaterialization::from_local(&source),
-        source.root,
-        PackageSourceNavigation::Root,
-        PackageSourceSelectionEvidence::Root,
-        current.source_limits(),
-        declaration.dependencies,
-    )))
+    let cache_dir = storage
+        .external_local_sources()
+        .retain_child(CHECKED_SOURCE_CACHE_LANE)?
+        .path()
+        .to_path_buf();
+    Ok(Some(
+        PackageSourceCustody::from_resolved_parts(
+            PackageKey::new(declaration.name, current.key().source_lineage().clone()),
+            declaration.role,
+            ImmutableSourceResolution::external_local(expected.clone()),
+            PackageSourceMaterialization::from_local(&source),
+            source.root,
+            PackageSourceNavigation::Root,
+            PackageSourceSelectionEvidence::Root,
+            current.source_limits(),
+            declaration.dependencies,
+        )
+        .with_checked_source_cache_dir(cache_dir),
+    ))
 }

@@ -8499,7 +8499,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (expires 2026-09-21T00:33Z).
 - **PASS-CANARY-UNIT-PLAN-CLASS** — mined candidate; verify scope then implement.
 - **PER-RULE-AXIS-ENFORCEMENT** — mined candidate; scope verified, already landed and enforced. Re-mines PER-RULE-COVERAGE's enforcement leg (TASKS_OPTIMIZER.md): the checked per-rule axis table at `tests/architecture/optimizer_rollout/coverage.rs` derives the rule set from `Optimization::ALL` + the stage catalogs, reconciles names/phase/applicability/rollback per row, and fails on any axis absent without a closed absent-reason — with `coverage::tests::the_gate_flags_every_table_failure_mode` proving the gate catches missing rows, unrecorded absent axes, and duplicate entries. Verified green on `7a5a87d5a1`: `cargo nextest run -p omega-architecture-test --test optimizer_rollout` 9/9 pass on Linux x86-64, including `exact_rule_rollout_is_complete_and_promotion_gated`. The residuals the parent item names — missing matrix legs for the 40 uncalled rewrite modules and the parameterised shared matrix harness (~128k hand-maintained test lines) — belong to EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY cataloging and remain open under PER-RULE-COVERAGE itself, not this row.
-- **PERSISTENT-CHECKED-SOURCE-CACHE** — mined candidate; verify scope then implement.
+- **PERSISTENT-CHECKED-SOURCE-CACHE** — mined candidate; scope verified, resolved. The store itself landed earlier at `abaf8f5562`
+  (`package-compilation::CheckedSourceCache`); this row's residual leg — the consumer
+  wiring the module docs named as follow-up — is now connected. Each resolved root
+  custody carries the retained `checked-source-cache` lane child beneath the resolver
+  storage lane that produced its snapshot (`SourceCacheLane::checked_source_cache_dir`,
+  attached at every root `into_custody` site: staged and declared external-local, Git,
+  workspace member, locked-resolver replay, and external-local recovery), and
+  `binding_with_canonical_source_metadata` routes the root binding through
+  `CheckedSourceCache::open_or_create` + `with_cached_canonical_source_metadata`,
+  degrading to the cold capture when the lane cannot be opened. Verified at
+  `f88c3aba6f` (linux x86_64): `cargo nextest run -p package-manager --lib` → 328/334
+  pass, including the new
+  `resolution::compiler_input::tests::checked_source_cache_replays_the_retained_index_for_an_unchanged_root`
+  (first handoff stores a self-verifying record; a direct lane capture replays it as
+  `Warm`; stat-visible drift reports `Cold`). The 6 remaining failures are the
+  previously recorded stale `Service<R>` fixture-spelling / provider-selection-operand
+  family in `review::candidate::compilation::tests` and `operations::*` — identical on
+  main `cdee121ee99`, ENTRY-CONTENT-ROOTS-owned, unchanged by this row.
 - **PHYSICAL-ACCESS-PROFILES.** Resolved — scope verified, already landed. The
   stub names the physical-lane access-profile surface covered at `9ced81e046`
   ("backend: cover every access profile through the mixed structural rejoin"):

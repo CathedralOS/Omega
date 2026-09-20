@@ -15,6 +15,7 @@ mod selection;
 mod workspace;
 pub(crate) mod workspace_path;
 
+pub(crate) use custody::CHECKED_SOURCE_CACHE_LANE;
 pub use custody::PackageSourceCustody;
 pub use error::ResolvePackageSourceError;
 #[cfg(test)]

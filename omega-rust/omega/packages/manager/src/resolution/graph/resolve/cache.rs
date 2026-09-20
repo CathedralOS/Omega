@@ -25,6 +25,20 @@ pub(super) enum SourceCacheLane<'a> {
     Retained(&'a RetainedStorageLane),
 }
 
+impl SourceCacheLane<'_> {
+    /// Retained child lane persisting checked source indexes for custodies
+    /// rooted under this lane.
+    pub(super) fn checked_source_cache_dir(
+        &self,
+    ) -> Result<std::path::PathBuf, ResolvePackageSourceError> {
+        let Self::Retained(lane) = self;
+        Ok(lane
+            .retain_child(crate::resolution::source::CHECKED_SOURCE_CACHE_LANE)?
+            .path()
+            .to_path_buf())
+    }
+}
+
 #[derive(Default)]
 pub(super) struct GitAcquisitionCache<'a> {
     options: GitResolutionOptions<'a>,
