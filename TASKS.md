@@ -7137,7 +7137,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SELECTED-OPTIMIZATION-CATALOG-ROUTE** — mined candidate; verify scope then implement.
 - **SELECTED-OPTIMIZATION-DIRECT-READS** — mined candidate; verify scope then implement.
 - **SELECTED-REWRITE-ANCESTRY-REMOVAL** — mined candidate; verify scope then implement.
-- **SELECTED-REWRITE-CATALOG-DISPOSITION** — mined candidate; verify scope then implement.
+- **SELECTED-REWRITE-CATALOG-DISPOSITION.** Resolved — the deep-mine
+  fragmented one optimizer bullet into a five-row cluster. The underlying
+  gap is TASKS_OPTIMIZER.md's "Give each retained rewrite a catalog entry
+  executed by the stage entrance, or delete it"; this row names the
+  disposition (keep-or-delete) leg. The work is indivisible from the
+  catalog leg it feeds: per-rewrite keep/delete decisions are recorded in
+  `rewrites/mod.rs`'s retained catalog and dispatched from
+  `optimize_selected_instructions` in
+  `selected-instructions-to-selected-instructions/src/selected_optimization.rs`
+  — doing a disposition without the catalog records nothing. The delete leg
+  is already exercised by sibling SELECTED-REWRITES-CATALOG-OR-DELETE
+  (`rewrites/literal_compare` + `rewrites/literal_arithmetic` removed,
+  roots pinned in `optimizer_source_organization::retired_paths`).
+  Owner-chain routing: the catalog/dispatch leg belongs to
+  PIPELINE-OWNER-CONSOLIDATION-adjacent optimizer rows
+  (SELECTED-REWRITE-CATALOG-{EXECUTION,ROUTE,WIRING}, POC-SELECTED-REWRITE-
+  CATALOG, REWRITE-CATALOG-ADMISSION, PIPELINE-REWRITE-CATALOG-WIRING) and
+  the crate surface is held under sibling claims this wave (POC-REWRITE-
+  ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG, SELECTED-OPTIMIZATION-ANCESTRY-
+  REMOVAL). No independent slice exists; the row folds into the cluster.
 - **SELECTED-REWRITE-CATALOG-EXECUTION** — mined candidate; verify scope then implement.
   Verified scope: re-mines the execution leg of **EXACT-MACHINE-SIMPLIFICATIONS**
   (TASKS_OPTIMIZER.md:641) — "give the stage an execution route under
