@@ -6376,7 +6376,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PIPELINE-REWRITE-CATALOG-WIRING** — mined candidate; verify scope then implement.
 - **PIPELINE-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
 - **PIPELINE-REWRITES-OWNERSHIP-AUDIT** — mined candidate; verify scope then implement.
-- **PIPELINE-ROUTE-CONFORMANCE-AUDIT** — mined candidate; verify scope then implement.
+- **PIPELINE-ROUTE-CONFORMANCE-AUDIT** — mined candidate; scope verified, resolved by landed audits. `1ccc88fb51` added `tests/architecture/representation_ownership/route_conformance.rs` pinning the documented program route: every route-table owner link resolves inside its named crate, every pipeline crate on disk is owned by exactly one row, and crate/package names keep the X-to-Y shape (the stale `timing_report.rs` link it caught was repointed to `compile_timings/mod.rs`). `36ffc8af87` added the connectivity leg in `tests/architecture/stage_crate_ownership.rs`: every designed stage entrance reachable at its crate root must have a caller outside its own crate, so the executable route — not only the crate-name chain — stays connected. Both halves of the stub's named audit are landed and pinned.
 - **PIPELINE-SPILL-FAMILY-ORPHANS** — mined candidate; verify scope then implement.
 - **PIPELINE-WRAPPER-OBJECT-ORPHAN** — mined candidate; verify scope then implement.
 - **PKG-INPUTS-FLOAT-IDENTITY-LANDING** — mined candidate; verify scope then implement.
