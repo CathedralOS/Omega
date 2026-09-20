@@ -50,6 +50,9 @@ pub(crate) fn decode_domains(
 ) -> Result<Vec<StructuralDomainId>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralQualifications)?;
+    if count > reader.remaining() / 8 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut domains = Vec::with_capacity(count);
     for _ in 0..count {
         domains.push(

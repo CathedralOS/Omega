@@ -116,6 +116,9 @@ pub(crate) fn decode_structural_returns(
 ) -> Result<Vec<InstalledStructuralReturn>, InstallationError> {
     let count =
         usize::try_from(reader.u32()?).map_err(|_| InstallationError::TooManyStructuralReturns)?;
+    if count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut structural_returns = Vec::with_capacity(count);
     for _ in 0..count {
         structural_returns.push(decode_structural_return(reader)?);
@@ -131,18 +134,27 @@ fn decode_structural_return(
         .ok_or(InstallationError::ZeroStructuralReturnIdentity("edge"))?;
     let scalar_parameter_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnParameters)?;
+    if scalar_parameter_count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut scalar_parameters = Vec::with_capacity(scalar_parameter_count);
     for _ in 0..scalar_parameter_count {
         scalar_parameters.push(decode_abi_value(reader)?);
     }
     let parameter_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnParameters)?;
+    if parameter_count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut parameters = Vec::with_capacity(parameter_count);
     for _ in 0..parameter_count {
         parameters.push(decode_structural_parameter(reader)?);
     }
     let placement_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnParameters)?;
+    if placement_count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut parameter_placements = Vec::with_capacity(placement_count);
     for _ in 0..placement_count {
         parameter_placements.push(decode_direct_placement(reader)?);
@@ -154,6 +166,9 @@ fn decode_structural_return(
     let result_placement = decode_direct_placement(reader)?;
     let claim_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnClaims)?;
+    if claim_count > reader.remaining() / 8 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut returned_claims = Vec::with_capacity(claim_count);
     for _ in 0..claim_count {
         returned_claims.push(
@@ -163,6 +178,9 @@ fn decode_structural_return(
     }
     let local_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnCleanups)?;
+    if local_count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut trivial_affine_locals = Vec::with_capacity(local_count);
     for _ in 0..local_count {
         let operation = OperationId::new(reader.u64()?).ok_or(
@@ -176,6 +194,9 @@ fn decode_structural_return(
     }
     let cleanup_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnCleanups)?;
+    if cleanup_count > reader.remaining() / 8 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut trivial_affine_discards = Vec::with_capacity(cleanup_count);
     for _ in 0..cleanup_count {
         trivial_affine_discards.push(PlaceId::new(reader.u64()?).ok_or(

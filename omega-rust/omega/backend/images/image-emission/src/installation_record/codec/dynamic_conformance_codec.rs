@@ -468,6 +468,9 @@ pub(crate) fn decode_dynamic_conformance_custody(
     }
     let forwarded_table_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyForwardedDynamicDescriptorTables)?;
+    if forwarded_table_count > reader.remaining() {
+        return Err(InstallationError::UnexpectedEnd);
+    }
     let mut forwarded_tables = Vec::with_capacity(forwarded_table_count);
     for _ in 0..forwarded_table_count {
         let application_commitment =
