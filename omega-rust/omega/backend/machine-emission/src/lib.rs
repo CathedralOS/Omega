@@ -114,3 +114,13 @@ pub use fragments::{
 
 mod x86_fma;
 pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_fma};
+
+mod entry_exit_stub;
+pub use entry_exit_stub::{
+    ValidatedX86_64DeriverStubEmission, ValidatedX86_64ResolvedDeriverStub,
+    X86_64DeriverStubEmission, X86_64DeriverStubEmissionError, X86_64DeriverStubEmissionFootprint,
+    X86_64DeriverStubMemberCall, X86_64DeriverStubRelocation, X86_64DeriverStubResolution,
+    X86_64DeriverStubResolutionError, emit_x86_64_deriver_entry_exit_stub,
+    resolve_x86_64_deriver_stub_member_call, validate_x86_64_deriver_entry_exit_stub,
+    validate_x86_64_resolved_deriver_stub,
+};
