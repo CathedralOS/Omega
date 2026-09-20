@@ -6041,6 +6041,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-ALIGNMENT-STRING-PARSING.** Alignment string parsing.
 - **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity.
 - **SQUALR-GEOMETRY-PARITY.** Geometry parity gaps + debug assertions.
+  Verified-scope audit (z105, origin/main `e8bbe9fcc0`): the geometry lane's
+  authored evidence is complete on one host — submodule TASKS records all 12
+  authored geometry checks passing on macOS ARM64 at app `4b1f7a6` with std
+  `87d8b227` (`Squalr geometry: PASS`, native exit 0); "Windows was not run",
+  and a Windows host is not available in this lane. The enumerated residual
+  gaps each map to sibling rows rather than remaining open here: Rust
+  debug-only assertions (SQUALR-DEBUG-ASSERTION-PARITY /
+  SQUALR-DEBUG-ASSERTIONS stubs at ~7541-7542), clone/serialization
+  (SQUALR-CLONE-SERIALIZATION-PARITY), alignment string parsing
+  (SQUALR-ALIGNMENT-STRING-PARSING), region alignment/expansion
+  (SQUALR-REGION-ALIGNMENT-EXPANSION), named trait operators
+  (SQUALR-NAMED-TRAIT-OPERATORS). Implementing surfaces are under live
+  claims: `samples/apps/squalr` wholesale under SQUALR-TARGETS-AND-THROUGHPUT
+  (21:39Z), clone-serialization region/filter/alignment sources under
+  SQUALR-CLONE-SERIALIZATION (22:50Z), submodule+board under
+  SQUALR-REGION-ALIGNMENT-EXPANSION, TASKS.md under SQUALR-HEADLESS
+  (00:48Z). This row's own deliverable is therefore the Windows validation
+  leg (host-gated) plus witnessing that the sibling gaps closed; no
+  linux_x86_64-implementable slice exists inside the claimed surfaces.
 - **SQUALR-NAMED-TRAIT-OPERATORS.** Named trait operators.
 - **SQUALR-REGION-ALIGNMENT-EXPANSION.** Region alignment expansion.
 - **SQUALR-SEED-PARITY.** Seed parity.
