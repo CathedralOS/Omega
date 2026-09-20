@@ -6622,7 +6622,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   signatures, domain predicates, postcondition transport of case membership,
   induction) belong to PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's own owner
   list, which names this row a sibling stub.
-- **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION** — mined candidate; verify scope then implement.
+- **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION.** Scope verified and leg
+  completed — the attribution ledger
+  `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi
+  now carries a fresh member-by-member reading at 6ef64f6dd6 (Linux
+  x86-64): 2152 run, 2093 passed, 59 failed, blowup member SIGTERM'd at
+  ~892s. Prior family owners reconfirmed at identical panic sites
+  (33 bare `Service<R>` spellings, 16 missing transitive machine plans,
+  3 site_guard crash rejections, 4 scalar-return custody cases,
+  PROOF-SEARCH-MEASUREMENT blowup); deltas recorded: the `established by`
+  call-result qualification family closed in-window (registered_callback_
+  lifetime green; 851052b4f8f / 1fc01bb6907), and two new families opened —
+  ranked safe-point segment bounds charge component-scale ceilings
+  (3·2³³ / BoundOverflow; unchanged `derive_fixed_safe_point_segments` reads
+  39e156c73a0's new verified inputs; post-base 7591b2607c7 is mid-migration
+  on the same surface) and closed-projection replay admits invalid/foreign
+  member symbols (suspects 39e156c73a0 / 143636cec8a, unbisected). Residual:
+  the two new families want a single-test bisect by their owning lanes;
+  sibling stub CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET remains open.
 - **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET** — mined candidate; verify scope then implement.
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **CLI-COMMANDS** — mined candidate; verify scope then implement.
