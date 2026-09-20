@@ -780,10 +780,11 @@ fn assemble_unit_closure(
     }
 
     let mut scalar_evidence = Vec::new();
-    // Floating entry ranges are machine-local rows keyed by each emitted
-    // helper's own identities; they merge into the assembled catalog without
-    // sharing the qualification namespace this path keeps empty.
+    // Floating and integer entry ranges are machine-local rows keyed by each
+    // emitted helper's own identities; they merge into the assembled catalog
+    // without sharing the qualification namespace this path keeps empty.
     let mut float_entry_ranges = Vec::new();
+    let mut integer_entry_ranges = Vec::new();
     for (index, machine) in prepared_scalar_machines.into_iter().enumerate() {
         let terminal_machine = lookup_machine_id(&machine_ids, machine.source_machine())?;
         let machine_index = closure
@@ -938,6 +939,12 @@ fn assemble_unit_closure(
                 .scalar_qualifications
                 .float_entry_ranges,
         );
+        integer_entry_ranges.append(
+            &mut lowered
+                .semantic_module
+                .scalar_qualifications
+                .integer_entry_ranges,
+        );
         scalar_evidence.append(&mut lowered.proof_bundle.evidence);
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
         selected_ieee_float_fma_occurrences
@@ -1057,12 +1064,14 @@ fn assemble_unit_closure(
 
     call_evidence.append(&mut scalar_evidence);
     float_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));
+    integer_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));
     // The verifier reads the roster in exactly (machine, header) order.
     scalar_block_invariants.sort_by_key(|invariant| (invariant.machine, invariant.header));
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications: ScalarQualificationCatalog {
                 float_entry_ranges,
+                integer_entry_ranges,
                 ..Default::default()
             },
             scalar_block_invariants,
