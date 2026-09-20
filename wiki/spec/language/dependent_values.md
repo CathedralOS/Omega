@@ -37,7 +37,10 @@ output parameters can serve as stored witnesses through exact postconditions.
 
 Dynamic-sized regions live behind checked views or provisioned buffers/storage;
 runtime witnesses do not imply variable-sized stack locals, implicit boxing,
-or a hidden global layout descriptor. [Layout plans](../layouts/plans.md) and
+or a hidden global layout descriptor. The sanctioned route to a runtime-sized
+region inside an activation is an explicit bounded extent claim under
+[runtime-sized activation storage](../resources/activation_storage.md).
+[Layout plans](../layouts/plans.md) and
 [recasts](../layouts/recasts.md) determine representation and view legality.
 Runtime values have no implicit proof tuple or hidden witness allocation merely
 because a fact names them.
@@ -45,7 +48,10 @@ because a fact names them.
 `Buffer<count>` can retain a runtime extent when Buffer declares a runtime-capable
 value binder and has a valid storage realization. It does not by itself allocate
 count elements, instantiate count-specific code, or authorize runtime-sized inline
-stack storage. A `const` binder still requires static knowledge. Existing
+stack storage — that stays a bounded claim under
+[runtime-sized activation storage](../resources/activation_storage.md), including
+when the buffer's realization is activation-local. A `const` binder still requires
+static knowledge. Existing
 const-indexed domain families retain their declared binding time; runtime-capable
 indices do not reinterpret them or turn arbitrary runtime data into nominal types.
 
