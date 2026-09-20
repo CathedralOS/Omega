@@ -47,6 +47,7 @@ pub use proofs::content_conservation::{
     LoweredContentPartitionComposition, LoweredContentPartitionCompositions,
 };
 pub use proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
+pub use proofs::quotient_correspondence::install_non_executable_quotient_correspondences;
 
 #[cfg(test)]
 mod tests;

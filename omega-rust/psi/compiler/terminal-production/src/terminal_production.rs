@@ -1,7 +1,7 @@
 use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
 use checked_trees_to_lowered_psi::{
-    LoweringError, lower_machine, lower_machine_by_symbol, select_terminal_machine,
-    select_terminal_machine_by_symbol,
+    LoweringError, install_non_executable_quotient_correspondences, lower_machine,
+    lower_machine_by_symbol, select_terminal_machine, select_terminal_machine_by_symbol,
 };
 use lowered_psi::{
     LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
@@ -590,13 +590,31 @@ impl<'a> TerminalProductionRequest<'a> {
     fn lower_and_optimize(
         self,
     ) -> Result<PsiOptimizationStageResult, TerminalArtifactProductionError> {
-        let lowered = match self.machine {
+        let mut lowered = match self.machine {
             TerminalMachineSelection::Name(name) => lower_machine(self.checked, name),
             TerminalMachineSelection::Symbol(machine) => {
                 lower_machine_by_symbol(self.checked, machine)
             }
         }
         .map_err(TerminalArtifactProductionError::Lowering)?;
+        // Retained quotient correspondences are proof-only module identity: the
+        // all-or-nothing batch rederives from the same typed program the
+        // selection lowered, and rows install before optimization so every
+        // later pass and the codec see them. While checked validation still
+        // rejects every quotient request upstream this batch is empty and
+        // production is unchanged; the route carries the rows once the
+        // checked-side admission lands (QUOTIENT-THEOREM-LIFT).
+        let batch =
+            validation::extract_non_executable_quotient_correspondences(&self.checked.typed)
+                .map_err(|diagnostics| {
+                    TerminalArtifactProductionError::Lowering(
+                        LoweringError::InvalidQuotientCorrespondence(
+                            diagnostics.iter().map(ToString::to_string).collect(),
+                        ),
+                    )
+                })?;
+        install_non_executable_quotient_correspondences(batch, &mut lowered.semantic_module)
+            .map_err(TerminalArtifactProductionError::Lowering)?;
         run_psi_optimization(lowered, self.optimization_selections)
             .map_err(TerminalArtifactProductionError::Optimization)
     }
@@ -670,4 +688,42 @@ fn checked_boundary_operator_scope(
 ) -> Result<CheckedBoundaryOperatorApplicationScope, LoweringError> {
     lowered_psi_to_terminal_psi::checked_boundary_operator_scope(checked, artifact, lowered)
         .map_err(LoweringError::Unsupported)
+}
+
+#[cfg(test)]
+mod tests {
+    use checked_trees::CheckedTrees;
+
+    use crate::TerminalProductionRequest;
+
+    fn check_source(source: &str) -> CheckedTrees {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .unwrap();
+        let typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        typed_trees_to_checked_trees::lower_typed_trees(typed).unwrap()
+    }
+
+    /// Production lowering runs the correspondence retention route: the batch
+    /// is extracted from the checked program's typed trees and installed on
+    /// the module the artifact publishes. Ordinary programs produce an empty
+    /// batch, so the published module carries no quotient rows and still
+    /// decodes to identical identity.
+    #[test]
+    fn production_installs_the_extracted_quotient_correspondence_batch() {
+        let checked = check_source(
+            "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let produced = TerminalProductionRequest::new(&checked, "Main::run")
+            .produce_program_entry([7; 32])
+            .unwrap();
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        assert!(module.quotient_correspondences.is_empty());
+    }
 }
