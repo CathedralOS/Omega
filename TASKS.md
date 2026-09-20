@@ -6866,7 +6866,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOFS-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; verify scope then implement.
 - **PSI-DOMAIN-FACT-SELECTION-COVERAGE** — mined candidate; verify scope then implement.
-- **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN** — mined candidate; verify scope then implement.
+- **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN.** Resolved — the custody join for
+  fresh (per-edge constructed) selection results is already implemented and
+  pinned. `checks/multiplicity/claim_outcomes.rs`
+  `claim_outcomes_for_owned_selection` mints the fresh product's claim inside
+  the selection as `Established{claim_identity: Unknown, provenance:
+  Unknown}` — its origin intentionally untracked — while parameter sources
+  bind the caller's claim at the exact input path and local sources publish
+  the established roster identity. `checks/multiplicity/owned_selection.rs`
+  completes the join rules: a linear join whose edges all move the same
+  consumed claim hands that claim (identity + provenance) to the
+  destination; a fresh per-edge product, a distinct source on any arm, or a
+  claimless leaf leaves the claim edge-dependent — no identity is minted
+  implicitly. Pinned by `claim_outcomes/joins/tests.rs`:
+  `conditional_result_join_binds_constructed_argument_fields` (typed
+  constructor paths retain actual source claims) and the
+  "forwarding and fresh construction remain distinct origins" control.
+  Related but separate surfaces: premise origins for constructed results are
+  TPR6's progress surface, and static constructor matching is
+  MATHEMATICAL-PREDICATE-PARAMETERS's remaining work — neither is this row's
+  seam.
 - **PSI-HOSTED-ENTRY-RECEIVER-PROVISIONING.** Done (linux x86-64 witnessed): respelled the hosted-receiver provisioning canaries off the closed `in Bound` carrier qualification — the core `Service` carrier admits no authored qualification, so `Service<Console>` alone denotes the toolchain service era — and re-pinned the bare-interface rejections on the moved check-stage diagnostic ("the intrinsic `Service<R>` carrier is the only service value spelling"). `select_provider` operands now spell product-scope paths (`omega_language_std::Console` / `omega_language_std::ConsoleNativeProvider`); the same respell was applied to `tests/omega/pass/expressions/runtime_float_receiver_storage_exit/build.omg` under a companion fixture claim. hosted_receiver{,_linux,_linux_arm64} now pass their provisioning, explicit-exit, erased-receiver, record-array, float-leaf, and bare-interface legs; the linux x86-64 legs emit and execute real ELF artifacts (exit 37/0 + stdout "A" witnessed). Remaining: `hosted_receiver_windows.rs` carries the same stale spellings but sits under the RC-WINDOWS-X64-NATIVE-ROW claim; its windows legs and macOS/aarch64 execution legs remain host-gated.
 - **PSI-NATIVE-FIELD-STORES** — mined candidate; verify scope then implement.
   Verified scope: re-mines **STATE-LOCAL-VALUE-FRONTIER**'s field-store leg —
