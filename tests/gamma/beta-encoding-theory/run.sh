@@ -8,15 +8,24 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/evaluator_env.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/proofs/sources_env.sh"
 
+ENCODING_OUT=
 case "${1:-}" in
     '') ENCODING_GATE=gate.py ;;
     --subject-shape) ENCODING_GATE=subject_shape.py ;;
     --counter-cost) ENCODING_GATE=counter_cost.py ;;
     --full-subject) ENCODING_GATE=full_subject.py ;;
     --mutations) ENCODING_GATE=mutations.py ;;
-    *) echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations]" >&2; exit 2 ;;
+    --produce-request)
+        ENCODING_GATE=full_subject.py
+        ENCODING_OUT=${2:-}
+        [ "$ENCODING_OUT" != "" ] || { echo "run.sh --produce-request requires an output path" >&2; exit 2; }
+        ;;
+    *) echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations|--produce-request PATH]" >&2; exit 2 ;;
 esac
-[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations]" >&2; exit 2; }
+[ "$#" -le 1 ] || [ "$1" = "--produce-request" -a "$#" -eq 2 ] || {
+    echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject|--mutations|--produce-request PATH]" >&2
+    exit 2
+}
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Beta encoding theory: skipped (python3 absent)"
@@ -28,6 +37,9 @@ if [ "$ENCODING_GATE" = "full_subject.py" ]; then
     # theory and subject identities are the same pins the native gates use.
     require_beta_encoding_theory_identity
     require_gamma_evaluator_identity
+    if [ -n "$ENCODING_OUT" ]; then
+        exec python3 -B "$GATE_DIR/$ENCODING_GATE" --emit-request "$ENCODING_OUT"
+    fi
     exec python3 -B "$GATE_DIR/$ENCODING_GATE"
 fi
 case "$(uname -s)-$(uname -m)" in
