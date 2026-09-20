@@ -54,6 +54,92 @@ fn check_files(sources: &[(&str, &str)]) -> Result<(), String> {
     })
 }
 
+fn check_module_pair(selected: &str, foreign: &str, imports: &str) -> Result<(), String> {
+    let root = format!("{imports} pub machine identity(value: u8) -> u8 {{ value }}");
+    check_files(&[
+        ("main.omg", &root),
+        ("selected.omg", selected),
+        ("foreign.omg", foreign),
+    ])
+}
+
+#[test]
+fn dependent_field_declarations_require_the_selected_owners_integer_field() {
+    let foreign = "module foreign;
+        pub data Holder { limit: u64; }
+        pub machine Holder::read(&self, index: u64 [0..=self.limit]) -> u64 { index }";
+    for field in ["limit: bool;", "other: u64;", "limit: u64;"] {
+        let selected = format!(
+            "module selected;
+            pub data Holder {{ {field} }}
+            pub machine Holder::read(&self, index: u64 [0..=self.limit]) -> u64 {{ index }}"
+        );
+        for imports in ["use foreign; use selected;", "use selected; use foreign;"] {
+            let result = check_module_pair(&selected, foreign, imports);
+            if field == "limit: u64;" {
+                result.expect("each selected integer field establishes declaration eligibility");
+            } else {
+                let diagnostics = result.expect_err("a foreign field cannot validate this bound");
+                assert_eq!(
+                    diagnostics
+                        .matches("no integer field of that name exists")
+                        .count(),
+                    1,
+                    "only the invalid selected declaration should reject: {diagnostics}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn sibling_length_declarations_use_the_selected_machines_parameters() {
+    for (selected_type, foreign_type) in [("[u8; 4]", "u64"), ("u64", "[u8; 4]")] {
+        let declaration = |module, parameter_type| {
+            format!(
+            "module {module};
+            pub data Holder {{}}
+            pub machine Holder::read(&self, items: {parameter_type}, index: u64 [0..items.len]) -> u64 {{ index }}"
+        )
+        };
+        for imports in ["use foreign; use selected;", "use selected; use foreign;"] {
+            // Only the selected declaration uses the dependent maximum. The
+            // foreign machine supplies a same-spelled sibling with another type.
+            let foreign = format!(
+                "module foreign; pub data Holder {{}}
+                pub machine Holder::read(&self, items: {foreign_type}) -> u64 {{ 0 }}"
+            );
+            let result =
+                check_module_pair(&declaration("selected", selected_type), &foreign, imports);
+            if selected_type == "[u8; 4]" {
+                result.expect("the selected array parameter supplies its own length");
+            } else {
+                let diagnostics =
+                    result.expect_err("a foreign array cannot provide sibling length");
+                assert!(
+                    diagnostics.contains("no slice or fixed-array parameter"),
+                    "{diagnostics}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn scoped_parameter_return_and_local_bounds_keep_their_machine_owner() {
+    let selected = "module selected; pub data Holder {}
+        pub machine Holder::read(&self, limit: u64, index: u64 [0..=limit]) -> u64 [0..=limit] {
+            let copy: u64 [0..=limit] = 0;
+            copy
+        }";
+    let foreign = "module foreign; pub data Holder {}
+        pub machine Holder::read(&self, limit: bool) -> u64 { 0 }";
+    for imports in ["use foreign; use selected;", "use selected; use foreign;"] {
+        check_module_pair(selected, foreign, imports)
+            .expect("scoped bounds retain the selected parameter symbols through every owner kind");
+    }
+}
+
 #[test]
 fn dependent_receiver_bounds_use_the_selected_declaration_in_either_import_order() {
     for (selected_limit, foreign_limit) in [(3, 4), (4, 3)] {
@@ -69,12 +155,7 @@ fn dependent_receiver_bounds_use_the_selected_declaration_in_either_import_order
             pub data Holder {{ limit: u64 [0..={foreign_limit}]; values: [u8; 4]; }}"
         );
         for imports in ["use foreign; use selected;", "use selected; use foreign;"] {
-            let root = format!("{imports} pub machine identity(value: u8) -> u8 {{ value }}");
-            let result = check_files(&[
-                ("main.omg", &root),
-                ("selected.omg", &selected),
-                ("foreign.omg", &foreign),
-            ]);
+            let result = check_module_pair(&selected, &foreign, imports);
             if selected_limit == 3 {
                 result.expect("the selected declaration bounds every index below four");
             } else {

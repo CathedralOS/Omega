@@ -730,7 +730,7 @@ fn proof_fact_machine_name(owner: ProofFactOwner<'_>) -> Option<&str> {
         ProofFactOwner::StateSignatureContract {
             owner: StateSignatureOwner::Machine(machine),
             ..
-        } => Some(machine),
+        } => Some(machine.name.as_str()),
         ProofFactOwner::DataDefaultDomain(_)
         | ProofFactOwner::Domain(_)
         | ProofFactOwner::StateSignatureContract { .. } => None,

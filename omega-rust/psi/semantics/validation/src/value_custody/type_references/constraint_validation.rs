@@ -495,7 +495,7 @@ fn dependent_state_parameter_range_error(
         end_inclusive,
     ) {
         let TypeReferenceOwner::StateParameter {
-            owner: StateSignatureOwner::Machine(machine_name),
+            owner: StateSignatureOwner::Machine(machine),
             state: state_name,
             ..
         } = owner
@@ -510,17 +510,10 @@ fn dependent_state_parameter_range_error(
             ));
         }
         let sibling_is_sliceable = program
-            .machines()
+            .machine_states(machine)
             .iter()
-            .find(|machine| machine.name.as_str() == *machine_name)
-            .and_then(|machine| {
-                program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|state| state.name.as_str() == *state_name)
-                    .map(|state| (machine, state))
-            })
-            .is_some_and(|(_, state)| {
+            .find(|state| state.name.as_str() == *state_name)
+            .is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.name.as_str() == sibling.sibling.as_str()
                         && parameter.type_reference.is_valid()
@@ -560,50 +553,32 @@ fn dependent_state_parameter_range_error(
         return Some(generic());
     };
     let TypeReferenceOwner::StateParameter {
-        owner: StateSignatureOwner::Machine(machine_name),
+        owner: StateSignatureOwner::Machine(machine),
         ..
     } = owner
     else {
         return Some(generic());
     };
-    let field_is_dischargeable = program
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == *machine_name)
-        .and_then(|machine| machine.attached_data.as_ref())
-        .and_then(|attached| {
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| data.name.as_str() == attached.as_str())
-        })
-        .and_then(|data| {
-            program
-                .data_members(data)
-                .iter()
-                .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(field)
-                        if field.name.as_str() == symbolic.field.as_str() =>
-                    {
-                        field
-                            .type_reference
-                            .is_valid()
-                            .then_some(field.type_reference)
-                    }
-                    _ => None,
-                })
-        })
-        .is_some_and(|field_type| {
-            // The field must EXIST and be an integer primitive. A LITERAL
-            // range on it is NOT required: the guard route discharges
-            // rangeless fields at every call site (`arg < self.rows`); the
-            // floor route and the callee substitution simply contribute
-            // nothing for a rangeless field (both are None-safe), and the
-            // R3 product rule supplies bounds through couplings instead.
-            crate::value_custody::places::unwrapped_type_reference(program, field_type)
-                .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
-                .is_some_and(|primitive| primitive.accepts_integer_literal())
-        });
+    // The signature's owner is already resolved. Recover the field only
+    // within that exact attached declaration; another same-named machine or
+    // data declaration cannot establish this bound's integer eligibility.
+    let field_is_dischargeable = crate::exact_attached_field(
+        program,
+        machine,
+        symbols::SymbolHandle::invalid(),
+        symbolic.field.as_str(),
+    )
+    .is_some_and(|field| {
+        // The field must EXIST and be an integer primitive. A LITERAL
+        // range on it is NOT required: the guard route discharges
+        // rangeless fields at every call site (`arg < self.rows`); the
+        // floor route and the callee substitution simply contribute
+        // nothing for a rangeless field (both are None-safe), and the
+        // R3 product rule supplies bounds through couplings instead.
+        crate::value_custody::places::unwrapped_type_reference(program, field.type_reference)
+            .and_then(|unwrapped| program.primitive_type_reference(unwrapped))
+            .is_some_and(|primitive| primitive.accepts_integer_literal())
+    });
     if !field_is_dischargeable {
         return Some(format!(
             "{owner} declares a dependent maximum naming `self.{}`, but no integer field of \
@@ -630,25 +605,25 @@ fn scoped_maximum_error(
             "{owner} declares a range maximum that is not a name"
         ));
     };
-    let (machine_name, state_name, local_name, generic_depth) = match owner {
+    let (machine, state_name, local_name, generic_depth) = match owner {
         TypeReferenceOwner::StateParameter {
-            owner: StateSignatureOwner::Machine(machine_name),
+            owner: StateSignatureOwner::Machine(machine),
             state: state_name,
             generic_depth,
             ..
         }
         | TypeReferenceOwner::StateReturn {
-            owner: StateSignatureOwner::Machine(machine_name),
+            owner: StateSignatureOwner::Machine(machine),
             state: state_name,
             generic_depth,
             ..
-        } => (*machine_name, *state_name, None, *generic_depth),
+        } => (*machine, *state_name, None, *generic_depth),
         TypeReferenceOwner::StateLocalData {
-            machine: machine_name,
+            machine,
             state: state_name,
             local,
             generic_depth,
-        } => (*machine_name, *state_name, Some(*local), *generic_depth),
+        } => (*machine, *state_name, Some(*local), *generic_depth),
         _ => {
             return Some(format!(
                 "{owner} declares a range whose bound names a value; a scope-named maximum \
@@ -663,15 +638,9 @@ fn scoped_maximum_error(
         ));
     }
     let Some(state) = program
-        .machines()
+        .machine_states(machine)
         .iter()
-        .find(|machine| machine.name.as_str() == machine_name)
-        .and_then(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.name.as_str() == state_name)
-        })
+        .find(|state| state.name.as_str() == state_name)
     else {
         return Some(format!(
             "{owner} declares a scope-named maximum, but state `{state_name}` is not declared"

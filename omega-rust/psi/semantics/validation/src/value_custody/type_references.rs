@@ -51,7 +51,7 @@ pub(crate) enum TypeReferenceOwner<'program> {
         generic_depth: usize,
     },
     StateLocalData {
-        machine: &'program str,
+        machine: &'program typed_trees::machine::Machine,
         state: &'program str,
         local: &'program str,
         generic_depth: usize,
@@ -263,7 +263,8 @@ impl fmt::Display for TypeReferenceOwner<'_> {
             } => {
                 write!(
                     formatter,
-                    "machine `{machine}` state `{state}` local data `{local}`"
+                    "machine `{}` state `{state}` local data `{local}`",
+                    machine.name
                 )?;
                 *generic_depth
             }

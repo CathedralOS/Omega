@@ -1,3 +1,7 @@
+//! Signature validation keeps the owning machine through nested type checks.
+//! Its display name is diagnostic metadata: declarations in separate modules
+//! may share it, so dependent bounds must use the retained owner directly.
+
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::value_custody::type_references::{
@@ -59,7 +63,7 @@ pub(crate) fn validate_callable_state_signatures(
             program,
             symbols,
             diagnostics,
-            StateSignatureOwner::Machine(machine.name.as_str()),
+            StateSignatureOwner::Machine(machine),
             &type_parameters,
             &lifetime_parameters,
         );
@@ -136,7 +140,7 @@ struct StateSignatureView<'program> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum StateSignatureOwner<'program> {
-    Machine(&'program str),
+    Machine(&'program Machine),
     Trait(&'program str),
     Requirement(&'program str),
 }
@@ -144,7 +148,7 @@ pub(crate) enum StateSignatureOwner<'program> {
 impl fmt::Display for StateSignatureOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Machine(machine) => write!(formatter, "machine `{machine}`"),
+            Self::Machine(machine) => write!(formatter, "machine `{}`", machine.name),
             Self::Trait(trait_definition) => write!(formatter, "trait `{trait_definition}`"),
             Self::Requirement(parameter) => {
                 write!(formatter, "machine-parameter requirement `{parameter}`")

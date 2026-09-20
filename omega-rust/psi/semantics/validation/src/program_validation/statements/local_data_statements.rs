@@ -61,7 +61,7 @@ pub(super) fn validate(
         symbols,
         diagnostics,
         TypeReferenceOwner::StateLocalData {
-            machine: machine.name.as_str(),
+            machine,
             state: state_name,
             local: local_data.name.as_str(),
             generic_depth: 0,
