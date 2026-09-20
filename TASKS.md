@@ -7063,7 +7063,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GAMMA-CONTAINER-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **GAMMA-DERIVATION-CHECKER** — mined candidate; verify scope then implement.
 - **GAMMA-NATIVE-CERTIFICATE-ACCEPTANCE** — mined candidate; verify scope then implement.
-- **GAMMA-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; verify scope then implement.
+- **GAMMA-NATIVE-CONTAINER-ACCEPTANCE.** Resolved — sibling stub of
+  GAMMA-CERT-NATIVE-CONTAINERS: the gamma native-container acceptance surface
+  already landed at `7a29238279` (`tests/gamma/seed-native-acceptance`), which
+  binds the canonical evaluator source/tape identities, stamps the shipped
+  evaluator tape into both audited Alpha seeds through the real materializer,
+  and verifies the native-container contract host-free. Re-verified green on
+  linux x86-64 at `4e523615fe` (`sh tests/gamma/seed-native-acceptance/run.sh`
+  — identity bound, stamped elf/pe/macho containers all accepted, native
+  execution receipt byte-exact). Remaining seed-execution coverage is
+  host-gated to macOS arm64 + Windows x64 seed hosts as recorded on the parent
+  row. No independent slice exists. Sibling re-mines of this gate's surface:
+  GAMMA-CERTIFICATE-NATIVE-ACCEPTANCE, GAMMA-CONTAINER-NATIVE-ACCEPTANCE,
+  GAMMA-PROVISION-NATIVE-ACCEPTANCE.
 - **GAMMA-PROVISION-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **GATE-LOCAL-DRIVER-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **GATE-LOCAL-PREFIX-BINDING** — mined candidate; scope verified, residual
