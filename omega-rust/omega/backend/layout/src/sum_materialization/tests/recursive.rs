@@ -2085,3 +2085,67 @@ fn recursive_record_path_carries_a_closed_generic_instance_interior() {
         .expect("retained custody replays into a destination");
     assert_eq!(destination.as_slice(), custody.bytes());
 }
+
+#[test]
+fn open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner() {
+    // The residual non-literal-length fence is a design boundary, not a
+    // missing case: `ConstParameter`/`ConstCall` lengths only exist inside
+    // unapplied templates, and `build_layout_plan` never lays a template out —
+    // there is no runtime layout a passed count could describe. Every
+    // concrete use synthesizes a closed instance (`Mid<3>` below) whose
+    // substituted members already carry `Literal` lengths.
+    let checked = checked_generic(
+        "data Event [copy] { case Idle; case Hit(code: u64); }
+         data Log<const N: u64> [copy] { events: [Event; N]; }
+         data Mid<const K: u64> [copy] { slot: Log<K>; }
+         data Root [copy] { mid: Mid<3>; marker: u64; }",
+    );
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    // `Log<const N>`'s `events` length is a parameter; the open template has
+    // no layout row and no bindings channel exists to name one.
+    for template_name in ["Log", "Mid"] {
+        let template = checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == template_name)
+            .unwrap();
+        let error = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+            &checked,
+            &plan,
+            template.symbol,
+        )
+        .expect_err("an unapplied template stays fenced");
+        assert!(
+            error
+                .message
+                .contains("must be one closed non-generic `[copy]` record"),
+            "{template_name}: {error:?}"
+        );
+    }
+    // `Mid`'s template member `slot: Log<K>` is a `Generic` application whose
+    // argument is still `ConstParameter K`; it never reaches the recursion
+    // because the owner fence fires first — and no `Log<K>` definition exists
+    // for it to name even if the owner were admitted.
+    let mid = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Mid")
+        .unwrap();
+    let TypeReferenceNode::Generic { .. } = checked
+        .data_members(mid)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
+        })
+        .next()
+        .map(|field| {
+            checked
+                .type_reference_table
+                .type_reference(field.type_reference)
+        })
+        .expect("the template member spells a generic application")
+    else {
+        panic!("the open template's member stays an unapplied `Generic` reference")
+    };
+}
