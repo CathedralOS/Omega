@@ -26,7 +26,7 @@ data Worker {}
 machine Worker::finish(
     &mut self,
     claim: ProviderView in ProviderView::Live
-) {
+) reaches ForeignStorage {
     let view: &[u8] = ForeignStorage::view(&claim);
     observe(view);
     ForeignStorage::invalidate(move claim);
