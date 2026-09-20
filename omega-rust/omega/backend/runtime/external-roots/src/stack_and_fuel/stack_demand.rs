@@ -1171,26 +1171,26 @@ mod deriver_stub_tests {
     use std::collections::BTreeSet;
 
     use super::{
-        bind_installed_deriver_stub_entry_stack, bind_installed_entry_stack, ProviderStackSummary,
-        X86_64DeriverStubEntryEmission,
+        ProviderStackSummary, X86_64DeriverStubEntryEmission,
+        bind_installed_deriver_stub_entry_stack, bind_installed_entry_stack,
     };
     use crate::tests::{installed_code_in_placement, root_id};
     use crate::{
+        ArrivalStackRealizationOrigin, ExternalRootId, NestingRelationId, RootProviderId,
+        StackDomain, StackNestingRelation, X86_64GateProfileValidationReceiptId,
         bind_x86_64_target_direct_entry_stack_realization, compose_bound_entry_stack_epochs,
         produce_x86_64_installed_hardware_entry_facts,
-        validate_x86_64_installed_gate_profile_roster, ArrivalStackRealizationOrigin,
-        ExternalRootId, NestingRelationId, RootProviderId, StackDomain, StackNestingRelation,
-        X86_64GateProfileValidationReceiptId,
+        validate_x86_64_installed_gate_profile_roster,
     };
     use calling_conventions::{
-        derive_x86_64_entry_exit_stub, evaluate_call_plan, validate_boundary_entry_plan,
         ArrivalContextId, BoundaryEntryPlan, CallSignature, CallingPolicy, EntryControl,
         EntryStack, MachineRegime, MachineState, MachineStateSet, Preemption, RegisterSet,
         StatePlan, ValidatedBoundaryEntryPlan, ValidatedX86_64DeriverStub, ValueShape,
         X86_64ArrivalMechanism, X86_64GateKind, X86_64InstalledGateArrival,
         X86_64InstalledGateRealization, X86_64InstalledGateTssRealization,
         X86_64InstalledInterruptStack, X86_64InstalledPrivilegeStack,
-        X86_64InstalledTaskStateSegmentRealization,
+        X86_64InstalledTaskStateSegmentRealization, derive_x86_64_entry_exit_stub,
+        evaluate_call_plan, validate_boundary_entry_plan,
     };
     use executable_installation::InstalledCode;
     use installation_evidence::{ObjectEvidence, StackDemandEvidence};

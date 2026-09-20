@@ -466,8 +466,9 @@ fn blocking_executor_isolated_provider_conformance_binds_the_inherited_row() {
     // `WorkerProvider::execute` row — the fixture binds it by reference to
     // the satisfies-clause realization, and the incomplete-conformance twin
     // (FAIL_CANARIES) pins the missing-row rejection.
-    let pass =
-        pass_canary(fixture_roster::BLOCKEXEC_BLOCKING_EXECUTOR_ISOLATED_PROVIDER_CONFORMANCE_COMPILE);
+    let pass = pass_canary(
+        fixture_roster::BLOCKEXEC_BLOCKING_EXECUTOR_ISOLATED_PROVIDER_CONFORMANCE_COMPILE,
+    );
     let root = pass.join("main.omg");
     let package_inputs =
         depend_edge_package_inputs(&root).expect("the depend edge wires package inputs");

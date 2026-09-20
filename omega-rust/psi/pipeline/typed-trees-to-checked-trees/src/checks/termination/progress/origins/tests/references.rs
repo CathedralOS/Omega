@@ -334,7 +334,13 @@ fn shared_reference_local_loads_a_helper_returned_leaf() {
 fn shared_reference_binding_from_an_indexed_carrier_leaf_derives_the_element_store() {
     for (index, expected) in [
         ("0", ("context", &[("Context", "scheduler")][..])),
-        ("1", ("holder", &[("Holder", "view"), ("Context", "scheduler")][..])),
+        (
+            "1",
+            (
+                "holder",
+                &[("Holder", "view"), ("Context", "scheduler")][..],
+            ),
+        ),
     ] {
         let fixture = Fixture::with_machines(
             &format!(
