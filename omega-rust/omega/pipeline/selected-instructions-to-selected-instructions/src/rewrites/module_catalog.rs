@@ -174,16 +174,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        // The flag on EXACT-MACHINE-SIMPLIFICATIONS moves the folds that
-        // duplicate cataloged pair rules to candidate nomination here.
-        module: "literal_arithmetic",
-        route: RewriteModuleRoute::Orphaned("DECLARATIVE-PEEPHOLES"),
-    },
-    RewriteModuleRow {
-        module: "literal_compare",
-        route: RewriteModuleRoute::Orphaned("DECLARATIVE-PEEPHOLES"),
-    },
-    RewriteModuleRow {
         module: "literal_folds",
         // The selected-lowering executor: `run_selected_lowering_
         // optimizations` is the only rewrite the stage entrance runs.
