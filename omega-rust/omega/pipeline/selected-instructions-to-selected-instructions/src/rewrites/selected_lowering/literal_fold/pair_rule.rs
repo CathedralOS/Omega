@@ -30,8 +30,8 @@
 //! dropped `Use` proven to read only a zero materialization — at the
 //! right `Use` position or, under the annihilator, zero-dividend, and
 //! zero-minuend grammars, the left one. The surviving-`Use` grammars also carry a
-//! scratch-tail form — [`PairOperandShape::BinaryRightLiteralScratchDefs`]
-//! and [`PairOperandShape::BinaryLeftLiteralScratchDefs`] — for a consumer
+//! scratch-tail form — [`PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS`]
+//! and [`PairOperandShape::BINARY_LEFT_LITERAL_SCRATCH_DEFS`] — for a consumer
 //! whose operand list continues past its `Def` result with scratch outputs
 //! the fold drops under occurrence-free custody: the clamped saturating-add
 //! rows carry such a bound scratch at operand 3. Beyond the
@@ -888,19 +888,152 @@ fn swapped_unit_readers_equality_only(
     true
 }
 
-/// Where the folded literal sits in the consumer's operand list, and therefore
-/// what shape the rewritten constraint row carries.
+/// The consumer operand grammar of a pair rule, declared as a composition
+/// of three independent axes rather than one variant per combination.
 ///
-/// The producer admits the operand arrangement matching this declared grammar
-/// instead of inferring it from operand counts; the independent validator
-/// re-derives the same distinction from the consumer kind alone.
+/// The axes are [`PairLiteralPosition`] — which `Use` operand the folded
+/// literal occupies — [`PairOperandResult`] — what the rewritten form's
+/// result channel computes relative to the non-victim operands — and
+/// [`PairTailCustody`] — the custody contract for consumer operands past
+/// the scalar `Def` result. A new grammar is an axis tuple (one of the
+/// associated constants below, or an inline struct literal when a family
+/// composes axes no constant names yet), not a new enum variant, policy
+/// bit, or validator shape: admission is the conjunction of the per-axis
+/// gates the compute leg reads. The producer admits the operand
+/// arrangement matching this declared grammar instead of inferring it
+/// from operand counts; the independent validator re-derives the same
+/// distinction from the consumer kind alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PairOperandShape {
+pub struct PairOperandShape {
+    /// Which `Use` operand of the consumer is the folded literal, and
+    /// which operand — if any — survives the fold.
+    pub position: PairLiteralPosition,
+    /// What the rewritten form's result channel computes relative to the
+    /// non-victim operands.
+    pub result_kind: PairOperandResult,
+    /// The custody contract for consumer operands past the scalar `Def`
+    /// result.
+    pub tail: PairTailCustody,
+}
+
+/// Which `Use` operand of the consumer is the folded literal.
+///
+/// The position fixes the victim index every gate shares — the compute
+/// leg reads it directly rather than re-deriving it per grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairLiteralPosition {
+    /// Binary consumer: the literal victim is the right `Use` operand
+    /// (operand index 1); operand 0 is the other register input.
+    RightOperand,
+    /// Binary consumer: the literal victim is the left `Use` operand
+    /// (operand index 0); operand 1 is the other register input.
+    ///
+    /// For a [`PairOperandResult::SurvivingOperand`] grammar, declaring
+    /// the left position additionally attests that the fold computes the
+    /// same value under operand exchange: the immediate form encodes
+    /// `surviving <op> literal` — and the xor-zero and wrapping-add-zero
+    /// identity copies bind `surviving` unchanged, which `0 ^ x` and
+    /// `x ^ 0` — likewise `0 + x` and `x + 0` — share — so only an
+    /// operation exact under commutation may declare it. Exact addition,
+    /// bitwise xor, wrapping addition, and the byte-view projection's
+    /// modular address addition commute; subtraction and comparison fix
+    /// the literal's role, so only those families declare a left-literal
+    /// pair. For a [`PairOperandResult::ConstantOfLiteral`] grammar the
+    /// position attests nothing about commutation — the operand-0 literal
+    /// alone fixes the result (`0 & x` is zero for every `x` under the
+    /// bitwise-and annihilator; `0 % x` is zero for every `x` the
+    /// remainder's proven nonzero divisor admits).
+    LeftOperand,
+    /// Unary consumer: the literal victim is the sole `Use` operand
+    /// (operand index 0).
+    SoleOperand,
+}
+
+/// What the rewritten form's result channel computes relative to the
+/// non-victim operands — the axis that decides which inputs the fold
+/// still observes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairOperandResult {
+    /// The non-victim `Use` operand survives into the rewritten row and
+    /// produces the result: the immediate-form binary arithmetic and
+    /// compare grammars.
+    SurvivingOperand,
+    /// The literal alone fixes the folded result — a constant the
+    /// rewritten form embeds regardless of the non-victim operand's
+    /// value: `x % 1` is zero for every `x`, `0 & x` is zero for every
+    /// `x`. The non-victim `Use` drops because the constant result never
+    /// reads it, and its register carries no custody requirement beyond
+    /// that inertness.
+    ConstantOfLiteral,
+    /// The consumer's result channel is implicit units and the rewritten
+    /// row binds the non-victim `Use` under a reversed operand order —
+    /// `literal - x` becomes `x - literal` under the left-literal
+    /// compare. Declaring this axis value attests only that the swapped
+    /// result channel preserves the equality predicate while inverting
+    /// every ordering predicate; the companion
+    /// [`OperandSwappedUnitDefs`](PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS)
+    /// relationship's record-level reader audit decides whether the
+    /// inversion is observable. Only a consumer whose output is the
+    /// condition state may declare it — a scalar `Def` result would carry
+    /// the inverted subtraction to every register reader with no audit
+    /// to refuse it.
+    SwappedOperand,
+    /// Unary consumer whose rewritten form recomputes a constant output
+    /// from the literal itself — the extension-elimination and
+    /// copy-materialization rules whose rewritten form is a
+    /// `MaterializeI64`. Unlike
+    /// [`ConstantOfLiteral`](Self::ConstantOfLiteral), the embedded
+    /// payload is derived from the literal's value (the extension's exact
+    /// output bits), not a constant the identity fixes.
+    LiteralRecompute,
+}
+
+/// The custody contract for consumer operands past the scalar `Def`
+/// result — every operand the fold drops must be inert under one of
+/// these custodies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PairTailCustody {
+    /// The operand list ends at the result; the fold drops nothing.
+    Bare,
+    /// Every operand past the result is a `Use` the fold drops under
+    /// zero-provenance custody: each dropped register must be defined in
+    /// the same function only by `MaterializeI64` instructions producing
+    /// `Unsigned(0)` — the zeroed high-half input an x86-64 `div`
+    /// realization requires, which a divide by one leaves dead. An
+    /// operand that is not a dropped `Use` — a `Def`, or a `Use` whose
+    /// register is defined any other way — rejects: dropping it would
+    /// silently discard a value the consumer observed.
+    AuxiliaryUses,
+    /// Every operand past the result is a `Def` scratch output the fold
+    /// drops under occurrence-free custody: each dropped register must
+    /// occur nowhere else in the function — a scratch output another
+    /// instruction read or defined would leave a use of a register the
+    /// rewrite stopped defining. The bound scratch a clamped saturating
+    /// realization computes its saturation bound through is the
+    /// representative.
+    ScratchDefs,
+    /// A mixed drop tail: each operand past the result drops under the
+    /// custody its own access declares — a `Use` under the
+    /// zero-provenance custody [`AuxiliaryUses`](Self::AuxiliaryUses)
+    /// requires, a `Def` under the occurrence-free custody
+    /// [`ScratchDefs`](Self::ScratchDefs) requires. The zeroed high-half
+    /// dividend an x86-64 `div`/`idiv` realization reads and the bound
+    /// scratch `Def` an aarch64 clamped signed-divide realization writes
+    /// coexist in the same tail. A `UseDef` operand names neither
+    /// custody and rejects.
+    AuxiliaryUsesOrScratchDefs,
+}
+
+impl PairOperandShape {
     /// Binary consumer: the literal victim is the right `Use` operand
     /// (operand index 1) and the left `Use` operand survives into the
     /// rewritten instruction — the immediate-form binary arithmetic and
     /// compare rules.
-    BinaryRightLiteral,
+    pub const BINARY_RIGHT_LITERAL: Self = Self {
+        position: PairLiteralPosition::RightOperand,
+        result_kind: PairOperandResult::SurvivingOperand,
+        tail: PairTailCustody::Bare,
+    };
     /// Commutative binary consumer: the literal victim is the left `Use`
     /// operand (operand index 0) and the right `Use` operand survives into
     /// the rewritten instruction's `Use` position. Declaring this shape
@@ -913,7 +1046,11 @@ pub enum PairOperandShape {
     /// the byte-view projection's modular address addition commute;
     /// subtraction and comparison fix the literal's role, so
     /// only those families declare a left-literal pair.
-    BinaryLeftLiteral,
+    pub const BINARY_LEFT_LITERAL: Self = Self {
+        position: PairLiteralPosition::LeftOperand,
+        result_kind: PairOperandResult::SurvivingOperand,
+        tail: PairTailCustody::Bare,
+    };
     /// Binary left-literal consumer whose result channel is implicit
     /// units and whose operands do *not* commute: the literal victim is
     /// the operand-0 `Use`, the operand-1 `Use` survives into the
@@ -929,13 +1066,21 @@ pub enum PairOperandShape {
     /// condition state may declare it — a scalar `Def` result would carry
     /// the inverted subtraction to every register reader with no audit
     /// to refuse it.
-    BinaryLeftLiteralOperandSwap,
+    pub const BINARY_LEFT_LITERAL_OPERAND_SWAP: Self = Self {
+        position: PairLiteralPosition::LeftOperand,
+        result_kind: PairOperandResult::SwappedOperand,
+        tail: PairTailCustody::Bare,
+    };
     /// Unary consumer: the literal victim is the sole `Use` operand (operand
     /// index 0). The rewritten instruction consumes no register input — the
     /// fold recomputes the consumer's constant output directly, as in the
     /// extension-elimination and copy-materialization rules whose rewritten
     /// form is a `MaterializeI64`.
-    UnaryLiteral,
+    pub const UNARY_LITERAL: Self = Self {
+        position: PairLiteralPosition::SoleOperand,
+        result_kind: PairOperandResult::LiteralRecompute,
+        tail: PairTailCustody::Bare,
+    };
     /// Binary right-literal consumer whose operand list continues past its
     /// scalar `Def` result: the literal victim is the operand-1 `Use`,
     /// operand 0 is the surviving `Use`, operand 2 is the `Def` result, and
@@ -947,7 +1092,11 @@ pub enum PairOperandShape {
     /// realization requires, which a divide by one leaves dead. An operand
     /// that is not a dropped `Use` — a `Def`, or any operand at position 0
     /// through 2 outside this grammar — rejects.
-    BinaryRightLiteralAuxiliaryUses,
+    pub const BINARY_RIGHT_LITERAL_AUXILIARY_USES: Self = Self {
+        position: PairLiteralPosition::RightOperand,
+        result_kind: PairOperandResult::SurvivingOperand,
+        tail: PairTailCustody::AuxiliaryUses,
+    };
     /// Binary right-literal consumer whose folded result is a constant of
     /// the literal alone: the literal victim is the operand-1 `Use`,
     /// operand 0 is a `Use` the fold drops because the constant result
@@ -961,15 +1110,19 @@ pub enum PairOperandShape {
     /// operand that is not in its declared position and access — a `Use`
     /// past the result, or any operand at positions 0 through 2 outside
     /// this grammar — rejects.
-    BinaryRightLiteralConstantResult,
+    pub const BINARY_RIGHT_LITERAL_CONSTANT_RESULT: Self = Self {
+        position: PairLiteralPosition::RightOperand,
+        result_kind: PairOperandResult::ConstantOfLiteral,
+        tail: PairTailCustody::ScratchDefs,
+    };
     /// Binary left-literal consumer whose folded result is a constant of
     /// the literal alone: the literal victim is the operand-0 `Use`,
     /// operand 1 is a `Use` the fold drops because the constant result
     /// never reads it, operand 2 is the `Def` result, and every operand
     /// past the result is a `Def` scratch output the fold drops under the
     /// same occurrence-free custody
-    /// [`BinaryRightLiteralConstantResult`](Self::BinaryRightLiteralConstantResult)
-    /// declares. Unlike [`BinaryLeftLiteral`](Self::BinaryLeftLiteral),
+    /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](Self::BINARY_RIGHT_LITERAL_CONSTANT_RESULT)
+    /// declares. Unlike [`BINARY_LEFT_LITERAL`](Self::BINARY_LEFT_LITERAL),
     /// declaring this shape attests nothing about commutation: the
     /// rewritten constant must be exact regardless of the dropped
     /// operand-1 value — `0 & x` is zero for every `x`, because zero is
@@ -980,14 +1133,18 @@ pub enum PairOperandShape {
     /// not in its declared position and access — a `Use` past the result,
     /// or any operand at positions 0 through 2 outside this grammar —
     /// rejects.
-    BinaryLeftLiteralConstantResult,
+    pub const BINARY_LEFT_LITERAL_CONSTANT_RESULT: Self = Self {
+        position: PairLiteralPosition::LeftOperand,
+        result_kind: PairOperandResult::ConstantOfLiteral,
+        tail: PairTailCustody::ScratchDefs,
+    };
     /// Binary left-literal consumer whose folded result is a constant of
     /// the literal alone and whose operand list continues past its scalar
     /// `Def` result: the literal victim is the operand-0 `Use`, operand 1
     /// is a `Use` the fold drops because the constant result never reads
     /// it, operand 2 is the `Def` result, and every operand past the
     /// result is a `Use` the fold drops under the same provenance custody
-    /// [`BinaryRightLiteralAuxiliaryUses`](Self::BinaryRightLiteralAuxiliaryUses)
+    /// [`BINARY_RIGHT_LITERAL_AUXILIARY_USES`](Self::BINARY_RIGHT_LITERAL_AUXILIARY_USES)
     /// declares — each dropped register must be defined in the same
     /// function only by `MaterializeI64` instructions producing
     /// `Unsigned(0)`. Declaring this shape attests the operand-0 literal
@@ -1000,7 +1157,11 @@ pub enum PairOperandShape {
     /// is not in its declared position and access — a `Def` past the
     /// result, or any operand at positions 0 through 2 outside this
     /// grammar — rejects.
-    BinaryLeftLiteralConstantResultAuxiliaryUses,
+    pub const BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES: Self = Self {
+        position: PairLiteralPosition::LeftOperand,
+        result_kind: PairOperandResult::ConstantOfLiteral,
+        tail: PairTailCustody::AuxiliaryUses,
+    };
     /// Binary right-literal consumer whose operand list continues past its
     /// scalar `Def` result with scratch outputs: the literal victim is the
     /// operand-1 `Use`, operand 0 is the surviving `Use` the rewritten row
@@ -1011,38 +1172,46 @@ pub enum PairOperandShape {
     /// produces the folded result — `x +| 0` is `x` inside the carrier's
     /// bounds — and that each dropped `Def` register occurs nowhere else
     /// in the function under the same occurrence-free custody
-    /// [`BinaryRightLiteralConstantResult`](Self::BinaryRightLiteralConstantResult)
+    /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](Self::BINARY_RIGHT_LITERAL_CONSTANT_RESULT)
     /// declares: a scratch output another instruction read or defined
     /// would leave a use of a register the rewrite stopped defining. An
     /// operand that is not in its declared position and access — a `Use`
     /// past the result, or any operand at positions 0 through 2 outside
     /// this grammar — rejects.
-    BinaryRightLiteralScratchDefs,
+    pub const BINARY_RIGHT_LITERAL_SCRATCH_DEFS: Self = Self {
+        position: PairLiteralPosition::RightOperand,
+        result_kind: PairOperandResult::SurvivingOperand,
+        tail: PairTailCustody::ScratchDefs,
+    };
     /// Binary left-literal consumer whose operand list continues past its
     /// scalar `Def` result with scratch outputs: the literal victim is the
     /// operand-0 `Use`, operand 1 is the surviving `Use` the rewritten row
     /// binds, operand 2 is the `Def` result, and every operand past the
     /// result is a `Def` scratch output the fold drops under the same
     /// occurrence-free custody
-    /// [`BinaryRightLiteralScratchDefs`](Self::BinaryRightLiteralScratchDefs)
+    /// [`BINARY_RIGHT_LITERAL_SCRATCH_DEFS`](Self::BINARY_RIGHT_LITERAL_SCRATCH_DEFS)
     /// declares. Like
-    /// [`BinaryLeftLiteral`](Self::BinaryLeftLiteral), declaring this
+    /// [`BINARY_LEFT_LITERAL`](Self::BINARY_LEFT_LITERAL), declaring this
     /// shape attests that the fold computes the same value under operand
     /// exchange — `0 +| x` and `x +| 0` are both `x` inside the carrier's
     /// bounds — so only an operation exact under commutation may declare
     /// it. An operand that is not in its declared position and access — a
     /// `Use` past the result, or any operand at positions 0 through 2
     /// outside this grammar — rejects.
-    BinaryLeftLiteralScratchDefs,
+    pub const BINARY_LEFT_LITERAL_SCRATCH_DEFS: Self = Self {
+        position: PairLiteralPosition::LeftOperand,
+        result_kind: PairOperandResult::SurvivingOperand,
+        tail: PairTailCustody::ScratchDefs,
+    };
     /// Binary right-literal consumer whose operand list continues past its
     /// scalar `Def` result with a mixed drop tail: the literal victim is
     /// the operand-1 `Use`, operand 0 is the surviving `Use` the rewritten
     /// row binds, operand 2 is the `Def` result, and every operand past
     /// the result drops under the custody its own access declares — each
     /// `Use` under the zero-provenance custody
-    /// [`BinaryRightLiteralAuxiliaryUses`](Self::BinaryRightLiteralAuxiliaryUses)
+    /// [`BINARY_RIGHT_LITERAL_AUXILIARY_USES`](Self::BINARY_RIGHT_LITERAL_AUXILIARY_USES)
     /// requires, each `Def` under the occurrence-free custody
-    /// [`BinaryRightLiteralScratchDefs`](Self::BinaryRightLiteralScratchDefs)
+    /// [`BINARY_RIGHT_LITERAL_SCRATCH_DEFS`](Self::BINARY_RIGHT_LITERAL_SCRATCH_DEFS)
     /// requires. Declaring this shape attests that the surviving operand
     /// alone produces the folded result — `x /| 1` is `x` inside the
     /// carrier's bounds — and that every tail operand is inert once the
@@ -1053,7 +1222,11 @@ pub enum PairOperandShape {
     /// materializations, a `Def` occurring anywhere else in the function,
     /// or any operand at positions 0 through 2 outside this grammar
     /// rejects.
-    BinaryRightLiteralAuxiliaryUsesOrScratchDefs,
+    pub const BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS: Self = Self {
+        position: PairLiteralPosition::RightOperand,
+        result_kind: PairOperandResult::SurvivingOperand,
+        tail: PairTailCustody::AuxiliaryUsesOrScratchDefs,
+    };
     /// Binary left-literal consumer whose folded result is a constant of
     /// the literal alone and whose operand list continues past its scalar
     /// `Def` result with a mixed drop tail: the literal victim is the
@@ -1061,9 +1234,9 @@ pub enum PairOperandShape {
     /// constant result never reads it, operand 2 is the `Def` result, and
     /// every operand past the result drops under the custody its own
     /// access declares — each `Use` under the zero-provenance custody
-    /// [`BinaryLeftLiteralConstantResultAuxiliaryUses`](Self::BinaryLeftLiteralConstantResultAuxiliaryUses)
+    /// [`BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES`](Self::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES)
     /// requires, each `Def` under the occurrence-free custody
-    /// [`BinaryLeftLiteralConstantResult`](Self::BinaryLeftLiteralConstantResult)
+    /// [`BINARY_LEFT_LITERAL_CONSTANT_RESULT`](Self::BINARY_LEFT_LITERAL_CONSTANT_RESULT)
     /// requires. Declaring this shape attests the operand-0 literal alone
     /// fixes the result — `0 /| x` is zero for every `x` the saturating
     /// divide's proven nonzero divisor admits — and that every tail
@@ -1074,7 +1247,11 @@ pub enum PairOperandShape {
     /// materializations, a `Def` occurring anywhere else in the function,
     /// or any operand at positions 0 through 2 outside this grammar
     /// rejects.
-    BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs,
+    pub const BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS: Self = Self {
+        position: PairLiteralPosition::LeftOperand,
+        result_kind: PairOperandResult::ConstantOfLiteral,
+        tail: PairTailCustody::AuxiliaryUsesOrScratchDefs,
+    };
 }
 
 /// The literal values a pair's fold admits.
@@ -1109,7 +1286,7 @@ impl SelectedInstructionPairRule {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::ExactAddI64,
         rewritten: MachineSemanticKind::ExactAddI64Immediate,
-        operand_shape: PairOperandShape::BinaryRightLiteral,
+        operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
@@ -1121,14 +1298,14 @@ impl SelectedInstructionPairRule {
     /// selection admits both grammars; the pair disambiguates by which `Use`
     /// position the folded literal occupies.
     pub const EXACT_ADD_LEFT_IMMEDIATE_U12: Self = Self {
-        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::EXACT_ADD_IMMEDIATE_U12
     };
     pub const EXACT_SUBTRACT_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::ExactSubtractI64,
         rewritten: MachineSemanticKind::ExactSubtractI64Immediate,
-        operand_shape: PairOperandShape::BinaryRightLiteral,
+        operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
@@ -1138,7 +1315,7 @@ impl SelectedInstructionPairRule {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::CompareI64,
         rewritten: MachineSemanticKind::CompareI64Immediate,
-        operand_shape: PairOperandShape::BinaryRightLiteral,
+        operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ImplicitUnits,
         unit_effects: PairUnitEffects::Isolated,
@@ -1158,7 +1335,7 @@ impl SelectedInstructionPairRule {
     /// defined unit can reach through the function's CFG is
     /// equality-sensing.
     pub const COMPARE_LEFT_IMMEDIATE_U12: Self = Self {
-        operand_shape: PairOperandShape::BinaryLeftLiteralOperandSwap,
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
         machine_effects: PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS,
         ..Self::COMPARE_IMMEDIATE_U12
     };
@@ -1172,7 +1349,7 @@ impl SelectedInstructionPairRule {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::MaterializeI64,
         rewritten: MachineSemanticKind::MaterializeI64,
-        operand_shape: PairOperandShape::UnaryLiteral,
+        operand_shape: PairOperandShape::UNARY_LITERAL,
         // The folded value always encodes as a `MaterializeI64` constant; no
         // target immediate bound applies to the source literal itself.
         immediate_bound: PairImmediateBound::Encoding(u64::MAX),
@@ -1253,7 +1430,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::Load8Indexed,
             rewritten: MachineSemanticKind::Load8,
-            operand_shape: PairOperandShape::BinaryRightLiteral,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Encoding(4095),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
@@ -1286,7 +1463,7 @@ impl SelectedInstructionPairRule {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::ByteViewAddress,
         rewritten: MachineSemanticKind::AddressOffset,
-        operand_shape: PairOperandShape::BinaryRightLiteral,
+        operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
         immediate_bound: PairImmediateBound::Encoding(4095),
         result: PairResultDisposition::ScalarRegister,
         unit_effects: PairUnitEffects::Isolated,
@@ -1301,7 +1478,7 @@ impl SelectedInstructionPairRule {
     /// catalog selection admits both operand positions; the pair
     /// disambiguates by which `Use` position the folded literal occupies.
     pub const BYTE_VIEW_ADDRESS_BACKING_U12: Self = Self {
-        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::BYTE_VIEW_ADDRESS_OFFSET_U12
     };
 
@@ -1319,7 +1496,7 @@ impl SelectedInstructionPairRule {
     /// and every `Use` operand past the operand-2 `Def` result — the
     /// zeroed high-half scratch a realization like x86-64 `div` reads — is
     /// dropped under
-    /// [`BinaryRightLiteralAuxiliaryUses`](PairOperandShape::BinaryRightLiteralAuxiliaryUses),
+    /// [`BINARY_RIGHT_LITERAL_AUXILIARY_USES`](PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES),
     /// which requires each such register to be defined only by zero
     /// materializations. Targets whose divide row carries no auxiliary
     /// `Use` — aarch64's `udiv` — admit the same rule with an empty
@@ -1329,7 +1506,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::ExactDivideU64,
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralAuxiliaryUses,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES,
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundConsumerOperands,
@@ -1367,7 +1544,7 @@ impl SelectedInstructionPairRule {
     /// operand-2 `Def` result — the zeroed high-half input an x86-64
     /// `div` realization reads as the dividend's upper half — is dropped
     /// under
-    /// [`BinaryLeftLiteralConstantResultAuxiliaryUses`](PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses),
+    /// [`BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES`](PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES),
     /// which requires each such register to be defined only by zero
     /// materializations: a literal of zero fixes the low dividend half,
     /// so the fold is exact only when every auxiliary half is provably
@@ -1381,7 +1558,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::ExactDivideU64,
             rewritten: MachineSemanticKind::MaterializeI64,
-            operand_shape: PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses,
+            operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundConsumerOperands,
@@ -1413,7 +1590,7 @@ impl SelectedInstructionPairRule {
     /// and every operand past the operand-2 `Def` result — the dead
     /// quotient scratch an x86-64 `idiv` realization writes — is a `Def`
     /// the fold drops under
-    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult),
+    /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT),
     /// which requires each such register to occur nowhere else in the
     /// function. The operand-0 dividend `Use` is dropped with the form:
     /// the constant result never reads it. Targets whose remainder row
@@ -1424,7 +1601,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::WrappingRemainderI64,
             rewritten: MachineSemanticKind::MaterializeI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -1463,7 +1640,7 @@ impl SelectedInstructionPairRule {
     /// constant result never reads it, and every operand past the
     /// operand-2 `Def` result — the dead quotient scratch an x86-64
     /// `idiv` realization writes — is a `Def` the fold drops under
-    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult),
+    /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT),
     /// which requires each such register to occur nowhere else in the
     /// function. Targets whose remainder row carries no scratch `Def` —
     /// aarch64's `udiv`/`msub` realization — admit the same rule with an
@@ -1476,7 +1653,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::WrappingRemainderI64,
             rewritten: MachineSemanticKind::MaterializeI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(u64::MAX),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -1514,7 +1691,7 @@ impl SelectedInstructionPairRule {
     /// constant result never reads it, and every operand past the
     /// operand-2 `Def` result — the dead quotient scratch an x86-64
     /// `idiv` realization writes — is a `Def` the fold drops under
-    /// [`BinaryLeftLiteralConstantResult`](PairOperandShape::BinaryLeftLiteralConstantResult),
+    /// [`BINARY_LEFT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT),
     /// which requires each such register to occur nowhere else in the
     /// function. Targets whose remainder row carries no scratch `Def` —
     /// aarch64's `udiv`/`msub` realization — admit the same rule with an
@@ -1526,7 +1703,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::WrappingRemainderI64,
             rewritten: MachineSemanticKind::MaterializeI64,
-            operand_shape: PairOperandShape::BinaryLeftLiteralConstantResult,
+            operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -1554,7 +1731,7 @@ impl SelectedInstructionPairRule {
     /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
     /// operand-0 `Use` is dropped because the constant result never reads
     /// it, under the
-    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult)
+    /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT)
     /// grammar's custody: every `Def` operand past the result must occur
     /// nowhere else in the function.
     pub const BITWISE_AND_ZERO_MATERIALIZE: Self = {
@@ -1562,7 +1739,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::BitwiseAndI64,
             rewritten: MachineSemanticKind::MaterializeI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
@@ -1580,14 +1757,14 @@ impl SelectedInstructionPairRule {
     /// zero — `0 & x` is `0` for every `x`. The constant result is a
     /// function of the literal alone, so no commutativity attestation is
     /// needed: under
-    /// [`BinaryLeftLiteralConstantResult`](PairOperandShape::BinaryLeftLiteralConstantResult)
+    /// [`BINARY_LEFT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT)
     /// the dropped operand-1 `Use` is never read and every `Def` operand
     /// past the result drops under the same occurrence-free custody the
     /// right grammar declares. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
     pub const BITWISE_AND_ZERO_LEFT_MATERIALIZE: Self = Self {
-        operand_shape: PairOperandShape::BinaryLeftLiteralConstantResult,
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
         ..Self::BITWISE_AND_ZERO_MATERIALIZE
     };
 
@@ -1609,14 +1786,14 @@ impl SelectedInstructionPairRule {
     /// [`Isolated`](PairMachineEffects::ISOLATED) and
     /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
-    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand.
     pub const BITWISE_XOR_ZERO_COPY: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::BitwiseXorI64,
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteral,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
@@ -1634,13 +1811,13 @@ impl SelectedInstructionPairRule {
     /// zero — `0 ^ x` is `x` for every `x`. Bitwise xor commutes, so the
     /// `CopyI64` of the surviving operand-1 register computes the same
     /// value `x ^ 0` does; the
-    /// [`BinaryLeftLiteral`](PairOperandShape::BinaryLeftLiteral) grammar
+    /// [`BINARY_LEFT_LITERAL`](PairOperandShape::BINARY_LEFT_LITERAL) grammar
     /// attests that commutation and binds operand 1 into the rewritten
     /// row's `Use` position. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
     pub const BITWISE_XOR_ZERO_LEFT_COPY: Self = Self {
-        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::BITWISE_XOR_ZERO_COPY
     };
 
@@ -1662,14 +1839,14 @@ impl SelectedInstructionPairRule {
     /// [`Isolated`](PairMachineEffects::ISOLATED) and
     /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
-    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand.
     pub const WRAPPING_ADD_ZERO_COPY: Self = {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::WrappingAddI64,
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteral,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
@@ -1687,13 +1864,13 @@ impl SelectedInstructionPairRule {
     /// zero — `0 + x` is `x` for every `x`. Wrapping addition commutes,
     /// so the `CopyI64` of the surviving operand-1 register computes the
     /// same value `x + 0` does; the
-    /// [`BinaryLeftLiteral`](PairOperandShape::BinaryLeftLiteral) grammar
+    /// [`BINARY_LEFT_LITERAL`](PairOperandShape::BINARY_LEFT_LITERAL) grammar
     /// attests that commutation and binds operand 1 into the rewritten
     /// row's `Use` position. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
     pub const WRAPPING_ADD_ZERO_LEFT_COPY: Self = Self {
-        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::WRAPPING_ADD_ZERO_COPY
     };
 
@@ -1714,7 +1891,7 @@ impl SelectedInstructionPairRule {
     /// [`Isolated`](PairMachineEffects::ISOLATED) and
     /// [`Isolated`](PairUnitEffects::Isolated) surfaces apply. The
     /// operand-0 `Use` survives under the ordinary
-    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand. The
     /// family shares its consumer kind and operand grammar with the
     /// and-zero annihilator rules; the two families stay disjoint on the
@@ -1725,7 +1902,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::BitwiseAndI64,
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteral,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(u64::MAX),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::Isolated,
@@ -1743,13 +1920,13 @@ impl SelectedInstructionPairRule {
     /// `MAX & x` is `x` for every `x`. Bitwise and commutes, so the
     /// `CopyI64` of the surviving operand-1 register computes the same
     /// value `x & MAX` does; the
-    /// [`BinaryLeftLiteral`](PairOperandShape::BinaryLeftLiteral) grammar
+    /// [`BINARY_LEFT_LITERAL`](PairOperandShape::BINARY_LEFT_LITERAL) grammar
     /// attests that commutation and binds operand 1 into the rewritten
     /// row's `Use` position. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
     pub const BITWISE_AND_ONES_LEFT_COPY: Self = Self {
-        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::BITWISE_AND_ONES_COPY
     };
 
@@ -1779,7 +1956,7 @@ impl SelectedInstructionPairRule {
     /// under
     /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
     /// The operand-0 `Use` survives under the ordinary
-    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand. The u64
     /// row carries no operand past its `Def` result; the narrower and
     /// signed carriers bind the clamped row whose bound scratch the
@@ -1789,7 +1966,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingAdd(SaturatingCarrier::U64),
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteral,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -1807,13 +1984,13 @@ impl SelectedInstructionPairRule {
     /// exactly zero — `0 +| x` is `x` for every `x`. Unsigned saturating
     /// addition commutes, so the `CopyI64` of the surviving operand-1
     /// register computes the same value `x +| 0` does; the
-    /// [`BinaryLeftLiteral`](PairOperandShape::BinaryLeftLiteral) grammar
+    /// [`BINARY_LEFT_LITERAL`](PairOperandShape::BINARY_LEFT_LITERAL) grammar
     /// attests that commutation and binds operand 1 into the rewritten
     /// row's `Use` position. The same catalog selection admits both
     /// operand positions; the pair disambiguates by which `Use` position
     /// the folded literal occupies.
     pub const SATURATING_ADD_ZERO_LEFT_COPY: Self = Self {
-        operand_shape: PairOperandShape::BinaryLeftLiteral,
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL,
         ..Self::SATURATING_ADD_ZERO_COPY
     };
 
@@ -1827,7 +2004,7 @@ impl SelectedInstructionPairRule {
     /// result with an early-clobber bound scratch — a `Def` output the
     /// realization writes and nothing else may observe — so the rule
     /// declares
-    /// [`BinaryRightLiteralScratchDefs`](PairOperandShape::BinaryRightLiteralScratchDefs):
+    /// [`BINARY_RIGHT_LITERAL_SCRATCH_DEFS`](PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS):
     /// each dropped `Def` register must occur nowhere else in the
     /// function. The unit surface is the family's own: the aarch64
     /// clamped row still defines `nzcv` — retired under
@@ -1841,7 +2018,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingAdd(carrier),
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralScratchDefs,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -1860,12 +2037,12 @@ impl SelectedInstructionPairRule {
     /// under every carrier — its saturation bounds are symmetric around
     /// the operation — so the `CopyI64` of the surviving operand-1
     /// register computes the same value `x +| 0` does; the
-    /// [`BinaryLeftLiteralScratchDefs`](PairOperandShape::BinaryLeftLiteralScratchDefs)
+    /// [`BINARY_LEFT_LITERAL_SCRATCH_DEFS`](PairOperandShape::BINARY_LEFT_LITERAL_SCRATCH_DEFS)
     /// grammar attests that commutation and drops the same bound-scratch
     /// `Def` tail under occurrence-free custody.
     const fn saturating_add_zero_clamped_left(carrier: SaturatingCarrier) -> Self {
         Self {
-            operand_shape: PairOperandShape::BinaryLeftLiteralScratchDefs,
+            operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_SCRATCH_DEFS,
             ..Self::saturating_add_zero_clamped(carrier)
         }
     }
@@ -1908,7 +2085,7 @@ impl SelectedInstructionPairRule {
     /// every operand past the operand-2 `Def` result — the bound scratch
     /// `Def` a clamped saturating-add realization computes its saturation
     /// bound through — drops under the
-    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult)
+    /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT)
     /// grammar's occurrence-free custody: a scratch output another
     /// instruction read or defined would leave a use of a register the
     /// rewrite stopped defining. The consumer carries the same implicit
@@ -1933,7 +2110,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingAdd(carrier),
             rewritten: MachineSemanticKind::MaterializeI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(carrier.maximum_bits()),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -1954,7 +2131,7 @@ impl SelectedInstructionPairRule {
     /// operand-0 `Use` of `SaturatingAdd` on an unsigned carrier when the
     /// literal is exactly the carrier's maximum — `MAX +| x` is `MAX`
     /// for every `x`. The
-    /// [`BinaryLeftLiteralConstantResult`](PairOperandShape::BinaryLeftLiteralConstantResult)
+    /// [`BINARY_LEFT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT)
     /// grammar attests the operand-0 literal alone fixes the result —
     /// saturating addition's commutation makes `MAX +| x` and `x +| MAX`
     /// the same fold, but the constant-result grammar needs none of it:
@@ -1963,7 +2140,7 @@ impl SelectedInstructionPairRule {
     /// occurrence-free custody.
     const fn saturating_add_upper_bound_left(carrier: SaturatingCarrier) -> Self {
         Self {
-            operand_shape: PairOperandShape::BinaryLeftLiteralConstantResult,
+            operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
             ..Self::saturating_add_upper_bound(carrier)
         }
     }
@@ -2014,14 +2191,14 @@ impl SelectedInstructionPairRule {
     /// under
     /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
     /// The operand-0 `Use` survives under the ordinary
-    /// [`BinaryRightLiteral`](PairOperandShape::BinaryRightLiteral)
+    /// [`BINARY_RIGHT_LITERAL`](PairOperandShape::BINARY_RIGHT_LITERAL)
     /// grammar: the rewritten row binds it as its `Use` operand.
     const fn saturating_subtract_zero_unsigned(carrier: SaturatingCarrier) -> Self {
         let rule = Self {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingSubtract(carrier),
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteral,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -2044,7 +2221,7 @@ impl SelectedInstructionPairRule {
     /// clamped row's operand list continues past its `Def` result with
     /// an early-clobber bound scratch — a `Def` output the realization
     /// writes and nothing else may observe — so the rule declares
-    /// [`BinaryRightLiteralScratchDefs`](PairOperandShape::BinaryRightLiteralScratchDefs):
+    /// [`BINARY_RIGHT_LITERAL_SCRATCH_DEFS`](PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS):
     /// each dropped `Def` register must occur nowhere else in the
     /// function. The unit surface is the family's own: the aarch64
     /// clamped row still defines `nzcv` — retired under
@@ -2058,7 +2235,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingSubtract(carrier),
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralScratchDefs,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -2103,7 +2280,7 @@ impl SelectedInstructionPairRule {
     /// the form because the constant result never reads it, and every
     /// operand past the operand-2 `Def` result — none on the unsigned
     /// row — would drop under the
-    /// [`BinaryLeftLiteralConstantResult`](PairOperandShape::BinaryLeftLiteralConstantResult)
+    /// [`BINARY_LEFT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT)
     /// grammar's occurrence-free custody. The consumer carries the same
     /// implicit unit surface the identity family retires: the unsigned
     /// saturating-subtract row defines `nzcv` on aarch64 — its
@@ -2125,7 +2302,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingSubtract(carrier),
             rewritten: MachineSemanticKind::MaterializeI64,
-            operand_shape: PairOperandShape::BinaryLeftLiteralConstantResult,
+            operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -2173,7 +2350,7 @@ impl SelectedInstructionPairRule {
     /// `Use` is dropped with the form because the constant result never
     /// reads it, and every operand past the operand-2 `Def` result —
     /// none on the unsigned row — would drop under the
-    /// [`BinaryRightLiteralConstantResult`](PairOperandShape::BinaryRightLiteralConstantResult)
+    /// [`BINARY_RIGHT_LITERAL_CONSTANT_RESULT`](PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT)
     /// grammar's occurrence-free custody. The consumer carries the same
     /// implicit unit surface the sibling families retire: the unsigned
     /// saturating-subtract row defines `nzcv` on aarch64 — its
@@ -2195,7 +2372,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingSubtract(carrier),
             rewritten: MachineSemanticKind::MaterializeI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralConstantResult,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             immediate_bound: PairImmediateBound::Exactly(carrier.maximum_bits()),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -2256,7 +2433,7 @@ impl SelectedInstructionPairRule {
     /// [`BoundEarlyClobberConsumerOperands`](PairUnitEffects::BoundEarlyClobberConsumerOperands).
     /// The operand-0 `Use` survives into the rewritten row; every operand
     /// past the operand-2 `Def` result drops under
-    /// [`BinaryRightLiteralAuxiliaryUsesOrScratchDefs`](PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs) —
+    /// [`BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS`](PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS) —
     /// the zeroed high-half dividend `Use` an x86-64 `div`/`idiv` reads,
     /// provably defined only by zero materializations, or the bound
     /// scratch `Def` an aarch64 clamped signed row writes, occurring
@@ -2273,7 +2450,7 @@ impl SelectedInstructionPairRule {
             producer: MachineSemanticKind::MaterializeI64,
             consumer: MachineSemanticKind::SaturatingDivide(carrier),
             rewritten: MachineSemanticKind::CopyI64,
-            operand_shape: PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs,
+            operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS,
             immediate_bound: PairImmediateBound::Exactly(1),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -2331,7 +2508,7 @@ impl SelectedInstructionPairRule {
     /// The operand-1 divisor `Use` is dropped with the form because the
     /// constant result never reads it; every operand past the operand-2
     /// `Def` result drops under
-    /// [`BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs`](PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs)
+    /// [`BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS`](PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS)
     /// — each `Use`, the zeroed high-half dividend an x86-64 `div`/`idiv`
     /// realization reads, provably defined only by zero materializations
     /// since a literal of zero fixes only the low dividend half, and each
@@ -2352,7 +2529,7 @@ impl SelectedInstructionPairRule {
             consumer: MachineSemanticKind::SaturatingDivide(carrier),
             rewritten: MachineSemanticKind::MaterializeI64,
             operand_shape:
-                PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs,
+                PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS,
             immediate_bound: PairImmediateBound::Exactly(0),
             result: PairResultDisposition::ScalarRegister,
             unit_effects: PairUnitEffects::BoundEarlyClobberConsumerOperands,
@@ -2424,21 +2601,12 @@ impl SelectedInstructionPairRule {
         self.machine_effects
     }
 
-    /// The consumer operand index the literal victim must occupy.
+    /// The consumer operand index the literal victim must occupy — the
+    /// position axis alone decides it.
     pub const fn victim_operand(self) -> u16 {
-        match self.operand_shape {
-            PairOperandShape::BinaryRightLiteral
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUses
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs
-            | PairOperandShape::BinaryRightLiteralConstantResult
-            | PairOperandShape::BinaryRightLiteralScratchDefs => 1,
-            PairOperandShape::BinaryLeftLiteral
-            | PairOperandShape::BinaryLeftLiteralOperandSwap
-            | PairOperandShape::BinaryLeftLiteralConstantResult
-            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
-            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs
-            | PairOperandShape::BinaryLeftLiteralScratchDefs
-            | PairOperandShape::UnaryLiteral => 0,
+        match self.operand_shape.position {
+            PairLiteralPosition::RightOperand => 1,
+            PairLiteralPosition::LeftOperand | PairLiteralPosition::SoleOperand => 0,
         }
     }
 
@@ -2463,14 +2631,12 @@ impl SelectedInstructionPairRule {
     /// saturating-add upper-bound fold. The result is the recorded
     /// `immediate` in [`crate::LiteralFoldAction`].
     pub fn fold_immediate(self, literal: u64) -> Option<u64> {
-        match self.operand_shape {
-            PairOperandShape::BinaryRightLiteral
-            | PairOperandShape::BinaryLeftLiteral
-            | PairOperandShape::BinaryLeftLiteralOperandSwap
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUses
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs
-            | PairOperandShape::BinaryRightLiteralScratchDefs
-            | PairOperandShape::BinaryLeftLiteralScratchDefs => Some(literal),
+        match self.operand_shape.result_kind {
+            // Surviving-operand and operand-swapped grammars embed the
+            // literal itself.
+            PairOperandResult::SurvivingOperand | PairOperandResult::SwappedOperand => {
+                Some(literal)
+            }
             // The constant-result grammars record the constant the
             // rewritten `MaterializeI64` embeds: a remainder by one or of
             // a zero dividend is always zero, an unsigned or saturating
@@ -2482,16 +2648,11 @@ impl SelectedInstructionPairRule {
             // saturating add whose literal is the carrier's maximum
             // saturates to that maximum at either `Use` position — the
             // admitted literal itself already carries the bound.
-            PairOperandShape::BinaryRightLiteralConstantResult
-            | PairOperandShape::BinaryLeftLiteralConstantResult
-            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
-            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs => {
-                match self.consumer {
-                    MachineSemanticKind::SaturatingAdd(carrier) => Some(carrier.maximum_bits()),
-                    _ => Some(0),
-                }
-            }
-            PairOperandShape::UnaryLiteral => match self.consumer {
+            PairOperandResult::ConstantOfLiteral => match self.consumer {
+                MachineSemanticKind::SaturatingAdd(carrier) => Some(carrier.maximum_bits()),
+                _ => Some(0),
+            },
+            PairOperandResult::LiteralRecompute => match self.consumer {
                 MachineSemanticKind::CopyI64 => Some(literal),
                 MachineSemanticKind::ZeroExtendU8 => Some(literal & 0xFF),
                 MachineSemanticKind::ZeroExtendU16 => Some(literal & 0xFFFF),
