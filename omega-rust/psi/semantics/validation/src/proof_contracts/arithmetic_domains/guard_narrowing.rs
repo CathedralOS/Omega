@@ -199,7 +199,7 @@ pub(crate) fn requires_value_env(
             }
         }
     }
-    arrivals::seed_state_requirements(program, machine, entry_state, &mut env);
+    arrivals::seed_state_requirements(program, machine, entry_state, None, &mut env);
     env
 }
 
@@ -1217,12 +1217,13 @@ pub(crate) fn incoming_guard_environments(
     machine: &Machine,
 ) -> Vec<(symbols::SymbolHandle, ValueEnv)> {
     let mut environments = arrivals::incoming_environments(program, machine);
+    let frames = crate::CallFrameResolver::new(program);
     for (state, (_, environment)) in program
         .machine_states(machine)
         .iter()
         .zip(&mut environments)
     {
-        arrivals::seed_state_requirements(program, machine, state, environment);
+        arrivals::seed_state_requirements(program, machine, state, frames.as_ref(), environment);
     }
     environments
 }
@@ -1237,6 +1238,7 @@ pub(crate) fn incoming_guard_env(
         .into_iter()
         .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))
         .unwrap_or_default();
-    arrivals::seed_state_requirements(program, machine, state, &mut environment);
+    let frames = crate::CallFrameResolver::new(program);
+    arrivals::seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
     environment
 }

@@ -48,8 +48,8 @@ pub fn arrival_integer_expression_bounds(
         return None;
     }
     let mut environment = incoming_guard_env(program, machine, state);
-    seed_state_requirements(program, machine, state, &mut environment);
     let frames = CallFrameResolver::new(program);
+    seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
     let mut walk = ArrivalWalk {
         program,
         machine,
@@ -72,6 +72,7 @@ pub(super) fn seed_state_requirements(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    frames: Option<&CallFrameResolver>,
     environment: &mut ValueEnv,
 ) {
     let is_entry = program
@@ -79,33 +80,55 @@ pub(super) fn seed_state_requirements(
         .first()
         .is_some_and(|entry| entry.symbol == state.symbol);
     let mut required = ValueEnv::new();
-    for contract in program
-        .machine_contracts(machine)
-        .iter()
-        .filter(|_| is_entry)
-        .chain(program.state_contracts(state))
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-    {
+    // A machine-level `requires` fact is a precondition on entry. It still
+    // holds at a later state's entry exactly when every place the recorded
+    // facts name survives the whole machine's write frame; otherwise a
+    // preheader or loop-body write could leave the contract stale before
+    // this arrival (the same machine-preservation law the loop-invariant
+    // index discharge applies to authored bound chains).
+    let machine_written = (!is_entry).then(|| {
+        frames.and_then(|frames| {
+            frames
+                .inferred_machine_state_write_frames(machine)
+                .into_iter()
+                .map(|frame| frame.into_complete_paths())
+                .collect::<Option<Vec<_>>>()
+                .map(|paths| paths.concat())
+        })
+    });
+    let seed_condition = |environment: &mut ValueEnv, required: &mut ValueEnv, condition| {
+        narrow_env_by_condition(program, machine, Some(state), environment, condition, true);
+        narrow_env_by_condition(program, machine, Some(state), required, condition, true);
+    };
+    for contract in program.machine_contracts(machine) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            if let ProofFact::Expression(condition) = fact
+                && condition_belongs_to_state(program, machine, state, *condition)
+                && (is_entry
+                    || machine_requires_survives(
+                        program,
+                        machine,
+                        state,
+                        machine_written.as_ref().and_then(Option::as_deref),
+                        *condition,
+                    ))
+            {
+                seed_condition(environment, &mut required, *condition);
+            }
+        }
+    }
+    for contract in program.state_contracts(state) {
+        if contract.kind != SignatureContractKind::Requires {
+            continue;
+        }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             if let ProofFact::Expression(condition) = fact
                 && condition_belongs_to_state(program, machine, state, *condition)
             {
-                narrow_env_by_condition(
-                    program,
-                    machine,
-                    Some(state),
-                    environment,
-                    *condition,
-                    true,
-                );
-                narrow_env_by_condition(
-                    program,
-                    machine,
-                    Some(state),
-                    &mut required,
-                    *condition,
-                    true,
-                );
+                seed_condition(environment, &mut required, *condition);
             }
         }
     }
@@ -120,6 +143,29 @@ pub(super) fn seed_state_requirements(
         // without using an empty interval as evidence for a produced value.
         *environment = required;
     }
+}
+
+/// A machine-level `requires` condition carries into a non-entry state only
+/// when the machine can never overwrite a place its recorded facts mention.
+/// Re-recording the condition and applying the ordinary write-invalidation
+/// law keeps the stability test on exactly the operands the environment
+/// would use, `.len` operands included. An opaque write frame or any dropped
+/// fact fails closed: the fact stays entry-only, as before.
+fn machine_requires_survives(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    machine_written: Option<&[String]>,
+    condition: ExpressionHandle,
+) -> bool {
+    let Some(written) = machine_written else {
+        return false;
+    };
+    let mut seeded = ValueEnv::new();
+    narrow_env_by_condition(program, machine, Some(state), &mut seeded, condition, true);
+    let mut retained = seeded.clone();
+    retained.invalidate_written_paths(written);
+    retained == seeded
 }
 
 fn condition_belongs_to_state(
@@ -165,7 +211,18 @@ fn condition_belongs_to_state(
                             })))
         }
         ExpressionNode::Member(member) => {
-            member.member_symbol.is_valid()
+            // The builtin `.len` selector carries no declared field symbol;
+            // admit it through the same structural receiver check
+            // `ordered_values::build_operand` uses for its CollectionLength
+            // operand.
+            (member.member_symbol.is_valid()
+                || crate::value_custody::places::collection_length_receiver(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .is_some())
                 && condition_belongs_to_state(program, machine, state, member.receiver)
         }
         ExpressionNode::Binary(binary) => {
@@ -205,12 +262,12 @@ pub(super) fn incoming_environments(
         };
         if let Some(entry) = states.first() {
             let mut external = ValueEnv::new();
-            seed_state_requirements(program, machine, entry, &mut external);
+            seed_state_requirements(program, machine, entry, frames.as_ref(), &mut external);
             walk.joined[0] = Some(external);
         }
         for (state, (_, environment)) in states.iter().zip(&current) {
             let mut environment = environment.clone();
-            seed_state_requirements(program, machine, state, &mut environment);
+            seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
             walk.statements(
                 state,
                 program.statement_table.statements(state.statement_nodes),

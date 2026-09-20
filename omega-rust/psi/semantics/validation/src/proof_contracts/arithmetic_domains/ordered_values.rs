@@ -581,8 +581,65 @@ pub(super) fn unsigned_increase_fits(
     let Some(value) = operand(program, machine, state, value) else {
         return false;
     };
-    environment
-        .ordered_values
-        .iter()
-        .any(|relation| relation.right == value && relation.floor >= high)
+    composed_ceiling_gap(&environment.ordered_values, &value, high)
+}
+
+/// Whether recorded `left >= right + floor` relations compose a ceiling
+/// `c >= value + gap` with `gap >= needed`. Distances add along a chain, so
+/// strict and non-strict links mix exactly: `i <= outer <= limit < len`
+/// yields `len >= i + 1`, while an all-non-strict chain stays at gap 0 and
+/// cannot prove a positive increase.
+///
+/// `dist` tracks the largest derived gap per operand and each round relaxes
+/// every relation once — `left >= right + floor` with `right >= value + gap`
+/// derives `left >= value + gap + floor`. Rounds are bounded by the operand
+/// count: a chain that needs more hops revisits an operand, and a cycle that
+/// still adds distance (`x >= x + k`, `k > 0`) is a contradiction no live
+/// environment can contain, so cyclic chases cannot form and the walk
+/// always terminates.
+fn composed_ceiling_gap(relations: &[Relation], value: &Operand, needed: i64) -> bool {
+    if needed <= 0 {
+        return true;
+    }
+    let mut operands: Vec<&Operand> = vec![value];
+    for relation in relations {
+        for operand in [&relation.left, &relation.right] {
+            if !operands.contains(&operand) {
+                operands.push(operand);
+            }
+        }
+    }
+    let mut dist: Vec<(&Operand, i64)> = vec![(value, 0)];
+    let known_gap = |dist: &[(&Operand, i64)], operand: &Operand| {
+        dist.iter()
+            .find(|(known, _)| **known == *operand)
+            .map(|(_, gap)| *gap)
+    };
+    for _ in 1..operands.len() {
+        let mut improved = false;
+        for relation in relations {
+            let Some(gap) = known_gap(&dist, &relation.right) else {
+                continue;
+            };
+            let gap = gap.saturating_add(relation.floor);
+            match dist.iter_mut().find(|(known, _)| **known == relation.left) {
+                Some((_, known)) if *known >= gap => {}
+                Some((_, known)) => {
+                    *known = gap;
+                    improved = true;
+                }
+                None => {
+                    dist.push((&relation.left, gap));
+                    improved = true;
+                }
+            }
+            if gap >= needed {
+                return true;
+            }
+        }
+        if !improved {
+            break;
+        }
+    }
+    false
 }
