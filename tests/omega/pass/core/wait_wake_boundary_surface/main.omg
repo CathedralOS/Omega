@@ -1,0 +1,32 @@
+use omega::language::core::wait_wake;
+
+// Pass canary: the core wait/wake substrate boundary is callable surface for
+// checked library and provider-adapter code. `WaitHarness` names the trait in
+// an ordinary field, drives `wait`/`wake_one`/`wake_many` through it, and
+// distinguishes `WaitOutcome::Woken` from `Mismatched`; a concrete provider
+// realization remains a separate target-specific leg.
+data WaitHarness {
+    substrate: &WaitWake;
+}
+
+machine WaitHarness::settle(&mut self, word: &u64, expected: u64) -> u64
+reaches WaitWake
+{
+    let outcome: WaitOutcome = block self.substrate.wait(word, expected);
+    transition outcome {
+        WaitOutcome::Woken -> released(word)
+        _ -> mismatched()
+    }
+    state released(&mut self, word: &u64) -> u64 {
+        self.substrate.wake_many(word, 4)
+    }
+    state mismatched(&mut self) -> u64 {
+        0
+    }
+}
+
+machine WaitHarness::poke(&mut self, word: &u64) -> u64
+reaches WaitWake
+{
+    self.substrate.wake_one(word)
+}

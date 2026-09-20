@@ -1,0 +1,58 @@
+// Canonical wait/wake boundary (task-runtime contract "Library and foreign
+// providers"; language guide "Waitable Contracts: Retained Substrate
+// Direction").
+//
+// The shared substrate is a small word/value wait plus wake-one/wake-many
+// boundary. Libraries build completion waits, locks, barriers, queues, and
+// I/O waits over it where the selected target supports that contract. It is
+// an engineering direction, not permission to merge unlike host mechanisms
+// under false guarantees.
+//
+// `wait` observes the caller-supplied word at its stable address and releases
+// the caller only once a wake edge on that exact word reaches it. A word that
+// already differs from `expected` completes without the caller ever waiting:
+// the contract compares, it does not park first. The substrate is BLOCKING,
+// not suspending: a parked-continuation wait would impose pinning and carry
+// evidence on every live borrow at the crossing, which is the task-runtime's
+// contract family, not this word substrate's. Suspension, blocking, and
+// positive progress stay independent explicit premises; this surface
+// publishes blocking and implies no finite wait ceiling. `wake_*` never
+// parks.
+//
+// The word itself is ordinary caller storage taken by shared borrow. The
+// substrate owns only the wait/wake edges: protocols that mutate the word
+// between edges (release marks, sequence counts, queue heads) establish their
+// own atomicity and publication guarantees through the atomic vocabulary.
+
+// Terminal observation of one `WaitWake::wait` call. `Woken` means an exact
+// wake edge on the word released the established wait. `Mismatched` means the
+// first observation already disagreed with `expected`, so the call completed
+// without waiting — the caller's own stale snapshot, never a lost wakeup.
+pub data WaitOutcome {
+    case Woken;
+    case Mismatched;
+}
+
+// The one shared substrate capability. `reaches WaitWake` is the reach row
+// every provider binds its realization beneath; admission of a concrete
+// provider remains a per-target selection, not a consequence of naming this
+// contract.
+pub boundary trait WaitWake {
+    // Release the caller when the wait established on `word` is woken.
+    // Completes `Mismatched` immediately if the first observation differs
+    // from `expected`. Blocking is the published premise; no finite wait
+    // ceiling is implied.
+    machine wait(word: &u64, expected: u64) -> WaitOutcome
+    reaches WaitWake
+    blocks;
+
+    // Release at most one activation waiting on `word`; returns how many
+    // wakes the provider actually delivered (0 or 1).
+    machine wake_one(word: &u64) -> u64
+    reaches WaitWake;
+
+    // Release up to `limit` activations waiting on `word`; returns the count
+    // actually released. `limit` 0 is a legal no-wake query.
+    machine wake_many(word: &u64, limit: u64) -> u64
+    reaches WaitWake;
+}
