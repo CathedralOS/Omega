@@ -3,10 +3,10 @@
 
 use super::super::structural_qualification_rosters::validate_projected_qualification_roster;
 use super::super::{
-    BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, ServiceId, StructuralAccess,
-    StructuralDomainId, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator,
+    BTreeMap, BTreeSet, BlockId, MachineId, ModuleError, OperationKind, ServiceId,
+    StructuralAccess, StructuralDomainId, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator,
 };
 use super::{
     ServiceCeilingOwner, StructuralSignatureOwner, validate_attachment,
@@ -258,13 +258,22 @@ pub(super) fn validate_trivial_affine_locals(
             return Err(ModuleError::NonCanonicalTrivialAffineLocals(machine.id));
         }
     }
+    // Every establishment site and the local it establishes. A declared
+    // local has exactly one site machine-wide.
     let establishments = machine
         .blocks
         .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| match operation.kind {
-            OperationKind::EstablishTrivialAffineLocal { destination } => Some(destination),
-            _ => None,
+        .flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .filter_map(|operation| match operation.kind {
+                    OperationKind::EstablishTrivialAffineLocal { destination } => {
+                        Some((block.id, destination))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
     let expected_establishments = trivial_affine_locals
@@ -272,23 +281,73 @@ pub(super) fn validate_trivial_affine_locals(
         .map(|(place, _, _, _)| *place)
         .collect::<Vec<_>>();
     // The supported local prefix is established once, in declaration
-    // order, before control leaves entry. Operand evaluation may split the
-    // remaining body into blocks. Structural-frontier validation carries
-    // those live locals through every edge and checks normal-exit cleanup;
-    // a crash does not run cleanup.
-    let entry_establishments = machine
+    // order, before control leaves entry. A local may instead carry its
+    // single establishment site inside a cyclic member block — one
+    // reachable from itself through terminator successors — where the
+    // frontier replay proves the re-arm lifecycle and the cyclic
+    // eligibility fence admits only this empty-declaration form.
+    // Structural-frontier validation carries those live locals through
+    // every edge and checks normal-exit cleanup; a crash does not run
+    // cleanup. Operand evaluation may split the remaining body into
+    // blocks.
+    let entry_establishments = establishments
+        .iter()
+        .filter(|(block, _)| *block == machine.entry)
+        .map(|(_, place)| *place)
+        .collect::<Vec<_>>();
+    let successors = machine
         .blocks
         .iter()
-        .find(|block| block.id == machine.entry)
-        .into_iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| match operation.kind {
-            OperationKind::EstablishTrivialAffineLocal { destination } => Some(destination),
-            _ => None,
+        .map(|block| {
+            let targets = match &block.terminator {
+                Terminator::Jump { target, .. } => vec![*target],
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => vec![when_true.target, when_false.target],
+                Terminator::StructuralCase { cases, .. } => {
+                    cases.iter().map(|case| case.target).collect()
+                }
+                _ => Vec::new(),
+            };
+            (block.id, targets)
         })
-        .collect::<Vec<_>>();
+        .collect::<BTreeMap<BlockId, Vec<BlockId>>>();
+    let cyclic_members = machine
+        .blocks
+        .iter()
+        .map(|block| block.id)
+        .filter(|start| {
+            let mut frontier = successors.get(start).cloned().unwrap_or_default();
+            let mut visited = BTreeSet::new();
+            while let Some(next) = frontier.pop() {
+                if next == *start {
+                    return true;
+                }
+                if visited.insert(next)
+                    && let Some(targets) = successors.get(&next)
+                {
+                    frontier.extend(targets.iter().copied());
+                }
+            }
+            false
+        })
+        .collect::<BTreeSet<BlockId>>();
     if !trivial_affine_locals.is_empty()
-        && (entry_establishments != expected_establishments
+        && (!expected_establishments.starts_with(&entry_establishments)
+            || establishments.len() != expected_establishments.len()
+            || expected_establishments
+                .iter()
+                .any(|expected| !establishments.iter().any(|(_, place)| place == expected))
+            || establishments.iter().any(|(block, place)| {
+                *block != machine.entry
+                    && (!cyclic_members.contains(block)
+                        || trivial_affine_locals
+                            .iter()
+                            .find(|(declared, _, _, _)| declared == place)
+                            .is_some_and(|(_, _, _, construction)| construction.is_some()))
+            })
             || machine.blocks.iter().any(|block| {
                 !matches!(
                     block.terminator,
@@ -296,11 +355,11 @@ pub(super) fn validate_trivial_affine_locals(
                         | Terminator::Conditional { .. }
                         | Terminator::StructuralCase { .. }
                         | Terminator::Crash { .. }
+                        | Terminator::Return { .. }
                         | Terminator::ReturnStructural { .. }
                         | Terminator::ReturnUnit { .. }
                 )
-            })
-            || establishments != expected_establishments)
+            }))
     {
         return Err(ModuleError::TrivialAffineLocalEstablishmentMismatch(
             machine.id,

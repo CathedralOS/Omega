@@ -358,9 +358,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Remaining work:
 
-  - Other non-scalar families. `EstablishTrivialAffineLocal` has no admitted
-    relocation evidence and falls to the scalar-result fallthrough in the
-    verifier's `unranked_cycles::eligible`. `CallStructural` relocates only in
+  - Other non-scalar families. `EstablishTrivialAffineLocal` relocates: the
+    verifier admits cyclic-member establishments — the entry-prefix contract
+    relaxes to one establishment site per local, member sites confined to
+    self-reachable blocks — and the optimizer relocates the whole-place
+    establishment behind `invariant_trivial_affine_local_admission`, with the
+    freeze replay re-deriving custody (member-internal edges keep the
+    persistent place live, exits and member returns dispose it) and rejecting
+    kept internal discards, dropped exit disposals, and stale frontier
+    catalogs. `CallStructural` relocates only in
     its affine claim-free form bound to the same block's `StructuralCase` or
     `ReturnStructural` terminator — an unrestricted place result would leave
     later traversals dispatching a disposed place — and its structural

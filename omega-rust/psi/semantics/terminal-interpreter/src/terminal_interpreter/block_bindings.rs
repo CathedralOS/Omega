@@ -509,14 +509,27 @@ impl TerminalExecution {
         let Some(machine) = self.machines.get(&self.current_machine) else {
             return false;
         };
-        let Some(StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type: declared,
-        }) = machine
+        let Some(declaration) = machine
             .structural_places
             .iter()
             .find(|declaration| declaration.id == place)
-            .map(|declaration| declaration.kind)
+        else {
+            return false;
+        };
+        // A declared trivial affine local is an exact owned source for its
+        // empty-record type: the establishment op carries custody and the
+        // declaration carries the type, so no producer row exists.
+        if let StructuralPlaceKind::TrivialAffineLocal {
+            structural_type: declared,
+            ..
+        } = declaration.kind
+        {
+            return declared == structural_type && multiplicity == StructuralMultiplicity::Affine;
+        }
+        let StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type: declared,
+        } = declaration.kind
         else {
             return false;
         };

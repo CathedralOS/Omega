@@ -223,6 +223,19 @@ pub(super) fn validate(
             abstract_operations::AbstractOperation::EstablishScalarCase { result, .. }
             | abstract_operations::AbstractOperation::EstablishRecord { result, .. }
             | abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
+            abstract_operations::AbstractOperation::EstablishTrivialAffineLocal {
+                place, ..
+            } => {
+                // A trivial affine local's declared place is affine by
+                // construction — the verifier admits only the whole,
+                // claim-free, empty-record declaration shape — so it joins
+                // the relocated custody set unconditionally.
+                relocated_case_results
+                    .entry(relocation.home.id.clone())
+                    .or_default()
+                    .insert(place.id);
+                continue;
+            }
             _ => continue,
         };
         if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
@@ -610,6 +623,28 @@ pub(super) fn validate(
                     .unwrap_or(&no_relocated_results),
             ) {
                 Some(substitution) => (substitution, None, BTreeMap::new()),
+                None => return Err(mismatch(machine, relocation.expected_block)),
+            }
+        } else if crate::validation::admissible_invariant_trivial_affine_local(relocation.expected)
+            .is_some()
+        {
+            // A trivial affine local establishment replays its whole
+            // admission from the seed: the declared affine place must stay
+            // inside the component spelled only through positions the
+            // custody rewrite re-expresses — the retained-member comparison
+            // below normalizes the same frontier the realization writes, so
+            // a kept member-internal discard or a missing exit disposal
+            // rejects. The operand-free operation has no substitution and
+            // the declared place stays byte-exact inside the moved
+            // operation, so a forged declaration or a retained
+            // member-internal discard rejects here or in
+            // `same_relocated_node`'s operation comparison.
+            match crate::validation::invariant_trivial_affine_local_admission(
+                expected,
+                component,
+                relocation.expected,
+            ) {
+                Some(_) => (BTreeMap::new(), None, BTreeMap::new()),
                 None => return Err(mismatch(machine, relocation.expected_block)),
             }
         } else {
