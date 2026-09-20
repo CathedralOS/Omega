@@ -10161,7 +10161,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   WHOLE-COMPOSITION-INTERACTION-EXTRACTION.
 - **WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred whole-composition surface as the resolved concurrency stubs (CONCURRENT-PROTOCOL-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION) and the adjacent WHOLE-COMPOSITION-INTERACTION-EXTRACTION row: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." Verified live at 2e1db3ba3e: `task-plans/src/composition_model` already extracts the sealed intra-activation model (`compose_composition_model` + `replay_composition_model`), `CompositionCrossActivationEdges`/`CompositionPriorities` publish `NotRetained` because the settled plan vocabulary retains no inter-activation relations. Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines; the upstream inter-activation vocabulary belongs to the WAIT-WAKE-SUBSTRATE surface. No implementation slice exists to claim.
 - **WHOLE-COMPOSITION-INTERACTION-EXTRACTION** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
-- **WINDOWS-ALPHA-CONFORMANCE-LEG** — mined candidate; verify scope then implement.
+- **WINDOWS-ALPHA-CONFORMANCE-LEG.** Mined candidate; scope verified
+  at `e5bbe53956`, resolved — host-gated re-mine of the Windows x64
+  Alpha conformance leg owned by ALPHA-WINDOWS-CONFORMANCE /
+  ALPHA-WINDOWS-CONFORMANCE-HOST ("ALPHA-WINDOWS-CONFORMANCE owns the
+  Windows edge legs": the seed-executing legs of
+  `tests/bootstrap/alpha-beta-edge.sh` and
+  `tests/alpha/reference/diamond-py.sh` on Windows x64 — Git Bash +
+  Python 3, `tests/alpha/io-registers.hex` must exit 0 with stdout
+  `ABCDEF` for input `AB`, retaining exact bounds/Trap observations and
+  register preservation through host I/O). The same host-gated surface
+  as resolved sibling ALPHA-SEED-WINDOWS-X64-EXECUTION: the committed
+  seed `bootstrap/0_alpha/alpha_x64_windows.exe` is bound, selected, and
+  structurally validated host-free; nothing executable remains on a
+  Linux host (`require_seed_execution_host` refuses linux_x86_64 by
+  landed design — "requires macOS arm64 or Windows x64"). The only
+  residual is running the seed legs on a Windows x64 host, which stays
+  with the owning rows. Implementing surfaces live-fenced this wave:
+  `tools/bootstrap/alpha/seed_env.sh` + `tests/alpha` +
+  `tests/bootstrap/alpha-beta-edge.sh` + `tests/beta` under
+  BOOTSTRAP-SEED-EXECUTION-HOSTS (03:55Z), the native-validation draft
+  under ALPHA-SEED-CONTAINER-NATIVE-VALIDATION (05:57Z). No independent
+  slice.
 - **WINDOWS-FILE-TIME-CARRIER-RESPELL** — mined candidate; verify scope then implement.
 - **WINDOWS-FILE-TIME-UNSIGNED-RESPELL** — mined candidate; scope verified,
   covered. The stub is the "unsigned carrier" clause of
