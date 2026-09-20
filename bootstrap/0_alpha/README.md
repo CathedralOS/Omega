@@ -52,6 +52,8 @@ and `INT64_MIN / -1` exactly as the arm64 seed does. The tape hole is the
 is `.data` at 0x402000 and text at 0x401000. Rebuild for provenance:
 `as --64 -o a.o alpha_x64_linux.s && ld -s -o alpha_x64_linux --build-id=none -e _start a.o`,
 then compare the committed bytes directly.
+`tests/bootstrap/alpha-beta-edge.sh` runs that clone-serialization check on
+Linux x86-64 hosts wherever GNU `as`/`ld` are present.
 
 The extent is a startup allocation, so the
 [PE32+ image-size limit of 2 GiB](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
