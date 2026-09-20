@@ -2963,9 +2963,15 @@ Owners include
     once image emission assigns section coordinates. Remaining on this leg:
     image-emission's artifact join still must place the bytes at
     `identity.entry_offset` and seal the relocation (image-emission is
-    fenced); `Indirect` copies and non-GPR saves or destinations reject as
-    deferred seams, while stack pieces stage through exact-width 4/2/1-byte
-    tail stores (`emit_x86_64_deriver_entry_exit_stub`); the byte recipe
+    fenced); non-GPR saves now land — XMM roster entries stage through the
+    contract's per-vector 16-byte reserve as a `sub rsp` slot area with
+    `movdqu` stores, replayed upward on restore before the pops
+    (`emit_x86_64_deriver_entry_exit_stub`); `Indirect` copies and
+    non-GPR parameter destinations still reject as deferred seams — the
+    copies additionally need the member-call-frame derivation in
+    calling-conventions to reserve the copy area and pointer slot, which
+    `outgoing_stack_end` currently skips — while stack pieces stage
+    through exact-width 4/2/1-byte tail stores; the byte recipe
     lives in machine-emission until a second x86-64 deriver emission moves
     it into the ISA crate; the member's stack column can now bind through
     the emitted stub — `StackLocalEvidence::DeriverStubEntry` bound by
