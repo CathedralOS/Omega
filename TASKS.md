@@ -8603,7 +8603,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS,
   ORPHAN-REWRITE-MODULES-CATALOG, STAGE-ENTRANCE-ORPHAN-AUDIT,
   PIPELINE-ORPHAN-ELIMINATION.
-- **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
+- **ORPHAN-STAGE-ENTRANCE-AUDIT.** Resolved — covered alias of
+  ORPHAN-ENTRANCE-AUDIT (row above, resolved): the stage-entrance orphan audit
+  exists as two landed artifacts — the mechanical
+  [stage-entrance orphan audit](wiki/drafts/stage_entrance_orphan_audit.md)
+  (all 21 `omega-rust/*/pipeline/*` crates, 61 top-level `pub fn`s resolved,
+  no orphans beyond the already-cataloged rewrite/spill/wrapper-placement
+  surfaces) and the self-reconciling in-tree `REWRITE_MODULE_CATALOG` in
+  `selected-instructions-to-selected-instructions/src/rewrites/module_catalog.rs`
+  (38 Orphaned / 6 Routed / 8 Shared / 1 TestSupport at `d210421f02`). A
+  sibling sweep resolution explicitly names this stub for retirement as a
+  re-mine. The retain/delete residual belongs to the per-module owner items
+  (POC-SELECTED-REWRITE-CATALOG, POC-SPILL-FAMILY-*, POC-WRAPPER-OBJECT-
+  PLACEMENT), not an audit.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER.** Mined candidate — resolved:
   the name re-covers the edge-level cleanup gate order already pinned by
