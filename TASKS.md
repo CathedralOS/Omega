@@ -7532,7 +7532,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GAMMA-CERTIFICATE-NATIVE-ACCEPTANCE, GAMMA-CONTAINER-NATIVE-ACCEPTANCE,
   GAMMA-PROVISION-NATIVE-ACCEPTANCE.
 - **GAMMA-PROVISION-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
-- **GATE-LOCAL-DRIVER-PREFIX-BINDING** — mined candidate; verify scope then implement.
+- **GATE-LOCAL-DRIVER-PREFIX-BINDING.** Resolved — re-mine of the
+  TASKS_BOOTSTRAP.md manifest bullet "gate-local prefixes packed on top of
+  bound member bytes", already closed at `e1fba5f523` ("bootstrap: bind
+  Epsilon slice driver and reconstructed receipt identity") and struck at
+  `fc74ff3f088` ("All gate-local drivers are bound"). Verified live at
+  `42ac67775f`: `EPSILON_EXECUTION_DRIVER_SIZE=2565` plus sha256 pin and
+  `require_epsilon_execution_driver_identity` in
+  `tools/bootstrap/epsilon/evaluator_env.sh` gate every cross-rung
+  consumer; Delta's development entry (`DELTA_COMPILER_DEVELOPMENT_ENTRY_*`),
+  Gamma's derivation entries, D's customer entries
+  (`OMEGA_*_ENTRY_*` in `tools/bootstrap/omega/compiler_env.sh`), and the
+  per-gate epsilon drivers are each bound. Resolved siblings
+  GATE-LOCAL-PREFIX-BINDING and CHAIN-GATE-LOCAL-PREFIX-BINDING name this
+  row; the still-open manifest legs stay in their own rows (`omega0`/`omega`
+  tapes under OMEGA-C; certificates and admission records per edge). No
+  independent slice exists.
 - **GATE-LOCAL-PREFIX-BINDING** — mined candidate; scope verified, residual
   already bound. The name resolves to the TASKS_BOOTSTRAP.md manifest bullet
   "gate-local prefixes packed on top of bound member bytes", whose written
