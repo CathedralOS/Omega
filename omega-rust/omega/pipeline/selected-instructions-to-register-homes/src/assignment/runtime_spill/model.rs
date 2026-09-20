@@ -84,13 +84,22 @@ impl RuntimeSpillSource {
     pub(crate) fn register_environment(
         &self,
     ) -> &register_environment::ValidatedTargetRegisterEnvironment {
-        self.legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .register_environment()
+        self.legality_stage().register_environment()
     }
 
+    /// The governing optimizer selections admitted with the shared legality
+    /// stage.
+    pub(crate) fn selections(&self) -> &optimization_core::OptimizationSelections {
+        self.legality_stage().selections()
+    }
+
+    /// The per-pass work budget admitted beside the same evidence.
+    pub(crate) fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+        self.legality_stage().budget_per_pass()
+    }
+
+    /// The retained optimized-target proof input, kept as replay evidence;
+    /// custody checks downstream compare the owner handle by identity.
     pub(crate) fn optimized_target_owner(
         &self,
     ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
@@ -100,16 +109,6 @@ impl RuntimeSpillSource {
             .liveness_stage()
             .selected_stage()
             .optimized_target_owner()
-    }
-
-    pub(crate) fn optimized_target(
-        &self,
-    ) -> &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations {
-        self.legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .optimized_target()
     }
 
     pub(crate) fn allocator_availability(&self) -> &crate::ValidatedAllocatorAvailability {
@@ -154,20 +153,10 @@ impl RuntimeSpillSource {
     /// rematerialization's transformed program.
     pub(crate) fn base(&self) -> crate::SelectedProgramRef<'_> {
         match self {
-            Self::Legality(source) => crate::SelectedProgramRef::new(
-                source
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .selected(),
-            ),
-            Self::DeclinedFixedView { legality, .. } => crate::SelectedProgramRef::new(
-                legality
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .selected(),
-            ),
+            Self::Legality(source) => crate::SelectedProgramRef::new(source.selected()),
+            Self::DeclinedFixedView { legality, .. } => {
+                crate::SelectedProgramRef::new(legality.selected())
+            }
             Self::FixedViewCopies(reanalysis) => {
                 crate::SelectedProgramRef::new(reanalysis.transformation_stage().copies())
             }
@@ -184,10 +173,8 @@ impl RuntimeSpillSource {
     /// rewrite boundary.
     pub(crate) fn liveness(&self) -> &ValidatedLiveness {
         match self {
-            Self::Legality(source) => source.live_range_stage().liveness_stage().liveness(),
-            Self::DeclinedFixedView { legality, .. } => {
-                legality.live_range_stage().liveness_stage().liveness()
-            }
+            Self::Legality(source) => source.liveness(),
+            Self::DeclinedFixedView { legality, .. } => legality.liveness(),
             Self::FixedViewCopies(reanalysis) => reanalysis.liveness(),
             Self::ActiveResidentRematerialization(pressure) => pressure.liveness(),
         }
@@ -195,8 +182,8 @@ impl RuntimeSpillSource {
 
     pub(crate) fn ranges(&self) -> &ValidatedLiveRanges {
         match self {
-            Self::Legality(source) => source.live_range_stage().ranges(),
-            Self::DeclinedFixedView { legality, .. } => legality.live_range_stage().ranges(),
+            Self::Legality(source) => source.ranges(),
+            Self::DeclinedFixedView { legality, .. } => legality.ranges(),
             Self::FixedViewCopies(reanalysis) => reanalysis.ranges(),
             Self::ActiveResidentRematerialization(pressure) => pressure.ranges(),
         }
@@ -248,13 +235,7 @@ impl RuntimeSpillSource {
                     legality.legality(),
                 )
                 .map_err(RuntimeSpillAllocationError::Upstream)?;
-                let budget = legality
-                    .live_range_stage()
-                    .liveness_stage()
-                    .selected_stage()
-                    .optimized_target()
-                    .optimized()
-                    .budget_per_pass();
+                let budget = legality.budget_per_pass();
                 match crate::probe_optimized_fixed_precolored_segment_homes(legality, budget) {
                     Err(error) if error.capacity_decline() == Some(*decline) => {
                         Ok((upstream.manifest(), Vec::new()))

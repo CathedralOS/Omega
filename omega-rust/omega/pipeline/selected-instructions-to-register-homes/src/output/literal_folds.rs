@@ -25,28 +25,21 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterLiteralFolds {
 
 impl ProjectAllocation for StagedOptimizedRegisterHomesAfterLiteralFolds {
     fn project_allocation(&self) -> AllocationOutput<'_> {
-        let folds = self.fold_stage();
-        let selected = folds
-            .source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage();
-        let step = folds.final_step();
         AllocationOutput {
             program: register_homes::AllocatedProgramRef {
-                selected: step.fold().transformed(),
+                selected: self.selected().transformed(),
                 homes: self.homes().plan(),
             },
-            selected: SelectedProgramRef::new(step.fold()),
-            liveness: step.liveness(),
-            ranges: step.ranges(),
-            legality: step.legality(),
+            selected: SelectedProgramRef::new(self.selected()),
+            liveness: self.liveness(),
+            ranges: self.ranges(),
+            legality: self.legality(),
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
-            environment: selected.register_environment(),
-            target_input: selected.optimized_target_owner(),
-            selections: selected.optimized_target().optimized().selections(),
-            budget: selected.optimized_target().optimized().budget_per_pass(),
+            environment: self.register_environment(),
+            target_input: self.optimized_target_owner(),
+            selections: self.selections(),
+            budget: self.budget_per_pass(),
             evidence: AllocationEvidence::LiteralFolds(self.custody().to_owned()),
         }
     }
@@ -67,38 +60,22 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterSelectedLowering {
 
 impl ProjectAllocation for StagedOptimizedRegisterHomesAfterSelectedLowering {
     fn project_allocation(&self) -> AllocationOutput<'_> {
-        let run = self.selected_lowering_run();
-        let source = run.source_legality_stage();
-        let selected = source.live_range_stage().liveness_stage().selected_stage();
-        let (program, liveness, ranges, legality) = match run.steps().last() {
-            Some(step) => (
-                SelectedProgramRef::new(step.fold()),
-                step.liveness(),
-                step.ranges(),
-                step.legality(),
-            ),
-            None => (
-                SelectedProgramRef::new(selected.selected()),
-                source.live_range_stage().liveness_stage().liveness(),
-                source.live_range_stage().ranges(),
-                source.legality(),
-            ),
-        };
+        let program = self.selected();
         AllocationOutput {
             program: register_homes::AllocatedProgramRef {
                 selected: program.plan(),
                 homes: self.homes().plan(),
             },
             selected: program,
-            liveness,
-            ranges,
-            legality,
+            liveness: self.liveness(),
+            ranges: self.ranges(),
+            legality: self.legality(),
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
-            environment: selected.register_environment(),
-            target_input: selected.optimized_target_owner(),
-            selections: selected.optimized_target().optimized().selections(),
-            budget: selected.optimized_target().optimized().budget_per_pass(),
+            environment: self.register_environment(),
+            target_input: self.optimized_target_owner(),
+            selections: self.selections(),
+            budget: self.budget_per_pass(),
             evidence: AllocationEvidence::SelectedLowering(self.custody().to_owned()),
         }
     }

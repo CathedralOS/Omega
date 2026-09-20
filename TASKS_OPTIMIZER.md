@@ -86,19 +86,26 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   shared-vocabulary table pins the root sets of optimization-core,
   register-model, task-plans, effects, calling-conventions,
   function-identity, installation-evidence and `target`. Consumers in the
-  selected and allocation stages still reach current data through producer
-  history.
+  selected stages still reach current data through producer history; the
+  allocation stage reads its own staged accessors directly.
 
   Remaining work:
 
   - Replace stage-ancestry walks with direct reads of the current program.
-    `selected-instructions-to-selected-instructions/src/selected_optimization.rs`
-    obtains its selections through
-    `ranges.liveness_stage().selected_stage().optimized_target().optimized()`;
-    the same accessor chains occur on about 100 non-test lines of
-    `selected-instructions-to-register-homes` and about 60 of
-    `selected-instructions-to-selected-instructions`. Keep the retained inputs
-    as replay evidence only.
+    The `selected-instructions-to-register-homes` leg is done: its staged
+    types expose `selected`/`register_environment`/`selections`/
+    `budget_per_pass`/`liveness`/`ranges`/`legality` directly, every
+    `live_range_stage().liveness_stage().selected_stage().optimized_target()
+    .optimized()` chain is gone from the crate, and
+    `register_home_stages_read_current_data_not_producer_ancestry` pins the
+    contract — the only surviving ancestry walk is `optimized_target_owner`,
+    which returns the retained proof-input `Arc` custody checks compare by
+    identity. `selected-instructions-to-selected-instructions` still walks
+    the same chains on about 60 non-test lines
+    (`selected_optimization.rs` obtains its selections through
+    `ranges.liveness_stage().selected_stage().optimized_target().optimized()`),
+    and its `StagedOptimized*` producers keep the retained inputs as replay
+    evidence only.
   - `representations/optimization-unit` settled as a named representation at
     `11eaa140cb`: `optimization_unit.rs` is the one root beside `lib.rs` and
     every concept area — including the `construction/` projection entrance —

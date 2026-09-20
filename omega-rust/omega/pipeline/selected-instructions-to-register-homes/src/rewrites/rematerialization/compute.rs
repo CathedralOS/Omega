@@ -36,17 +36,9 @@ pub(super) fn compute_active_resident_rematerialization_pressure(
         return Err(OptimizedActiveResidentRematerializationError::UnsupportedPolicy);
     }
     let source_receipt = validate_source(&source)?;
-    let environment = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
-    let selected = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .selected();
-    let source_ranges = source.live_range_stage().ranges();
+    let environment = source.register_environment();
+    let selected = source.selected();
+    let source_ranges = source.ranges();
     let choices = choose_spill_victims(
         source.legality(),
         source_ranges,
@@ -206,12 +198,7 @@ pub(super) fn compute_active_resident_rematerialization(
         rematerialization_policy,
         budget,
     )?;
-    let environment = pressure
-        .source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = pressure.source.register_environment();
     let homes = assign_register_homes(
         &pressure.legality,
         &pressure.ranges,

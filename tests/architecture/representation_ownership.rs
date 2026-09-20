@@ -469,6 +469,17 @@ fn effect_records_do_not_derive_typed_body_or_provider_summaries() {
     }
 }
 
+fn rust_files(directory: &Path, files: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(directory).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            rust_files(&path, files);
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            files.push(path);
+        }
+    }
+}
+
 fn rust_source(directory: &Path) -> String {
     let mut paths = std::fs::read_dir(directory)
         .unwrap()
@@ -1054,6 +1065,44 @@ fn register_home_data_is_independent_of_allocation_authority() {
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
     assert!(!manifest.contains("selected-instructions-to-register-homes"));
     assert!(!manifest.contains("/pipeline/"));
+}
+
+#[test]
+fn register_home_stages_read_current_data_not_producer_ancestry() {
+    // The staged assignment types retain their producer stages as replay and
+    // custody evidence only. Ordinary consumers read the current program and
+    // facts through the direct accessors — selected, register_environment,
+    // selections, budget_per_pass, liveness, ranges, legality — instead of
+    // climbing `live_range_stage().liveness_stage().selected_stage()`.
+    // `optimized_target_owner` is the single sanctioned ancestry walk: it
+    // returns the retained proof-input `Arc` downstream custody checks compare
+    // by identity. Named input hops (`source_legality_stage`,
+    // `transformation_stage`, `live_range_stage` passed to custody validators)
+    // stay: they name the stage under inspection, not a data read.
+    let root =
+        repository().join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src");
+    let mut files = Vec::new();
+    rust_files(&root, &mut files);
+    assert!(!files.is_empty());
+    for path in &files {
+        let source = std::fs::read_to_string(path).unwrap();
+        let name = path.display().to_string();
+        assert!(
+            !source.contains(".optimized_target()"),
+            "{name} reads the retained proof input as data"
+        );
+        for ancestry in ["liveness_stage()", "selected_stage()"] {
+            assert!(
+                !source.contains(ancestry) || source.contains("optimized_target_owner"),
+                "{name} walks producer ancestry outside optimized_target_owner: {ancestry}"
+            );
+        }
+    }
+    let output = rust_source(&root.join("output"));
+    assert!(
+        output.contains("target_input: self.optimized_target_owner()"),
+        "allocation output dropped the retained proof-input handle"
+    );
 }
 
 #[test]

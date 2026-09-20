@@ -31,8 +31,38 @@ pub struct StagedOptimizedActiveResidentRematerialization {
 }
 
 impl StagedOptimizedActiveResidentRematerialization {
+    /// The retained legality stage the proven sweep consumed. Replay and
+    /// custody validation inspect it; ordinary consumers read the current
+    /// program and rebuilt analyses directly.
     pub const fn source(&self) -> &StagedOptimizedAllocationLegality {
         &self.source
+    }
+    /// The register environment admitted with the retained source — the sweep
+    /// preserves it, so the source's environment is the current one.
+    pub const fn register_environment(
+        &self,
+    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+        self.source.register_environment()
+    }
+    /// The governing optimizer selections admitted with the retained stage.
+    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
+        self.source.selections()
+    }
+    /// The per-pass work budget admitted beside the same evidence.
+    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+        self.source.budget_per_pass()
+    }
+    /// The retained optimized-target proof input, kept as replay evidence;
+    /// downstream custody checks compare the owner handle by identity.
+    pub fn optimized_target_owner(
+        &self,
+    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
+    {
+        self.source
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .optimized_target_owner()
     }
     pub const fn choices(&self) -> &ValidatedSpillChoices {
         &self.choices

@@ -23,11 +23,6 @@ impl AllocationSource for StagedOptimizedActiveResidentRematerialization {
 
 impl ProjectAllocation for StagedOptimizedActiveResidentRematerialization {
     fn project_allocation(&self) -> AllocationOutput<'_> {
-        let selected = self
-            .source()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage();
         AllocationOutput {
             program: register_homes::AllocatedProgramRef {
                 selected: self.rematerialization().transformed(),
@@ -39,10 +34,10 @@ impl ProjectAllocation for StagedOptimizedActiveResidentRematerialization {
             legality: self.legality(),
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
-            environment: selected.register_environment(),
-            target_input: selected.optimized_target_owner(),
-            selections: selected.optimized_target().optimized().selections(),
-            budget: selected.optimized_target().optimized().budget_per_pass(),
+            environment: self.register_environment(),
+            target_input: self.optimized_target_owner(),
+            selections: self.selections(),
+            budget: self.budget_per_pass(),
             evidence: AllocationEvidence::ActiveResidentRematerialization(
                 self.custody().to_owned(),
             ),
