@@ -6152,7 +6152,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE** — mined candidate; verify scope then implement.
 - **BENCHMARK-SUBJECT-CORPUS-EXPANSION** — mined candidate; verify scope then implement.
 - **BENCHMARK-SUBJECT-ROW-EXPANSION** — mined candidate; verify scope then implement.
-- **BENCHMARK-UEFI-ROW** — mined candidate; verify scope then implement.
+- **BENCHMARK-UEFI-ROW** — scope verified 2026-09-20: re-mines the
+  `uefi_x86_64` entry of the host-row matrix in
+  [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md#host-row-matrix). The
+  row is not producible on a linux_x86_64 build host at this revision: its
+  compile-time/code-size leg belongs to the compile-only row surface owned by
+  **BENCHMARK-COMPILE-ONLY-ROWS** (sibling row, verified in
+  BENCHMARK-CROSS-HOST-ROWS's scope note), and its runtime leg needs QEMU or
+  UEFI hardware plus a bootable artifact — realization is still gated on
+  **UEFI-PHYSICAL-SEMANTIC-ENTRY** and **UEFI-OS-HANDOFF** (live claims at
+  verification; the authored UEFI physical entry in
+  `std/targets/uefi_x86_64/entry.omg` remains "a planned, non-invoked
+  surface"). Witness: `benchmark.py measure --root
+  samples/uefi/uefi_hello/main.omg --target uefi_x86_64 --no-run` fails at
+  realization with "terminal-artifact production requires one exact selected
+  program entry" — the sample binds no `uefi_x86_64::ProgramEntry` because it
+  exercises the physical boot path that does not exist yet. No independent
+  slice exists here; sibling re-mines: BENCHMARK-HOST-ROW-MATRIX,
+  BENCHMARK-CROSS-TARGET-COMPILE-{LEGS,ROWS}, BENCHMARK-ROW-RESUMPTION.
 - **BENCHMARK-WINDOWS-PEAK-MEMORY** — mined candidate; verify scope then implement.
 - **BENCHMARK-WINDOWS-PEAK-RSS** — mined candidate; verify scope then implement.
 - **BETA-COMPILER-SEED-REFUSAL** — mined candidate; verify scope then implement.
