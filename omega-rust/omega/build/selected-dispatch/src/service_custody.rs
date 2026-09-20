@@ -6,8 +6,8 @@ mod root;
 pub use root::derive_fused_program_entry_establishments;
 
 use checked_trees::{
-    CheckedFusedServiceErasureReceipt, CheckedTrees, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape,
+    CheckedFusedServiceErasureReceipt, CheckedTrees, CheckedUnitPlanOmissionStage,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape,
 };
 use diagnostics::Diagnostic;
 use provider_planning::CompositionMode;
