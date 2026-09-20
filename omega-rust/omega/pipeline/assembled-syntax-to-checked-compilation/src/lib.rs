@@ -23,7 +23,8 @@ pub use admission::{CheckedAdmission, admit_checked_compilation};
 pub use checking::compile_thread::run_on_compile_thread;
 pub use checking::{
     CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
-    IndependentComponentSelection, PreparedCheckedSource, compile_to_checked,
+    IndependentComponentSelection, PreparedCheckedSource, RestrictedBuildGrants,
+    compile_to_checked,
 };
 pub use optimization::rollback::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,
