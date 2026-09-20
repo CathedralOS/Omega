@@ -640,15 +640,6 @@ and the expectation now names it.)
   builds the native request by hand and never supplies the checked entry the
   production route attaches through `with_checked_entry`. Repair is a harness
   migration onto the stage crate's route (**ENTRY-CONTENT-ROOTS** area).
-- Frontend-drop custody ordering (2):
-  `contracts_and_frontend_drop::terminal_production_requires_typed_custody_but_not_debug_presentation`
-  and `locals_calls_and_short_circuit::checked_source_scalar_locals_become_terminal_block_values`
-  expect `Unsupported("scalar source custody has no authored state")` but now
-  reach the earlier attached-Unit parameter gate
-  (`checked-trees-to-lowered-psi/src/unit/attached_unit/parameters.rs`,
-  `carries_parameter_custody`) first: `Unsupported("direct Unit parameter plan
-  has no exact typed machine")`. The expectation dates from 3fcf8240e3; the
-  gate order moved in a 2026-09-15 lowering commit and was not bisected.
 - `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
   (1): `UnsupportedControlFlow(MachineId(1))` from
   `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;

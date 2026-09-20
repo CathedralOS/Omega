@@ -7522,7 +7522,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   fences `proof_contracts/default_domains` for this item — coordinate before
   working it.
 - **DERIVATION-STORE-SEMANTIC-INDEX** — mined candidate; verify scope then implement.
-- **DIFFERENTIAL-FRONTEND-DROP-EXPECTATIONS** — mined candidate; verify scope then implement.
+- **DIFFERENTIAL-FRONTEND-DROP-EXPECTATIONS.** Resolved — the named leg was
+  already landed and its stale ledger entry is now swept. The item re-mines
+  `known_baseline_failures.md`'s "Frontend-drop custody ordering (2)" rows:
+  `contracts_and_frontend_drop::terminal_production_requires_typed_custody_but_not_debug_presentation`
+  and `locals_calls_and_short_circuit::checked_source_scalar_locals_become_terminal_block_values`
+  whose typed-erasure probes expected `Unsupported("scalar source custody has
+  no authored state")`. `27f345e527a` ("tests: follow the direct Unit
+  parameter custody gate in terminal_psi_source", 12:21Z) already refreshed
+  both expectations to the attached-Unit parameter gate's diagnostic
+  (`direct Unit parameter plan has no exact typed machine` from
+  `unit/attached_unit/parameters.rs::carries_parameter_custody`, now a
+  program-level check that runs before source custody). Verified green at
+  `739e4e81e97`: `cargo nextest run -p omega-native-differential-test --test
+  terminal_psi_source` on both names, 2/2 pass. The doc entry still recorded
+  the pre-refresh expectations — removed it, since the ledger's contract is
+  "refresh or remove a row when its failures are fixed". The old custody
+  diagnostic remains a live error for other shapes
+  (`expression_preparation/source_custody/mod.rs:73`); only these two
+  programs' gate order changed.
 - **DIFFERENTIAL-STAGED-LOCAL-SEQUENCE** — mined candidate; scope verified, resolved — the native-differential staged-local-sequence leg is green on main: `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash` plus its six `checked_source_staged_local_*` siblings all pass on linux x86-64 at 4dbdaa9bc3 and re-verified identical at 797e99ead7a (`cargo nextest run -p omega-native-differential-test --test terminal_psi_source -E 'test(~staged_local)'`, 7/7). The `wiki/drafts/known_baseline_failures.md` entry (now at :493) recording recording `UnsupportedControlFlow(MachineId(1))` (expectation from `2694d433d3`, never bisected) is stale — the underlying lowering moved since; the doc row's refresh belongs to the known-failures doc lane. Owning parent: STAGED-LOCAL-SEQUENCE-LOWERING (TASKS.md:5774).
 - **DIVISION-CANARY-ENTRY-BINDING.** Scope verified at ea025447fe — re-mines
   the surface CANARY-EXACT-ENTRY-SELECTION already owns ("exact entry
