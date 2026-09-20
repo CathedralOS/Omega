@@ -175,96 +175,73 @@ pub struct ConventionalNestedRecordSumPathsLayoutReport {
     pub paths: Vec<ConventionalNestedRecordSumOccurrenceLayoutReport>,
 }
 
-/// One exact outer-field occurrence in a recursively nested record path.
-///
-/// `inner` retains the complete path report for the next record boundary.
-/// The recursive report uses this carrier for each record boundary.
+/// The path segment that reaches one classified child of a record level:
+/// the bare field hop, or the field hop plus one literal element index into
+/// the repeated row the field carries. `Index` retains the literal element
+/// count the field's extent covers and the constant byte distance between
+/// consecutive elements, so repetition is data on the same hop channel as
+/// depth rather than a sibling row kind. The stride covers the child's
+/// complete interior extent so repeated elements cannot overlap.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConventionalRecordSumOccurrenceLayoutReport {
-    pub outer_field: String,
-    pub outer_member_identity: Option<u64>,
-    pub inner: ConventionalRecursiveRecordSumPathsLayoutReport,
+pub enum ConventionalRecordSumChildHop {
+    /// The path crosses the field boundary directly — `field.<inner>`.
+    Field,
+    /// The path carries one literal element index into the field's repeated
+    /// row — `field[i].<inner>` — before crossing the interior boundary.
+    /// `element_count` is the literal declared length the field's extent
+    /// covers; `element_stride` is the constant byte distance between
+    /// consecutive elements.
+    Index {
+        /// The literal element count the field's extent covers.
+        element_count: u64,
+        /// The constant byte distance between consecutive elements; it
+        /// covers the child interior's complete extent so repeated elements
+        /// cannot overlap.
+        element_stride: u64,
+    },
 }
 
-/// One exact direct outer-field occurrence of a nonzero literal `[R; N]`
-/// fixed array whose record element still reaches conventional sums.
-///
-/// `inner` retains the complete recursive report every element shares — the
-/// element type's own record/sum geometry, retained once rather than per
-/// index. `element_count` is the literal declared length and
-/// `element_stride` the constant byte distance between consecutive elements,
-/// so the field's whole extent stays one `At` placement in the enclosing
-/// `outer_layout` while the exact element index stays semantic data on the
-/// path. This is the record counterpart of
-/// [`ConventionalSumArrayFieldLayoutReport`]: the same compact row shape, but
-/// each element crosses one record boundary before reaching sums, so the row
-/// carries the element's recursive report instead of one sum overlay.
+/// The child's own layout evidence below the hop: a direct conventional sum
+/// overlay (pure or mixed common-field/case), or the nested record's
+/// complete recursive report. The record report is retained once no matter
+/// how many occurrences or element indices reach it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConventionalRecordArrayFieldLayoutReport {
+pub enum ConventionalRecordSumChildInterior {
+    /// The field stores one conventional sum element — a pure case overlay
+    /// or a mixed common-field/case shape.
+    Sum(ConventionalSumLayoutReport),
+    /// The field's record element still reaches sums; the element record's
+    /// own recursive report supplies every boundary below this hop.
+    Record(ConventionalRecursiveRecordSumPathsLayoutReport),
+}
+
+/// One classified child of a record level: its own path segment beside the
+/// child's recursive report or sum overlay. A field hop or a literal index
+/// hop with a count and stride — repetition and depth are both data on this
+/// one channel, so a new child shape extends the row's hop or interior
+/// vocabulary rather than adding a sibling channel.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalRecordSumChildLayoutReport {
     pub field: String,
     pub member_identity: Option<u64>,
-    /// The literal element count the field's extent covers.
-    pub element_count: u64,
-    /// The constant byte distance between consecutive elements; it covers the
-    /// complete `inner` outer extent so repeated elements cannot overlap.
-    pub element_stride: u64,
-    /// The element record's complete recursive record/sum report, shared by
-    /// every index the field spells.
-    pub inner: ConventionalRecursiveRecordSumPathsLayoutReport,
+    pub hop: ConventionalRecordSumChildHop,
+    pub interior: ConventionalRecordSumChildInterior,
 }
 
-/// Complete authored-order path reports below one enclosing record layout.
-///
-/// The child report retains exact geometry and semantic occurrence identity.
-/// `child_sum_layouts` retains the record level's own direct conventional
-/// pure-sum fields beside its deeper record paths, and
-/// `child_sum_array_layouts` retains the level's direct fixed arrays of
-/// conventional pure sums: a record that contains a direct sum, a direct
-/// sum array, and reaches sums through a record field spells one `Branch`
-/// carrying all three, rather than rejecting the direct children the `Leaf`
-/// level already retains. `child_record_array_layouts` adds the level's
-/// direct fixed arrays of records still reaching sums — the fourth child
-/// kind the same general rule admits, one literal element hop away.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConventionalRecordSumPathsLayoutReport {
-    pub outer_layout: LayoutPlanReport,
-    pub paths: Vec<ConventionalRecordSumOccurrenceLayoutReport>,
-    /// The enclosing record level's own direct conventional pure-sum fields,
-    /// in authored order — the same channel `Leaf` carries, retained beside
-    /// the deeper record paths so the two child kinds coexist at one level.
-    pub child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
-    /// The enclosing record level's own direct fixed arrays of conventional
-    /// pure sums, in authored order — one compact row per occurrence, kept
-    /// beside `child_sum_layouts` and the deeper record paths under the same
-    /// general recursive rule rather than fenced to a top-level-only rung.
-    pub child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
-    /// The enclosing record level's own direct fixed arrays of records still
-    /// reaching sums, in authored order — one compact row per occurrence,
-    /// each carrying the element record's complete recursive report so an
-    /// indexed path composes one element hop before crossing the record
-    /// boundary inside it.
-    pub child_record_array_layouts: Vec<ConventionalRecordArrayFieldLayoutReport>,
-}
-
-/// Recursive record-path geometry. Each occurrence retains its own exact record
-/// boundary; nesting depth is data rather than a family of Rust interfaces.
+/// Recursive record-path geometry below one enclosing record layout: the
+/// level's classified children in authored order — direct conventional sums,
+/// literal `[S; N]` sum arrays, literal `[R; N]` record arrays still
+/// reaching sums inside the element, and record fields still reaching sums —
+/// each carrying its own path segment beside the child's own report. Record
+/// depth is data in `children` rather than a family of Rust interfaces.
 /// This report is not custody; consumers independently validate it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConventionalRecursiveRecordSumPathsLayoutReport {
-    Leaf {
-        outer_layout: LayoutPlanReport,
-        child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
-        /// The leaf level's direct fixed arrays of conventional pure sums, in
-        /// authored order — a level that ends the record recursion still
-        /// carries both direct child kinds.
-        child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
-        /// The leaf level's direct fixed arrays of records still reaching
-        /// sums, in authored order — each row's `inner` carries the element
-        /// record's own recursive report, so the record recursion continues
-        /// inside the repeated element rather than ending at the field.
-        child_record_array_layouts: Vec<ConventionalRecordArrayFieldLayoutReport>,
-    },
-    Branch(ConventionalRecordSumPathsLayoutReport),
+pub struct ConventionalRecursiveRecordSumPathsLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    /// The level's classified children in authored field order. Nonempty by
+    /// construction: the projection requires at least one child carrying a
+    /// sum boundary below this level.
+    pub children: Vec<ConventionalRecordSumChildLayoutReport>,
 }
 
 /// Compiler resource limit shared by recursive projection and materialization.
@@ -272,43 +249,19 @@ pub enum ConventionalRecursiveRecordSumPathsLayoutReport {
 pub const CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT: usize = 64;
 
 impl ConventionalRecursiveRecordSumPathsLayoutReport {
-    pub fn outer_layout(&self) -> &LayoutPlanReport {
-        match self {
-            Self::Leaf { outer_layout, .. } => outer_layout,
-            Self::Branch(report) => &report.outer_layout,
-        }
-    }
-
-    /// The total conventional-sum leaf occurrences the report reaches: a
-    /// `Leaf` level's own direct sums and sum arrays plus every record-array
-    /// row's element-level leaf occurrences, or a `Branch` level's direct
-    /// children plus the leaf occurrences of every deeper record path.
+    /// The total conventional-sum leaf occurrences the report reaches: each
+    /// `Sum` child row counts once (an indexed sum row still counts once —
+    /// the compact row covers every element index), and each `Record` child
+    /// contributes the element record's own leaf occurrences.
     pub fn leaf_occurrence_count(&self) -> Option<usize> {
-        match self {
-            Self::Leaf {
-                child_sum_layouts,
-                child_sum_array_layouts,
-                child_record_array_layouts,
-                ..
-            } => child_record_array_layouts.iter().try_fold(
-                child_sum_layouts
-                    .len()
-                    .checked_add(child_sum_array_layouts.len())?,
-                |total, row| total.checked_add(row.inner.leaf_occurrence_count()?),
-            ),
-            Self::Branch(report) => {
-                let level = report.child_record_array_layouts.iter().try_fold(
-                    report
-                        .child_sum_layouts
-                        .len()
-                        .checked_add(report.child_sum_array_layouts.len())?,
-                    |total, row| total.checked_add(row.inner.leaf_occurrence_count()?),
-                )?;
-                report.paths.iter().try_fold(level, |total, path| {
-                    total.checked_add(path.inner.leaf_occurrence_count()?)
-                })
-            }
-        }
+        self.children.iter().try_fold(0usize, |total, child| {
+            total.checked_add(match &child.interior {
+                ConventionalRecordSumChildInterior::Sum(_) => 1,
+                ConventionalRecordSumChildInterior::Record(inner) => {
+                    inner.leaf_occurrence_count()?
+                }
+            })
+        })
     }
 }
 

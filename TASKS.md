@@ -1214,19 +1214,32 @@ Owners include
   with the Rust reference writer. Both ISAs agree on the normalized fragment
   fingerprint and the writer invocation while emitting their own bytes.
 
-  Flag: each child shape got its own channel instead of one classified child
-  row. `ConventionalRecordSumPathsLayoutReport` carries `paths`,
-  `child_sum_layouts`, `child_sum_array_layouts` and
-  `child_record_array_layouts`; the recursive `Leaf` repeats three of them;
-  `SymbolicFieldInteriorLayout` has a matching variant per kind; and
-  `build-time-evaluation/src/layouts/layout_plans/` now holds 17
-  `ValidatedConst*` materialization and selection types. The last three shapes
-  landed as one commit each, every one adding a report field, a carrier
-  variant, a validated type and its own recursion test, and each fenced shape
-  above would add another. The general mechanism is one child row carrying its
-  own path segment — a field hop, or a literal index hop with a count and
-  stride — beside the child's recursive report, so repetition and depth are
-  both data on one channel.
+  Flag: the recursive report now spells the mechanism this flag asked for.
+  `ConventionalRecursiveRecordSumPathsLayoutReport` is one
+  `{ outer_layout, children }` level: every child row in `children`
+  (`ConventionalRecordSumChildLayoutReport`) carries the member's `field`
+  and `member_identity`, a `ConventionalRecordSumChildHop` — `Field`, or
+  `Index { element_count, element_stride }` — and a
+  `ConventionalRecordSumChildInterior` (a `Sum` layout report or the
+  recursive `Record` report), all in authored member order. The
+  `Leaf`/`Branch` split and the per-kind `paths` / `child_sum_layouts` /
+  `child_sum_array_layouts` / `child_record_array_layouts` channels are
+  gone, and `CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT` applies to the one
+  channel. The carrier fold matches: `SymbolicFieldInteriorLayout` is
+  `{ hop, interior }` — repetition is data on the hop — with
+  `SymbolicFieldInterior::{Record, Sum}` as the only per-kind variants,
+  so a fenced shape arrives as one more row rather than one more
+  channel. Custody folds the same way:
+  `ValidatedConstRecordWithRecursiveNestedSumsMaterialization` is a
+  single struct retaining `children` (`ValidatedConstRecordSumChild-
+  Materialization::{Sum, SumArray, Record, RecordArray}`) in authored
+  order beside one `path_layout`, one byte image and one merged
+  `omega.const-materializable-recursive-level-children.v1` fingerprint.
+  Still per-shape: the standalone ConstMaterializable rungs keep their
+  own channels — `ConventionalNestedRecordSumPath(s)LayoutReport` and
+  the remaining `ValidatedConst*` selection types under
+  `build-time-evaluation/src/layouts/layout_plans/` — fenced to the
+  single-hop shapes the remaining-work note names.
 
 ## P3 - Terminal Psi, PCC, and observation
 

@@ -9,10 +9,10 @@ use diagnostics::Diagnostic;
 use language_semantics::{DataSupplyMode, Multiplicity};
 use layout_plans::{
     ConventionalNestedRecordSumOccurrenceLayoutReport, ConventionalNestedRecordSumPathLayoutReport,
-    ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordArrayFieldLayoutReport,
-    ConventionalRecordSumPathsLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,
-    ConventionalSumArrayFieldLayoutReport, ConventionalSumCaseLayoutReport,
-    ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
+    ConventionalNestedRecordSumPathsLayoutReport, ConventionalRecordSumChildHop,
+    ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
+    ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
+    ConventionalSumCaseLayoutReport, ConventionalSumFieldLayoutReport, ConventionalSumLayoutReport,
     ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport, LayoutPlacementReport,
     LayoutPlanReport,
 };
@@ -48,30 +48,45 @@ pub fn project_conventional_record_with_sum_materialization_layout(
         &mut reachability,
         LiteralArrayHopRule::OuterOnly,
     )?;
-    if let Some(candidate) = level.record_paths.first() {
+    // The standalone rung keeps its own narrower contract: partition the
+    // level's classified children back into the kind channels its fences
+    // inspect, in the same order its callers observed.
+    let mut child_sum_layouts = Vec::new();
+    let mut sum_arrays = Vec::new();
+    let mut record_arrays = Vec::new();
+    let mut record_paths = Vec::new();
+    for child in level.children {
+        match child {
+            RecordLevelChild::Sum(row) => child_sum_layouts.push(row),
+            RecordLevelChild::SumArray(row) => sum_arrays.push(row),
+            RecordLevelChild::RecordArray(candidate) => record_arrays.push(candidate),
+            RecordLevelChild::Record(candidate) => record_paths.push(candidate),
+        }
+    }
+    if let Some(candidate) = record_paths.first() {
         return Err(Diagnostic::error(format!(
             "nested-sum materialization does not lift the nested record path through `{}`; the recursive record/sum owner carries it",
             candidate.declared.name
         )));
     }
-    if let Some(array) = level.child_sum_array_layouts.first() {
+    if let Some(array) = sum_arrays.first() {
         return Err(Diagnostic::error(format!(
             "nested-sum materialization does not lift the direct sum array `{}`; the recursive record/sum owner carries it",
             array.field
         )));
     }
-    if let Some(candidate) = level.record_array_paths.first() {
+    if let Some(candidate) = record_arrays.first() {
         return Err(Diagnostic::error(format!(
             "nested-sum materialization does not lift the direct record array `{}`; the recursive record/sum owner carries it",
             candidate.declared.name
         )));
     }
-    if level.child_sum_layouts.is_empty() {
+    if child_sum_layouts.is_empty() {
         return Err(Diagnostic::error(
             "nested-sum layout projection requires at least one direct runtime-relevant case-bearing field",
         ));
     }
-    Ok((level.outer_layout, level.child_sum_layouts))
+    Ok((level.outer_layout, child_sum_layouts))
 }
 
 /// One runtime-relevant record field whose exact closed `[copy]` record type
@@ -111,22 +126,32 @@ enum LiteralArrayHopRule {
     Flattened,
 }
 
+/// One classified direct child of a record level, carrying the evidence its
+/// row needs. Direct sums and literal sum arrays project their interior
+/// beside the field eagerly; record children defer the element or field's
+/// recursive report to the caller's own depth rule.
+enum RecordLevelChild<'a> {
+    /// A direct conventional case-bearing field — a pure sum or a mixed
+    /// common-field/case shape.
+    Sum(ConventionalSumFieldLayoutReport),
+    /// A direct nonzero literal fixed array of conventional case-bearing
+    /// elements — pure sums and mixed shapes.
+    SumArray(ConventionalSumArrayFieldLayoutReport),
+    /// A direct nonzero literal fixed array of records still reaching sums.
+    RecordArray(RecordArrayPathCandidate<'a>),
+    /// A record field whose exact type still reaches sums below this level.
+    Record(RecordPathCandidate<'a>),
+}
+
 /// The direct children one record level retains under the general recursive
-/// rule, beside the level's flat outer plan.
+/// rule, beside the level's flat outer plan: one authored-order channel
+/// whose rows carry their own path segment and child evidence.
 struct RecordLevelChildren<'a> {
     outer_layout: LayoutPlanReport,
-    /// Direct conventional case-bearing fields — pure sums and mixed
-    /// common-field/case shapes — in authored order.
-    child_sum_layouts: Vec<ConventionalSumFieldLayoutReport>,
-    /// Direct nonzero literal fixed arrays of conventional case-bearing
-    /// elements — pure sums and mixed shapes — in authored order.
-    child_sum_array_layouts: Vec<ConventionalSumArrayFieldLayoutReport>,
-    /// Direct nonzero literal fixed arrays of records still reaching sums,
-    /// in authored order.
-    record_array_paths: Vec<RecordArrayPathCandidate<'a>>,
-    /// Record fields whose exact type still reaches sums below this level, in
-    /// authored order.
-    record_paths: Vec<RecordPathCandidate<'a>>,
+    /// Every classified child in authored field order — direct sums, direct
+    /// sum arrays, direct record arrays, and record paths interleaved as the
+    /// schema spells them.
+    children: Vec<RecordLevelChild<'a>>,
 }
 
 /// Project one record level's direct conventional-sum children from the exact
@@ -176,20 +201,8 @@ fn project_record_level_children<'a>(
         )));
     }
 
-    let mut child_sum_layouts = Vec::new();
-    let mut child_sum_array_layouts = Vec::new();
-    let mut record_array_paths = Vec::new();
-    let mut record_paths = Vec::new();
-    child_sum_layouts
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
-    child_sum_array_layouts
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
-    record_array_paths
-        .try_reserve_exact(declared_fields.len())
-        .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
-    record_paths
+    let mut children = Vec::new();
+    children
         .try_reserve_exact(declared_fields.len())
         .map_err(|_| Diagnostic::error(format!("{owner} report exceeds compiler resources")))?;
     let mut entries = Vec::with_capacity(declared_fields.len());
@@ -259,21 +272,23 @@ fn project_record_level_children<'a>(
                         // compact row carries it, with the element report
                         // spelling the common-field rows itself.
                         DataShapeKind::Enum | DataShapeKind::Mixed => {
-                            child_sum_array_layouts.push(project_sum_array_row(
+                            children.push(RecordLevelChild::SumArray(project_sum_array_row(
                                 program, plan, declared, laid, named, &hops, owner,
-                            )?);
+                            )?));
                         }
                         // A record element still reaching sums crosses its
                         // own record boundary inside each element: the level
                         // retains the candidate and the recursive report
                         // spells the element's interior once for every index.
                         DataShapeKind::Record => {
-                            record_array_paths.push(RecordArrayPathCandidate {
-                                declared,
-                                laid,
-                                named,
-                                hops,
-                            });
+                            children.push(RecordLevelChild::RecordArray(
+                                RecordArrayPathCandidate {
+                                    declared,
+                                    laid,
+                                    named,
+                                    hops,
+                                },
+                            ));
                         }
                         DataShapeKind::Empty => {
                             return Err(Diagnostic::error(format!(
@@ -334,18 +349,20 @@ fn project_record_level_children<'a>(
                                     declared.name
                                 )));
                             }
-                            child_sum_layouts.push(ConventionalSumFieldLayoutReport {
-                                field: declared.name.to_string(),
-                                member_identity: declared.identity,
-                                layout: child_layout,
-                            });
+                            children.push(RecordLevelChild::Sum(
+                                ConventionalSumFieldLayoutReport {
+                                    field: declared.name.to_string(),
+                                    member_identity: declared.identity,
+                                    layout: child_layout,
+                                },
+                            ));
                         }
                         DataShapeKind::Record => {
-                            record_paths.push(RecordPathCandidate {
+                            children.push(RecordLevelChild::Record(RecordPathCandidate {
                                 declared,
                                 laid,
                                 named,
-                            });
+                            }));
                         }
                         DataShapeKind::Empty => {
                             return Err(Diagnostic::error(format!(
@@ -379,10 +396,7 @@ fn project_record_level_children<'a>(
             size: Some(data_layout.layout.size as u64),
             align: data_layout.layout.alignment as u64,
         },
-        child_sum_layouts,
-        child_sum_array_layouts,
-        record_array_paths,
-        record_paths,
+        children,
     })
 }
 
@@ -426,7 +440,7 @@ fn project_field_placement_entries(
                 declared.name
             )));
         };
-        if *element_count == 0 || laid.layout.size % *element_count != 0 {
+        if *element_count == 0 || !laid.layout.size.is_multiple_of(*element_count) {
             return Err(Diagnostic::error(format!(
                 "{owner} outer field `{}` repeated placement does not divide its extent into whole elements",
                 declared.name
@@ -680,7 +694,7 @@ fn project_record_array_row(
     reachability: &mut SumReachability<'_>,
     depth: usize,
     owner: &str,
-) -> Result<ConventionalRecordArrayFieldLayoutReport, Diagnostic> {
+) -> Result<ConventionalRecordSumChildLayoutReport, Diagnostic> {
     let declared = candidate.declared;
     let laid = candidate.laid;
     let element_named = candidate.named;
@@ -736,7 +750,7 @@ fn project_record_array_row(
         ))
     })?;
     let element_size = inner
-        .outer_layout()
+        .outer_layout
         .size
         .expect("recursive inner projection has fixed extent");
     let expected_size = element_size.checked_mul(element_count).ok_or_else(|| {
@@ -746,7 +760,7 @@ fn project_record_array_row(
         ))
     })?;
     if laid.layout.size as u64 != expected_size
-        || laid.layout.alignment as u64 != inner.outer_layout().align
+        || laid.layout.alignment as u64 != inner.outer_layout.align
     {
         return Err(Diagnostic::error(format!(
             "target runtime layout field `{}` does not retain the exact repeated record extent/alignment",
@@ -774,12 +788,14 @@ fn project_record_array_row(
         }
         None => element_size,
     };
-    Ok(ConventionalRecordArrayFieldLayoutReport {
+    Ok(ConventionalRecordSumChildLayoutReport {
         field: declared.name.to_string(),
         member_identity: declared.identity,
-        element_count,
-        element_stride,
-        inner,
+        hop: ConventionalRecordSumChildHop::Index {
+            element_count,
+            element_stride,
+        },
+        interior: ConventionalRecordSumChildInterior::Record(inner),
     })
 }
 
@@ -1015,6 +1031,11 @@ pub fn project_conventional_record_with_recursive_nested_sums_materialization_la
     project_recursive_paths(program, plan, data_symbol, &mut reachability, 1)
 }
 
+/// Project one record level's recursive report under the general rule: the
+/// level's classified children in authored order, each row carrying its own
+/// path segment — a field hop or a literal index hop with a count and
+/// stride — beside the child's own report. The same mechanism runs at every
+/// depth; a record child's recursion advances the depth budget once.
 fn project_recursive_paths(
     program: &CheckedTrees,
     plan: &LayoutPlan,
@@ -1027,97 +1048,7 @@ fn project_recursive_paths(
             "recursive record paths exceed the compiler depth resource bound of 64",
         ));
     }
-    let definition = unique_data_definition(program, data_symbol, "recursive sum owner")?;
-    validate_closed_copy_record(program, definition, "recursive sum owner")?;
-    let profile = record_sum_profile(program, definition, reachability)?;
-    if profile.deeper {
-        project_record_sum_branches(program, plan, data_symbol, reachability, depth)
-            .map(ConventionalRecursiveRecordSumPathsLayoutReport::Branch)
-    } else {
-        let level = project_record_level_children(
-            program,
-            plan,
-            data_symbol,
-            "recursive sum owner",
-            reachability,
-            LiteralArrayHopRule::Flattened,
-        )?;
-        // `!profile.deeper` means no field reaches a sum through a nested
-        // record, so the level cannot hold record-path candidates. Direct
-        // record arrays still reach sums inside their element and stay the
-        // leaf level's own children.
-        if let Some(candidate) = level.record_paths.first() {
-            return Err(Diagnostic::error(format!(
-                "recursive sum outer field `{}` reaches a sum through a nested record its leaf level cannot carry",
-                candidate.declared.name
-            )));
-        }
-        if level.child_sum_layouts.is_empty()
-            && level.child_sum_array_layouts.is_empty()
-            && level.record_array_paths.is_empty()
-        {
-            return Err(Diagnostic::error(
-                "plural recursive sum projection requires at least one direct runtime-relevant pure-sum, sum-array, or record-array field",
-            ));
-        }
-        let mut total_leaf_paths = level
-            .child_sum_layouts
-            .len()
-            .checked_add(level.child_sum_array_layouts.len())
-            .ok_or_else(|| Diagnostic::error("recursive leaf-path count overflows".to_owned()))?;
-        let mut child_record_array_layouts = Vec::new();
-        child_record_array_layouts
-            .try_reserve_exact(level.record_array_paths.len())
-            .map_err(|_| {
-                Diagnostic::error(
-                    "recursive sum owner record-array report exceeds compiler resources",
-                )
-            })?;
-        for candidate in &level.record_array_paths {
-            let row = project_record_array_row(
-                program,
-                plan,
-                candidate,
-                reachability,
-                depth,
-                "recursive sum owner",
-            )?;
-            total_leaf_paths = total_leaf_paths
-                .checked_add(row.inner.leaf_occurrence_count().ok_or_else(|| {
-                    Diagnostic::error("recursive leaf-path count overflows".to_owned())
-                })?)
-                .ok_or_else(|| {
-                    Diagnostic::error("recursive leaf-path count overflows".to_owned())
-                })?;
-            if total_leaf_paths > SumReachability::MAX_EDGES {
-                return Err(Diagnostic::error(
-                    "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
-                ));
-            }
-            child_record_array_layouts.push(row);
-        }
-        Ok(ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-            outer_layout: level.outer_layout,
-            child_sum_layouts: level.child_sum_layouts,
-            child_sum_array_layouts: level.child_sum_array_layouts,
-            child_record_array_layouts,
-        })
-    }
-}
-
-fn project_record_sum_branches(
-    program: &CheckedTrees,
-    plan: &LayoutPlan,
-    data_symbol: SymbolHandle,
-    reachability: &mut SumReachability<'_>,
-    depth: usize,
-) -> Result<ConventionalRecordSumPathsLayoutReport, Diagnostic> {
     let owner = "plural recursive sum owner";
-    // The same level rule the leaf applies classifies every runtime-relevant
-    // field here: direct sums and direct sum arrays are retained as compact
-    // rows beside the flat outer plan, direct record arrays retain their
-    // element's shared recursive report as compact rows, and record fields
-    // still reaching sums are the level's authored-order deeper paths.
     let level = project_record_level_children(
         program,
         plan,
@@ -1126,120 +1057,129 @@ fn project_record_sum_branches(
         reachability,
         LiteralArrayHopRule::Flattened,
     )?;
-    let mut total_leaf_paths = level
-        .child_sum_layouts
-        .len()
-        .checked_add(level.child_sum_array_layouts.len())
-        .ok_or_else(|| {
+    let mut children = Vec::new();
+    children
+        .try_reserve_exact(level.children.len())
+        .map_err(|_| {
+            Diagnostic::error(format!("{owner} child report exceeds compiler resources"))
+        })?;
+    let mut total_leaf_paths = 0usize;
+    for child in level.children {
+        let (row, leaf_paths) = match child {
+            RecordLevelChild::Sum(row) => (
+                ConventionalRecordSumChildLayoutReport {
+                    field: row.field,
+                    member_identity: row.member_identity,
+                    hop: ConventionalRecordSumChildHop::Field,
+                    interior: ConventionalRecordSumChildInterior::Sum(row.layout),
+                },
+                1,
+            ),
+            RecordLevelChild::SumArray(row) => (
+                ConventionalRecordSumChildLayoutReport {
+                    field: row.field,
+                    member_identity: row.member_identity,
+                    hop: ConventionalRecordSumChildHop::Index {
+                        element_count: row.element_count,
+                        element_stride: row.element_stride,
+                    },
+                    interior: ConventionalRecordSumChildInterior::Sum(row.element_layout),
+                },
+                // The compact row covers every element index it spells: one
+                // leaf occurrence per row, not per element.
+                1,
+            ),
+            RecordLevelChild::RecordArray(candidate) => {
+                let row = project_record_array_row(
+                    program,
+                    plan,
+                    &candidate,
+                    reachability,
+                    depth,
+                    owner,
+                )?;
+                let ConventionalRecordSumChildInterior::Record(inner) = &row.interior else {
+                    unreachable!("record-array row carries a record interior")
+                };
+                let leaf_paths = inner.leaf_occurrence_count().ok_or_else(|| {
+                    Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+                })?;
+                (row, leaf_paths)
+            }
+            RecordLevelChild::Record(candidate) => {
+                let inner = project_recursive_paths(
+                    program,
+                    plan,
+                    candidate.named.symbol,
+                    reachability,
+                    depth + 1,
+                )?;
+                let TypeLayoutDescriptor::Named {
+                    symbol: laid_symbol,
+                    name: laid_name,
+                } = &candidate.laid.type_descriptor
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "target runtime layout field `{}` is not the exact declared inner record",
+                        candidate.declared.name
+                    )));
+                };
+                if candidate.laid.type_symbol != candidate.named.symbol
+                    || *laid_symbol != candidate.named.symbol
+                    || laid_name.as_str() != candidate.named.name.as_str()
+                {
+                    return Err(Diagnostic::error(format!(
+                        "target runtime layout field `{}` substitutes its inner record type",
+                        candidate.declared.name
+                    )));
+                }
+                if usize_to_u64(candidate.laid.layout.size, "recursive inner-record extent")?
+                    != inner
+                        .outer_layout
+                        .size
+                        .expect("recursive inner projection has fixed extent")
+                    || usize_to_u64(
+                        candidate.laid.layout.alignment,
+                        "recursive inner-record alignment",
+                    )? != inner.outer_layout.align
+                {
+                    return Err(Diagnostic::error(format!(
+                        "target runtime layout field `{}` does not retain the exact inner-record extent/alignment from child",
+                        candidate.declared.name
+                    )));
+                }
+                let leaf_paths = inner.leaf_occurrence_count().ok_or_else(|| {
+                    Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
+                })?;
+                (
+                    ConventionalRecordSumChildLayoutReport {
+                        field: candidate.declared.name.to_string(),
+                        member_identity: candidate.declared.identity,
+                        hop: ConventionalRecordSumChildHop::Field,
+                        interior: ConventionalRecordSumChildInterior::Record(inner),
+                    },
+                    leaf_paths,
+                )
+            }
+        };
+        total_leaf_paths = total_leaf_paths.checked_add(leaf_paths).ok_or_else(|| {
             Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
         })?;
-    if total_leaf_paths > SumReachability::MAX_EDGES {
-        return Err(Diagnostic::error(
-            "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
-        ));
-    }
-    let mut child_record_array_layouts = Vec::new();
-    child_record_array_layouts
-        .try_reserve_exact(level.record_array_paths.len())
-        .map_err(|_| {
-            Diagnostic::error(format!(
-                "{owner} record-array report exceeds compiler resources"
-            ))
-        })?;
-    for candidate in &level.record_array_paths {
-        let row = project_record_array_row(program, plan, candidate, reachability, depth, owner)?;
-        total_leaf_paths = total_leaf_paths
-            .checked_add(row.inner.leaf_occurrence_count().ok_or_else(|| {
-                Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
-            })?)
-            .ok_or_else(|| {
-                Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
-            })?;
         if total_leaf_paths > SumReachability::MAX_EDGES {
             return Err(Diagnostic::error(
                 "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
             ));
         }
-        child_record_array_layouts.push(row);
+        children.push(row);
     }
-    let mut paths = Vec::new();
-    paths
-        .try_reserve_exact(level.record_paths.len())
-        .map_err(|_| {
-            Diagnostic::error(format!("{owner} path report exceeds compiler resources"))
-        })?;
-    for candidate in level.record_paths {
-        let inner = project_recursive_paths(
-            program,
-            plan,
-            candidate.named.symbol,
-            reachability,
-            depth + 1,
-        )?;
-        let TypeLayoutDescriptor::Named {
-            symbol: laid_symbol,
-            name: laid_name,
-        } = &candidate.laid.type_descriptor
-        else {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field `{}` is not the exact declared inner record",
-                candidate.declared.name
-            )));
-        };
-        if candidate.laid.type_symbol != candidate.named.symbol
-            || *laid_symbol != candidate.named.symbol
-            || laid_name.as_str() != candidate.named.name.as_str()
-        {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field `{}` substitutes its inner record type",
-                candidate.declared.name
-            )));
-        }
-        if usize_to_u64(candidate.laid.layout.size, "recursive inner-record extent")?
-            != inner
-                .outer_layout()
-                .size
-                .expect("recursive inner projection has fixed extent")
-            || usize_to_u64(
-                candidate.laid.layout.alignment,
-                "recursive inner-record alignment",
-            )? != inner.outer_layout().align
-        {
-            return Err(Diagnostic::error(format!(
-                "target runtime layout field `{}` does not retain the exact inner-record extent/alignment from child",
-                candidate.declared.name
-            )));
-        }
-        total_leaf_paths = total_leaf_paths
-            .checked_add(inner.leaf_occurrence_count().ok_or_else(|| {
-                Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
-            })?)
-            .ok_or_else(|| {
-                Diagnostic::error("plural recursive leaf-path count overflows".to_owned())
-            })?;
-        if total_leaf_paths > SumReachability::MAX_EDGES {
-            return Err(Diagnostic::error(
-                "plural recursive paths exceed bounded total leaf occurrences".to_owned(),
-            ));
-        }
-        paths.push(layout_plans::ConventionalRecordSumOccurrenceLayoutReport {
-            outer_field: candidate.declared.name.to_string(),
-            outer_member_identity: candidate.declared.identity,
-            inner,
-        });
-    }
-    if paths.is_empty() {
+    if children.is_empty() {
         return Err(Diagnostic::error(
-            "plural recursive sum projection requires a nonempty qualifying record-chain set"
-                .to_owned(),
+            "plural recursive sum projection requires at least one direct runtime-relevant pure-sum, sum-array, or record field reaching sums",
         ));
     }
-    Ok(ConventionalRecordSumPathsLayoutReport {
+    Ok(ConventionalRecursiveRecordSumPathsLayoutReport {
         outer_layout: level.outer_layout,
-        paths,
-        child_sum_layouts: level.child_sum_layouts,
-        child_sum_array_layouts: level.child_sum_array_layouts,
-        child_record_array_layouts,
+        children,
     })
 }
 
@@ -1566,29 +1506,43 @@ pub fn project_conventional_record_with_sum_arrays_materialization_layout(
         &mut reachability,
         LiteralArrayHopRule::OuterOnly,
     )?;
-    if let Some(candidate) = level.record_paths.first() {
+    // As in the direct-field rung above, partition the level's classified
+    // children back into the kind channels this rung's fences inspect.
+    let mut child_sum_layouts = Vec::new();
+    let mut sum_arrays = Vec::new();
+    let mut record_arrays = Vec::new();
+    let mut record_paths = Vec::new();
+    for child in level.children {
+        match child {
+            RecordLevelChild::Sum(row) => child_sum_layouts.push(row),
+            RecordLevelChild::SumArray(row) => sum_arrays.push(row),
+            RecordLevelChild::RecordArray(candidate) => record_arrays.push(candidate),
+            RecordLevelChild::Record(candidate) => record_paths.push(candidate),
+        }
+    }
+    if let Some(candidate) = record_paths.first() {
         return Err(Diagnostic::error(format!(
             "nested-sum array outer field `{}` reaches a sum through a nested record, outside the direct sum-array rung",
             candidate.declared.name
         )));
     }
-    if !level.child_sum_layouts.is_empty() {
+    if !child_sum_layouts.is_empty() {
         return Err(Diagnostic::error(
             "nested-sum array materialization does not combine direct sum fields with the array occurrence",
         ));
     }
-    if let Some(candidate) = level.record_array_paths.first() {
+    if let Some(candidate) = record_arrays.first() {
         return Err(Diagnostic::error(format!(
             "nested-sum array materialization does not lift the direct record array `{}`; the recursive record/sum owner carries it",
             candidate.declared.name
         )));
     }
-    if level.child_sum_array_layouts.is_empty() {
+    if sum_arrays.is_empty() {
         return Err(Diagnostic::error(
             "nested-sum array layout projection requires a nonempty direct nonzero literal fixed-array-of-sums field set",
         ));
     }
-    Ok((level.outer_layout, level.child_sum_array_layouts))
+    Ok((level.outer_layout, sum_arrays))
 }
 
 fn unique_data_definition<'a>(

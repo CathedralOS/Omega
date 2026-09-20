@@ -5,8 +5,8 @@
 //! programs.
 
 use crate::layout_reports::{
-    CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecursiveRecordSumPathsLayoutReport,
-    ConventionalSumArrayFieldLayoutReport, ConventionalSumFieldLayoutReport,
+    CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumChildHop,
+    ConventionalRecordSumChildInterior, ConventionalRecursiveRecordSumPathsLayoutReport,
     ConventionalSumLayoutReport, LayoutPlanReport,
 };
 use crate::materialization::MaterializationDiagnostic;
@@ -255,61 +255,69 @@ impl SymbolicFieldValue {
     }
 }
 
-/// The compiler-derived interior layout bound to one outer field. A nested
-/// record's member offsets and a conventional sum's case/payload geometry are
+/// The interior geometry a field binds below its hop: a nested record's
+/// complete compiler-derived plan, or one conventional sum's tag/case
+/// overlay — pure or mixed common-field/case. A nested record's member
+/// offsets and a conventional sum's case/payload geometry are
 /// compiler-derived interior geometry shared with typed-owned encoding, not
 /// policy-chosen placements, so the flat outer [`LayoutPlanReport`]
 /// deliberately carries neither. The kind of interior the field stores is
 /// data on the carrier, not a separate carrier family.
+///
+/// Record interiors may carry their own carriers through
+/// [`SymbolicFieldInnerLayout::with_inner_layout`], so the carrier tree
+/// mirrors the record boundaries a path crosses. A sum interior's boundary
+/// spelling is fixed by the overlay: the path spells the selected case and
+/// that case's payload field as its last two hops, or one mixed common
+/// field as its last hop, and neither spelling carries an element index.
+/// The tag and the inactive cases' payload bytes stay staged content: the
+/// writer only realizes the addressed member slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SymbolicFieldInteriorLayout {
-    /// The field stores one nested record; this is its complete
-    /// compiler-derived interior plan. Record fields inside it may carry
-    /// their own carriers through
-    /// [`SymbolicFieldInnerLayout::with_inner_layout`], so the carrier tree
-    /// mirrors the record boundaries a path crosses.
+pub enum SymbolicFieldInterior {
+    /// The field's element stores one nested record; this is its complete
+    /// compiler-derived interior plan.
     Record(LayoutPlanReport),
-    /// The field stores one conventional sum — a pure case overlay or a
-    /// mixed common-field/case shape; this is the compiler-owned tag-prefixed
-    /// layout shared with build-time const materialization. A path crossing
-    /// the boundary spells the selected case and that case's payload field as
-    /// its last two hops, or one mixed common field as its last hop; neither
-    /// spelling carries an element index. The tag and the inactive cases'
-    /// payload bytes stay staged content: the writer only realizes the
-    /// addressed member slot.
+    /// The field's element stores one conventional sum — a pure case overlay
+    /// or a mixed common-field/case shape; the compiler-owned tag-prefixed
+    /// layout shared with build-time const materialization.
     Sum(ConventionalSumLayoutReport),
-    /// The field repeats one conventional sum — pure or mixed — at a constant
-    /// byte stride. The outer plan retains the field's whole array extent as
-    /// one `At` placement or one `At` per element, so the path's element
-    /// index composes `index * element_stride` inside that extent before the
-    /// member hops resolve inside the addressed element. `element_stride`
-    /// must cover the complete `element_layout` extent so repeated elements
-    /// cannot overlap.
-    SumArray {
-        /// One array element's complete conventional sum overlay.
-        element_layout: ConventionalSumLayoutReport,
-        /// The literal element count the field's extent covers.
-        element_count: u64,
-        /// The constant byte distance between consecutive elements.
-        element_stride: u64,
-    },
-    /// The field repeats one record at a constant byte stride. The outer plan
-    /// retains the field's whole array extent as one `At` placement, so the
-    /// path's element index composes `index * element_stride` inside that
-    /// extent before the next hop resolves inside the addressed element's
-    /// record interior. `element_stride` must cover the complete
-    /// `element_layout` extent so repeated elements cannot overlap. Record
-    /// fields inside `element_layout` may carry their own carriers through
-    /// [`SymbolicFieldInnerLayout::with_inner_layout`], so the carrier tree
-    /// mirrors the record boundaries inside every element a path crosses.
-    RecordArray {
-        /// One array element's complete compiler-derived record plan.
-        element_layout: LayoutPlanReport,
-        /// The literal element count the field's extent covers.
-        element_count: u64,
-        /// The constant byte distance between consecutive elements.
-        element_stride: u64,
-    },
+}
+
+/// The compiler-derived interior layout bound to one outer field. The
+/// carrier factors each boundary into the path segment that reaches it —
+/// [`ConventionalRecordSumChildHop`] spells a bare field hop or a literal
+/// index hop carrying the field's repeated count and stride — and the
+/// interior geometry bound below it. Repetition is hop data rather than a
+/// variant per interior kind, so `field.<inner>` and `field[i].<inner>`
+/// differ only in the hop the path spells. An `Index` hop's
+/// `element_stride` covers the complete interior extent so repeated
+/// elements cannot overlap.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SymbolicFieldInteriorLayout {
+    /// How the path segment reaches the bound interior.
+    pub hop: ConventionalRecordSumChildHop,
+    /// The interior geometry bound below the hop.
+    pub interior: SymbolicFieldInterior,
+}
+
+impl SymbolicFieldInteriorLayout {
+    /// The interior the addressed element occupies, beside whichever hop
+    /// the path spelled to reach it.
+    pub const fn interior(&self) -> &SymbolicFieldInterior {
+        &self.interior
+    }
+
+    /// `Some((element_count, element_stride))` when the field repeats the
+    /// bound interior at a constant byte stride.
+    pub const fn repetition(&self) -> Option<(u64, u64)> {
+        match self.hop {
+            ConventionalRecordSumChildHop::Field => None,
+            ConventionalRecordSumChildHop::Index {
+                element_count,
+                element_stride,
+            } => Some((element_count, element_stride)),
+        }
+    }
 }
 
 /// The compiler-derived interior layout stored by one outer field, bound to
@@ -333,13 +341,14 @@ pub struct SymbolicFieldInnerLayout {
     /// joins when the outer schema is numbered.
     pub field: String,
     pub(crate) member_identity: Option<u64>,
-    /// The interior bound to `field`: a nested record's plan, one conventional
-    /// sum's overlay, or a repeated element's record or sum geometry.
+    /// The interior bound to `field`: the hop that reaches it beside the
+    /// record plan or sum overlay the hop addresses.
     pub inner_layout: SymbolicFieldInteriorLayout,
     /// Carriers bound to record fields inside a record interior layout —
-    /// either a `Record` interior's own plan or a `RecordArray` element's
-    /// plan — supplying the interior of the next record boundary down. Sum
-    /// interiors carry no field namespace, so they never hold nested carriers.
+    /// either a direct `Record` interior's own plan or an `Index`-hopped
+    /// record element's plan — supplying the interior of the next record
+    /// boundary down. Sum interiors carry no field namespace, so they never
+    /// hold nested carriers.
     pub(crate) inner_layouts: Vec<SymbolicFieldInnerLayout>,
 }
 
@@ -350,7 +359,10 @@ impl SymbolicFieldInnerLayout {
         Self {
             field: field.into(),
             member_identity: None,
-            inner_layout: SymbolicFieldInteriorLayout::Record(inner_layout),
+            inner_layout: SymbolicFieldInteriorLayout {
+                hop: ConventionalRecordSumChildHop::Field,
+                interior: SymbolicFieldInterior::Record(inner_layout),
+            },
             inner_layouts: Vec::new(),
         }
     }
@@ -375,7 +387,10 @@ impl SymbolicFieldInnerLayout {
         Self {
             field: field.into(),
             member_identity: None,
-            inner_layout: SymbolicFieldInteriorLayout::Sum(sum_layout),
+            inner_layout: SymbolicFieldInteriorLayout {
+                hop: ConventionalRecordSumChildHop::Field,
+                interior: SymbolicFieldInterior::Sum(sum_layout),
+            },
             inner_layouts: Vec::new(),
         }
     }
@@ -408,10 +423,12 @@ impl SymbolicFieldInnerLayout {
         Self {
             field: field.into(),
             member_identity: None,
-            inner_layout: SymbolicFieldInteriorLayout::SumArray {
-                element_layout,
-                element_count,
-                element_stride,
+            inner_layout: SymbolicFieldInteriorLayout {
+                hop: ConventionalRecordSumChildHop::Index {
+                    element_count,
+                    element_stride,
+                },
+                interior: SymbolicFieldInterior::Sum(element_layout),
             },
             inner_layouts: Vec::new(),
         }
@@ -449,10 +466,12 @@ impl SymbolicFieldInnerLayout {
         Self {
             field: field.into(),
             member_identity: None,
-            inner_layout: SymbolicFieldInteriorLayout::RecordArray {
-                element_layout,
-                element_count,
-                element_stride,
+            inner_layout: SymbolicFieldInteriorLayout {
+                hop: ConventionalRecordSumChildHop::Index {
+                    element_count,
+                    element_stride,
+                },
+                interior: SymbolicFieldInterior::Record(element_layout),
             },
             inner_layouts: Vec::new(),
         }
@@ -476,23 +495,20 @@ impl SymbolicFieldInnerLayout {
     /// Folds one record-boundary level of a recursive conventional record/sum
     /// path report into the carriers symbolic derivation binds there.
     ///
-    /// The projection report already carries record depth as data, so this
-    /// fold is one structural recursion over it rather than a family of
-    /// depth-specific constructors: a `Branch` occurrence binds a `Record`
-    /// carrier retaining the child's complete outer layout, with the child
-    /// report's own carriers nested under it through [`Self::with_inner_layout`];
-    /// a `Leaf` binds one `Sum` carrier per direct sum field, one
-    /// `SumArray` carrier per direct fixed array of conventional sums, and
-    /// one `RecordArray` carrier per direct fixed array of records still
-    /// reaching sums — each element's record interior carrying the row's own
-    /// folded carriers. The top-level
-    /// call supplies the carriers for the report's `outer_layout`, which is
-    /// the flat plan passed to
+    /// The projection report already carries record depth as data on its
+    /// `children` channel, so this fold is one structural recursion over it:
+    /// each child row binds the carrier its own hop and interior spell — a
+    /// `Field` hop binds the direct boundary, an `Index` hop binds the
+    /// repeated row, a `Sum` interior binds the overlay itself, and a
+    /// `Record` interior retains the child's complete outer layout with the
+    /// child report's own carriers nested under it through
+    /// [`Self::with_inner_layout`]. The top-level call supplies the carriers
+    /// for the report's `outer_layout`, which is the flat plan passed to
     /// [`derive_symbolic_materialization_with_inner_layouts`]. Carrier
     /// binding, interior bounds, and the path depth limit stay with
     /// derivation — a folded carrier naming a field the enclosing plan never
-    /// placed still rejects there, so this fold adds no admission rule of its
-    /// own.
+    /// placed still rejects there, so this fold adds no admission rule of
+    /// its own.
     ///
     /// [`derive_symbolic_materialization_with_inner_layouts`]: crate::derive_symbolic_materialization_with_inner_layouts
     ///
@@ -510,128 +526,98 @@ impl SymbolicFieldInnerLayout {
         report: &ConventionalRecursiveRecordSumPathsLayoutReport,
         depth: usize,
     ) -> Result<Vec<Self>, MaterializationDiagnostic> {
-        // One level's direct children fold first: each direct sum binds a
-        // `Sum` carrier and each direct sum array binds a `SumArray` carrier,
-        // so an indexed path segment spells `field[i]` against the repeated
-        // interior exactly as the standalone sum-array rung's carriers do.
-        let fold_direct_children = |sums: &[ConventionalSumFieldLayoutReport],
-                                    arrays: &[ConventionalSumArrayFieldLayoutReport]|
-         -> Vec<Self> {
-            sums.iter()
-                .map(|child| match child.member_identity {
+        let mut carriers = Vec::new();
+        carriers
+            .try_reserve_exact(report.children.len())
+            .map_err(|_| {
+                MaterializationDiagnostic(
+                    "recursive record/sum path carrier fold exceeds compiler resources".into(),
+                )
+            })?;
+        for child in &report.children {
+            let carrier = match (&child.hop, &child.interior) {
+                (
+                    ConventionalRecordSumChildHop::Field,
+                    ConventionalRecordSumChildInterior::Sum(layout),
+                ) => match child.member_identity {
                     Some(identity) => {
-                        Self::new_sum_numbered(child.field.clone(), identity, child.layout.clone())
+                        Self::new_sum_numbered(child.field.clone(), identity, layout.clone())
                     }
-                    None => Self::new_sum(child.field.clone(), child.layout.clone()),
-                })
-                .chain(arrays.iter().map(|child| match child.member_identity {
+                    None => Self::new_sum(child.field.clone(), layout.clone()),
+                },
+                (
+                    ConventionalRecordSumChildHop::Index {
+                        element_count,
+                        element_stride,
+                    },
+                    ConventionalRecordSumChildInterior::Sum(layout),
+                ) => match child.member_identity {
                     Some(identity) => Self::new_sum_array_numbered(
                         child.field.clone(),
                         identity,
-                        child.element_layout.clone(),
-                        child.element_count,
-                        child.element_stride,
+                        layout.clone(),
+                        *element_count,
+                        *element_stride,
                     ),
                     None => Self::new_sum_array(
                         child.field.clone(),
-                        child.element_layout.clone(),
-                        child.element_count,
-                        child.element_stride,
+                        layout.clone(),
+                        *element_count,
+                        *element_stride,
                     ),
-                }))
-                .collect()
-        };
-        // One direct fixed array of records reaching sums folds into a
-        // `RecordArray` carrier: the element record's own recursive report
-        // supplies both the shared element interior and the carriers below
-        // it, so `field[index].member` composes the element hop before
-        // crossing the record boundary inside the element.
-        let fold_record_array_rows =
-            |rows: &[crate::layout_reports::ConventionalRecordArrayFieldLayoutReport],
-             depth: usize|
-             -> Result<Vec<Self>, MaterializationDiagnostic> {
-                let mut carriers = Vec::new();
-                for row in rows {
+                },
+                (hop, ConventionalRecordSumChildInterior::Record(inner)) => {
                     if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
                         return Err(MaterializationDiagnostic(format!(
                             "recursive record/sum path report nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
                         )));
                     }
-                    let mut carrier = match row.member_identity {
-                        Some(identity) => Self::new_record_array_numbered(
-                            row.field.clone(),
-                            identity,
-                            row.inner.outer_layout().clone(),
-                            row.element_count,
-                            row.element_stride,
-                        ),
-                        None => Self::new_record_array(
-                            row.field.clone(),
-                            row.inner.outer_layout().clone(),
-                            row.element_count,
-                            row.element_stride,
-                        ),
-                    };
-                    for inner in Self::fold_recursive_sum_paths(&row.inner, depth + 1)? {
-                        carrier = carrier.with_inner_layout(inner);
-                    }
-                    carriers.push(carrier);
-                }
-                Ok(carriers)
-            };
-        match report {
-            ConventionalRecursiveRecordSumPathsLayoutReport::Leaf {
-                child_sum_layouts,
-                child_sum_array_layouts,
-                child_record_array_layouts,
-                ..
-            } => fold_record_array_rows(child_record_array_layouts, depth).map(|record_arrays| {
-                fold_direct_children(child_sum_layouts, child_sum_array_layouts)
-                    .into_iter()
-                    .chain(record_arrays)
-                    .collect()
-            }),
-            ConventionalRecursiveRecordSumPathsLayoutReport::Branch(report) => {
-                if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
-                    return Err(MaterializationDiagnostic(format!(
-                        "recursive record/sum path report nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
-                    )));
-                }
-                // One record level can hold all four child kinds: the
-                // level's own direct sums, sum arrays, and record arrays
-                // bind `Sum`, `SumArray`, and `RecordArray` carriers exactly
-                // as a `Leaf` level's do, and each deeper record path binds
-                // a `Record` carrier with its own folded interiors. The
-                // carriers join the same field-keyed namespace the level's
-                // enclosing plan spells, so a symbolic path resolves each
-                // boundary independently of its sibling kinds.
-                let mut carriers = fold_direct_children(
-                    &report.child_sum_layouts,
-                    &report.child_sum_array_layouts,
-                );
-                carriers.extend(fold_record_array_rows(
-                    &report.child_record_array_layouts,
-                    depth,
-                )?);
-                for path in &report.paths {
-                    let mut carrier = match path.outer_member_identity {
-                        Some(identity) => Self::new_numbered(
-                            path.outer_field.clone(),
-                            identity,
-                            path.inner.outer_layout().clone(),
-                        ),
-                        None => {
-                            Self::new(path.outer_field.clone(), path.inner.outer_layout().clone())
+                    let mut carrier = match (hop, child.member_identity) {
+                        (ConventionalRecordSumChildHop::Field, Some(identity)) => {
+                            Self::new_numbered(
+                                child.field.clone(),
+                                identity,
+                                inner.outer_layout.clone(),
+                            )
                         }
+                        (ConventionalRecordSumChildHop::Field, None) => {
+                            Self::new(child.field.clone(), inner.outer_layout.clone())
+                        }
+                        (
+                            ConventionalRecordSumChildHop::Index {
+                                element_count,
+                                element_stride,
+                            },
+                            Some(identity),
+                        ) => Self::new_record_array_numbered(
+                            child.field.clone(),
+                            identity,
+                            inner.outer_layout.clone(),
+                            *element_count,
+                            *element_stride,
+                        ),
+                        (
+                            ConventionalRecordSumChildHop::Index {
+                                element_count,
+                                element_stride,
+                            },
+                            None,
+                        ) => Self::new_record_array(
+                            child.field.clone(),
+                            inner.outer_layout.clone(),
+                            *element_count,
+                            *element_stride,
+                        ),
                     };
-                    for inner in Self::fold_recursive_sum_paths(&path.inner, depth + 1)? {
-                        carrier = carrier.with_inner_layout(inner);
+                    for nested in Self::fold_recursive_sum_paths(inner, depth + 1)? {
+                        carrier = carrier.with_inner_layout(nested);
                     }
-                    carriers.push(carrier);
+                    carrier
                 }
-                Ok(carriers)
-            }
+            };
+            carriers.push(carrier);
         }
+        Ok(carriers)
     }
 
     /// Binds the interior layout of a record field inside this carrier's
