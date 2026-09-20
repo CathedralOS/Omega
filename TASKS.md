@@ -6490,6 +6490,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-PORTABLE-PSI-ENVELOPE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-GATE** — mined candidate; verify scope then implement.
 - **RC-PORTABLE-PSI-RELOAD** — mined candidate; verify scope then implement.
+  Verified scope: re-mines the completed **PORTABLE-TERMINAL-RELOAD** item
+  (landed and row-removed at 8ae40607a3, 2026-09-20).
+  `canary_suite/portable_terminal_reload.rs` now proves both halves of the
+  portable-product boundary for every `RELOAD_CANARIES` fixture: a Terminal
+  artifact produced in one process decodes, verifies, and interprets in a
+  second, and the consumer refuses truncated envelopes, mutated section
+  bytes, and trailing bytes. The generic portable-psi surface legs that
+  remain are the sibling re-mines RC-PORTABLE-PSI, RC-PORTABLE-PSI-CLOSURE,
+  RC-PORTABLE-PSI-ENVELOPE and RC-PORTABLE-PSI-GATE — no independent reload
+  slice exists here.
 - **RC-RELEASE-CLOSURE-RUN** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD-AND-CLOSURE** — mined candidate; verify scope then implement.
