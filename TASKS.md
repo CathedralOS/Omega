@@ -8649,7 +8649,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER, OWNED-SUCCESSOR-EDGE-ORDERING;
   STRUCTURAL-SUCCESSOR-DISCARD-ORDERING separately owns the
   lowered-psi cleanup-roster emission leg.
-- **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER** — mined candidate; verify scope then implement.
+- **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER.** Mined candidate — resolved:
+  the name re-covers the edge-level cleanup gate order already pinned by
+  the resolved sibling BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER row
+  above: owned successor sources consume first, then residual and
+  trivial discard rosters, then target-parameter establishment
+  (`40ff9ad791` doc, `d96a0fda39` repin). Re-verified on this host at
+  `9ff8673b310` (linux x86-64): the terminal-verifier discard/cleanup/
+  successor battery is 89/89 green, including
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`,
+  `branched_local_cleanup_rejects_missing_reordered_and_double_discard`,
+  `unit_return_requires_exact_reverse_order_affine_discards`,
+  `jump_applies_a_canonical_subset_of_affine_discards`, and the
+  `result_residuals` custody rows. No open slice remains; the
+  lowered-psi cleanup-roster emission leg stays owned by
+  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; verify scope then implement.
 - **PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN.** Mined candidate — resolved:
