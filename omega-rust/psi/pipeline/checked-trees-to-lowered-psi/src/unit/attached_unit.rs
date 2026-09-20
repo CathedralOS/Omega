@@ -701,6 +701,7 @@ fn assemble_unit_closure(
                 composed_control::callable::SharedCatalog {
                     structural_types: &structural_types,
                     type_ids: &type_ids,
+                    structural_domains: &structural_domains,
                     domain_ids: &domain_ids,
                     services: &services,
                     service_ids: &service_ids,
