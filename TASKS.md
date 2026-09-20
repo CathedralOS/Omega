@@ -6603,7 +6603,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   frontier; see that row for landed legs and the remaining transport work).
 - **FMA-PROVIDER-TRANSPORT** — mined candidate; merged alias of
   X86-FMA-PROVIDER-TRANSPORT (same: verified and in progress on that row).
-- **FRONTEND-DROP-CUSTODY-ORDER-REPIN** — mined candidate; verify scope then implement.
 - **FRONTIER-EDGE-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
