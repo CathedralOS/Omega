@@ -61,6 +61,29 @@ pub(super) fn packages(
         let baseline =
             old.map(|_| &accepted.expect("old package has baseline").baselines()[old_index]);
         let review = new.map(|_| reviews[new_index]);
+        let baseline_occurrence_purposes = old.and_then(|_| {
+            old_roster
+                .as_ref()
+                .expect("old package implies baseline roster")
+                .purposes(key)
+                .map(<[_]>::to_vec)
+        });
+        let candidate_occurrence_purposes =
+            new.and_then(|_| new_roster.purposes(key).map(<[_]>::to_vec));
+        if let Some(review) = review {
+            // This producer still issues one review per package. A purpose
+            // roster is not evidence that the same review covers both roles.
+            if candidate_occurrence_purposes.as_deref()
+                != Some(&[review.generated_source_bundle().purpose()][..])
+            {
+                return Err(PackagePolicyChangeError::CandidateReview {
+                    package: Some(Box::new(key.clone())),
+                    reason: "checked review purpose differs from its source occurrence",
+                });
+            }
+        }
+        let occurrence_purposes_changed =
+            baseline_occurrence_purposes != candidate_occurrence_purposes;
         let retained = baseline.map_or(&[][..], |value| value.rows());
         budget.slots::<crate::lock::PackageAcceptanceRow>(retained.len())?;
         for row in retained {
@@ -93,7 +116,13 @@ pub(super) fn packages(
                 !review.policy().slack_uses().is_empty()
                     || !review.policy().representation().demands().is_empty()
             });
-        let rows = merge::rows(old_rows, new_rows, old.is_some(), budget)?;
+        let rows = merge::rows(
+            old_rows,
+            new_rows,
+            old.is_some(),
+            occurrence_purposes_changed,
+            budget,
+        )?;
         budget.key(key)?;
         let source_changed =
             old.map(|value| value.resolution()) != new.map(|value| value.resolution());
@@ -103,17 +132,6 @@ pub(super) fn packages(
                     || old.source().package_dependency_projection(key)
                         != source.package_dependency_projection(key)
             });
-        let baseline_occurrence_purposes = old.and_then(|_| {
-            old_roster
-                .as_ref()
-                .expect("old package implies baseline roster")
-                .purposes(key)
-                .map(<[_]>::to_vec)
-        });
-        let candidate_occurrence_purposes =
-            new.and_then(|_| new_roster.purposes(key).map(<[_]>::to_vec));
-        let occurrence_purposes_changed =
-            baseline_occurrence_purposes != candidate_occurrence_purposes;
         let audit_recommended = audit_present
             || rows.iter().any(|row| row.audit_recommended)
             || (accepted.is_some()

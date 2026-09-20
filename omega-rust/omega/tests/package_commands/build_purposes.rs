@@ -195,6 +195,110 @@ fn package_only_acceptance_cannot_collapse_non_nested_build_instances() {
 }
 
 #[test]
+fn package_risk_acceptance_does_not_transfer_between_build_and_product_purposes() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let fixture = Fixture::with_assumption();
+    let product_build = "machine build(builder: &mut Build) { builder.package(\"cli-project\"); builder.depend_as(\"kit\", Source::Path { location: \"../dependency\" }); }\n";
+    let helper_build = product_build.replace("builder.depend_as", "builder.build_depend_as");
+    fixture.write("root/build.omg", product_build);
+    let update = || fixture.omega(&["update", "--target", profile.target_name(), "--offline"]);
+    let initial = update();
+    assert_status(&initial, 3);
+    let initial_reviews = review_documents(&fixture, &initial);
+    write_decisions(&initial_reviews, "accept");
+    assert_status(&fixture.omega(&["update", "--resume", "--offline"]), 0);
+    assert_status(&update(), 0);
+
+    fixture.write("root/build.omg", &helper_build);
+    let before = fixture.accepted_files();
+    let changed = update();
+    assert_status(&changed, 3);
+    assert_eq!(fixture.accepted_files(), before);
+    let reviews = review_documents(&fixture, &changed);
+    assert!(
+        reviews
+            .iter()
+            .any(|(_, text)| { text.contains("- purposes product\n+ purposes build\n") })
+    );
+    assert_status(&fixture.omega(&["update", "--resume", "--offline"]), 3);
+    assert_eq!(fixture.accepted_files(), before);
+    write_decisions(&reviews, "reject");
+    assert_status(&fixture.omega(&["update", "--resume", "--offline"]), 3);
+    assert_eq!(fixture.accepted_files(), before);
+    write_decisions(&reviews, "accept");
+    assert_status(&fixture.omega(&["update", "--resume", "--offline"]), 0);
+    let accepted = fixture.accepted_files();
+    assert_ne!(accepted.1, before.1);
+    assert_status(
+        &fixture.omega(&[
+            "--check",
+            "--target",
+            profile.target_name(),
+            "--offline",
+            "main.omg",
+        ]),
+        0,
+    );
+    assert_eq!(fixture.accepted_files(), accepted);
+    assert_status(&update(), 0);
+
+    fixture.write("root/build.omg", product_build);
+    let before_reverse = fixture.accepted_files();
+    let reverse = update();
+    assert_status(&reverse, 3);
+    assert_eq!(fixture.accepted_files(), before_reverse);
+    let reverse_reviews = review_documents(&fixture, &reverse);
+    assert!(
+        reverse_reviews
+            .iter()
+            .any(|(_, text)| { text.contains("- purposes build\n+ purposes product\n") })
+    );
+    write_decisions(&reverse_reviews, "accept");
+    // An answer for the proposed product occurrence cannot be resumed after
+    // changing the authored purpose again, even back to the accepted build one.
+    fixture.write("root/build.omg", &helper_build);
+    let changed_again = fixture.accepted_files();
+    assert_status(&fixture.omega(&["update", "--resume", "--offline"]), 1);
+    assert_eq!(fixture.accepted_files(), changed_again);
+}
+
+fn review_documents(
+    fixture: &Fixture,
+    output: &std::process::Output,
+) -> Vec<(std::path::PathBuf, String)> {
+    fixture
+        .review_paths(output)
+        .into_iter()
+        .map(|path| {
+            let document = std::fs::read_to_string(&path).unwrap();
+            (path, document)
+        })
+        .collect()
+}
+
+fn write_decisions(documents: &[(std::path::PathBuf, String)], answer: &str) {
+    for (path, document) in documents {
+        let answered = document
+            .lines()
+            .map(|line| {
+                if line.starts_with("decision ") {
+                    format!("{} {answer}\n", line.strip_suffix(" pending").unwrap())
+                } else {
+                    format!("{line}\n")
+                }
+            })
+            .collect::<String>();
+        assert_ne!(
+            answered, *document,
+            "expected explicit risk-bearing decisions"
+        );
+        std::fs::write(path, answered).unwrap();
+    }
+}
+
+#[test]
 fn nested_build_cycle_rejects_before_any_activation() {
     let Some(profile) = nested_build_target() else {
         return;

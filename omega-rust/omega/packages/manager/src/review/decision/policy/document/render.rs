@@ -82,6 +82,8 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
         resolution(output, "+ source", package.candidate_resolution())?;
         path(output, "- path", package.baseline_path())?;
         path(output, "+ path", package.candidate_path())?;
+        purposes(output, "-", package.baseline_occurrence_purposes())?;
+        purposes(output, "+", package.candidate_occurrence_purposes())?;
         writeln!(output, "source-changed {}", package.source_changed())?;
         writeln!(
             output,
@@ -109,6 +111,23 @@ fn render(output: &mut Output, changes: &PackagePolicyChangeSet) -> fmt::Result 
         writeln!(output, "end-package")?;
     }
     writeln!(output, "end-review")
+}
+
+fn purposes(
+    output: &mut Output,
+    prefix: &str,
+    values: Option<&[crate::declarations::DependencyPurpose]>,
+) -> fmt::Result {
+    write!(output, "{prefix} purposes")?;
+    match values {
+        Some(values) => {
+            for value in values {
+                write!(output, " {}", value.name())?;
+            }
+        }
+        None => write!(output, " none")?,
+    }
+    writeln!(output)
 }
 
 fn build_request(

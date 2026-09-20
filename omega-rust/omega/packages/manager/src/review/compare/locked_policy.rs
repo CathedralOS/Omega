@@ -14,6 +14,7 @@ pub enum LockedPolicyComparisonError {
     ResolutionMismatch { package: PackageKey },
     PackageIdentityMismatch { package: PackageKey },
     TargetMismatch { package: PackageKey },
+    PurposeMismatch { package: PackageKey },
     AllocationFailed,
     Acceptance(crate::lock::PackageLockError),
 }
@@ -37,6 +38,10 @@ impl fmt::Display for LockedPolicyComparisonError {
             Self::TargetMismatch { package } => {
                 (package, "was reviewed for a different exact target")
             }
+            Self::PurposeMismatch { package } => (
+                package,
+                "was reviewed for a different build/product purpose",
+            ),
             Self::AllocationFailed => {
                 return formatter
                     .write_str("cannot allocate bounded locked-policy comparison storage");
@@ -53,7 +58,7 @@ impl std::error::Error for LockedPolicyComparisonError {}
 /// Reviews have no public constructor: the candidate owner joins their source,
 /// checked projection, and complete normalized policy in one final compiler
 /// pass. This helper checks that issued set against the exact retained package,
-/// resolution, and target before comparing typed policy meaning. The lock's
+/// resolution, target, and purpose before comparing typed policy meaning. The lock's
 /// private construction already guarantees complete, source-ordered baselines.
 ///
 /// Scratch and output slots are bounded by that retained package count. No
@@ -97,6 +102,13 @@ pub fn compare_locked_package_policies(
             || review.policy().target() != accepted.target()
         {
             return Err(LockedPolicyComparisonError::TargetMismatch {
+                package: review.key().clone(),
+            });
+        }
+        if accepted.occurrence_purposes()[index].as_slice()
+            != [review.generated_source_bundle().purpose()]
+        {
+            return Err(LockedPolicyComparisonError::PurposeMismatch {
                 package: review.key().clone(),
             });
         }
