@@ -10,11 +10,11 @@ use omega::language::core::service;
 data Helper { seed: i32; }
 
 machine Helper::pick(&self) -> i32 {
-    transition { _ -> 69 }
+    transition { _ -> (self.seed) }
 }
 
 machine Helper::pick(&self) -> i32 in Saturating {
-    transition { _ -> (70 as i32 in Saturating) }
+    transition { _ -> ((self.seed as i32 in Saturating) + 1) }
 }
 
 data Main {
@@ -23,7 +23,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.helper.seed = 0;
+    self.helper.seed = 69;
     let qualified: i32 in Saturating = self.helper.pick();
     let ordinary: i32 = self.helper.pick();
     transition {

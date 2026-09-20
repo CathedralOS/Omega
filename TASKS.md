@@ -7721,7 +7721,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Pins: pass `domains/runtime_result_domain_attached_overload_exit` (native run,
   exit 70 only when each member call binds the matching overload), fail
   `calls/duplicate_attached_machine_overload_rejected` (identical attached
-  duplicates still reject at declaration validation).
+  duplicates still reject at declaration validation). Surfaced but NOT fixed
+  (pre-existing, overload-independent): a `&self` member call whose callee body
+  never touches `self` lowers with the receiver operand present but the callee's
+  scalar-graph signature drops it ("computed borrow disagrees with its selected
+  callee signature", checked-trees-to-lowered-psi structural_arguments gate) —
+  the run fixture reads `self.seed` so both overloads retain the receiver.
 - **DUPLICATE-OVERLOAD-RESOLUTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-RELOCATION.** Mined candidate. Upstream: the
