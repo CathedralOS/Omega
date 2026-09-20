@@ -1185,6 +1185,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "mutation-matrix"
+version = "0.1.0"
+
+[[package]]
 name = "native-artifact"
 version = "0.1.0"
 dependencies = [
@@ -1466,6 +1470,7 @@ dependencies = [
 name = "optimization-core"
 version = "0.1.0"
 dependencies = [
+ "mutation-matrix",
  "optimization",
  "sha2",
 ]
@@ -2274,6 +2279,7 @@ name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
  "language-semantics",
+ "mutation-matrix",
  "numerics",
  "optimization",
  "proof-admission",

@@ -18,6 +18,11 @@ mod identities;
 mod manifest;
 mod selection;
 
+#[cfg(any(test, feature = "test-support"))]
+pub use crate::mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, custody_field_inventory,
+    run_one_field_substitution_matrix,
+};
 pub use contracts::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, CoreContractDecodeError,
     InvalidOptimizationRuleContract, InvalidOptimizationWorkBudget, OptimizationCandidateVerdict,
@@ -52,10 +57,6 @@ pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
     OptimizationFactReferenceDecodeError, OptimizationManifestDecodeError,
     OptimizationPassManifestRecord, OptimizationWorkUsage,
-};
-#[cfg(any(test, feature = "test-support"))]
-pub use mutation_matrix::{
-    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
 };
 pub use selection::{
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,

@@ -20,6 +20,7 @@ terminal-verifier = { path = "../terminal-verifier" }
 sha2 = "0.10"
 
 [dev-dependencies]
+mutation-matrix = { path = "../../foundation/mutation-matrix", features = ["test-support"] }
 numerics = { path = "../../foundation/numerics" }
 
 [[test]]

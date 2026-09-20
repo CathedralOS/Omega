@@ -8,6 +8,7 @@ members = [
     "omega-rust/psi/foundation/language-core",
     "omega-rust/psi/foundation/language-semantics",
     "omega-rust/psi/foundation/layout-plans",
+    "omega-rust/psi/foundation/mutation-matrix",
     "omega-rust/psi/foundation/numerics",
     "omega-rust/psi/foundation/source",
     "omega-rust/psi/foundation/symbols",
