@@ -1,18 +1,18 @@
-//! The ad-hoc CodeDirectory: a SHA-256 per 16 KiB page of the finished file, which
+//! The ad-hoc CodeDirectory: a SHA-256 per ISA page of the finished file, which
 //! is why it can only be built last.
 
 use sha2::{Digest, Sha256};
 
 use crate::file_layout::bytes::{write_be_u32, write_be_u64};
-use crate::file_layout::constants::{CODE_SIGNATURE_PAGE_SIZE, CODE_SIGNATURE_PAGE_SIZE_POWER};
 use crate::file_layout::layout::align_to;
+use crate::isa::MachoIsa;
 
 /// The blob length for the exact `identifier` bound into the CodeDirectory.
 /// The identifier length participates in offset arithmetic, so the caller must
 /// supply the same value that `macho_ad_hoc_code_signature` later writes; a
 /// late substitution would corrupt `LC_CODE_SIGNATURE`'s recorded extent.
-pub(super) fn code_signature_size(code_limit: usize, identifier: &str) -> usize {
-    let page_count = code_slot_count(code_limit);
+pub(super) fn code_signature_size(code_limit: usize, identifier: &str, isa: MachoIsa) -> usize {
+    let page_count = code_slot_count(code_limit, isa);
     let code_directory_header_size = 88usize;
     let special_slot_count = 2usize;
     let hash_offset =
@@ -32,9 +32,10 @@ pub(super) fn macho_ad_hoc_code_signature(
     code_bytes: &[u8],
     executable_segment_limit: usize,
     identifier: &str,
+    isa: MachoIsa,
 ) -> Vec<u8> {
     let code_limit = code_bytes.len();
-    let page_count = code_slot_count(code_limit);
+    let page_count = code_slot_count(code_limit, isa);
     let code_directory_header_size = 88usize;
     let special_slot_count = 2usize;
     let identifier_offset = code_directory_header_size;
@@ -100,7 +101,7 @@ pub(super) fn macho_ad_hoc_code_signature(
     bytes.push(32);
     bytes.push(2);
     bytes.push(0);
-    bytes.push(CODE_SIGNATURE_PAGE_SIZE_POWER);
+    bytes.push(isa.code_signature_page_power());
     write_be_u32(&mut bytes, 0);
     write_be_u32(&mut bytes, 0);
     write_be_u32(&mut bytes, 0);
@@ -126,9 +127,10 @@ pub(super) fn macho_ad_hoc_code_signature(
     bytes.extend([0u8; 32]);
     debug_assert_eq!(bytes.len(), code_directory_start + hash_offset);
 
+    let signature_page_size = usize::try_from(isa.page_size()).expect("Mach-O page size");
     for page_index in 0..page_count {
-        let start = page_index * CODE_SIGNATURE_PAGE_SIZE;
-        let end = (start + CODE_SIGNATURE_PAGE_SIZE).min(code_limit);
+        let start = page_index * signature_page_size;
+        let end = (start + signature_page_size).min(code_limit);
         let digest = Sha256::digest(&code_bytes[start..end]);
         bytes.extend(digest);
     }
@@ -153,8 +155,8 @@ fn empty_entitlements_blob() -> &'static [u8; 8] {
     b"\xfa\xde\x0b\x01\0\0\0\x08"
 }
 
-fn code_slot_count(code_limit: usize) -> usize {
-    code_limit.div_ceil(CODE_SIGNATURE_PAGE_SIZE)
+fn code_slot_count(code_limit: usize, isa: MachoIsa) -> usize {
+    code_limit.div_ceil(usize::try_from(isa.page_size()).expect("Mach-O page size"))
 }
 
 /// Read the CodeDirectory identifier spelled inside one emitted executable.

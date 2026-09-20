@@ -18,6 +18,7 @@
 use omega::language::core::float_format;
 use omega::language::core::float_meaning;
 use omega::language::core::targets::macos_arm64::float_impl;
+use omega::language::core::targets::macos_x86_64::float_impl;
 use omega::language::core::targets::linux_arm64::float_impl;
 use omega::language::core::targets::linux_x86_64::float_impl;
 use omega::language::core::targets::windows_x86_64::float_impl;

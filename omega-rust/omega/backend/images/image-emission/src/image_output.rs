@@ -88,6 +88,7 @@ pub fn can_emit_executable_image(target: NativeTarget) -> bool {
             (ObjectFormat::Elf, Architecture::Aarch64)
                 | (ObjectFormat::Elf, Architecture::X86_64)
                 | (ObjectFormat::MachO, Architecture::Aarch64)
+                | (ObjectFormat::MachO, Architecture::X86_64)
                 | (ObjectFormat::Coff, Architecture::X86_64)
         )
 }
@@ -162,6 +163,10 @@ pub(crate) fn emit_executable_image_signed(
                 image_macho::emit_macho_aarch64_executable_signed(image, identifier)
             }
             None => image_macho::emit_macho_aarch64_executable(image),
+        },
+        (ObjectFormat::MachO, Architecture::X86_64) => match code_signature_identifier {
+            Some(identifier) => image_macho::emit_macho_x86_64_executable_signed(image, identifier),
+            None => image_macho::emit_macho_x86_64_executable(image),
         },
         (ObjectFormat::Coff, Architecture::X86_64) => {
             image_pe::emit_pe_x86_64_executable(image, subsystem)

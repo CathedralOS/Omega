@@ -1,24 +1,24 @@
-//! A PIE, ad-hoc-signed, dyld-linked Mach-O arm64 MH_EXECUTE, bound eagerly at
-//! load with no lazy stubs anywhere in it.
+//! A PIE, ad-hoc-signed, dyld-linked Mach-O MH_EXECUTE for the AArch64 and
+//! x86-64 macOS ABIs, bound eagerly at load with no lazy stubs anywhere in it.
 //!
 //! The load base is 0x1_0000_0000 - four gigabytes of `__PAGEZERO` below
 //! anything real, so a null dereference faults on an unmapped page rather than
-//! reading the header. Pages are `MACHO_ARM64_PAGE_SIZE` = 0x4000, sixteen
-//! kilobytes, and `CODE_SIGNATURE_PAGE_SIZE_POWER` is 14 because the code
-//! directory stores that page size as a log2 exponent; the two constants must
-//! move together or every signed page hashes at the wrong stride. Note this is
-//! NOT the ADRP page: ADRP's page is four kilobytes and lives in `image`'s
-//! relocation patcher. Two page sizes, adjacent in the same emitter, meaning
-//! different things.
+//! reading the header. The loader page is per-ISA (`isa.rs`): 16 KiB on arm64,
+//! 4 KiB on x86-64, and the code directory stores that same size as a log2
+//! exponent; the two move together or every signed page hashes at the wrong
+//! stride. Note this is NOT the ADRP page: ADRP's page is four kilobytes on
+//! every build, and lives in `image`'s relocation patcher. Distinct page
+//! sizes, adjacent in the same emitter, meaning different things.
 //!
-//! `emit_macho_aarch64_executable` runs in an order most of which is forced:
+//! `emit_macho_aarch64_executable` / `emit_macho_x86_64_executable` run in an
+//! order most of which is forced:
 //!
 //! ```text
 //!   install_import_thunks     preflights the dylib roster, THEN mutates .text
 //!   macho_bind_info           the bind opcode stream for those thunks
 //!   macho_rebase_info         the pointers dyld must slide for a PIE
 //!   plan_macho_image          every offset, now that all four sizes are known
-//!   patch_import_thunks / apply_aarch64_relocations
+//!   patch_import_thunks / isa relocation application
 //!   validate_patched_preferred_pointers   rebased pointers still point right
 //!   validate_import_thunk_footprints      thunk opcodes survived relocation
 //!   ... write header, load commands, segments, linkedit ...
@@ -60,7 +60,7 @@
 //! `FinalImage` with text extended, symbols rewritten and executable regions
 //! pushed - a half-mutated value the caller has no way to roll back.
 
-//! `image` supplies `FinalImage`, `apply_aarch64_relocations` and
+//! `image` supplies `FinalImage`, the per-ISA relocation applicators and
 //! `place_executable_regions`. This is the only emitter in the tree that both
 //! binds imports and signs its output.
 //!
@@ -69,8 +69,8 @@
 //! independently recompute the same offset arithmetic over identifier length,
 //! special slots and page count. Nothing derives 88 from the field widths it
 //! stands for. The only check that the two agree is
-//! `debug_assert_eq!(code_signature.len(), plan.code_signature_size)` in
-//! `emit_macho_aarch64_executable` - a DEBUG assert, compiled out of a release
+//! `debug_assert_eq!(code_signature.len(), plan.code_signature_size)` in the
+//! shared emit - a DEBUG assert, compiled out of a release
 //! build, where a disagreement would instead ship an executable whose
 //! `LC_CODE_SIGNATURE` length does not match its actual signature blob.
 //!
@@ -81,8 +81,8 @@
 
 use diagnostics::Diagnostic;
 use image::{
-    ExecutableImageOutput, FinalImage, PlacedDataRegionInventory, apply_aarch64_relocations,
-    place_data_regions, place_executable_regions,
+    ExecutableImageOutput, FinalImage, PlacedDataRegionInventory, place_data_regions,
+    place_executable_regions,
 };
 
 mod code_signature;
@@ -90,13 +90,16 @@ pub use code_signature::code_signature_identifier;
 mod dyld_linking;
 mod entry_symbol;
 mod file_layout;
+mod isa;
 #[cfg(test)]
 mod tests;
 
 use code_signature::macho_ad_hoc_code_signature;
-pub use dyld_linking::imports::validate_macho_aarch64_import_binding_pairing;
 use dyld_linking::imports::{
     install_import_thunks, macho_bind_info, patch_import_thunks, validate_import_thunk_footprints,
+};
+pub use dyld_linking::imports::{
+    validate_macho_aarch64_import_binding_pairing, validate_macho_x86_64_import_binding_pairing,
 };
 use dyld_linking::load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
@@ -109,12 +112,16 @@ use dyld_linking::load_commands::{
 };
 pub use dyld_linking::loader_fixups::{
     MachoImportPointer, MachoRebasePointer, validate_macho_aarch64_loader_fixups,
-    validate_macho_aarch64_object_fixups,
+    validate_macho_aarch64_object_fixups, validate_macho_x86_64_object_fixups,
 };
-pub use dyld_linking::loader_mapping::validate_macho_aarch64_loader_mapping;
+use dyld_linking::loader_mapping::validate_macho_loader_mapping;
+pub use dyld_linking::loader_mapping::{
+    validate_macho_aarch64_loader_mapping, validate_macho_x86_64_loader_mapping,
+};
 use dyld_linking::rebases::macho_rebase_info;
 use entry_symbol::macho_entry_text_offset;
 use file_layout::plan::plan_macho_image;
+use isa::MachoIsa;
 
 /// The executable leaf published today; it doubles as the ad-hoc signing
 /// label when the build authored no application identifier
@@ -132,6 +139,13 @@ pub fn emit_macho_aarch64_executable(
     emit_macho_aarch64_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
 }
 
+/// Emit the x86-64 executable with the same fallback signing label.
+pub fn emit_macho_x86_64_executable(
+    image: FinalImage,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_macho_x86_64_executable_signed(image, OMEGA_EXECUTABLE_LEAF)
+}
+
 /// Emit one signed executable binding `code_signature_identifier` as the
 /// CodeDirectory identity.
 ///
@@ -141,15 +155,39 @@ pub fn emit_macho_aarch64_executable(
 /// after the finished bytes are hashed. Publication cannot substitute or
 /// re-sign with a different identity.
 pub fn emit_macho_aarch64_executable_signed(
+    image: FinalImage,
+    code_signature_identifier: &str,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_macho_executable_signed(image, code_signature_identifier, MachoIsa::Aarch64)
+}
+
+/// Emit one signed x86-64 executable binding `code_signature_identifier` as
+/// the CodeDirectory identity, under the same contract as the AArch64 emit.
+pub fn emit_macho_x86_64_executable_signed(
+    image: FinalImage,
+    code_signature_identifier: &str,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_macho_executable_signed(image, code_signature_identifier, MachoIsa::X86_64)
+}
+
+fn emit_macho_executable_signed(
     mut image: FinalImage,
     code_signature_identifier: &str,
+    isa: MachoIsa,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     if code_signature_identifier.is_empty() {
         return Err(Diagnostic::error(
             "Mach-O code signature identifier is empty",
         ));
     }
-    let imports = install_import_thunks(&mut image)?;
+    if MachoIsa::from_format(image.target.object_format, image.target.architecture) != Some(isa) {
+        return Err(Diagnostic::error(format!(
+            "Mach-O {} emission cannot supply an image whose target is {:?}",
+            isa.format_name(),
+            image.target,
+        )));
+    }
+    let imports = install_import_thunks(&mut image, isa)?;
     let import_thunks = imports.thunks;
     // The exact ordered set of dylibs and every image-local ordinal were
     // preflighted before import-thunk installation mutated the final image.
@@ -163,25 +201,27 @@ pub fn emit_macho_aarch64_executable_signed(
         bind_info.len(),
         &dylibs,
         code_signature_identifier,
+        isa,
     );
     let entry_offset = plan.text_offset + macho_entry_text_offset(&image)?;
     let layout = plan.final_image_layout();
 
-    patch_import_thunks(&mut image, &layout, &import_thunks)?;
-    apply_aarch64_relocations(&mut image, &layout, "Mach-O direct executable")?;
+    patch_import_thunks(&mut image, &layout, &import_thunks, isa)?;
+    isa.apply_relocations(&mut image, &layout, "Mach-O direct executable")?;
     let rebase_pointers = rebase_info.validate_patched_preferred_pointers(&image, &layout)?;
-    validate_import_thunk_footprints(&mut image, &import_thunks)?;
+    validate_import_thunk_footprints(&mut image, &import_thunks, isa)?;
     let executable_regions = place_executable_regions(&image, layout)?;
     let data_regions = place_data_regions(&image, layout)?;
 
     let mut bytes = Vec::new();
-    write_macho_executable_header(&mut bytes, plan.command_count, plan.sizeofcmds);
+    write_macho_executable_header(&mut bytes, plan.command_count, plan.sizeofcmds, isa);
     write_macho_pagezero_segment(&mut bytes);
     write_macho_executable_text_segment(
         &mut bytes,
         plan.text_offset,
         image.memory.text.len(),
         plan.text_file_size,
+        isa.page_size(),
     );
     if plan.has_data_segment {
         write_macho_executable_data_segment(
@@ -237,16 +277,17 @@ pub fn emit_macho_aarch64_executable_signed(
     bytes.extend(bind_info);
     bytes.resize(plan.code_signature_offset, 0);
     let code_signature =
-        macho_ad_hoc_code_signature(&bytes, plan.text_file_size, code_signature_identifier);
+        macho_ad_hoc_code_signature(&bytes, plan.text_file_size, code_signature_identifier, isa);
     debug_assert_eq!(code_signature.len(), plan.code_signature_size);
     bytes.extend(code_signature);
 
-    validate_macho_aarch64_loader_mapping(
+    validate_macho_loader_mapping(
         &bytes,
         layout,
         &image.memory.text,
         &image.memory.data,
         image.memory.bss_size,
+        isa,
     )?;
     let import_pointers: Vec<_> = import_thunks
         .iter()
@@ -272,7 +313,7 @@ pub fn emit_macho_aarch64_executable_signed(
         final_import_data_bytes: Vec::new(),
         bytes,
         file_name: OMEGA_EXECUTABLE_LEAF.to_owned(),
-        format: "mach-o-arm64-executable".to_owned(),
+        format: isa.format_name().to_owned(),
         text_bytes: image.memory.text.len(),
         data_bytes: image.memory.data.len(),
         bss_bytes: image.memory.bss_size,

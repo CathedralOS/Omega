@@ -81,25 +81,50 @@ fn validate_terminal_image_with_import_count(
         // Function observations do not describe what the loader maps. Rejoin
         // every supported segment and the on-disk payload before accepting
         // instruction, relocation, or receiver-specific evidence.
-        image_macho::validate_macho_aarch64_loader_mapping(
-            &output.bytes,
-            output.final_image_layout,
-            &output.final_text_bytes,
-            &output.final_data_bytes,
-            output.bss_bytes,
-        )?;
-        image_macho::validate_macho_aarch64_object_fixups(
-            object,
-            relocations,
-            text_bytes.len(),
-            artifact.data_bytes().len(),
-            output,
-        )?;
-        image_macho::validate_macho_aarch64_import_binding_pairing(
-            &output.final_text_bytes,
-            &output.executable_regions,
-            &output.data_regions,
-        )?;
+        match artifact.target().architecture {
+            target::Architecture::Aarch64 => {
+                image_macho::validate_macho_aarch64_loader_mapping(
+                    &output.bytes,
+                    output.final_image_layout,
+                    &output.final_text_bytes,
+                    &output.final_data_bytes,
+                    output.bss_bytes,
+                )?;
+                image_macho::validate_macho_aarch64_object_fixups(
+                    object,
+                    relocations,
+                    text_bytes.len(),
+                    artifact.data_bytes().len(),
+                    output,
+                )?;
+                image_macho::validate_macho_aarch64_import_binding_pairing(
+                    &output.final_text_bytes,
+                    &output.executable_regions,
+                    &output.data_regions,
+                )?;
+            }
+            target::Architecture::X86_64 => {
+                image_macho::validate_macho_x86_64_loader_mapping(
+                    &output.bytes,
+                    output.final_image_layout,
+                    &output.final_text_bytes,
+                    &output.final_data_bytes,
+                    output.bss_bytes,
+                )?;
+                image_macho::validate_macho_x86_64_object_fixups(
+                    object,
+                    relocations,
+                    text_bytes.len(),
+                    artifact.data_bytes().len(),
+                    output,
+                )?;
+                image_macho::validate_macho_x86_64_import_binding_pairing(
+                    &output.final_text_bytes,
+                    &output.executable_regions,
+                    &output.data_regions,
+                )?;
+            }
+        }
     }
     if output.final_image_imports != expected_imports {
         return Err(Diagnostic::error(

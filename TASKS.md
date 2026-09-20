@@ -5978,12 +5978,24 @@ Platform/cross-host (structurally gated — document host limits):
   `TargetProfile::MacosX64` catalogues the host (`macos_x86_64` / `MacosX86_64`,
   `NativeTarget` x86-64 + Mach-O), so `host()` resolves there and the profile
   survives into checked admission, which refuses on the missing
-  `targets/macos_x86_64` provider package. Remaining legs: the
-  `ProgramEntryPhysicalContractPackage::MacosX64` entry contract +
-  `targets/macos_x86_64/` source library, the x86-64 Mach-O writer
-  (`image_output.rs` refuses `(MachO, X86_64)` today), the `native_hosted_target()`
-  cfg arm in `compiler/tests/canary_suite.rs`, and a real
-  x86_64-apple-darwin host run.
+  `targets/macos_x86_64` provider package. Landed: the `targets/macos_x86_64/`
+  provider package (SysV AMD64 `MacosPhysicalEntry`/`MacosX64Application`
+  entry contract over dyld's four-argument `appMain`, console/process-exit/
+  filesystem providers, and `core/targets/macos_x86_64/float_impl.omg`), the
+  x86-64 Mach-O writer (`MachoIsa` parameterizes the emitter over CPU type,
+  page size, thunk form, and relocation application; `image_output.rs` admits
+  `(MachO, X86_64)`), and per-ISA validation dispatch (loader mapping, object
+  fixups, thunk↔binding-slot pairing) including PCC `native_evidence` arms.
+  Remaining legs: the `ProgramEntryPhysicalContractPackage::MacosX64` enum arm
+  + `program_entry_slot` row in `target/src/lib.rs` (fenced by
+  UEFI-PHYSICAL-SEMANTIC-ENTRY at dispatch time), the hosted-receiver bridge
+  arm in `hosted_receiver.rs` (fenced by ENTRY-CONTENT-ROOTS), the
+  `native_hosted_target()` cfg arm in `compiler/tests/canary_suite.rs`
+  (fenced by PRIVILEGED-PORT-EFFECT-SETTLEMENTS), the installation-record
+  pairing dispatch in `record_validation.rs` (fenced by
+  FAULT-INJECTED-TARGET-READER — x86_64 Mach-O images with thunk regions
+  fail-closed there until it lands), and a real x86_64-apple-darwin host run
+  (requires the Intel host; this session ran on linux x86-64).
 - **WINDOWS-SET-FILE-TIME-RESPELL.** Windows SetFileTime respell incl. unsigned carrier (merges FILESYSTEM-WINDOWS-FILETIME-RESPELL).
 - **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native
   validation. Landed: `tests/alpha/container.sh` (+ `container.py`), wired as a

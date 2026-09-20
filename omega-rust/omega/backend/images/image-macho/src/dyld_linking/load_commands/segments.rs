@@ -1,6 +1,6 @@
 use crate::file_layout::bytes::{write_fixed_string_16, write_u32, write_u64};
 use crate::file_layout::constants::{
-    MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE, MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE,
+    MACHO_EXECUTABLE_BASE, MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE,
 };
 use crate::file_layout::layout::{align_to_u64, alignment_power};
 
@@ -23,6 +23,7 @@ pub(crate) fn write_macho_executable_text_segment(
     text_offset: usize,
     text_size: usize,
     text_file_size: usize,
+    page_size: u64,
 ) {
     write_u32(bytes, 0x19);
     write_u32(
@@ -32,10 +33,7 @@ pub(crate) fn write_macho_executable_text_segment(
     );
     write_fixed_string_16(bytes, "__TEXT");
     write_u64(bytes, MACHO_EXECUTABLE_BASE);
-    write_u64(
-        bytes,
-        align_to_u64(text_file_size as u64, MACHO_ARM64_PAGE_SIZE as u64),
-    );
+    write_u64(bytes, align_to_u64(text_file_size as u64, page_size));
     write_u64(bytes, 0);
     write_u64(
         bytes,
