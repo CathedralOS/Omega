@@ -10617,7 +10617,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   names are retained on `TraitRefinementClause.service_reaches`, pending a
   clause-location variant of the reach-row table), `_` reach wildcards, and
   the evidence-binder fit check that consumes the refinement bound.
-- **TRUSTED-SURFACE-DIGEST-RE-RECORDING** — mined candidate; implemented.
+- **TRUSTED-SURFACE-DIGEST-RE-RECORDING.** Mined candidate — resolved:
+  implemented and landed (e2974a6a800 is an ancestor of origin/main;
+  the landed re-record c0b2b6e19f registered integer_operations.rs and
+  re-recorded bounded_denotation). Re-verified 2026-09-20 on linux
+  x86-64: `cargo nextest run -p terminal-verifier -E
+  'test(~trusted_surface)'` — 15/15 pass including
+  recorded_digests_match_the_working_tree. Sibling names the same op:
+  TRUSTED-SURFACE-DIGEST-RE-RECORD (no row), -REFRESH, -RERECORD.
   The self-audit was red at `0f5ae41e7d` (contradicting the resolved
   siblings' "ledger is current" notes — it drifted since): `e2974a6a80`
   added `bounded_denotation/integer_operations.rs` (uninterpreted
