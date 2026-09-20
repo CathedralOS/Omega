@@ -598,7 +598,30 @@ accepted contracts, not claims of implementation. Existing
 extend that route, not a second build language or plugin executor. Any semantic
 or trust amendment found here or later goes through [owner questions](OWNER_QUESTIONS.md).
 
-- **BUILD-PRODUCT-REFERENCES.** Finish
+- **BUILD-PRODUCT-REFERENCES.** w9 leg (this wave): every named acceptance
+  module re-verified green at `edc77c2148` on linux x86-64 —
+  `cargo nextest run -p compiler --test build_target_activation` 112/118;
+  `foreign_helper_product_queries` (qualified queries select public
+  declarations in authorized product dependencies, private/sibling
+  rejection, returned-forgery and computed-receiver negatives),
+  `qualified_root_bindings` (exact checked-instance symbol through
+  terminal production + native publication), `product_query_paths`,
+  `product_entry_signatures`, and `qualified_provider_selection` all pass,
+  including the 11/37 module-identity native dispatch case. The 6 failures
+  are all `x86_feature_admission` — attributed, not this item's slice:
+  2× "FMA provider transport is not implemented" (FLOAT-FMA-NATIVE-
+  TRANSPORT), 2× "ProgramEntry establishment rejoins 0 Terminal attachment
+  identities" (attachment-identity lane), 1× bare `Service<R>` fixture
+  spelling (ENTRY-CONTENT-ROOTS residual), 1× bundled windows_x86_64 entry
+  contract. Claim exited 2 — the whole surface is fenced
+  (build_target_activation under BUILD-PACKAGES-GATE 21:49Z;
+  omega/packages under TWO-AXIS-TERMINAL-AUTHORITY-REVIEW 19:24Z,
+  TOPOLOGY-PLAN-VERIFICATION 21:56Z, OPTIONAL-STDLIB-SEMANTIC-BINDINGS
+  23:38Z, BUILD-ADMISSION-CHECKPOINT 00:05Z+1d,
+  REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH 02:04Z). The "remaining" leg
+  (exact provider requirement/application checking across description
+  use and final admission) is already exercised by the green named
+  modules; residual is the parent's own bullets. Finish
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
   Entry/provider/schema queries, opaque descriptions, delegated entry binding,
   and exact-symbol final admission exist. Remaining:
