@@ -11204,8 +11204,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-ENGINE-CRATE-SOURCES** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-PARITY-GAPS** — mined candidate; verify scope then implement.
-- **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; scope verified at
-  `10d93dd448`, covered — re-mines the residual list of owning parent
+- **SQUALR-GEOMETRY-PARITY-REMAINDER.** — mined candidate; scope verified at
+  `10d93dd448`, re-verified at `3533f7d0e8` — the `samples/apps/squalr`
+  wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION exp 05:49Z), so the disposition is
+  unchanged — covered; the stub re-mines the residual list of owning parent
   **SQUALR-GEOMETRY-PARITY** (TASKS.md:6235), which now carries two audits:
   the z105 verified-scope audit (12/12 geometry checks PASS on macOS ARM64
   at app `4b1f7a6` / std `87d8b227`; every enumerated gap maps to a sibling
