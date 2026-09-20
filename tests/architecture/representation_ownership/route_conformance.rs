@@ -3,9 +3,11 @@
 //! `omega-rust/pipeline.md` declares the connected program route and the Omega
 //! frontend stages as labelled owner links, and states that private analyses and
 //! target setup are not additional public program stages. These checks pin the
-//! map to the disk: every declared owner resolves inside its named crate, and
-//! every pipeline crate on disk is a declared route owner — no orphan stages,
-//! no duplicate claims on the route.
+//! map to the disk: every declared owner resolves inside its named crate, every
+//! pipeline crate on disk is a declared route owner — no orphan stages, no
+//! duplicate claims on the route — and every crate named like a transform
+//! keeps its single placement home under `omega-rust/{psi,omega}/pipeline/`,
+//! the only directories the route can own.
 
 use super::repository;
 use std::collections::BTreeMap;
@@ -204,4 +206,46 @@ fn pipeline_crate_names_and_packages_follow_the_route_shape() {
             "pipeline crate {name} must publish a package of the same name"
         );
     }
+}
+
+/// The placement rule's other direction: `omega-rust/{psi,omega}/pipeline/` is
+/// the only home for transform crates. An `X-to-Y`/`X-to-X`-named crate nested
+/// under any other bucket — or deeper inside `pipeline/` than the direct
+/// children the route enumerates — is a stage no route row can own. `target`
+/// build trees and hidden directories never carry crate owners, so the scan
+/// skips them rather than trusting every workspace subdirectory.
+#[test]
+fn transform_crates_live_only_in_pipeline_directories() {
+    let root = repository();
+    let mut misplaced = Vec::new();
+    for half in ["psi", "omega"] {
+        let pipeline = root.join("omega-rust").join(half).join("pipeline");
+        let mut stack = vec![root.join("omega-rust").join(half)];
+        while let Some(directory) = stack.pop() {
+            for entry in std::fs::read_dir(&directory)
+                .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
+                .flatten()
+            {
+                let path = entry.path();
+                if !path.is_dir() {
+                    continue;
+                }
+                let name = entry.file_name().into_string().unwrap();
+                if name == "target" || name.starts_with('.') {
+                    continue;
+                }
+                if name.contains("-to-")
+                    && path.join("Cargo.toml").is_file()
+                    && path.parent() != Some(pipeline.as_path())
+                {
+                    misplaced.push(path.strip_prefix(&root).unwrap().to_owned());
+                }
+                stack.push(path);
+            }
+        }
+    }
+    assert!(
+        misplaced.is_empty(),
+        "transform-named crates outside the pipeline directories: {misplaced:?}"
+    );
 }
