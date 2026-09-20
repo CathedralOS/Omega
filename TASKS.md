@@ -5131,15 +5131,26 @@ Owners include
     still stops at the bridge's hermetic identity rule ("declaration
     `EquivalenceClass` has non-hermetic source origin `User`",
     `normalized_hermetic_symbol_identity`) because it has no `package:`
-    provenance. Remaining on this leg: a checked value plan for the request
-    (a proof-only result binding of the representative call) through the
-    `quotient_operation` exits above, so a machine whose closure carries the
-    request can lower and `retain_checked_quotient_correspondences` installs
-    the row (stopping at `ModuleError::NonExecutableQuotientCorrespondence`);
-    and a checked-only corpus fixture for the managed shape once
-    `tests/omega/pass/proofs` is free (PROOF-CERTIFICATION-BRIDGE). The
-    parked branch `work/quotient-validation-admit` (typed-summary admission
-    at validation) is superseded and can be dropped.
+    provenance. The published-correspondence gate holds on the real route:
+    the rows are program facts, so lowering any machine of the admitted
+    program — its empty `Main::main` entry — runs
+    `retain_checked_quotient_correspondences` and stops at
+    `ModuleError::NonExecutableQuotientCorrespondence`
+    (`proofs::quotient_correspondence::tests::lowering_any_machine_of_an_admitted_program_stops_at_the_published_correspondence_gate`);
+    the requesting machine itself has no plan family and fails closed
+    before a module exists ("machine has no source-independent checked
+    scalar control plan"), pinned beside it. No proof-only value plan for
+    the request is added: the spec forbids executing the operation, the
+    gate needs no carrier, and the value-path exits stay under live claims.
+    Remaining on this leg: a checked-only corpus fixture for the managed
+    shape once `tests/omega/pass/proofs` is free (PROOF-CERTIFICATION-BRIDGE),
+    and a CLI native-route witness: on this host `omega --target
+    macos_arm64` stops in package review before Terminal production (the
+    accepted std review predates upstream's `core/nat_metric.omg` change;
+    a fresh std review needs a `ContractEntailmentOpenObligation`
+    discharge), and the active ownership canaries stop on the same CLI
+    route at ProgramEntry establishment, so the harness route, not the
+    CLI, is the native witness.
   - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
     language-semantics, codec, verifier and review rows belong to
     **PROOF-CONTRACT-MIGRATION**.
