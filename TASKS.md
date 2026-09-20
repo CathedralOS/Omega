@@ -6808,7 +6808,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **EXECUTABLE-PUBLICATION-STAGE** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the "stage" is the staged tree + atomic rename committed by `CompileReport::publish_retained_native_artifact` through `executable_publication.rs` after validating the retained artifact and manifest, refusing non-local output filenames, requiring compiler-text/function validation evidence, and self-checking a requested PCC pair pre-install; a failed publish leaves no half-written executable or stale sidecar, and `omega/src/compilation/publication.rs` is the product-owned route into it. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-STEP, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
 - **EXECUTABLE-PUBLICATION-STEP** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the publication "step" is `publish_compilation`/`publish_native_artifact` in `omega/src/compilation/publication.rs`, which gates on `output_kind`, validates the retained artifact and manifest through `CompileReport::publish_retained_native_artifact`, requires compiler-text/function validation evidence, self-checks a requested PCC pair pre-install, then `publish_completed_build_outputs` commits one staged tree + atomic rename via `executable_publication.rs` — a failed publish leaves no half-written executable or stale sidecar. Verified at `8734480a01`. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION.
 - **FAULT-INJECTED-TARGET-READER** — mined candidate; verify scope then implement.
-- **FILESYSTEM-SNAPSHOT-ISOLATION** — mined candidate; verify scope then implement.
+- **FILESYSTEM-SNAPSHOT-ISOLATION** — verified ea025447fe: the contract
+  already holds in `build-evaluation/src/evidence/filesystem_scope/
+  preparation.rs` + `filesystem_scope.rs`. Captured source snapshots get a
+  create-exclusive owner-only (0o700) private staging parent placed outside
+  the source root, the build write root, and the sponsor session (so reads
+  keep the outside-session accounting bypass; `20af184aca` fixed the
+  in-session collision); materialize_snapshot clears residue and rejects a
+  non-directory/symlink at the path; capture rejects drift via
+  `require_stable_recapture`'s second traversal plus per-file
+  identity/content checks; required-member coverage and host-alias
+  spellings of the roots reject. Witnessed: `cargo nextest run -p
+  build-evaluation --lib` 83/83 green on linux x86-64, including the six
+  snapshot-custody pins. Documented residual, by design: detection is not
+  atomicity — "these checks do not make a mutable host tree atomic"
+  (capture-side drift rejection, fail-closed). Row consumed.
 - **FINITE-GENERIC-METHOD-FAMILIES.** Mined candidate — alias for the
   [finite generic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
   section, the exact spec surface owned by FINITE-GENERIC-DISPATCH (the
