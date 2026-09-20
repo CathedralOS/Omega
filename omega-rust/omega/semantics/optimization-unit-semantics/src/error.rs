@@ -1,5 +1,5 @@
 //! Public failure vocabulary for unit and rewrite validation.
-use abstract_operations::AtomicReadsFromViolation;
+use abstract_operations::AtomicCoherenceViolation;
 
 use crate::BlockId;
 use crate::BoundaryMachineId;
@@ -195,7 +195,7 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
         node: u32,
-        violation: AtomicReadsFromViolation,
+        violation: AtomicCoherenceViolation,
     },
     StructuralCallContractMismatch {
         machine: MachineId,

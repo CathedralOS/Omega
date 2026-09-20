@@ -1,11 +1,12 @@
-//! Reads-from coherence of retained atomic-event edges under the bounded
-//! `happens_before` derivation.
+//! Reads-from and modification-after coherence of retained atomic-event
+//! edges under the bounded `happens_before` derivation.
 
 use crate::tests::{id, refresh_identity};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractBlockEntry, AbstractFunction,
     AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractResult,
+    AtomicCoherenceViolation, AtomicModificationAfter, AtomicModificationAfterViolation,
     AtomicReadsFrom, AtomicReadsFromViolation,
 };
 use optimization_unit::reconstruct_psi_optimization_unit_seed;
@@ -39,6 +40,20 @@ fn integer_constant(psi_operation: u64, result: ValueId) -> AbstractOperation {
 }
 
 fn store(psi_operation: u64, place: PlaceId, value: ValueId) -> AbstractOperation {
+    store_after(
+        psi_operation,
+        place,
+        value,
+        AtomicModificationAfter::InitialResidency,
+    )
+}
+
+fn store_after(
+    psi_operation: u64,
+    place: PlaceId,
+    value: ValueId,
+    predecessor: AtomicModificationAfter,
+) -> AbstractOperation {
     AbstractOperation::AtomicEvent {
         psi_operation: id(psi_operation, OperationId::new),
         event: AbstractAtomicEvent::Store {
@@ -47,6 +62,13 @@ fn store(psi_operation: u64, place: PlaceId, value: ValueId) -> AbstractOperatio
             value,
         },
         reads_from: None,
+        modification_after: Some(predecessor),
+    }
+}
+
+fn predecessor_after(operation: u64) -> AtomicModificationAfter {
+    AtomicModificationAfter::Write {
+        operation: id(operation, OperationId::new),
     }
 }
 
@@ -69,6 +91,7 @@ fn load(
             },
         },
         reads_from,
+        modification_after: None,
     }
 }
 
@@ -77,6 +100,7 @@ fn fence(psi_operation: u64, ordering: AbstractAtomicFenceOrdering) -> AbstractO
         psi_operation: id(psi_operation, OperationId::new),
         event: AbstractAtomicEvent::Fence { ordering },
         reads_from: None,
+        modification_after: None,
     }
 }
 
@@ -206,7 +230,20 @@ fn coherence_mismatch(
         machine: id(31, MachineId::new),
         block: id(block, BlockId::new),
         node,
-        violation,
+        violation: AtomicCoherenceViolation::ReadsFrom(violation),
+    }
+}
+
+fn predecessor_mismatch(
+    block: u64,
+    node: u32,
+    violation: AtomicModificationAfterViolation,
+) -> OptimizationUnitValidationError {
+    OptimizationUnitValidationError::AtomicEventCoherenceMismatch {
+        machine: id(31, MachineId::new),
+        block: id(block, BlockId::new),
+        node,
+        violation: AtomicCoherenceViolation::ModificationAfter(violation),
     }
 }
 
@@ -371,7 +408,7 @@ fn only_the_modification_order_latest_write_on_every_path_may_be_observed() {
                 integer_constant(36, stored_value()),
                 store(63, location(), stored_value()),
                 jump(66, 61),
-                store(64, location(), stored_value()),
+                store_after(64, location(), stored_value(), predecessor_after(63)),
                 jump(67, 62),
                 load(38, location(), observed_value(), witness),
                 return_unit(39),
@@ -424,9 +461,9 @@ fn writes_converging_on_distinct_branches_admit_no_edge() {
                 store(68, location(), stored_value()),
                 boolean_constant(43, condition),
                 conditional(condition, 54, 51, 55, 52),
-                store(69, location(), stored_value()),
+                store_after(69, location(), stored_value(), predecessor_after(68)),
                 jump(56, 53),
-                store(70, location(), stored_value()),
+                store_after(70, location(), stored_value(), predecessor_after(68)),
                 jump(57, 53),
                 load(38, location(), observed_value(), witness),
                 return_unit(39),
@@ -528,5 +565,136 @@ fn a_fence_neither_writes_nor_disturbs_the_order() {
             2,
             AtomicReadsFromViolation::NonObservingWitness
         ))
+    );
+}
+
+/// One block with two chained writes and a load: node 1 writes initial,
+/// node 2 follows it, node 3 observes node 2.
+fn chained_writes_unit(predecessor: Option<AtomicModificationAfter>) -> crate::PsiOptimizationUnit {
+    atomic_cfg_unit(
+        32,
+        &[(32, 5)],
+        vec![
+            integer_constant(36, stored_value()),
+            store(37, location(), stored_value()),
+            AbstractOperation::AtomicEvent {
+                psi_operation: id(80, OperationId::new),
+                event: AbstractAtomicEvent::Store {
+                    place: location(),
+                    ordering: language_core::atomic::MemoryOrdering::NoOrdering,
+                    value: stored_value(),
+                },
+                reads_from: None,
+                modification_after: predecessor,
+            },
+            load(38, location(), observed_value(), coherent_witness_for(80)),
+            return_unit(39),
+        ],
+    )
+}
+
+#[test]
+fn a_coherent_modification_after_edge_validates() {
+    assert_eq!(
+        validate_psi_optimization_unit(&chained_writes_unit(Some(predecessor_after(37)))),
+        Ok(()),
+        "a write naming its immediate predecessor validates"
+    );
+    // Across blocks: the dominating write is the join member's predecessor.
+    let unit = atomic_cfg_unit(
+        32,
+        &[(32, 3), (40, 3)],
+        vec![
+            integer_constant(36, stored_value()),
+            store(37, location(), stored_value()),
+            jump(41, 40),
+            store_after(81, location(), stored_value(), predecessor_after(37)),
+            load(38, location(), observed_value(), coherent_witness_for(81)),
+            return_unit(39),
+        ],
+    );
+    assert_eq!(validate_psi_optimization_unit(&unit), Ok(()));
+}
+
+#[test]
+fn refused_predecessor_edges_fail_validation_with_the_coherence_error() {
+    for (predecessor, violation) in [
+        (None, AtomicModificationAfterViolation::MissingPredecessor),
+        (
+            Some(AtomicModificationAfter::InitialResidency),
+            AtomicModificationAfterViolation::InitialResidencyAfterWrite,
+        ),
+        (
+            Some(predecessor_after(36)),
+            AtomicModificationAfterViolation::UnresolvedPredecessor {
+                claimed: id(36, OperationId::new),
+            },
+        ),
+        (
+            Some(predecessor_after(80)),
+            AtomicModificationAfterViolation::PredecessorNotHappensBefore {
+                claimed: id(80, OperationId::new),
+            },
+        ),
+        (
+            Some(predecessor_after(38)),
+            AtomicModificationAfterViolation::PredecessorOutsideModificationOrder {
+                claimed: id(38, OperationId::new),
+            },
+        ),
+    ] {
+        let unit = chained_writes_unit(predecessor);
+        assert_eq!(
+            validate_psi_optimization_unit(&unit),
+            Err(predecessor_mismatch(32, 2, violation)),
+            "predecessor edge must refuse as {violation:?}"
+        );
+    }
+    // A stale predecessor: the second write names the first while a third
+    // write already overwrote it between them.
+    let unit = atomic_cfg_unit(
+        32,
+        &[(32, 6)],
+        vec![
+            integer_constant(36, stored_value()),
+            store(37, location(), stored_value()),
+            store_after(80, location(), stored_value(), predecessor_after(37)),
+            store_after(82, location(), stored_value(), predecessor_after(37)),
+            load(38, location(), observed_value(), coherent_witness_for(82)),
+            return_unit(39),
+        ],
+    );
+    assert_eq!(
+        validate_psi_optimization_unit(&unit),
+        Err(predecessor_mismatch(
+            32,
+            3,
+            AtomicModificationAfterViolation::PredecessorNotLatest {
+                claimed: id(37, OperationId::new),
+            }
+        )),
+        "an overwritten member cannot be the named predecessor"
+    );
+}
+
+#[test]
+fn a_load_cannot_carry_a_modification_after_edge() {
+    let mut unit = atomic_unit(coherent_witness());
+    let AbstractOperation::AtomicEvent {
+        modification_after, ..
+    } = &mut unit.functions[0].blocks[0].nodes[2].operation
+    else {
+        panic!("fixture third node is the load");
+    };
+    *modification_after = Some(AtomicModificationAfter::InitialResidency);
+    refresh_identity(&mut unit);
+    assert_eq!(
+        validate_psi_optimization_unit(&unit),
+        Err(predecessor_mismatch(
+            32,
+            2,
+            AtomicModificationAfterViolation::NonMemberEdge
+        )),
+        "a load joins no modification order and cannot carry one"
     );
 }
