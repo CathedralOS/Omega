@@ -2,6 +2,8 @@
 
 pub mod publication;
 
+mod build_directory;
+
 use crate::temporary_directory::TemporaryDirectory;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use compiler::{
@@ -66,6 +68,8 @@ pub enum CompileProjectError {
     Publication(String),
     /// The private workspace a check stages into could not be created.
     CheckWorkspace(std::io::Error),
+    /// The output directory records a different owner or a live occupant.
+    BuildDirectory(String),
 }
 
 impl std::fmt::Display for CompileProjectError {
@@ -90,6 +94,7 @@ impl std::fmt::Display for CompileProjectError {
             Self::CheckWorkspace(error) => {
                 write!(formatter, "cannot create the check workspace: {error}")
             }
+            Self::BuildDirectory(conflict) => write!(formatter, "{conflict}"),
         }
     }
 }
@@ -132,6 +137,15 @@ pub fn compile_project(
             workspace.path().to_path_buf()
         }
         None => options.retain_build_dir(),
+    };
+    // A retained product directory must belong to this source root and to one
+    // live compile; a check owns a private workspace and needs no record.
+    let _occupancy = match check_workspace {
+        Some(_) => None,
+        None => Some(
+            build_directory::acquire(&build_dir, &options.root_path)
+                .map_err(|conflict| CompileProjectError::BuildDirectory(conflict.to_string()))?,
+        ),
     };
     let policy_root_path = options.root_path.clone();
     let target = crate::invocation_target_profile(options.target_name.as_deref())
