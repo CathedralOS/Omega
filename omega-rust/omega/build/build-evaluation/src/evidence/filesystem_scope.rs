@@ -1481,4 +1481,49 @@ mod tests {
 
         fs::remove_dir_all(session_root).expect("remove session root");
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn captured_source_snapshot_rejects_a_host_alias_at_its_backing() {
+        let session_root = temporary_staging_root("snapshot-backing-alias");
+        fs::create_dir(&session_root).expect("create session root");
+        let backing = session_root.join("captured-source");
+        let redirect_target = session_root.join("redirected-elsewhere");
+        fs::create_dir(&redirect_target).expect("create redirect target");
+        std::os::unix::fs::symlink(&redirect_target, &backing)
+            .expect("plant the host alias at the snapshot backing");
+
+        let diagnostics = BuildMachineFilesystemScope::materialize_snapshot(
+            &captured_input(),
+            &backing,
+        )
+        .expect_err(
+            "a symlinked snapshot backing redirects captured-source writes outside its custody",
+        );
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a concrete directory")
+        );
+        assert_eq!(
+            fs::read_link(&backing).expect("the host alias is host-owned, not ours to remove"),
+            redirect_target
+        );
+
+        // An ordinary non-directory resident at the backing names the same
+        // rejection: the snapshot materializes only into a fresh directory
+        // it owns, never over host content.
+        fs::remove_file(&backing).expect("remove the planted alias");
+        fs::write(&backing, b"occupied").expect("plant a regular file at the snapshot backing");
+        let diagnostics =
+            BuildMachineFilesystemScope::materialize_snapshot(&captured_input(), &backing)
+                .expect_err("a regular file at the snapshot backing is not its directory custody");
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a concrete directory")
+        );
+
+        fs::remove_dir_all(session_root).expect("remove session root");
+    }
 }
