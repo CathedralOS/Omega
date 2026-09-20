@@ -6503,7 +6503,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GLOB-SELF-IMPORTS-REPAIR** — mined candidate; verify scope then implement.
 - **GRAPH-COST-EVIDENCE-CORPUS** — mined candidate; scope verified, authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg of GRAPH-COST-MODEL-STUDY (a versioned workload corpus is the missing evidence for the `predicted_cost_delta` comparison). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records; the comparison protocol is scoped in `wiki/drafts/graph_cost_model_study.md`. Sibling stubs on the same gated surface: OPTIMIZATION-WORKLOAD-CORPUS, WORKLOAD-CORPUS.
 - **GRAPH-FEATURE-PROJECTION-SCHEMA** — mined candidate; verify scope then implement.
-- **HOST-ALIAS-BUILD-DIR-DETECTION** — mined candidate; verify scope then implement.
+- **HOST-ALIAS-BUILD-DIR-DETECTION** — mined candidate.
+  Verified scope at `7452910c6e`: re-mines the same race-window residual
+  already assigned to **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** (see
+  **BUILD-DIR-ALIAS-RACE-DETECTION**'s record) — a host alias created
+  between admission's `overlap_key` check and the first write (e.g. a
+  symlink planted inside the window) is invisible to the spelling-level
+  fence in `build-evaluation/src/evidence/filesystem_scope.rs`. Every
+  implementing surface is live-fenced at verification time:
+  request/options admission plus `behavior_exclusions`
+  (BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION, 22:14Z),
+  `filesystem_scope.rs` (BUILD-DIRECTORY-ALIAS-COLLISION, 23:07Z),
+  `filesystem_scope/preparation.rs` (FILESYSTEM-SNAPSHOT-ISOLATION,
+  22:28Z), and `build-output`
+  (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
+  exists; retire or re-scope once the sibling lane lands detection.
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; verify scope then implement.
 - **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
 - **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
