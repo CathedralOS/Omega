@@ -2830,10 +2830,11 @@ Owners include
     once image emission assigns section coordinates. Remaining on this leg:
     image-emission's artifact join still must place the bytes at
     `identity.entry_offset` and seal the relocation (image-emission is
-    fenced); `Indirect` copies, stack pieces not a multiple of eight bytes
-    and non-GPR saves reject as deferred seams; the byte recipe lives in
-    machine-emission until a second x86-64 deriver emission moves it into
-    the ISA crate; the stack column still rides the opaque-adapter shape
+    fenced); `Indirect` copies and non-GPR saves or destinations reject as
+    deferred seams, while stack pieces stage through exact-width 4/2/1-byte
+    tail stores (`emit_x86_64_deriver_entry_exit_stub`); the byte recipe
+    lives in machine-emission until a second x86-64 deriver emission moves
+    it into the ISA crate; the stack column still rides the opaque-adapter shape
     until `produce_x86_64_installed_hardware_entry_facts` +
     `bind_x86_64_target_direct_entry_stack_realization` get emitted
     Terminal-body evidence; provider-admitted resource columns and
