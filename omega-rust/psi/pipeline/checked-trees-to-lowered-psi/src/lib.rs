@@ -47,6 +47,9 @@ pub use proofs::content_conservation::{
     LoweredContentPartitionComposition, LoweredContentPartitionCompositions,
 };
 pub use proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
+// The native-differential optimizer corpus proves trap obligations through
+// the checked canonical certificate producer from outside this crate.
+pub use proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
 
 #[cfg(test)]
 mod tests;
