@@ -15769,6 +15769,52 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   "provenance ✓ — alpha_x64_linux reproduces from
   alpha_x64_linux.s (GNU binutils)", full gate VERIFIED).
 - **SEED-PARITY-ASSERTIONS.** — mined candidate; scope verified, already landed — same settled surface as sibling SEED-PARITY-ALIGNMENT (adjacent row): the name re-mines the seed↔reference assertion surface closed by `9e18f9cc11b`, where `tests/alpha/parity.sh` joins the per-opcode conformance battery with the diamond edge corpus and asserts exact exit-code + stdout agreement between the audited `alpha_x64_linux` container and `alpha_ref.py` under `require_bound_identity`. Re-verified green on linux x86-64 at `5b3caaf337c`: `sh tests/alpha/parity.sh` → 33 ok / 0 failed (the three "Illegal instruction" lines are the expected native trap cases). The other audited seeds execute on their own hosts (macOS arm64 / Windows x64 `diamond-py.sh` legs) — no unclaimed linux_x86_64 slice remains.
+||||||| parent of c452262517b8 (board: SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION resolved — settled surface)
+  SEED-PARITY-ASSERTIONS.
+- **SEED-PARITY-ASSERTIONS** — mined candidate; verify scope then implement.
+- **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES** — mined candidate; verify scope then implement.
+- **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
+- **SELECTED-OPTIMIZATION-CATALOG-ROUTE.** Mined candidate; scope verified
+  at d8041919ad — sixth stub on the SELECTED-REWRITE-CATALOG cluster; the
+  verdict is recorded on sibling rows SELECTED-REWRITE-CATALOG-DISPOSITION
+  (Resolved) and -EXECUTION (scoped): re-mines the catalog route leg of
+  **EXACT-MACHINE-SIMPLIFICATIONS** (TASKS_OPTIMIZER.md:641) — each
+  `Orphaned` rewrite in `rewrites/module_catalog.rs` needs a catalog entry
+  executed by the stage entrance. Implementing surfaces remain under live
+  sibling claims at verification time (`rewrites/{mod.rs,module_catalog.rs}`
+  under ORPHAN-REWRITE-MODULES-CATALOG 22:38Z; pair descriptors under
+  COMPOSABLE-PAIR-DESCRIPTORS 23:57Z; `address_fold` under
+  REWRITE-VALIDATOR-INDEPENDENCE 00:19Z+1d). Folds into
+  SELECTED-REWRITE-CATALOG-EXECUTION; no independent slice.
+  SEED-PARITY-ASSERTIONS.
+- **SEED-PARITY-ASSERTIONS** — mined candidate; verify scope then implement.
+- **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES** — mined candidate; verify scope then implement.
+- **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION.** Resolved — sibling stub
+  on the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface, named in
+  that cluster's re-mine list (:9612). The elimination is landed: staged
+  types expose `selected`/`register_environment`/`selections`/
+  `budget_per_pass`/`liveness`/`ranges`/`legality` directly,
+  `83766d57bf` moved custody reads to `optimized_target_owner`, and
+  `tests/ancestry_contract.rs` pins zero `.optimized_target()` data
+  reads — the surviving `liveness_stage()`/`selected_stage()` hops are
+  custody-validator inputs, not data reads. Re-witnessed green on linux
+  x86-64 at `74537d6125c`: `cargo nextest run -p
+  selected-instructions-to-selected-instructions --test
+  ancestry_contract` 2/2 PASS (`staged_types_read_current_data_not_
+  producer_ancestry`, `named_stage_hops_stay_at_custody_sites`). No
+  independent slice exists.
+- **SELECTED-OPTIMIZATION-CATALOG-ROUTE.** Mined candidate; scope verified
+  at d8041919ad — sixth stub on the SELECTED-REWRITE-CATALOG cluster; the
+  verdict is recorded on sibling rows SELECTED-REWRITE-CATALOG-DISPOSITION
+  (Resolved) and -EXECUTION (scoped): re-mines the catalog route leg of
+  **EXACT-MACHINE-SIMPLIFICATIONS** (TASKS_OPTIMIZER.md:641) — each
+  `Orphaned` rewrite in `rewrites/module_catalog.rs` needs a catalog entry
+  executed by the stage entrance. Implementing surfaces remain under live
+  sibling claims at verification time (`rewrites/{mod.rs,module_catalog.rs}`
+  under ORPHAN-REWRITE-MODULES-CATALOG 22:38Z; pair descriptors under
+  COMPOSABLE-PAIR-DESCRIPTORS 23:57Z; `address_fold` under
+  REWRITE-VALIDATOR-INDEPENDENCE 00:19Z+1d). Folds into
+  SELECTED-REWRITE-CATALOG-EXECUTION; no independent slice.
 - **SELECTED-OPTIMIZATION-DIRECT-READS.** Mined candidate — resolved,
   covered. Re-mine of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL
   surface (the direct-reads leg): `selected_optimization.rs` no longer
