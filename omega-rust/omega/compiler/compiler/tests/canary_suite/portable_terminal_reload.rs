@@ -8,6 +8,7 @@ pub(super) mod fixture_roster;
 
 const STAGE_ENV: &str = "OMEGA_PORTABLE_TERMINAL_RELOAD_STAGE";
 const PATH_ENV: &str = "OMEGA_PORTABLE_TERMINAL_RELOAD_PATH";
+const FIXTURE_ENV: &str = "OMEGA_PORTABLE_TERMINAL_RELOAD_FIXTURE";
 const PRODUCE: &str = "produce";
 const CONSUME: &str = "consume";
 const TEST_NAME: &str =
@@ -28,30 +29,33 @@ fn orchestrate_process_boundary() {
         "omega-portable-terminal-reload-{}",
         std::process::id()
     ));
-    let artifact_path = directory.join("program.psi");
     let _ = fs::remove_dir_all(&directory);
     fs::create_dir_all(&directory).expect("create portable Terminal reload directory");
 
-    run_stage(PRODUCE, &artifact_path);
-    assert!(
-        artifact_path.is_file(),
-        "producer must publish one Psi product"
-    );
-    run_stage(CONSUME, &artifact_path);
+    for fixture in fixture_roster::RELOAD_CANARIES {
+        let artifact_path = directory.join(format!("{}.psi", fixture.replace('/', "_")));
+        run_stage(PRODUCE, &artifact_path, fixture);
+        assert!(
+            artifact_path.is_file(),
+            "producer must publish one Psi product for {fixture}"
+        );
+        run_stage(CONSUME, &artifact_path, fixture);
+    }
 
     let _ = fs::remove_dir_all(directory);
 }
 
-fn run_stage(stage: &str, artifact_path: &Path) {
+fn run_stage(stage: &str, artifact_path: &Path, fixture: &str) {
     let output = Command::new(std::env::current_exe().expect("locate canary test executable"))
         .args(["--exact", TEST_NAME, "--nocapture"])
         .env(STAGE_ENV, stage)
         .env(PATH_ENV, artifact_path)
+        .env(FIXTURE_ENV, fixture)
         .output()
         .unwrap_or_else(|error| panic!("run portable Terminal {stage} invocation: {error}"));
     assert!(
         output.status.success(),
-        "portable Terminal {stage} invocation failed:\nstdout:\n{}\nstderr:\n{}",
+        "portable Terminal {stage} invocation failed for {fixture}:\nstdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
@@ -59,7 +63,9 @@ fn run_stage(stage: &str, artifact_path: &Path) {
 
 fn produce_portable_terminal_product() {
     let artifact_path = artifact_path();
-    let fixture = pass_canary(fixture_roster::SELECTED_EMPTY_COMPONENT);
+    let fixture = pass_canary(
+        &std::env::var(FIXTURE_ENV).expect("portable Terminal fixture selection"),
+    );
     let report = compiler::compile(
         CompileRequest::new(CompilerOptions {
             root_path: fixture.join("main.omg"),
