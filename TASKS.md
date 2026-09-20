@@ -6213,6 +6213,15 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   (direct Unit parameter custody gate), `b972133cade` (checked program-entry
   route) and `c9e496b426a` (complete emitted image text) staged the target to
   match.
+  Re-check this row by TARGET NAME, not `--all-targets`: the owning crate does not
+  build clean as a whole, so the obvious command reports a build failure and hides
+  the green lane. At `17fec446ef23`, `cargo check -p omega-native-differential-test
+  --all-targets` still fails with five errors, every one in the unrelated
+  `pipeline_ownership` target — four `E0308` against `optimized/validation.rs`'s
+  `Arc` handle (`83766d57bf6`) and `E0004` for `LegalizedScalarTerminator::Crash`
+  (`bf8769cce13`). The crate is excluded from the landing gate
+  (`--exclude omega-native-differential-test`), so nothing else watches it. The
+  sibling `--test terminal_psi_source_payloadless_optimizer` is also green, 3/3.
 - **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** (new-scope) Unrepaired
   failure in `external-roots`:
   `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`
