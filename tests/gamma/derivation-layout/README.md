@@ -1,7 +1,7 @@
 # Derivation physical-layout gate
 
 Run `sh tests/gamma/derivation-layout/run.sh` on macOS arm64 with `python3` and
-`codesign`, or Windows x64 through Git Bash with `python3`. Windows execution
+`codesign`, Linux x86-64, or Windows x64 through Git Bash with `python3`. Windows execution
 is not yet validated. Other hosts fail explicitly.
 
 The gate materializes the complete role-selected derivation-checker source

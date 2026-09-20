@@ -6166,7 +6166,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BETA-PE-SEED-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-SEED-EXEC-HOST-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST** — mined candidate; verify scope then implement.
-- **BOOTSTRAP-CHAIN-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
+- **BOOTSTRAP-CHAIN-NATIVE-EXECUTION.** Resolved — Linux x86-64 admitted as the
+  third seed-execution host. `tools/bootstrap/alpha/seed_env.sh` carries the
+  audited `alpha_x64_linux` container's bound constants (16,789,856 bytes,
+  sha256 `39ccffa0…`, hole offset 12288), selects it on `Linux-x86_64`, and sets
+  `ALPHA_SEED_EXECUTABLE`; the duplicated per-gate uname dispatches and refusal
+  strings admit the same host. Verified natively on Linux x86-64:
+  `tests/alpha/conformance.sh` 34/34, `reference/diamond-py.sh` 10/10 +
+  bounds 72/72, `alpha-beta-edge.sh --edge` VERIFIED end to end (container,
+  conformance, native bounds 78, Beta reconstruction byte-identical, root
+  audit, word prefix 736 controls), all four `tests/beta/compiler` gates,
+  `tools/bootstrap/beta/build.sh`, `gamma/evaluator-development`, and
+  `gamma/seed-native-acceptance` (native receipt byte-exact on every audited
+  seed). Deeper rungs execute honestly: the pinned 721,484-byte Epsilon
+  receipt matches `71a016f5…` through the full native chain,
+  `epsilon/interpreted-omega-experiment` passes end to end (values, views,
+  sums, state transfers, exact D customers), `pair-boundary` passes, and
+  every completed leg of `d-composition`/`refinement` agrees byte-for-byte.
+  `omega-request` and `omega-executable`
+  now reach their customer legs and report the known interpreted-D
+  `Incomplete` boundary (deterministic, host-independent — the sealed inputs
+  are bound identities, so the same observation occurs on any seed host) —
+  that residual belongs to OMEGA-D, not host coverage. Stale prose updated:
+  gate READMEs, `alpha-identity.sh` record audit, `container.sh` comment, and
+  the CHAIN-MANIFEST frontier note in TASKS_BOOTSTRAP.md. Sibling stub
+  ALPHA-SEED-CONTAINER-NATIVE-VALIDATION names the same gate-enablement
+  slice (live-claimed by z175 during this work) — dedupe at merge.
 - **BOOTSTRAP-EPSILON-EVALUATOR** — mined candidate; verify scope then implement.
 - **BOOTSTRAP-HOST-COVERAGE** — mined candidate; verify scope then implement.
 - **BOOTSTRAP-MACOS-ARM64-LEGS** — mined candidate; verify scope then implement.

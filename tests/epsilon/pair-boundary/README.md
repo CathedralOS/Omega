@@ -8,7 +8,7 @@ nodes, 3422453760, 3422453761)`. The lower chain's exact/adjacent pair boundary 
 pinned separately by [tests/gamma/heap-boundary](../../gamma/heap-boundary/README.md);
 this gate witnesses that same counter through the Epsilon evaluator itself.
 
-Run from the repository root on macOS arm64, or Windows x64 in Git Bash:
+Run from the repository root on macOS arm64 or Linux x86-64, or Windows x64 in Git Bash:
 
 ```sh
 sh tests/epsilon/pair-boundary/run.sh

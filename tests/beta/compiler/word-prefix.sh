@@ -12,8 +12,8 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Beta word prefix: requires macOS arm64 or Windows x64" >&2
+    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64|Linux-x86_64) ;;
+    *) echo "Beta word prefix: requires macOS arm64, Windows x64, or Linux x86-64" >&2
        exit 2 ;;
 esac
 

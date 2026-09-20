@@ -332,8 +332,9 @@ prerequisite to every lower-rung milestone.
   canonical closure reaches it through those materializers. The `tests/bootstrap/*-identity.sh` gates cover
   identity, refusal, and agreement with every other repository record that
   pins a bound subject. These are byte identities, not evidence that a rung
-  ran: the gates bind without executing, and seed execution needs macOS arm64
-  or Windows x64, the only two audited seed containers in `bootstrap/0_alpha/`.
+  ran: the gates bind without executing, and seed execution needs the native
+  host of one of the three audited seed containers in `bootstrap/0_alpha/`
+  (macOS arm64, Windows x64, or Linux x86-64).
 
   Remaining work:
 
@@ -374,17 +375,17 @@ prerequisite to every lower-rung milestone.
   Rust, Python, networking, and package managers are never semantic stages.
   The manifest contains no retired rung or undisclosed authority substitute.
 
-  Frontier (Linux x86-64, base 1e1559d475): every completed edge's bound
-  materialization and refusal coverage passes host-free — the
-  `*-identity.sh` gates, `source-closure.sh`, and `chain-hygiene.sh` — and
-  `alpha-beta-edge.sh` now reports its seed-execution legs UNAVAILABLE
-  (exit 2) rather than FAILED where no audited Alpha container runs.
-  Still requiring macOS arm64 or Windows x64: Alpha conformance, Beta
-  self-reconstruction, the shared word prefix, and the
-  omega-parser/outcome/executable chain runs (the parser gate's Windows
-  route is itself unvalidated). The D→omega0 and omega0→omega tapes are not
-  yet produced (OMEGA-C), so whole-chain reconstruction currently ends at
-  interpreted D. Every Beta compiler-exec entrypoint — reconstruction,
-  the compiler diamond, and `tools/bootstrap/beta/build.sh` — now refuses
-  (exit 2) on hosts that cannot run the audited seed rather than crashing
-  on the Windows PE container.
+  Frontier (Linux x86-64, base 4dbdaa9bc3): `BOOTSTRAP-CHAIN-NATIVE-EXECUTION`
+  admitted Linux x86-64 as the third seed-execution host, so every completed
+  edge's bound materialization, refusal coverage, and seed-execution legs now
+  run here — the `*-identity.sh` gates, `source-closure.sh`,
+  `chain-hygiene.sh`, and `alpha-beta-edge.sh --edge` all pass with native
+  Alpha conformance, Beta self-reconstruction, and the word prefix; the
+  omega-parser/outcome/executable/request chain legs execute inside the
+  audited `alpha_x64_linux` ELF container and report the interpreted-D
+  `Incomplete` boundary where the open OMEGA-D work leaves it (the parser
+  gate's Windows route remains unvalidated). The D→omega0 and omega0→omega
+  tapes are not yet
+  produced (OMEGA-C), so whole-chain reconstruction currently ends at
+  interpreted D. Every seed-executing entrypoint still refuses (exit 2) on
+  hosts that cannot run an audited seed rather than crashing.

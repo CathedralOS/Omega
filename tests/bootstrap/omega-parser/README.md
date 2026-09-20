@@ -7,7 +7,7 @@ execution diagnostic through the selected Gamma-authored Delta compiler, then
 uses that receipt to check the customer and call D's real `OmegaParser::parse_view`.
 No parser states are extracted, translated, or substituted by the host.
 
-Run from the repository root on macOS arm64, or Windows x64 in Git Bash:
+Run from the repository root on macOS arm64 or Linux x86-64, or Windows x64 in Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-parser/run.sh

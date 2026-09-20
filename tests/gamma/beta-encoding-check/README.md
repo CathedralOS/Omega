@@ -1,7 +1,7 @@
 # Beta-encoding certificate check
 
 Run `sh tests/gamma/beta-encoding-check/run.sh` from the repository root, on
-macOS arm64 or Windows x64 Git Bash; other hosts report unsupported. An absent
+macOS arm64 or Linux x86-64, or Windows x64 Git Bash; other hosts report unsupported. An absent
 Python skips rather than fails.
 
 The gate checks the complete certificate for the owner proposition

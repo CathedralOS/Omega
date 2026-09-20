@@ -23,7 +23,7 @@ design, so every expected observation below is the same byte string the
 diagnostic gate pins. This covers the resource/entry-conformance leg of D
 composition that the diagnostic transport does not reach.
 
-Run from the repository root on macOS arm64, or Windows x64 in Git Bash:
+Run from the repository root on macOS arm64 or Linux x86-64, or Windows x64 in Git Bash:
 
 ```sh
 sh tests/epsilon/d-composition/run.sh

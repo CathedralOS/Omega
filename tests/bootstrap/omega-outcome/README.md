@@ -44,7 +44,7 @@ over the private Epsilon execution envelope, not the sealed request edge; no
 Rust compiler, host parser, host typechecker, or host code generator supplies
 the program's meaning.
 
-From the repository root on macOS arm64, or Windows x64 with Git Bash:
+From the repository root on macOS arm64, Linux x86-64, or Windows x64 with Git Bash:
 
 ```sh
 sh tests/bootstrap/omega-outcome/run.sh
