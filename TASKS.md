@@ -8407,7 +8407,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   edge roster. Verified at base 043ccb576d (linux x86-64): `cargo nextest
   run -p selected-instructions-to-selected-instructions --lib` 1592/1592,
   clippy clean; measured-budget tests re-pinned (+1 edge-walk charge).
-  Remaining legs: migrate predecessor/diamond/join/fork/arm/bypass/
+  Second leg landed (this revision): `crossed_window` takes a
+  `CrossingDirection` — `Backward` walks the acyclic paths joining the
+  destination to the run block and crosses the destination's tail plus the
+  run block's head — and `predecessor_relocation` +
+  `predecessor_run_relocation` migrated onto it and the shared audit, same
+  rejection mapping, +1 edge-walk charge re-pin. Verified at this revision
+  (linux x86-64): `cargo nextest run -p
+  selected-instructions-to-selected-instructions --lib` 1519/1519, clippy
+  clean.
+  Remaining legs: migrate diamond/join/fork/arm/bypass/
   triangle/confluence/inflow (± run and commuting variants — diamond and
   join are the first multi-path windows), then the in-block families
   (`local_relocation`, `run_relocation`, `local_schedule`), retiring each

@@ -383,7 +383,7 @@ mod tests {
     };
 
     use super::{RunRelocationRejection, admit_run_relocation};
-    use crate::rewrites::block_edges::crossed_window;
+    use crate::rewrites::block_edges::{CrossingDirection, crossed_window};
 
     const BLOCK_A: SelectedBlockId = SelectedBlockId(0);
     const BLOCK_B: SelectedBlockId = SelectedBlockId(1);
@@ -485,7 +485,8 @@ mod tests {
     }
 
     fn admit(function: &SelectedFunction) -> Result<(), RunRelocationRejection> {
-        let crossing = crossed_window(function, 0, 0, 1, 1, 1, 64).unwrap();
+        let crossing =
+            crossed_window(function, 0, 0, 1, 1, 1, CrossingDirection::Forward, 64).unwrap();
         let members: Vec<&SelectedInstruction> =
             function.blocks[0].instructions[0..=1].iter().collect();
         admit_run_relocation(function, &members, &crossing)
@@ -624,7 +625,8 @@ mod tests {
     fn an_unreachable_destination_refuses() {
         let mut function = function(RegisterOperandAccess::Def, RegisterOperandAccess::Def);
         function.blocks[1].id = SelectedBlockId(9); // sever the edge target
-        let crossing = crossed_window(&function, 0, 0, 1, 1, 1, 64).unwrap();
+        let crossing =
+            crossed_window(&function, 0, 0, 1, 1, 1, CrossingDirection::Forward, 64).unwrap();
         let members: Vec<&SelectedInstruction> =
             function.blocks[0].instructions[0..=1].iter().collect();
         assert_eq!(
