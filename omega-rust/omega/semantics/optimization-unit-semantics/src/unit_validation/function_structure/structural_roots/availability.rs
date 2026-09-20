@@ -27,6 +27,9 @@ pub(crate) fn validate_structural_place_availability(
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishReference { result, .. }
+                // The extraction produces the moved subtree at its own node;
+                // a repair consuming it must sit downstream.
+                | O::MoveStructuralField { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -174,6 +177,12 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
             source,
             ..
         } => vec![*destination, *source],
+        // Both sides of a window observe the borrowed root; the repair also
+        // consumes its owned value place, which must dominate the store.
+        O::MoveStructuralField { source, .. } => vec![source.place],
+        O::StoreStructuralField {
+            destination, value, ..
+        } => vec![destination.place, value.place],
         O::EstablishReference { source, .. } => vec![source.place],
         O::ReleaseReference { source, .. } => vec![*source],
         O::PrimitiveScalarRead { source, .. }

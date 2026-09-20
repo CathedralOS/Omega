@@ -53,6 +53,9 @@ pub(crate) fn reconstruct_declared_places(
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishReference { result, .. }
+                // The extraction's moved subtree is a declared operation
+                // result place like any establishment's.
+                | O::MoveStructuralField { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -145,6 +148,15 @@ pub(crate) fn validate_operation_places(
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => {
             require(destination.place, known)?;
+        }
+        O::MoveStructuralField { source, .. } => {
+            require(source.place, known)?;
+        }
+        O::StoreStructuralField {
+            destination, value, ..
+        } => {
+            require(destination.place, known)?;
+            require(value.place, known)?;
         }
         O::CallUnit {
             structural_arguments,

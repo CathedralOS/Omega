@@ -161,6 +161,38 @@ pub enum AbstractOperation {
         value: AbstractResult,
         range_obligation: Option<semantic_vocabulary::ObligationId>,
     },
+    /// Move one declared structural field subtree out of a mutable-borrowed
+    /// machine parameter, opening the restoration window the Terminal
+    /// verifier recorded as debt on the borrowed root. `source` retains the
+    /// complete parameter row — borrow authority, multiplicity, and nominal
+    /// type — rather than a bare place; `path` + `field` name the exact
+    /// vacated location in the root's spelled segment space; and `result` is
+    /// the fresh structural operation result carrying the moved subtree under
+    /// exact-once custody. The window stays open until a
+    /// `StoreStructuralField` reseats this exact hole; consumers must not
+    /// erase, duplicate, or reorder either side of the pair against the
+    /// borrowed root's other observations.
+    MoveStructuralField {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+    },
+    /// Reseat one whole owned structural subtree into the exact field
+    /// `path` + `field` beneath `destination`, closing the restoration window
+    /// `MoveStructuralField` opened there. `destination` retains the complete
+    /// borrowed parameter row; `value` is the consumed whole-place owned
+    /// argument whose declared type the verifier matched to the declared
+    /// field. This is only the repair of an open hole — it never replaces a
+    /// live field and it re-disposes nothing.
+    StoreStructuralField {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        value: StructuralArgument,
+    },
     /// One normalized atomic memory event with its proof-static ordering
     /// retained as checkable evidence. `event.ordering_is_legal()` and
     /// `event.custody_is_consistent()` replay the source-admitted legality

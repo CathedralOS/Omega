@@ -157,6 +157,9 @@ pub(super) fn validate_current_ownership_cfg(
                     structural_arguments,
                     ..
                 } => structural_arguments.as_slice(),
+                // A window repair consumes its value exactly like one owned
+                // whole call argument: live-owned custody in, once.
+                O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
                 O::CallDynamicScalar {
                     dynamic_dispatch, ..
                 } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
@@ -181,6 +184,25 @@ pub(super) fn validate_current_ownership_cfg(
                             node: node_index,
                         },
                     )?,
+                // The repair's consumed operand carries its own declared
+                // signature; there is no callee parameter row to read.
+                O::StoreStructuralField { value, .. } => {
+                    vec![
+                        crate::unit_validation::structural_source_contract(
+                            function,
+                            value.place,
+                            false,
+                        )
+                        .map(|source| source.multiplicity)
+                        .ok_or(
+                            OptimizationUnitValidationError::StructuralCallContractMismatch {
+                                machine: function.machine,
+                                block: block_id,
+                                node: node_index,
+                            },
+                        )?,
+                    ]
+                }
                 O::CallUnit { callee, .. }
                 | O::CallStructuralScalar { callee, .. }
                 | O::CallStructuralScalarWithDynamicArguments { callee, .. }
@@ -380,6 +402,9 @@ pub(super) fn validate_current_ownership_cfg(
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishReference { result, .. }
+                // The moved subtree enters frame custody as an owned
+                // structural result; a later repair may consume it.
+                | O::MoveStructuralField { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

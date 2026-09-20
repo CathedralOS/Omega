@@ -473,6 +473,9 @@ fn structural_operation_result_contract(
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }
                 | O::EstablishReference { result, .. }
+                // The moved subtree leaves the window as an owned whole value;
+                // the repair store consumes it with exactly that custody.
+                | O::MoveStructuralField { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

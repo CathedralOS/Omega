@@ -437,6 +437,12 @@ fn operation_observations(
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::EstablishRecord { .. }
+        // A restoration window mutates the borrowed root's field contents:
+        // the extraction and the repair are structural-state events that no
+        // pass may erase, duplicate, or reorder against other observations
+        // of the same storage.
+        | O::MoveStructuralField { .. }
+        | O::StoreStructuralField { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }

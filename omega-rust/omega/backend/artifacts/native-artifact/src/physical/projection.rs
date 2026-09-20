@@ -259,6 +259,8 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::StructuralCaseMembership { psi_operation, .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { psi_operation, .. }
         | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
+        | AbstractOperation::MoveStructuralField { psi_operation, .. }
+        | AbstractOperation::StoreStructuralField { psi_operation, .. }
         | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
         | AbstractOperation::EstablishScalarArray { psi_operation, .. }
         | AbstractOperation::EstablishScalarCase { psi_operation, .. }

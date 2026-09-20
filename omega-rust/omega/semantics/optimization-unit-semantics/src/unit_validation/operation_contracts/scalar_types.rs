@@ -106,6 +106,10 @@ pub(crate) fn operation_scalar_types_match(
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         | O::EstablishRecord { .. }
+        // Restoration-window ops carry only structural places; their scalar
+        // surface is empty, so there is nothing for this contract to check.
+        | O::MoveStructuralField { .. }
+        | O::StoreStructuralField { .. }
         | O::PortWrite { .. }
         | O::BooleanStructuralField { .. }
         | O::StructuralCase { .. }

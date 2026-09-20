@@ -110,11 +110,41 @@ fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
             structural_arguments,
             ..
         } => structural_arguments.as_slice(),
+        // A window repair consumes its value like one owned whole call
+        // argument; any reference leaves it carries settle with the store.
+        O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
         O::CallDynamicScalar {
             dynamic_dispatch, ..
         } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
         _ => &[],
     }
+}
+
+/// The spelled hole one `MoveStructuralField` opens beneath `root`: the
+/// operation's path plus the declared identity of the field it vacates.
+/// `None` means the destination does not host a structural field there —
+/// the unit's catalog contract rejects that shape separately.
+fn window_hole(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
+    let parent = crate::unit_validation::resolve_structural_path(types, root, path)?;
+    let declaration = types.get(&parent)?;
+    let fields = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Record { fields }
+        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+        _ => return None,
+    };
+    let identity = fields
+        .iter()
+        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?
+        .identity
+        .clone();
+    let mut hole = path.to_vec();
+    hole.push(terminal_psi::StructuralPathSegment::Field(identity));
+    Some(hole)
 }
 
 fn check_root_access(
@@ -476,6 +506,39 @@ pub(super) fn apply_operation(
         }
         O::EstablishPrimitiveLocal { result, .. } => {
             check_root_access(function, block, node, live, result.place)?
+        }
+        O::MoveStructuralField {
+            source,
+            path,
+            field,
+            ..
+        } => {
+            // The Terminal verifier proved the moving subtree carries no live
+            // loan: replay the carrier half by overlapping every live leaf
+            // path beneath this root with the spelled hole. Sibling loans
+            // stay legal — only a carrier inside (or carrying) the vacancy
+            // would point at relocated storage.
+            let hole = window_hole(structural_types, source.structural_type, path, *field)
+                .ok_or_else(|| {
+                    invalid(
+                        function,
+                        block,
+                        Some(node),
+                        "restoration window does not resolve to a declared field",
+                    )
+                })?;
+            if live.iter().any(|reference| {
+                reference.carrier == source.place
+                    && (reference.carrier_path.starts_with(hole.as_slice())
+                        || hole.starts_with(&reference.carrier_path))
+            }) {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "window extraction displaces a live reference leaf",
+                ));
+            }
         }
         _ => {}
     }

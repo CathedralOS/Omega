@@ -196,6 +196,7 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
                     | O::EstablishScalarCase { result, .. }
                     | O::EstablishRecord { result, .. }
                     | O::EstablishReference { result, .. }
+                    | O::MoveStructuralField { result, .. }
                     | O::CallStructural { result, .. }
                     | O::BoundaryCall {
                         result: abstract_operations::AbstractBoundaryResult::Structural(result),

@@ -43,6 +43,8 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
         | O::EstablishReference { psi_operation, .. }
         | O::ReleaseReference { psi_operation, .. }
+        | O::MoveStructuralField { psi_operation, .. }
+        | O::StoreStructuralField { psi_operation, .. }
         | O::EstablishRecord { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }
         | O::CallUnitWithDynamicArguments { psi_operation, .. }

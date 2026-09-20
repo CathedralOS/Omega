@@ -2,6 +2,7 @@
 //! shared support modules are declared once, and `cargo nextest run -p <crate> --test suite`
 //! runs them all. A new `tests/<topic>.rs` joins by one `mod` line below.
 
+mod borrowed_storage_windows;
 mod byte_sequence_literal;
 mod dynamic_descriptor_join;
 mod dynamic_dispatch;

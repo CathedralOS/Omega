@@ -112,10 +112,14 @@ pub(crate) fn validate_function_structural_catalog(
             return Err(mismatch());
         }
         let known_type = match place.kind {
-            StructuralPlaceKind::BlockParameter { block, position } => function.blocks.iter()
+            StructuralPlaceKind::BlockParameter { block, position } => function
+                .blocks
+                .iter()
                 .find(|candidate| candidate.id == block)
                 .and_then(|candidate| candidate.structural_parameters.get(position as usize))
-                .is_some_and(|parameter| parameter.place == place.id && parameter.position == position),
+                .is_some_and(|parameter| {
+                    parameter.place == place.id && parameter.position == position
+                }),
             StructuralPlaceKind::Parameter { position, is_self } => function
                 .structural_parameters
                 .get(position as usize)
@@ -152,6 +156,14 @@ pub(crate) fn validate_function_structural_catalog(
                                     ..
                                 }
                                 | O::EstablishReference {
+                                    psi_operation,
+                                    result,
+                                    ..
+                                }
+                                // A window extraction's moved subtree is a
+                                // structural operation result like any
+                                // establishment's.
+                                | O::MoveStructuralField {
                                     psi_operation,
                                     result,
                                     ..
@@ -223,6 +235,7 @@ pub(crate) fn validate_function_structural_catalog(
             | O::EstablishScalarArray { result, .. }
             | O::EstablishScalarCase { result, .. }
             | O::EstablishRecord { result, .. }
+            | O::MoveStructuralField { result, .. }
             | O::CallStructural { result, .. }
             | O::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -277,6 +290,11 @@ pub(crate) fn validate_function_structural_catalog(
                 ..
             }
             | O::EstablishReference {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::MoveStructuralField {
                 psi_operation,
                 result,
                 ..
