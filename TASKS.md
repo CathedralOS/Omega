@@ -7762,7 +7762,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
 - **SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
-- **T2C-RANK-RANGE-FIELD-ENDPOINTS** — mined candidate; verify scope then implement.
+- **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
+  rank-range endpoints expressed as field chains are landed and green.
+  `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
+  resolves `ExpressionNode::Member` chains root-to-leaf through declared
+  field types (`EndpointInput`), reads the leaf's store-enforced field
+  bounds, and re-checks preservation on every self edge
+  (`preserved_by`, `prefix_preserves_path`). Re-verified on linux x86-64
+  at `e8bbe9fcc0`: `cargo nextest run -p typed-trees-to-checked-trees
+  --lib -E 'test(/field_endpoint/)'` — 49/49 pass across
+  field_coordinates / field_endpoint_arithmetic / field_endpoint_pins /
+  field_arrivals / computed_field_limits. Sibling stub
+  TERMINATION-RANK-RANGE-FIELDS names the same surface.
 - **TARGET-BATCH-MANIFEST** — mined candidate; scope verified, no slice — the stub re-mines `wiki/spec/build/configuration.md`'s optional batch-manifest clause ("An optional batch manifest binds the explicit set and child commitments/outcomes, not completeness of a support/test/deployment matrix"). The batched semantics already exist: `compiler/README.md` runs distinct `TargetCompileConfiguration::with_build_snapshot` requests through one prepared continuation, collects one ordered outcome per target without fail-fast, and deliberately grants no batch manifest — the manifest is optional spec machinery no board deliverable requires, and adding one would invent an authority the spec says binds nothing extra. Sibling stubs on the same clause: COMPILER-BATCH-MANIFEST, MULTI-TARGET-BATCH-MANIFEST.
 - **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION** — mined candidate; verify scope then implement.
 - **TASK-RUNTIME-NATIVE-SUPPORT** — mined candidate; verify scope then implement.
