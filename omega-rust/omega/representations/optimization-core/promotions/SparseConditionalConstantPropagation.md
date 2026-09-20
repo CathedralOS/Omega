@@ -1,0 +1,19 @@
+# SparseConditionalConstantPropagation Promotion
+
+- Exact rule: SparseConditionalConstantPropagation
+- Approved status: PENDING
+- Owner approval: PENDING
+- Semantic and corruption evidence: `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs` — positive, negative, boundary, disabled, malformed-carrier (`malformed_carriers_fail_admission`), and forged-run replay legs (`forged_run_axes_fail_publication_replay`) through `publish_optimization_run`; corrupted commit custody rejection in `tests/native-differential/tests/abstract_publication/corruption.rs::candidate_replay_rejects_corrupted_commit_custody`
+- Differential evidence: `tests/native-differential/tests/abstract_publication/sparse_conditional_constants.rs::proof_certified_exact_fold_projects_and_remains_target_lowerable` replays the optimized projection, retains its obligation-fact custody, and lowers it into target operations
+- Determinism and bounded-work evidence: `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs::repeated_runs_are_deterministic` and `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs::measured_budget_admits_exact_usage_and_refuses_one_less`
+- Target matrix evidence: target-independent Psi-phase rule; `tests/native-differential/tests/abstract_publication/sparse_conditional_constants.rs::proof_certified_exact_fold_projects_and_remains_target_lowerable` lowers the optimized projection to linux_x64 target operations
+- Measurement evidence: PENDING — no versioned compile-time or output-quality benchmark recorded
+- Rollback evidence: PENDING — no leg yet exercises a `SparseConditionalConstantPropagation`-selected build under `--disable-optimization SparseConditionalConstantPropagation` rejoining the ordinary artifact on every hosted target; the overlay's product gating and empty-request custody are pinned by `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs::native_rollback_rejects_products_that_do_not_enter_native_realization` and `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs::empty_rollback_request_leaves_no_release_receipt`
+- Rollback: --disable-optimization SparseConditionalConstantPropagation
+
+This is a staged record: the inventory row remains `Experimental` and opt-in
+until the workspace gate passes. The `PENDING` fields name the promotion-contract
+evidence still missing — owner review, an approved status, a versioned
+measurement, and a selected-rule rollback leg. Backticked evidence pointers cite
+repository artifacts as `path` or `path::subject`; the architecture gate resolves
+every one of them.
