@@ -6433,7 +6433,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **FRONTEND-DROP-CUSTODY-ORDER-REPIN** — mined candidate; verify scope then implement.
 - **FRONTIER-EDGE-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
-- **FRONTIER-EDGE-ERROR-ORDERING** — mined candidate; verify scope then implement.
+- **FRONTIER-EDGE-ERROR-ORDERING** — mined candidate; scope verified, resolved — named alias of the terminal-verifier cleanup-order row already repaired on `origin/main`: edge validation consumes owned successor sources before the residual and trivial discard rosters (`validation/frontier/block_parameters.rs` documents the order; `terminators.rs` runs it), and `d96a0fda39` repinned `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to expect `EdgeAffineDiscardsInvalid`. EDGE-CLEANUP-ERROR-PRECEDENCE's landed annotation already names `FRONTIER-EDGE-*` stubs among the row's aliases; VERIFIER-EDGE-CLEANUP-PHASE-ORDER carries the same landed resolution.
 - **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-FULL-CHECK** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-NATIVE-CONTAINERS** — mined candidate; verify scope then implement.
