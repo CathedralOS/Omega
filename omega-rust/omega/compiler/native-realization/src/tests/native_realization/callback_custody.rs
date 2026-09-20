@@ -126,7 +126,7 @@ fn native_realization_rejection_returns_callback_custody_without_reordering() {
 /// callback production the native proposal uses: bounded callback lowering,
 /// empty Psi optimization, canonical Terminal packaging. The artifact is the
 /// real replayable input the thunk settlement carries.
-fn callback_thunk_artifact() -> (
+pub(crate) fn callback_thunk_artifact() -> (
     terminal_codec::CanonicalTerminalArtifact,
     lowered_psi::CallbackTerminalLoweringReceipt,
 ) {
@@ -150,7 +150,7 @@ fn callback_thunk_artifact() -> (
     (artifact, lowered.receipt)
 }
 
-fn callback_boundary_entry_plan(
+pub(crate) fn callback_boundary_entry_plan(
     target: target::NativeTarget,
 ) -> calling_conventions::ValidatedBoundaryEntryPlan {
     calling_conventions::evaluate_ordinary_boundary_entry_plan(
@@ -163,7 +163,7 @@ fn callback_boundary_entry_plan(
     .expect("one-u64 callback boundary")
 }
 
-fn callback_thunk_settlement<'artifact>(
+pub(crate) fn callback_thunk_settlement<'artifact>(
     artifact: &'artifact terminal_codec::CanonicalTerminalArtifact,
     boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
     receipt: lowered_psi::CallbackTerminalLoweringReceipt,
@@ -442,6 +442,55 @@ fn callback_thunk_materialization_rejects_foreign_or_duplicate_identities() {
         rejected.diagnostics().iter().any(|diagnostic| diagnostic
             .message
             .contains("PrivateFunctionSymbolCollision")),
+        "{:?}",
+        rejected.diagnostics(),
+    );
+}
+
+/// The common route refuses optimization selections alongside retained
+/// callback custody: the optimizing pipeline does not carry callback or thunk
+/// occupancy, so a selected rung must reject rather than silently dropping the
+/// custody it cannot transport.
+#[test]
+fn optimization_selections_reject_retained_callbacks_on_the_common_route() {
+    let (artifact, _, source, plans) = hosted_custody();
+    let target = target::NativeTarget::windows_x64();
+    let (thunk_artifact, receipt) = callback_thunk_artifact();
+    let boundary = callback_boundary_entry_plan(target);
+    let thunks = [callback_thunk_settlement(
+        &thunk_artifact,
+        boundary.plan(),
+        receipt,
+        0,
+        "__omega_private_callback_0",
+    )];
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::new(
+        optimization_core::OptimizationSelections::new([
+            optimization_core::Optimization::SelectedIncomingU12CompareImmediate,
+        ])
+        .expect("one exact optimization selection"),
+    )
+    .expect("a post-terminal selection");
+    let providers = effects::SelectedProviderPlanFacts::default();
+
+    let rejected = crate::realize_native_artifact(
+        artifact,
+        callback_thunks_request(
+            target,
+            &source,
+            &plans,
+            &profile,
+            &optimizations,
+            &providers,
+            &thunks,
+        ),
+    )
+    .expect_err("selected optimizations cannot carry retained callback custody");
+    assert!(
+        rejected.diagnostics().iter().any(|diagnostic| diagnostic
+            .message
+            .contains("retained callbacks require the ordinary custody-preserving pipeline")),
         "{:?}",
         rejected.diagnostics(),
     );

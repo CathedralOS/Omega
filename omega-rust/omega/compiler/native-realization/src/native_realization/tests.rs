@@ -581,6 +581,64 @@ fn unprovisioned_receiver_entry_rejects_fresh_and_prepared_executable_realizatio
     }
 }
 
+/// A provisioned hosted receiver keeps its private-stack boundary: a request
+/// that still carries callback or thunk occupancy rejects instead of
+/// publishing an entry whose callback custody nobody could provision.
+#[test]
+fn admitted_receiver_entry_rejects_callback_occupancy() {
+    let (produced, signature, plans) =
+        entry_fixture(RECEIVER_STORE, target::TargetProfile::WindowsX64);
+    let (artifact, receipt, scope, _, _, _) = produced.into_parts();
+    let profile = proof_admission::AdmissionProfile::default();
+    let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    let providers = effects::SelectedProviderPlanFacts::default();
+    let target = signature.target_slot().owner.native_target();
+    let (thunk_artifact, lowering_receipt) =
+        crate::tests::native_realization::callback_custody::callback_thunk_artifact();
+    let boundary =
+        crate::tests::native_realization::callback_custody::callback_boundary_entry_plan(target);
+    let thunks = [
+        crate::tests::native_realization::callback_custody::callback_thunk_settlement(
+            &thunk_artifact,
+            boundary.plan(),
+            lowering_receipt,
+            0,
+            "__omega_private_callback_0",
+        ),
+    ];
+    let rejected = crate::realize_native_artifact(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+            .expect("replay the canonical artifact"),
+        NativeRealizationRequest {
+            checked_scope: Some(&scope),
+            callback_thunks: &thunks,
+            program_entry: NativeProgramEntrySettlement::new(
+                &signature,
+                plans
+                    .as_ref()
+                    .map(crate::tests::fixtures::hosted::paired_calling_plan_parts),
+                &[],
+            )
+            .with_checked_entry(&receipt),
+            ..request(
+                &signature,
+                plans.as_ref(),
+                &profile,
+                &optimizations,
+                &providers,
+            )
+        },
+    )
+    .expect_err("a provisioned hosted receiver does not admit callback occupancy");
+    assert!(
+        rejected.diagnostics().iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not yet admit callback occupancy")),
+        "{:?}",
+        rejected.diagnostics(),
+    );
+}
+
 #[test]
 fn admitted_receiver_provisioning_must_reach_the_emitted_object() {
     let (produced, signature, plans) =
