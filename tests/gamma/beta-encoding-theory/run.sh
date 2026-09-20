@@ -12,14 +12,23 @@ case "${1:-}" in
     '') ENCODING_GATE=gate.py ;;
     --subject-shape) ENCODING_GATE=subject_shape.py ;;
     --counter-cost) ENCODING_GATE=counter_cost.py ;;
-    *) echo "usage: run.sh [--subject-shape|--counter-cost]" >&2; exit 2 ;;
+    --full-subject) ENCODING_GATE=full_subject.py ;;
+    *) echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject]" >&2; exit 2 ;;
 esac
-[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape|--counter-cost]" >&2; exit 2; }
+[ "$#" -le 1 ] || { echo "usage: run.sh [--subject-shape|--counter-cost|--full-subject]" >&2; exit 2; }
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Beta encoding theory: skipped (python3 absent)"
     exit 0
 }
+if [ "$ENCODING_GATE" = "full_subject.py" ]; then
+    # The stepper production runs host-side: no evaluator seed is
+    # materialized, so this mode is not bound to the native hosts.  The
+    # theory and subject identities are the same pins the native gates use.
+    require_beta_encoding_theory_identity
+    require_gamma_evaluator_identity
+    exec python3 -B "$GATE_DIR/$ENCODING_GATE"
+fi
 case "$(uname -s)-$(uname -m)" in
     Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
     *) echo "Beta encoding theory: unsupported host; needs macOS arm64 or Windows x64" >&2

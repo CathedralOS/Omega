@@ -44,6 +44,19 @@ the small checked examples nor the large constructed table proves source length,
 source traversal, or Beta encoding. Retain this probe only while deciding that
 strategy; it is not another compulsory component gate or production producer.
 
+`sh tests/gamma/beta-encoding-theory/run.sh --full-subject` selects the
+[full-subject production gate](full_subject.py) and, unlike the other modes,
+runs on any host with python3 — no evaluator seed is materialized. The
+checked-in stepper replays the complete untrusted derivation for the pinned
+subjects over the sha256-pinned theory reconstruction and requires the
+recorded table, per-rule row, depth, and request figures exactly. The mode
+also prints the retained-role census — which proof rules, theory functions,
+and constructors the certificate actually uses — and still states diagnostic
+production only: the certificate has to be produced through the selected
+chain and checked under the exact profile. See
+[PROFILE.md](../../../bootstrap/proofs/beta_encoding/PROFILE.md) for the
+measured figures.
+
 The shell entry resolves bootstrap roles, materializes both complete source
 closures, and invokes `materialize_gamma_evaluator` for the selected
 Beta-authored evaluator. All test logic uses Python's standard library.

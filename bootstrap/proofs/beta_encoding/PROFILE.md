@@ -144,6 +144,23 @@ second time on Linux x86-64 at `87d8b22713ff` under Python 3.10: the
 sha256-pinned host-side theory reconstruction, the midpoint-split owner
 proposition, and the full emission completed in 23.8 seconds at ~2.3 GiB peak
 RSS with byte-identical section sizes and per-rule totals.
+The gated mode `tests/gamma/beta-encoding-theory/run.sh --full-subject`
+reproduces the production on any host with python3 — no evaluator seed is
+materialized — pinning the theory reconstruction, both subject identities,
+and every emitted figure so the run fails loudly on drift. Under its
+documented floor-half midpoint partition the owner table measures 22,253
+terms / 532,144 bytes and the complete request 135,485,120 bytes
+(3,182,974 rows: 1,018,733 unfold / 1,157,751 transitivity / 936,662
+congruence / 69,828 reflexivity / 0 symmetry, maximum premise depth 204,
+~30 seconds and ~2.3 GiB on Linux x86-64), a ~0.03% table-size difference
+from the first production above, whose ad-hoc partition detail was not
+retained; the same equation derives under both, and both fit the selected
+provisions. The mode also emits the retained-role census the audit needs:
+every proof rule appears except symmetry, 107 of 108 theory functions unfold
+(function 62 never does), 359 of 361 constructors appear in terms (S_EMPTY
+and A_EXHAUSTED do not — this subject has no empty spans and its admission
+never exhausts), and 1,911 of the 2,813 declared clauses appear as unfolding
+premises.
 The same gap blocks production through the selected chain: the certificate
 exceeded the evaluator's former 16,777,212-byte buffered-output provision;
 the AlphaBootstrapV5 provision is 135,266,304 bytes.
