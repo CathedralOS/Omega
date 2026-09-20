@@ -5875,7 +5875,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CANARY-RUNTIME-LITERAL-DISPATCH-EXIT** — mined candidate; verify scope then implement.
 - **CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT** — mined candidate; verify scope then implement.
 - **CANDIDATE-REVALIDATION-AT-SEARCH-SCALE** — mined candidate; verify scope then implement.
-- **CASE-CONSTRAINTS** — mined candidate; verify scope then implement.
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
 - **CERTIFICATE-ADMISSION-RECORD-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-CERTIFICATE-ADMISSION-BINDING** — mined candidate; verify scope then implement.

@@ -157,9 +157,9 @@ contract and flow facts, not because one later instantiation happens to work.
 
 These clauses do not introduce hidden case-local generic types or automatic
 boxing. See the [case-constraint specification](../spec/language/data_and_literals.md#case-constraints)
-and [matching rules](chapter_6_pattern_matching_dispatch.md). The compiler work
-is tracked separately as CASE-CONSTRAINTS in [TASKS.md](../../TASKS.md);
-the examples describe the language contract, not completed implementation.
+and [matching rules](chapter_6_pattern_matching_dispatch.md). The compiler
+implements this contract; the `dependent/case_where_*` canaries pin its
+construction, match, coverage, and custody acceptance.
 
 ## Cases Are Domains
 
