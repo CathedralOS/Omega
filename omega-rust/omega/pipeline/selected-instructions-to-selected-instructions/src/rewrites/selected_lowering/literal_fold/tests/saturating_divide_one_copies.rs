@@ -898,7 +898,7 @@ fn saturating_divide_one_fold_rejects_a_literal_claiming_the_wrong_operand_posit
 fn saturating_divide_one_fold_rejects_tied_consumer_operands_but_keeps_the_marks_it_allows() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // `BoundEarlyClobberConsumerOperands` admits `fixed_view` pins and
+    // `BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS` admits `fixed_view` pins and
     // `early_clobber` marks — the bindings constrain only the dropped
     // operand list — while `tied_to` still rejects: a tied register would
     // be a co-allocation the rewrite silently dissolves. The x86-64
