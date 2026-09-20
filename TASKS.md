@@ -8299,7 +8299,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-GEOMETRY-PARITY-RESIDUE** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-WINDOWS-NATIVE** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-WINDOWS-RUN** — mined candidate; verify scope then implement.
-- **SQUALR-GEOMETRY-WINDOWS-VALIDATION** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-WINDOWS-VALIDATION** — mined candidate; scope verified, re-mine of the resolved sibling row GEOMETRY-WINDOWS-VALIDATION (`8734480a01`, ~line 7016). It names the same acceptance: the Windows leg of the app repo's GEOMETRY-PARITY gate — `python tools/verify.py native --timeout 600 --omega <executable>` on a Windows host against the pinned `samples/apps/squalr` (4b1f7a6) build graph; recorded geometry evidence is macOS ARM64 + Linux x86-64 (`d82697ffca`, `Squalr geometry: PASS`), Windows remains "was not run". Doubly gated: no Windows development host exists in this environment, and `samples/apps/squalr` is wholesale dir-fenced by SQUALR-TARGETS-AND-THROUGHPUT with file-level fences from SQUALR-CLONE-SERIALIZATION. A Linux-side `--target windows_x86_64` emit leg would not satisfy the run-based acceptance. Owning parent: SQUALR-GEOMETRY-PARITY (~line 6064); sibling re-mine SQUALR-WINDOWS-GEOMETRY-VALIDATION (~8256).
 - **SQUALR-PLUGIN-IMPLEMENTATIONS** — mined candidate; verify scope then implement.
 - **SQUALR-PLUGIN-PACKAGES** — mined candidate; verify scope then implement.
 - **SQUALR-SEED-ALIGNMENT-PARSING** — mined candidate; verify scope then implement.
