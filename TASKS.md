@@ -7008,7 +7008,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PIPELINE-WRAPPER-OBJECT-ORPHAN** — mined candidate; verify scope then implement.
 - **PKG-INPUTS-FLOAT-IDENTITY-LANDING** — mined candidate; verify scope then implement.
 - **PLACE-ACCESS-GEOMETRY** — mined candidate; verify scope then implement.
-- **PLACE-ALIAS-ANALYSIS-PRODUCER** — mined candidate; verify scope then implement.
+- **PLACE-ALIAS-ANALYSIS-PRODUCER** — landed. `AnalysisKind::PlaceAliases` now
+  has a producer in `abstract-operations-to-abstract-operations`' analysis
+  catalog: `PlaceAliasesAnalysis` carries each machine's complete
+  declared-root roster and deduplicated verifier live-claim views (root plus
+  projection path, sites as evidence), and `PlaceAliasFunction::relation`
+  proves disjoint / overlapping / unknown — distinct roots are disjoint
+  absent a `Referent` crossing, which along with unplaceable evidence roots
+  returns `Unknown`. Consumer binding in the selected-instructions rewrites
+  stays under ALIAS-AWARE-MEMORY.
 - **PLACE-STORAGE-EXTENT-OWNER** — mined candidate; verify scope then implement.
 - **PLACED-ACCESS-NATIVE-OPS** — mined candidate; verify scope then implement.
 - **PLATFORM-RUN-LINUX-X86-64** — mined candidate; verify scope then implement.

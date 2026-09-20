@@ -5,6 +5,7 @@
 
 mod effect_summaries;
 mod ownership_frontiers;
+mod place_aliases;
 mod shared;
 mod sparse_conditional_constants;
 mod use_definitions;
@@ -15,6 +16,10 @@ pub use effect_summaries::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, FunctionEffectSummary, NodeEffectSummary,
 };
 pub use ownership_frontiers::{OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact};
+pub use place_aliases::{
+    PlaceAliasClaim, PlaceAliasFunction, PlaceAliasRelation, PlaceAliasRoot, PlaceAliasesAnalysis,
+    PlaceView,
+};
 pub use sparse_conditional_constants::{
     ExecutableEdgeAnalysis, ExecutableEdgeFact, ExecutableEdgeKnowledge, ScalarConstant,
     ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport, ValueFactRegion,
@@ -25,6 +30,7 @@ pub use value_ranges::ValueRangeAnalysis;
 
 pub(super) use effect_summaries::effect_summaries;
 pub(super) use ownership_frontiers::ownership_frontiers;
+pub(super) use place_aliases::place_aliases;
 pub(super) use sparse_conditional_constants::{executable_edges, scalar_constants};
 pub(super) use use_definitions::use_definitions;
 pub(super) use value_liveness::value_liveness;
