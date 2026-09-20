@@ -66,6 +66,18 @@ python tools/rust_producer_omission.py `
   --require omitted
 ```
 
+## Gate
+
+[rust_producer_omission.sh](rust_producer_omission.sh) pins the canonical
+bootstrap input set with `--require omitted`: every `*.sources` closure
+manifest under `bootstrap/` plus every `*.sh` orchestration step under
+`tools/bootstrap/`. Both sets are discovered rather than listed, so a new
+rung, closure manifest, or env script is audited without an edit here.
+It refuses a tree with no manifests or no step surface at all — an empty
+set cannot silently pass. Test fixtures under `tests/` are not release or
+bootstrap input sets and stay outside the audit. The gate runs on any
+host with `python3` and POSIX `find`; it does not execute the seeds.
+
 ## Boundary
 
 The audit covers input sets only. A product *built by* `omega-rust` can
