@@ -59,6 +59,230 @@ const DECLARATIONS: &str = r#"
 "#;
 
 #[test]
+fn runtime_body_calls_establish_equal_observations() {
+    for body in [
+        "restricted(false, false)",
+        "let answer: bool = restricted(false, false); answer",
+        "_ = restricted(false, false); true",
+    ] {
+        let source = format!("{DECLARATIONS} machine caller() -> bool {{ {body} }}");
+        check_files(&[("main.omg", &source)])
+            .unwrap_or_else(|diagnostics| panic!("{body}: {diagnostics}"));
+    }
+}
+
+#[test]
+fn runtime_body_calls_reject_unequal_observations() {
+    for body in [
+        "restricted(false, true)",
+        "let answer: bool = restricted(false, true); answer",
+        "_ = restricted(false, true); true",
+    ] {
+        let source = format!("{DECLARATIONS} machine caller() -> bool {{ {body} }}");
+        let diagnostics = check_files(&[("main.omg", &source)])
+            .expect_err("runtime result use cannot waive the call precondition");
+        assert!(diagnostics.contains("requires"), "{body}: {diagnostics}");
+    }
+}
+
+#[test]
+fn runtime_body_calls_preserve_saved_value_identity() {
+    for initializer in ["sample(value)", "sample(value) == true"] {
+        for operands in ["first, first", "first, alias"] {
+            let source = format!(
+                "{DECLARATIONS}
+                machine sample(value: bool) -> bool {{ value }}
+                machine caller(value: bool) -> bool {{
+                    let first: bool = {initializer};
+                    let alias: bool = first;
+                    restricted({operands})
+                }}"
+            );
+            check_files(&[("main.omg", &source)])
+                .unwrap_or_else(|diagnostics| panic!("{initializer}, {operands}: {diagnostics}"));
+        }
+    }
+}
+
+#[test]
+fn runtime_body_calls_do_not_identify_independent_results() {
+    for (left, right) in [
+        ("sample(left)", "sample(right)"),
+        ("sample(left) == true", "sample(right) == true"),
+    ] {
+        let source = format!(
+            "{DECLARATIONS}
+            machine sample(value: bool) -> bool {{ value }}
+            machine caller(left: bool, right: bool) -> bool {{
+                let first: bool = {left};
+                let second: bool = {right};
+                restricted(first, second)
+            }}"
+        );
+        let diagnostics = check_files(&[("main.omg", &source)])
+            .expect_err("independent observations need equality evidence");
+        assert!(diagnostics.contains("requires"), "{diagnostics}");
+    }
+}
+
+#[test]
+fn runtime_body_calls_do_not_assume_float_reflexivity() {
+    let diagnostics = check_files(&[(
+        "main.omg",
+        r#"
+        machine restricted(left: f64, right: f64) -> bool
+        requires left == right;
+        { true }
+        machine caller(value: f64) -> bool { restricted(value, value) }
+    "#,
+    )])
+    .expect_err("the input may be NaN");
+    assert!(diagnostics.contains("requires"), "{diagnostics}");
+}
+
+#[test]
+fn runtime_body_calls_transport_preserved_entry_equalities() {
+    let source = format!(
+        r#"
+        {DECLARATIONS}
+        machine caller(left: bool, right: bool) -> bool
+        requires observe(left) == observe(right);
+        {{ restricted(left, right) }}
+    "#
+    );
+    check_files(&[("main.omg", &source)]).expect("preserved entry evidence establishes the call");
+}
+
+#[test]
+fn runtime_body_calls_do_not_treat_nan_premises_as_contradictions() {
+    let source = format!(
+        r#"
+        {DECLARATIONS}
+        machine caller(value: f64) -> bool
+        requires value != value;
+        {{ restricted(false, true) }}
+    "#
+    );
+    let diagnostics = check_files(&[("main.omg", &source)])
+        .expect_err("NaN satisfies the caller premise but not the callee premise");
+    assert!(diagnostics.contains("requires"), "{diagnostics}");
+}
+
+#[test]
+fn runtime_body_calls_execute_with_checked_premises() {
+    let fixture = Fixture(std::env::temp_dir().join(format!(
+        "omega-contract-runtime-{}-{}",
+        std::process::id(),
+        NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
+    )));
+    fs::create_dir_all(&fixture.0).unwrap();
+    let root = fixture.0.join("main.omg");
+    fs::write(
+        &root,
+        format!(
+            "{DECLARATIONS}
+        machine caller(value: bool) -> bool {{
+            let saved: bool = value;
+            restricted(saved, value)
+        }}
+        machine run_false() -> i32 {{
+            transition caller(false) {{ true -> 99 false -> 7 }}
+        }}
+        machine run_true() -> i32 {{
+            transition caller(true) {{ true -> 11 false -> 99 }}
+        }}"
+        ),
+    )
+    .unwrap();
+    let checked = compiler::compile_to_checked(compiler::CheckedCompileRequest::new(&root, None))
+        .expect("runtime call premise");
+    drop(fixture);
+    assert!(!root.exists(), "checked execution cannot reread source");
+    for (entry, expected) in [("run_false", 7), ("run_true", 11)] {
+        let outcome = checked_interpreter::interpret_entry(
+            &checked,
+            entry,
+            &[],
+            checked_interpreter::InterpretOptions::default(),
+        );
+        assert_eq!(outcome.error, None);
+        assert_eq!(outcome.exit_code, expected);
+    }
+}
+
+#[test]
+fn runtime_body_calls_substitute_nested_projection_roots() {
+    for (operand, accepted) in [("first.inner.flag", false), ("zero.inner.flag", true)] {
+        let source = format!(
+            r#"
+            data Inner {{ flag: bool; }}
+            data Outer {{ inner: Inner; }}
+            machine projected(first: Outer, second: bool) -> bool
+            requires first.inner.flag == second;
+            {{ second }}
+            machine caller(first: Outer) -> bool {{
+                let zero: Outer = Outer {{ inner: Inner {{ flag: false }} }};
+                projected(zero, {operand})
+            }}
+        "#
+        );
+        let outcome = check_files(&[("main.omg", &source)]);
+        if accepted {
+            outcome.expect("the actual nested constructor field agrees");
+        } else {
+            let diagnostics = outcome.expect_err("callee-root spelling is not caller identity");
+            assert!(diagnostics.contains("requires"), "{diagnostics}");
+        }
+    }
+}
+
+#[test]
+fn runtime_body_calls_keep_case_payloads_distinct_from_authored_names() {
+    for (operand, accepted) in [("__ih_match_payload_0_flag", false), ("flag", true)] {
+        let source = format!(
+            r#"
+            {DECLARATIONS}
+            data Flag {{ case Present(flag: bool); }}
+            machine caller(value: Flag, __ih_match_payload_0_flag: bool) -> bool {{
+                transition {{ _ -> match_payload(value, __ih_match_payload_0_flag) }}
+                state match_payload(value: Flag, __ih_match_payload_0_flag: bool) -> bool {{
+                    transition value {{
+                        Flag::Present {{ flag }} -> (restricted(flag, {operand}))
+                    }}
+                }}
+            }}
+        "#
+        );
+        let outcome = check_files(&[("main.omg", &source)]);
+        if accepted {
+            outcome.expect("the selected payload retains its own identity");
+        } else {
+            let diagnostics =
+                outcome.expect_err("an authored name cannot name an internal payload");
+            assert!(diagnostics.contains("requires"), "{diagnostics}");
+        }
+    }
+}
+
+#[test]
+fn runtime_body_calls_do_not_reuse_mutated_entry_equalities() {
+    let source = format!(
+        r#"
+        {DECLARATIONS}
+        machine caller(mut left: bool, right: bool) -> bool
+        requires observe(left) == observe(right);
+        {{
+            left = false;
+            restricted(left, right)
+        }}
+    "#
+    );
+    let diagnostics = check_files(&[("main.omg", &source)])
+        .expect_err("entry observations do not describe the mutated argument");
+    assert!(diagnostics.contains("requires"), "{diagnostics}");
+}
+
+#[test]
 fn equal_substituted_arguments_form_a_specification_application() {
     let source = format!(
         "{DECLARATIONS}
