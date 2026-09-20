@@ -306,7 +306,7 @@ def parse_macho(reader):
                   "Mach-O code signature lacks the superblob magic")
     reader.expect(any(b"libSystem" in name for name in dylib_names),
                   "Mach-O container does not link libSystem")
-    reader.expect(any(section.flags & 0xFF == SECTION_TYPE_ZEROFILL
+    reader.expect(any(section.flags & 0xFF in (SECTION_TYPE_ZEROFILL, 0x0C)
                       for section in sections),
                   "Mach-O container lacks the zerofill register/bss area")
     return sections
@@ -323,7 +323,7 @@ def check_hole(reader, sections, hole_off, hole_size, args):
                   f"+{tape.raw_size:#x}); stamping would write outside it")
     hole = reader.slice(hole_off, hole_size, "stamping hole")
     if not args.stamped:
-        reader.expect(not hole.strip(b"\x00"),
+        reader.expect(not any(hole),
                       "pristine container's hole is not all zero")
         return "pristine hole is all-zero"
     length = struct.unpack_from("<I", hole[:4])[0]
@@ -331,7 +331,7 @@ def check_hole(reader, sections, hole_off, hole_size, args):
                   f"stamped length {length} exceeds the {args.max_tape}-byte "
                   "raw tape maximum")
     tail = hole[4 + length:]
-    reader.expect(not tail.strip(b"\x00"),
+    reader.expect(not any(tail),
                   "stamped container's hole has bytes beyond [length][tape]")
     if args.tape is not None:
         with open(args.tape, "rb") as stream:
