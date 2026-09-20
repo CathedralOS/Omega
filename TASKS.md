@@ -3952,11 +3952,14 @@ Owners include
   `receiving_admission` leg drives the same join through one demanded leaf:
   an accepted customer whose demanded closure is a package-owned
   `Console::exit_process` compiler intrinsic emits with no receiving policy
-  and binds no permission-policy identity, the same program rejects under
-  the explicit empty policy and under a row whose disposition substitutes a
-  narrower permission, and it admits under the policy rejoining every
-  demanded leaf's exercised classes, replaying that recorded admission
-  exactly.
+  and binds no permission-policy identity; the same program rejects under
+  the explicit empty policy, under rows substituting the accepted permission
+  in either direction (a narrower or wider disposition at an approved
+  coordinate), and under rows keyed to foreign coordinates; and it admits
+  under the policy rejoining every demanded leaf's exercised classes,
+  replaying that recorded admission exactly. The receiving policy is not
+  canonicalized to the demanded set: surplus rows at undemanded coordinates
+  admit and the emitted artifact binds the supplied policy's identity.
 
   The toolchain-settled filesystem cohort is now wired at the single provider
   admission join: `validate_source_evaluated_import_coverage` mints the exact
