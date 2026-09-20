@@ -2655,6 +2655,15 @@ Owners include
   `items[low + 0u64..high]` cannot prove its start bound in
   `checks/ranges/indexes/validation.rs`; rerun it before relying on that.
 
+  z168 wave state: every producing surface the remaining bullets name is
+  fenced to live claims — `src/checks/borrows/` to
+  GENERIC-RETURNED-VIEW-LIFETIMES (22:27Z), `src/checks/ranges/` to the
+  forwarded-slice-bounds leg of RC-NATIVE-MATRIX-MACOS-ARM64 (00:12Z),
+  and `src/tests/borrow/` to STRUCTURAL-BORROW-IDENTITY (21:38Z). The
+  sanctioned next slice stays the recorded candidate above
+  (`items[low + 0u64..high]` proving its start bound) once the ranges
+  fence opens; wider establishment extension needs the borrows fence.
+
   These are implementation gaps under the settled loan contract, not owner
   design decisions. Preserve `pass/borrows/borrow_stated_index_disequality_mut`
   and the unknown-index negative control while extending premise sources.
