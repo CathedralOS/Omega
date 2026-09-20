@@ -5,6 +5,7 @@ mod declaration;
 mod inheritance;
 mod instantiation;
 mod parameters;
+mod scratch;
 pub(crate) use declaration::{declaration_parameters, project_declaration};
 pub(crate) use parameters::instantiate as instantiate_static_parameters;
 
@@ -76,7 +77,7 @@ pub(crate) fn project_application(
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     project_with_binders(
         compilation,
-        compilation.typed.clone(),
+        scratch::trees(compilation),
         boundary_trait,
         boundary_arguments,
         requirement_machine,
