@@ -13952,6 +13952,72 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo nextest run -p checked-trees-to-lowered-psi -E
   'test(~borrowed_scalar_call)' --no-fail-fast` — 19/19 pass.
 - **PSI-DOMAIN-FACT-SELECTION-COVERAGE.** — mined candidate; verify scope then implement.
+||||||| parent of 0683724692a1 (board: PROOF-SEARCH-MEASUREMENT — add missing resolved row)
+- **PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
+- **PROOF-VALUE-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
+- **PROOFS-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here.
+- **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; verify scope then implement.
+- **PSI-DOMAIN-FACT-SELECTION-COVERAGE** — mined candidate; verify scope then implement.
+- **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN.** Resolved — the custody join for
+  fresh (per-edge constructed) selection results is already implemented and
+  pinned. `checks/multiplicity/claim_outcomes.rs`
+  `claim_outcomes_for_owned_selection` mints the fresh product's claim inside
+  the selection as `Established{claim_identity: Unknown, provenance:
+  Unknown}` — its origin intentionally untracked — while parameter sources
+  bind the caller's claim at the exact input path and local sources publish
+  the established roster identity. `checks/multiplicity/owned_selection.rs`
+  completes the join rules: a linear join whose edges all move the same
+  consumed claim hands that claim (identity + provenance) to the
+  destination; a fresh per-edge product, a distinct source on any arm, or a
+  claimless leaf leaves the claim edge-dependent — no identity is minted
+  implicitly. Pinned by `claim_outcomes/joins/tests.rs`:
+  `conditional_result_join_binds_constructed_argument_fields` (typed
+  constructor paths retain actual source claims) and the
+  "forwarding and fresh construction remain distinct origins" control.
+  Related but separate surfaces: premise origins for constructed results are
+  TPR6's progress surface, and static constructor matching is
+  MATHEMATICAL-PREDICATE-PARAMETERS's remaining work — neither is this row's
+  seam.
+- **PROOF-SEARCH-MEASUREMENT.** Resolved — the measurement substrate is
+  landed and wired, re-verified at `be496d9a908`. `proof/src/checker/
+  measurement.rs` carries `ProofPlanMeasurements` (obligation-class
+  counts at the dispatch match, per-leg certificate-route verdicts,
+  emitted-certificate node counts, run wall-clock, and the kernel's own
+  receipt figures); every `check_proof_plan` call records through
+  `check_proof_plan_inner`, and `emit_if_requested` prints the
+  `proof_plan_measurements key=value` stderr line whenever
+  `OMEGA_PROOF_MEASUREMENTS` is set — measured rejections still emit.
+  `tools/matching-logic-metrics/run_metrics.py` consumes the line as the
+  `certificate` axis. The residual the sibling rows name — measuring hit
+  rate and invalidation — needs a workload corpus with repeated
+  obligations, gated on WORKLOAD-CORPUS-AND-MULTIVERSIONING per
+  :8926. No independent slice exists; sibling stub
+  PROOF-SEARCH-COST-MEASUREMENT is the same surface.
+- **PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
+- **PROOF-VALUE-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
+- **PROOFS-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; scope verified, covered — named sibling stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row, which owns this surface: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject. Implemented on `origin/main` at `1fc01bb690` (`validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; caller-terms attribution diagnostic in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`); re-verified green at `f1675418b1` on the singular-variant row (`proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established, `case_citation_wrong_result` pins the result side, pass twin `proofs/case_call_premises` compiles). Remaining owners stay the parent item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction). No independent slice exists here.
+- **PROVIDER-ATTACHMENT-MACHINE-PLAN** — mined candidate; verify scope then implement.
+- **PSI-DOMAIN-FACT-SELECTION-COVERAGE** — mined candidate; verify scope then implement.
+- **PSI-FRESH-CONSTRUCTOR-CUSTODY-JOIN.** Resolved — the custody join for
+  fresh (per-edge constructed) selection results is already implemented and
+  pinned. `checks/multiplicity/claim_outcomes.rs`
+  `claim_outcomes_for_owned_selection` mints the fresh product's claim inside
+  the selection as `Established{claim_identity: Unknown, provenance:
+  Unknown}` — its origin intentionally untracked — while parameter sources
+  bind the caller's claim at the exact input path and local sources publish
+  the established roster identity. `checks/multiplicity/owned_selection.rs`
+  completes the join rules: a linear join whose edges all move the same
+  consumed claim hands that claim (identity + provenance) to the
+  destination; a fresh per-edge product, a distinct source on any arm, or a
+  claimless leaf leaves the claim edge-dependent — no identity is minted
+  implicitly. Pinned by `claim_outcomes/joins/tests.rs`:
+  `conditional_result_join_binds_constructed_argument_fields` (typed
+  constructor paths retain actual source claims) and the
+  "forwarding and fresh construction remain distinct origins" control.
+  Related but separate surfaces: premise origins for constructed results are
+  TPR6's progress surface, and static constructor matching is
+  MATHEMATICAL-PREDICATE-PARAMETERS's remaining work — neither is this row's
+  seam.
 - **PSI-NATIVE-FIELD-STORES.** Mined candidate; scope verified at
   b28abc01fe — re-mines **STATE-LOCAL-VALUE-FRONTIER**'s field-store leg —
   the recorded `structural field store: scalar field type` frontier in
