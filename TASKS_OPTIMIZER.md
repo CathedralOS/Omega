@@ -174,13 +174,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     span, or a fragment call under fragment publication; both arms cover
     all five static call kinds (`Call`, `CallUnit`, `CallStructural`,
     `CallStructuralScalar`, `CallStructuralWithScalarArguments`) — and
-    `ExactCompilerIntrinsic`, as an FMA span plus an IEEE float-compare
-    fragment. `CallDynamic*` kinds carry descriptor or parameter ordinals
-    rather than a static callee, and other intrinsic kinds have no span
-    arm, so those occurrences remain named gap subjects. Regression:
+    `ExactCompilerIntrinsic`, as an FMA span, an IEEE float-compare
+    fragment, and the three integer-comparison kinds (`IntegerEqual`,
+    `IntegerLessThan`, `IntegerLessOrEqual`), whose instruction-only
+    operations take `DirectInstructionBytes` over their
+    provenance-attributed byte interval when the realization carries a
+    `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
+    descriptor or parameter ordinals rather than a static callee, and
+    the remaining intrinsic kinds have no span arm, so those occurrences
+    remain named gap subjects. Regressions:
     `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
     (Linux x86-64) drives a structural-result boundary operator through
-    emission, exact-child binding, and every mutation-class rejection.
+    emission, exact-child binding, and every mutation-class rejection;
+    `physical_child_replay::integer_comparison_occurrence_replays_one_exact_physical_child`
+    (Linux x86-64) does the same for a compiler-intrinsic `==`.
   - Boundary settlements. `derivation/evidence.rs` joins each installed
     settlement's closed `(CompilerBuiltinExecution, BoundaryRealization)`
     pair against `HOSTED_BUILTIN_SETTLEMENTS` in `derivation/children.rs`
