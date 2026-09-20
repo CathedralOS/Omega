@@ -2723,7 +2723,7 @@ Owners include
   remaining pair), a `BumpVec` reservation with one optional retained buffer,
   fallible growth from the tail, reset through either retained-slot case,
   full original-capacity reuse after returning both allocations without a
-  runtime guard, and one resident place/read/retire; six
+  runtime guard, and one resident place/read/retire; seven
   `fail/memory/bump_allocator_*` controls pin the rejections. Its header
   records the contract edges found so far — the release chain added one:
   reclaim is tail-ward only, because the boundary composes adjacent pairs and
@@ -2733,17 +2733,18 @@ Owners include
   `Main::main` is empty, and `ExtentPartition`/`ResidentStorage` are
   fixture-local boundary traits with no conformer or selected provider.
   Split/merge conservation and resident establishment are asserted boundary
-  laws, and nothing lowers or executes. New expected-reject controls
-  (`source/library/alloc` and `tests/omega/fail/memory`) were claimed by
-  ENTRY-CONTENT-ROOTS this wave; a `release` of a resident-bearing region —
-  the tail-ward analogue of `reset_with_live_resident` — waits on that
-  path release.
+  laws, and nothing lowers or executes.
+  `fail/memory/bump_allocator_release_with_live_resident` now pins the
+  tail-ward analogue of `reset_with_live_resident`: `release`'s `returned`
+  parameter demands `Vacant`, so passing an occupied allocation drops
+  `Resident<SlotPlacement, Slot>` and rejects with implicit domain
+  weakening in the `release::entry` argument.
 
   Resume evidence: Linux x86-64, 2026-09-20, the tail-ward release chain:
   the focused command below accepts the fixture, and
   `OMEGA_FAIL_CANARY_FILTER=memory/bump_allocator_` with the
   `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
-  selector rejects all six controls. Both use `RUST_MIN_STACK=67108864`.
+  selector rejects all seven controls. Both use `RUST_MIN_STACK=67108864`.
   Check the actual fixture with
   `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
   cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
