@@ -255,6 +255,72 @@ fn natural_machine_outcomes(
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
 ) -> Result<OutcomeBounds, FixedFuelError> {
+    let geometry = natural_component_geometry(
+        machine,
+        components,
+        machines,
+        dynamic_call_targets,
+        provider_candidates,
+        schedule,
+        memoized_machines,
+        active_machines,
+    )?;
+    let entry_node = geometry.node_for(machine.entry);
+    let bound = natural_condensed_bound(
+        entry_node,
+        machine,
+        components,
+        &geometry,
+        blocks,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    let ceiling = u64::try_from(bound).map_err(|_| FixedFuelError::BoundOverflow)?;
+    // One ceiling covers both outcomes: the bound counts every admitted path,
+    // so it upper-bounds returning and crashing paths alike.
+    Ok(OutcomeBounds {
+        returned: Some(ceiling),
+        crashed: Some(ceiling),
+    })
+}
+
+/// Shared geometry of a verified `Natural` ranking: the component index each
+/// cyclic block belongs to, each block's single-visit bound, and every
+/// component's charged bound — the rank carrier's type maximum plus one
+/// visits times the summed member visits.
+pub(super) struct NaturalGeometry {
+    pub(super) member_of: BTreeMap<BlockId, usize>,
+    pub(super) visit_units: BTreeMap<BlockId, u64>,
+    pub(super) component_units: Vec<u128>,
+}
+
+impl NaturalGeometry {
+    /// The condensed node a block belongs to: its component when the block is
+    /// ranked inside one, otherwise the block itself.
+    pub(super) fn node_for(&self, block: BlockId) -> NaturalGraphNode {
+        self.member_of
+            .get(&block)
+            .map_or(NaturalGraphNode::Block(block), |&index| {
+                NaturalGraphNode::Component(index)
+            })
+    }
+}
+
+/// Compute the condensed geometry of a verified component partition:
+/// membership is total and disjoint, each block's visit bound composes its
+/// operations, admitted call maxima, terminator, and cleanup, and a component
+/// charges the type-maximum visit count times its member sum.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn natural_component_geometry(
+    machine: &TerminalMachine,
+    components: &[TerminalNaturalCycle],
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    schedule: TerminalFuelSchedule,
+    memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
+    active_machines: &mut BTreeSet<MachineId>,
+) -> Result<NaturalGeometry, FixedFuelError> {
     let mut member_of = BTreeMap::new();
     for (index, component) in components.iter().enumerate() {
         for rank in &component.ranks {
@@ -300,34 +366,16 @@ fn natural_machine_outcomes(
                 .ok_or(FixedFuelError::BoundOverflow)?,
         );
     }
-    let entry_node = member_of
-        .get(&machine.entry)
-        .map_or(NaturalGraphNode::Block(machine.entry), |&index| {
-            NaturalGraphNode::Component(index)
-        });
-    let bound = natural_condensed_bound(
-        entry_node,
-        machine,
-        components,
-        &member_of,
-        &visit_units,
-        &component_units,
-        blocks,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?;
-    let ceiling = u64::try_from(bound).map_err(|_| FixedFuelError::BoundOverflow)?;
-    // One ceiling covers both outcomes: the bound counts every admitted path,
-    // so it upper-bounds returning and crashing paths alike.
-    Ok(OutcomeBounds {
-        returned: Some(ceiling),
-        crashed: Some(ceiling),
+    Ok(NaturalGeometry {
+        member_of,
+        visit_units,
+        component_units,
     })
 }
 
 /// One condensed node: an ordinary block or a complete cyclic component.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum NaturalGraphNode {
+pub(super) enum NaturalGraphNode {
     Block(BlockId),
     Component(usize),
 }
@@ -340,9 +388,7 @@ fn natural_condensed_bound(
     node: NaturalGraphNode,
     machine: &TerminalMachine,
     components: &[TerminalNaturalCycle],
-    member_of: &BTreeMap<BlockId, usize>,
-    visit_units: &BTreeMap<BlockId, u64>,
-    component_units: &[u128],
+    geometry: &NaturalGeometry,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     memoized: &mut BTreeMap<NaturalGraphNode, u128>,
     active: &mut BTreeSet<NaturalGraphNode>,
@@ -368,7 +414,8 @@ fn natural_condensed_bound(
                 .ok_or(FixedFuelError::UnknownBlock(block))?;
             (
                 u128::from(
-                    visit_units
+                    geometry
+                        .visit_units
                         .get(&block)
                         .copied()
                         .ok_or(FixedFuelError::UnknownBlock(block))?,
@@ -389,11 +436,12 @@ fn natural_condensed_bound(
                 exits.extend(
                     terminator_targets(&block.terminator)
                         .into_iter()
-                        .filter(|target| member_of.get(target) != Some(&index)),
+                        .filter(|target| geometry.member_of.get(target) != Some(&index)),
                 );
             }
             (
-                component_units
+                geometry
+                    .component_units
                     .get(index)
                     .copied()
                     .ok_or(FixedFuelError::InvalidRankedScc(machine.id))?,
@@ -403,18 +451,11 @@ fn natural_condensed_bound(
     };
     let mut continuation = 0_u128;
     for target in successors {
-        let next = member_of
-            .get(&target)
-            .map_or(NaturalGraphNode::Block(target), |&index| {
-                NaturalGraphNode::Component(index)
-            });
         continuation = continuation.max(natural_condensed_bound(
-            next,
+            geometry.node_for(target),
             machine,
             components,
-            member_of,
-            visit_units,
-            component_units,
+            geometry,
             blocks,
             memoized,
             active,
@@ -432,7 +473,7 @@ fn natural_condensed_bound(
 /// call's worst outcome (return or crash; a crash ends the path, so one
 /// charge covers it), the terminator edge, and nominal cleanup machines the
 /// terminator invokes.
-fn block_visit_units(
+pub(super) fn block_visit_units(
     machine: &TerminalMachine,
     block: &terminal_psi::Block,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
@@ -505,7 +546,7 @@ fn block_visit_units(
     Ok(units)
 }
 
-fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
+pub(super) fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
     match terminator {
         Terminator::Jump { target, .. } => vec![*target],
         Terminator::Conditional {
