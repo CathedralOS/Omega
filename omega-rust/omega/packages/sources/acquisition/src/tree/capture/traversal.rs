@@ -496,10 +496,22 @@ mod close_tests {
         std::fs::remove_dir_all(root.join("child")).expect("remove child");
         std::fs::create_dir_all(root.join("child")).expect("recreate child");
         std::fs::write(root.join("child").join("a.omg"), b"captured").expect("rewrite member");
+        // Inode numbers and both clocks can repeat inside one filesystem
+        // tick; a permissions change keeps the replacement visible on them.
+        let mut readonly = std::fs::metadata(root.join("child"))
+            .expect("read child metadata")
+            .permissions();
+        readonly.set_readonly(true);
+        std::fs::set_permissions(root.join("child"), readonly).expect("mark child readonly");
         assert!(matches!(
             fixture.close(&observation),
             Err(SourceResolveError::LocalSourceChanged { .. })
         ));
+        let mut writable = std::fs::metadata(root.join("child"))
+            .expect("read child metadata")
+            .permissions();
+        writable.set_readonly(false);
+        std::fs::set_permissions(root.join("child"), writable).expect("restore child permissions");
         let _ = std::fs::remove_dir_all(&root);
     }
 
