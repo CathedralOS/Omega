@@ -96,6 +96,7 @@ pub fn synthesize_trait_defaults(
     let selection = crate::preparation::generic_data::constant_selection::ConstantSelection::new(
         syntax, sources, bindings,
     )?;
+    crate::preparation::generic_data::domain_heads::normalize(syntax, Some(&selection))?;
     crate::preparation::module_normalization::validate_with_selection(syntax, &selection)?;
     synthesize_trait_defaults_after_module_validation(syntax, &selection)
 }

@@ -38,12 +38,15 @@ pub(crate) fn prepare(
         sources,
         top_level_bindings,
     )?;
+    let mut syntax = syntax.clone();
+    // Initializer-selection probes can arrive before generic synthesis. Their
+    // module constant admission needs the same lexical carrier-head binding.
+    generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
     module_normalization::validate_with_const_resolution_mode(
-        syntax,
+        &syntax,
         &constant_selection,
         constants,
     )?;
-    let mut syntax = syntax.clone();
     trait_defaults::synthesize_trait_defaults_after_module_validation(
         &mut syntax,
         &constant_selection,

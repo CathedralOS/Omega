@@ -133,7 +133,7 @@ impl<'base> ConstantSelection<'base> {
     }
 
     /// Select an exposed family after the caller has bound the authored
-    /// carrier prefix to the enclosing data declaration's exact type binder.
+    /// carrier prefix to the enclosing declaration's exact type binder.
     /// Fixed-carrier families cannot classify that arbitrary open carrier.
     /// The returned address keeps declaration ownership when the carrier is
     /// substituted; the caller must retain the original occurrence's span.

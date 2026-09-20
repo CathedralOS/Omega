@@ -5,6 +5,9 @@ pub use scalar_tags::{scalar_state_contracts_are_qualifications, scalar_type_tag
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};
+use crate::proof_contracts::properties::{
+    declared_property_requirements, type_satisfies_declared_property,
+};
 use crate::value_custody::type_references::{
     TypeReferenceOwner, type_reference_label, type_references_match,
     validate_type_reference_handle_with_type_parameters,
@@ -20,7 +23,7 @@ pub(crate) fn validate_domain_definitions(
     fact_plan: &FactPlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_domain_aliases(program, diagnostics);
+    validate_domain_aliases(program, symbols, diagnostics);
     validate_progress_profile_domains(program, diagnostics);
     validate_repeated_normalized_domain_identities(program, fact_plan, diagnostics);
 
@@ -91,11 +94,33 @@ fn validate_progress_profile_domains(program: &TypedTrees, diagnostics: &mut Vec
     }
 }
 
-fn validate_domain_aliases(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_domain_aliases(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for domain in program.domain_definitions() {
         let Some(alias) = domain.alias.as_ref() else {
             continue;
         };
+        // Expansion retains atomic membership, not the alias's application
+        // telescope. Until that application evidence survives normalization,
+        // a bound on the alias itself must not disappear with its name, even
+        // when it expands entirely to unbounded atoms or compiler carry atoms.
+        if generic_alias_carrier_parameter(program, domain).is_some_and(|parameter| {
+            parameter.bounds != typed_trees::data::DataProperties::default()
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain alias `{}` requires typed carrier-bound application evidence before expansion",
+                domain.name
+            )));
+        }
+        if !typed_trees::domain::index_parameters(program, domain).is_empty() {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain alias `{}` requires typed index-application evidence before expansion",
+                domain.name
+            )));
+        }
         if alias.constituents.is_empty() {
             diagnostics.push(Diagnostic::error(format!(
                 "domain alias `{}` must name at least one constituent",
@@ -141,13 +166,39 @@ fn validate_domain_aliases(program: &TypedTrees, diagnostics: &mut Vec<Diagnosti
                 }
                 continue;
             };
-            if !type_references_match(program, domain.target_type, referenced.target_type) {
+            // A constituent family binds the alias's subject as its carrier
+            // argument. Its binder is a different declaration even when both
+            // authors spell it T; compare exact binder identity within each
+            // owner and discharge its requirements in the alias's scope.
+            if let Some(parameter) = generic_alias_carrier_parameter(program, referenced) {
+                for requirement in declared_property_requirements(&parameter.bounds) {
+                    if !type_satisfies_declared_property(
+                        program,
+                        symbols,
+                        program.domain_type_parameters(domain),
+                        domain.target_type,
+                        requirement,
+                    ) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "domain alias `{}` cannot apply constituent `{}`: its carrier requires `{requirement}`",
+                            domain.name, referenced.name
+                        )));
+                    }
+                }
+            } else if !type_references_match(program, domain.target_type, referenced.target_type) {
                 diagnostics.push(Diagnostic::error(format!(
                     "domain alias `{}` includes `{}` but they classify different types: `{}` vs `{}`",
                     domain.name,
                     referenced.name,
                     type_reference_label(program, domain.target_type),
                     type_reference_label(program, referenced.target_type)
+                )));
+            }
+            let index_count = typed_trees::domain::index_parameters(program, referenced).len();
+            if index_count != 0 {
+                diagnostics.push(Diagnostic::error(format!(
+                    "domain alias `{}` supplies no index arguments to constituent `{}`, which requires {index_count}",
+                    domain.name, referenced.name
                 )));
             }
             if domain.is_public && !referenced.is_public {
@@ -169,6 +220,25 @@ fn validate_domain_aliases(program: &TypedTrees, diagnostics: &mut Vec<Diagnosti
             diagnostics,
         );
     }
+}
+
+/// Match a family's carrier to its own first type binder, never another
+/// declaration with an equal debug name. The caller supplies the actual subject.
+fn generic_alias_carrier_parameter<'program>(
+    program: &'program TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+) -> Option<&'program typed_trees::data::TypeParameter> {
+    let parameter = program.domain_type_parameters(domain).first()?;
+    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = program
+        .type_reference_table
+        .type_reference(domain.target_type)
+    else {
+        return None;
+    };
+    (matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+        && parameter.symbol.is_valid()
+        && *symbol == parameter.symbol)
+        .then_some(parameter)
 }
 
 fn validate_domain_alias_cycle_from(

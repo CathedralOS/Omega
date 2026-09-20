@@ -24,7 +24,7 @@ mod arguments;
 mod const_evaluation;
 pub(crate) mod constant_selection;
 mod discovery;
-mod domain_heads;
+pub(super) mod domain_heads;
 mod eligibility;
 pub(crate) use crate::preparation::type_equations as equations;
 pub(crate) use equations::{template_type_equation_offsets, validate_materialized_type_equations};
@@ -354,6 +354,9 @@ pub fn normalize_generic_data(
         top_level_bindings,
         retained_base,
     )?;
+    // Module constant admission replays domain obligations too. Bind lexical
+    // carrier heads before that admission, not only before data substitution.
+    domain_heads::normalize(&mut syntax, Some(&selection))?;
     crate::preparation::module_normalization::validate_with_selection(&syntax, &selection)?;
     let mut warnings = Vec::new();
     synthesis::desugar_generic_data_instances_with_selection(
@@ -439,6 +442,7 @@ pub(crate) fn validate_direct_const_arguments(
 fn normalize_generic_data_with_warnings(
     mut syntax: SyntaxTrees,
 ) -> Result<(SyntaxTrees, Vec<Diagnostic>), Vec<Diagnostic>> {
+    domain_heads::normalize(&mut syntax, None)?;
     crate::preparation::module_normalization::validate_module_normalization(&syntax)?;
     let mut warnings = Vec::new();
     desugar_generic_data_instances(&mut syntax, &mut warnings)?;

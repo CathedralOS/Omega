@@ -744,12 +744,22 @@ fn resolve_domain_symbol(
     // One selection law for qualified, relative, and leaf spellings: the
     // complete logical path always selects exactly, while a relative or leaf
     // spelling must reach the declaration through its module exposure. A
-    // same-module declaration outranks every other tier.
+    // same-module declaration outranks every other tier. Logical paths can be
+    // equal across packages: a full-path match must rejoin ordinary source-owned
+    // lookup, not add every public declaration with that display name. Exact
+    // selected imports still compete with independently exposed attachments.
+    let selected = symbols
+        .find_top_level_by_name_and_kinds_from_source(name, &[SymbolKind::Domain], reference)
+        .unwrap_or_else(SymbolHandle::invalid);
     let matches = domain_symbols
         .iter()
         .filter(|(candidate, symbol, _)| {
             symbols.source_reference_can_see_symbol(reference, *symbol)
-                && super::lookup::domain_name_reaches(symbols, *symbol, candidate, name, reference)
+                && (*symbol == selected
+                    || (!(name.contains("::") && symbols.display_path(*symbol, "::") == name)
+                        && super::lookup::domain_name_reaches(
+                            symbols, *symbol, candidate, name, reference,
+                        )))
         })
         .map(|(name, symbol, semantic_id)| (name.as_str(), *symbol, *semantic_id))
         .collect::<Vec<_>>();
