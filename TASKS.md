@@ -15260,6 +15260,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
   SQUALR-WINDOWS-GEOMETRY-VALIDATION exp 05:49Z), so the disposition is
   unchanged — covered; the stub re-mines the residual list of owning parent
+||||||| parent of 193f8659e02e4 (board: SQUALR-GEOMETRY-PARITY-GAPS resolved — re-mine of SQUALR-GEOMETRY-PARITY residual list, fenced at 74537d6125c)
+- **SQUALR-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
+- **SQUALR-ENGINE-CRATE-SOURCES** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-PARITY-GAPS** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; scope verified at
+  `10d93dd448`, covered — re-mines the residual list of owning parent  Earlier z148
+  verification at `74537d6125c` folded the same stub the same way —
+  each enumerated gap mapped to a live-claimed sibling row, the parent's
+  residuals fenced or host-gated, no linux_x86_64 slice outside a
+  claimed fence.
+
   **SQUALR-GEOMETRY-PARITY** (TASKS.md:6235), which now carries two audits:
   the z105 verified-scope audit (12/12 geometry checks PASS on macOS ARM64
   at app `4b1f7a6` / std `87d8b227`; every enumerated gap maps to a sibling
