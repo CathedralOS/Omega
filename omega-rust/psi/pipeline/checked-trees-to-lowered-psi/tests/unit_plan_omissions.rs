@@ -151,11 +151,13 @@ fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
 // when the result's single carried claim is the minted statement-established
 // binding the formal's whole-value entry claim names, and the emitted call
 // records the consume as a transfer of that exact claim. Module validation
-// now admits the claim-carrying result place as a structural argument —
-// `Main::probe` verifies completely, transfer and all — and the remaining
-// frontier is the specialized `Task::settle` itself: its minted linear
-// `self` entry claim still has no retirement pathway in an empty Unit body
-// that consumes the receiver by dropping it.
+// admits the claim-carrying result place as a structural argument —
+// `Main::probe` verifies completely, transfer and all — and inside the
+// specialized `Task::settle` the minted linear `self` entry claim is retired
+// by the body's normal completion: an owned `self` receiver is the
+// language's terminal-consumer input, so the Unit return discharges the
+// claims rooted at its place while claims rooted anywhere else still stop
+// the exit. `lower_machine("Main::probe")` now produces a verified module.
 
 const ROUTED_TASK_START_DECLS: &str = r#"
     data Task<T> [linear] {
@@ -195,7 +197,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 "#;
 
 #[test]
-fn a_routed_task_start_call_plans_and_owned_settle_stops_at_settle_claim_retirement() {
+fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
     let checked = checked(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main {{
@@ -394,32 +396,51 @@ fn a_routed_task_start_call_plans_and_owned_settle_stops_at_settle_claim_retirem
             .is_none(),
         "Main::probe plans once its specialized settle callee is admitted"
     );
-    // The named frontier moves one machine deeper: `settle` now emits with
-    // its completed-result custody joined — transfer-shape validation admits
-    // the move only because `task`'s result carries the exact whole-value
-    // claim `settle`'s `self` entry claim names, minted statement-established,
-    // and the emitted `CallUnit` records that consume as a claim transfer
-    // naming the minted caller binding. The ordinary-call source policy now
-    // classifies that claim-carrying completed result place as a valid
-    // structural argument, so `Main::probe` verifies completely and the stop
-    // lands inside the specialized `Task::settle`: its empty body retires no
-    // claim, and nothing yet discharges a whole-value linear `self` entry
-    // claim at a `ReturnUnit` — claims still retire only through call
-    // transfers, boundary completion receipts, or structural returns.
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
-        .expect_err("the settle body cannot yet retire its linear self claim");
+    // The named frontier closes: `settle` emits with its completed-result
+    // custody joined — transfer-shape validation admits the move only because
+    // `task`'s result carries the exact whole-value claim `settle`'s `self`
+    // entry claim names, minted statement-established, and the emitted
+    // `CallUnit` records that consume as a claim transfer naming the minted
+    // caller binding. The ordinary-call source policy classifies that
+    // claim-carrying completed result place as a valid structural argument,
+    // so `Main::probe` verifies completely. Inside the specialized
+    // `Task::settle`, the body's normal completion retires the minted linear
+    // `self` entry claim — an owned receiver is the terminal-consumer input
+    // — and the whole routed program produces a verified module.
+    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::probe")
+        .expect("the settle body retires its linear self claim at Unit return");
+    let settle = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine.structural_parameters.iter().any(|parameter| {
+                parameter.is_self && parameter.access == terminal_psi::StructuralAccess::Owned
+            })
+        })
+        .expect("the specialized settle machine is emitted");
+    let [parameter] = settle.structural_parameters.as_slice() else {
+        panic!("settle carries exactly its receiver parameter");
+    };
+    assert!(parameter.is_self);
+    assert_eq!(
+        parameter.multiplicity,
+        terminal_psi::StructuralMultiplicity::Linear
+    );
+    assert_eq!(parameter.access, terminal_psi::StructuralAccess::Owned);
+    assert_eq!(settle.attachment, Some(parameter.structural_type));
+    let [claim] = settle.entry_claims.as_slice() else {
+        panic!("settle enters with exactly its receiver claim");
+    };
+    assert_eq!(claim.input, parameter.place);
+    assert!(claim.path.is_empty());
+    assert_eq!(settle.result, terminal_psi::TerminalMachineResult::Unit);
     assert!(
-        matches!(
-            error,
-            checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::LiveLinearClaimAtUnitReturn {
-                    machine,
-                    block,
-                    claim,
-                }
-            ) if machine.get() == 2 && block.get() == 2 && claim.get() == 1
-        ),
-        "unexpected error: {error:?}"
+        settle.blocks.iter().all(|block| matches!(
+            block.terminator,
+            terminal_psi::Terminator::ReturnUnit { .. }
+        )),
+        "every settle exit completes through a Unit return"
     );
 }
 
