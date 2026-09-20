@@ -37,13 +37,24 @@ fn encode_scalar_field_path(
 ) -> Result<(), CodecError> {
     writer.len("scalar field carrier path", path.len())?;
     for segment in path {
-        let CanonicalStructuralPathSegment::Field(field) = segment else {
-            return Err(CodecError::MalformedStructuralFoundation(
-                "scalar field carrier path is not a record path",
-            ));
-        };
-        writer.u8(1);
-        writer.id(*field);
+        match segment {
+            CanonicalStructuralPathSegment::Field(field) => {
+                writer.u8(1);
+                writer.id(*field);
+            }
+            // One literal index may end the carrier when the element record
+            // owns the observed field (`maps[1]` for `maps[1].value`). The
+            // tags mirror the canonical structural path codec.
+            CanonicalStructuralPathSegment::FixedIndex(index) => {
+                writer.u8(2);
+                writer.u64(*index);
+            }
+            _ => {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "scalar field carrier path is not a record path",
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -55,6 +66,7 @@ fn decode_scalar_field_path(
         1 => Ok(CanonicalStructuralPathSegment::Field(
             reader.id("StructuralFieldId")?,
         )),
+        2 => Ok(CanonicalStructuralPathSegment::FixedIndex(reader.u64()?)),
         tag => Err(CodecError::InvalidTag("scalar field carrier path", tag)),
     })
 }
@@ -855,9 +867,10 @@ mod tests {
 
     #[test]
     fn scalar_field_carrier_wire_rejects_missing_steps_and_unsupported_tags() {
-        let path = vec![CanonicalStructuralPathSegment::Field(
-            id::<StructuralFieldId>(7),
-        )];
+        let path = vec![
+            CanonicalStructuralPathSegment::Field(id::<StructuralFieldId>(7)),
+            CanonicalStructuralPathSegment::FixedIndex(1),
+        ];
         let mut writer = Writer::default();
         encode_scalar_field_path(&mut writer, &path).unwrap();
         let bytes = writer.finish();
@@ -865,7 +878,7 @@ mod tests {
         for length in 0..bytes.len() {
             assert!(decode_scalar_field_path(&mut Reader::new(&bytes[..length])).is_err());
         }
-        for tag in [0, 2, 3, 255] {
+        for tag in [0, 3, 255] {
             let mut invalid = bytes.clone();
             invalid[4] = tag;
             assert!(

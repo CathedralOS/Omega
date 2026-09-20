@@ -146,12 +146,13 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             if !matches!(scalar_type, ScalarType::Integer(_)) {
                 return unsupported("runtime scalar field observation requires an integer field");
             }
-            if path.iter().any(|segment| {
-                matches!(
-                    segment,
-                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
-                )
-            }) {
+            // A path ending at the index selects an inline primitive
+            // element; one ending at a field is a record-field observation
+            // whose carrier may itself cross one literal index.
+            if matches!(
+                path.last(),
+                Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
+            ) {
                 let (source, path) =
                     crate::expression_preparation::bindings::structural_fields::resolve_primitive(
                         structural_fields,
@@ -452,12 +453,13 @@ fn lower_checked_boolean_expression_with_parameters(
             path,
         } => {
             if !structural_fields.is_empty() {
-                if path.iter().any(|segment| {
-                    matches!(
-                        segment,
-                        checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
-                    )
-                }) {
+                // Index-terminal paths read an inline primitive element;
+                // field-terminal paths observe a record field whose carrier
+                // may itself cross one literal index.
+                if matches!(
+                    path.last(),
+                    Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_))
+                ) {
                     let (source, path) =
                         crate::expression_preparation::bindings::structural_fields::resolve_primitive(
                             structural_fields,

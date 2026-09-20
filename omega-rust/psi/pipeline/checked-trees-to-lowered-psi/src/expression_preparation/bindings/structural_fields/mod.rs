@@ -74,9 +74,6 @@ pub(crate) fn resolve(
     let mut carrier_path = Vec::with_capacity(path.len().saturating_sub(1));
     let mut visited = Vec::new();
     for (ordinal, segment) in path.iter().enumerate() {
-        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            return unsupported("runtime field observation requires a record-only field path");
-        };
         if visited.contains(&structural_type) {
             return unsupported("runtime field observation has a cyclic carrier");
         }
@@ -91,6 +88,32 @@ pub(crate) fn resolve(
         if declarations.next().is_some() {
             return unsupported("runtime field observation has ambiguous carrier declarations");
         }
+        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
+            segment
+        {
+            // One literal fixed-array index may end the carrier, mirroring
+            // the bounded store projection grammar: the leaf field still
+            // belongs to the element's own record declaration.
+            if ordinal + 2 != path.len() {
+                return unsupported(
+                    "runtime field observation requires a field leaf after its index",
+                );
+            }
+            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+                return unsupported("runtime field observation indexes a non-array carrier");
+            };
+            if *element_index >= *length {
+                return unsupported("runtime field observation fixed index is out of bounds");
+            }
+            carrier_path.push(
+                semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(*element_index),
+            );
+            structural_type = *element;
+            continue;
+        }
+        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
+            return unsupported("runtime field observation requires a record-only field path");
+        };
         let StructuralTypeShape::Record { fields } = &declaration.shape else {
             return unsupported("runtime field observation requires a record carrier");
         };

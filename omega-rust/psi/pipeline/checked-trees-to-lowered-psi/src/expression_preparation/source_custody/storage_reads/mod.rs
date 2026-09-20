@@ -444,6 +444,71 @@ fn authored_owned_field(
     )))
 }
 
+/// The authored place a literal-indexed scalar read rejoins. `bytes[3]` and
+/// `maps[1].value` resolve through the same projected receiver walk: a member
+/// leaf above a fixed index carries the same `IndexedPrimitive` read the
+/// retained `StructuralParameterField` reports. Paths without a fixed index
+/// keep their existing member/storage owners.
+fn authored_indexed_primitive_read(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    scope: ReadScope,
+    machine: &checked_trees::machine::Machine,
+    expression: ExpressionHandle,
+) -> Result<Option<(symbols::SymbolHandle, PrimitiveType, ReadKind)>, LoweringError> {
+    let Some(primitive) =
+        validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
+            .and_then(|reference| {
+                let checked_trees::types::TypeReferenceNode::Named { symbol, name } =
+                    checked.type_reference_table.type_reference(reference)
+                else {
+                    return None;
+                };
+                (checked.symbols.builtin_type_atom(*symbol)?.symbol_name() == name.as_str())
+                    .then(|| checked.primitive_type_reference(reference))
+                    .flatten()
+            })
+            .filter(|primitive| supported_mutable_parameter(*primitive))
+    else {
+        return Ok(None);
+    };
+    let Ok(source) = crate::emission::call_source_custody::projected_receivers::store_destination(
+        checked,
+        machine.symbol,
+        state.symbol,
+        Some(scope.preceding_statements() as usize),
+        expression,
+    ) else {
+        return Ok(None);
+    };
+    if !source.path.iter().any(|segment| {
+        matches!(
+            segment,
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return Ok(None);
+    }
+    let field_path = source
+        .path
+        .iter()
+        .map(|segment| match segment {
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Ok(
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
+            ),
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                Ok(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
+            }
+            _ => unsupported("indexed primitive read has an unsupported case projection"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some((
+        source.root,
+        primitive,
+        ReadKind::IndexedPrimitive(field_path),
+    )))
+}
+
 fn collect_owned_field(
     parameter_position: u32,
     field_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -682,6 +747,10 @@ fn collect_authored_storage_reads(
                 authored_owned_field(checked, state, expression)?
             {
                 reads.push((path.clone(), symbol, primitive, kind));
+            } else if let Some((symbol, primitive, kind)) =
+                authored_indexed_primitive_read(checked, state, scope, machine, expression)?
+            {
+                reads.push((path.clone(), symbol, primitive, kind));
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -737,57 +806,10 @@ fn collect_authored_storage_reads(
         }
         ExpressionNode::Indexed(indexed) => {
             let (machine, _) = authored_state(checked, state.symbol)?;
-            if let Some(primitive) = validation::declared_place_type_raw(
-                &checked.typed,
-                machine,
-                Some(state),
-                expression,
-            )
-            .and_then(|reference| {
-                let checked_trees::types::TypeReferenceNode::Named { symbol, name } =
-                    checked.type_reference_table.type_reference(reference)
-                else {
-                    return None;
-                };
-                (checked.symbols.builtin_type_atom(*symbol)?.symbol_name() == name.as_str())
-                    .then(|| checked.primitive_type_reference(reference))
-                    .flatten()
-            })
-            .filter(|primitive| supported_mutable_parameter(*primitive))
-                && let Ok(source) =
-                    crate::emission::call_source_custody::projected_receivers::store_destination(
-                        checked,
-                        machine.symbol,
-                        state.symbol,
-                        Some(scope.preceding_statements() as usize),
-                        expression,
-                    )
+            if let Some((symbol, primitive, kind)) =
+                authored_indexed_primitive_read(checked, state, scope, machine, expression)?
             {
-                let field_path = source
-                    .path
-                    .iter()
-                    .map(|segment| match segment {
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
-                            Ok(checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                                identity.clone(),
-                            ))
-                        }
-                        checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Ok(
-                            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
-                                *index,
-                            ),
-                        ),
-                        _ => {
-                            unsupported("indexed primitive read has an unsupported case projection")
-                        }
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                reads.push((
-                    path.clone(),
-                    source.root,
-                    primitive,
-                    ReadKind::IndexedPrimitive(field_path),
-                ));
+                reads.push((path.clone(), symbol, primitive, kind));
                 active.pop();
                 return Ok(());
             }

@@ -594,21 +594,15 @@ pub(super) fn lower_structural_parameter_field(
     if path.is_empty() {
         return None;
     }
-    if path.iter().any(|segment| {
-        matches!(
-            segment,
-            CheckedStructuralPredicatePathSegment::FixedIndex(_)
-        )
-    }) {
+    if matches!(
+        path.last(),
+        Some(CheckedStructuralPredicatePathSegment::FixedIndex(_))
+    ) {
         // The primitive-storage endpoint is an array's primitive declaration.
         // Qualified leaves retain their existing indexed-byte/proof route;
-        // scalar record fields remain owned by field operations.
-        if !matches!(
-            path.last(),
-            Some(CheckedStructuralPredicatePathSegment::FixedIndex(_))
-        ) {
-            return None;
-        }
+        // scalar record fields remain owned by field operations. An indexed
+        // carrier that continues into a record field (`maps[1].value`) instead
+        // resolves its scalar leaf through primitive_type_reference below.
         let TypeReferenceNode::Named { symbol, name } =
             program.type_reference_table.type_reference(type_reference)
         else {
