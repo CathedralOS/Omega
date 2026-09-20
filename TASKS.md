@@ -3492,11 +3492,15 @@ Owners include
   - Endpoint invocation admission for nominal parameters, already-landed policy
     arguments, Trapping parameters and policy-qualified results,
     trait-operator owners (owner-sensitive typed operations), and applications
-    that need inference, retained structural-type caller contexts, or
-    machine/evidence binders. Closed named type/const applications use ordinary
-    specialization; `compiler --test bounded_slice_selectors` exercises a
+    that need inference, structural-type contexts outside machine declarations, or
+    machine/evidence binders. Closed named and structural type/const applications
+    in machine declaration types use ordinary specialization with their caller's
+    type/lifetime scope; `compiler --test bounded_slice_selectors` exercises a
     computed bound driving declared-range inference through source-free Terminal
-    and native execution, with an out-of-range store rejection. Extend the
+    and native execution, with out-of-range argument and store rejection.
+    Calls nested inside a structural argument's own range still meet ordinary
+    static-type validation before endpoint folding and reject as nonconstant;
+    complete that staging without bypassing type validation. Extend the
     existing whole-expression scalar evaluator and shared admission plan;
     retain exact computed-result types and original selection custody. Do not
     add an arithmetic evaluator, infer layout from flow bounds, or use the i64

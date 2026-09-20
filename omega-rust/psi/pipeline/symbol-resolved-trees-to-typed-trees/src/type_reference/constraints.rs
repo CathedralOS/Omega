@@ -1,10 +1,13 @@
-use crate::expressions::expression::lower_expression_handle_from_table;
+use crate::expressions::expression::lower_expression_handle_from_table_with_self_substitution;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees as typed;
 
+// Bound expressions may themselves select structural type arguments. Both
+// constraint representations must retain the resolved program for that nested
+// lowering; an expression table alone cannot resolve its child type handles.
 pub(super) fn lower_type_constraint_node_span_from_table(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
@@ -61,15 +64,19 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                 end_inclusive,
             } => typed::types::TypeConstraintNode::Range {
                 end_inclusive: *end_inclusive,
-                minimum: lower_expression_handle_from_table(
+                minimum: lower_expression_handle_from_table_with_self_substitution(
+                    Some(source_trees),
                     &source_trees.tables.bodies.expressions,
                     typed_trees,
                     *minimum,
+                    None,
                 )?,
-                maximum: lower_expression_handle_from_table(
+                maximum: lower_expression_handle_from_table_with_self_substitution(
+                    Some(source_trees),
                     &source_trees.tables.bodies.expressions,
                     typed_trees,
                     *maximum,
+                    None,
                 )?,
             },
             resolved::types::TypeConstraintNode::ArithmeticDomain(domain) => {
@@ -201,15 +208,19 @@ fn lower_type_constraint_node_with_context(
             end_inclusive,
         } => Ok(typed::types::TypeConstraintNode::Range {
             end_inclusive: *end_inclusive,
-            minimum: lower_expression_handle_from_table(
+            minimum: lower_expression_handle_from_table_with_self_substitution(
+                Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
                 *minimum,
+                None,
             )?,
-            maximum: lower_expression_handle_from_table(
+            maximum: lower_expression_handle_from_table_with_self_substitution(
+                Some(source_trees),
                 &source_trees.tables.bodies.expressions,
                 typed_trees,
                 *maximum,
+                None,
             )?,
         }),
         resolved::types::TypeConstraint::ArithmeticDomain(domain) => {
