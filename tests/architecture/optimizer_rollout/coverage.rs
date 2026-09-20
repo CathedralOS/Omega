@@ -1152,11 +1152,11 @@ const COVERAGE: &[RuleCoverage] = &[
         rule: "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
         positive: covered(
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
-            "shared_entry_policy_inserts_one_copy_after_compare_and_rewrites_both_returns",
+            "shared_entry_policy_inserts_one_copy_at_the_source_exit_and_rewrites_both_returns",
         ),
         negative: covered(
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
-            "shared_entry_policy_rejects_noncanonical_compare_copy_branch_shape",
+            "unconnected_boundaries_fall_back_to_site_copies_or_refuse_under_the_declared_leg",
         ),
         boundary: covered(
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
@@ -1175,11 +1175,11 @@ const COVERAGE: &[RuleCoverage] = &[
             "shared_entry_copy_is_deterministic_bounded_and_terminal",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/shared_entry/tests.rs",
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/source_exit/tests.rs",
             "independent_shared_copy_replay_is_terminal_on_the_transformed_function",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/shared_entry/tests.rs",
+            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/source_exit/tests.rs",
             "independent_shared_copy_replay_rejects_invalid_source_and_boundary_premises",
         ),
     },
