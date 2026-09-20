@@ -15,8 +15,8 @@ use selected_instructions::{
 use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
 
+use crate::aarch64_register_constraint_catalog_for;
 use crate::machine_effects::{Aarch64SelectedAbi, aarch64_selected_abi};
-use crate::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
 
 pub const AARCH64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
 pub const AARCH64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
@@ -159,7 +159,7 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
 > {
     let abi = aarch64_selected_abi(target)
         .map_err(|_| Aarch64NormalizedForeignCallTemplateError::UnsupportedTarget)?;
-    if physical.model() != &aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64NormalizedForeignCallTemplateError::NonCanonicalPhysicalModel);
     }
     let (boundary, ordinal) = match kind {
@@ -179,7 +179,7 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
         Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_normalized_foreign_call_keys(),
         Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_normalized_foreign_call_keys(),
     };
-    let catalog = aarch64_register_constraint_catalog(physical);
+    let catalog = aarch64_register_constraint_catalog_for(physical);
     let row = catalog
         .constraints
         .iter()

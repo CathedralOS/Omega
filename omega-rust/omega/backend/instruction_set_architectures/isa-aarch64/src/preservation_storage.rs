@@ -7,9 +7,7 @@ use register_model::{
 };
 use target::NativeTarget;
 
-use crate::register_model::{
-    aarch64_physical_register_model, aarch64_preservation_convention_for_target,
-};
+use crate::register_model::aarch64_preservation_convention_for_target;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Aarch64PreservationStorageCatalogError {
@@ -33,7 +31,7 @@ pub fn aarch64_preservation_storage_catalog(
     model: &ValidatedPhysicalRegisterModel,
     target: NativeTarget,
 ) -> Result<ValidatedPreservationStorageCatalog, Aarch64PreservationStorageCatalogError> {
-    if model.model() != &aarch64_physical_register_model() {
+    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64PreservationStorageCatalogError::PhysicalRegisterModelMismatch);
     }
     if target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64() {
@@ -80,9 +78,9 @@ pub fn aarch64_preservation_storage_catalog(
 mod tests {
     use super::{
         Aarch64PreservationStorageCatalogError, NativeTarget, ValidatedPhysicalRegisterModel,
-        ValidatedPreservationStorageCatalog, aarch64_physical_register_model,
-        aarch64_preservation_storage_catalog,
+        ValidatedPreservationStorageCatalog, aarch64_preservation_storage_catalog,
     };
+    use crate::aarch64_physical_register_model;
     use register_model::validate_physical_register_model;
     use target::{Architecture, ObjectFormat};
 

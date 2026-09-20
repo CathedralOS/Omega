@@ -5,7 +5,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
-    ValidatedPhysicalRegisterModel, aarch64_physical_register_model, resolve_registers,
+    ValidatedPhysicalRegisterModel, resolve_registers,
 };
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
@@ -41,7 +41,7 @@ fn request(
         ),
         _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
     };
-    if physical.model() != &aarch64_physical_register_model()
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || alternative != (MachineAlternativeKey { family, variant: 0 })
         || byte_offset != displacement
         || !displacement.is_multiple_of(scale)

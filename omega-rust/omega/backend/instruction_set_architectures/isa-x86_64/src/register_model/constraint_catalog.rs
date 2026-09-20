@@ -18,12 +18,13 @@ use crate::register_model::{
     X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SHIFT_I64,
     X86_64_STORE, X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN,
-    X86_64_SYSTEM_V_RETURN_UNIT, x86_64_microsoft_aggregate_call_keys,
+    X86_64_SYSTEM_V_RETURN_UNIT, canonical_x86_64_physical_register_model_identity,
+    validated_x86_64_physical_register_model, x86_64_microsoft_aggregate_call_keys,
     x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_normalized_foreign_call_keys,
     x86_64_microsoft_register_call_keys, x86_64_microsoft_register_unit_call_keys,
-    x86_64_physical_register_model, x86_64_system_v_aggregate_call_keys,
-    x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
-    x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
+    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
+    x86_64_system_v_normalized_foreign_call_keys, x86_64_system_v_register_call_keys,
+    x86_64_system_v_register_unit_call_keys,
 };
 use crate::register_model::{
     float_scalar_calls, indirect_results, mixed_aggregate_calls, mixed_calls, packed_memory,
@@ -921,12 +922,12 @@ pub fn validate_x86_64_register_constraint_catalog(
             X86_64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch,
         );
     }
-    if model.model() != &x86_64_physical_register_model() {
+    if model.identity() != canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel);
     }
     let validated = validate_register_constraint_catalog(catalog, model)
         .map_err(X86_64RegisterConstraintCatalogValidationError::Structural)?;
-    let canonical = x86_64_register_constraint_catalog(model);
+    let canonical = x86_64_register_constraint_catalog_for(model);
     // Structural validation requires strictly sorted, unique actual keys;
     // the canonical factory sorts its rows before publication.
     let actual_rows = &validated.catalog().constraints;
@@ -957,4 +958,24 @@ pub fn validate_x86_64_register_constraint_catalog(
         );
     }
     Ok(validated)
+}
+
+/// Borrow the canonical catalog when `model` is the canonical x86-64 model,
+/// and build a fresh owned catalog for any other validated model.
+///
+/// The catalog is a pure function of the validated model. Encode and
+/// validate paths run once per instruction row; reusing the process-wide
+/// canonical instance keeps each row at a hash lookup instead of rebuilding
+/// the full inventory.
+pub fn x86_64_register_constraint_catalog_for(
+    model: &ValidatedPhysicalRegisterModel,
+) -> std::borrow::Cow<'static, RegisterConstraintCatalog> {
+    static CANONICAL: std::sync::OnceLock<RegisterConstraintCatalog> = std::sync::OnceLock::new();
+    if model.identity() == canonical_x86_64_physical_register_model_identity() {
+        std::borrow::Cow::Borrowed(CANONICAL.get_or_init(|| {
+            x86_64_register_constraint_catalog(validated_x86_64_physical_register_model())
+        }))
+    } else {
+        std::borrow::Cow::Owned(x86_64_register_constraint_catalog(model))
+    }
 }

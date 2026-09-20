@@ -55,7 +55,7 @@ pub fn encode_system_v_amd64_frame_protocol(
     probe: X86_64StackProbe,
     slots: &[X86_64FrameSlot],
 ) -> Result<(Vec<u8>, Vec<u8>), X86_64FrameProtocolError> {
-    if model.model() != &crate::x86_64_physical_register_model() {
+    if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
     if frame_size_bytes > u64::from(u32::MAX) {
