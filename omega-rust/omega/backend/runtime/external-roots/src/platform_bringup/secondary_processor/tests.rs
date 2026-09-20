@@ -1891,3 +1891,79 @@ fn incomplete_settlement_keeps_the_carrier_outstanding() {
             .is_started()
     );
 }
+
+#[test]
+fn startup_profile_exposes_its_declared_geometry() {
+    let profile = startup_profile();
+    assert_eq!(profile.identity(), profile_id(700));
+    assert_eq!(profile.startup_entry(), startup_entry());
+    assert_eq!(profile.arrival_regime(), arrival_regime());
+    assert_eq!(profile.installed_regime(), MachineRegime::X86Long64);
+    assert_eq!(profile.low_memory_limit(), LOW_MEMORY_LIMIT);
+    assert_eq!(profile.startup_alignment(), STARTUP_ALIGNMENT);
+}
+
+#[test]
+fn bind_rejection_returns_the_profile_for_retry() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let error = bind_secondary_processor_trampoline(
+        startup_profile(),
+        &code,
+        TRAMPOLINE_BASE + STARTUP_ALIGNMENT,
+        TRAMPOLINE_LENGTH,
+    )
+    .expect_err("drifted placement geometry must not bind");
+    assert!(error.diagnostic().0.contains("does not match"));
+    let profile = error.into_profile();
+    assert_eq!(profile.identity(), profile_id(700));
+    assert_eq!(profile.startup_alignment(), STARTUP_ALIGNMENT);
+    assert_eq!(profile.low_memory_limit(), LOW_MEMORY_LIMIT);
+}
+
+#[test]
+fn bound_trampoline_derives_the_startup_vector_from_installed_geometry() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let ledger = bound_ledger(&code);
+    let trampoline = ledger.trampoline();
+    assert_eq!(trampoline.extent_base(), TRAMPOLINE_BASE);
+    assert_eq!(trampoline.extent_length(), TRAMPOLINE_LENGTH);
+    assert_eq!(
+        trampoline.startup_vector(),
+        TRAMPOLINE_BASE / STARTUP_ALIGNMENT
+    );
+    assert_eq!(trampoline.profile().identity(), profile_id(700));
+}
+
+#[test]
+fn admitted_account_exposes_its_declared_stack_geometry() {
+    let account = processor_account(0x10, 9, 0x2_0000, 0x1000);
+    assert_eq!(account.processor(), processor_id(0x10));
+    assert_eq!(account.stack_class(), 9);
+    assert_eq!(account.wcsu_bytes(), WCSU_BYTES);
+    assert_eq!(account.wcsu_alignment(), WCSU_ALIGNMENT);
+}
+
+#[test]
+fn startup_receipt_carries_the_provider_verdict_and_identity() {
+    let code = installed_x86_trampoline(vec![0xCC; 96]);
+    let mut ledger = bound_ledger(&code);
+    ledger
+        .admit_secondary_processor(processor_account(0x10, 9, 0x2_0000, 0x1000))
+        .expect("secondary processor admits");
+    let carrier = ledger
+        .begin_secondary_processor_startup(processor_id(0x10), invocation_id(0x20))
+        .expect("startup invocation issues");
+    for (identity, verdict) in [
+        (0x30, SecondaryProcessorStartupVerdict::DefiniteNondispatch),
+        (0x31, SecondaryProcessorStartupVerdict::DispatchUnconfirmed),
+        (0x32, SecondaryProcessorStartupVerdict::ConfirmedArrival),
+    ] {
+        let receipt = SecondaryProcessorStartupReceipt::from_provider(
+            receipt_id(identity),
+            &carrier,
+            verdict,
+        );
+        assert_eq!(receipt.identity(), receipt_id(identity));
+        assert_eq!(receipt.verdict(), verdict);
+    }
+}
