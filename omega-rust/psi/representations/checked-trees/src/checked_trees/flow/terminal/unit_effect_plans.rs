@@ -385,6 +385,23 @@ pub enum CheckedUnitEffectOperationPlan {
     StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
     StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
     ByteSequenceWrite(CheckedByteSequenceWritePlan),
+    /// Move one whole structural field out of exclusive borrowed storage into
+    /// a fresh owned binding, opening a repair window the body must close.
+    /// The source is a parameter-rooted exact field chain; the result binding
+    /// names the authored local that receives the moved value.
+    MoveStructuralField {
+        result: CheckedUnitStructuralResultBindingPlan,
+        source: CheckedUnitStructuralArgumentPlan,
+    },
+    /// Restore one open borrowed window by storing a whole owned structural
+    /// binding into the exact absent place. The checked multiplicity gate
+    /// proved the destination is an open hole and the value carries its type.
+    StoreStructuralField {
+        statement_index: u32,
+        destination: CheckedUnitStructuralArgumentPlan,
+        /// Whole owned place carrying the hole's declared type.
+        value: CheckedUnitStructuralArgumentPlan,
+    },
     /// Finish the body after cleanup, yielding its retained structural/scalar
     /// binding or scalar control result when present, and Unit otherwise.
     Complete {

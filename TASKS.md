@@ -3685,23 +3685,28 @@ Owners include
 
   Remaining work:
 
-  - Add the move-out and whole-structural-field-store rows to
-    `CheckedUnitEffectOperationPlan` in checked-trees. Produce them from
-    ordinary source facts in `typed-trees-to-checked-trees/src/execution/unit`,
-    retaining the structural value root and exact borrowed place.
-    The guide body currently has no checked Unit plan and fails at
-    `InvalidUnitMachinePlan`, pinned by
-    `emission::borrowed_window::tests::the_guide_canary_body_has_no_checked_unit_plan_to_route_here_yet`.
+  - Done — `MoveStructuralField`/`StoreStructuralField` rows land in
+    `CheckedUnitEffectOperationPlan`; `execution/unit/borrowed_windows.rs`
+    produces them from a leading `let local = root.field` move-out prefix plus
+    `root.field = move local` restore stores on `&mut` parameter storage, and
+    ordinary emission routes them through `BorrowedWindowLedger` (closure at
+    the state exit). The guide body now plans and verifies; the flipped pin
+    `emission::borrowed_window::tests::the_guide_canary_body_routes_move_out_and_restore_through_the_ledger`
+    witnesses `Main::main` emitting the verified Move/Store operation pair.
   - Consume those rows through
     `checked-trees-to-lowered-psi/src/emission/borrowed_window.rs`'s existing
     `BorrowedWindowLedger::emit_move`/`emit_store`. Require closure at
-    non-crash exits and equal open-place frontiers at joins. No production
-    caller reaches that emitter yet. Preserve its exact type/path checks;
-    unsupported whole-root, indexed, referent and scalar-field routes reject.
+    non-crash exits and equal open-place frontiers at joins. Preserve its
+    exact type/path checks; unsupported whole-root, indexed, referent and
+    scalar-field routes reject. Done for single-state bodies — joins and
+    multi-block frontiers still need a producer that emits them.
   - Promote the guide fixture from checked-only to the active lowering roster
     once connected, then bind ordinary ProgramEntry roots and complete target
-    lowering/native realization. The source, Terminal and abstract halves are
-    not evidence that the native consumer exists.
+    lowering/native realization. The fixture stays checked-only for now: the
+    active roster runs native-artifact production, which requires the exact
+    selected ProgramEntry leg owned by **EXACT-PROGRAM-ENTRY-MULTIPLICITY**.
+    The source, Terminal and abstract halves are not evidence that the native
+    consumer exists.
   - Preserve arm agreement: each live arm must restore the same places, nested
     agreement composes, dead arms owe nothing, and source evaluation order
     determines when the hole opens. Transition-edge moves and conditional

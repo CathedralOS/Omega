@@ -153,6 +153,7 @@ use typed_trees::{
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod borrowed_windows;
 pub(crate) mod calls;
 mod candidate_closure;
 mod cleanup;
