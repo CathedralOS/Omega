@@ -10972,7 +10972,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   custody-specific stale-expectation slice remains on this row.
   Unrelated roster drift also observed: 6 unregistered fail fixtures under
   `tests/omega/fail` (roster.rs inventory check red at base).
-- **STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
+- **STARTUP-ENTRY-MECHANICS.** Mined candidate — resolved, covered.
+  Fourth sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
+  surface (ENTRY-MECHANICS-RUNTIME-CONSOLIDATION, audit `be03555d17`):
+  entry/exit mechanics sit under one owner,
+  `external-roots/src/root_entry/` (root_validation, root_admission,
+  provider_execution, progress_profile_installation,
+  opaque_callback_replacement) + `platform_bringup` for UEFI bootstrap;
+  the runtime leg settled via free-Unit process adapters and ELF
+  `e_entry` round-trip validation. Re-verified at `7110606f46` on
+  linux x86-64: `root_entry/` module set unchanged and
+  `image-emission/src/hosted_unit_entry.rs:107-149` still pins the
+  Linux x86-64/ARM64 adapter selection. No independent slice exists.
+  Remaining sibling aliases on this surface: STARTUP-ENTRY-
+  PLACEHOLDER-SWEEP.
 - **STARTUP-ENTRY-MECHANICS-OWNERSHIP.** Minted-name alias of the surface
   already resolved by audit at `be03555d17` — see
   ENTRY-MECHANICS-RUNTIME-CONSOLIDATION's settled row: entry/exit mechanics
