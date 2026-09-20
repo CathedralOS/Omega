@@ -16,7 +16,7 @@ use crate::{
     ValidatedEquivalentCompare, ValidatedFixedViewCopies, ValidatedForkRelocation,
     ValidatedForkRunRelocation, ValidatedInflowRelocation, ValidatedJoinRelocation,
     ValidatedLiteralFold, ValidatedLocalRelocation, ValidatedLocalSchedule,
-    ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
+    ValidatedMemberRunInterchange, ValidatedMemberRunRelocation, ValidatedPredecessorRelocation,
     ValidatedPredecessorRunRelocation, ValidatedPressureRematerialization,
     ValidatedProjectedAccess, ValidatedRedundantCompare, ValidatedRedundantExtension,
     ValidatedRunInterchange, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
@@ -691,6 +691,26 @@ impl ValidatedSelectedAnalysis for ValidatedLocalSchedule {
 impl sealed::Sealed for ValidatedMemberRunInterchange {}
 
 impl ValidatedSelectedAnalysis for ValidatedMemberRunInterchange {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedMemberRunRelocation {}
+
+impl ValidatedSelectedAnalysis for ValidatedMemberRunRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
