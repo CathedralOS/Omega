@@ -3555,7 +3555,12 @@ Owners include
   `scan<16>` call under a `{16,32}` roster where it previously rejected
   "partial provider coverage"; off-roster tuples still reject). Missing
   roster bodies and runtime-bound or wrong-template records still reject the
-  whole family. `family_tuple` is an exact join coordinate in Terminal rows,
+  whole family. Correlated multi-binder rosters are covered end to end:
+  `where W == 16 && L == 4 || W == 32 && L == 8` generates both authored
+  tuples, a call spelling `(16, 4)` selects exactly that row, an
+  uncorrelated `(16, 8)` rejects, and a fabricated boundary demand naming an
+  open roster now rejects rather than silently generating nothing.
+  `family_tuple` is an exact join coordinate in Terminal rows,
   the codec, the verifier, checked-to-lowered evidence and the Omega custody,
   lowering, image-replay and optimization-unit identity rejoins. That does
   not establish runtime selection or a native customer: every call names its

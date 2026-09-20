@@ -56,8 +56,8 @@ pub(crate) fn generate_dynamic_family_specializations(
 
     // A selected boundary adapter row commits its provider to the complete
     // roster before any call resolves. Demand collection upstream already
-    // keeps only finite rosters on conforming, coverable providers, so the
-    // `NotFinite` arm below is pure defense; an unresolvable signature or
+    // keeps only finite rosters on conforming, coverable providers, so a
+    // `NotFinite` probe, an unresolvable signature, or an unresolvable
     // template here is orchestration drift and rejects.
     for family in boundary_families {
         let Some(requirement) = program
@@ -71,9 +71,20 @@ pub(crate) fn generate_dynamic_family_specializations(
             ));
             continue;
         };
-        let FamilyProbe::Finite { arity, tuples } = program.finite_signature_family(requirement)
-        else {
-            continue;
+        let (arity, tuples) = match program.finite_signature_family(requirement) {
+            FamilyProbe::Finite { arity, tuples } => (arity, tuples),
+            FamilyProbe::NotFinite(reason) => {
+                // Demand collection only ever emits demands for `Finite`
+                // rosters, so an open roster here is orchestration drift —
+                // same contract as an unresolvable signature or template
+                // below, and it must reject rather than silently generate no
+                // tuples and let settlement pass an unchecked requirement.
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected boundary family demand for requirement `{}` names an open roster that cannot settle complete provider coverage: {reason}",
+                    requirement.name
+                )));
+                continue;
+            }
         };
         let Some(realization) = program
             .machines()
