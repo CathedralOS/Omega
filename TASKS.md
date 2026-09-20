@@ -8565,7 +8565,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PROOF-SUBJECT-CHECKED-CALL-SELECTION, CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.
 - **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
 - **MATHEMATICAL-PREDICATE-PARAMETERS** — mined candidate; verify scope then implement.
-- **MODULE-CONSTANT-COMPUTED-CARRIER** — mined candidate; verify scope then implement.
+- **MODULE-CONSTANT-COMPUTED-CARRIER.** Mined candidate; scope verified,
+  resolved — the computed/structured-carrier leg named by the retired
+  MODULE-CONSTANT-BUILTIN-CARRIER row is landed. `build-time-evaluation/src/
+  const_evaluation/const_initializers.rs` evaluates computed module-scoped
+  const initializers end to end: scalar probes admit `builtin_operators`
+  (`evaluate_probe`), call-bearing leaves run `evaluate_probe_with_calls`
+  against invocation-admitted helper closures (`invocations/
+  CheckedInitializers`), and structured leaves evaluate through the checked
+  interpreter with `materialize::literal` rejoining the authored expression
+  — while `builtin_operators`/`call_selections`/`selections` receipt rosters
+  are retained per declaration for replay (`replay::validate_retained_
+  invocations`). Witnessed green on Linux x86-64 at `7176821bc6b`:
+  `cargo nextest run -p build-time-evaluation` — 94/94 in the matched run,
+  including `module_scalar_computed_const` (`const X: u64 = 1 + 2`),
+  `module_scoped_computed_and_foreign_dependency_consts` (`use m::SIZE;
+  const DOUBLE: u64 = SIZE * 2`), `module_record_literal_with_computed_
+  leaves`, `module_const_match_aggregate_leaf`, `module_aggregate_call_
+  initializer_full_pipeline`, `generic_machine_call_in_const_argument_
+  position`, and the module-owned constrained-const admit/reject pair in
+  `const_initializers/tests/generic_application_carriers.rs`. No leg
+  remains on this row.
 - **NAMED-TRAIT-OPERATORS** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
 - **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET** — mined candidate; verify scope then implement.
