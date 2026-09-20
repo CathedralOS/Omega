@@ -10575,7 +10575,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   FINITE-GENERIC-DISPATCH (`execution/unit/dynamic_scalar_calls/`).
   Sibling re-mine on the same contract: GENERAL-SOURCE-BINDER-SYNTAX
   (resolved, PROOF-CONTRACT-MIGRATION surface, distinct). 
-- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Scope verified at `e12b9e8e06` —
+- **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Scope verified at `e12b9e8e06`,
+  re-verified at `c1e0b08537` (the row's composition-host path corrected:
+  `compose_task_stack_demand` lives in
+  `omega-rust/omega/representations/task-plans/src/stack_composition/mod.rs`;
+  provider-planning's stack_graphs only documents/consumes it) —
   this names the contract half of the runtime-sized activation storage
   chapter (`wiki/spec/resources/activation_storage.md`): bounded-claim
   admission (`committed <= bound` as a checked admission failure, never a
@@ -10588,7 +10592,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `claim` token or extent-claim syntax/checked node under `omega-rust/psi`
   or `omega-rust/omega` (existing `claim` hits are linear-obligation custody
   and concurrency tickets, unrelated), and `compose_task_stack_demand`
-  (`omega-rust/omega/build/provider-planning/src/task_plans/stack_graphs.rs`)
   composes selected-local demand only — it is the composition host a claim
   bound would extend, not an existing claim path. The construct leg
   (sibling stub RUNTIME-SIZED-ACTIVATION-STORAGE) must land first;
