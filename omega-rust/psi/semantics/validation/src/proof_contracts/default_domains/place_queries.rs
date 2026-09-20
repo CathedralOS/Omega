@@ -53,6 +53,138 @@ pub(super) fn is_self_rooted(spelling: &str) -> bool {
     spelling == "self" || spelling.starts_with("self.")
 }
 
+/// The write-target analogue of [`self_place_spelling`]: a non-literal index
+/// renders the position unrepresentable, so it spells the wildcard segment
+/// `[*]` rather than vanishing entirely. A write through an unresolvable
+/// index is still a write -- dropping it would let a dynamic-position store
+/// escape every invariant-window obligation (ch11's conservative ceiling on
+/// unrepresentable origins).
+pub(super) fn write_place_spelling(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Indexed(indexed) => {
+            let collection = write_place_spelling(program, indexed.collection)?;
+            let index = match program.expression_table.expression(indexed.index) {
+                ExpressionNode::Integer(value) => value.text().to_owned(),
+                _ => "*".to_owned(),
+            };
+            Some(format!("{collection}[{index}]"))
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = write_place_spelling(program, member.receiver)?;
+            Some(format!("{receiver}.{}", member.member.as_str()))
+        }
+        ExpressionNode::Borrow(inner) => write_place_spelling(program, inner.target),
+        ExpressionNode::Name(_) => self_place_spelling(program, expression),
+        _ => None,
+    }
+}
+
+/// Whether a tracked place whose spelling is `place` also covers a reader or
+/// writer at `nested`: every `.`-separated segment of `place` must cover the
+/// corresponding `nested` segment, where a `[*]` segment covers any concrete
+/// index at that position (`self.maps[*]` covers `self.maps[0]` and
+/// `self.maps[0].start`, but never `self.maps_deep` or a sibling member).
+pub(super) fn place_spelling_covers(place: &str, nested: &str) -> bool {
+    let mut place_parts = place.split('.');
+    let mut nested_parts = nested.split('.');
+    loop {
+        match (place_parts.next(), nested_parts.next()) {
+            (Some(place_part), Some(nested_part)) => {
+                if !segment_covers(place_part, nested_part) {
+                    return false;
+                }
+            }
+            (None, _) => return true,
+            (Some(_), None) => return false,
+        }
+    }
+}
+
+/// One segment of a place spelling: `[*]` index positions in `place` cover
+/// any `[<index>]` at the same position in `nested`; everything else must
+/// match literally.
+fn segment_covers(place: &str, nested: &str) -> bool {
+    let mut place = place;
+    let mut nested = nested;
+    loop {
+        let Some(at) = place.find("[*]") else {
+            return place == nested || (place.is_empty() && nested.starts_with('['));
+        };
+        if !nested.starts_with(&place[..at]) {
+            return false;
+        }
+        nested = &nested[at..];
+        let Some(close) = nested.find(']') else {
+            return false;
+        };
+        nested = &nested[close + 1..];
+        place = &place[at + "[*]".len()..];
+    }
+}
+
+/// True when `child` is strictly nested under `parent` (`child.field...` or
+/// `child[...]`, wildcard segments included). A write to `parent` reseeds the
+/// whole region, so every tracked sub-place lapses.
+pub(super) fn is_subplace(child: &str, parent: &str) -> bool {
+    child.starts_with(&format!("{parent}.")) || child.starts_with(&format!("{parent}["))
+}
+
+/// The expressions a place target still evaluates: every `Indexed` index
+/// inside the place spine. The member/name spine itself is the write path,
+/// not a read, so it is never reported; index expressions are ordinary
+/// evaluated reads (and may contain calls).
+pub(super) fn write_target_index_expressions(
+    program: &TypedTrees,
+    target: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    let mut indexes = Vec::new();
+    let mut cursor = target;
+    loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Indexed(indexed) => {
+                indexes.push(indexed.index);
+                cursor = indexed.collection;
+            }
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Borrow(inner) => cursor = inner.target,
+            _ => break,
+        }
+    }
+    indexes
+}
+
+/// Every expression a transition evaluates: an optional `when` guard plus
+/// each named target's argument list and each value target's expression.
+/// Call sites inside these are consumption points exactly like call
+/// statements.
+pub(super) fn transition_evaluated_expressions(
+    program: &TypedTrees,
+    transition: &typed_trees::statement::TableTransition,
+) -> Vec<ExpressionHandle> {
+    let mut evaluated = Vec::new();
+    if let typed_trees::statement::TransitionGuardNode::When(guard) = &transition.guard {
+        evaluated.push(*guard);
+    }
+    for handle in [transition.target, transition.continuation] {
+        if !handle.is_valid() {
+            continue;
+        }
+        match program.statement_table.transition_target(handle) {
+            typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+                evaluated.extend_from_slice(program.statement_table.expression_handles(*arguments))
+            }
+            typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                evaluated.push(*expression);
+            }
+            _ => {}
+        }
+    }
+    evaluated
+}
+
 pub(super) fn domain_definition_by_name<'program>(
     program: &'program TypedTrees,
     name: &str,
@@ -185,6 +317,9 @@ fn expression_mentions_name(
     expression: ExpressionHandle,
     name: &str,
 ) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => program
             .expression_table
@@ -196,6 +331,55 @@ fn expression_mentions_name(
                 || expression_mentions_name(program, binary.right, name)
         }
         ExpressionNode::Member(member) => expression_mentions_name(program, member.receiver, name),
+        ExpressionNode::Indexed(indexed) => {
+            expression_mentions_name(program, indexed.collection, name)
+                || expression_mentions_name(program, indexed.index, name)
+        }
+        ExpressionNode::Borrow(inner) => expression_mentions_name(program, inner.target, name),
+        ExpressionNode::Cast(cast) => expression_mentions_name(program, cast.value, name),
+        ExpressionNode::Unary(unary) => expression_mentions_name(program, unary.operand, name),
+        ExpressionNode::Atomic(atomic) => {
+            expression_mentions_name(program, atomic.value, name)
+                || expression_mentions_name(program, atomic.result, name)
+        }
+        ExpressionNode::Range(range) => {
+            expression_mentions_name(program, range.start, name)
+                || expression_mentions_name(program, range.end, name)
+        }
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .any(|element| expression_mentions_name(program, *element, name)),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| expression_mentions_name(program, field.value, name)),
+        ExpressionNode::Match(matched) => {
+            expression_mentions_name(program, matched.subject, name)
+                || program
+                    .expression_table
+                    .match_arms(matched.arms)
+                    .iter()
+                    .any(|arm| {
+                        expression_mentions_name(program, arm.value, name)
+                            || match arm.pattern {
+                                typed_trees::expression::MatchPattern::Value(pattern) => {
+                                    expression_mentions_name(program, pattern, name)
+                                }
+                                typed_trees::expression::MatchPattern::Wildcard => false,
+                            }
+                    })
+        }
+        ExpressionNode::Call(call) => {
+            expression_mentions_name(program, call.receiver, name)
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .any(|argument| expression_mentions_name(program, *argument, name))
+        }
         _ => false,
     }
 }
