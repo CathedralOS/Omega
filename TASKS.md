@@ -1354,13 +1354,23 @@ Owners include
     literal/generic zero-count arrays are no longer this gap.
     Standalone rungs retain their narrower single-hop and nonzero-length
     contracts.
-  - Obtain matching-host Linux AArch64 execution evidence. The writer harness
-    validates both Linux ISA fragments and executes on Linux x86-64/AArch64
-    or macOS AArch64; macOS execution does not close the Linux runtime row.
-    Resume with `cargo nextest run -p compiler --test layout_plans writer_lowering
-    --no-fail-fast --no-tests fail` on Linux AArch64. The empty-array regression
-    in `layout_plans/writer_lowering.rs` also pins direct/indexed-write rejection,
-    live sibling writes and empty nested/generic carriers.
+  - Obtain matching-host Linux AArch64 execution evidence — the sole
+    residual. The writer harness validates both Linux ISA fragments on every
+    host and executes the host-matching one on Linux x86-64/AArch64 or macOS
+    AArch64; macOS execution does not close the Linux runtime row. Linux
+    x86-64 leg re-verified at `340e2b5ca4`: `cargo nextest run -p compiler
+    --test layout_plans -E 'test(~writer_lowering)' — 13/13 green, each test
+    replay-validating both ISA fragments and natively executing the x86-64
+    writer against the reference image; fence pins
+    `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`
+    and
+    `non_closed_member_applications_stay_fenced_under_the_recursive_owner`
+    green under `cargo nextest run -p layout --lib -E 'test(~fenced)'` (3/3).
+    Resume on Linux AArch64 with the same filtered run; the harness's
+    `cfg`-selected arm branch then executes the AArch64 fragment natively.
+    The empty-array regression in `layout_plans/writer_lowering.rs` also
+    pins direct/indexed-write rejection, live sibling writes and empty
+    nested/generic carriers.
 
   Acceptance: nested field/index canaries execute on both Linux ISAs and compare
   destination bytes with the reference image, including guard bytes. Both ISAs
