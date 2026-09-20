@@ -488,6 +488,57 @@ fn shared_reference_leaf_unknown_call_write_stays_unproven() {
     assert_eq!(fixture.query(fixture.subject("saved", &[])), None);
 }
 
+/// A `&` binding whose operand is a member selection out of a record literal
+/// carries no storage of its own: the referent is the operand bound to that
+/// exact field, so `borrowed.scheduler` derives the borrowed target's leaf.
+#[test]
+fn shared_reference_bound_from_constructed_record_leaf() {
+    let fixture = Fixture::with_machines(
+        "let borrowed: &Context = RefBox { view: &context }.view;",
+        "borrowed.scheduler",
+        &[],
+        "data RefBox { view: &Context; }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
+        Some(fixture.subject("context", &[("Context", "scheduler")]))
+    );
+}
+
+/// The same selection through a literal-indexed array operand re-enters the
+/// walk on the chosen element, so a borrowed leaf inside arrives at its
+/// referent.
+#[test]
+fn shared_reference_bound_from_indexed_literal_element() {
+    let fixture = Fixture::with_machines(
+        "let borrowed: &Context = [&context, &holder.view][1];",
+        "borrowed.scheduler",
+        &[],
+        "",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
+        Some(fixture.subject("holder", &[("Holder", "view"), ("Context", "scheduler")]))
+    );
+}
+
+/// A member selection applied after the index never resolved its field
+/// symbol (the member lands on an indexed temporary, not a named place), so
+/// the operand is not exact provenance and stays unproven.
+#[test]
+fn shared_reference_bound_through_indexed_literal_member_stays_unproven() {
+    let fixture = Fixture::with_machines(
+        "let borrowed: &Context = [RefBox { view: &context }, RefBox { view: &holder.view }][1].view;",
+        "borrowed.scheduler",
+        &[],
+        "data RefBox { view: &Context; }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("borrowed", &[("Context", "scheduler")])),
+        None
+    );
+}
+
 /// A `&mut` leaf is write-capable: the prefix's stored origins rebase it to
 /// its exact referent, and a write through the leaf is then an ordinary store
 /// into that referent.
