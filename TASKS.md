@@ -8326,7 +8326,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ENTRY-CONTENT-ROOTS / BOUNDARY-ISSUANCE; (6) proof-search SIGTERM →
   PROOF-SEARCH-MEASUREMENT. No unowned slice remains — the tail is the
   union of those owned residuals. Claim attempt on the c2l surface
-  exited 2 (fence map above).
+
+  `"crash predicate value position is outside the selected scalar
+  namespace"` cluster (3 tests —
+  `exact_shift_left_certificate_source::bounded_exact_left_shift_uses_only_its_canonical_certificate`,
+  `exact_affine_sibling_source::landed_affine_sibling_custody_crosses_source_codec_and_independent_verification`,
+  `mixed_shift_source::erased_arithmetic_prefix_still_requires_its_own_certificate`).
+  Root cause: `returns/structural_scalar_return/nominal.rs` stages a
+  synthetic `CheckedUnitEffectMachinePlan` for scalar-return machines
+  needing nominal affine cleanup with `scalar_parameters: Vec::new()`,
+  but the staged scratch contract kept the machine's authored
+  `requires` prefix; `signature.requires` lowering then crashed against
+  the empty scalar lane. The staged contract now carries only its
+  derived requires tail (the return lane republishes authored scalar
+  requirements onto the real caller itself). Remaining tail: the other
+  documented `checked-trees-to-lowered-psi` baseline clusters
+  (`provider_attachment`, `composed_operand_catalogs`,
+  `dynamic_composed_unit`, `unit_state_graph`,
+  `owned_record_return_source`, `unit_plan_omissions`) — see
+  `wiki/drafts/known_baseline_failures.md`; several sit under live
+  sibling claims, so partition by claim fence before picking up.
 - **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
 - **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **MATCHING-LOGIC-COMPARISON-METRICS.** Resolved — landed on `origin/main`: sibling MATCHING-LOGIC-SLICE-COMPARISON's row assigns this stub `tools/matching-logic-metrics`, and that tool now exists — `run_metrics.py` measures the record `wiki/drafts/matching_logic.md` requires before any matching-logic comparison (checker/translation/trusted-derivation/theory size, certificate size, `check_time_ms`, imported-rule inventory) over identical pinned positive/negative cases, with committed records `records/05416dd1a0.json` + `records/649d7ca380.json` (commits 1d7fb4f5c7, ad67bd8f61). The residual is the `route.matching_logic_encoding` column, documented `pending` until MATCHING-LOGIC-BOUNDED-SLICE's `tools/matching-logic-slice` exists — that slice is still unlanded, so the column stays the parent's leg, not this row's.

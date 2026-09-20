@@ -232,6 +232,32 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         cleanups: nominal_cleanups,
     };
     let mut staged = checked.clone();
+    // The staged synthetic entry owns no scalar lane, so the Unit closure
+    // signature cannot express authored scalar requires terms against it. The
+    // return-lane scalar_requirements republish the retained integer bounds on
+    // the real caller, so the scratch contract keeps only its derived tail.
+    if let Some(staged_contract) = staged
+        .facts
+        .contract_plans
+        .machines
+        .iter_mut()
+        .find(|contract| contract.machine == plan.machine)
+    {
+        let closed = &staged_contract.closed_scalar_values;
+        let derived_requires = closed.requires()[closed.authored_requires().len()..].to_vec();
+        let ensures = closed.ensures().to_vec();
+        let has_crash_clauses = closed.has_crash_clauses();
+        let has_outcome_specific_clauses = closed.has_outcome_specific_clauses();
+        let float_entry_ranges = closed.float_entry_ranges().map(<[_]>::to_vec);
+        staged_contract.closed_scalar_values = checked_trees::ClosedScalarValueContractPlan::new(
+            derived_requires,
+            ensures,
+            has_crash_clauses,
+            has_outcome_specific_clauses,
+        )
+        .with_authored_requires_len(0)
+        .with_float_entry_ranges(float_entry_ranges);
+    }
     for shape in &checked
         .facts
         .flow
