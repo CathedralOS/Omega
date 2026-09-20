@@ -19,6 +19,8 @@ pub use root_policy::{
 };
 
 const RECONSTRUCTION_QUESTION_MAGIC: &[u8] = b"OMEGA-PACKAGE-RECONSTRUCTION-QUESTION\0";
-pub const PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION: u16 = 1;
+/// Version 2 prepends each entry frame with the bitmask of the occurrence
+/// purposes the entry's review answered; version 1 entries were bare ledgers.
+pub const PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION: u16 = 2;
 const RECONSTRUCTION_QUESTION_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-PACKAGE-RECONSTRUCTION-QUESTION-FINGERPRINT\0";

@@ -1,6 +1,9 @@
 use super::{
     HistoricalPackagePolicyDecisions, PackageLockError as Error, PackageLockRecoveryLimits,
+    PackageOccurrenceRoster,
 };
+use crate::declarations::PackageKey;
+use crate::declarations::dependencies::DependencyPurpose;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use package_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
@@ -10,6 +13,10 @@ use target::TargetProfile;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageLockTarget {
     pub(super) source: CanonicalSourceClosureSubject,
+    /// The authorized occurrence purposes of `source.packages()[i]`; baseline
+    /// `i` consents to exactly these occurrences. This is the recorded join of
+    /// each acceptance to the source graph's occurrence roster.
+    pub(super) occurrence_purposes: Vec<Vec<DependencyPurpose>>,
     pub(super) baselines: Vec<super::PackagePolicyAcceptance>,
     pub(super) decisions: HistoricalPackagePolicyDecisions,
 }
@@ -48,13 +55,56 @@ impl PackageLockTarget {
         baselines: Vec<super::PackagePolicyAcceptance>,
         decisions: HistoricalPackagePolicyDecisions,
     ) -> Result<Self, Error> {
+        let occurrence_purposes = Self::derived_occurrence_purposes(&source)?;
+        Self::from_recorded_parts(source, occurrence_purposes, baselines, decisions)
+    }
+
+    /// Compose a target whose occurrence coverage was recovered from text;
+    /// validation still requires the recorded coverage to equal the roster the
+    /// source graph derives.
+    pub(super) fn from_recorded_parts(
+        source: CanonicalSourceClosureSubject,
+        occurrence_purposes: Vec<Vec<DependencyPurpose>>,
+        baselines: Vec<super::PackagePolicyAcceptance>,
+        decisions: HistoricalPackagePolicyDecisions,
+    ) -> Result<Self, Error> {
         let value = Self {
             source,
+            occurrence_purposes,
             baselines,
             decisions,
         };
         value.validate()?;
         Ok(value)
+    }
+
+    /// Every package's authorized occurrence purposes, in `source.packages()`
+    /// order. Baseline `i` answers exactly these occurrences.
+    pub fn occurrence_purposes(&self) -> &[Vec<DependencyPurpose>] {
+        &self.occurrence_purposes
+    }
+
+    /// The purposes one package occurs under in this target's closure.
+    pub fn occurrence_purposes_for(&self, package: &PackageKey) -> Option<&[DependencyPurpose]> {
+        self.source
+            .packages()
+            .binary_search_by(|source| source.key().cmp(package))
+            .ok()
+            .map(|index| self.occurrence_purposes[index].as_slice())
+    }
+
+    pub(super) fn derived_occurrence_purposes(
+        source: &CanonicalSourceClosureSubject,
+    ) -> Result<Vec<Vec<DependencyPurpose>>, Error> {
+        Ok(PackageOccurrenceRoster::derive(source)
+            .map_err(|error| match error {
+                super::PackageOccurrenceRosterError::AllocationFailed => Error::AllocationFailed,
+                _ => Error::OccurrenceCoverage,
+            })?
+            .coverages()
+            .iter()
+            .map(|coverage| coverage.purposes().to_vec())
+            .collect())
     }
 
     pub fn source(&self) -> &CanonicalSourceClosureSubject {
@@ -73,6 +123,10 @@ impl PackageLockTarget {
     // Cheap joins only. The public constructor and budgeted text reader also
     // establish complete policy membership before exposing an immutable target.
     pub(super) fn validate(&self) -> Result<(), Error> {
+        let derived = Self::derived_occurrence_purposes(&self.source)?;
+        if self.occurrence_purposes != derived {
+            return Err(Error::OccurrenceCoverage);
+        }
         if self.baselines.len() != self.source.packages().len()
             || self
                 .baselines

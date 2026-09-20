@@ -118,6 +118,12 @@ pub struct PackagePolicyPackageChange {
     /// admission intent surfaced beside, never inside, this package's
     /// product-authority rows; accepting the rows does not accept host reach.
     pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
+    /// The occurrences the accepted baseline consented to, joined from the
+    /// source-graph roster; absent when the package has no baseline.
+    pub(super) baseline_occurrence_purposes: Option<Vec<DependencyPurpose>>,
+    /// The occurrences the candidate review answers for, joined from the
+    /// candidate roster; absent when the package left the closure.
+    pub(super) candidate_occurrence_purposes: Option<Vec<DependencyPurpose>>,
     pub(super) source_changed: bool,
     pub(super) source_association_changed: bool,
     pub(super) audit_recommended: bool,
@@ -152,6 +158,22 @@ impl PackagePolicyPackageChange {
     /// the host.
     pub fn restricted_build_requests(&self) -> &[build_evaluation::RestrictedBuildRequest] {
         &self.restricted_build_requests
+    }
+    /// Purposes this package's recorded baseline authorized. `None` means the
+    /// package is new to the closure rather than purposeless.
+    pub fn baseline_occurrence_purposes(&self) -> Option<&[DependencyPurpose]> {
+        self.baseline_occurrence_purposes.as_deref()
+    }
+    /// Purposes the candidate review covers for this package.
+    pub fn candidate_occurrence_purposes(&self) -> Option<&[DependencyPurpose]> {
+        self.candidate_occurrence_purposes.as_deref()
+    }
+    /// The package's authorized occurrence set changed between baseline and
+    /// candidate — for example a shared custody gaining or losing a build
+    /// occurrence. Purpose changes recommend audit; per-occurrence decision
+    /// subjects remain follow-up work.
+    pub fn occurrence_purposes_changed(&self) -> bool {
+        self.baseline_occurrence_purposes != self.candidate_occurrence_purposes
     }
     pub const fn audit_recommended(&self) -> bool {
         self.audit_recommended

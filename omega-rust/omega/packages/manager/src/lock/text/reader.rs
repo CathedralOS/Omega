@@ -5,6 +5,7 @@ use super::{
     HEADER, MAXIMUM_DECISION_BYTES, MAXIMUM_POLICY_TEXT_BYTES, MAXIMUM_SOURCE_BYTES,
     budget::Budget, framing::Reader,
 };
+use crate::declarations::dependencies::DependencyPurpose;
 use crate::lock::PackagePolicyAcceptance;
 use target::TargetProfile;
 
@@ -62,6 +63,52 @@ impl PackageLock {
             {
                 return Err(Error::SourceGraphMismatch);
             }
+            // The v2 occurrence ledger records the derived roster; locks written
+            // before it carry implicit complete coverage, so absence assigns
+            // the derived roster rather than guessed acceptance. A snapshot
+            // projection of a v2 frame still carries and consumes the ledger.
+            let occurrence_purposes = if !reader.starts_with("occurrences ") {
+                PackageLockTarget::derived_occurrence_purposes(&source)?
+            } else {
+                let maximum = source
+                    .packages()
+                    .len()
+                    .checked_mul(DependencyPurpose::ALL.len())
+                    .ok_or(Error::CountLimitExceeded)?;
+                let rows = reader.count("occurrences", maximum)?;
+                let mut coverage = Vec::<Vec<DependencyPurpose>>::new();
+                coverage
+                    .try_reserve_exact(source.packages().len())
+                    .map_err(|_| Error::AllocationFailed)?;
+                coverage.resize_with(source.packages().len(), Vec::new);
+                let mut previous: Option<(usize, DependencyPurpose)> = None;
+                for _ in 0..rows {
+                    let row = reader.field("occurrence")?;
+                    let (index, purpose) = row.split_once(' ').ok_or(Error::InvalidFraming)?;
+                    if index.len() > 20
+                        || (index.len() > 1 && index.starts_with('0'))
+                        || !index.bytes().all(|byte| byte.is_ascii_digit())
+                    {
+                        return Err(Error::InvalidFraming);
+                    }
+                    let index = index.parse::<usize>().map_err(|_| Error::InvalidFraming)?;
+                    let purpose = DependencyPurpose::ALL
+                        .iter()
+                        .copied()
+                        .find(|candidate| candidate.name() == purpose)
+                        .ok_or(Error::InvalidFraming)?;
+                    let position = (index, purpose);
+                    if previous.is_some_and(|last| position <= last) {
+                        return Err(Error::InvalidFraming);
+                    }
+                    previous = Some(position);
+                    coverage
+                        .get_mut(index)
+                        .ok_or(Error::InvalidFraming)?
+                        .push(purpose);
+                }
+                coverage
+            };
             let count = reader.count(
                 if snapshot { "baselines" } else { "acceptances" },
                 source.packages().len(),
@@ -100,12 +147,12 @@ impl PackageLock {
                 &source,
             )?;
             reader.expect("end_target")?;
-            let target = PackageLockTarget {
+            let target = PackageLockTarget::from_recorded_parts(
                 source,
+                occurrence_purposes,
                 baselines,
                 decisions,
-            };
-            target.validate()?;
+            )?;
             targets.push(target);
         }
         reader.expect("end")?;

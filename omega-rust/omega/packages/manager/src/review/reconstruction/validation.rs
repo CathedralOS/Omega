@@ -3,6 +3,7 @@ use super::model::{
     CanonicalPackageReconstructionQuestionLimits,
 };
 use crate::declarations::PackageKey;
+use crate::lock::PackageOccurrenceRoster;
 use crate::resolution::graph::{CanonicalDependencySourceSelection, CanonicalSourceClosureSubject};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
@@ -50,11 +51,25 @@ pub(super) fn validate_association(
             "package reconstruction obligation target does not match the source closure target",
         ));
     }
+    let roster = PackageOccurrenceRoster::derive(source_closure).map_err(|_| {
+        CanonicalPackageReconstructionQuestionError::new(
+            "could not derive the source closure occurrence roster",
+        )
+    })?;
     let outgoing = outgoing_product_requests(source_closure)?;
     for (source, entry) in source_closure.packages().iter().zip(entries) {
         if entry.package != *source.key() {
             return Err(CanonicalPackageReconstructionQuestionError::new(
                 "package reconstruction entries are not in canonical source-package order",
+            ));
+        }
+        if entry.occurrence_purposes()
+            != roster
+                .purposes(source.key())
+                .expect("validated source package has an occurrence")
+        {
+            return Err(CanonicalPackageReconstructionQuestionError::new(
+                "package reconstruction entry does not cover its occurrence roster",
             ));
         }
         if entry.obligations.package() != entry.package.identity() {

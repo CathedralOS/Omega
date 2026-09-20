@@ -11,12 +11,16 @@ mod decisions;
 mod error;
 mod limits;
 mod model;
+pub(crate) mod occurrences;
 mod text;
 mod validation;
 
 pub use error::PackageLockError;
 pub use limits::PackageLockRecoveryLimits;
 pub use model::{PackageLock, PackageLockTarget};
+pub use occurrences::{
+    PackageOccurrenceRoster, PackageOccurrenceRosterError, PackagePurposeCoverage,
+};
 pub const PACKAGE_LOCK_VERSION: u16 = 2;
 
 pub use decisions::{

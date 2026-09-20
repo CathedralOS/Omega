@@ -7,6 +7,8 @@ use super::{
     PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION, RECONSTRUCTION_QUESTION_FINGERPRINT_DOMAIN,
     RECONSTRUCTION_QUESTION_MAGIC,
 };
+use crate::declarations::dependencies::DependencyPurpose;
+use crate::lock::occurrences::purpose_mask_bit;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use package_evidence::ledger::{
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
@@ -59,7 +61,14 @@ impl CanonicalPackageReconstructionQuestion {
         })?;
         let mut total_ledger_bytes = 0usize;
         for selected in source_closure.packages() {
-            let ledger_bytes = decoder.bytes(limits.maximum_ledger_bytes)?;
+            // One byte of occurrence-purpose mask heads each entry frame.
+            let frame = decoder.bytes(limits.maximum_ledger_bytes.saturating_add(1))?;
+            let (mask, ledger_bytes) = frame.split_first().ok_or_else(|| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "truncated package reconstruction question",
+                )
+            })?;
+            let occurrence_purposes = decode_purpose_mask(*mask)?;
             total_ledger_bytes = total_ledger_bytes
                 .checked_add(ledger_bytes.len())
                 .ok_or_else(|| {
@@ -80,6 +89,7 @@ impl CanonicalPackageReconstructionQuestion {
                 })?;
             entries.push(CanonicalPackageReconstructionEntry {
                 package: selected.key().clone(),
+                occurrence_purposes,
                 obligations,
             });
         }
@@ -130,9 +140,31 @@ pub(super) fn encode_question(
                 "package reconstruction question exceeds its total ledger-byte ceiling",
             ));
         }
-        encoder.bytes(&ledger_bytes)?;
+        let mask = entry
+            .occurrence_purposes
+            .iter()
+            .fold(0u8, |mask, purpose| mask | purpose_mask_bit(*purpose));
+        encoder.count(ledger_bytes.len() + 1)?;
+        encoder.fixed(&[mask])?;
+        encoder.fixed(&ledger_bytes)?;
     }
     encoder.finish()
+}
+
+fn decode_purpose_mask(
+    mask: u8,
+) -> Result<Vec<DependencyPurpose>, CanonicalPackageReconstructionQuestionError> {
+    let known = (1u8 << DependencyPurpose::ALL.len()) - 1;
+    if mask == 0 || mask & !known != 0 {
+        return Err(CanonicalPackageReconstructionQuestionError::new(
+            "package reconstruction entry carries an empty or unknown purpose mask",
+        ));
+    }
+    Ok(DependencyPurpose::ALL
+        .iter()
+        .copied()
+        .filter(|purpose| mask & purpose_mask_bit(*purpose) != 0)
+        .collect())
 }
 
 pub(super) fn fingerprint(bytes: &[u8]) -> CanonicalPackageReconstructionQuestionFingerprint {

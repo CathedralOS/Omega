@@ -4,6 +4,7 @@ use super::model::{
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionLimits,
 };
 use super::validation::validate_association;
+use crate::lock::PackageOccurrenceRoster;
 use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
 use crate::resolution::package_compilation_inputs_for;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
@@ -44,6 +45,11 @@ impl CanonicalPackageReconstructionQuestion {
                         "could not project the canonical source-closure subject",
                     )
                 })?;
+        let roster = PackageOccurrenceRoster::derive(&source_closure).map_err(|_| {
+            CanonicalPackageReconstructionQuestionError::new(
+                "could not derive the source closure occurrence roster",
+            )
+        })?;
 
         let closure = target_closure.source_closure();
         let mut reviews_by_package = BTreeMap::new();
@@ -100,8 +106,34 @@ impl CanonicalPackageReconstructionQuestion {
                     "package review dependency closure does not match current source custody",
                 ));
             }
+            // Where the review carried a build observation, its activation must
+            // name this exact package occurrence and the closure's target, not
+            // another package's build or a different target's admission.
+            if let Some(summary) = review.build_observation_summary() {
+                let activation = summary.activation();
+                if activation
+                    .root_package_identity()
+                    .is_some_and(|root| root != review.key().identity())
+                {
+                    return Err(CanonicalPackageReconstructionQuestionError::new(
+                        "package review build activation names a different package occurrence",
+                    ));
+                }
+                if activation
+                    .selected_target_profile()
+                    .is_some_and(|target| target != target_closure.target_profile())
+                {
+                    return Err(CanonicalPackageReconstructionQuestionError::new(
+                        "package review build activation names a different target",
+                    ));
+                }
+            }
             entries.push(CanonicalPackageReconstructionEntry {
                 package: selected.key().clone(),
+                occurrence_purposes: roster
+                    .purposes(selected.key())
+                    .expect("validated source package has an occurrence")
+                    .to_vec(),
                 obligations: review.obligations().clone(),
             });
             associated_reviews.push(review);

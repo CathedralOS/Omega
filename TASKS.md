@@ -536,16 +536,30 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     checked children reject a different profile before loading generated source,
     including reuse of a prepared source frontier. The regression is
     `package_compilation_inputs::generated_sources_and_dependencies::generated_dependency_handoff_rejects_a_different_build_execution_profile`.
-    Remaining identity work spans `review/candidate`, `review/compare/policy`,
-    `review/reconstruction`, and `lock`: derive the complete occurrence roster
-    from the source graph, join each review and acceptance to it, and version
-    the affected encodings. Keep acquisition package-keyed; do not union policy
-    or copy legacy package-only consent into both roles. The same limitation
-    also affects currently admitted non-nested dual-purpose packages.
+    The occurrence roster now joins `review/compare/policy`,
+    `review/reconstruction`, and `lock`: `PackageOccurrenceRoster` derives the
+    complete (package, purpose) roster from the canonical source graph,
+    `PackageLockTarget` records per-package occurrence purposes inside the
+    `omega_lock 2` target frame and requires recovery to reproduce the derived
+    roster exactly (pre-ledger text assigns it), reconstruction question
+    version 2 prepends each entry's purpose mask so a recovered question keeps
+    which occurrences its review answered, and comparison joins baseline and
+    candidate rosters — a purpose-set change recommends audit and feeds the
+    versioned comparison fingerprint. Remaining identity work is
+    per-occurrence review production and decision subjects: review output is
+    still package-keyed in `review/candidate/compilation/package_pass.rs`, and
+    `review/decision` has no occurrence-exact subject, so a purpose-set gain
+    recommends audit rather than naming a consent row. Keep acquisition
+    package-keyed; do not union policy or copy legacy package-only consent
+    into both roles. The same limitation also affects currently admitted
+    non-nested dual-purpose packages.
     These are implementation gaps, not unresolved language decisions. Windows
     runtime validation remains.
   - Retain exact purpose/profile/target and accepted authority through
     acquisition, review, lock recovery, generated-source handoff, and checking.
+    Exact occurrence purposes now survive `omega_lock 2` recovery and
+    reconstruction-question recovery; generated-source handoff and checked
+    per-occurrence addressing remain under the `package_pass.rs` fences.
     Extend the existing owners; no second dependency resolver or build executor.
 
   Acceptance: real acquisition and CLI multi-file builds admit a helper that
