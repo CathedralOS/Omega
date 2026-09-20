@@ -1,5 +1,6 @@
 use super::{
-    Arc, CheckedTrees, ProviderPlan, selected_plan, settle_selected_boundary_adapter_dispatch,
+    Arc, CheckedTrees, ProviderPlan, bind_fixture_fused_service_erasures, selected_every_plan,
+    selected_plan, settle_selected_boundary_adapter_dispatch, typed_with_core_service,
 };
 use provider_planning::ProviderPlanDerivation;
 /// A finite generic requirement whose roster is authored as one explicit
@@ -7,7 +8,7 @@ use provider_planning::ProviderPlanDerivation;
 /// specializations come from the direct calls in `direct`; the boundary calls
 /// in `run` then select them tuple by tuple.
 const FAMILY_SETTLES: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
         machine ping(value: u32) -> u32;
     }
@@ -21,7 +22,7 @@ const FAMILY_SETTLES: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7) + self.service.scan<32>(8)) }
     }
@@ -29,7 +30,7 @@ const FAMILY_SETTLES: &str = r#"
 
 /// Duplicates and reordering normalize to the same sorted roster.
 const FAMILY_NORMALIZED: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width == 32 || Width == 16 || Width == 32;
         machine ping(value: u32) -> u32;
     }
@@ -43,7 +44,7 @@ const FAMILY_NORMALIZED: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -52,7 +53,7 @@ const FAMILY_NORMALIZED: &str = r#"
 /// Two-binder alternatives must write the whole tuple's correlation; the
 /// roster is (16,4)/(32,8), never the Cartesian product of listed values.
 const CORRELATED_FAMILY: &str = r#"
-    boundary trait Table {
+    pub boundary trait Table {
         machine lookup<const W: u32, const A: u32>(value: u32) -> u64 where W == 16 && A == 4 || W == 32 && A == 8;
     }
     data TableProvider {}
@@ -62,7 +63,7 @@ const CORRELATED_FAMILY: &str = r#"
     machine TableProvider::direct() -> u64 {
         transition { _ -> (TableProvider::lookup<16, 4>(7) + TableProvider::lookup<32, 8>(8)) }
     }
-    data Client { service: Table; }
+    data Client { service: Service<Table>; }
     machine Client::run(&mut self) -> u64 reaches Table {
         transition { _ -> (self.service.lookup<16, 4>(7) + self.service.lookup<32, 8>(8)) }
     }
@@ -71,7 +72,7 @@ const CORRELATED_FAMILY: &str = r#"
 /// An off-roster combination is a membership failure even though each value
 /// appears in the family: correlations are authored per alternative.
 const CORRELATED_MISMATCH: &str = r#"
-    boundary trait Table {
+    pub boundary trait Table {
         machine lookup<const W: u32, const A: u32>(value: u32) -> u64 where W == 16 && A == 4 || W == 32 && A == 8;
     }
     data TableProvider {}
@@ -81,7 +82,7 @@ const CORRELATED_MISMATCH: &str = r#"
     machine TableProvider::direct() -> u64 {
         transition { _ -> (TableProvider::lookup<16, 4>(7) + TableProvider::lookup<32, 8>(8)) }
     }
-    data Client { service: Table; }
+    data Client { service: Service<Table>; }
     machine Client::run(&mut self) -> u64 reaches Table {
         transition { _ -> (self.service.lookup<16, 8>(7)) }
     }
@@ -90,14 +91,14 @@ const CORRELATED_MISMATCH: &str = r#"
 /// An alternative that binds only one of two value binders is not a complete
 /// tuple; the requirement stays ineligible.
 const PARTIAL_TUPLE: &str = r#"
-    boundary trait Table {
+    pub boundary trait Table {
         machine lookup<const W: u32, const A: u32>(value: u32) -> u64 where W == 16 || W == 32;
     }
     data TableProvider {}
     machine TableProvider::lookup<const W: u32, const A: u32>(value: u32) -> u64 satisfies Table::lookup {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Table; }
+    data Client { service: Service<Table>; }
     machine Client::run(&mut self) -> u64 reaches Table {
         transition { _ -> (self.service.lookup<16, 4>(7)) }
     }
@@ -105,14 +106,14 @@ const PARTIAL_TUPLE: &str = r#"
 
 /// An opaque predicate is never an enumeration.
 const OPAQUE_FAMILY: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width > 0;
     }
     data ScanProvider {}
     machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -120,14 +121,14 @@ const OPAQUE_FAMILY: &str = r#"
 
 /// An inequality range does not enumerate, no matter how small it is.
 const RANGE_FAMILY: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width >= 16 && Width <= 32;
     }
     data ScanProvider {}
     machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -136,14 +137,14 @@ const RANGE_FAMILY: &str = r#"
 /// A roster with no static call demand at all: selection alone commits the
 /// provider to the complete family, so checking generates every tuple.
 const FAMILY_WITHOUT_SPECIALIZATIONS: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
     }
     data ScanProvider {}
     machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -154,7 +155,7 @@ const FAMILY_WITHOUT_SPECIALIZATIONS: &str = r#"
 /// leaves the family ineligible rather than settling a silently truncated
 /// table.
 const PARTIAL_COVERAGE: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32 || Width == 64;
     }
     data ScanProvider {}
@@ -164,7 +165,7 @@ const PARTIAL_COVERAGE: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -172,7 +173,7 @@ const PARTIAL_COVERAGE: &str = r#"
 
 /// A three-tuple roster whose provider covers every declared tuple.
 const FAMILY_THREE_TUPLES: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32 || Width == 64;
     }
     data ScanProvider {}
@@ -182,7 +183,7 @@ const FAMILY_THREE_TUPLES: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7) + self.service.scan<64>(8)) }
     }
@@ -191,7 +192,7 @@ const FAMILY_THREE_TUPLES: &str = r#"
 /// A roster whose boundary calls name only the nongeneric sibling: the
 /// uncalled family still supplies its complete generated roster.
 const PARTIAL_COVERAGE_UNCALLED: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32 || Width == 64;
         machine ping(value: u32) -> u32;
     }
@@ -205,7 +206,7 @@ const PARTIAL_COVERAGE_UNCALLED: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u32 reaches Scanner {
         transition { _ -> (self.service.ping(2)) }
     }
@@ -214,7 +215,7 @@ const PARTIAL_COVERAGE_UNCALLED: &str = r#"
 /// A settled Unit family requirement keys statement-position calls by the
 /// same canonical tuple as value calls.
 const STATEMENT_FAMILY: &str = r#"
-    boundary trait Watcher {
+    pub boundary trait Watcher {
         machine watch<const Width: u32>(value: u32) where Width == 8 || Width == 16;
     }
     data WatchProvider {}
@@ -223,24 +224,14 @@ const STATEMENT_FAMILY: &str = r#"
         WatchProvider::watch<8>(1);
         WatchProvider::watch<16>(2);
     }
-    data Client { service: Watcher; }
+    data Client { service: Service<Watcher>; }
     machine Client::run(&mut self) reaches Watcher {
         self.service.watch<16>(1);
     }
 "#;
 
 fn family_typed(source: &str) -> (typed_trees::TypedTrees, Vec<ProviderPlan>) {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize finite-family fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse finite-family fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve finite-family fixture");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type finite-family fixture");
+    let typed = typed_with_core_service("selected-dispatch/finite_family.omg", source);
     let plans = provider_planning::derive_satisfies_plans(
         &typed,
         ProviderPlanDerivation::unevaluated(None),
@@ -256,9 +247,10 @@ fn family_typed(source: &str) -> (typed_trees::TypedTrees, Vec<ProviderPlan>) {
 /// selected provider's complete roster is materialized before any dispatch
 /// row resolution consults it.
 fn family_checked(
-    typed: typed_trees::TypedTrees,
+    mut typed: typed_trees::TypedTrees,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> CheckedTrees {
+    bind_fixture_fused_service_erasures(&mut typed, selected);
     let demands =
         crate::boundary_dispatch::selected_boundary_family_specializations(&typed, selected);
     typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
@@ -633,7 +625,7 @@ fn statement_calls_select_the_settled_tuple() {
 /// the provider at `scan<64>` for ordinary static use, but a boundary call
 /// demanding a width outside the declared roster selects no row.
 const OFF_ROSTER_WIDTH: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
     }
     data ScanProvider {}
@@ -643,7 +635,7 @@ const OFF_ROSTER_WIDTH: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<64>(7)) }
     }
@@ -655,7 +647,7 @@ const OFF_ROSTER_WIDTH: &str = r#"
 /// selected conformance's retained specializations — a sibling provider's
 /// record at the identical tuple can never lend coverage.
 const SIBLING_PROVIDERS: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
     }
     data ScanProvider {}
@@ -672,7 +664,7 @@ const SIBLING_PROVIDERS: &str = r#"
     machine ReserveProvider::direct() -> u64 {
         transition { _ -> (ReserveProvider::scan<16>(7) + ReserveProvider::scan<32>(8)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -864,7 +856,7 @@ fn a_sibling_providers_specialization_never_fills_the_row() {
 /// the requirement binder's runtime capability never relaxes a static
 /// application into a different family.
 const FAMILY_VALUE_BINDER_SETTLES: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
         machine ping(value: u32) -> u32;
     }
@@ -878,7 +870,7 @@ const FAMILY_VALUE_BINDER_SETTLES: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7) + self.service.scan<32>(8)) }
     }
@@ -888,7 +880,7 @@ const FAMILY_VALUE_BINDER_SETTLES: &str = r#"
 /// roster tuple: the boundary keeps only tuple-keyed rows, so the call
 /// rejects instead of dispatching every width to an unbound selection.
 const FAMILY_VALUE_BINDER_RUNTIME_ARGUMENT: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
     }
     data ScanProvider {}
@@ -898,7 +890,7 @@ const FAMILY_VALUE_BINDER_RUNTIME_ARGUMENT: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self, width: u32) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<width>(7)) }
     }
@@ -908,7 +900,7 @@ const FAMILY_VALUE_BINDER_RUNTIME_ARGUMENT: &str = r#"
 /// binder: a `const` provider under a `Value` requirement is a kind mismatch,
 /// never a compatible specialization.
 const FAMILY_VALUE_REQUIREMENT_CONST_PROVIDER: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
     }
     data ScanProvider {}
@@ -966,7 +958,7 @@ fn value_binder_requirement_rejects_a_runtime_argument() {
 /// A static application outside the declared roster is a membership failure
 /// under either binder spelling.
 const FAMILY_VALUE_BINDER_OFF_ROSTER: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
     }
     data ScanProvider {}
@@ -976,7 +968,7 @@ const FAMILY_VALUE_BINDER_OFF_ROSTER: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<64>(7)) }
     }
@@ -987,7 +979,7 @@ const FAMILY_VALUE_BINDER_OFF_ROSTER: &str = r#"
 /// leaves the family ineligible even though the provider was exercised at
 /// every listed width shape.
 const FAMILY_VALUE_BINDER_RUNTIME_DEMAND: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<Width: u32>(value: u32) -> u64 where Width == 16 || Width == 32;
     }
     data ScanProvider {}
@@ -997,7 +989,7 @@ const FAMILY_VALUE_BINDER_RUNTIME_DEMAND: &str = r#"
     machine ScanProvider::direct(width: u32) -> u64 {
         transition { _ -> (ScanProvider::scan<width>(7)) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -1063,17 +1055,18 @@ fn a_runtime_bound_record_never_fills_a_roster_row() {
 
 #[test]
 fn value_requirement_rejects_a_const_provider_binder() {
-    let tokens = source_files_to_tokens::Lexer::new(FAMILY_VALUE_REQUIREMENT_CONST_PROVIDER)
-        .tokenize()
-        .expect("tokenize kind-mismatch fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse kind-mismatch fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    let mut typed = typed_with_core_service(
+        "selected-dispatch/kind_mismatch.omg",
+        FAMILY_VALUE_REQUIREMENT_CONST_PROVIDER,
+    );
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
     )
-    .expect("resolve kind-mismatch fixture");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type kind-mismatch fixture");
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
+    bind_fixture_fused_service_erasures(&mut typed, &selected_every_plan(&plans));
     let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect_err("a const provider binder cannot satisfy a Value requirement");
     assert!(
