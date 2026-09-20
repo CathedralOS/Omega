@@ -1,9 +1,10 @@
 //! Whole-value edge mechanics, independently exercised with swaps and narrow tails.
 use super::{
-    FuelSettlement, PsiProvenance, SelectedInstructionKind, SelectedSelectionConstraints,
-    SelectedTerminator, VirtualRegisterId, project,
+    SelectedInstructionKind, SelectedSelectionConstraints, SelectedTerminator, VirtualRegisterId,
+    project,
 };
 use crate::selection::edge_transfers::prepare;
+use optimization_unit::{FuelSettlement, PsiProvenance};
 use selected_instructions::{FrameStorageSlotId, SelectedStructuralTransport};
 
 #[test]

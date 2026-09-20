@@ -1778,6 +1778,8 @@ dependencies = [
 name = "register-homes"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations",
+ "calling-conventions",
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
@@ -1786,6 +1788,10 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "target",
+ "target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -1956,6 +1962,7 @@ dependencies = [
  "sha2",
  "target",
  "target-operations",
+ "terminal-codec",
  "terminal-psi",
 ]
 
