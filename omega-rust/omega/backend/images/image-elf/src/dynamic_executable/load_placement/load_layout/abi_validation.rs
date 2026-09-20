@@ -552,6 +552,9 @@ pub(crate) const fn public_section_kind(
         ElfDynamicRosterSectionKind::ProcedureRelocation => {
             ElfPlacedDynamicSectionKind::ProcedureRelocation
         }
+        ElfDynamicRosterSectionKind::GeneralRelocation => {
+            ElfPlacedDynamicSectionKind::GeneralRelocation
+        }
         ElfDynamicRosterSectionKind::DynamicTable => ElfPlacedDynamicSectionKind::DynamicTable,
         ElfDynamicRosterSectionKind::SectionNameTable => {
             ElfPlacedDynamicSectionKind::SectionNameTable

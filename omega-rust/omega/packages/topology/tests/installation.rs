@@ -14,6 +14,7 @@ mod support;
 
 use std::collections::BTreeSet;
 use std::fmt;
+use std::sync::Arc;
 use support::*;
 use topology_plan::topology_installation::*;
 use topology_plan::*;
@@ -270,14 +271,7 @@ fn payment_installation_request(request_bytes: &[u8], occurrence: u64) -> Instal
     InstallationRequest {
         expected_request: request_commitment(request_bytes),
         occurrence,
-        artifacts: payment_components()
-            .iter()
-            .enumerate()
-            .map(|(index, admission)| AdmittedArtifact {
-                artifact: identity(0xA1 + index as u8),
-                component_subject: subject_of(admission),
-            })
-            .collect(),
+        artifacts: artifact_roster(&payment_components(), |index| identity(0xA1 + index as u8)),
     }
 }
 
@@ -642,10 +636,12 @@ fn artifact_mismatches_reject_before_any_endpoint() {
         other => panic!("artifact count must reject: {other:?}"),
     }
 
-    // A different component subject than the roster requires.
+    // A different component subject than the roster requires: the
+    // artifact's subject is admission-derived, so substituting it means
+    // carrying a different component's admission.
     let (checked, request_bytes, _) = checked_payment_plan();
     let mut authorization = payment_installation_request(&request_bytes, 2);
-    authorization.artifacts[2].component_subject = identity(0x34);
+    authorization.artifacts[2].admission = Arc::clone(&authorization.artifacts[0].admission);
     match prepare_installation(
         checked,
         supervisor
@@ -656,10 +652,44 @@ fn artifact_mismatches_reject_before_any_endpoint() {
         payment_operation_schemas(),
     ) {
         Err(PrepareError::Rejected {
-            rejection: InstallationRejection::ArtifactMismatch { instance },
+            rejection:
+                InstallationRejection::ArtifactMismatch {
+                    instance,
+                    field: "component_subject",
+                },
             ..
         }) => assert_eq!(instance, 2),
         other => panic!("artifact subject must reject: {other:?}"),
+    }
+
+    // The admission's request profile must equal the profile the plan's
+    // component record claims: an artifact admitted under a different
+    // request — here one accepting an extra assumption digest — is a
+    // substitution even when the subject matches.
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let mut authorization = payment_installation_request(&request_bytes, 3);
+    authorization.artifacts[1].admission = Arc::new(admit_with(
+        &authorization_module(),
+        BTreeSet::from([identity(0x55)]),
+    ));
+    match prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(authorization)
+            .expect("owner authorization"),
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    ) {
+        Err(PrepareError::Rejected {
+            rejection:
+                InstallationRejection::ArtifactMismatch {
+                    instance,
+                    field: "verification_profile",
+                },
+            ..
+        }) => assert_eq!(instance, 1),
+        other => panic!("artifact admission profile must reject: {other:?}"),
     }
 }
 
@@ -1456,13 +1486,7 @@ fn local_payment_request(
     InstallationRequest {
         expected_request: request_commitment(request_bytes),
         occurrence,
-        artifacts: payment_components()
-            .iter()
-            .map(|admission| AdmittedArtifact {
-                artifact,
-                component_subject: subject_of(admission),
-            })
-            .collect(),
+        artifacts: artifact_roster(&payment_components(), |_| artifact),
     }
 }
 

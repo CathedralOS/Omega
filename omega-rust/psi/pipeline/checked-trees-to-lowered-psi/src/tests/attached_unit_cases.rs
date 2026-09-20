@@ -1,8 +1,8 @@
 //! Attached Unit closure and transfer regression families.
 
 use super::{
-    LoweringError, PermissionClaimIdentity, checked_source, hard_root_checked_fixture,
-    lower_machine, unit_claim_at,
+    LoweringError, PermissionClaimIdentity, checked_source, checked_source_with_core_service,
+    hard_root_checked_fixture, lower_machine, unit_claim_at,
 };
 use crate::machine_lowering::machine_dispatch;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
@@ -617,20 +617,20 @@ fn attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_provider_
     // fields are addressed. Once an ordinary data field is a call argument,
     // the borrowed `self` is retained as structural parameter 0 so the
     // argument has a place to project from; the provider roots stay.
-    let checked = checked_source(
+    let checked = checked_source_with_core_service(
         r#"
         domain [u8; 16]::Utf8
         requires
             valid_utf8(self);
 
-        boundary trait Console {
+        pub boundary trait Console {
             machine write_line(text: &[u8])
             reaches Console;
             machine read_line(out_line: &mut [u8])
             reaches Console;
         }
 
-        data Main { console: Console; pause: [u8; 16] in Utf8; }
+        data Main { console: Service<Console>; pause: [u8; 16] in Utf8; }
         machine Main::main(&mut self)
         reaches Console
         {

@@ -1,0 +1,43 @@
+{
+  "schema": "omega-matching-logic-slice-case/1",
+  "subject": "negative: membership claimed on half of its refinement body",
+  "symbols": {"s0": 0, "s1": 0, "counter": 1},
+  "refinements": {"Nat": ["and",
+    ["pred", "is_integer", [["var", "x"]]],
+    ["pred", "nonneg", [["var", "x"]]]]},
+  "axioms": {
+    "step_s0_s1": ["pred", "step", [["sym", "s0", []], ["sym", "s1", []]]],
+    "counter_s1_integer": ["pred", "is_integer",
+      [["sym", "counter", [["sym", "s1", []]]]]]
+  },
+  "obligation": {
+    "kind": "refinement_after_transition",
+    "pre_state": "s0",
+    "transition": "step",
+    "post_variable": "s'",
+    "refinement": ["in", ["sym", "counter", [["var", "s'"]]], "Nat"]
+  },
+  "expect": "reject",
+  "certificate": {
+    "schema": "omega-matching-logic-certificate/1",
+    "derivation": {
+      "rule": "exists_intro",
+      "var": "s'",
+      "body": ["and",
+        ["pred", "step", [["sym", "s0", []], ["var", "s'"]]],
+        ["in", ["sym", "counter", [["var", "s'"]]], "Nat"]],
+      "witness": ["sym", "s1", []],
+      "defined": {"rule": "defined_closed", "term": ["sym", "s1", []]},
+      "premise": {
+        "rule": "and_intro",
+        "left": {"rule": "axiom", "name": "step_s0_s1"},
+        "right": {
+          "rule": "membership_intro",
+          "term": ["sym", "counter", [["sym", "s1", []]]],
+          "sort": "Nat",
+          "premise": {"rule": "axiom", "name": "counter_s1_integer"}
+        }
+      }
+    }
+  }
+}

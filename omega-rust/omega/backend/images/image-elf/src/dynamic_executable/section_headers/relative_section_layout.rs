@@ -12,7 +12,7 @@ use crate::dynamic_executable::section_headers::section_payload_roster::Validate
 use crate::dynamic_executable::section_headers::section_roster::ElfDynamicRosterSectionKind;
 use diagnostics::Diagnostic;
 
-const SECTION_COUNT: usize = 13;
+const SECTION_COUNT: usize = 14;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 const SHF_WRITE: u64 = 0x1;
@@ -208,7 +208,7 @@ fn derive_contents(
     let roster_rows = &payloads.section_headers().roster().contents().rows;
     require(
         payload_rows.len() == SECTION_COUNT && roster_rows.len() == SECTION_COUNT,
-        "relative ELF layout requires the exact thirteen-row payload roster",
+        "relative ELF layout requires the exact fourteen-row payload roster",
     )?;
 
     let mut rows = Vec::with_capacity(SECTION_COUNT);
@@ -284,7 +284,7 @@ fn validate_contents(
         payload_rows.len() == SECTION_COUNT
             && roster_rows.len() == SECTION_COUNT
             && contents.rows.len() == SECTION_COUNT,
-        "relative ELF layout does not contain exactly thirteen rows",
+        "relative ELF layout does not contain exactly fourteen rows",
     )?;
 
     let mut region_spans = ElfRelativeSectionPayloadRegionSpans::default();
@@ -568,10 +568,14 @@ mod tests {
             );
             assert_eq!(
                 layout.contents.rows[11].region,
-                Some(ElfRelativeSectionPayloadRegion::ReadWrite)
+                Some(ElfRelativeSectionPayloadRegion::ReadOnly)
             );
             assert_eq!(
                 layout.contents.rows[12].region,
+                Some(ElfRelativeSectionPayloadRegion::ReadWrite)
+            );
+            assert_eq!(
+                layout.contents.rows[13].region,
                 Some(ElfRelativeSectionPayloadRegion::FileOnly)
             );
             for region in [

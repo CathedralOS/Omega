@@ -65,7 +65,7 @@ pub fn encode_aapcs64_frame_protocol(
     probe: Aarch64StackProbe,
     slots: &[Aarch64FrameSlot],
 ) -> Result<(Vec<u8>, Vec<u8>), Aarch64FrameProtocolError> {
-    if model.model() != &crate::aarch64_physical_register_model() {
+    if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64FrameProtocolError::PhysicalRegisterModelMismatch);
     }
     if !frame_size_bytes.is_multiple_of(16) || frame_size_bytes > u64::from(u32::MAX) {

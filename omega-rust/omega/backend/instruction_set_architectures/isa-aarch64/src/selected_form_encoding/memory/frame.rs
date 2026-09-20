@@ -9,7 +9,7 @@ use super::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     RegisterViewId, SelectedInstructionKind, ValidatedAarch64SelectedFormEncoding,
-    ValidatedPhysicalRegisterModel, aarch64_physical_register_model, resolve_registers,
+    ValidatedPhysicalRegisterModel, resolve_registers,
 };
 const fn frame_address_words(register: u8, displacement: u32) -> (u32, Option<u32>) {
     let high = displacement >> 12;
@@ -53,7 +53,7 @@ fn request(
     ) {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
-    if physical.model() != &aarch64_physical_register_model()
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || !matches!(
             kind,
             SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
@@ -171,9 +171,9 @@ pub(super) fn validate(
 #[cfg(test)]
 mod tests {
     use super::{
-        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
-        aarch64_physical_register_model, encode, validate,
+        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind, encode, validate,
     };
+    use crate::aarch64_physical_register_model;
     use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
     use semantic_vocabulary::{OperationId, PlaceId};
 

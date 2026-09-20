@@ -597,6 +597,7 @@ pub(super) fn compile_dependency_closure(
                 let ungranted = checkpoint.ungranted_requests(
                     review.key().identity(),
                     review.checked_context(),
+                    closure.dependency_path(review.key()),
                     projected
                         .rows()
                         .iter()

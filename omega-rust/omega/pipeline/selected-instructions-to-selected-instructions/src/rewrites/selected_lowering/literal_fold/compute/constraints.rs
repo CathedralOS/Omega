@@ -182,12 +182,12 @@ fn validate_immediate_row(
         // surviving `Use` binds operand 0 and the `Def` result binds
         // operand 1 whichever consumer grammar the literal occupied.
         (
-            PairOperandShape::BinaryRightLiteral
-            | PairOperandShape::BinaryLeftLiteral
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUses
-            | PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs
-            | PairOperandShape::BinaryRightLiteralScratchDefs
-            | PairOperandShape::BinaryLeftLiteralScratchDefs,
+            PairOperandShape::BINARY_RIGHT_LITERAL
+            | PairOperandShape::BINARY_LEFT_LITERAL
+            | PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES
+            | PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS
+            | PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS
+            | PairOperandShape::BINARY_LEFT_LITERAL_SCRATCH_DEFS,
             PairResultDisposition::ScalarRegister,
             [left, result],
         ) => {
@@ -209,7 +209,8 @@ fn validate_immediate_row(
         // publishing the condition state, so the row shape does not
         // distinguish the operand order.
         (
-            PairOperandShape::BinaryRightLiteral | PairOperandShape::BinaryLeftLiteralOperandSwap,
+            PairOperandShape::BINARY_RIGHT_LITERAL
+            | PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
             PairResultDisposition::ImplicitUnits,
             [left],
         ) => {
@@ -227,11 +228,11 @@ fn validate_immediate_row(
         // result is a `MaterializeI64` constant binding no `Use` operand,
         // whichever `Use` position the folded literal occupied.
         (
-            PairOperandShape::UnaryLiteral
-            | PairOperandShape::BinaryRightLiteralConstantResult
-            | PairOperandShape::BinaryLeftLiteralConstantResult
-            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
-            | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs,
+            PairOperandShape::UNARY_LITERAL
+            | PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT
+            | PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT
+            | PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES
+            | PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS,
             PairResultDisposition::ScalarRegister,
             [result],
         ) => {

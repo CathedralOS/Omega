@@ -123,7 +123,7 @@ pub fn validate_x86_64_xor_zero_i64_materialization(
 fn validate_canonical_physical_model(
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(), X86_64SelectedFormEncodingError> {
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     Ok(())

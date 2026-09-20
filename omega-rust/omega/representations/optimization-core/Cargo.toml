@@ -5,12 +5,16 @@ license.workspace = true
 version.workspace = true
 
 [features]
-test-support = []
+test-support = ["dep:mutation-matrix", "mutation-matrix/test-support"]
 
 [lib]
 name = "optimization_core"
 path = "src/lib.rs"
 
 [dependencies]
+mutation-matrix = { path = "../../../psi/foundation/mutation-matrix", optional = true }
 optimization = { path = "../../../psi/representations/optimization" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+mutation-matrix = { path = "../../../psi/foundation/mutation-matrix", features = ["test-support"] }

@@ -27,8 +27,8 @@ use diagnostics::Diagnostic;
 const ELF64_DYNAMIC_ROW_SIZE: usize = 16;
 const ELF64_DYNAMIC_VALUE_OFFSET: usize = 8;
 const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
-const DYNAMIC_SECTION_INDEX: u32 = 11;
-const DYNAMIC_FIXUP_COUNT: usize = 8;
+const DYNAMIC_SECTION_INDEX: u32 = 12;
+const DYNAMIC_FIXUP_COUNT: usize = 9;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -39,6 +39,7 @@ const EXPECTED_TARGETS: [ElfDynamicAddressApplicationTarget; DYNAMIC_FIXUP_COUNT
     ElfDynamicAddressApplicationTarget::DynamicString,
     ElfDynamicAddressApplicationTarget::DynamicSymbol,
     ElfDynamicAddressApplicationTarget::ProcedureRelocation,
+    ElfDynamicAddressApplicationTarget::GeneralRelocation,
     ElfDynamicAddressApplicationTarget::GnuSymbolVersion,
     ElfDynamicAddressApplicationTarget::GnuVersionRequirement,
 ];
@@ -62,6 +63,7 @@ pub enum ElfDynamicAddressApplicationTarget {
     GnuSymbolVersion = 6,
     GnuVersionRequirement = 7,
     GnuHash = 8,
+    GeneralRelocation = 9,
 }
 
 /// One exact address application retained beside the resulting `.dynamic`
@@ -117,7 +119,7 @@ impl ElfAppliedDynamicAddress {
     }
 }
 
-/// Independently replayed `.dynamic` payload with all eight internal address
+/// Independently replayed `.dynamic` payload with all nine internal address
 /// fields resolved.
 ///
 /// This non-clone carrier retains the complete placed-section-header and load-
@@ -560,6 +562,9 @@ const fn public_target(target: ElfDynamicAddressTarget) -> ElfDynamicAddressAppl
         ElfDynamicAddressTarget::GnuVersionRequirement => {
             ElfDynamicAddressApplicationTarget::GnuVersionRequirement
         }
+        ElfDynamicAddressTarget::GeneralRelocation => {
+            ElfDynamicAddressApplicationTarget::GeneralRelocation
+        }
     }
 }
 
@@ -573,6 +578,7 @@ const fn target_section_index(target: ElfDynamicAddressApplicationTarget) -> u32
         ElfDynamicAddressApplicationTarget::ProcedureRelocation => 10,
         ElfDynamicAddressApplicationTarget::GnuSymbolVersion => 5,
         ElfDynamicAddressApplicationTarget::GnuVersionRequirement => 6,
+        ElfDynamicAddressApplicationTarget::GeneralRelocation => 11,
     }
 }
 
@@ -600,6 +606,9 @@ const fn target_section_kind(
         ElfDynamicAddressApplicationTarget::GnuVersionRequirement => {
             ElfPlacedDynamicSectionKind::GnuVersionRequirement
         }
+        ElfDynamicAddressApplicationTarget::GeneralRelocation => {
+            ElfPlacedDynamicSectionKind::GeneralRelocation
+        }
     }
 }
 
@@ -617,6 +626,7 @@ const fn target_tag(target: ElfDynamicAddressApplicationTarget) -> ElfDynamicTag
         ElfDynamicAddressApplicationTarget::GnuVersionRequirement => {
             ElfDynamicTag::GnuVersionRequirement
         }
+        ElfDynamicAddressApplicationTarget::GeneralRelocation => ElfDynamicTag::Rela,
     }
 }
 
@@ -624,6 +634,7 @@ const fn encoded_value(value: ElfDynamicValue) -> u64 {
     match value {
         ElfDynamicValue::NeededStringOffset(offset) => offset as u64,
         ElfDynamicValue::ProcedureRelocationByteCount(count)
+        | ElfDynamicValue::GeneralRelocationByteCount(count)
         | ElfDynamicValue::DynamicStringByteCount(count)
         | ElfDynamicValue::DynamicSymbolEntryByteCount(count)
         | ElfDynamicValue::VersionRequirementRecordCount(count) => count,

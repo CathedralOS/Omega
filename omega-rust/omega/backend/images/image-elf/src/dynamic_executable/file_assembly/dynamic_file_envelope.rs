@@ -3,7 +3,7 @@
 //! This layer consumes the resolved `.dynamic` owner so the linear custody
 //! chain cannot fork before file-container serialization. It emits one exact
 //! ELF64-LSB header followed by the five already-planned program headers and
-//! binds the already-applied thirteen-row section-header table to the exact
+//! binds the already-applied fourteen-row section-header table to the exact
 //! `e_shoff` retained by the absolute load layout. A separate decoder replays
 //! every field and rejoins both byte regions to their upstream owners.
 //!
@@ -29,7 +29,7 @@ const ELF64_PROGRAM_HEADER_COUNT: usize = 5;
 const ELF64_HEADER_PREFIX_SIZE: usize =
     ELF64_HEADER_SIZE + ELF64_PROGRAM_HEADER_SIZE * ELF64_PROGRAM_HEADER_COUNT;
 const ELF64_SECTION_HEADER_SIZE: usize = 64;
-const ELF64_SECTION_HEADER_COUNT: usize = 13;
+const ELF64_SECTION_HEADER_COUNT: usize = 14;
 const ELF64_SECTION_HEADER_TABLE_SIZE: usize =
     ELF64_SECTION_HEADER_SIZE * ELF64_SECTION_HEADER_COUNT;
 const ELF64_SECTION_NAME_TABLE_INDEX: u16 = 12;
@@ -77,7 +77,7 @@ impl ValidatedElfDynamicFileEnvelope {
         self.contents.section_header_table_file_offset
     }
 
-    /// Exact applied thirteen-row section-header table to place at
+    /// Exact applied fourteen-row section-header table to place at
     /// [`Self::section_header_table_file_offset`].
     pub fn section_header_table_bytes(&self) -> &[u8] {
         &self.contents.section_header_table_bytes

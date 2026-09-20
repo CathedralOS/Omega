@@ -1,0 +1,90 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-20T20:08:52Z",
+  "subject": {
+    "name": "wrapping_square_sum",
+    "root": "samples/cli/arithmetic/wrapping_square_sum/main.omg",
+    "source_revision": "54d5dc1cb159cc5b15f5462305c4509bc960c006"
+  },
+  "key": {
+    "target": "linux_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": [
+        "SparseConditionalConstantPropagation"
+      ]
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "linux",
+    "machine": "x86_64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8559C",
+    "logical_cpus": 8,
+    "python": "3.10.12",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "target/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        29822.32129499971,
+        29846.895684997435,
+        30666.418712997256
+      ],
+      "median_ms": 29846.895684997435,
+      "min_ms": 29822.32129499971,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 4.169,
+        "compile: sources -> requested product": 30426.742,
+        "publish: retained product -> published product": 224.142,
+        "total elapsed": 30655.531
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 148590592,
+      "run_max_rss": 11702272
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192,
+        8192,
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        4.176968999672681,
+        4.914168999675894,
+        2.7784590020019095,
+        4.285048999008723,
+        3.2373450012528338
+      ],
+      "median_ms": 4.176968999672681,
+      "min_ms": 2.7784590020019095,
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "exit_code_expected": null,
+      "stdin": "devnull"
+    }
+  },
+  "notes": [
+    "selection contrast row measured on linux x86-64; SparseConditionalConstantPropagation disabled via --disable"
+  ]
+}

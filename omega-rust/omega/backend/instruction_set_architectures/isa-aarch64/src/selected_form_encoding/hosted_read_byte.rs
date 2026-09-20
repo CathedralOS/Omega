@@ -86,7 +86,7 @@ fn request(
     // Hosted structural storage is committed caller frame space: its
     // displacement is always a nonnegative unsigned-immediate offset.
     if (target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64())
-        || physical.model() != &crate::aarch64_physical_register_model()
+        || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || !matches!(
             kind,
             SelectedInstructionKind::HostedReadByte {

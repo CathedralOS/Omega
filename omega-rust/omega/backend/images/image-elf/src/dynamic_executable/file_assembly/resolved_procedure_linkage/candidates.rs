@@ -15,6 +15,7 @@ pub(crate) struct ElfResolvedProcedureLinkageContents {
     pub(crate) procedure_linkage_bytes: Vec<u8>,
     pub(crate) procedure_got_bytes: Vec<u8>,
     pub(crate) procedure_relocation_bytes: Vec<u8>,
+    pub(crate) general_relocation_bytes: Vec<u8>,
     pub(crate) applications: Vec<ElfAppliedProcedureLinkageFixup>,
 }
 
@@ -51,6 +52,12 @@ pub(crate) fn derive_contents(
             payloads,
             10,
             ElfDynamicRosterSectionKind::ProcedureRelocation,
+        )?
+        .to_vec(),
+        general_relocation_bytes: indexed_row_bytes(
+            payloads,
+            11,
+            ElfDynamicRosterSectionKind::GeneralRelocation,
         )?
         .to_vec(),
         applications: Vec::with_capacity(payloads.procedure_fixups.len()),

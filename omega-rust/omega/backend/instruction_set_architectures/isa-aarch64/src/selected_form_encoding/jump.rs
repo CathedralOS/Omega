@@ -4,7 +4,6 @@ use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
     ValidatedAarch64SelectedFormEncoding,
 };
-use crate::aarch64_physical_register_model;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::MachineAlternativeFamily;
 use selected_instructions::MachineAlternativeKey;
@@ -35,7 +34,7 @@ pub fn validate_aarch64_selected_jump_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    if physical.model() != &aarch64_physical_register_model() {
+    if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
     if alternative

@@ -11,9 +11,10 @@
 //! entry state, journaled as a source edit, so the interpreter and Terminal
 //! execute the ordinary checked body while the retained row, flow facts and
 //! journal keep the requirement. An owned-`self` requirement settles the same
-//! route through a member call (`token.consume();`): its row forwards the
-//! receiver place, which the rewrite splices in as the adapter's leading
-//! argument. A requirement satisfied by an external
+//! route through a member call (`token.consume();`, or one projection hop
+//! `holder.token.consume();`): its row forwards the receiver place, which the
+//! rewrite splices in as the adapter's leading argument. A requirement
+//! satisfied by an external
 //! `via` leaf settles no dispatch row and is deliberately not rewritten:
 //! the call stays on the requirement, whose retained boundary seam is the
 //! identity the native foreign-call join executes against.
@@ -129,20 +130,26 @@ pub(super) fn plan_selected_requirement_rewrites(
                     }
                     // A `self` row rewrites `token.consume()` into
                     // `Provider::consume(token)`: the receiver place is
-                    // spliced as argument 0. Only a single-place receiver
-                    // path has an exact place symbol on both ends of that
-                    // move; a projected receiver (`self.t.consume()`)
-                    // remains unrewritten and its member symbols are not
-                    // retained per segment.
-                    if row.forward_receiver
-                        && (typed.statement_table.name_path_members(call.receiver).len() != 1
-                            || call.receiver_root_symbol != call.receiver_symbol)
-                    {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "member call on receiver-bearing public boundary requirement `{}` forwards only a single-place receiver",
-                            requirement.name,
-                        )));
-                        continue;
+                    // spliced as argument 0. The path's root and leaf keep
+                    // exact place symbols, so a single projection hop
+                    // (`holder.token.consume()`) is reified as a Member
+                    // expression on the root place; longer paths keep no
+                    // per-segment member symbols and stay fenced.
+                    if row.forward_receiver {
+                        let member_count =
+                            typed.statement_table.name_path_members(call.receiver).len();
+                        if !(1..=2).contains(&member_count)
+                            || !call.receiver_root_symbol.is_valid()
+                            || !call.receiver_symbol.is_valid()
+                            || (member_count == 1
+                                && call.receiver_root_symbol != call.receiver_symbol)
+                        {
+                            diagnostics.push(Diagnostic::error(format!(
+                                "member call on receiver-bearing public boundary requirement `{}` forwards only a receiver place path of at most one projection hop",
+                                requirement.name,
+                            )));
+                            continue;
+                        }
                     }
                     let Some(flow_state) = checked
                         .facts
@@ -211,20 +218,12 @@ pub(super) fn plan_selected_requirement_rewrites(
             if call.target_symbol != row.requirement {
                 continue;
             }
-            let (receiver, projected_receiver) =
-                match typed.expression_table.expression(call.receiver) {
-                    ExpressionNode::Name(path) => (path.symbol, false),
-                    ExpressionNode::Member(member) => (member.member_symbol, true),
-                    _ => (symbols::SymbolHandle::invalid(), false),
-                };
+            let receiver = match typed.expression_table.expression(call.receiver) {
+                ExpressionNode::Name(path) => path.symbol,
+                ExpressionNode::Member(member) => member.member_symbol,
+                _ => symbols::SymbolHandle::invalid(),
+            };
             if receiver != row.receiver {
-                continue;
-            }
-            if row.forward_receiver && projected_receiver {
-                diagnostics.push(Diagnostic::error(format!(
-                    "member call on receiver-bearing public boundary requirement `{}` forwards only a single-place receiver",
-                    requirement.name,
-                )));
                 continue;
             }
             // The flow occurrence is the exact custody coordinate of this
@@ -286,10 +285,10 @@ pub(super) fn plan_selected_requirement_rewrites(
 /// Redirect each journaled direct call to the realization entry, exactly as
 /// the named boundary-operator adapter rewrite does: receiver cleared, target
 /// name and entry symbol replaced, arguments and static bindings retained.
-/// A `self` row first splices the single-place receiver into argument 0,
-/// where the adapter's ordinary leading parameter binds it; the flow
-/// occurrence's receiver fields clear with the call node's, matching the
-/// receiver-free rewrite.
+/// A `self` row first splices the receiver place (a single place, or one
+/// projection hop on it) into argument 0, where the adapter's ordinary
+/// leading parameter binds it; the flow occurrence's receiver fields clear
+/// with the call node's, matching the receiver-free rewrite.
 /// The retained flow occurrence and the checked scalar-argument facts follow
 /// the call into the ordinary-call custody roles, so the rebuilt Unit plans
 /// and Terminal source custody see one coherent ordinary call to the checked
@@ -349,44 +348,50 @@ pub(super) fn apply_selected_requirement_rewrites(
                 };
                 debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
                 if rewrite.forward_receiver {
-                    // `token.consume();` becomes `Provider::entry(token);`:
-                    // the receiver name path is a single caller place, so it
-                    // is reified as a Name expression and spliced in as
-                    // argument 0. Planning rejected multi-member receivers.
-                    debug_assert_eq!(
-                        checked
-                            .typed
-                            .statement_table
-                            .name_path_members(call.receiver)
-                            .len(),
-                        1
-                    );
-                    debug_assert_eq!(call.receiver_root_symbol, call.receiver_symbol);
-                    let mut members = arena::HandleSpan::empty();
-                    let mut member_symbols = arena::HandleSpan::empty();
-                    for member in checked
+                    // `token.consume();` becomes `Provider::entry(token);`
+                    // and `holder.token.consume();` becomes
+                    // `Provider::entry(holder.token);`: the root place is
+                    // reified as a Name expression, one projection hop as a
+                    // Member expression on it, and the result is spliced in
+                    // as argument 0. Planning rejected longer receiver paths.
+                    let path_members = checked
                         .typed
                         .statement_table
                         .name_path_members(call.receiver)
-                        .to_vec()
-                    {
-                        checked
-                            .typed
-                            .expression_table
-                            .push_name_path_member(&mut members, member);
-                        checked.typed.expression_table.push_name_path_member_symbol(
-                            &mut member_symbols,
-                            call.receiver_symbol,
-                        );
-                    }
-                    let receiver_expression = checked.typed.expression_table.insert(
+                        .to_vec();
+                    debug_assert!((1..=2).contains(&path_members.len()));
+                    let mut members = arena::HandleSpan::empty();
+                    let mut member_symbols = arena::HandleSpan::empty();
+                    checked
+                        .typed
+                        .expression_table
+                        .push_name_path_member(&mut members, path_members[0].clone());
+                    checked.typed.expression_table.push_name_path_member_symbol(
+                        &mut member_symbols,
+                        call.receiver_root_symbol,
+                    );
+                    let mut receiver_expression = checked.typed.expression_table.insert(
                         ExpressionNode::Name(typed_trees::expression::TableNamePath {
                             members,
                             member_symbols,
                             head_symbol: call.receiver_root_symbol,
-                            symbol: call.receiver_symbol,
+                            symbol: call.receiver_root_symbol,
                         }),
                     );
+                    if let [_, leaf] = path_members.as_slice() {
+                        receiver_expression =
+                            checked
+                                .typed
+                                .expression_table
+                                .insert(ExpressionNode::Member(
+                                    typed_trees::expression::TableMemberExpression {
+                                        receiver: receiver_expression,
+                                        member_symbol: call.receiver_symbol,
+                                        member: leaf.clone(),
+                                        case_variant: None,
+                                    },
+                                ));
+                    }
                     checked
                         .typed
                         .expression_table
@@ -493,5 +498,259 @@ pub(super) fn apply_selected_requirement_rewrites(
                 root.role = role;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use typed_trees::expression::ExpressionNode;
+
+    const PROJECTED_RECEIVER_SOURCE: &str = r#"
+        pub data Token {}
+        pub boundary requirement Token::consume(self) -> i32;
+
+        data TokenProvider {}
+        machine TokenProvider::consume_impl(token: Token) -> i32
+        satisfies Token::consume
+        {
+            transition { _ -> (41) }
+        }
+
+        data Holder { token: Token }
+        data Client {}
+        machine Client::run(&mut self, holder: Holder) -> i32 {
+            _ = holder.token.consume();
+            transition { _ -> (7) }
+        }
+        machine Client::value(&mut self, holder: Holder) -> i32 {
+            transition { _ -> (holder.token.consume()) }
+        }
+    "#;
+
+    fn requirement_fixture(
+        source: &str,
+    ) -> (
+        checked_trees::CheckedTrees,
+        Vec<effects::provider_plan::ProviderPlan>,
+    ) {
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokenize requirement fixture");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse requirement fixture");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("resolve requirement fixture");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type requirement fixture");
+        let plans = provider_planning::derive_satisfies_plans(
+            &typed,
+            provider_planning::ProviderPlanDerivation::unevaluated(None),
+        )
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+            .expect("check requirement fixture");
+        (checked, plans)
+    }
+
+    fn selected_all(
+        plans: &[effects::provider_plan::ProviderPlan],
+    ) -> effects::SelectedProviderPlanFacts {
+        let names = plans
+            .iter()
+            .map(|plan| plan.name.clone())
+            .collect::<Vec<_>>();
+        effects::SelectedProviderPlanFacts::from_selection(plans, &names)
+            .expect("select every plan")
+    }
+
+    fn entry_symbol(
+        checked: &checked_trees::CheckedTrees,
+        machine_name: &str,
+    ) -> symbols::SymbolHandle {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .unwrap_or_else(|| panic!("missing machine `{machine_name}`"));
+        checked
+            .typed
+            .machine_states(machine)
+            .first()
+            .expect("entry state")
+            .symbol
+    }
+
+    fn field_symbol(
+        checked: &checked_trees::CheckedTrees,
+        data_name: &str,
+        field_name: &str,
+    ) -> symbols::SymbolHandle {
+        let data = checked
+            .typed
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == data_name)
+            .unwrap_or_else(|| panic!("missing data `{data_name}`"));
+        checked
+            .typed
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == field_name =>
+                {
+                    Some(field.symbol)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("missing field `{data_name}::{field_name}`"))
+    }
+
+    /// A member call on a projected receiver place (`holder.token.consume()`)
+    /// settles a receiver-place-keyed forwarding row on the leaf field symbol
+    /// and the rewrite splices the projected place in as argument 0.
+    #[test]
+    fn a_projected_receiver_member_call_forwards_the_place_as_argument_zero() {
+        let (checked, plans) = requirement_fixture(PROJECTED_RECEIVER_SOURCE);
+        let selected = selected_all(&plans);
+        let requirement = entry_symbol(&checked, "Token::consume");
+        let realization = entry_symbol(&checked, "TokenProvider::consume_impl");
+        let token_field = field_symbol(&checked, "Holder", "token");
+        let holder = checked
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.typed.machine_states(machine))
+            .flat_map(|state| checked.typed.state_parameters(state))
+            .find(|parameter| parameter.name.as_str() == "holder")
+            .expect("the holder parameter")
+            .symbol;
+
+        let mut settled = Arc::new(checked);
+        let edits =
+            crate::settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+                .expect("a projected receiver member call settles");
+        let rows = &settled.facts.boundary_adapter_dispatch;
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!(rows[0].receiver, token_field);
+        assert_eq!(rows[0].requirement, requirement);
+        assert!(rows[0].forward_receiver);
+
+        // The statement call `_ = holder.token.consume();` redirects to the
+        // adapter with the projected place reified as `holder.token` at
+        // argument 0.
+        let call = settled
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| settled.typed.machine_states(machine))
+            .flat_map(|state| {
+                settled
+                    .typed
+                    .statement_table
+                    .statements(state.statement_nodes)
+            })
+            .find_map(|statement| match statement {
+                typed_trees::statement::StatementNode::Call(call)
+                    if call.target.as_str() != "consume" =>
+                {
+                    Some(call)
+                }
+                _ => None,
+            })
+            .expect("the rewritten statement call");
+        assert_eq!(call.target_symbol, realization);
+        assert_eq!(call.target.as_str(), "TokenProvider::consume_impl");
+        assert!(call.receiver.is_empty() && !call.receiver_symbol.is_valid());
+        let arguments = settled
+            .typed
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        assert_eq!(arguments.len(), 1);
+        let ExpressionNode::Member(member) =
+            settled.typed.expression_table.expression(arguments[0])
+        else {
+            panic!("the forwarded receiver is a member projection");
+        };
+        assert_eq!(member.member_symbol, token_field);
+        let ExpressionNode::Name(root) = settled.typed.expression_table.expression(member.receiver)
+        else {
+            panic!("the projection root is a place name");
+        };
+        assert_eq!(root.symbol, holder);
+
+        // The value-position call `holder.token.consume()` in the transition
+        // arm redirects the same way, splicing the authored receiver
+        // expression as argument 0.
+        let value_call = settled
+            .typed
+            .expression_table
+            .expression_entries()
+            .find_map(|(handle, expression)| match expression {
+                ExpressionNode::Call(call)
+                    if call.target.as_str() == "TokenProvider::consume_impl" =>
+                {
+                    Some((handle, call))
+                }
+                _ => None,
+            })
+            .expect("the rewritten value call");
+        assert_eq!(value_call.1.target_symbol, realization);
+        assert!(!value_call.1.receiver.is_valid());
+        let value_arguments = settled
+            .typed
+            .expression_table
+            .expression_handles(value_call.1.arguments)
+            .to_vec();
+        assert_eq!(value_arguments.len(), 1);
+        let ExpressionNode::Member(value_receiver) = settled
+            .typed
+            .expression_table
+            .expression(value_arguments[0])
+        else {
+            panic!("the forwarded value receiver is the authored projection");
+        };
+        assert_eq!(value_receiver.member_symbol, token_field);
+
+        // The journal restores the authored requirement statement.
+        let statement = settled
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| settled.typed.machine_states(machine))
+            .flat_map(|state| {
+                settled
+                    .typed
+                    .statement_table
+                    .iter_statements(state.statement_nodes)
+            })
+            .find_map(|(handle, statement)| match statement {
+                typed_trees::statement::StatementNode::Call(call)
+                    if call.target.as_str() == "TokenProvider::consume_impl" =>
+                {
+                    Some(handle)
+                }
+                _ => None,
+            })
+            .expect("the rewritten statement handle");
+        let source = edits
+            .source_trees(&settled.typed)
+            .expect("restore the journaled source");
+        let typed_trees::statement::StatementNode::Call(authored) =
+            source.statement_table.statement(statement)
+        else {
+            panic!("the restored statement is a call");
+        };
+        assert_eq!(authored.target_symbol, requirement);
+        assert_eq!(authored.target.as_str(), "consume");
+        assert_eq!(authored.receiver_symbol, token_field);
+        assert!(authored.discards_result);
     }
 }

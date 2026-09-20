@@ -50,12 +50,13 @@ when this block drifts.
 <!-- benchmark-matrix:start -->
 | Target | Host leg | Subject | Selection | compile_time_ms | peak_memory_bytes | code_size_bytes | runtime_ms |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28473.3 ms | measured 150872064 B compile | measured 8192 B | skipped (--no-run was passed) |
-| linux_x86_64 | linux x86_64 | cli_mvp | default | measured 375860 ms | measured 237670400 B compile | measured 8192 B | measured 1.42244 ms |
+| linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28129.6 ms | measured 150441984 B compile | measured 8192 B | skipped (--no-run was passed) |
+| linux_x86_64 | linux x86_64 | cli_mvp | default | measured 1.68124e+06 ms | measured 246046720 B compile | measured 8192 B | measured 1.93834 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-885944b13b84 | measured 3748.43 ms | measured 84189184 B compile | measured 8192 B | measured 4.02435 ms |
-| macos_arm64 | macOS ARM64 host | — | — | measurable | measurable | measurable | pending macOS ARM64 host |
+| linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-9c09e32a82fb | measured 29846.9 ms | measured 148590592 B compile | measured 8192 B | measured 4.17697 ms |
+| macos_arm64 | linux x86_64 | wrapping_square_sum | default | measured 24453.9 ms | measured 151724032 B compile | measured 16640 B | skipped (--no-run was passed) |
 | macos_x86_64 | macOS x86-64 host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
-| windows_x86_64 | Windows x86-64 host | — | — | measurable | measurable | measurable | pending Windows x86-64 host |
+| windows_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 24117.5 ms | measured 147505152 B compile | measured 1024 B | skipped (--no-run was passed) |
 | uefi_x86_64 | QEMU or UEFI hardware | — | — | measurable | pending (run leg needs a UEFI runtime) | measurable | unavailable (needs QEMU or UEFI hardware) |
 | cross_platform_cli | build host | — | — | measurable | measurable | measurable | pending build host |
 | local_unchecked | build host | — | — | measurable | measurable | measurable | pending build host |

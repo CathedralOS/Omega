@@ -1549,10 +1549,11 @@ fn measured_validation_step_boundary_admits_and_rejects() {
     // x86-64: with the member a materialization and `HEAD` the
     // destination, the charge is (2 blocks + 6 body instructions) for the
     // member scan + (6 body + 2 terminator instructions) for the
-    // predecessor scan + member-against-crossed surfaces for `TRAIL` (1+1)
-    // and the jump (1+2) + empty rosters = 8 + 8 + 5 = 21. Destination
-    // `MID` adds the crossed `HEAD` pair (1+1) for 23.
-    for (member, destination, exact_steps) in [(MOVING, HEAD, 21u64), (MOVING, MID, 23u64)] {
+    // predecessor scan + the shared path walk's edge bound (the function's
+    // single edge) + member-against-crossed surfaces for `TRAIL` (1+1)
+    // and the jump (1+2) + empty rosters = 8 + 8 + 1 + 5 = 22. Destination
+    // `MID` adds the crossed `HEAD` pair (1+1) for 24.
+    for (member, destination, exact_steps) in [(MOVING, HEAD, 22u64), (MOVING, MID, 24u64)] {
         let source = fixture(target);
         let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
         let result = relocate_selected_instruction_across_edge(

@@ -50,8 +50,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     or delete it. Their behavior stays with `EXACT-MACHINE-SIMPLIFICATIONS`,
     `DECLARATIVE-PEEPHOLES` and `ALIAS-AWARE-MEMORY`.
   - `selected-instructions-to-register-homes/src/unsequenced_spill_stages/`
-    holds 18 spill families, each with public plan and receipt records, that
-    `stage_register_allocation` never calls. `SPILL-REALIZATION` owns
+    holds the remaining spill families outside executable allocation.
+    Logical spill planning has moved to `assignment/logical_spill_operations`
+    and is called, retained and replayed, but recovery still chooses the actual
+    spill rewrites independently. `SPILL-REALIZATION` owns that join and
     sequencing the ones it needs; delete or merge the ones the executable
     `assignment/runtime_spill` route has superseded.
   - `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
@@ -68,13 +70,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   entrances or orphan outputs remain, and coordinators only sequence typed
   stages. Renaming a helper or adding a wrapper is not completion.
 
-  Flag: three owners carry validated, replayed and mutation-tested machinery
-  that no executable route reaches (about 38 selected rewrites, 18 spill
-  families, the ProgramStorage wrapper object). Each new slice adds tests and
-  board text for code the compiler never runs. The general mechanism is the
-  one [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay)
-  already names: one ordered catalog per owning stage, executed by the stage
-  entrance.
+  Flag: validation, replay and mutation tests do not establish an executable
+  consumer. The selected rewrites, remaining unsequenced spill families and
+  ProgramStorage wrapper need that consumer or deletion. Calling and retaining
+  a logical plan without using it for the physical transformation is also an
+  unfinished join. Reuse the stage ownership and catalogs described in
+  [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay).
 
 - **REPRESENTATION-OWNERSHIP.** Finish
   `omega-rust/{omega,psi}/representations/` under
@@ -418,6 +419,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Remaining work:
 
+  - Logical-to-physical join. `assignment/runtime_spill/recovery.rs` calls
+    `sequenced_logical_operations` to choose logical victims and plan their
+    operations; recovery retains the result and replay recomputes it. The
+    actual candidate loop still selects and rewrites victims independently.
+    Connect the plan to the emitted spill/reload or frame obligations where it
+    is needed, or remove redundant planning. Preserve executable recovery and
+    independent checking; retaining another plan is not completion. A mismatch
+    with the actual emitted operations must reject, not merely a changed copy
+    of the retained plan.
   - Victim and use admission (`rewrites/runtime_spill/admission.rs`). A
     foreign-class IEEE scalar reaches its slot through the frame rows'
     shared carrier class: stores prepend `Float*ToBits`, reloads append
@@ -469,16 +479,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   as the hosted execution control, with its installed-image demand replay and
   stale-frame rejection (`terminal_psi_indexed_receivers/stack_pointers/`).
 
-  Flag: `unsequenced_spill_stages/` holds 18 spill families in about 25,700
-  non-test lines (logical spill operations, slot coloring, abstract
-  insertion, reload-value homes, recursive and generalized worklists,
-  pseudo-instruction lowering, memory effects, access constraints).
-  `stage_register_allocation` calls none of them; native-differential tests,
-  architecture ladders and machine emission's non-authoritative
-  `frame_layout/spill_requirements/` are their only consumers. The executable
-  route is about 1,100 non-test lines of allocation code plus 2,950 of
-  rewrite, and slot reuse now has two owners. Sequence a staged family behind
-  the executable route or delete it; do not extend both.
+  Flag: the remaining `unsequenced_spill_stages/` families have test,
+  architecture and non-authoritative frame-planning consumers, not an
+  executable allocation route. Logical planning has moved out but still needs
+  the physical join above. Slot reuse still has two owners:
+  `unsequenced_spill_stages/stack_slot_coloring` and `runtime_spill/slot.rs`.
+  Follow consumers when sequencing a needed family or deleting a superseded
+  one with its exports and tests; do not extend both implementations.
 
 - **ALLOCATION-REFINEMENT.** Add general live-range splitting to
   [register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)

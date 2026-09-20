@@ -105,10 +105,16 @@ fn validate_fixed_template_bytes(
         ELF64_RELA_SIZE,
         "validated procedure RELA size",
     )?;
+    let expected_rela_dyn_size = checked_product(
+        linkage.general_relocations.len(),
+        ELF64_RELA_SIZE,
+        "validated general RELA size",
+    )?;
     require(
         bytes.plt.len() == expected_plt_size
             && bytes.got_plt.len() == expected_got_size
-            && bytes.rela_plt.len() == expected_rela_size,
+            && bytes.rela_plt.len() == expected_rela_size
+            && bytes.rela_dyn.len() == expected_rela_dyn_size,
         "ELF procedure-linkage template byte lengths do not match exact rows",
     )?;
     match target {
@@ -120,7 +126,8 @@ fn validate_fixed_template_bytes(
         bytes.got_plt.iter().all(|byte| *byte == 0),
         "ELF procedure GOT template contains a premature address or loader value",
     )?;
-    replay_rela(linkage, &bytes.rela_plt)
+    replay_rela(linkage, &bytes.rela_plt)?;
+    replay_general_rela(linkage, &bytes.rela_dyn)
 }
 
 fn replay_x86_plt(
@@ -204,6 +211,32 @@ fn replay_rela(
     Ok(())
 }
 
+fn replay_general_rela(
+    linkage: &ElfProcedureLinkageRelocationContents,
+    bytes: &[u8],
+) -> Result<(), Diagnostic> {
+    for (index, relocation) in linkage.general_relocations.iter().enumerate() {
+        let start = checked_product(index, ELF64_RELA_SIZE, "decoded general RELA row")?;
+        let expected_info = (u64::from(relocation.dynamic_symbol_index) << 32)
+            | u64::from(relocation.relocation_type);
+        require(
+            read_u64(bytes, start, "general RELA r_offset")? == 0
+                && read_u64(
+                    bytes,
+                    checked_sum(start, 8, "general RELA r_info offset")?,
+                    "general RELA r_info",
+                )? == expected_info
+                && read_u64(
+                    bytes,
+                    checked_sum(start, 16, "general RELA addend offset")?,
+                    "general RELA addend",
+                )? == relocation.addend as u64,
+            "ELF general RELA fixed row or address placeholder drifted",
+        )?;
+    }
+    Ok(())
+}
+
 fn validate_fixup_placeholders(
     linkage: &ValidatedElfProcedureLinkageRelocationPlan,
     contents: &ElfProcedureLinkageTemplateContents,
@@ -222,6 +255,7 @@ fn validate_fixup_placeholders(
             ElfProcedureLinkageFixupStorage::Plt => &contents.bytes.plt,
             ElfProcedureLinkageFixupStorage::GotPlt => &contents.bytes.got_plt,
             ElfProcedureLinkageFixupStorage::RelaPlt => &contents.bytes.rela_plt,
+            ElfProcedureLinkageFixupStorage::RelaDyn => &contents.bytes.rela_dyn,
         };
         let field = read_field(storage, fixup.byte_offset, fixup.byte_width)?;
         require(
@@ -259,6 +293,12 @@ fn validate_semantic_target(
             ElfProcedureLinkageSemanticTarget::GotPltHeaderWord { word_index } => {
                 usize::from(word_index) < GOT_PLT_HEADER_WORDS
             }
+            ElfProcedureLinkageSemanticTarget::RelocatedImageSection {
+                section,
+                byte_offset,
+            } => linkage.general_relocations.iter().any(|relocation| {
+                relocation.source_section == section && relocation.source_offset == byte_offset
+            }),
         },
         "ELF procedure-linkage fixup target does not resolve semantically",
     )

@@ -79,6 +79,14 @@ const KNOWN_EDGE_EXCEPTIONS: &[(&str, &str)] = &[
     // exact crate edge; it does not authorize a representations-to-semantics
     // layer pair.
     ("legalized-operations", "terminal-codec"),
+    // The selected-plan canonical identity and the fixed-view-copy artifact
+    // codec are durable representation evidence, so they live in
+    // representations crates while deliberately using the one canonical leaf
+    // encoder rather than defining second representation-local wire forms.
+    // Keep these exceptions at the exact crate edges; they do not authorize a
+    // representations-to-semantics layer pair.
+    ("selected-instructions", "terminal-codec"),
+    ("register-homes", "terminal-codec"),
     // This target-neutral semantic service owns the pre-resolution/pre-check
     // conveyors; target/provider realization remains a later Omega concern.
     // Its probe evaluations deliberately invoke these three Psi frontend passes

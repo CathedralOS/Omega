@@ -16,7 +16,7 @@ use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
 
 use crate::machine_effects::{X86_64SelectedAbi, x86_64_selected_abi};
-use crate::{x86_64_physical_register_model, x86_64_register_constraint_catalog};
+use crate::x86_64_register_constraint_catalog_for;
 
 pub const X86_64_NORMALIZED_FOREIGN_CALL_TEMPLATE_BYTE_COUNT: usize = 5;
 pub const X86_64_NORMALIZED_FOREIGN_CALL_OPCODE_OFFSET: u16 = 0;
@@ -159,7 +159,7 @@ pub fn validate_x86_64_selected_normalized_foreign_call_template(
 > {
     let abi = x86_64_selected_abi(target)
         .map_err(|_| X86_64NormalizedForeignCallTemplateError::UnsupportedTarget)?;
-    if physical.model() != &x86_64_physical_register_model() {
+    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64NormalizedForeignCallTemplateError::NonCanonicalPhysicalModel);
     }
     let (boundary, ordinal) = match kind {
@@ -179,7 +179,7 @@ pub fn validate_x86_64_selected_normalized_foreign_call_template(
         X86_64SelectedAbi::SystemV => crate::x86_64_system_v_normalized_foreign_call_keys(),
         X86_64SelectedAbi::Microsoft => crate::x86_64_microsoft_normalized_foreign_call_keys(),
     };
-    let catalog = x86_64_register_constraint_catalog(physical);
+    let catalog = x86_64_register_constraint_catalog_for(physical);
     let row = catalog
         .constraints
         .iter()

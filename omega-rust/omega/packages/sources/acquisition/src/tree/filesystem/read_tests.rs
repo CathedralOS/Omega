@@ -179,6 +179,55 @@ fn final_entry_rejects_a_link_to_the_retained_file() {
 
 #[cfg(unix)]
 #[test]
+fn bounded_copy_rejects_in_place_edit_restoring_compared_observations() {
+    // A same-inode rewrite restoring every compared indicator — length,
+    // permissions and the recorded modification time — still moves the
+    // kernel-managed change time, so both the completed-handle and the
+    // final path recheck reject it.
+    let fixture = SourceFixture::new(b"before");
+    let (mut file, initial) = fixture.open();
+    let path = fixture.root.join("source.bin");
+    // Kernel change time moves only when the edit lands in a later
+    // filesystem timestamp tick; coarse-clock hosts quantize metadata
+    // timestamps to jiffies, so the mutation has to wait out a tick.
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let mut writer = std::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&path)
+        .expect("retain source writer");
+    writer
+        .write_all(b"after!")
+        .expect("same-length bytes into the same inode");
+    writer
+        .set_times(
+            FileTimes::new().set_modified(
+                initial
+                    .modified()
+                    .expect("initial modification time")
+                    .into_std(),
+            ),
+        )
+        .expect("restore the recorded modification time");
+    assert!(matches!(
+        read_opened_file_bounded(&mut file, &initial, &path, 1024, 1024),
+        Err(SourceResolveError::LocalSourceChanged { .. })
+    ));
+    assert!(matches!(
+        require_unchanged_source_file(
+            &initial,
+            &fixture
+                .directory
+                .symlink_metadata("source.bin")
+                .expect("final member observation"),
+            &path,
+        ),
+        Err(SourceResolveError::LocalSourceChanged { .. })
+    ));
+}
+
+#[cfg(unix)]
+#[test]
 fn bounded_copy_rejects_executable_mode_changes_and_preserves_stable_modes() {
     use std::os::unix::fs::PermissionsExt;
 

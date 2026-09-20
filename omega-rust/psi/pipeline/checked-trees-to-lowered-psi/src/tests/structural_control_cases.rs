@@ -2,7 +2,7 @@
 
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, SymbolHandle,
-    checked_source, hard_root_checked_fixture, lower_machine,
+    checked_source, checked_source_with_core_service, hard_root_checked_fixture, lower_machine,
 };
 use crate::machine_lowering::machine_dispatch::{lower_selected_machine, select_terminal_machine};
 use crate::producer_result::{ConformancePublication, OperandProofCompletion};
@@ -78,13 +78,13 @@ fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
 
 #[test]
 fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
-    let checked = checked_source(
+    let checked = checked_source_with_core_service(
         r#"
-            boundary trait Console {
+            pub boundary trait Console {
                 machine exit_process(return_code: i32) reaches Console;
             }
             const PAGE_SIZE: u32 = 64;
-            data Main { console: Console; }
+            data Main { console: Service<Console>; }
             machine Main::main(&mut self) reaches Console {
                 transition PAGE_SIZE == 64 { true -> yes() _ -> no() }
                 state yes(&mut self) { self.console.exit_process(70); }
@@ -149,11 +149,11 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
 fn provider_attachment_and_ordinary_state_locals_keep_independent_custody() {
     for initializer in ["Region::new(input)", "Region { value: input }"] {
         let source = r#"
-            boundary trait Output { machine write(value: u64) reaches Output; }
+            pub boundary trait Output { machine write(value: u64) reaches Output; }
             data Region { value: u64; }
             machine Region::new(value: u64) -> Region { Region { value: value } }
             machine Region::get(&self) -> u64 { self.value }
-            data Main { output: Output; }
+            data Main { output: Service<Output>; }
             machine Main::main(&mut self, input: u64) reaches Output {
                 let region: Region = INITIALIZER;
                 let observed: u64 = region.get();
@@ -163,7 +163,7 @@ fn provider_attachment_and_ordinary_state_locals_keep_independent_custody() {
             }
         "#
         .replace("INITIALIZER", initializer);
-        let checked = checked_source(&source);
+        let checked = checked_source_with_core_service(&source);
         let lowered = lower_machine(&checked, "Main::main")
             .expect("ordinary local values do not become provider requests");
         terminal_verifier::verify_module(

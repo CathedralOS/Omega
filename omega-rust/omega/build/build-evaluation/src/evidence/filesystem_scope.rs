@@ -490,7 +490,8 @@ impl BuildMachineFilesystemScope {
         // contract would grant writes over every captured member. The
         // default layout nests the write root inside the read root, which
         // stays admitted: writes reach only the build directory itself.
-        if overlap_key(&self.source_root).starts_with(overlap_key(&self.build_dir)) {
+        let admitted_build_dir_key = overlap_key(&self.build_dir);
+        if overlap_key(&self.source_root).starts_with(&admitted_build_dir_key) {
             return Err(vec![Diagnostic::error(format!(
                 "build write root `{}` must not cover the source root `{}`",
                 self.build_dir.display(),
@@ -518,7 +519,9 @@ impl BuildMachineFilesystemScope {
                 .entry(&path)
                 .map_err(|error| self.sponsor_diagnostic(error))?
             {
-                Some(FilesystemSponsorEntry::Directory) => return Ok(()),
+                Some(FilesystemSponsorEntry::Directory) => {
+                    return self.ensure_established_write_root(&admitted_build_dir_key);
+                }
                 Some(_) => {
                     return Err(vec![Diagnostic::error(format!(
                         "sponsored build machine write root `{}` is not a directory",
@@ -541,6 +544,10 @@ impl BuildMachineFilesystemScope {
                 let _ = std::fs::remove_dir(&self.build_dir);
                 return Err(self.sponsor_diagnostic(error));
             }
+            if let Err(diagnostics) = self.ensure_established_write_root(&admitted_build_dir_key) {
+                let _ = std::fs::remove_dir(&self.build_dir);
+                return Err(diagnostics);
+            }
             return Ok(());
         }
         std::fs::create_dir_all(&self.build_dir).map_err(|error| {
@@ -548,7 +555,42 @@ impl BuildMachineFilesystemScope {
                 "failed to create build machine filesystem write root `{}`: {error}",
                 self.build_dir.display()
             ))]
-        })
+        })?;
+        self.ensure_established_write_root(&admitted_build_dir_key)
+    }
+
+    /// Re-check the write root now that it exists. The overlap fences above
+    /// ran on the key admission computed, but a host alias planted between
+    /// that check and the first write is invisible to them — `create_dir_all`
+    /// follows a symlinked root, so establishment must confirm the spelling
+    /// still resolves to the admitted directory rather than a substituted
+    /// host path.
+    fn ensure_established_write_root(
+        &self,
+        admitted_build_dir_key: &Path,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match std::fs::symlink_metadata(&self.build_dir) {
+            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(vec![Diagnostic::error(format!(
+                    "build write root `{}` is a symbolic link, not the directory admission checked",
+                    self.build_dir.display()
+                ))]);
+            }
+            _ => {
+                return Err(vec![Diagnostic::error(format!(
+                    "build write root `{}` is not a real directory",
+                    self.build_dir.display()
+                ))]);
+            }
+        }
+        if overlap_key(&self.build_dir) != *admitted_build_dir_key {
+            return Err(vec![Diagnostic::error(format!(
+                "build write root `{}` resolves to a different directory than admission checked",
+                self.build_dir.display()
+            ))]);
+        }
+        Ok(())
     }
 
     pub(crate) fn ensure_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
@@ -1385,5 +1427,58 @@ mod tests {
                 .to_string()
                 .contains("not a sealed regular file")
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_root_establishment_rejects_a_host_alias() {
+        let session_root = temporary_staging_root("write-root-alias");
+        fs::create_dir(&session_root).expect("create session root");
+        let redirect_target = session_root.join("redirected-elsewhere");
+        fs::create_dir(&redirect_target).expect("create redirect target");
+        let build_dir = session_root.join("build");
+        std::os::unix::fs::symlink(&redirect_target, &build_dir)
+            .expect("plant the host alias at the write root");
+
+        let diagnostics = BuildMachineFilesystemScope::for_root(
+            &session_root.join("source/main.omg"),
+            build_dir.clone(),
+            None,
+        )
+        .ensure_write_roots()
+        .expect_err("a symlinked write root redirects output writes outside the fenced root");
+        assert!(diagnostics[0].to_string().contains("symbolic link"));
+        assert_eq!(
+            fs::read_link(&build_dir).expect("the host alias is host-owned, not ours to remove"),
+            redirect_target
+        );
+
+        fs::remove_dir_all(session_root).expect("remove session root");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_root_establishment_rejects_resolution_drift() {
+        let session_root = temporary_staging_root("write-root-drift");
+        fs::create_dir(&session_root).expect("create session root");
+        let real_dir = session_root.join("real-build");
+        fs::create_dir(&real_dir).expect("create the admitted directory");
+        let spelling = session_root.join("build");
+
+        // An alias resolving to the admitted directory is accepted at
+        // admission by design (`overlap_key` canonicalizes existing
+        // prefixes); a spelling that resolves differently once the write
+        // root exists is not the directory admission checked.
+        std::os::unix::fs::symlink(&real_dir, &spelling).expect("plant the host alias");
+        let diagnostics = BuildMachineFilesystemScope::for_root(
+            &session_root.join("source/main.omg"),
+            spelling.clone(),
+            None,
+        )
+        .ensure_write_roots()
+        .expect_err("a write root spelled through a link is not the directory admission checked");
+        assert!(diagnostics[0].to_string().contains("symbolic link"));
+
+        fs::remove_dir_all(session_root).expect("remove session root");
     }
 }

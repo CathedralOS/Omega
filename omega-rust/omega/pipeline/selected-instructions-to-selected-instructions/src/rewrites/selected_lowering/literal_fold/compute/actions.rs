@@ -5,8 +5,8 @@ use selected_instructions::{SelectedFunction, SelectedInstructionKind};
 use semantic_vocabulary::IntegerValue;
 
 use crate::{
-    LiteralFoldAction, LiteralFoldError, PairOperandShape, PairResultDisposition,
-    RecoveryClassification, RecoveryVictimRole,
+    LiteralFoldAction, LiteralFoldError, PairLiteralPosition, PairOperandShape,
+    PairResultDisposition, RecoveryClassification, RecoveryVictimRole,
 };
 
 use super::constraints::{AdmittedPairs, effect_declaration};
@@ -134,7 +134,7 @@ pub(super) fn derive_action(
         consumer.operands.as_slice(),
     ) {
         (
-            PairOperandShape::BinaryRightLiteral,
+            PairOperandShape::BINARY_RIGHT_LITERAL,
             PairResultDisposition::ScalarRegister,
             [left, right, result],
         ) => {
@@ -163,7 +163,7 @@ pub(super) fn derive_action(
         // would silently leave a use of a register the rewrite stopped
         // defining.
         (
-            PairOperandShape::BinaryRightLiteralScratchDefs,
+            PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS,
             PairResultDisposition::ScalarRegister,
             [left, right, result, scratch @ ..],
         ) => {
@@ -194,7 +194,7 @@ pub(super) fn derive_action(
         // divide by one. A dropped operand defined any other way would
         // silently discard a value the consumer observed.
         (
-            PairOperandShape::BinaryRightLiteralAuxiliaryUses,
+            PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES,
             PairResultDisposition::ScalarRegister,
             [left, right, result, auxiliary @ ..],
         ) => {
@@ -229,7 +229,7 @@ pub(super) fn derive_action(
         // tail operand names neither custody — dropping it would silently
         // discard a read — and rejects.
         (
-            PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs,
+            PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS,
             PairResultDisposition::ScalarRegister,
             [left, right, result, tail @ ..],
         ) => {
@@ -266,7 +266,7 @@ pub(super) fn derive_action(
         // another instruction read or defined would silently leave a use
         // of a register the rewrite stopped defining.
         (
-            PairOperandShape::BinaryRightLiteralConstantResult,
+            PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
             PairResultDisposition::ScalarRegister,
             [left, right, result, scratch @ ..],
         ) => {
@@ -298,7 +298,7 @@ pub(super) fn derive_action(
         // every `x` — so no commutation of the surviving `Use` is
         // implied.
         (
-            PairOperandShape::BinaryLeftLiteralConstantResult,
+            PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
             PairResultDisposition::ScalarRegister,
             [victim, right, result, scratch @ ..],
         ) => {
@@ -333,7 +333,7 @@ pub(super) fn derive_action(
         // but a proven zero would silently discard the dividend's upper
         // half the folded form stopped observing.
         (
-            PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses,
+            PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES,
             PairResultDisposition::ScalarRegister,
             [victim, right, result, auxiliary @ ..],
         ) => {
@@ -369,7 +369,7 @@ pub(super) fn derive_action(
         // writes. A `UseDef` tail operand names neither custody —
         // dropping it would silently discard a read — and rejects.
         (
-            PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs,
+            PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS,
             PairResultDisposition::ScalarRegister,
             [victim, right, result, tail @ ..],
         ) => {
@@ -400,7 +400,7 @@ pub(super) fn derive_action(
         // operand: `[victim, right, result]` folds the operand-0 `Use` and
         // binds the operand-1 survivor into the rewritten row.
         (
-            PairOperandShape::BinaryLeftLiteral,
+            PairOperandShape::BINARY_LEFT_LITERAL,
             PairResultDisposition::ScalarRegister,
             [victim, right, result],
         ) => {
@@ -425,7 +425,7 @@ pub(super) fn derive_action(
         // past the result under the same occurrence-free custody the right
         // scratch-defs grammar requires.
         (
-            PairOperandShape::BinaryLeftLiteralScratchDefs,
+            PairOperandShape::BINARY_LEFT_LITERAL_SCRATCH_DEFS,
             PairResultDisposition::ScalarRegister,
             [victim, right, result, scratch @ ..],
         ) => {
@@ -450,7 +450,7 @@ pub(super) fn derive_action(
         // Flag-defining consumers carry `[left, right]` uses and no `Def`;
         // their result is the rewritten row's implicit unit definitions.
         (
-            PairOperandShape::BinaryRightLiteral,
+            PairOperandShape::BINARY_RIGHT_LITERAL,
             PairResultDisposition::ImplicitUnits,
             [left, right],
         ) => {
@@ -477,7 +477,7 @@ pub(super) fn derive_action(
         // implicit use or clobber the row does not carry would silently
         // stop being observed.
         (
-            PairOperandShape::BinaryLeftLiteralOperandSwap,
+            PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
             PairResultDisposition::ImplicitUnits,
             [victim, subtrahend],
         ) => {
@@ -500,7 +500,7 @@ pub(super) fn derive_action(
         // Unary consumers carry `[input, result]`; the folded literal is the
         // sole `Use` operand and the rewritten row carries only its `Def`.
         (
-            PairOperandShape::UnaryLiteral,
+            PairOperandShape::UNARY_LITERAL,
             PairResultDisposition::ScalarRegister,
             [input, result],
         ) => {
@@ -615,19 +615,11 @@ pub(super) fn derive_action(
     // dropped non-victim `Use` for custody — the operand-0 dividend under
     // the right grammar, the operand-1 `Use` under the left annihilator and
     // auxiliary-`Use` grammars.
-    let surviving = match pair.rule.operand_shape() {
-        PairOperandShape::BinaryLeftLiteral
-        | PairOperandShape::BinaryLeftLiteralOperandSwap
-        | PairOperandShape::BinaryLeftLiteralConstantResult
-        | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUses
-        | PairOperandShape::BinaryLeftLiteralConstantResultAuxiliaryUsesOrScratchDefs
-        | PairOperandShape::BinaryLeftLiteralScratchDefs => consumer.operands[1].virtual_register,
-        PairOperandShape::BinaryRightLiteral
-        | PairOperandShape::BinaryRightLiteralAuxiliaryUses
-        | PairOperandShape::BinaryRightLiteralAuxiliaryUsesOrScratchDefs
-        | PairOperandShape::BinaryRightLiteralConstantResult
-        | PairOperandShape::BinaryRightLiteralScratchDefs
-        | PairOperandShape::UnaryLiteral => consumer.operands[0].virtual_register,
+    let surviving = match pair.rule.operand_shape().position {
+        PairLiteralPosition::LeftOperand => consumer.operands[1].virtual_register,
+        PairLiteralPosition::RightOperand | PairLiteralPosition::SoleOperand => {
+            consumer.operands[0].virtual_register
+        }
     };
 
     Ok(LiteralFoldAction {

@@ -70,7 +70,7 @@ fn request(
     operands: &[RegisterViewId],
 ) -> Result<u8, X86_64SelectedFormEncodingError> {
     if target != NativeTarget::linux_x64()
-        || physical.model() != &crate::x86_64_physical_register_model()
+        || physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
         || kind != SelectedInstructionKind::HostedExitProcessI32
         || alternative
             != (MachineAlternativeKey {

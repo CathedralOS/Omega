@@ -31,7 +31,7 @@ pub use call_keys::{
 };
 pub use constraint_catalog::{
     X86_64RegisterConstraintCatalogValidationError, validate_x86_64_register_constraint_catalog,
-    x86_64_register_constraint_catalog,
+    x86_64_register_constraint_catalog, x86_64_register_constraint_catalog_for,
 };
 pub use float_scalar_calls::*;
 pub use indirect_results::*;
@@ -54,4 +54,7 @@ pub use operation_keys::{
     X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
 };
 pub use packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
-pub use physical_model::{x86_64_fixed_register_view, x86_64_physical_register_model};
+pub use physical_model::{
+    canonical_x86_64_physical_register_model_identity, validated_x86_64_physical_register_model,
+    x86_64_fixed_register_view, x86_64_physical_register_model,
+};
