@@ -14024,6 +14024,44 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   in the recorded residual families (dominant: selected-ProgramEntry
   rejoin). Closure needs a real `aarch64-unknown-linux-gnu` re-run — the
   suite's `#[cfg]`-gated runtime legs skip under emulation.
+||||||| parent of ab9572b8f43b (board: RC-NATIVE-MATRIX-LINUX-ARM64 — scope verified, host-gated)
+- **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-X64.** Mined candidate — resolved as an alias
+  of RC-NATIVE-MATRIX-LINUX-X86-64: `x64` and `x86_64` name the same
+  host leg, and that row is already recorded at
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision e76d715c8e,
+  linux-x86_64): 22 pass / 16 fail across 38 legs — the Service<R>
+  carrier-spelling family closed at ff93300f44d; the residual is the
+  sysv aggregate-entry exact-arithmetic obligation family owned by
+  ENTRY-CONTENT-ROOTS. Sibling stubs naming the same recorded surface:
+  RC-NATIVE-MATRIX, -CLOSURE, -GATE, -HOST-EXECUTION, -HOST-LEGS,
+  -HOST-RUNS, -HOSTS.
+- **RC-NATIVE-MATRIX-LINUX-ARM64.** Mined candidate; scope verified at
+  `8e870505f7d` — a host leg, not a code slice. Re-mines the
+  release-matrix linux_arm64 row: `omega-native-differential-test
+  --all-targets` executed and independently validated on a linux/arm64
+  (or QEMU-named) host per the RC-NATIVE-MATRIX platform table. Verified
+  nothing is producible here: this worker is linux x86-64 and no arm64
+  runner exists; upstream prerequisites are recorded on sibling rows —
+  the harness could not compile at `f1675418b1` (RC-NATIVE-MATRIX-CLOSURE:
+  `abstract_publication::decision_custody` PSI_PASS_CATALOG drift +
+  `pipeline_ownership` custody-handle drift + missing Crash arm, under
+  NATIVE-DIFFERENTIAL-MATRIX and STRUCTURAL-UNIT-CALL-GRAPH-JOINS
+  fences), and the linux_x86_64 row is itself in flight (RC-NATIVE-
+  MATRIX-LINUX-X86-64 + RC-NATIVE-MATRIX-HOST-RUNS/-HOST-LEGS live
+  claims; recorded reading 15/38 with fixture-migration residuals at
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md`). No linux_x86_64
+  implementable slice exists; the row awaits an arm64 host assignment.
+- **RC-NATIVE-MATRIX-LINUX-X64.** Mined candidate — resolved as an alias
+  of RC-NATIVE-MATRIX-LINUX-X86-64: `x64` and `x86_64` name the same
+  host leg, and that row is already recorded at
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision e76d715c8e,
+  linux-x86_64): 22 pass / 16 fail across 38 legs — the Service<R>
+  carrier-spelling family closed at ff93300f44d; the residual is the
+  sysv aggregate-entry exact-arithmetic obligation family owned by
+  ENTRY-CONTENT-ROOTS. Sibling stubs naming the same recorded surface:
+  RC-NATIVE-MATRIX, -CLOSURE, -GATE, -HOST-EXECUTION, -HOST-LEGS,
+  -HOST-RUNS, -HOSTS.
 - **RC-NATIVE-MATRIX-LINUX-X86-64.** Re-run at `6ef64f6dd6`
   (linux-x86_64): 24 pass / 14 fail across 38 legs — identical to the
   `0977a4249e` recording; every green leg stays green and all 14 sysv legs
