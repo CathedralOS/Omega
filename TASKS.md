@@ -7651,7 +7651,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-D-ENTRY-ADAPTER-RETIREMENT** — mined candidate; verify scope then implement.
 - **OMEGA-D-REAL-ENTRY-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-ADMISSION** — mined candidate; verify scope then implement.
-- **OMEGA-D-REQUEST-AND-ENTRY-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-AND-ENTRY-ROUTE.** Scope verified 2026-09-21: the mined
+  stub re-covers the request-side + entry composition the OMEGA-D clause
+  already ships — `tests/bootstrap/omega-executable/main_ocreq.epsilon` is
+  the OCREQ v1 request entry adapter (OmegaRequestStructure shape passes,
+  subject re-walk, empty admissions per spec, OCOUT v1 refusal frames) and
+  the entry side resolved at `e76d715c8ee` (finish_machine/select route the
+  request entry bytes, check_entry rejects code 11, adapter() emits the
+  jump trampoline; tests/epsilon/d-composition customer 7 exercises it).
+  Remaining clause legs belong to siblings: real `main`-form routing is
+  OMEGA-D-REAL-ENTRY-ROUTE's, trampoline elimination is
+  OMEGA-D-ENTRY-ADAPTER-RETIREMENT's, and request semantic phases 3-5/7-8
+  (package keys, ordering, graph, snapshot admissions, commitment binding,
+  code 25) are the OMEGA-D-REQUEST-{ADMISSION,OUTCOME-TABLES} family's.
+  Every implementing member is live-fenced at verification:
+  request_and_utf8.epsilon under OMEGA-D-REQUEST-TABLES (exp ~01:55Z),
+  scalar_compilation.epsilon under D-SCALAR-OPERATION-CLOSURE (exp
+  ~01:46Z), outcome tables under OMEGA-D-REQUEST-V1-TABLES (exp ~01:24Z).
+  No independent slice exists here.
 - **OMEGA-D-REQUEST-AND-SCALAR-COMPILATION.** Scope verified: the request side
   of the OMEGA-D clause already ships — OCREQ v1 framing, the bounded subject
   re-walk, and the admissions table (empty by spec — no admission kind is
