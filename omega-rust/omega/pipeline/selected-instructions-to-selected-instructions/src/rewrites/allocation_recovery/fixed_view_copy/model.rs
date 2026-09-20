@@ -2,7 +2,7 @@ use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use optimization_unit::ValueDefinitionSite;
 use register_model::{RegisterConstraintKey, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
+    FixedViewCopyIdentity, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
     SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use semantic_vocabulary::{MachineId, ValueId};
@@ -12,19 +12,6 @@ use crate::{
     FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSplitRequirementPlanIdentity,
     LiveRangeIdentity, VirtualFixedConstraintSite,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct FixedViewCopyIdentity(pub(crate) [u8; 32]);
-
-impl FixedViewCopyIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
 
 /// Exact, deliberately narrow policy for materializing entry-to-fixed-use
 /// transitions. This is a stable named transformation, not an allocator mode.

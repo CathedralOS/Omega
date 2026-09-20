@@ -1,6 +1,6 @@
 use optimization_unit::ValueDefinitionSite;
 use register_model::{RegisterConstraintFamily, RegisterOperandAccess};
-use sha2::{Digest, Sha256};
+
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use crate::{
@@ -48,7 +48,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         bytes.extend_from_slice(&copy.copy_constraint.variant.to_le_bytes());
     }
     bytes.extend_from_slice(&selected_instruction_plan_identity(&plan.transformed).bytes());
-    FixedViewCopyIdentity(Sha256::digest(bytes).into())
+    FixedViewCopyIdentity::from_canonical_bytes(&bytes)
 }
 
 fn encode_source_evidence(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvidence) {
