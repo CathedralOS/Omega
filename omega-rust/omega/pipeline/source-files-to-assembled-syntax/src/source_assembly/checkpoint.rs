@@ -1,7 +1,6 @@
 use super::{
     AssembledSyntax, append_dependency_generated_sources_to_storage, assemble_syntax,
-    inject_build_prelude, load_pending_imports, validate_package_source_frontier,
-    validate_selected_build_role,
+    load_pending_imports, validate_package_source_frontier, validate_selected_build_role,
 };
 use crate::frontend::{
     PackageImportPhase, PendingPackageImport, discover_imports, discover_package_imports,
@@ -207,9 +206,11 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             timings,
         )?;
-        if let Some(seed) =
-            super::hosted_entry_contract_seed(target_name, package_inputs, &source_storage)
-        {
+        if let Some(seed) = super::entry_contract_seed::hosted_entry_contract_seed(
+            target_name,
+            package_inputs,
+            &source_storage,
+        ) {
             if seed.closed_subtree {
                 // Only the bundled fallback owns toolchain provenance. A seed
                 // selected from the reconciled graph retains its supplier's
@@ -227,7 +228,7 @@ impl ImmutableSourceParseCheckpoint {
                 timings,
             )?;
         }
-        let mut source_scoped_top_level_bindings = inject_build_prelude(
+        let mut source_scoped_top_level_bindings = super::build_prelude::inject_build_prelude(
             &mut source_storage,
             self.build_source_id,
             target_name.is_some(),
