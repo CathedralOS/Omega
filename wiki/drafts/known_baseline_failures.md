@@ -151,11 +151,25 @@ older reading:
 - `calls/statement_call_recursive_argument_compile`: "duplicate named
   machine overload `add`", with sibling reports of a duplicate `Nat` data
   declaration and a public interface selecting private `Nat`.
+  **Repaired 2026-09-20 at e5912f303a**: the fixture's own `Nat`/`add`
+  collided with the `core/nat.omg` exports (added 2026-09-17); renamed to
+  `Peano`/`peano_add`, and the sibling `read_line`/`extent_shape`
+  diagnostics proved collision collateral.
 - `operators/runtime_integer_division_value`: "native-artifact production
   requires one exact selected program entry".
+  **Repaired 2026-09-20 at e5912f303a**: the fixture carried no `build.omg`
+  entry binds; added them for all four hosted targets and re-scoped the
+  operands to `u64`, the realized `ExactIntegerDivide` carrier. Signed
+  `i32` exact division remains attributed to the unsigned-quotient /
+  arithmetic-policy lane (**ARITHMETIC-POLICY-REALIZATION**).
 - `atomics/atomic_field_declared`: "macOS hosted receiver bridge lost exact
   contract, storage, or entry custody" (**ENTRY-CONTENT-ROOTS**; migrate the bare
   receiver field to the [intrinsically established service carrier](../spec/build/component_publication.md#service-bindings-and-era-entry)).
+  **Retired from this cluster as host-bound**: verified green on Linux
+  x86-64 at 4607987316 and re-confirmed on bbfda8bc2e under
+  `OMEGA_PASS_CANARY_FILTER=atomics/atomic_field_declared`; the recorded
+  failure is the macOS hosted-receiver leg, which stays with
+  **ENTRY-CONTENT-ROOTS**.
 
 The `filesystem/native_*` family was reconstructed on 2026-09-18 at
 40e22e0ce9. Its 54 fixtures beside `native_close` carried no `build.omg` and
@@ -181,7 +195,9 @@ every shifted byte is representable, and reinterprets once at the landing.
 `widen_u8_to_i64(byte) << 56` idiom and was not repaired: its canary is
 Windows-gated, so neither its failure nor its repair can be measured on this
 host. The obligation is target-independent, so it should refuse the same way
-there, and the same unsigned-carrier re-spelling should close it.
+there, and the same unsigned-carrier re-spelling should close it. As of the
+2026-09-20 wave that leg is owned by **WINDOWS-SET-FILE-TIME-RESPELL**
+(in flight); this row retires the fixture from the pass-canary cluster.
 
 `proofs/proof_inductive_climbing_sum` left this set when its accumulator
 was bounded; the other four tests in the command pass, so the roster,
