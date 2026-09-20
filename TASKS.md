@@ -6918,7 +6918,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE** — mined candidate; scope verified, resolved — re-mine of BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES' producer fix (integer comparison-occurrence rejection repaired at `76dc49a99e`; `terminal_product::integer_comparisons` counts selected occurrences only against the artifact-bound checked scope). The "std" residual the name implies — provider coverage for genuinely selected occurrences, std-wide verification — is exactly what the landed publication test pins. Re-verified green at `1edade1a48`: `cargo nextest run -p compiler --test integer_comparison_publication` → `selected_comparison_publication_preserves_complete_custody_among_builtins` PASS (19.9s, linux x86-64). Sibling re-mines named on the parent row: BENCHMARK-COMPARISON-OCCURRENCE-GATE, COMPARISON-OCCURRENCE-PRODUCER-COVERAGE, the INTEGER-COMPARISON-OCCURRENCE-* family.
 - **BENCHMARK-SUBJECT-CORPUS-EXPANSION** — mined candidate; verify scope then implement.
 - **BENCHMARK-SUBJECT-ROW-EXPANSION** — mined candidate; verify scope then implement.
-- **BENCHMARK-WINDOWS-PEAK-RSS** — mined candidate; verify scope then implement.
+- **BENCHMARK-WINDOWS-PEAK-RSS.** Mined candidate — resolved: the
+  windows_x86_64 peak-memory leg is measured and committed. Record
+  `tools/benchmark/records/wrapping_square_sum__windows_x86_64__default.json`
+  carries `peak_memory_bytes.compile_max_rss: 147505152` (~148.8 MiB,
+  status measured) from the z113 cross-compile run at `1a772e4ae1`
+  (`measure --no-run --compile-samples 1`, validate clean); the matrix
+  in `wiki/drafts/benchmarks.md` marks compile peak-RSS "measurable" for
+  this target. Residual: `run_max_rss` is null — runtime RSS needs a
+  Windows x86-64 host (matrix: "pending Windows x86-64 host"), a
+  host-bound leg, not an implementable slice on linux. Re-verified on
+  this host at `bde84d1765`: the committed record is schema-complete
+  with the compile RSS field populated. No independent slice remains.
 - **BETA-COMPILER-SEED-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-CERTIFICATE-CHECK** — verified 7ec604d7ef: re-mines the
   certificate surface the sibling annotation on
