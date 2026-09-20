@@ -7823,7 +7823,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   as membership patterns with disjointness/refinement clauses, definedness
   preconditions for partial operations, junk-model quantifier guards,
   revision (refinement-not-invalidation) rules, and borrow/multiplicity loan
-  clauses. Landed (queued on `zergling/z181-...` pending mainline):
+  clauses. Landed at `cc4c4feb89`; re-verified on `163670cf6d` (linux
+  x86-64, `python3 tools/tests/test_matching_logic_sort_encoding.py` —
+  8/8 green):
   `tools/matching-logic-sort-encoding/sort_encoding.py` emits the clause
   inventory plus the evidence record the doc names (fragment, rule and
   semantics versions — sha256 of the source draft — subject digest, target
