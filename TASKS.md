@@ -7316,7 +7316,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo nextest run -p compiler --test canary_suite -E
   'test(=native_filesystem_canaries::native_filesystem_passes::native_wrapper_write_all_result_passes)'`
   there and record the result on this row.
-- **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT** — mined candidate; scope verified
+- **CANARY-RUNTIME-GUI-FOREGROUND-WINDOW-EXIT.** Mined candidate — resolved (fenced residual): scope verified
   2026-09-20 (z164): re-mines `tests/omega/pass/host/runtime_gui_foreground_window_exit`
   — the fixture exists, is authored correctly (intrinsic `Service<Gui>` field,
   all four hosted ProgramEntry binds), and is rostered in `ACTIVE_PASS_CANARIES`
