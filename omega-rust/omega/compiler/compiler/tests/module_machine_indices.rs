@@ -70,6 +70,9 @@ mod computed_nominal;
 #[path = "module_machine_indices/machine_initializers.rs"]
 mod machine_initializers;
 
+#[path = "module_machine_indices/const_argument_calls.rs"]
+mod const_argument_calls;
+
 #[path = "module_machine_indices/trait_defaults.rs"]
 mod trait_defaults;
 

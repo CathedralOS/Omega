@@ -72,18 +72,36 @@ binders and unresolved owner-dependent operations still need their complete
 staging contexts. Canonical range identity does not establish that every generic
 record shape has a Terminal lowering.
 
-Const-generic arguments whose whole expression is a closed scalar machine call
-(`Buffer<sized(4)>`) evaluate through a whole-expression application probe
-inside [const_generic_calls.rs](src/const_generic_calls.rs): the authored
+Const-generic arguments containing closed scalar machine calls
+(`Buffer<(sized(4) + 2)>`) evaluate through a whole-expression application probe
+inside [const_generic_calls.rs](src/const_evaluation/const_generic_calls.rs): the authored
 expression is typed on a placeholder carrier, appended as a probe machine,
 excluded from ordinary checking, then evaluated by the exact scalar evaluator
 with const-initializer call admission — selected-entry resolution, concrete
 argument snapshots, and premise/failure discharge included. Every authored
-call must survive into the probe's transitive checked call closure before the
-canonical result replaces the argument expression and retains its normalization
-receipt. Calls outside a declared const argument destination, calls carrying
-machine or evidence arguments, and calls under surrounding expression nodes
-still need their complete staging contexts and remain rejected.
+call and named operand must retain its original lexical selection in the probe's
+transitive checked closure. Arithmetic, unary, Boolean short-circuit and scalar
+matches share the existing expression schedule; skipped calls retain static
+obligations without discharging invocation premises or executing. Closed generic
+helpers use ordinary specialization and checked invocation admission.
+The canonical result replaces the owning type argument, preserving its
+normalization receipt. This receipt does not independently replay the call result
+at the receiving boundary; portable application closure remains unfinished.
+
+Provisional parameter/local/return types cannot supply helper execution values. Their
+temporary owners remain body-free until those indices complete. If a shared
+probe preparation encounters this dependency, independently admitted arguments
+complete first and the original bodies are prepared again with real indices.
+No local initializer is replaced by an interpreter default. No-progress retains
+the admission failure; this makes no frontend-performance claim.
+Calls outside declared const destinations, unresolved static arguments,
+late-selected result receivers and provider-dependent operations still need
+their complete contexts.
+`cargo nextest run -p compiler --test module_machine_indices const_argument_calls --no-fail-fast --no-tests fail`
+checks exact index consumers, selective execution and lexical rejection.
+`cargo nextest run -p omega-native-differential-test --test scalar_case_results const_arguments --no-fail-fast --no-tests fail`
+publishes those consumers for four hosted targets and executes on a supported
+matching host after removing source files.
 
 The public ownership-taking pre-resolution and pre-check conveyors keep these
 Psi phases separate. Omega interposes target machine selection and schedules
@@ -244,7 +262,7 @@ folded result cannot conceal changed arguments. Literal integer comparisons and
 Boolean guards compose through private call summaries when their exact checked
 owner establishes builtin operator meaning. Authored or unknown meanings,
 unsupported arithmetic, and unknown entry origins stay conservative.
-Specialized generic/provider applications, aggregate-producing expressions,
+Open generic and selected-provider applications, aggregate-producing expressions,
 constrained/target-dependent declarations, selected floating operations and
 aggregate floating values remain unfinished. NaN results need an explicit
 representation context and reject on this helper path.

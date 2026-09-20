@@ -142,6 +142,12 @@ pub(crate) fn evaluate(
             else {
                 return None;
             };
+            // Calls need checked invocation admission after range arguments
+            // have supplied structural equation inputs. Keep the whole tree
+            // for that later pass, including selective and unary expressions.
+            if super::const_generic_calls::contains_call(&syntax, *expression) {
+                return None;
+            }
             let boolean_destination = matches!(
                 syntax.type_references.type_reference(*destination),
                 TypeReferenceNode::Named(name) if name.as_str() == "bool"

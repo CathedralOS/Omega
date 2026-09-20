@@ -644,7 +644,7 @@ fn const_generic_zero_argument_call_still_rejects_a_parameterized_entry() {
     assert!(
         errors.iter().any(|error| error
             .message
-            .contains("takes 1 parameter(s); a const-evaluated generic argument must call a zero-argument machine")),
+            .contains("constant call argument count differs from its exact entry")),
         "{errors:?}"
     );
 }
