@@ -8586,7 +8586,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (package_compilation_inputs). Sibling stubs on this surface:
   PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF, COMPUTED-CONSTANT-LEAF-CARRIER,
   PACKAGE-INPUTS-PSI-FAILURES.
-- **PLACE-ACCESS-GEOMETRY** — mined candidate; verify scope then implement.
+- **PLACE-ACCESS-GEOMETRY.** Resolved — scope verified, already landed. The stub
+  names the geometric half of placed access ([placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)):
+  the referent geometry is the declared-carrier join plus path resolution and
+  range/qualification rejoin, landed as
+  `terminal-semantics/src/placed_view_referent.rs::validate_placed_view_referent`
+  (declared structural carrier, path resolves through the shape graph to a real
+  place, qualifications must be declared over that carrier; stale/substituted
+  ranges and forged carriers reject) consumed by both execution boundaries,
+  with the plan-side geometry in
+  `build-time-evaluation/src/layouts/placed_views/` (policy/schema/view exact
+  rejoin after typing) and `access-plans/src/placements/` (admission, custody,
+  correspondence, resident/borrowed views). Re-verified green at `797e99ead7`:
+  `cargo nextest run -p access-plans -p terminal-semantics -E 'test(/placed/) or test(/placement/) or test(/referent/)'`
+  — 24/24 pass on linux x86-64. The unlanded placed-access legs are not the
+  geometry: `bind_hosted_receiver` lending through the emitted entry shim and
+  the `PlacedField` accessor realization are PLAN-LAID-VIEWS' named remaining
+  work (native surfaces fenced by PLACED-ACCESS-NATIVE-OPS); the geometric
+  request bound for partition routes belongs to CONSERVATION-CONTRACT /
+  TERMINAL-CONTENT-CLAIMS under BUMP-ALLOCATOR-CANARY's routing.
 - **PLACE-ALIAS-ANALYSIS-PRODUCER** — landed. `AnalysisKind::PlaceAliases` now
   has a producer in `abstract-operations-to-abstract-operations`' analysis
   catalog: `PlaceAliasesAnalysis` carries each machine's complete
