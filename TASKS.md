@@ -7137,7 +7137,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CHAIN-MANIFEST** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING** — mined candidate; scope verified, residual already bound. Re-mines the same TASKS_BOOTSTRAP.md manifest bullet as resolved sibling GATE-LOCAL-PREFIX-BINDING (this section) — "gate-local prefixes packed on top of bound member bytes", whose last written residual closed at `e1fba5f523` ("bootstrap: bind Epsilon slice driver and reconstructed receipt identity"): `EPSILON_EXECUTION_DRIVER_*` pins + `require_epsilon_execution_driver_identity` in `tools/bootstrap/epsilon/evaluator_env.sh` gate every cross-rung consumer; Delta's development entry, Gamma's derivation gate entries, D's customer entries, and per-gate epsilon drivers are all bound. The bullet is struck in TASKS_BOOTSTRAP.md; remaining open manifest legs stay named in their own rows (`omega0`/`omega` tapes under OMEGA-C; certificates and admission records per edge). Sibling re-mine stubs of the same bullet: CHAIN-GATE-LOCAL-PREFIX-BINDING, CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING, CHAIN-MANIFEST-GATE-LOCAL-PREFIXES, CHAIN-MANIFEST-GATE-PREFIX-BINDING, GATE-LOCAL-DRIVER-PREFIX-BINDING.
-- **CHAIN-MANIFEST-GATE-LOCAL-PREFIXES** — mined candidate; verify scope then implement.
+- **CHAIN-MANIFEST-GATE-LOCAL-PREFIXES.** Resolved — scope verified, no
+  independent slice. Re-mines the same TASKS_BOOTSTRAP.md manifest bullet
+  as resolved siblings CHAIN-GATE-LOCAL-PREFIX-BINDING and
+  CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING (this section): "gate-local
+  prefixes packed on top of bound member bytes", struck in
+  TASKS_BOOTSTRAP.md:351-353 ("All gate-local drivers are bound") after
+  the last residual closed at `e1fba5f523` ("bootstrap: bind Epsilon
+  slice driver and reconstructed receipt identity"). Verified live at
+  `edc77c2148`: `EPSILON_EXECUTION_DRIVER_SIZE=2565` /
+  `EPSILON_EXECUTION_DRIVER_SHA256` pins +
+  `require_epsilon_execution_driver_identity` in
+  `tools/bootstrap/epsilon/evaluator_env.sh` gate every cross-rung
+  consumer; Delta's development entry, Gamma's derivation gate entries,
+  D's customer entries, and each per-gate epsilon driver are bound.
+  Open manifest legs stay in their own rows (`omega0`/`omega` tapes
+  under OMEGA-C; certificates and admission records per edge). Sibling
+  re-mine stubs of the same bullet still open:
+  CHAIN-MANIFEST-GATE-LOCAL-PREFIX-BINDING, CHAIN-MANIFEST-GATE-PREFIX-BINDING,
+  GATE-LOCAL-DRIVER-PREFIX-BINDING.
 - **CHAIN-MANIFEST-GATE-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a
   re-mine of the CHAIN-MANIFEST OCREQ-entry surface already bound on
