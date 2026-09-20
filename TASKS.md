@@ -3921,7 +3921,11 @@ Owners include
   same-leaf competitors, private/transitive exposure, invalid unused
   initializers and unproved indexing reject. Keep
   `fail/modules/{runtime_aggregate_index,runtime_fixed_array_index}` until
-  their materialization obligations are met.
+  their materialization obligations are met. Sibling re-mine names:
+  RESOLVER-SCOPE-CANDIDATE-FILTERING (retired alias at `a8993c14af` — the
+  source-scoped candidate narrowing it names already exists in
+  `symbols/lookup.rs`: `prefer_module_local_domain`,
+  `source_reference_can_see_symbol`; re-verified live at `d8041919ad`).
 
 - **RUNTIME-VALUE-GENERICS.** Implement the settled
   [runtime-capable versus const binder contract](wiki/spec/language/generics.md#value-binders-and-const-requirements)
