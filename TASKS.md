@@ -3356,6 +3356,15 @@ Owners include
   their selected declarations still need following through typing, checking
   and Terminal.
 
+  Constant scalar rejection now carries its selected arithmetic policy: the
+  scalar constant evaluator reports an overflowing, dividing-by-zero or
+  bad-shift operation as e.g. "Exact integer constant operation overflows,
+  divides by zero, or has an invalid shift count" — the policy is part of the
+  retained selected-operation evidence, so `module_machine_indices`
+  (`comparisons::`, `value_dispatch::`, `computed_declarations::`) and
+  `module_domain_indices` controls assert the named policy, and anonymous
+  Match and comparison paths keep their all-arm obligations.
+
   Remaining work:
 
   - Unmanaged source maps still have no portable package commitment for
