@@ -571,7 +571,11 @@ impl ArrivalWalk<'_, '_> {
                 StatementNode::Expression(expression) => {
                     self.expression(source, *expression, environment)
                 }
-                StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+                StatementNode::RootBinding(binding) => {
+                    self.expression(source, binding.receiver, environment);
+                    self.expression(source, binding.implementation_operand, environment);
+                }
+                StatementNode::AssemblyFact(_) => {}
             }
         }
         true

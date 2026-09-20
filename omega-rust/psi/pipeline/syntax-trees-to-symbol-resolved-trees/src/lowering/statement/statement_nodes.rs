@@ -52,21 +52,35 @@ pub(crate) fn lower_statement_node(
                     .iter()
                     .map(crate::lowering::name::lower_name)
                     .collect(),
-                // The delegated operand is a place expression, not a product
-                // declaration spelling: it is lowered outside the authored-
-                // selection exposure so a bare name that resolves to a
+                // An ambiguous bare name is lowered outside the authored-
+                // selection exposure so a name that resolves to a
                 // declaration cannot mint a cross-package selection record.
                 // Routing clears the operand in that case and the lexical
                 // `implementation` path remains the only declaration channel.
+                // Computed descriptions instead retain ordinary authored call
+                // selections; their bodies execute in the build context.
                 implementation_operand: if binding.implementation_operand.is_valid() {
-                    let exposure = lowerer.current_authored_expression_exposure.take();
-                    let lowered = crate::lowering::expression::lower_expression_into_table(
-                        lowerer,
-                        syntax_trees,
-                        binding.implementation_operand,
-                    );
-                    lowerer.current_authored_expression_exposure = exposure;
-                    lowered?
+                    if !matches!(
+                        syntax_trees
+                            .expressions
+                            .expression(binding.implementation_operand),
+                        syntax::expression::ExpressionNode::Name(_)
+                    ) {
+                        lower_statement_expression(
+                            lowerer,
+                            syntax_trees,
+                            binding.implementation_operand,
+                        )?
+                    } else {
+                        let exposure = lowerer.current_authored_expression_exposure.take();
+                        let lowered = crate::lowering::expression::lower_expression_into_table(
+                            lowerer,
+                            syntax_trees,
+                            binding.implementation_operand,
+                        );
+                        lowerer.current_authored_expression_exposure = exposure;
+                        lowered?
+                    }
                 } else {
                     symbol_resolved_trees::expression::ExpressionHandle::invalid()
                 },

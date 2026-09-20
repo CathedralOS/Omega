@@ -33,7 +33,15 @@ pub(crate) fn collect_statement_borrow_calls(
     );
 
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(binding) => {
+            // Flow evaluation and semantic lookup use this same operand order.
+            for expression in [binding.receiver, binding.implementation_operand] {
+                if expression.is_valid() {
+                    expression::collect_expression_borrow_calls(&mut collection, expression);
+                }
+            }
+        }
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             // The authored target precedes the value. An indexed store such as
             // `self.cells[pick()] = value` evaluates its call-valued index like

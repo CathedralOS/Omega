@@ -262,7 +262,11 @@ fn statement_root_expressions(
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => Vec::new(),
+        StatementNode::RootBinding(binding) => [binding.receiver, binding.implementation_operand]
+            .into_iter()
+            .filter(|expression| expression.is_valid())
+            .collect(),
+        StatementNode::AssemblyFact(_) => Vec::new(),
         StatementNode::Assignment(assignment) => vec![assignment.target, assignment.value],
         StatementNode::Call(call) => program
             .statement_table
@@ -600,7 +604,7 @@ fn scan_construction_field_domains(
                 );
                 for (domain_symbol, semantic_domain) in construction_field_domain_identities(
                     program,
-                    type_name.as_str(),
+                    literal.type_symbol,
                     case_name.as_ref().map(|name| name.as_str()),
                     field.name.as_str(),
                 ) {
@@ -640,9 +644,9 @@ fn scan_construction_field_domains(
                             state_flow.machine_symbol,
                             state_flow.state_symbol,
                         )
-                        && let Some(field_type) = construction_field_type_by_name(
+                        && let Some(field_type) = construction_field_type_by_symbol(
                             program,
-                            type_name.as_str(),
+                            literal.type_symbol,
                             case_name.as_ref().map(|name| name.as_str()),
                             field.name.as_str(),
                         )
@@ -853,14 +857,14 @@ fn scan_construction_field_domains(
 /// extraction.
 fn construction_field_domain_identities(
     program: &typed_trees::TypedTrees,
-    type_name: &str,
+    type_symbol: SymbolHandle,
     case_name: Option<&str>,
     field_name: &str,
 ) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
     let Some(data_definition) = program
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == type_name)
+        .find(|definition| definition.symbol == type_symbol)
     else {
         return Vec::new();
     };
@@ -938,22 +942,18 @@ fn value_proves_qualification(
     super::exits::exact_scalar_membership(program, facts, &contexts, &subject, domain, identity)
 }
 
-/// The declared type of a constructed field (a case PAYLOAD field for the named
-/// variant, else a record/common FIELD member).
-/// The declared type of a constructed field, resolved from the type NAME (looks
-/// the definition up, then delegates to [`construction_field_type`]). Used by the
-/// construction-position capacity check, mirroring how
-/// `construction_field_domain_symbols` resolves the field's domains.
-fn construction_field_type_by_name(
+/// Resolve the selected definition, not the authored spelling: a qualified
+/// foreign construction must establish that exact owner's field contracts.
+fn construction_field_type_by_symbol(
     program: &typed_trees::TypedTrees,
-    type_name: &str,
+    type_symbol: SymbolHandle,
     case_name: Option<&str>,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
     let data_definition = program
         .data_definitions()
         .iter()
-        .find(|definition| definition.name.as_str() == type_name)?;
+        .find(|definition| definition.symbol == type_symbol)?;
     if data_definition.type_parameters.count() > 0 {
         return None;
     }
@@ -1130,6 +1130,16 @@ fn construction_value_proves_qualification(
                 program, facts, contexts, subject, domain, identity,
             )
         });
+    }
+    // Numeric field domains use the same contextual proof as nominal call
+    // arguments; requiring only an existing membership token would reject a
+    // construction whose scalar value already establishes the predicate.
+    if typed_trees::domain::supports_symbol_only_proof(program, domain)
+        && subject.as_ref().is_some_and(|subject| {
+            super::prover::prove_domain_at_place(program, &facts.semantic, contexts, subject, domain)
+        })
+    {
+        return true;
     }
     value_proves_domain_in_contexts(
         program,

@@ -42,7 +42,20 @@ pub(crate) fn validate_self_recursive_call_positions(
         .next()
         .unwrap_or(machine.name.as_str());
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(binding) => {
+            for expression in [binding.receiver, binding.implementation_operand] {
+                if expression.is_valid() {
+                    reject_embedded_self_calls(
+                        program,
+                        machine,
+                        entry_name,
+                        expression,
+                        diagnostics,
+                    );
+                }
+            }
+        }
+        StatementNode::AssemblyFact(_) => {}
         // The statement-position fence in `validate_call_node` owns
         // StatementNode::Call; transition ARM TARGETS are the legal tail
         // spelling (planned by the state graph). Everything else that can

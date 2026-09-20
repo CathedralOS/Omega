@@ -49,14 +49,15 @@ pub(super) fn assign_statement_symbols(
                 // to a value place -- the described `ProductEntryRef` handoff.
                 // Any declaration resolution (machine, module, data, const)
                 // falls back to the lexical product path in `implementation`.
-                let described = matches!(
-                    expression_table.expression(binding.implementation_operand),
-                    symbol_resolved_trees::expression::ExpressionNode::Name(path)
-                        if matches!(
-                            symbols.get(path.symbol).kind,
-                            SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Field
-                        )
-                );
+                let described = match expression_table.expression(binding.implementation_operand) {
+                    symbol_resolved_trees::expression::ExpressionNode::Name(path) => matches!(
+                        symbols.get(path.symbol).kind,
+                        SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Field
+                    ),
+                    // Computed operands resolve in the ordinary build context;
+                    // only a name can denote the static product-path channel.
+                    _ => true,
+                };
                 if !described {
                     binding.implementation_operand =
                         symbol_resolved_trees::expression::ExpressionHandle::invalid();

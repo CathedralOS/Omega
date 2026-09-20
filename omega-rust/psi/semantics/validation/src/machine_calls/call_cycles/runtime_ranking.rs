@@ -283,7 +283,17 @@ pub(super) fn check_component(
                         continue;
                     }
                     match statement {
-                        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => continue,
+                        StatementNode::AssemblyFact(_) => continue,
+                        StatementNode::RootBinding(binding)
+                            if [binding.receiver, binding.implementation_operand]
+                                .into_iter()
+                                .all(|expression| {
+                                    !expression.is_valid()
+                                        || expression_is_inert(program, machine, state, expression)
+                                }) =>
+                        {
+                            continue;
+                        }
                         StatementNode::LocalData(local)
                             if expression_is_inert(
                                 program,

@@ -406,6 +406,33 @@ fn owner_selected_product_description_binds_through_foreign_helper() {
 
 #[test]
 fn returned_owner_selected_description_binds_and_executes_after_foreign_helper_transport() {
+    returned_description_native(
+        "let returned: ProductEntryRef = setup::retain(entry);",
+        "returned",
+        b"",
+    );
+}
+
+#[test]
+fn inline_owner_selected_description_binds_and_executes_after_foreign_helper_transport() {
+    returned_description_native("", "setup::retain(entry)", b"");
+}
+
+#[test]
+fn inline_description_nested_calls_execute_their_build_effects_once() {
+    returned_description_native(
+        "",
+        "setup::retain_logged(builder, setup::retain(entry))",
+        b"operand\n",
+    );
+}
+
+#[test]
+fn inline_description_specialized_call_reaches_native_execution() {
+    returned_description_native("", "setup::retain_generic<u8>(entry, 7)", b"");
+}
+
+fn returned_description_native(preparation: &str, operand: &str, expected_log: &[u8]) {
     let Some(profile) = target::TargetProfile::host_if_supported() else {
         eprintln!("SKIP: returned entry publication requires a supported hosted target");
         return;
@@ -414,14 +441,32 @@ fn returned_owner_selected_description_binds_and_executes_after_foreign_helper_t
         "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
-        "module setup; pub machine retain(entry: ProductEntryRef) -> ProductEntryRef { transition { _ -> (entry) } }",
+        "module setup; pub machine retain(entry: ProductEntryRef) -> ProductEntryRef { transition { _ -> (entry) } }
+         pub machine retain_logged(builder: &mut Build, entry: ProductEntryRef) -> ProductEntryRef {
+             builder.log.write_line(\"operand\"); transition { _ -> (entry) }
+         }
+         pub machine retain_generic<T [copy]>(entry: ProductEntryRef, marker: T) -> ProductEntryRef {
+             transition { _ -> (entry) }
+         }",
     ).expect("ordinary owned-description helper");
     let slot = format!("{}::ProgramEntry", profile.root_slot_owner_name());
     let project = TempProject::with_main(
         "machine launch() { }",
         &format!(
-            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"returned-entry\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"{slot}\"); let returned: ProductEntryRef = setup::retain(entry); builder.roots.bind({slot}, returned); }}"
+            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"returned-entry\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"{slot}\"); {preparation} builder.roots.bind({slot}, {operand}); }}"
         ),
+    );
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(foreign_helper_inputs(&project, &helper)),
+        ..CheckedCompileRequest::new(&project.main(), Some(profile.target_name()))
+    })
+    .expect("description build checks");
+    assert_eq!(
+        checked
+            .build_observation_summary()
+            .expect("build observation")
+            .build_log(),
+        expected_log
     );
     let report = compile(
         CompileRequest::new(CompileOptions {
@@ -451,25 +496,30 @@ fn returned_owner_selected_description_binds_and_executes_after_foreign_helper_t
 
 #[test]
 fn returned_forged_description_does_not_gain_authority_from_its_result_type() {
-    let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
-    );
-    fs::write(helper.0.join("setup.omg"),
+    for binding in [
+        "let entry: ProductEntryRef = setup::fabricate(); builder.roots.bind(windows_x86_64::ProgramEntry, entry);",
+        "builder.roots.bind(windows_x86_64::ProgramEntry, setup::fabricate());",
+    ] {
+        let helper = TempProject::new(
+            "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        );
+        fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine fabricate() -> ProductEntryRef { transition { _ -> (ProductEntryRef {}) } }",
     ).expect("forged result source");
-    let project = TempProject::new(
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"forged-return\"); let entry: ProductEntryRef = setup::fabricate(); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
-    );
-    let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
-    request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
-    let diagnostics = compile_to_checked(request)
-        .expect_err("an ordinary return cannot fabricate selection authority");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("not a compiler-issued product entry description")),
-        "{diagnostics:?}"
-    );
+        let project = TempProject::new(&format!(
+            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"forged-return\"); {binding} }}"
+        ));
+        let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
+        request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
+        let diagnostics = compile_to_checked(request)
+            .expect_err("an ordinary return cannot fabricate selection authority");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("not a compiler-issued product entry description")),
+            "{diagnostics:?}"
+        );
+    }
 }
 
 #[test]
@@ -502,6 +552,102 @@ fn product_entry_query_is_scoped_to_the_query_occurrences_package() {
     );
 }
 
+fn inline_description_checked(
+    declarations: &str,
+    preparation: &str,
+    operand: &str,
+) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"inline-helper\"); }",
+    );
+    fs::write(
+        helper.0.join("setup.omg"),
+        format!("module setup; {declarations}"),
+    )
+    .expect("inline operand helper source");
+    let project = TempProject::with_main(
+        "machine launch() { }",
+        &format!("use support::setup; machine build(builder: &mut Build) {{
+            builder.application(\"inline-owner\");
+            let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\");
+            {preparation}
+            builder.roots.bind(windows_x86_64::ProgramEntry, {operand});
+        }}"),
+    );
+    compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(foreign_helper_inputs(&project, &helper)),
+        ..CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"))
+    })
+}
+
+#[test]
+fn inline_description_calls_preserve_required_premises() {
+    let helper = "pub machine retain(entry: ProductEntryRef, value: i32) -> ProductEntryRef
+        requires value > 0 { transition { _ -> (entry) } }";
+    inline_description_checked(helper, "", "setup::retain(entry, 1)")
+        .expect("established call premise");
+    let errors = inline_description_checked(helper, "", "setup::retain(entry, 0)")
+        .map(|_| ())
+        .expect_err("inline operand cannot bypass a call requirement");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("requires")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn inline_description_calls_preserve_affine_argument_consumption() {
+    let helper = "pub data Token { }
+        pub machine consume(entry: ProductEntryRef, token: Token) -> ProductEntryRef {
+            transition { _ -> (entry) }
+        }";
+    let preparation = "let token: setup::Token = setup::Token {};";
+    inline_description_checked(helper, preparation, "setup::consume(entry, token)")
+        .expect("one affine transfer");
+    let errors = inline_description_checked(
+        helper,
+        &format!("{preparation} let first: ProductEntryRef = setup::consume(entry, token);"),
+        "setup::consume(entry, token)",
+    )
+    .map(|_| ())
+    .expect_err("the inline operand cannot spend its affine argument twice");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("mov") || error.message.contains("consum")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn inline_description_arguments_preserve_construction_bounds() {
+    let helper = "pub data Payload [copy] { value: u8 [1..=9]; }
+        pub machine retain(entry: ProductEntryRef, payload: Payload) -> ProductEntryRef {
+            transition { _ -> (entry) }
+        }";
+    inline_description_checked(
+        helper,
+        "",
+        "setup::retain(entry, setup::Payload { value: 1 })",
+    )
+    .expect("established construction bounds");
+    let errors = inline_description_checked(
+        helper,
+        "",
+        "setup::retain(entry, setup::Payload { value: 0 })",
+    )
+    .map(|_| ())
+    .expect_err("inline argument construction must establish its fields");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("range") || error.message.contains("bound")),
+        "{errors:?}"
+    );
+}
+
 #[test]
 fn forged_product_entry_description_is_rejected() {
     // An authored `ProductEntryRef {}` has the static type but carries no
@@ -522,6 +668,68 @@ fn forged_product_entry_description_is_rejected() {
     assert!(
         diagnostics.contains("not a compiler-issued product entry description"),
         "unexpected diagnostics: {diagnostics}"
+    );
+}
+
+#[test]
+fn inline_description_calls_require_blocking_acknowledgement() {
+    let helper = "pub machine retain(entry: ProductEntryRef) -> ProductEntryRef blocks; {
+        transition { _ -> (entry) }
+    }";
+    inline_description_checked(helper, "", "block setup::retain(entry)")
+        .expect("acknowledged blocking operand");
+    let errors = inline_description_checked(helper, "", "setup::retain(entry)")
+        .map(|_| ())
+        .expect_err("an inline operand is still a blocking call");
+    assert!(
+        errors.iter().any(|error| error.message.contains("block")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn inline_description_arguments_establish_nominal_field_domains() {
+    let helper = "pub domain u8::Positive requires self > 0;
+        pub data Payload [copy] { value: u8 in u8::Positive; }
+        pub machine retain(entry: ProductEntryRef, payload: Payload) -> ProductEntryRef {
+            transition { _ -> (entry) }
+        }";
+    inline_description_checked(
+        helper,
+        "let value: u8 = 1;",
+        "setup::retain(entry, setup::Payload { value: value })",
+    )
+    .expect("flow-proven field domain");
+    let errors = inline_description_checked(
+        helper,
+        "let value: u8 = 0;",
+        "setup::retain(entry, setup::Payload { value: value })",
+    )
+    .map(|_| ())
+    .expect_err("description argument construction cannot assert an unproven domain");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("domain") || error.message.contains("prove")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn inline_description_match_subject_establishes_aggregate_field_domains() {
+    let helper = "pub domain [u8; 4]::Ascii requires ascii_only(self);
+        pub data Payload [copy] { bytes: [u8; 4] in Ascii; }";
+    let operand = |text| format!("match (setup::Payload {{ bytes: \"{text}\" }}) {{ _ -> entry }}");
+    inline_description_checked(helper, "", &operand("AAAA"))
+        .expect("a checked match subject can precede description selection");
+    let errors = inline_description_checked(helper, "", &operand("éAA"))
+        .map(|_| ())
+        .expect_err("a match subject cannot hide a malformed field qualification");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("domain") || error.message.contains("prove")),
+        "{errors:?}"
     );
 }
 
@@ -980,32 +1188,6 @@ fn product_provider_description_is_not_a_static_provider_argument() {
     .join("\n");
     assert!(
         diagnostics.contains("`select_provider` requires exactly two plain type paths"),
-        "unexpected diagnostics: {diagnostics}"
-    );
-}
-
-#[test]
-fn delegated_root_binding_rejects_a_computed_description_result() {
-    // The delegated `roots.bind` operand admits only a retained
-    // `ProductEntryRef` place: a call result spelling stays fenced until
-    // ordinary call-result authority can carry it.
-    let project = TempProject::with_main(
-        "machine launch() { let marker: u8 = 0; }\nmachine choose_entry() -> ProductEntryRef {\n    transition { _ -> (ProductEntryRef {}) }\n}",
-        "machine build(builder: &mut Build) { builder.application(\"computed-operand\"); builder.roots.bind(windows_x86_64::ProgramEntry, choose_entry()); }",
-    );
-    let diagnostics = compile_to_checked(CheckedCompileRequest::new(
-        &project.main(),
-        Some("windows_x86_64"),
-    ))
-    .expect_err("a computed call result cannot serve as the root binding operand")
-    .into_iter()
-    .map(|diagnostic| diagnostic.message)
-    .collect::<Vec<_>>()
-    .join("\n");
-    assert!(
-        diagnostics.contains(
-            "root-slot binding requires exactly one slot path and one implementation path"
-        ) || diagnostics.contains("computed description results are not implemented"),
         "unexpected diagnostics: {diagnostics}"
     );
 }

@@ -402,7 +402,10 @@ fn statement_expression_roots(
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
     match statement {
-        StatementNode::RootBinding(_) => Vec::new(),
+        StatementNode::RootBinding(binding) => [binding.receiver, binding.implementation_operand]
+            .into_iter()
+            .filter(|expression| expression.is_valid())
+            .collect(),
         StatementNode::AssemblyFact(fact) => vec![fact.expression],
         StatementNode::Assignment(assignment) => vec![assignment.value],
         StatementNode::Call(call) => program

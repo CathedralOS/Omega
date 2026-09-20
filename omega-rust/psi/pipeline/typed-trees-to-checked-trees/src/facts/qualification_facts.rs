@@ -283,7 +283,23 @@ pub(crate) fn build_qualification_facts(program: &TypedTrees) -> checked_trees::
                     u32::try_from(statement_index).expect("qualification statement index overflow");
                 let mut visited = HashSet::new();
                 match statement {
-                    StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+                    StatementNode::RootBinding(binding) => {
+                        for expression in [binding.receiver, binding.implementation_operand] {
+                            if expression.is_valid() {
+                                collect_casts(
+                                    program,
+                                    machine.symbol,
+                                    state.symbol,
+                                    statement_index,
+                                    expression,
+                                    &mut committed,
+                                    &mut vacuous_uses,
+                                    &mut visited,
+                                );
+                            }
+                        }
+                    }
+                    StatementNode::AssemblyFact(_) => {}
                     StatementNode::Assignment(assignment) => {
                         collect_casts(
                             program,
