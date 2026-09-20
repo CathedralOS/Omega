@@ -5,6 +5,8 @@
 //! satisfaction row, so this fact is the only checked record of what such a
 //! call instantiated.
 
+use std::path::PathBuf;
+use std::sync::Arc;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::TypeReferenceNode;
@@ -22,18 +24,69 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
     typed_trees_to_checked_trees::lower_typed_trees(typed)
 }
 
+/// The toolchain core service declaration, resident so `Service<R>` spellings
+/// resolve against the real core declaration: this standalone `SourceMap` has
+/// no package scope, so a `use` of the library path cannot resolve.
+const CORE_SERVICE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../source/library/core/service.omg"
+));
+
+fn check_with_service(
+    source: &str,
+) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    let mut sources = source::SourceMap::default();
+    let service_source_id = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/service.omg"),
+            CORE_SERVICE.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            source::SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let user_source_id = sources
+        .add(PathBuf::from("tests/main.omg"), source.to_owned())
+        .source_id;
+    let service_tokens = source_files_to_tokens::Lexer::new(CORE_SERVICE)
+        .tokenize()
+        .expect("tokenize service.omg");
+    let mut syntax =
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(service_source_id, &service_tokens)
+            .expect("parse service.omg");
+    let user_tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
+        &mut syntax,
+        user_source_id,
+        &user_tokens,
+    )
+    .expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax: &syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+        },
+    )?;
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    typed_trees_to_checked_trees::lower_typed_trees(typed)
+}
+
 // The smallest program that calls the generic TaskRuntime::start boundary
 // requirement with a concrete static machine through a runtime capability
 // carried on `self`: `start<T, Arguments, machine Target>` binds `T` and
 // `Arguments` from the selected `Worker::run` callable's shape and `Target`
 // to its entry.
 const ROUTED_TASK_START_DECLS: &str = r#"
-    data Task<T> [linear] {
+    pub data Task<T> [linear] {
         provider: u64;
         activation: u64;
     }
 
-    boundary trait TaskRuntime {
+    pub boundary trait TaskRuntime {
         machine start<T, Arguments, machine Target>(
             &self,
             arguments: Arguments
@@ -66,10 +119,10 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 
 #[test]
 fn a_routed_requirement_call_retains_its_derived_specialization() {
-    let checked = check(&format!(
+    let checked = check_with_service(&format!(
         "{ROUTED_TASK_START_DECLS}
-         data Main<'s> {{
-             runtime: &'s mut TaskRuntime;
+         data Main {{
+             runtime: Service<TaskRuntime>;
          }}
          machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
              let task: Task<Token> = self.runtime.start<Worker::run>(token);
