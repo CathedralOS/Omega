@@ -2,9 +2,13 @@
 
 Temporary evidence for choosing the next local test-performance experiment,
 especially distinguishing compilation, test execution, and repeated rechecks.
-Remove this note when a controlled replacement measurement establishes the
-relevant scheduling/selection costs, or when the measured workloads are no
-longer used. It is not validation policy or a current checkout baseline; see
+The selection-cost role this clause covered is now established by the
+controlled replacement
+[test_cycle_selection_remeasurement.md](test_cycle_selection_remeasurement.md);
+this note stays as the standing record of the package-review route cost
+attribution (macOS/Windows/Linux sections below), which the replacement does
+not cover and which live optimization items still cite. It is not validation
+policy or a current checkout baseline; see
 [AGENTS.md](../../AGENTS.md#validation-scope) and
 [selector usage](../../tools/testing.md).
 
