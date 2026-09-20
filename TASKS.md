@@ -8792,7 +8792,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   plus the rest of the scalar coverage families (codes 15–24: comparisons,
   paths, `!`/`-`, locals, assignments, remaining transition forms)
   — tracked under the OMEGA-D-REQUEST-* / OMEGA-D-SCALAR-* sibling rows.
-- **OMEGA-D-REQUEST-OUTCOME-TABLES.** Scope verified at `8a37f82686`. The
+- **OMEGA-D-REQUEST-OUTCOME-TABLES.** Scope verified at `8a37f82686`, re-verified `a0b906db93`. The
   clause's canonical member is `bootstrap/5_omega/outcome.epsilon`: the
   assigned OCOUT V1 header, outcome-code, coordinate-space, phase, and
   scalar-resource tables are embedded as projections alongside the
