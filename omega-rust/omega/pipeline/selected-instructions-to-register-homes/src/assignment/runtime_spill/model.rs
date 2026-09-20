@@ -1,8 +1,8 @@
 use crate::{
     StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedLogicalSpillOperations, ValidatedPostAllocationOptimizationManifest,
+    ValidatedRegisterHomes, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
 };
 use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId};
 
@@ -14,14 +14,50 @@ pub(crate) struct RuntimeSpillAllocation {
     pub(crate) facts: RuntimeSpillFacts,
     pub(crate) homes: ValidatedRegisterHomes,
     pub(crate) manifest: ValidatedPostAllocationOptimizationManifest,
+    /// The sequenced logical spill-operation boundary's plan over the
+    /// recovery's input facts, produced when its bounded shape covers the
+    /// observed pressure; `None` records a declined boundary rather than a
+    /// recovered failure.
+    pub(crate) logical_operations: Option<ValidatedLogicalSpillOperations>,
 }
 
 impl RuntimeSpillAllocation {
+    /// The validated logical spill-operation obligations produced for this
+    /// recovery's input, when the sequenced boundary covered its shape.
+    pub(crate) fn logical_operations(&self) -> Option<&ValidatedLogicalSpillOperations> {
+        self.logical_operations.as_ref()
+    }
+
     /// Replayed custody evidence for retained selection validation: the
     /// declared allocation-recovery selection this recovery's recorded
     /// prefix ran under, when the prefix came from a declared rule.
     pub(crate) fn recovery_prefix_selection(&self) -> Option<optimization_core::Optimization> {
         self.source.recovery_prefix_selection()
+    }
+
+    /// Drop the retained logical spill-operation plan so tests can prove
+    /// replay rejects the missing boundary evidence. Returns `false` when the
+    /// recovery declined the boundary and has no plan to corrupt.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub(crate) fn corrupt_logical_operations_for_test(&mut self) -> bool {
+        if self.logical_operations.is_none() {
+            return false;
+        }
+        self.logical_operations = None;
+        true
+    }
+
+    /// Substitute a logical spill-operation plan recovered under foreign
+    /// facts so tests can prove replay rejects custody that was not produced
+    /// over this recovery's own source.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub(crate) fn substitute_logical_operations_for_test(
+        &mut self,
+        operations: ValidatedLogicalSpillOperations,
+    ) {
+        self.logical_operations = Some(operations);
     }
 
     /// Corrupt the recorded active-resident prefix custody so cross-phase
@@ -336,6 +372,10 @@ pub enum RuntimeSpillAllocationError {
     /// selection binding was never earned.
     ProbeMismatch,
     CandidateMismatch,
+    /// The retained logical spill-operation plan does not match the plan
+    /// replay re-derived over the recovery's input facts — either the fact or
+    /// its source custody was forged.
+    LogicalOperationsMismatch,
     ReceiptMismatch,
 }
 

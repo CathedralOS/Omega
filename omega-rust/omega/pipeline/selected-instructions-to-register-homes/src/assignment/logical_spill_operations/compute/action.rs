@@ -13,7 +13,7 @@ use crate::{
     VirtualFixedConstraintSite,
 };
 
-pub(in crate::unsequenced_spill_stages::logical_spill_operations) fn compute_action(
+pub(in crate::assignment::logical_spill_operations) fn compute_action(
     function_index: usize,
     selected: &SelectedFunction,
     ranges: &FunctionLiveRanges,

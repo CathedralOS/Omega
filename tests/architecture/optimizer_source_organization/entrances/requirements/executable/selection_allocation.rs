@@ -114,15 +114,15 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn choose_spill_victims",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/mod.rs",
         coordination_marker: "pub fn plan_logical_spill_operations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/compute/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute/mod.rs",
         coordination_marker: "action::compute_action(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate/mod.rs",
         coordination_marker: "replay::replay_action(",
     },
     RequiredCoordinationEntrance {

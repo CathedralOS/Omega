@@ -35,6 +35,40 @@ pub(super) fn assign(
     )
 }
 
+/// The sequenced logical spill boundary over the recovery's input facts: the
+/// spill-choice boundary picks its first supported victim per function and
+/// logical spill planning binds the storage, store, reload, and
+/// operand-rewrite obligations for it. Both halves are bounded — a declined
+/// policy or an unsupported pressure shape records `None` while the
+/// executable recovery still proceeds.
+pub(super) fn sequenced_logical_operations(
+    source: &RuntimeSpillSource,
+) -> Option<crate::ValidatedLogicalSpillOperations> {
+    let base = source.base();
+    let environment = source.register_environment();
+    let choices = crate::choose_spill_victims(
+        source.legality(),
+        source.ranges(),
+        environment.identity(),
+        environment.physical(),
+        environment.constraints(),
+        environment.reservations(),
+        &environment.allocation_constraint_keys(),
+        crate::SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+        source.budget_per_pass(),
+    )
+    .ok()?;
+    crate::plan_logical_spill_operations(
+        &base,
+        source.ranges(),
+        source.legality(),
+        &choices,
+        crate::LogicalSpillOperationPolicy::SelectedActiveResidentInstructionResultU64StoreBeforePressureReloadBeforeFirstFutureFlexibleUseV1,
+        source.budget_per_pass(),
+    )
+    .ok()
+}
+
 pub(super) fn analyze(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     availability: &crate::ValidatedAllocatorAvailability,
@@ -353,6 +387,10 @@ fn recover_over(
         Ok(_) => return Err(RuntimeSpillAllocationError::RecoveryNotRequired),
     };
     let budget = source.budget_per_pass();
+    // The sequenced logical spill boundary plans over this recovery's input
+    // facts once; the produced evidence is retained on the allocation and
+    // re-derived during replay.
+    let logical_operations = sequenced_logical_operations(&source);
     let mut steps: Vec<RuntimeSpillStep> = Vec::new();
     let mut roster = candidates(source.base().plan());
     let mut current_ranges = source.ranges().clone();
@@ -428,6 +466,7 @@ fn recover_over(
                                 facts: probe,
                                 homes,
                                 manifest,
+                                logical_operations,
                             };
                             replay::validate(&result)?;
                             return Ok(result);
@@ -481,6 +520,7 @@ fn recover_over(
                     facts,
                     homes,
                     manifest,
+                    logical_operations,
                 };
                 replay::validate(&result)?;
                 return Ok(result);
