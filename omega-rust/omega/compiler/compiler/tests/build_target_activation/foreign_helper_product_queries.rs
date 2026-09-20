@@ -56,7 +56,7 @@ fn dual_context_product_query(
     let declarations = "module setup;
         pub machine launch() { }
         pub data LaunchConfig { value: u8; }
-        pub trait Pick { machine choose() -> i32; }
+        pub boundary trait Pick { machine choose() -> i32; }
         pub data AudioProvider { }
         pub machine AudioProvider::choose() -> i32 satisfies Pick::choose {
             transition { _ -> (1) }
@@ -167,6 +167,96 @@ fn product_provider_query_distinguishes_two_checked_instances_of_one_dependency(
             .expect("query observation")
             .build_log(),
         b"setup::AudioProvider\n"
+    );
+    assert_eq!(
+        checked.provider_plans().len(),
+        1,
+        "only the product candidate is retained"
+    );
+    let plan = &checked.provider_plans()[0];
+    let adapter = provider_planning::exact_checked_adapter(&checked, plan, &plan.rows[0])
+        .expect("exact product adapter");
+    let span = checked
+        .symbols
+        .symbol_provenance_source_span(adapter.symbol)
+        .unwrap();
+    assert_eq!(
+        checked.symbols.source_file(span).unwrap().dependency_scope,
+        source::DependencyScope::Product
+    );
+}
+
+#[test]
+fn build_only_boundary_provider_is_not_a_product_candidate() {
+    let checked =
+        dual_context_product_query("", true).expect("build-only declarations remain checked");
+    assert!(
+        checked.provider_plans().is_empty(),
+        "host declarations supply no product provider"
+    );
+}
+
+#[test]
+fn queried_entry_with_two_checked_boundary_instances_executes_natively() {
+    let Some(profile) = target::TargetProfile::host_if_supported() else {
+        eprintln!("SKIP: dual-context entry execution requires a supported hosted target");
+        return;
+    };
+    let helper = TempProject::new(
+        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+    );
+    fs::write(helper.0.join("setup.omg"),
+        "module setup;
+         pub boundary trait Pick { machine choose() -> i32; }
+         pub data AudioProvider { }
+         pub machine AudioProvider::choose() -> i32 satisfies Pick::choose { transition { _ -> (37) } }
+         machine answer() -> i32 { transition { _ -> (37) } }
+         machine verify(answer: i32) -> i32 crashes Trap true {
+             transition answer == 37 { true -> done() _ -> wrong() }
+             state done() -> i32 { 1 }
+             state wrong() -> i32 { crash Trap; }
+         }
+         pub machine launch() crashes Trap true {
+             let answer: i32 = answer();
+             let verified: i32 = verify(answer);
+         }",
+    ).expect("dual-context boundary source");
+    let slot = format!("{}::ProgramEntry", profile.root_slot_owner_name());
+    let project = TempProject::with_main(
+        "use support::setup;",
+        &format!(
+            "use support::setup; machine build(builder: &mut Build) {{
+                 builder.application(\"dual-context-native\");
+                 let provider: ProductProviderRef = builder.product.provider(\"support::setup::AudioProvider\");
+                 builder.log.write_line(provider.path());
+                 let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"{slot}\");
+                 builder.roots.bind({slot}, entry);
+             }}"
+        ),
+    );
+    let report = compile(
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some(profile.target_name().into()),
+        })
+        .with_package_inputs(helper_entry_inputs(&project, &helper))
+        .with_requested_product(RequestedCompileProduct::NativeArtifact),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("dual checked contexts reach native publication");
+    let published = report
+        .publish_retained_native_artifact(&project.0.join("out"))
+        .expect("validated product entry publication");
+    // The image must execute the product body without loading either source copy.
+    fs::remove_file(helper.0.join("setup.omg")).expect("remove shared source");
+    let output = std::process::Command::new(published.checked_native_executable_path().unwrap())
+        .output()
+        .expect("execute product entry");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        output.stdout.is_empty() && output.stderr.is_empty(),
+        "{output:?}"
     );
 }
 

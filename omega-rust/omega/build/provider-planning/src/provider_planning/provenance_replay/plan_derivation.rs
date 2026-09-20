@@ -11,7 +11,7 @@ use crate::provider_planning::provenance_replay::requirement_identities::{
 };
 use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    SelectedTargetMachineOrigin, satisfied_requirement_identity, satisfies_plan_name,
+    SelectedTargetMachineOrigin, satisfies_plan_name,
 };
 use crate::provider_planning::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
@@ -28,6 +28,9 @@ pub(crate) fn derive_provider_plans(
     // machines into typed trees. Derive from their exact retained conformance
     // and supply identities; source syntax is no longer a binding authority.
     for machine in typed.machines() {
+        if !crate::service_schema::is_product_declaration(typed, machine.symbol) {
+            continue;
+        }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let provider_type_symbol = provider_type_symbol(typed, machine);
@@ -142,12 +145,6 @@ pub(crate) fn derive_provider_plans(
                 .as_ref()
                 .map(|name| name.as_str().to_owned())
                 .unwrap_or_default();
-            let requirement_identity = satisfied_requirement_identity(
-                typed,
-                machine.name.as_str(),
-                clause.name.as_str(),
-                requirement.as_str(),
-            );
             let semantic_requirement_identity = exact_satisfied_requirement_identity(
                 typed,
                 clause.symbol,
@@ -156,7 +153,6 @@ pub(crate) fn derive_provider_plans(
             let requirement_symbol = clause.requirement_symbol;
             for (schema_declaration, schema_trait, schema) in provider_plan_schema_targets(
                 typed,
-                &provider_type,
                 provider_type_symbol,
                 clause.symbol,
                 &semantic_requirement_identity,
@@ -200,7 +196,7 @@ pub(crate) fn derive_provider_plans(
                 );
                 plans[position].plan.rows.push(ProviderPlanRow {
                     method: requirement.as_str().to_owned(),
-                    requirement_identity: requirement_identity.clone(),
+                    requirement_identity: semantic_requirement_identity.clone(),
                     requirement_lifetime_partition:
                         typed_trees::machine::normalize_requirement_lifetime_partition(
                             &clause.trait_lifetime_arguments,
@@ -242,6 +238,9 @@ fn derive_top_level_requirement_plans(
 ) -> Vec<DerivedProviderPlan> {
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
+        if !crate::service_schema::is_product_declaration(typed, machine.symbol) {
+            continue;
+        }
         let is_checked_adapter = machine.supply_mode
             == language_semantics::MachineSupplyMode::CheckedBody
             && machine.body_is_present;
@@ -415,7 +414,6 @@ fn derive_top_level_requirement_plans(
 /// direct provider-plan behavior.
 fn provider_plan_schema_targets(
     typed: &TypedTrees,
-    provider_type: &str,
     provider_type_symbol: Option<symbols::SymbolHandle>,
     satisfied_trait_symbol: symbols::SymbolHandle,
     requirement_identity: &str,
@@ -433,7 +431,7 @@ fn provider_plan_schema_targets(
             let definition = typed.traits().iter().find(|definition| {
                 definition.is_boundary && definition.symbol == conformance.trait_symbol
             })?;
-            let arguments = provider_boundary_arguments(typed, definition, provider_type);
+            let arguments = provider_boundary_arguments(typed, definition, provider_type_symbol);
             let schema = crate::service_schema::from_typed_instance(typed, definition, &arguments)?;
             schema
                 .methods
@@ -469,7 +467,7 @@ fn provider_plan_schema_targets(
 
     direct
         .and_then(|definition| {
-            let arguments = provider_boundary_arguments(typed, definition, provider_type);
+            let arguments = provider_boundary_arguments(typed, definition, provider_type_symbol);
             crate::service_schema::from_typed_instance(typed, definition, &arguments).map(
                 |schema| {
                     (
@@ -491,6 +489,9 @@ fn derive_boundary_operator_plans(
 ) -> Vec<DerivedProviderPlan> {
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
+        if !crate::service_schema::is_product_declaration(typed, machine.symbol) {
+            continue;
+        }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
         let provider_type_symbol = provider_type_symbol(typed, machine);

@@ -167,6 +167,7 @@ impl EvaluatedViaBindingTable {
         let expected = typed
             .machines()
             .iter()
+            .filter(|machine| crate::service_schema::is_product_declaration(typed, machine.symbol))
             .flat_map(|machine| {
                 typed
                     .machine_trait_conformances(machine)
@@ -306,6 +307,7 @@ pub fn evaluate_via_bindings(
     let pending = typed
         .machines()
         .iter()
+        .filter(|machine| crate::service_schema::is_product_declaration(typed, machine.symbol))
         .flat_map(|machine| {
             typed
                 .machine_trait_conformances(machine)

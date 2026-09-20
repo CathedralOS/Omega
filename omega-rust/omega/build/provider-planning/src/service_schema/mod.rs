@@ -1,10 +1,31 @@
 //! Derive provider service schemas from checked declaration surfaces.
+//!
+//! These schemas describe the final product, after host build evaluation.
+//! The assembled tree may retain a second checked copy of a dependency for
+//! build execution. Equal package and signature identities do not authorize
+//! that copy to supply a product schema or provider.
 
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
     ServiceResultClaim, ServiceSchema,
 };
+
+/// Whether retained declaration provenance belongs to the product frontier.
+/// Build copies cannot supply final product plans even when package and names
+/// match. Source-free declarations retain their explicitly unscoped behavior.
+pub fn is_product_declaration(
+    program: &typed_trees::TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> bool {
+    program
+        .symbols
+        .symbol_provenance_source_span(symbol)
+        .and_then(|span| program.symbols.source_file(span))
+        // Standalone/toolchain and source-free fixtures retain their existing
+        // declaration frontier; generated symbols follow authored provenance.
+        .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product)
+}
 
 /// PRV2: reify a typed boundary trait's callable surface. `None` for a
 /// non-boundary trait (only boundary traits have service schemas).
@@ -23,7 +44,7 @@ pub fn from_typed_instance(
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
 ) -> Option<ServiceSchema> {
-    if !trait_definition.is_boundary {
+    if !trait_definition.is_boundary || !is_product_declaration(program, trait_definition.symbol) {
         return None;
     }
     let mut methods = Vec::new();
@@ -53,6 +74,9 @@ pub fn from_typed_operator(
     program: &typed_trees::TypedTrees,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Option<ServiceSchema> {
+    if !is_product_declaration(program, operator.symbol) {
+        return None;
+    }
     operator.is_boundary.then(|| ServiceSchema {
         trait_name: typed_trees::operator::boundary_operator_requirement_identity(
             program, operator,
@@ -112,7 +136,8 @@ pub fn schema_binds_exact_boundary_operator(
     schema: &ServiceSchema,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> bool {
-    operator.is_boundary
+    is_product_declaration(program, operator.symbol)
+        && operator.is_boundary
         && typed_trees::operator::boundary_operator_requirement_identity(program, operator)
             == schema.trait_name
         && program.symbols.symbol_package_identity(operator.symbol) == schema.trait_package_identity
@@ -126,7 +151,8 @@ pub fn schema_binds_exact_boundary_trait(
     schema: &ServiceSchema,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
 ) -> bool {
-    trait_definition.is_boundary
+    is_product_declaration(program, trait_definition.symbol)
+        && trait_definition.is_boundary
         && trait_definition.name.as_str() == schema.trait_name
         && program
             .symbols
@@ -141,7 +167,8 @@ pub fn schema_binds_exact_boundary_requirement(
     schema: &ServiceSchema,
     requirement: &typed_trees::machine::Machine,
 ) -> bool {
-    requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+    is_product_declaration(program, requirement.symbol)
+        && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
         && program.symbols.symbol_package_identity(requirement.symbol)
             == schema.trait_package_identity
         && from_typed_boundary_requirement(program, requirement)
@@ -157,7 +184,8 @@ pub fn from_typed_boundary_requirement(
     program: &typed_trees::TypedTrees,
     requirement: &typed_trees::machine::Machine,
 ) -> Option<ServiceSchema> {
-    if !requirement.symbol.is_valid()
+    if !is_product_declaration(program, requirement.symbol)
+        || !requirement.symbol.is_valid()
         || !requirement.is_public
         || requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
         || requirement.body_is_present

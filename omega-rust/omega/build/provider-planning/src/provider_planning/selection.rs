@@ -96,6 +96,11 @@ impl ProviderOperatorFamilySelection {
                 "provider selection subject `{authored_path}` has no exact retained operator declaration"
             ));
         };
+        if !crate::service_schema::is_product_declaration(typed, representative.symbol) {
+            return Err(format!(
+                "provider selection subject `{authored_path}` belongs to build scope, not the product"
+            ));
+        }
         let canonical_path = operator_canonical_path(typed, representative);
         let package = typed.symbols.symbol_package_identity(representative.symbol);
         let coordinates = family_coordinates(typed, package, &canonical_path);
@@ -195,6 +200,7 @@ fn family_coordinates(
         )
         .filter(|operator| {
             operator.is_boundary
+                && crate::service_schema::is_product_declaration(typed, operator.symbol)
                 && typed.symbols.symbol_package_identity(operator.symbol) == package
                 && operator_canonical_path(typed, operator) == canonical_path
         })

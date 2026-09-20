@@ -382,6 +382,7 @@ fn selected_source_boundary_entry_plan(
         .iter()
         .filter(|definition| {
             definition.name.as_str() == method.requirement_owner
+                && crate::service_schema::is_product_declaration(typed, definition.symbol)
                 && typed.symbols.symbol_package_identity(definition.symbol)
                     == method.requirement_owner_package_identity
         })
