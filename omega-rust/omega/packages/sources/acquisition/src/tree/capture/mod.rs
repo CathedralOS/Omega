@@ -13,7 +13,7 @@ pub(crate) use traversal_observations::{
 };
 
 use super::ResolvedLocalSource;
-use super::filesystem::{io_error, open_canonical_source_root};
+use super::filesystem::{io_error, open_canonical_source_root, require_unchanged_entry};
 use super::identity::SourceIdentityHasher;
 use crate::SourceResolveError;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
@@ -51,6 +51,11 @@ pub(crate) fn capture_local_source_from_open_root(
 ) -> Result<CapturedLocalTree, SourceResolveError> {
     let mut source_entries = Vec::new();
     let mut captured_file_bytes = 0_u64;
+    // The retained root handle cannot see its own replacement: a renamed or
+    // remade root leaves the handle pinned to the old inode while the path
+    // moves on. Compare the canonical path's observation before and after the
+    // traversal so that swap rejects instead of publishing a stale capture.
+    let opening_root = std::fs::symlink_metadata(&root).map_err(|error| io_error(&root, error))?;
     visit_directory(
         &root_directory,
         &root_directory,
@@ -62,6 +67,12 @@ pub(crate) fn capture_local_source_from_open_root(
         policy,
         &mut captured_file_bytes,
         &mut source_entries,
+    )?;
+    let closing_root = std::fs::symlink_metadata(&root).map_err(|error| io_error(&root, error))?;
+    require_unchanged_entry(
+        &cap_std::fs::Metadata::from_just_metadata(opening_root),
+        &cap_std::fs::Metadata::from_just_metadata(closing_root),
+        &root,
     )?;
     source_entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
 
