@@ -450,8 +450,14 @@ fn unprovisioned_runnable_fixture_at(seed: u64, placement_base: u64) -> Runnable
         ProfileDecisionId::new(seed + 40).expect("profile decision"),
     )
     .expect("terminal installation record");
-    let artifact = bind_installed_artifact(object, image, installation, installed)
-        .expect("installed terminal artifact");
+    let artifact = bind_installed_artifact(
+        object,
+        image,
+        installation,
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
+        installed,
+    )
+    .expect("installed terminal artifact");
     let runnable = bind_installed_runnable_component(artifact, root_ledger, None)
         .expect("installed runnable component");
     RunnableFixture {
@@ -567,8 +573,14 @@ fn unbound_installation(seed: u64, placement_base: u64) -> UnboundInstallation {
         ProfileDecisionId::new(seed + 40).expect("profile decision"),
     )
     .expect("terminal installation record");
-    let artifact = bind_installed_artifact(object, image, installation, installed)
-        .expect("installed terminal artifact");
+    let artifact = bind_installed_artifact(
+        object,
+        image,
+        installation,
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
+        installed,
+    )
+    .expect("installed terminal artifact");
     UnboundInstallation { artifact, roots }
 }
 
@@ -615,8 +627,14 @@ fn unbound_progress_installation(
     } else {
         build_installation_record(&image, profile).expect("terminal installation record")
     };
-    let artifact = bind_installed_artifact(object, image, installation, installed)
-        .expect("installed terminal artifact");
+    let artifact = bind_installed_artifact(
+        object,
+        image,
+        installation,
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
+        installed,
+    )
+    .expect("installed terminal artifact");
     UnboundProgressInstallation {
         artifact,
         roots,
@@ -2300,8 +2318,14 @@ fn installed_runnable_component_rejects_every_one_field_substitution() {
         ProfileDecisionId::new(990).expect("profile decision"),
     )
     .expect("terminal installation record");
-    let artifact = bind_installed_artifact(object, image, installation, installed)
-        .expect("installed terminal artifact");
+    let artifact = bind_installed_artifact(
+        object,
+        image,
+        installation,
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
+        installed,
+    )
+    .expect("installed terminal artifact");
     let error = bind_installed_runnable_component(artifact, roots, None)
         .expect_err("a registry with a live root is owned by that root's slot");
     assert!(

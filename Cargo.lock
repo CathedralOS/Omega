@@ -609,6 +609,7 @@ dependencies = [
 name = "component-deployment"
 version = "0.1.0"
 dependencies = [
+ "boundary-applications",
  "calling-conventions",
  "component-candidate",
  "component-publication",
@@ -641,6 +642,7 @@ dependencies = [
 name = "component-publication"
 version = "0.1.0"
 dependencies = [
+ "boundary-applications",
  "calling-conventions",
  "checked-trees-to-lowered-psi",
  "effects",
@@ -856,6 +858,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-target-operations",
+ "boundary-applications",
  "calling-conventions",
  "checked-trees",
  "checked-trees-to-lowered-psi",

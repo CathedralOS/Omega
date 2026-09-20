@@ -9,7 +9,7 @@ use super::{
     CallSiteOwner, INSTALLATION_FORMAT_MARKER, InstallationError, InstalledForeignCallStack,
     InstalledFunction, InstalledInternalUnitCall, MachineId, Reader, StructuralTypeId,
     codec::structural_argument_codec, decode_installation_record, decode_structural_types,
-    encode_structural_types, push_u16, push_u32,
+    encode_structural_types, push_u16, push_u32, push_u64,
 };
 use super::{
     codec::function_affine_cleanup_codec::{
@@ -430,6 +430,85 @@ fn native_reference_shapes_and_projections_carry_metadata_not_storage() {
         argument
     );
     assert_eq!(reader.remaining(), 0);
+}
+
+#[test]
+fn boundary_opaque_application_custody_round_trips() {
+    use super::codec::opaque_application_codec::{
+        decode_boundary_opaque_applications, encode_boundary_opaque_applications,
+    };
+    let custody = boundary_applications::BoundaryOpaqueRepresentationApplications::new(vec![
+        boundary_applications::BoundaryOpaqueRepresentationApplication {
+            requirement_identity: "core::system::Table".into(),
+            shape_root: 4,
+            application_report_fingerprint: 0xA55A,
+            selected_application_commitment: [0x11; 32],
+        },
+        boundary_applications::BoundaryOpaqueRepresentationApplication {
+            requirement_identity: "core::ptr::Ptr".into(),
+            shape_root: 2,
+            application_report_fingerprint: 0xB66B,
+            selected_application_commitment: [0x22; 32],
+        },
+    ])
+    .expect("custody");
+    let mut bytes = Vec::new();
+    encode_boundary_opaque_applications(&mut bytes, &custody);
+    let mut reader = Reader::new(&bytes);
+    assert_eq!(
+        decode_boundary_opaque_applications(&mut reader).expect("decode custody"),
+        custody
+    );
+    assert_eq!(reader.remaining(), 0);
+}
+
+#[test]
+fn boundary_opaque_application_custody_rejects_drifted_edge() {
+    use super::codec::opaque_application_codec::{
+        decode_boundary_opaque_applications, encode_boundary_opaque_applications,
+    };
+    // One edge coordinate cannot retain two different commitments: decode
+    // fails closed rather than picking either application.
+    let mut bytes = Vec::new();
+    push_u32(&mut bytes, 2);
+    for commitment in [0x33_u8, 0x44_u8] {
+        push_u32(&mut bytes, 4);
+        bytes.extend_from_slice(b"edge");
+        push_u16(&mut bytes, 1);
+        push_u64(&mut bytes, 7);
+        bytes.extend_from_slice(&[commitment; 32]);
+    }
+    let mut reader = Reader::new(&bytes);
+    assert!(matches!(
+        decode_boundary_opaque_applications(&mut reader),
+        Err(InstallationError::InvalidBoundaryOpaqueApplicationCustody(
+            _
+        ))
+    ));
+
+    let custody = boundary_applications::BoundaryOpaqueRepresentationApplications::new(vec![
+        boundary_applications::BoundaryOpaqueRepresentationApplication {
+            requirement_identity: "edge".into(),
+            shape_root: 1,
+            application_report_fingerprint: 7,
+            selected_application_commitment: [0x33; 32],
+        },
+    ])
+    .expect("custody");
+    let mut encoded = Vec::new();
+    encode_boundary_opaque_applications(&mut encoded, &custody);
+    // An empty requirement identity cannot encode one edge.
+    let zero_identity = encoded.iter().position(|b| *b == 0).is_some();
+    assert!(zero_identity, "sanity");
+    let mut forged = encoded.clone();
+    // identity len field begins at byte 4 (count prefix is u32)
+    forged[4..8].copy_from_slice(&0_u32.to_le_bytes());
+    forged.drain(8..12);
+    let mut reader = Reader::new(&forged);
+    assert_eq!(
+        decode_boundary_opaque_applications(&mut reader),
+        Err(InstallationError::InvalidBoundaryOpaqueApplicationIdentity)
+    );
 }
 
 #[test]

@@ -353,6 +353,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
                 .map(|plan| plan.report_identity()),
             artifact.provider_executions().iter(),
             None,
+            boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         )
         .expect("installation retains the admitted foreign stack projection");
     let foreign_stacks = installation
@@ -495,6 +496,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         artifact.object().clone(),
         artifact.image().clone(),
         installation.clone(),
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         install_complete(),
     )
     .expect("the imported Mach-O image binds complete installed-code custody");
@@ -521,6 +523,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         artifact.object().clone(),
         artifact.image().clone(),
         installation.clone(),
+        &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
         truncated,
     )
     .expect_err("a compiler-prefix artifact whose resolver claims an uninstalled thunk address must not bind");
@@ -550,6 +553,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
             artifact.object().clone(),
             artifact.image().clone(),
             installation.clone(),
+            &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
             misresolved,
         )
         .is_err(),
@@ -637,6 +641,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
                 artifact.object().clone(),
                 mutated,
                 installation.clone(),
+                &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
                 install_complete(),
             )
             .is_err(),

@@ -19,6 +19,7 @@ pub(super) mod internal_unit_call_codec;
 pub(super) mod internal_unit_call_source_codec;
 pub(super) mod internal_unit_scalar_call_codec;
 pub(super) mod mixed_structural_scalar_abi_codec;
+pub(super) mod opaque_application_codec;
 pub(super) mod parameter_abi_codec;
 pub(super) mod port_effect_codec;
 pub(super) mod private_function_codec;

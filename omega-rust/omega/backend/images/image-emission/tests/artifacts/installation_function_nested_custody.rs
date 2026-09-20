@@ -1630,6 +1630,7 @@ fn installation_function_nested_call_stacks_reject_every_one_field_substitution(
         [91],
         std::iter::empty::<&dyn installation_evidence::ProviderExecutionEvidence>(),
         None,
+        boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
     )
     .expect("selected provider installation");
     validate_installation_record(&selected, &image).expect("selected image binding");
@@ -1674,6 +1675,7 @@ fn installation_foreign_call_stack_row_rejects_every_one_field_substitution() {
         [91, 97],
         [&provider],
         None,
+        boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
     )
     .expect("foreign call installation");
     validate_installation_record(&record, &image).expect("exact image binding");

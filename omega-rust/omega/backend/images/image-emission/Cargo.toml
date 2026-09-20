@@ -31,6 +31,7 @@ x86-encoding = { path = "../../instruction_set_architectures/x86-encoding" }
 machine-code = { path = "../../../representations/machine-code" }
 function-identity = { path = "../../../representations/function-identity" }
 installation-evidence = { path = "../../../representations/installation-evidence" }
+boundary-applications = { path = "../../../representations/boundary-applications" }
 target-operations = { path = "../../../representations/target-operations" }
 task-plans = { path = "../../../representations/task-plans" }
 isa-aarch64 = { path = "../../instruction_set_architectures/isa-aarch64" }

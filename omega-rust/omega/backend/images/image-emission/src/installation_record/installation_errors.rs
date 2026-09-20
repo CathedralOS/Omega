@@ -218,6 +218,10 @@ pub enum InstallationError {
     /// thunk↔binding-slot pairing an imported image requires.
     InvalidImagePlacementCustody,
     ImageBindingMismatch,
+    TooManyBoundaryOpaqueApplications,
+    BoundaryOpaqueApplicationIdentityTooLong,
+    InvalidBoundaryOpaqueApplicationIdentity,
+    InvalidBoundaryOpaqueApplicationCustody(&'static str),
 }
 
 impl std::fmt::Display for InstallationError {

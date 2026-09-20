@@ -84,11 +84,14 @@ use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joi
 
 /// The current vocabulary includes owned incoming stack pointers and AArch64's
 /// dedicated indirect-result register. Earlier envelopes cannot carry those roles.
-/// Marker 98 carries reference-bearing structural metadata: referent path
-/// segments, reference structural type shapes, and result source rosters.
-/// Marker 97 seals complete placed-region inventory identities for the bound
-/// image; marker 96 records carry no complete-custody digests.
-pub const INSTALLATION_FORMAT_MARKER: u16 = 98;
+/// Marker 99 retains the by-value opaque boundary application's strong
+/// selected-application custody so install replay compares it with the bound
+/// artifact's coverage. Marker 98 carries reference-bearing structural
+/// metadata: referent path segments, reference structural type shapes, and
+/// result source rosters. Marker 97 seals complete placed-region inventory
+/// identities for the bound image; marker 96 records carry no complete-custody
+/// digests.
+pub const INSTALLATION_FORMAT_MARKER: u16 = 99;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
