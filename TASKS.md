@@ -8073,6 +8073,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
   stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
+  Re-verified at `6a3ba61f744` (z148): the submodule stays wholesale-fenced —
+  `samples/apps/squalr` under GEOMETRY-ALIGNMENT-REGIONS (exp 01:18Z) and
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION (exp 05:49Z) — and the sibling stub
+  GEOMETRY-ALIGNMENT-STRING-PARSING is under a live same-surface claim.
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
   Its only implementing surface is the `samples/apps/squalr` submodule,
