@@ -5532,8 +5532,16 @@ Owners include
   exception until core exports them or a semantic binding admits them.
   `proofs/kernel_*` drift stays owned by the kernel items.
   `objc` (18) and `arithmetic/saturating_divide_native` are
-  macOS-only and unmigrated here; `fail/` and `run/` corpora plus
-  `platform/` member sources still hold bundled spellings. Structural
+  macOS-only and unmigrated here; `fail/` and `run/` corpora still hold
+  bundled spellings. Packaged `platform/` member sources now carry the
+  ordinary `omega_language_std` spelling, and the std-edge declaration
+  pin in `repository_build_declarations.rs` recurses into member
+  directories so a bundled member import is rejected. `run/` migration
+  waits on the open package-route legs named above: state-machine
+  entries there rejoin no Terminal attachment (the identical
+  `pass/text/runtime_stdin_command_branch_exit` shape is already red on
+  it), `-> i32` mains have no `ProgramEntry` result binding, and
+  domain-qualified borrow shapes fail package checking. Structural
   writeback shares the blocker recorded in `WRITE-ONLY-BORROW`. Feed
   consumer-scoped Console, Filesystem, and UEFI bindings through normal
   package-aware compilation.
