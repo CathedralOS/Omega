@@ -3392,11 +3392,34 @@ Owners include
 
   Remaining work:
 
-  - Lowering: transport the exact place/loan restoration debt through
-    `checked-trees-to-lowered-psi` using the ordinary partial-move, store and
-    control-flow relationships, without replacing the caller's storage by a
-    staged copy. The Terminal spelling it must produce now exists:
-    `MoveStructuralField`/`StoreStructuralField` (codec tags 77/78).
+  - Lowering: `checked-trees-to-lowered-psi/src/emission/borrowed_window.rs`
+    owns the Terminal spelling — `BorrowedWindowLedger::emit_move` emits
+    `MoveStructuralField` for a checked owned place beneath a mutable-borrowed
+    parameter and `emit_store` emits `StoreStructuralField` on the same exact
+    route from a whole owned value of the hole's type; every unpinned shape
+    (non-exclusive root, whole-root/indexed/referent route, scalar field, type
+    drift, overlapping extraction, wrong-place repair, open hole at an exit,
+    disagreeing join) fails closed as
+    `LoweringError::UnpinnedBorrowedStorageWindow` naming the place, and the
+    emitted pair replays through `terminal_verifier::validate_module` in its
+    tests. Nothing routes to it yet: `CheckedUnitEffectOperationPlan`
+    (checked-trees) has no move-out or whole-structural-field-store row, and
+    `typed-trees-to-checked-trees` omits the guide canary body at local
+    construction ("call statement shape: call count without a statement
+    sequence") with no structural value root at the move statement, so
+    `lower_machine` still fails with `InvalidUnitMachinePlan` (pinned by
+    `emission::borrowed_window::tests::the_guide_canary_body_has_no_checked_unit_plan_to_route_here_yet`).
+    Remaining: add the plan row(s) for the pair, produce them in the checked
+    stage's `execution/unit` statement sequence from the ordinary move/store
+    facts (the checker records no window fact), and call the ledger from the
+    attached-Unit plan consumer, checking `require_closed` at every non-crash
+    exit and `require_same_frontier` at joins. Then move
+    `ownership/move_keyword_field_assignment` from `CHECKED_ONLY_PASS_CANARIES`
+    to `ACTIVE_PASS_CANARIES` in `compiler/tests/canary_suite.rs`; native
+    production also needs the fixture to bind `ProgramEntry` roots like the
+    active ownership canaries (a copy with those bindings currently stops at
+    "selected ProgramEntry establishment rejoins 0 Terminal attachment
+    identities").
   - Terminal (landed): `terminal-verifier/src/validation/borrowed_windows.rs`
     reconstructs the restoration debt from operations, loan authority and
     control flow — `MoveStructuralField` opens a per-root hole ledger keyed by
@@ -3408,9 +3431,10 @@ Owners include
     (`cargo nextest run -p terminal-verifier --test suite borrowed_storage_windows`,
     `-p terminal-codec --test suite canonical::borrowed_storage_windows`,
     `-p terminal-interpreter --test unit borrowed_storage_windows`;
-    linux-x86_64). Omega lowering still rejects both operations via
-    `LoweringError::UnsupportedBorrowedStorageWindow` — native realization
-    remains open.
+    linux-x86_64). `terminal-psi-to-abstract-operations` carries both
+    operations into abstract operations
+    (`lowering/machine/operation/borrowed_windows.rs`); target lowering and
+    native realization remain open.
   - Checker (landed the reconvergence-agreement leg): a move evaluated inside
     a `match` arm opens a pending debt on that arm's own edge and commits one
     joined hole at the match's join point iff every reachable arm resolves the
