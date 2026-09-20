@@ -8508,14 +8508,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
   OMEGA-PARSER-GATE-WINDOWS-VALIDATION's Windows x64 leg of the
   omega-parser bootstrap gate. The host-free surface is landed and
-  re-verified green on Linux x86-64 at `8a37f826865`:
+  re-verified green on Linux x86-64 at `9b75533b9c7` (this session):
   `sh tests/bootstrap/omega-parser/run.sh --identity` binds every
   identity plus the DCREQ request framing, customer assembly, and
-  expected fixture (622933-byte receipt request, 563736-byte customer).
-  The only remaining leg is Windows x64 seed execution —
-  `sh tests/bootstrap/omega-parser/run.sh` on a MINGW/MSYS x64 host;
-  no audited seed executes on this Linux box, so the row is a host leg,
-  not a code slice.
+  expected fixture (622933-byte receipt request; customer is now
+  566377 bytes, SHA-256 `ed3cd51c…` — upstream assembly moved since the
+  `8a37f826865` stamp recorded 563736 / `1ce55f17…`, and the gate's
+  bound records moved with it). The only remaining leg is Windows x64
+  seed execution — `sh tests/bootstrap/omega-parser/run.sh` on a
+  MINGW/MSYS x64 host; no audited seed executes on this Linux box, so
+  the row is a host leg, not a code slice.
 - **OMEGA-PARSER-GATE-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS-VALIDATION.** Windows x64 validation leg of the
   omega-parser bootstrap gate (sibling alias of OMEGA-PARSER-GATE-WINDOWS /
