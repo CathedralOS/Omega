@@ -120,7 +120,7 @@ where
     )
 }
 
-fn trace_value_origin_before_statement<Resolve, Rebase>(
+pub(crate) fn trace_value_origin_before_statement<Resolve, Rebase>(
     program: &TypedTrees,
     machine: &Machine,
     state: &FlowStateFact,
@@ -302,6 +302,11 @@ where
     let mut expression = projection.expression;
     let mut remaining = projection.remaining;
     for _ in 0..CAPTURED_SOURCE_LITERAL_HOPS {
+        // A domain or value cast qualifies the same storage, so provenance
+        // continues at the operand it reinterprets.
+        while let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) {
+            expression = cast.value;
+        }
         if let Some((call, relative)) = result_call(program, expression, &remaining)
             && let Some(place) = resolve(state, statement_index, call, &relative)
         {

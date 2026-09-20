@@ -464,7 +464,7 @@ fn helper_result_survives_writes_after_the_capture() {
 }
 
 #[test]
-fn mutable_body_capture_has_no_exact_origin() {
+fn mutable_body_capture_derives_the_written_value() {
     let fixture = Fixture::with_helper_calls(
         "context.scheduler = pick_mutated(replacement);",
         "context.scheduler",
@@ -472,7 +472,7 @@ fn mutable_body_capture_has_no_exact_origin() {
     );
     assert_eq!(
         fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
-        None
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
     );
 }
 
@@ -490,13 +490,16 @@ fn read_only_mutable_input_derives_the_exact_input_projection() {
 }
 
 #[test]
-fn mutable_input_written_on_the_demanded_path_has_no_exact_origin() {
+fn mutable_input_written_on_the_demanded_path_derives_the_replacement_input() {
     let fixture = Fixture::with_helper_calls(
         "let out: SchedulerHandle = poke_mut(context, replacement.scheduler);",
         "out",
         &[0],
     );
-    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
+    assert_eq!(
+        fixture.query(fixture.subject("out", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
 }
 
 #[test]
@@ -575,13 +578,16 @@ fn nested_call_through_a_read_only_mutable_input_derives_the_exact_input_project
 }
 
 #[test]
-fn nested_call_written_on_the_demanded_path_has_no_exact_origin() {
+fn nested_call_written_on_the_demanded_path_derives_the_replacement_input() {
     let fixture = Fixture::with_helper_calls(
         "let out: SchedulerHandle = forward_poke(context, replacement.scheduler);",
         "out",
         &[0],
     );
-    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
+    assert_eq!(
+        fixture.query(fixture.subject("out", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
 }
 
 #[test]
@@ -762,13 +768,16 @@ fn mutable_local_disjoint_write_keeps_the_initializer_origin() {
 }
 
 #[test]
-fn mutable_local_written_on_the_demanded_path_has_no_exact_origin() {
+fn mutable_local_written_on_the_demanded_path_derives_the_written_value() {
     let fixture = Fixture::with_helper_calls(
         "let out: SchedulerHandle = keep_overwrite(dual);",
         "out",
         &[0],
     );
-    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
+    assert_eq!(
+        fixture.query(fixture.subject("out", &[])),
+        Some(fixture.subject("dual", &[("Dual", "spare")]))
+    );
 }
 
 #[test]
@@ -788,13 +797,16 @@ fn mutable_owned_parameter_disjoint_write_derives_the_exact_origin() {
 }
 
 #[test]
-fn mutable_owned_parameter_demanded_write_has_no_exact_origin() {
+fn mutable_owned_parameter_demanded_write_derives_the_written_value() {
     let fixture = Fixture::with_helper_calls(
         "let held: Dual = Dual { scheduler: context.scheduler, spare: replacement.scheduler }; let out: SchedulerHandle = take_mut(held);",
         "out",
         &[1],
     );
-    assert_eq!(fixture.query(fixture.subject("out", &[])), None);
+    assert_eq!(
+        fixture.query(fixture.subject("out", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
 }
 
 #[test]
@@ -863,7 +875,7 @@ fn nested_constructor_operand_derives_the_nested_call_input() {
 }
 
 #[test]
-fn constructor_operand_call_written_on_the_demanded_path_has_no_exact_origin() {
+fn constructor_operand_call_written_on_the_demanded_path_derives_the_replacement_input() {
     let fixture = Fixture::with_helper_calls(
         "context.scheduler = take(Context { scheduler: poke_mut(context, replacement.scheduler) });",
         "context.scheduler",
@@ -871,7 +883,7 @@ fn constructor_operand_call_written_on_the_demanded_path_has_no_exact_origin() {
     );
     assert_eq!(
         fixture.query(fixture.subject("context", &[("Context", "scheduler")])),
-        None
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
     );
 }
 
