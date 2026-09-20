@@ -6,8 +6,7 @@ mod output_custody;
 use crate::admission::component_assumptions::harvest_component_assumption_acceptances;
 use crate::admission::configuration::{BuildConfig, extract_build_config};
 use crate::admission::declarations::{
-    harvest_behavior_exclusions, harvest_provider_selections, harvest_root_grants,
-    harvest_wire_compatibility_demands,
+    harvest_behavior_exclusions, harvest_root_grants, harvest_wire_compatibility_demands,
 };
 use crate::admission::selection::root_bindings::collect_root_bindings;
 use crate::admitted_build_program::{AdmittedBuildMachine, SelectedAdmittedBuildMachine};
@@ -113,9 +112,13 @@ fn execute_admitted_build_occurrence(
     let output_receipts = measured.observations().build_output_receipts().to_vec();
     let root_bindings = collect_root_bindings(typed, measured.executed_root_bindings())?;
     let executed_exclusions = measured.executed_behavior_exclusions().to_vec();
+    let provider_selections = crate::admission::declarations::collect_executed_provider_selections(
+        typed,
+        measured.executed_provider_selections(),
+    )?;
 
-    // Phase 3: read the augmented `Build` back and harvest the declared
-    // grants, selections, demands, and exclusions into the configuration.
+    // Phase 3: join the augmented Build and declared grants/demands with
+    // the selections and exclusions recorded by this execution.
     let mut arguments = measured.into_value();
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
@@ -135,7 +138,7 @@ fn execute_admitted_build_occurrence(
         ))]
     })?;
     config.grants = harvest_root_grants(typed, machine).map_err(|diagnostic| vec![diagnostic])?;
-    config.provider_selections = harvest_provider_selections(typed, machine)?;
+    config.provider_selections = provider_selections;
     config.opaque_representation_selections =
         representation_planning::harvest_opaque_representation_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;

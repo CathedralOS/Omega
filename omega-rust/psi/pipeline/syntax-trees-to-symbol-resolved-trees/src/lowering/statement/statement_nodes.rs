@@ -189,7 +189,7 @@ pub(crate) fn lower_statement_node(
                         .set_expression_handle_at_offset(arguments, offset, temp);
                 }
             }
-            hoisted.push(Statement::Call(Call {
+            let lowered_call = Call {
                 receiver_symbol: SymbolHandle::invalid(),
                 target_symbol: SymbolHandle::invalid(),
                 target: crate::lowering::name::lower_name(&call.target),
@@ -220,7 +220,21 @@ pub(crate) fn lower_statement_node(
                     discards_result: call.discards_result,
                     authored_call_selection: None,
                 },
-            }));
+            };
+            // This spelling has designated static operands only if checking
+            // later proves the exact Build receiver. Preserve expression
+            // custody so that decision can finalize the operand occurrences;
+            // the statement-call form retains only its callee occurrence.
+            // Static and explicit-discard calls retain their ordinary form.
+            if call.target.as_str() == "select_provider"
+                && !call.target_is_static
+                && !call.discards_result
+            {
+                let expression = retain_provider_call_expression(lowerer, lowered_call);
+                hoisted.push(Statement::Expression(expression));
+            } else {
+                hoisted.push(Statement::Call(lowered_call));
+            }
             Ok(hoisted)
         }
         syntax::statement::StatementNode::ProofOutputBindingStatement(binding) => {
@@ -524,6 +538,64 @@ pub(crate) fn lower_statement_node(
             Ok(hoisted)
         }
     }
+}
+
+fn retain_provider_call_expression(lowerer: &mut Lowerer, call: Call) -> ExpressionHandle {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use symbol_resolved_trees::expression::{TableCallExpression, TableNamePath};
+
+    let receiver_members = lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .statement_path_members
+        .span_or_empty(call.receiver)
+        .to_vec();
+    let receiver_span = receiver_members.first().map(|member| member.source_span());
+    let expression_table = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let mut members = HandleSpan::empty();
+    for member in receiver_members {
+        expression_table.push_name_path_member(&mut members, member);
+    }
+    let receiver = if members.is_empty() {
+        ExpressionHandle::invalid()
+    } else {
+        expression_table.insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: call.receiver_starts_at_self,
+            ..Default::default()
+        }))
+    };
+    let source_span = call.target.source_span();
+    let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
+        receiver,
+        target_symbol: call.target_symbol,
+        target: call.target,
+        machine_arguments: call.storage.machine_arguments,
+        arguments: call.storage.arguments,
+        evidence_arguments: call.storage.evidence_arguments,
+        operational_acknowledgement: call.storage.operational_acknowledgement,
+    }));
+    for (handle, span) in [(receiver, receiver_span), (expression, Some(source_span))] {
+        if !handle.is_valid() {
+            continue;
+        }
+        if let Some(span) = span {
+            expression_table.set_source_span(handle, span);
+        }
+        let exposure = AuthoredDeclarationSelectionExposure::PrivateImplementation;
+        expression_table.set_authored_expression_exposure(handle, exposure);
+        lowerer.pending_authored_expressions.push(
+            crate::resolution::lowerer::PendingAuthoredExpression {
+                expression: handle,
+                exposure,
+            },
+        );
+        if let Some(partition) = lowerer.current_compiler_selection_partition {
+            expression_table.set_compiler_selection_partition(handle, partition);
+        }
+    }
+    expression
 }
 
 fn evidence_forwarding_names<'syntax>(

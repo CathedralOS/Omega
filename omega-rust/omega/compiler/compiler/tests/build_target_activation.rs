@@ -5,6 +5,8 @@
 mod activation_identifiers_and_publication;
 #[path = "support/console_acceptance.rs"]
 mod console_acceptance;
+#[path = "build_target_activation/executed_provider_selection.rs"]
+mod executed_provider_selection;
 #[path = "fixture_rosters/build_target_activation.rs"]
 mod fixtures;
 #[path = "build_target_activation/foreign_helper_product_queries.rs"]

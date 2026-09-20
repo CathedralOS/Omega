@@ -554,11 +554,19 @@ impl<'program> Evaluator<'program> {
         }
         // CH10 root grant marker (see the statement-call twin): a no-op.
         if target.starts_with("accept_boundary#")
-            || target == "select_provider"
             || target == "select_representation"
             || target.starts_with("wire_compatibility#")
         {
             return Ok(Value::Unit);
+        }
+        if let Some(value) = self.try_provider_selection_value_call(handle, call, frame)? {
+            if self.guard_depth > 0 {
+                frame
+                    .guard_call_results
+                    .borrow_mut()
+                    .push((handle, value.clone()));
+            }
+            return Ok(value);
         }
         // Evaluated behavior exclusions (see the statement-call twin): the
         // call records the selection only when it actually runs against the

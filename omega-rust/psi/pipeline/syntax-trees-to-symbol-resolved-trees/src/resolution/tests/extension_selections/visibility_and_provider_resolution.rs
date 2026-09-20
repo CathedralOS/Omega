@@ -222,14 +222,12 @@ fn resolves_provider_selection_type_paths_to_exact_symbols() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees::statement::StatementNode::Call(call)
-                if call.target.as_str() == "select_provider" =>
-            {
-                Some(call)
+            symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
+                provider_selection_expression(&program, *expression)
             }
             _ => None,
         })
-        .expect("provider-selection statement call");
+        .expect("provider-selection expression call with operand custody");
     let [boundary, provider] = call.machine_arguments.as_ref() else {
         panic!("two retained provider-selection arguments")
     };
@@ -279,14 +277,12 @@ fn resolves_top_level_requirement_provider_selection_to_exact_machine_symbol() {
         .statements(state.statement_nodes)
         .iter()
         .find_map(|statement| match statement {
-            symbol_resolved_trees::statement::StatementNode::Call(call)
-                if call.target.as_str() == "select_provider" =>
-            {
-                Some(call)
+            symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
+                provider_selection_expression(&program, *expression)
             }
             _ => None,
         })
-        .expect("provider-selection statement call");
+        .expect("provider-selection expression call with operand custody");
     let [subject, provider] = call.machine_arguments.as_ref() else {
         panic!("two retained provider-selection arguments")
     };
@@ -358,21 +354,72 @@ fn authored_build_selection_paths_cannot_fall_back_to_extension_declarations() {
         .statements(state.statement_nodes)
         .iter()
         .filter_map(|statement| match statement {
-            symbol_resolved_trees::statement::StatementNode::Call(call) => Some(call),
+            symbol_resolved_trees::statement::StatementNode::Call(call) => {
+                Some((call.target.as_str(), call.machine_arguments.as_ref()))
+            }
+            symbol_resolved_trees::statement::StatementNode::Expression(expression) => {
+                provider_selection_expression(&program, *expression)
+                    .map(|call| (call.target.as_str(), call.machine_arguments.as_ref()))
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 2);
-    for call in calls {
+    assert_eq!(calls[0].0, "select_provider");
+    assert_eq!(calls[1].0, "select_representation");
+    for (target, arguments) in calls {
         assert!(
-            call.machine_arguments
-                .iter()
-                .all(|argument| !argument.symbol.is_valid()),
+            arguments.iter().all(|argument| !argument.symbol.is_valid()),
             "authored `{}` arguments must not resurrect extension declarations: {:?}",
-            call.target,
-            call.machine_arguments
+            target,
+            arguments
         );
     }
+}
+
+fn provider_selection_expression(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+    expression: symbol_resolved_trees::expression::ExpressionHandle,
+) -> Option<&symbol_resolved_trees::expression::TableCallExpression> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionLateBinding,
+        AuthoredDeclarationSelectionTarget,
+    };
+    let expressions = &program.tables.bodies.expressions;
+    let symbol_resolved_trees::expression::ExpressionNode::Call(call) =
+        expressions.expression(expression)
+    else {
+        return None;
+    };
+    if call.target.as_str() != "select_provider" {
+        return None;
+    }
+    let selections = expressions
+        .authored_selection_occurrences(expression)
+        .map(|occurrence| {
+            program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .expect("retained expression occurrence")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selections
+            .iter()
+            .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
+            .count(),
+        1
+    );
+    let operands = selections
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::StaticArgument)
+        .collect::<Vec<_>>();
+    assert_eq!(operands.len(), 2);
+    assert!(operands.iter().all(|selection| selection.target()
+        == AuthoredDeclarationSelectionTarget::LateBound(
+            AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument
+        )));
+    Some(call)
 }
 
 #[test]

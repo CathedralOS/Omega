@@ -150,7 +150,8 @@ pub(super) fn assign_call_symbol(
         expression_table.expression_mut(expression)
     {
         call.target_symbol = target_symbol;
-        let provider_selection = call.target.as_str() == "select_provider";
+        let provider_selection =
+            call.target.as_str() == "select_provider" && !target_symbol.is_valid();
         let representation_selection = call.target.as_str() == "select_representation";
         // `exclude_service<Trait>()` names one exact declaration the same way
         // a provider slot does; build harvesting requires a boundary trait.

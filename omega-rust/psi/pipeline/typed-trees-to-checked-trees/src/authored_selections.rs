@@ -20,6 +20,7 @@ mod finalization;
 mod intrinsic_calls;
 mod member_targets;
 mod operator_targets;
+mod provider_selection;
 mod review;
 mod selection_collection;
 #[cfg(test)]
@@ -27,6 +28,9 @@ mod symbol_types_tests;
 
 pub(crate) use operator_targets::{
     typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
+};
+pub(crate) use provider_selection::{
+    is_build_provider_selection, provider_selection_expressions, resolve_product_operand,
 };
 pub(crate) use review::derive_checked_collection_view_intrinsic;
 
@@ -180,13 +184,19 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedCall,
                     ExpressionNode::Call(call),
-                ) => exact_named_operator_call(program, call)
-                    .and_then(|operator| declaration_target(operator.symbol))
+                ) => provider_selection::is_build_provider_selection(program, expression)
+                    .then_some(CheckedResolutionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
+                    ))
                     .or_else(|| {
-                        contexts::checked_machine_call_target_from_exact_owner(
-                            program, &facts, expression, call,
-                        )
-                        .and_then(declaration_target)
+                        exact_named_operator_call(program, call)
+                            .and_then(|operator| declaration_target(operator.symbol))
+                            .or_else(|| {
+                                contexts::checked_machine_call_target_from_exact_owner(
+                                    program, &facts, expression, call,
+                                )
+                                .and_then(declaration_target)
+                            })
                     }),
                 _ => None,
             };

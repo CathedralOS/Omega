@@ -344,6 +344,67 @@ impl SymbolTable {
             .product_dependency_target(requester, alias)
     }
 
+    /// Resolve a designated product operand under its author's package scope.
+    /// Callers supply declaration candidates and their public visibility; this
+    /// never extends ordinary source lookup. Exact module paths take precedence
+    /// over same-package short names. Operator overloads at one exact path name
+    /// one family, represented by its first declaration in candidate order.
+    pub fn find_product_declaration_from_source(
+        &self,
+        path: &str,
+        occurrence: SourceSpan,
+        candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+    ) -> Option<SymbolHandle> {
+        let qualified = path.split_once("::");
+        let dependency =
+            qualified.and_then(|(alias, _)| self.product_dependency_target(occurrence, alias));
+        let declaration_path = match (qualified, dependency) {
+            (Some((_, remaining)), Some(_)) => remaining,
+            _ => path,
+        };
+        let mut selected = None;
+        let mut selected_exact = false;
+        let mut ambiguous = false;
+        for (symbol, is_public) in candidates {
+            if !symbol.is_valid()
+                || !match dependency {
+                    Some(package) => {
+                        is_public && self.symbol_product_package_identity(symbol) == Some(package)
+                    }
+                    None => {
+                        self.symbol_provenance_source_span(symbol)
+                            .is_some_and(|declaration| {
+                                self.same_product_package_instance(occurrence, declaration)
+                            })
+                            || !self.has_source_metadata()
+                    }
+                }
+            {
+                continue;
+            }
+            let exact = self.display_path(symbol, "::") == declaration_path;
+            if !exact && (dependency.is_some() || self.name(symbol) != declaration_path) {
+                continue;
+            }
+            if selected.is_none() || (exact && !selected_exact) {
+                selected = Some(symbol);
+                selected_exact = exact;
+                ambiguous = false;
+            } else if exact == selected_exact && selected != Some(symbol) {
+                let same_operator_family = selected.is_some_and(|previous| {
+                    self.get(previous).kind == SymbolKind::Operator
+                        && self.get(symbol).kind == SymbolKind::Operator
+                        && self.display_path(previous, "::") == self.display_path(symbol, "::")
+                        && self.symbol_package_identity(previous)
+                            == self.symbol_package_identity(symbol)
+                        && self.same_symbol_source_package(previous, symbol)
+                });
+                ambiguous |= !same_operator_family;
+            }
+        }
+        if ambiguous { None } else { selected }
+    }
+
     /// Compare declaration provenance at the lexical package boundary: the
     /// same package identity AND the same checked dependency scope. Two
     /// checked instances of one source are the same package nominally but

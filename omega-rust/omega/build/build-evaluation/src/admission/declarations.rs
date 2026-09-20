@@ -107,22 +107,168 @@ pub(crate) fn harvest_wire_compatibility_demands(
     }
 }
 
-/// PRV4c: collect `builder.select_provider<Subject, ProviderType>();` from the
-/// one authoritative build machine. `Subject` is either one exact boundary
-/// trait, one exact explicit top-level boundary requirement, or one exact
-/// package-qualified boundary-operator family. Merely spelling a declaration
-/// elsewhere grants nothing; selection authority comes from this file-scoped
-/// root.
+/// Static target-default declarations have their own admission path. Authored
+/// Build overrides instead enter through executed call receipts below.
 pub fn harvest_provider_selections(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let mut requests = Vec::new();
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                        && !call.target_symbol.is_valid()
+                    {
+                        requests.push(ProviderSelectionCall {
+                            target: call.target.as_str(),
+                            arguments: &call.machine_arguments,
+                            value_arguments: typed
+                                .expression_table
+                                .expression_handles(call.arguments),
+                            source_span: provider_selection_expression_source_span(
+                                typed,
+                                *expression,
+                            ),
+                            machine: machine.symbol,
+                            composition_case: None,
+                            product_operands: false,
+                        });
+                    }
+                }
+                typed_trees::statement::StatementNode::Call(call)
+                    if !call.target_symbol.is_valid() =>
+                {
+                    requests.push(ProviderSelectionCall {
+                        target: call.target.as_str(),
+                        arguments: &call.machine_arguments,
+                        value_arguments: typed.statement_table.expression_handles(call.arguments),
+                        source_span: call.source_span,
+                        machine: machine.symbol,
+                        composition_case: None,
+                        product_operands: false,
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+    collect_provider_selections(typed, requests)
+}
+
+struct ProviderSelectionCall<'a> {
+    target: &'a str,
+    arguments: &'a [typed_trees::expression::StaticMachineArgument],
+    value_arguments: &'a [typed_trees::expression::ExpressionHandle],
+    source_span: source::SourceSpan,
+    machine: SymbolHandle,
+    composition_case: Option<SymbolHandle>,
+    product_operands: bool,
+}
+
+/// Rejoin only calls evaluated on the original Build cell. An unreachable
+/// selection does not become configuration merely because its text exists.
+pub(crate) fn collect_executed_provider_selections(
+    typed: &TypedTrees,
+    executed: &[checked_interpreter::ExecutedProviderSelection],
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let requests = executed
+        .iter()
+        .map(|row| {
+            let request = match row.site {
+                checked_interpreter::ExecutedProviderSelectionSite::Statement(handle) => {
+                    match typed.statement_table.statement(handle) {
+                        typed_trees::statement::StatementNode::Call(call)
+                            if call.target.as_str() == "select_provider"
+                                && !call.target_symbol.is_valid() =>
+                        {
+                            Some(ProviderSelectionCall {
+                                target: call.target.as_str(),
+                                arguments: &call.machine_arguments,
+                                value_arguments: typed
+                                    .statement_table
+                                    .expression_handles(call.arguments),
+                                source_span: call.source_span,
+                                machine: row.machine,
+                                composition_case: Some(row.composition_case),
+                                product_operands: true,
+                            })
+                        }
+                        _ => None,
+                    }
+                }
+                checked_interpreter::ExecutedProviderSelectionSite::Expression(handle) => {
+                    match typed.expression_table.expression(handle) {
+                        typed_trees::expression::ExpressionNode::Call(call)
+                            if call.target.as_str() == "select_provider"
+                                && !call.target_symbol.is_valid() =>
+                        {
+                            Some(ProviderSelectionCall {
+                                target: call.target.as_str(),
+                                arguments: &call.machine_arguments,
+                                value_arguments: typed
+                                    .expression_table
+                                    .expression_handles(call.arguments),
+                                source_span: provider_selection_expression_source_span(
+                                    typed, handle,
+                                ),
+                                machine: row.machine,
+                                composition_case: Some(row.composition_case),
+                                product_operands: true,
+                            })
+                        }
+                        _ => None,
+                    }
+                }
+            };
+            request.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "executed provider selection did not rejoin its admitted call",
+                )]
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    collect_provider_selections(typed, requests)
+}
+
+fn provider_selection_expression_source_span(
+    typed: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> source::SourceSpan {
+    // The declaration occurrence names the call itself. An expression's
+    // enclosing span can be synthetic after receiver/statement lowering.
+    typed
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| typed.authored_declaration_selections().get(occurrence))
+        .find(|selection| {
+            selection.kind()
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+        })
+        .map_or_else(
+            || typed.expression_table.source_span(expression),
+            |selection| selection.source_span(),
+        )
+}
+
+fn collect_provider_selections<'a>(
+    typed: &TypedTrees,
+    requests: impl IntoIterator<Item = ProviderSelectionCall<'a>>,
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     let mut selections: Vec<ProviderSelection> = Vec::new();
     let mut diagnostics = Vec::new();
-    let mut record = |target: &str,
-                      arguments: &[typed_trees::expression::StaticMachineArgument],
-                      value_arguments: &[typed_trees::expression::ExpressionHandle],
-                      source_span: source::SourceSpan| {
+    let mut record = |request: ProviderSelectionCall<'_>| {
+        let ProviderSelectionCall {
+            target,
+            arguments,
+            value_arguments,
+            source_span,
+            machine,
+            composition_case,
+            product_operands,
+        } = request;
         if target != "select_provider" {
             return;
         }
@@ -132,23 +278,38 @@ pub fn harvest_provider_selections(
             ));
             return;
         };
-        let project_identity = |argument: &typed_trees::expression::StaticMachineArgument| {
+        let project_identity = |argument: &typed_trees::expression::StaticMachineArgument,
+                                is_provider: bool| {
             let authored_path = argument
                 .path
                 .iter()
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()
                 .join("::");
+            let symbol = if product_operands {
+                typed_trees_to_checked_trees::typed_product_provider_selection_operand(
+                    typed,
+                    argument,
+                    source_span,
+                    !is_provider,
+                )
+                .unwrap_or_else(SymbolHandle::invalid)
+            } else {
+                argument.symbol
+            };
             ProviderSelectionIdentity {
-                symbol: argument.symbol,
-                package: typed.symbols.symbol_package_identity(argument.symbol),
-                canonical_path: typed.symbols.display_path(argument.symbol, "::"),
+                symbol,
+                package: typed.symbols.symbol_package_identity(symbol),
+                canonical_path: typed.symbols.display_path(symbol, "::"),
                 authored_path,
             }
         };
-        let boundary_identity = project_identity(boundary_argument);
-        let provider_type = project_identity(provider_argument);
-        let composition_mode = match provider_selection_composition_mode(typed, value_arguments) {
+        let boundary_identity = project_identity(boundary_argument, false);
+        let provider_type = project_identity(provider_argument, true);
+        let composition_mode = match composition_case.map_or_else(
+            || provider_selection_composition_mode(typed, value_arguments),
+            |case| provider_composition_case(typed, case),
+        ) {
             Ok(mode) => mode,
             Err(diagnostic) => {
                 diagnostics.push(diagnostic);
@@ -234,42 +395,140 @@ pub fn harvest_provider_selections(
             subject,
             provider_type,
             composition_mode,
-            selecting_machine: machine.symbol,
+            selecting_machine: machine,
             source_span,
         });
     };
-    for state in typed.machine_states(machine) {
-        for statement in typed.statement_table.statements(state.statement_nodes) {
-            match statement {
-                typed_trees::statement::StatementNode::Expression(expression) => {
-                    if let typed_trees::expression::ExpressionNode::Call(call) =
-                        typed.expression_table.expression(*expression)
-                    {
-                        record(
-                            call.target.as_str(),
-                            &call.machine_arguments,
-                            typed.expression_table.expression_handles(call.arguments),
-                            typed.expression_table.source_span(*expression),
-                        );
-                    }
-                }
-                typed_trees::statement::StatementNode::Call(call) => {
-                    record(
-                        call.target.as_str(),
-                        &call.machine_arguments,
-                        typed.statement_table.expression_handles(call.arguments),
-                        call.source_span,
-                    );
-                }
-                _ => {}
-            }
-        }
+    for request in requests {
+        record(request);
     }
     if diagnostics.is_empty() {
         Ok(selections)
     } else {
         Err(diagnostics)
     }
+}
+
+/// Recheck the declaration referenced by sealed executed-selection custody.
+/// This validates its operands without rerunning Build or turning unexecuted
+/// source calls into selections. Execution order and computed mode come from
+/// the retained activation, not a second interpretation during package review.
+pub fn validate_executed_provider_selection_declaration(
+    typed: &TypedTrees,
+    selection: &ProviderSelection,
+) -> bool {
+    let Some(machine) = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == selection.selecting_machine)
+    else {
+        return false;
+    };
+    let mut matched = false;
+    let mut validate =
+        |target: &str,
+         target_symbol: SymbolHandle,
+         arguments: &[typed_trees::expression::StaticMachineArgument],
+         values: &[typed_trees::expression::ExpressionHandle]| {
+            if target != "select_provider" || target_symbol.is_valid() || values.len() > 1 {
+                return false;
+            }
+            let [slot, provider] = arguments else {
+                return false;
+            };
+            let slot_symbol =
+                typed_trees_to_checked_trees::typed_product_provider_selection_operand(
+                    typed,
+                    slot,
+                    selection.source_span,
+                    true,
+                );
+            let provider_symbol =
+                typed_trees_to_checked_trees::typed_product_provider_selection_operand(
+                    typed,
+                    provider,
+                    selection.source_span,
+                    false,
+                );
+            let subject_symbol = match &selection.subject {
+                provider_planning::ProviderSelectionSubject::BoundaryTrait(identity)
+                | provider_planning::ProviderSelectionSubject::BoundaryRequirement(identity) => {
+                    identity.symbol
+                }
+                provider_planning::ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
+                    // The representative may differ after declaration reordering;
+                    // compare the complete derived family instead.
+                    let Some(symbol) = slot_symbol else {
+                        return false;
+                    };
+                    let path = slot
+                        .path
+                        .iter()
+                        .map(|part| part.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::");
+                    if provider_planning::ProviderOperatorFamilySelection::derive(
+                        typed, symbol, path,
+                    )
+                    .as_ref()
+                        != Ok(family)
+                    {
+                        return false;
+                    }
+                    symbol
+                }
+            };
+            if slot_symbol != Some(subject_symbol)
+                || provider_symbol != Some(selection.provider_type.symbol)
+            {
+                return false;
+            }
+            if values.is_empty()
+                && selection.composition_mode != provider_planning::CompositionMode::Fused
+            {
+                return false;
+            }
+            if let [value] = values
+                && let Some(case) = exact_case_argument_symbol(typed, *value)
+                && provider_composition_case(typed, case).ok() != Some(selection.composition_mode)
+            {
+                return false;
+            }
+            matched = true;
+            true
+        };
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            if let typed_trees::statement::StatementNode::Call(call) = statement
+                && call.source_span == selection.source_span
+                && !validate(
+                    call.target.as_str(),
+                    call.target_symbol,
+                    &call.machine_arguments,
+                    typed.statement_table.expression_handles(call.arguments),
+                )
+            {
+                return false;
+            }
+        }
+    }
+    for handle in typed_trees_to_checked_trees::typed_provider_selection_expressions(typed, machine)
+    {
+        let expression = typed.expression_table.expression(handle);
+        if provider_selection_expression_source_span(typed, handle) == selection.source_span
+            && let typed_trees::expression::ExpressionNode::Call(call) = expression
+            && (!typed_trees_to_checked_trees::typed_build_provider_selection(typed, handle)
+                || !validate(
+                    call.target.as_str(),
+                    call.target_symbol,
+                    &call.machine_arguments,
+                    typed.expression_table.expression_handles(call.arguments),
+                ))
+        {
+            return false;
+        }
+    }
+    matched
 }
 
 fn provider_selection_composition_mode(
@@ -287,50 +546,60 @@ fn provider_selection_composition_mode(
                 "provider selection composition mode must be the exact compiler-owned CompositionMode::Fused or CompositionMode::Independent case",
             ));
         };
-        let exact_modes = typed
-            .data_definitions()
-            .iter()
-            .filter(|definition| {
-                is_exact_toolchain_build_prelude_data(typed, definition.symbol, "CompositionMode")
-            })
-            .collect::<Vec<_>>();
-        let [modes] = exact_modes.as_slice() else {
-            return Err(Diagnostic::error(
-                "explicit provider composition mode requires exactly one compiler-owned CompositionMode declaration",
-            ));
-        };
-        let selected = typed
-            .data_members(modes)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant)
-                    if variant.symbol == case_symbol
-                        && typed.symbols.get(variant.symbol).parent == modes.symbol =>
-                {
-                    Some(variant)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let [selected] = selected.as_slice() else {
-            return Err(Diagnostic::error(
-                "provider selection composition mode does not name an exact compiler-owned CompositionMode case",
-            ));
-        };
-        if !typed.data_payload_fields(selected).is_empty() {
-            return Err(Diagnostic::error(
-                "provider selection composition mode case unexpectedly carries a payload",
-            ));
-        }
-        return match selected.name.as_str() {
-            "Fused" => Ok(provider_planning::CompositionMode::Fused),
-            "Independent" => Ok(provider_planning::CompositionMode::Independent),
-            other => Err(Diagnostic::error(format!(
-                "compiler-owned CompositionMode contains unsupported case `{other}`"
-            ))),
-        };
+        return provider_composition_case(typed, case_symbol);
     };
     Ok(provider_planning::CompositionMode::Fused)
+}
+
+fn provider_composition_case(
+    typed: &TypedTrees,
+    case_symbol: SymbolHandle,
+) -> Result<provider_planning::CompositionMode, Diagnostic> {
+    if !case_symbol.is_valid() {
+        return Ok(provider_planning::CompositionMode::Fused);
+    }
+    let exact_modes = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| {
+            is_exact_toolchain_build_prelude_data(typed, definition.symbol, "CompositionMode")
+        })
+        .collect::<Vec<_>>();
+    let [modes] = exact_modes.as_slice() else {
+        return Err(Diagnostic::error(
+            "explicit provider composition mode requires exactly one compiler-owned CompositionMode declaration",
+        ));
+    };
+    let selected = typed
+        .data_members(modes)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Variant(variant)
+                if variant.symbol == case_symbol
+                    && typed.symbols.get(variant.symbol).parent == modes.symbol =>
+            {
+                Some(variant)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [selected] = selected.as_slice() else {
+        return Err(Diagnostic::error(
+            "provider selection composition mode does not name an exact compiler-owned CompositionMode case",
+        ));
+    };
+    if !typed.data_payload_fields(selected).is_empty() {
+        return Err(Diagnostic::error(
+            "provider selection composition mode case unexpectedly carries a payload",
+        ));
+    }
+    match selected.name.as_str() {
+        "Fused" => Ok(provider_planning::CompositionMode::Fused),
+        "Independent" => Ok(provider_planning::CompositionMode::Independent),
+        other => Err(Diagnostic::error(format!(
+            "compiler-owned CompositionMode contains unsupported case `{other}`"
+        ))),
+    }
 }
 
 /// The static grant harvest: every `accept_boundary#<path>` marker call in

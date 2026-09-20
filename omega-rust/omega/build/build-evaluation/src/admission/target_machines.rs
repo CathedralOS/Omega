@@ -181,11 +181,43 @@ impl SelectedTargetMachineDeclarations {
         Ok(self)
     }
 
+    /// Admit declaration-call custody before preliminary package checking.
+    /// Only this retained selected-target roster may grant the declaration
+    /// intrinsic; it grants no authority to execute a Build mutation.
+    pub fn admit_provider_default_calls(
+        &self,
+        typed: &mut TypedTrees,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut occurrences = Vec::new();
+        for (machine_name, source) in &self.provider_default_machine_names {
+            let matching = typed
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    machine.name.as_str() == machine_name
+                        && typed
+                            .symbols
+                            .symbol_provenance_source_span(machine.symbol)
+                            .is_some_and(|span| span.source_id == *source)
+                })
+                .collect::<Vec<_>>();
+            let [machine] = matching.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected target provider-default machine `{machine_name}` resolves to {} typed declarations",
+                    matching.len(),
+                ))]);
+            };
+            crate::harvest_provider_selections(typed, machine)?;
+            occurrences.extend(provider_default_call_occurrences(typed, machine));
+        }
+        finalize_provider_default_calls(typed, &occurrences)
+    }
+
     /// Resolve the retained target-owned provider-default producers and
     /// preserve each producer's exact authored row order and identity.
     pub fn settle_provider_defaults(
         self,
-        typed: &TypedTrees,
+        typed: &mut TypedTrees,
     ) -> Result<SettledTargetMachineDeclarations, Vec<Diagnostic>> {
         let mut defaults = Vec::new();
         let mut origins = Vec::new();
@@ -204,7 +236,9 @@ impl SelectedTargetMachineDeclarations {
                 continue;
             };
             match crate::harvest_provider_selections(typed, machine) {
-                Ok(mut machine_defaults) => defaults.append(&mut machine_defaults),
+                Ok(mut machine_defaults) => {
+                    defaults.append(&mut machine_defaults);
+                }
                 Err(mut errors) => diagnostics.append(&mut errors),
             }
         }
@@ -233,6 +267,7 @@ impl SelectedTargetMachineDeclarations {
             });
         }
         if diagnostics.is_empty() {
+            self.admit_provider_default_calls(typed)?;
             Ok(SettledTargetMachineDeclarations {
                 provider_defaults: defaults,
                 origins,
@@ -241,6 +276,66 @@ impl SelectedTargetMachineDeclarations {
             Err(diagnostics)
         }
     }
+}
+
+/// Only the retained selected-target producer roster admits these declarations.
+/// The intrinsic records an admitted provider declaration, not an executed
+/// root Build mutation; evaluation must still prove the activation's receiver.
+fn provider_default_call_occurrences(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Vec<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
+    let mut occurrences = Vec::new();
+    for state in typed.machine_states(machine) {
+        for statement in typed.statement_table.statements(state.statement_nodes) {
+            match statement {
+                typed_trees::statement::StatementNode::Call(call)
+                    if call.target.as_str() == "select_provider"
+                        && !call.target_symbol.is_valid() =>
+                {
+                    occurrences.extend(call.authored_call_selection);
+                }
+                typed_trees::statement::StatementNode::Expression(expression) => {
+                    if let typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                        && call.target.as_str() == "select_provider"
+                        && !call.target_symbol.is_valid()
+                    {
+                        occurrences.extend(typed.expression_table.authored_selection_occurrences(*expression).filter(|occurrence| {
+                            typed.authored_declaration_selections().get(*occurrence).is_some_and(|selection| {
+                                selection.kind() == typed_trees::AuthoredDeclarationSelectionKind::Call
+                            })
+                        }));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    occurrences
+}
+
+fn finalize_provider_default_calls(
+    typed: &mut TypedTrees,
+    occurrences: &[typed_trees::AuthoredDeclarationSelectionOccurrenceId],
+) -> Result<(), Vec<Diagnostic>> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+    use typed_trees::{
+        AuthoredDeclarationSelectionLateBinding as Binding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let mut selections = typed.authored_declaration_selections().clone();
+    for occurrence in occurrences {
+        if selections.get(*occurrence).is_some_and(|selection| {
+            selection.target() == Target::Intrinsic(Intrinsic::BuildProviderSelection)
+        }) {
+            continue;
+        }
+        selections.finalize_intrinsic(*occurrence, Binding::CheckedCall, Intrinsic::BuildProviderSelection)
+            .map_err(|error| vec![Diagnostic::error(format!("selected target provider-default call lost its authored selection custody: {error:?}"))])?;
+    }
+    typed.retain_authored_declaration_selections(selections);
+    Ok(())
 }
 
 /// Select every target-scoped declaration against one target: the product
@@ -469,11 +564,66 @@ mod tests {
     #[test]
     fn empty_target_declarations_settle_to_canonical_empty_defaults() {
         let settled = SelectedTargetMachineDeclarations::new(Vec::new(), Vec::new(), Vec::new())
-            .settle_provider_defaults(&typed_trees::TypedTrees::default())
+            .settle_provider_defaults(&mut typed_trees::TypedTrees::default())
             .expect("empty target declaration custody has no typed dependency");
 
         assert!(settled.provider_defaults.is_empty());
         assert!(settled.origins.is_empty());
+    }
+
+    #[test]
+    fn only_selected_target_default_calls_receive_declaration_intrinsics() {
+        let text = "boundary trait Reader { machine read(); } data Provider {} linux_x86_64 machine Provider::provider_defaults(defaults: &mut Provider) { defaults.select_provider<Reader, Provider>(); } machine Provider::ordinary(defaults: &mut Provider) { defaults.select_provider<Reader, Provider>(); }";
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add(std::path::PathBuf::from("provider.omg"), text.to_owned())
+            .source_id;
+        let mut syntax = syntax(source_id.0, text);
+        let selected = filter_target_machines(&mut syntax, Some("linux_x86_64"))
+            .expect("select exact target producer");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("resolve defaults");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type defaults");
+        let settled = selected
+            .settle_provider_defaults(&mut typed)
+            .expect("settle defaults");
+        assert_eq!(settled.provider_defaults.len(), 1);
+        let call_targets = typed
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| {
+                selection.kind() == typed_trees::AuthoredDeclarationSelectionKind::Call
+            })
+            .map(|selection| selection.target())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            call_targets
+                .iter()
+                .filter(|target| **target
+                    == typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
+                    ))
+                .count(),
+            1
+        );
+        assert_eq!(
+            call_targets
+                .iter()
+                .filter(|target| **target
+                    == typed_trees::AuthoredDeclarationSelectionTarget::LateBound(
+                        typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedCall
+                    ))
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -487,7 +637,7 @@ mod tests {
             Vec::new(),
         );
         let Err(diagnostics) =
-            declarations.settle_provider_defaults(&typed_trees::TypedTrees::default())
+            declarations.settle_provider_defaults(&mut typed_trees::TypedTrees::default())
         else {
             panic!("retained target declarations must rebind exactly after typing")
         };

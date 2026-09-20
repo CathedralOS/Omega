@@ -40,6 +40,10 @@
 //! - `builder.roots.bind(target::ProgramEntry, Exact::machine);` executes
 //!   through the original Build activation, including local helpers/reborrows.
 //!   Executed requests rejoin their lexical owner before exact product selection.
+//! - `builder.select_provider<Slot, Provider>(mode)` likewise records only
+//!   executed choices on the original Build value. Its static operands select
+//!   product declarations without executing them; target-default declarations
+//!   remain under their separate admitted target roster.
 //!
 //! Start at `admitted_build_program.rs`: the admission request, the
 //! admitted program and `admit_build_program`. `execution` runs an admitted
@@ -76,7 +80,7 @@ pub use admission::configuration::{
 };
 pub use admission::declarations::{
     WireCompatibilityDemand, harvest_behavior_exclusions, harvest_provider_selections,
-    harvest_root_grants,
+    harvest_root_grants, validate_executed_provider_selection_declaration,
 };
 pub use admission::selection::root_bindings::RootBinding;
 pub use admission::selection::{

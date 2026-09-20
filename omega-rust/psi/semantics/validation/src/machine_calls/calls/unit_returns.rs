@@ -60,6 +60,9 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return false;
     };
+    if admitted_provider_selection(program, expression) {
+        return true;
+    }
     if !call.target_symbol.is_valid()
         || !call.machine_arguments.is_empty()
         || !call.evidence_arguments.is_empty()
@@ -99,6 +102,49 @@ pub(in crate::machine_calls::calls) fn call_returns_unit(
         .next()
         .is_some_and(|result| unit_type(program, result))
         && results.next().is_none()
+}
+
+/// The checker establishes exact Build receiver identity before validation;
+/// the target owner separately admits default declaration operations. Neither
+/// token authorizes execution on a fabricated Build value.
+pub(super) fn admitted_provider_selection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
+    };
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if call.target_symbol.is_valid()
+        || call.target.as_str() != "select_provider"
+        || !call.receiver.is_valid()
+        || call.machine_arguments.len() != 2
+        || program
+            .expression_table
+            .expression_handles(call.arguments)
+            .len()
+            > 1
+        || !call.evidence_arguments.is_empty()
+        || call.static_requirement_dispatch.is_some()
+        || call.quotient_operation.is_some()
+        || call.private_layout_operation.is_some()
+    {
+        return false;
+    }
+    let mut selections = program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call);
+    selections.next().is_some_and(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
+            )
+    }) && selections.next().is_none()
 }
 
 fn has_inferred_value_return(program: &TypedTrees, machine: &Machine) -> bool {

@@ -138,7 +138,8 @@ pub(super) fn assign_statement_symbols(
                 child_type_references,
                 symbols,
             );
-            let provider_selection = call.target.as_str() == "select_provider";
+            let provider_selection =
+                call.target.as_str() == "select_provider" && !call.target_symbol.is_valid();
             let representation_selection = call.target.as_str() == "select_representation";
             let service_exclusion = call.target.as_str() == "exclude_service";
             for argument in &call.machine_arguments {

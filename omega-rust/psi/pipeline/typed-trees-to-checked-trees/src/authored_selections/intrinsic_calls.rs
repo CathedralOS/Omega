@@ -15,6 +15,11 @@ pub(crate) fn checked_statement_call_intrinsic(
     if call.target_symbol.is_valid() {
         return None;
     }
+    if call.target.as_str() == "select_provider"
+        && super::provider_selection::exact_mutable_build_statement_receiver(program, call)
+    {
+        return Some(Intrinsic::BuildProviderSelection);
+    }
     if program.wire_encode_call_schema(call).is_some() {
         return Some(Intrinsic::WireEncode);
     }
@@ -71,7 +76,11 @@ pub(crate) fn checked_call_intrinsic(
     if target_symbol.is_valid() {
         None
     } else if receiver.is_valid() {
-        if exact_build_output_receiver(program, receiver, target) {
+        if target == "select_provider"
+            && super::provider_selection::exact_mutable_build_receiver(program, receiver)
+        {
+            Some(Intrinsic::BuildProviderSelection)
+        } else if exact_build_output_receiver(program, receiver, target) {
             Some(Intrinsic::BuildIncludedSourceHandoff)
         } else if exact_build_log_receiver(program, receiver, target) {
             Some(Intrinsic::BuildLogWriteLine)
@@ -86,8 +95,6 @@ pub(crate) fn checked_call_intrinsic(
         language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
     {
         Some(Intrinsic::ByteSequencePredicate(predicate))
-    } else if target == "select_provider" {
-        Some(Intrinsic::BuildProviderSelection)
     } else if target == "select_representation" {
         Some(Intrinsic::BuildRepresentationSelection)
     } else if target == "exclude_service" {
