@@ -8617,7 +8617,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-WINDOWS-X64-NATIVE-ROW** — mined candidate; verify scope then implement.
 - **RECAST-SOURCE-POSITIONS** — mined candidate; scope verified, resolved — landed at `92db61544e3` ("recast diagnostics carry the offending cast's source position"): every recast-path diagnostic attaches the authored span of the offending `as` expression via `with_source_span(program.expression_table.source_span(handle))` in `value_custody/recasts.rs` — the stray cast for the positional sweep (pinned by `fail/recast/recast_position_fenced`), the let's initializer for the unspelled reference pun, and the cast for every scalar/slice/byte-region judgment; recorded in `validation/recasts.md`. The distinct remaining leg — admitting recasts in non-`let` positions (guard operands, call arguments, nested expressions) — is the deliberately fenced deeper byte-view rung (L4/L5) in the module header, an authorizing-brief item rather than this stub's bounded scope.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; verify scope then implement.
-- **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP** — mined candidate; verify scope then implement.
+- **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP.** Resolved — sibling re-mine of the
+  `calls/statement_call_recursive_{argument,overload}_compile` dedup surface
+  settled on the RECURSIVE-CALL-FIXTURE-RESOLUTION and
+  STATEMENT-CALL-RECURSIVE-ARGUMENT-DEDUP rows: `e5912f303a` renamed the
+  argument fixture's local `Nat`/`add` to `Peano`/`peano_add`, ending the
+  collision with `core/nat.omg` exports. Re-witnessed green on linux x86-64
+  at `a1daf35f2e`:
+  `OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile
+  cargo nextest run -p compiler --test canary_suite
+  entry_and_abi::pass_canary_coverage::pass_canaries_compile` PASS (74s),
+  and the dedup's negative half stays pinned —
+  `surface_and_targets::duplicate_overload_and_visibility_admissions_reject`
+  PASS, covering `duplicate_named_machine_overload_rejected` and
+  `recursive_argument_imported_name_collision_rejected`. No independent
+  slice exists; remaining sibling stub: RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP.
 - **RECURSIVE-CALL-FIXTURE-RESOLUTION.** Mined candidate; scope verified, resolved at 6ef64f6dd6 — the recursive-call fixture resolution already landed under BASELINE-CANARY-PASS-CLUSTER's w9 leg: `e5912f303a` ("canaries: repair statement-call-recursive-argument and integer-division fixtures") renamed `tests/omega/pass/calls/statement_call_recursive_argument_compile`'s local `Nat`/`add` to `Peano`/`peano_add` to end the collision with `core/nat.omg` exports (the `read_line`/`extent_shape` diagnostics were collision collateral), and the repair is documented both in the fixture's own header comment and the BASELINE-CANARY-PASS-CLUSTER row.
 - **REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
