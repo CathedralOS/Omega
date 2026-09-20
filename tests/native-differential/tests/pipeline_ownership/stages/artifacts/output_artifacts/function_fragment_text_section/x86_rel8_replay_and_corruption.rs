@@ -102,12 +102,18 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         FunctionFragmentTextSectionManifest::decode(&stale_identity),
         Err(FunctionFragmentTextSectionManifestDecodeError::IdentityMismatch)
     );
+    let relocation_tag = record.encode().len() - 87;
+    let mut substituted_relocation = record.encode();
+    substituted_relocation[relocation_tag] = 2;
+    assert_eq!(
+        FunctionFragmentTextSectionManifest::decode(&substituted_relocation),
+        Err(FunctionFragmentTextSectionManifestDecodeError::IdentityMismatch)
+    );
     let mut unknown_relocation = record.encode();
-    let relocation_tag = unknown_relocation.len() - 87;
-    unknown_relocation[relocation_tag] = 2;
+    unknown_relocation[relocation_tag] = 3;
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&unknown_relocation),
-        Err(FunctionFragmentTextSectionManifestDecodeError::UnknownRelocationRequirements(2))
+        Err(FunctionFragmentTextSectionManifestDecodeError::UnknownRelocationRequirements(3))
     );
     assert_eq!(
         FunctionFragmentTextSectionManifest::decode(&record.encode()[..20]),
