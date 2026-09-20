@@ -720,6 +720,12 @@ struct Denotation {
     integer_operations: BTreeMap<integer_operations::IntegerOperation, u32>,
     /// `Primitive` leaf statement → decision-assumption position.
     decisions: HashMap<TermHandle, u32>,
+    /// `(operand, lower)` → assumption position of the operand's
+    /// carrier-membership bound — `IntLe min' op'` or `IntLe op' max'`.
+    /// A `Truth` bound over an open operand contributes exactly this
+    /// fact; interning it per operand keeps the closure's named
+    /// assumption the membership bound itself, not a rule implication.
+    carrier_bounds: BTreeMap<(ScalarTerm, bool), u32>,
     /// Bounded rule instance → decision-assumption position. The key is
     /// the instance's premise propositions in rule order plus its
     /// conclusion — exactly what determines the axiom's `Π` type — so
@@ -764,6 +770,7 @@ impl Denotation {
             scalar_integer_terms: BTreeMap::new(),
             integer_operations: BTreeMap::new(),
             decisions: HashMap::new(),
+            carrier_bounds: BTreeMap::new(),
             rule_axioms: BTreeMap::new(),
             constants: HashMap::new(),
             denotations: BTreeMap::new(),
@@ -2423,6 +2430,15 @@ impl<'a> Elaboration<'a> {
                     witness,
                     &proof.conclusion,
                     &definitions,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
+                if let Some(evidence) = self.denotation.direct_add_bound_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &proof.conclusion,
                 )? {
                     self.rules.insert(AcceptedProofRule::IntegerAffineBound);
                     return Ok(evidence);

@@ -2104,8 +2104,16 @@ Owners include
     transports it onto `out`, and a checked `add lb rb = k` numeral
     equation lands the conclusion's literal; each operand's endpoint
     re-shapes its evidence — an oriented `≤` stands, an `Equal`
-    transports through `eq_le`, a literal addend uses `refl` — while a
-    `Truth` carrier endpoint keeps the instance fallback. An already admitted
+    transports through `eq_le`, a literal addend uses `refl`, and a
+    `Truth` bound over an open addend cites an interned per-operand
+    carrier-membership assumption `IntLe min' op'`/`IntLe op' max'`.
+    The direct `IntegerAffineBound` add form drops the citation: its
+    conjunction premise projects each operand bound through `Σ`
+    elimination onto the same endpoint machinery, and its conclusion
+    names the `add` application itself, so two-sided monotonicity and
+    the checked endpoint-sum equation land the bound on `add l r` —
+    an endpoint sum outside the representable numeral range keeps the
+    explicit instance assumption. An already admitted
     open expression stays opaque
     if composing a child would introduce a resource refusal. The remaining
     fixed-integer scalar operations — multiply, divide, remainder, bitwise,
@@ -2118,7 +2126,7 @@ Owners include
     `compiler/tests/kernel_equality_transport.rs` instead of an admitted
     rule instance. Still to do:
     the cast-bound, correlated-forbidden-root and correlated-multiply bound
-    witnesses and `Truth` carrier endpoints, nested
+    witnesses, nested
     canonical identity reversal, and Boolean identities requiring case analysis
     rather than structural correspondence. The uninterpreted operations
     carry no arithmetic laws; unsupported arithmetic derivations, including

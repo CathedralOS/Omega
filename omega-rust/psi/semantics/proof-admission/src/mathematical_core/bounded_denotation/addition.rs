@@ -15,12 +15,16 @@
 //! beside the two operand bounds: two-sided monotonicity combines the
 //! operand evidence into a bound on `add l r`, the cited definition
 //! transports that bound onto `out`, and a checked `add lb rb = k`
-//! numeral equation lands the conclusion's literal endpoint. Each
-//! operand's evidence re-shapes to the required direction — an oriented
-//! `≤` stands, an `Equal` transports through `eq_le`, a literal addend is
-//! its own endpoint through `refl` — while a `Truth` carrier endpoint has
-//! no interned bound law and keeps the explicit instance fallback, like
-//! any conclusion outside the fixed literal range.
+//! numeral equation lands the conclusion's literal endpoint. The direct
+//! `IntegerAffineBound` form skips the citation: its premise is the
+//! conjunction of the two operand bounds and its conclusion names the
+//! `add` application itself, so the same monotone chain lands the bound
+//! on `add l r` without an output transport. Each operand's evidence
+//! re-shapes to the required direction — an oriented `≤` stands, an
+//! `Equal` transports through `eq_le`, a literal addend is its own
+//! endpoint through `refl` — while `Truth` over an open addend cites an
+//! interned carrier-membership bound for its operand — and a conclusion
+//! outside the fixed literal range keeps the explicit instance fallback.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -469,6 +473,161 @@ impl Denotation {
         }
     }
 
+    /// Denote the checked direct-add bound: a `Conjunction` of the two
+    /// operand bounds proves `k ≤ add l r` or `add l r ≤ k`, where `k` is
+    /// the checked sum of the two endpoint literals. This is the
+    /// `IntegerAffineBound` direct form — the witness names the `add`
+    /// target itself with no endpoint steps or cited axioms — so the
+    /// bound lands on the `add` application directly rather than
+    /// transporting through an output definition. The operand evidence
+    /// re-shapes exactly as the exact-add definition bound's does —
+    /// oriented `≤` stands, `Equal` transports through `eq_le`, a literal
+    /// addend is its own endpoint through `refl`, `Truth` over an open
+    /// addend cites its interned carrier-membership bound — and the
+    /// checked `add lb rb = k` numeral equation lands the conclusion's
+    /// literal endpoint. A literal outside the representable numeral
+    /// range keeps the explicit instance fallback.
+    pub(super) fn direct_add_bound_evidence(
+        &mut self,
+        premise: &Proposition,
+        evidence: TermHandle,
+        witness: &crate::IntegerAffineWitness,
+        conclusion: &Proposition,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Proposition::Conjunction(bounds) = premise else {
+            return Ok(None);
+        };
+        let [left_bound, right_bound] = bounds.as_slice() else {
+            return Ok(None);
+        };
+        let ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } = &witness.target
+        else {
+            return Ok(None);
+        };
+        if scalar_type.carrier() != IntegerCarrier::Fixed
+            || witness.root != **left
+            || !witness.definition_axioms.is_empty()
+            || !witness.literal_axioms.is_empty()
+        {
+            return Ok(None);
+        }
+        let (lower, bound, sum) = match conclusion {
+            Proposition::IntegerMathLessOrEqual(bound, sum @ IntegerMathTerm::Add(..)) => {
+                (true, bound, sum)
+            }
+            Proposition::IntegerMathLessOrEqual(sum @ IntegerMathTerm::Add(..), bound) => {
+                (false, bound, sum)
+            }
+            _ => return Ok(None),
+        };
+        // The mapped bound is a canonical math literal; when its
+        // magnitude leaves the representable numeral range the denoted
+        // endpoint is an opaque `Int` constant no checked
+        // `add lb rb = k` equation can name — keep the instance fallback.
+        let IntegerMathTerm::IntegerLiteral(bound_literal) = bound else {
+            return Ok(None);
+        };
+        let bound_value = if bound_literal.negative() {
+            if bound_literal.magnitude() == (i128::MAX as u128) + 1 {
+                IntegerValue::Signed(i128::MIN)
+            } else {
+                let Ok(magnitude) = i128::try_from(bound_literal.magnitude()) else {
+                    return Ok(None);
+                };
+                IntegerValue::Signed(-magnitude)
+            }
+        } else {
+            IntegerValue::Unsigned(bound_literal.magnitude())
+        };
+        // The conjunction denotes to a `Σ` pair: the first conjunct is
+        // `fst`, the second — last — conjunct is `snd`.
+        let left_evidence = self.arena.insert(Term::Fst { pair: evidence });
+        let right_evidence = self.arena.insert(Term::Snd { pair: evidence });
+        let Some((left_endpoint, left_order)) =
+            self.add_bound_endpoint(left, left_bound, left_evidence, lower, scalar_type)?
+        else {
+            return Ok(None);
+        };
+        let Some((right_endpoint, right_order)) =
+            self.add_bound_endpoint(right, right_bound, right_evidence, lower, scalar_type)?
+        else {
+            return Ok(None);
+        };
+        let left_endpoint_term = self.fixed_scalar_term(&left_endpoint)?;
+        let right_endpoint_term = self.fixed_scalar_term(&right_endpoint)?;
+        let left_term = self.fixed_scalar_term(left)?;
+        let right_term = self.fixed_scalar_term(right)?;
+        let bound_sum = self.add_terms(left_endpoint_term, right_endpoint_term)?;
+        let operand_sum = self.add_terms(left_term, right_term)?;
+        // The conclusion's `Add` math term must denote the same
+        // application as the target's operands — the shared relation
+        // already equated them, so this is the defensive shape check.
+        let sum_term = self.math_term(sum)?;
+        if !self.arena.structurally_equal(sum_term, operand_sum) {
+            return Ok(None);
+        }
+        // `add lb rb ≤ add l r` (lower) or `add l r ≤ add lb rb` (upper).
+        let order = if lower {
+            self.add_law_application(
+                Law::MonotoneBoth,
+                &[
+                    left_endpoint_term,
+                    left_term,
+                    right_endpoint_term,
+                    right_term,
+                    left_order,
+                    right_order,
+                ],
+            )?
+        } else {
+            self.add_law_application(
+                Law::MonotoneBoth,
+                &[
+                    left_term,
+                    left_endpoint_term,
+                    right_term,
+                    right_endpoint_term,
+                    left_order,
+                    right_order,
+                ],
+            )?
+        };
+        let (Some((_, left_value)), Some((_, right_value))) = (
+            left_endpoint.integer_value(),
+            right_endpoint.integer_value(),
+        ) else {
+            return Ok(None);
+        };
+        let bound_term = self.math_term(bound)?;
+        let Some(equality) = self.numeral_sum(
+            left_value,
+            right_value,
+            bound_value,
+            left_endpoint_term,
+            right_endpoint_term,
+            bound_term,
+        )?
+        else {
+            return Ok(None);
+        };
+        if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[bound_sum, bound_term, operand_sum, equality, order],
+            )
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[operand_sum, bound_sum, bound_term, equality, order],
+            )
+        }
+        .map(Some)
+    }
+
     /// Denote the checked exact-add definition bound: `lb ∧ rb` over the
     /// add's two operands plus the cited `output = l + r` definition prove
     /// `k ≤ output` or `output ≤ k`, where `k` is the checked sum of the
@@ -478,9 +637,8 @@ impl Denotation {
     /// moves the bound onto `output`, and a second interned equation
     /// `add lb rb = k` lands the literal. Each operand's endpoint re-shapes
     /// its own evidence: an oriented `≤` stands, an `Equal` transports
-    /// through `eq_le`, and a literal operand uses `refl`. `Truth` over a
-    /// non-literal operand has only its carrier bound, which this does not
-    /// intern — `None` keeps the instance fallback.
+    /// through `eq_le`, a literal operand uses `refl`, and `Truth` over an
+    /// open operand cites its interned carrier-membership bound.
     pub(super) fn exact_add_definition_bound_evidence(
         &mut self,
         left_bound: &Proposition,
@@ -667,13 +825,48 @@ impl Denotation {
         .map(Some)
     }
 
+    /// `IntLe min' operand'` (lower) or `IntLe operand' max'` (upper) —
+    /// the carrier-membership bound a `Truth` premise over an open
+    /// operand contributes. The named assumption records the exact
+    /// fixed-carrier fact, interned once per `(operand, direction)`;
+    /// quantifying it as a law would range over every `Int`, which the
+    /// membership fact does not survive.
+    fn carrier_bound(
+        &mut self,
+        operand: &ScalarTerm,
+        lower: bool,
+        integer_type: &IntegerType,
+    ) -> Result<(ScalarTerm, TermHandle), BoundedDenotationError> {
+        let value = if lower {
+            integer_type.minimum_value()
+        } else {
+            integer_type.maximum_value()
+        };
+        let endpoint =
+            ScalarTerm::integer(*integer_type, value).expect("carrier endpoint is representable");
+        if let Some(&position) = self.carrier_bounds.get(&(operand.clone(), lower)) {
+            return Ok((endpoint, self.constant(position)));
+        }
+        let proposition = if lower {
+            Proposition::LessOrEqual(endpoint.clone(), operand.clone())
+        } else {
+            Proposition::LessOrEqual(operand.clone(), endpoint.clone())
+        };
+        let ty = self.denote(&proposition)?;
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        self.carrier_bounds
+            .insert((operand.clone(), lower), position);
+        Ok((endpoint, self.constant(position)))
+    }
+
     /// One addend's bound endpoint: the checked literal it is bounded by,
     /// with the evidence re-shaped to `IntLe endpoint' operand'` (lower)
     /// or `IntLe operand' endpoint'` (upper). A literal operand bounded by
-    /// `Truth` is its own endpoint through `refl`; `Equal` evidence
-    /// transports through `eq_le`; an oriented `≤` stands in its own
-    /// direction and refuses the other. `Truth` over a non-literal
-    /// operand has only its carrier bound — not interned here.
+    /// `Truth` is its own endpoint through `refl`; `Truth` over an open
+    /// operand cites its interned carrier-membership bound; `Equal`
+    /// evidence transports through `eq_le`; an oriented `≤` stands in its
+    /// own direction and refuses the other.
     fn add_bound_endpoint(
         &mut self,
         operand: &ScalarTerm,
@@ -699,6 +892,12 @@ impl Denotation {
             return Ok(Some((operand.clone(), equality)));
         }
         match proposition {
+            // The membership fact names the operand's own carrier; the
+            // checked leaf already equates it with the add's type, and
+            // the guard keeps a stray off-carrier operand a fallback.
+            Proposition::Truth if operand.scalar_type() == ScalarType::Integer(*integer_type) => {
+                self.carrier_bound(operand, lower, integer_type).map(Some)
+            }
             Proposition::Truth => Ok(None),
             Proposition::Equal(first, second) => {
                 let literal = if first == operand {

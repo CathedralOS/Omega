@@ -405,9 +405,19 @@ lands the conclusion's literal endpoint. Each operand's endpoint re-shapes
 its evidence to the required direction: an oriented `≤` stands, an
 operand-to-literal `Equal` transports through `eq_le` in either citation
 orientation, and a literal addend is its own endpoint through `refl`.
-A `Truth` bound over an open addend contributes only its carrier endpoint;
-no carrier-bound law is interned, so that shape — like a bound literal the
-carrier cannot represent — keeps the explicit instance fallback below.
+A `Truth` bound over an open addend contributes its carrier endpoint
+through an interned membership assumption `IntLe min' op'` or
+`IntLe op' max'` — the exact fixed-carrier fact, interned once per
+operand and direction; quantifying it as a law would range over every
+`Int`, which membership does not survive. A bound literal the carrier
+cannot represent keeps the explicit instance fallback below. The direct
+`IntegerAffineBound` add form skips the cited definition: its premise is
+the conjunction of the two operand bounds, whose denoted `Σ` pair
+projects each conjunct onto the same endpoint machinery, and its
+conclusion names the `add` application itself, so two-sided monotonicity
+and the checked `add lb rb = k` equation land the bound on the
+application directly. An endpoint sum outside the representable numeral
+range keeps the instance fallback.
 
 Remaining families, including other bound and correlated-root
 witnesses, transport through opaque operations, reversed identities nested
