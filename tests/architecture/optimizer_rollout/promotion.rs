@@ -135,6 +135,7 @@ fn record_defects(repository: &Path, name: &str, status: &str, contents: &str) -
         }
     }
     defects.extend(conflicting_label_lines(contents, name, Some(status)));
+    defects.extend(duplicate_label_lines(contents));
     for field in PROMOTION_FIELDS
         .iter()
         .filter(|field| **field != "Approved status:")
@@ -173,6 +174,7 @@ fn staged_record_defects(repository: &Path, name: &str, contents: &str) -> Vec<S
         }
     }
     defects.extend(conflicting_label_lines(contents, name, None));
+    defects.extend(duplicate_label_lines(contents));
     for field in PROMOTION_FIELDS {
         if !contents
             .lines()
@@ -193,6 +195,42 @@ fn staged_record_defects(repository: &Path, name: &str, contents: &str) -> Vec<S
         );
     }
     defects.extend(citation_defects(repository, contents));
+    defects
+}
+
+/// Every schema label is single-occurrence. The presence and citation checks
+/// below read one line per label; a second line under the same label could
+/// carry a completed value beside a `PENDING` first — evading the citation
+/// requirement — or a contradictory value the single-valued check does not
+/// name.
+fn duplicate_label_lines(contents: &str) -> Vec<String> {
+    let mut defects = Vec::new();
+    for label in PROMOTION_FIELDS
+        .iter()
+        .copied()
+        .chain(["Exact rule:", "Rollback:"])
+    {
+        let count = contents
+            .lines()
+            .map(normalize_record_line)
+            .filter(|line| line.starts_with(label))
+            .count();
+        if count > 1 {
+            defects.push(format!(
+                "schema label `{label}` appears {count} times; every label is single-occurrence"
+            ));
+        }
+    }
+    let titles = contents
+        .lines()
+        .map(normalize_record_line)
+        .filter(|line| line.starts_with("# ") && line.ends_with(" Promotion"))
+        .count();
+    if titles > 1 {
+        defects.push(format!(
+            "promotion title appears {titles} times; every label is single-occurrence"
+        ));
+    }
     defects
 }
 
@@ -511,6 +549,39 @@ fn promotion_record_requires_exact_identity_and_completed_evidence() {
         "missing pending-approval conflict defect; saw {defects:?}"
     );
 
+    // A second line under an evidence label could otherwise carry a completed
+    // value beside a `PENDING` first and evade the citation requirement, and
+    // an identical duplicate `Exact rule` line is still malformed.
+    let duplicated = valid.replace(
+        "- Measurement evidence: `evidence/rule.rs` benchmark v1\n",
+        "- Measurement evidence: PENDING\n- Measurement evidence: a completed claim with no citation\n",
+    );
+    let defects = record_defects(
+        &repository,
+        "ControlFlowCleanup",
+        "Recommended",
+        &duplicated,
+    );
+    assert!(
+        defects.iter().any(|defect| {
+            defect.contains("schema label `Measurement evidence:` appears 2 times")
+        }),
+        "missing duplicate-evidence-label defect; saw {defects:?}"
+    );
+    let identical_duplicate = format!("{valid}- Exact rule: ControlFlowCleanup\n");
+    let defects = record_defects(
+        &repository,
+        "ControlFlowCleanup",
+        "Recommended",
+        &identical_duplicate,
+    );
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("schema label `Exact rule:` appears 2 times")),
+        "missing identical-duplicate-label defect; saw {defects:?}"
+    );
+
     let _ = std::fs::remove_dir_all(repository);
 }
 
@@ -593,6 +664,15 @@ fn staged_record_keeps_schema_while_pending_and_rejects_early_approval() {
             .iter()
             .any(|defect| defect.contains("conflicts with the record's single-valued identity")),
         "missing staged conflicting-rollback defect; saw {defects:?}"
+    );
+
+    let duplicated = format!("{staged}- Owner approval: PENDING\n");
+    let defects = staged_record_defects(&repository, "ControlFlowCleanup", &duplicated);
+    assert!(
+        defects
+            .iter()
+            .any(|defect| defect.contains("schema label `Owner approval:` appears 2 times")),
+        "missing staged duplicate-label defect; saw {defects:?}"
     );
 
     let _ = std::fs::remove_dir_all(repository);
