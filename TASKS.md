@@ -5761,6 +5761,22 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
   comparison itself, which belongs to the Omega-written product compiler per
   the spec's nonauthoritative-policy clause.
 - **GENERAL-CYCLIC-EXECUTION-OPTIMIZER.** General cyclic execution optimizer.
+  Verified scope: the name re-mines the optimizer half of
+  **GENERAL-CYCLIC-EXECUTION** — TASKS_OPTIMIZER.md carries the same-named item
+  owning the post-Terminal stages (receiving graph, native selection, replay)
+  starting at admitted cyclic input, and this board's TASKS.md:1491 item owns
+  the Psi half. The richer item already enumerates the remaining work:
+  [ranked callees on projected
+  receivers](wiki/spec/language/termination.md#ranked-callees-on-projected-receivers)
+  needs composed argument references, call/return, cleanup, callee measure
+  checking, and composed resource evidence beyond today's whole-entry-only
+  admission — an extend-the-common-graph item, not a new optimizer. No
+  independent slice exists here; the implementing surfaces are also already
+  under live claims (checked side `execution/unit/state_graph`+`composed_control`
+  held by GENERAL-CYCLIC-EXECUTION's live claim; projected-receiver joins on the
+  native side overlap `abstract-operations-to-target-operations/src/lowering/control_flow`
+  and `execution/unit/receiver_calls` held by sibling claims). Sibling re-mines
+  of this surface: RANKED-PROJECTED-RECEIVER-COMPOSITION.
 - **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Workload corpus + multiversing (workload versioning under multiple specialization variants). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: these are far-future extensions gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification; the versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records, and specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question.
 - **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized variants.
 
