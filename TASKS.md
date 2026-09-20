@@ -6703,7 +6703,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-RETENTION** — mined candidate; verify scope then implement.
-- **INTEGER-COMPARISON-OCCURRENCE-STD-COVERAGE** — mined candidate; verify scope then implement.
+- **INTEGER-COMPARISON-OCCURRENCE-STD-COVERAGE.** Resolved — member of the
+  INTEGER-COMPARISON-OCCURRENCE-* re-mine family named under
+  BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES. The "std coverage" leg
+  it names is covered by composition: the integer-comparison occurrence
+  gate (`compilation-report`'s `terminal_product::integer_comparisons`,
+  repaired at `76dc49a99e`) runs on every published artifact — all
+  std-linked pass canaries and the benchmark subjects exercise it, and
+  `wrapping_square_sum` compiled + published through it on
+  windows_x86_64 / macos_arm64 / linux_arm64 at `f2f39039da`. The
+  dedicated pin is `compiler`'s `integer_comparison_publication` suite
+  (`selected_comparison_publication_preserves_complete_custody_among_builtins`,
+  witnessed PASS on linux x86-64), which requires complete custody coverage
+  for selected occurrences among builtins; provider coverage for genuinely
+  selected occurrences is the surviving residual and is what that pin
+  already checks. A separate std-wide sweep would duplicate the canary
+  corpus's own compile coverage. Siblings: INTEGER-COMPARISON-OCCURRENCE-
+  {PRODUCER,PRODUCER-COVERAGE,RETENTION}, COMPARISON-OCCURRENCE-PRODUCER-
+  COVERAGE, BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE.
 - **INTEL-MACOS-HOST-PROFILE** — mined candidate; verify scope then implement.
   Verified scope: named alias of **MACOS-X64-HOST-PROFILE** (TASKS.md:5962)
   — "Intel gap" is that row's own parenthetical. `TargetProfile::MacosX64`
