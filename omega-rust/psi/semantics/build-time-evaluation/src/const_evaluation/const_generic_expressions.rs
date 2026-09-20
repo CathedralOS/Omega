@@ -279,7 +279,9 @@ fn requires_typed_expression_probe(syntax: &SyntaxTrees, expression: ExpressionH
         }
         visited.push(expression);
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Match(_) | ExpressionNode::Unary(_) => return true,
+            ExpressionNode::Match(_) | ExpressionNode::Unary(_) | ExpressionNode::Cast(_) => {
+                return true;
+            }
             ExpressionNode::Name(_) => return true,
             ExpressionNode::Binary(binary) => {
                 pending.push(binary.right);
@@ -543,6 +545,8 @@ pub(super) fn expression_custody(
         } else if let ExpressionNode::Unary(unary) = program.expression_table.expression(expression)
         {
             pending.push(unary.operand);
+        } else if let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) {
+            pending.push(cast.value);
         } else if let ExpressionNode::Match(dispatch) =
             program.expression_table.expression(expression)
         {

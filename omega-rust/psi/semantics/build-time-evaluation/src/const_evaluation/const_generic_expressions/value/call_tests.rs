@@ -342,3 +342,55 @@ fn call_result_cannot_change_its_validated_carrier_or_encoding() {
         .is_err()
     );
 }
+
+#[test]
+fn casts_retain_signedness_and_exact_full_width_values() {
+    for (source, destination, expected) in [
+        ("7u8 as i64", PrimitiveType::I64, 7),
+        ("-7i8 as i64", PrimitiveType::I64, -7),
+        (
+            "18446744073709551615u64 as u64",
+            PrimitiveType::U64,
+            18446744073709551615,
+        ),
+    ] {
+        let (program, expression) = program(source, destination);
+        let machine = &program.machines()[0];
+        let (actual, _) = evaluate(
+            &program,
+            machine,
+            &program.machine_states(machine)[0],
+            expression,
+            destination,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            actual.identity(),
+            CanonicalConstIdentity::integer(destination.name(), expected)
+        );
+    }
+}
+
+#[test]
+fn cast_graphs_reject_stale_and_cyclic_operands_before_type_queries() {
+    let (original, expression) = program("7u8 as u64", PrimitiveType::U64);
+    for operand in [expression, ExpressionHandle::invalid()] {
+        let mut program = original.clone();
+        let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(expression) else {
+            panic!("cast fixture");
+        };
+        cast.value = operand;
+        let machine = &program.machines()[0];
+        let error = evaluate(
+            &program,
+            machine,
+            &program.machine_states(machine)[0],
+            expression,
+            PrimitiveType::U64,
+            None,
+        )
+        .expect_err("malformed cast graph");
+        assert!(error.contains("invalid or cyclic"), "{error}");
+    }
+}

@@ -512,6 +512,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
         }
 
         if input.at_keyword(KeywordKind::As) {
+            let cast_source = input.current_source_span();
             input = input.take_keyword(KeywordKind::As, "as")?;
             // §5b RECAST: `&x as &T` / `&mut x as &mut T` -- the borrow
             // re-viewed under a second stated shape. The SOURCE borrow's `&`
@@ -602,6 +603,9 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
                         semantic_domain_arguments,
                         form,
                     }));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, cast_source);
             continue;
         }
 

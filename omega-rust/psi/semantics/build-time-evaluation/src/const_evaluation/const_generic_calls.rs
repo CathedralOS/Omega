@@ -545,6 +545,7 @@ pub(super) fn contains_call(syntax: &SyntaxTrees, expression: ExpressionHandle) 
             contains_call(syntax, binary.left) || contains_call(syntax, binary.right)
         }
         ExpressionNode::Unary(unary) => contains_call(syntax, unary.operand),
+        ExpressionNode::Cast(cast) => contains_call(syntax, cast.value),
         ExpressionNode::Match(dispatch) => {
             contains_call(syntax, dispatch.subject)
                 || syntax
