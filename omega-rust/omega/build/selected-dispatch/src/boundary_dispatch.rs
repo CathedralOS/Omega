@@ -73,8 +73,7 @@ pub fn selected_boundary_family_specializations(
             let Ok(adapter) = provider_planning::exact_checked_adapter(typed, plan, row) else {
                 continue;
             };
-            if adapter.attached_data.as_ref().map(|owner| owner.as_str())
-                != Some(plan.provider_type.as_str())
+            if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str())
                 || !adapter.supply_mode.is_checked_body()
             {
                 continue;

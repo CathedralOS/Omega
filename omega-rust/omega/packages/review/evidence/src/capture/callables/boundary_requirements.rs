@@ -234,10 +234,9 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         .typed
         .symbols
         .symbol_package_identity(machine.symbol);
-    let expected_provider_type = machine
-        .attached_data
-        .as_ref()
-        .map(|name| name.as_str())
+    let expected_provider_type = compilation
+        .typed
+        .attached_data_path(machine)
         .unwrap_or_default();
     let expected_provider_type_package = compilation
         .typed

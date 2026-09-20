@@ -1,11 +1,10 @@
 //! Deriving satisfies plans, top-level requirement plans and boundary
 //! operator plans with their provenance.
 //!
-//! Provider spelling is the existing Terminal catalog projection, not a
-//! substitute for declaration custody. Keep the exact provider symbol in
-//! grouping/provenance and the normalized callable identity on every row.
-//! Migrating the spelling requires changing Terminal candidate emission and
-//! selection together; changing this producer alone breaks installation.
+//! Provider paths use the same complete nominal projection as Build selection
+//! and Terminal candidate emission. They do not replace declaration custody:
+//! grouping/provenance retain exact provider symbols, packages and normalized
+//! callable identities, which independent replay must still rejoin.
 
 use crate::provider_planning::operator_provider_evidence::{
     provider_type_package_identity, provider_type_symbol,
@@ -93,11 +92,7 @@ pub(crate) fn derive_provider_plans(
                         };
                         let binding = external_provider_binding(
                             binding,
-                            machine
-                                .attached_data
-                                .as_ref()
-                                .map(|name| name.as_str())
-                                .unwrap_or_default(),
+                            &typed.attached_data_path(machine).unwrap_or_default(),
                             &realization_machine_identity(typed, machine),
                         );
                         (binding, None)
@@ -146,11 +141,7 @@ pub(crate) fn derive_provider_plans(
                     _ => continue, // refused elsewhere (via rungs)
                 };
             let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = machine
-                .attached_data
-                .as_ref()
-                .map(|name| name.as_str().to_owned())
-                .unwrap_or_default();
+            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
             let semantic_requirement_identity = exact_satisfied_requirement_identity(
                 typed,
                 clause.symbol,
@@ -261,11 +252,7 @@ fn derive_top_level_requirement_plans(
         let Some(provider_type_symbol) = provider_type_symbol(typed, machine) else {
             continue;
         };
-        let Some(provider_type) = machine
-            .attached_data
-            .as_ref()
-            .map(|name| name.as_str().to_owned())
-        else {
+        let Some(provider_type) = typed.attached_data_path(machine) else {
             continue;
         };
         let provider_type_package_identity = provider_type_package_identity(typed, machine);
@@ -530,11 +517,7 @@ fn derive_boundary_operator_plans(
                     };
                     external_provider_binding(
                         binding,
-                        machine
-                            .attached_data
-                            .as_ref()
-                            .map(|name| name.as_str())
-                            .unwrap_or_default(),
+                        &typed.attached_data_path(machine).unwrap_or_default(),
                         &typed
                             .normalized_machine_overload_identity(machine)
                             .map(|identity| identity.identity())
@@ -574,11 +557,7 @@ fn derive_boundary_operator_plans(
                 continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();
-            let provider_type = machine
-                .attached_data
-                .as_ref()
-                .map(|name| name.as_str().to_owned())
-                .unwrap_or_default();
+            let provider_type = typed.attached_data_path(machine).unwrap_or_default();
             let plan_name = satisfies_plan_name(&target, &schema.trait_name, &provider_type);
             let position = plans
                 .iter()

@@ -119,10 +119,9 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                     crate::service_schema::is_product_declaration(&checked.typed, machine.symbol)
                 })
                 .filter(|machine| {
-                    machine
-                        .attached_data
-                        .as_ref()
-                        .map(|name| name.as_str())
+                    checked
+                        .typed
+                        .attached_data_path(machine)
                         .unwrap_or_default()
                         == plan.provider_type
                 })
@@ -224,10 +223,8 @@ fn append_top_level_installation_reach_resolution<'a>(
         .machines()
         .iter()
         .filter(|machine| {
-            machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|name| name.as_str() == plan.provider_type)
+            checked.typed.attached_data_path(machine).as_deref()
+                == Some(plan.provider_type.as_str())
         })
         .filter(|machine| {
             checked

@@ -36,7 +36,7 @@ machine Provider::read() -> i32 satisfies Reader::read { 37 }
         plans
             .iter()
             .any(|plan| plan.schema.trait_name == "ports::Reader"
-                && plan.provider_type == "Provider")
+                && plan.provider_type == "ports::Provider")
     );
 }
 
@@ -56,7 +56,7 @@ fn same_leaf_traits_keep_distinct_module_schemas() {
                 .plans()
                 .iter()
                 .any(|plan| plan.schema.trait_name == format!("{module}::Reader")
-                    && plan.provider_type == "Provider")
+                    && plan.provider_type == format!("{module}::Provider"))
         );
     }
     let plan = checked
@@ -83,7 +83,15 @@ fn same_leaf_traits_keep_distinct_module_schemas() {
     wrong_requirement.schema.methods[0].requirement_owner = "right::Reader".into();
     let mut leaf_only = plan.clone();
     leaf_only.schema.trait_name = "Reader".into();
-    for forged in [wrong_provider, wrong_adapter, wrong_requirement, leaf_only] {
+    let mut provider_leaf_only = plan.clone();
+    provider_leaf_only.provider_type = "Provider".into();
+    for forged in [
+        wrong_provider,
+        wrong_adapter,
+        wrong_requirement,
+        leaf_only,
+        provider_leaf_only,
+    ] {
         assert!(
             !provider_planning::validate_provider_plan_candidates(&checked.typed, &[forged])
                 .is_empty(),
@@ -102,6 +110,50 @@ fn same_leaf_traits_keep_distinct_module_schemas() {
         .iter()
         .find(|candidate| candidate.plan.schema.trait_name == "right::Reader")
         .expect("right provenance");
+    // Exercise canonical selection against source-derived candidates. Static
+    // Build operand resolution is a separate authority boundary; this does not
+    // claim that a Build call has executed or issued a selection receipt.
+    let identity = |symbol| provider_planning::ProviderSelectionIdentity {
+        symbol,
+        package: checked.typed.symbols.symbol_package_identity(symbol),
+        canonical_path: checked.typed.symbols.display_path(symbol, "::"),
+        authored_path: checked.typed.symbols.display_path(symbol, "::"),
+    };
+    for candidate in [left, right] {
+        let selection = provider_planning::ProviderSelection {
+            subject: provider_planning::ProviderSelectionSubject::BoundaryTrait(identity(
+                candidate.provenance.schema.symbol(),
+            )),
+            provider_type: identity(candidate.provenance.provider_type.expect("provider")),
+            composition_mode: provider_planning::CompositionMode::Fused,
+            selecting_machine: symbols::SymbolHandle::invalid(),
+            source_span: source::SourceSpan::default(),
+        };
+        let selected = provider_planning::select_derived_provider_plans(
+            &derived,
+            checked.selected_native_target().expect("native target"),
+            &[],
+            std::slice::from_ref(&selection),
+        )
+        .expect("canonical provider path selects its source-derived plan");
+        assert!(
+            selected
+                .iter()
+                .any(|selected| selected.derived == *candidate)
+        );
+        let mut shortened = selection;
+        shortened.provider_type.canonical_path = "Provider".into();
+        assert!(
+            provider_planning::select_derived_provider_plans(
+                &derived,
+                checked.selected_native_target().expect("native target"),
+                &[],
+                &[shortened],
+            )
+            .is_err(),
+            "leaf spelling cannot select a qualified provider"
+        );
+    }
     assert!(
         provider_planning::validate_derived_provider_plan_candidates(
             &checked.typed,
@@ -109,6 +161,22 @@ fn same_leaf_traits_keep_distinct_module_schemas() {
             std::slice::from_ref(left)
         )
         .is_empty()
+    );
+    let mut wrong_owner_spelling = checked.typed.clone();
+    let realization = wrong_owner_spelling
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.symbol == left.provenance.row_realizations[0])
+        .expect("left realization");
+    realization.attached_data = Some(typed_trees::name::Identifier::generated("WrongProvider"));
+    assert!(
+        !provider_planning::validate_derived_provider_plan_candidates(
+            &wrong_owner_spelling,
+            checked.evaluated_via_bindings(),
+            std::slice::from_ref(left),
+        )
+        .is_empty(),
+        "canonical path projection must not conceal drift in the retained owner spelling"
     );
     let mut wrong_provider = left.clone();
     wrong_provider.provenance.provider_type = right.provenance.provider_type;
