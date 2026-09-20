@@ -41,11 +41,11 @@ pub(super) struct Addition {
     /// `add l r = s` equations — numeral-operation bridges between an
     /// `add` application over evaluated operands and their denoted sum.
     /// Each is interned once by its checked `(l, r, s)` value triple.
-    numeral_sums: BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
+    pub(super) numeral_sums: BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
 }
 
 impl Denotation {
-    fn add_operation(&mut self) -> Result<u32, BoundedDenotationError> {
+    pub(super) fn add_operation(&mut self) -> Result<u32, BoundedDenotationError> {
         if let Some(position) = self.addition.operation {
             return Ok(position);
         }
@@ -154,7 +154,7 @@ impl Denotation {
     /// a defensive refusal, since the caller derives them from a checked
     /// exact subtraction — so a miss keeps the instance fallback rather
     /// than naming a false equation.
-    fn numeral_sum(
+    pub(super) fn numeral_sum(
         &mut self,
         addend: IntegerValue,
         augend: IntegerValue,
@@ -248,7 +248,7 @@ impl Denotation {
             } else {
                 (sum, bound, sum_value, bound_value)
             };
-            return self.closed_add_bound_evidence(
+            return self.closed_order_bound_evidence(
                 premise,
                 evidence,
                 conclusion,
@@ -435,7 +435,7 @@ impl Denotation {
     /// a false closed inequality. Strict endpoints outside `IntegerValue`'s
     /// range — or a premise without a closed contradiction — keep the
     /// caller's instance fallback.
-    fn closed_add_bound_evidence(
+    pub(super) fn closed_order_bound_evidence(
         &mut self,
         premise: &Proposition,
         evidence: TermHandle,

@@ -1,10 +1,13 @@
-// RUN canary. A proof-only type (`Nat` has no runtime layout) may sit on an
-// erased parameter of a runtime machine: the binding is proof-side, so the
-// checked calling plan gives it no scalar position, the machine keeps its
-// scalar signature instead of becoming a mixed structural one, and Terminal
-// lowering reconstructs the same retained signature (canary_suite
+// INTENTIONALLY REJECTED (PROOF-RELEVANCE-MIGRATION): a proof-only type
+// (`Nat` has no runtime layout) on an erased parameter of a runtime machine
+// has no scalar lane — `shape_admission`'s
+// `validate_erased_runtime_scalar_formals` rejects it at check time with
+// "erased parameter `witness` is not scalar" until contract terms can carry
+// non-scalar erased actuals. The surface is pinned by
+// fail/relevance/erased_nonscalar_parameter; this member keeps its pass
+// roster slots pending re-homing to fail/ or pending/ once the suite rosters
+// are unfenced (its dedicated legs are canary_suite
 // layouts_and_pending::erased_proof_only_typed_parameter_*).
-// Exit 70 = the runtime argument arrived intact; 71 = it did not.
 use omega_language_std::console;
 use omega::language::core::service;
 use omega::language::core::nat;

@@ -116,11 +116,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     representation because validation replay and test fixtures outside the
     producer stage consume `reconstruct_psi_optimization_unit_seed` directly.
   - Move durable codecs out of transforms and coordinators with their
-    consuming stage changes: `post_allocation_manifest/codec` and
-    `rewrites/allocation_recovery/fixed_view_copy/codec` in the two selected
-    stages, and `optimized_semantic_wrapper_object/codec` in
+    consuming stage changes. `rewrites/allocation_recovery/fixed_view_copy/codec`
+    is already relocated (`2e3c662c32e` — now
+    `register-homes/src/register_homes/recovery/fixed_view_copy/codec`).
+    Remaining: `post_allocation_manifest/codec` in
+    `selected-instructions-to-register-homes`, and
+    `optimized_semantic_wrapper_object/codec` in
     `native-realization` (see `PIPELINE-OWNER-CONSOLIDATION` for whether that
-    owner survives).
+    owner survives). Re-verified at `c1e0b085375`: both sites still sit in
+    their transform/compiler homes under live claims.
   - `representations/target` is shared vocabulary, not a program: its
     deployment profiles, entry schemas and UEFI/ELF/foreign-locator
     structures have no current-program aggregate, and the guard's

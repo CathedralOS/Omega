@@ -2441,10 +2441,16 @@ name = "topology-plan"
 version = "0.1.0"
 dependencies = [
  "bounded-process",
+ "compiler",
  "component-description",
  "libc",
+ "native-realization",
+ "package-manager",
+ "package-source",
+ "proof-admission",
  "semantic-vocabulary",
  "sha2",
+ "target",
  "terminal-psi",
 ]
 

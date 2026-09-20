@@ -27,6 +27,8 @@ pub(in crate::checks) mod callable;
 use callable::Callable;
 mod availability;
 pub(in crate::checks) use availability::{AvailableGuarantee, available};
+#[cfg(test)]
+mod tests;
 
 struct Invocation<'program> {
     site: CallSite<'program>,

@@ -1,23 +1,18 @@
 module policies;
 
+use compose;
+
 pub machine banner() -> &[u8] {
     "topology policy"
 }
 
-// Placeholder plan payload. The checked deployment plan this package will
-// emit starts from verified component descriptions, and evaluated build code
-// has no admission surface for those yet (that seam is COMPONENT-SUBSTRATE's).
-// This draft is fixed placeholder bytes — never a hand-authored endpoint
-// inventory standing in for missing evidence.
-pub machine draft_plan() -> &[u8] {
-    "topology plan draft placeholder"
-}
-
-// `publish` from the contract's operation table: serialize the package's plan
-// result into the output stream behind the caller's required-output
-// obligation. The facet arrives as a parameter, so the package never holds
-// Build authority of its own.
-pub machine publish(output: &mut BuildOutput, descriptor: i32) {
-    let plan: &[u8] = draft_plan();
-    let written: i64 = output.write(descriptor, plan);
+// `publish` from the contract's operation table: the composition project
+// reads its admitted inputs (request, verified component descriptions,
+// owner digests and wiring) through the passed source facet, composes the
+// deployment plan, and serializes it into the output stream behind the
+// caller's required-output obligation. The facets arrive as parameters, so
+// the package never holds Build authority of its own.
+pub machine publish(output: &mut BuildOutput, source: &BuildSource, log: &mut BuildLog, descriptor: i32) {
+    let mut work: compose::Compose;
+    work.publish(source, output, log, descriptor);
 }

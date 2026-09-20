@@ -1,0 +1,15 @@
+// CASE-CONSTRAINTS (ch12): a case `where` fact reads the case's own
+// payload bindings AND the data's common fields -- `lo <= hi` pairs common
+// `lo` with payload `hi`. Omitted declared fields (common or payload) read
+// the ZII zero, so `Within { hi: 4 }` folds `0 <= 4` and still proves.
+data Window {
+    lo: u64;
+    case Within(hi: u64) where lo <= hi;
+    case Empty;
+}
+data Main { window: Window; }
+machine Main::main(&mut self) {
+    self.window = Window::Within { lo: 3, hi: 10 };
+    self.window = Window::Within { hi: 4 };
+    self.window = Window::Empty;
+}

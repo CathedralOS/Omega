@@ -133,6 +133,324 @@ fn unsigned_subtraction_bounds_preserve_open_and_closed_conditional_domain() {
     }
 }
 
+/// `0 + 7 ≤ x` proves `0 ≤ x − 7` over `u8`: the root's closed sum denotes
+/// to its numeral `7`, so the adjunction premise is reached through the
+/// interned equation `add 0 7 = 7` in reverse — no instance axiom.
+#[test]
+fn correlated_subtract_lower_uses_the_add_cancel_law() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let left = ScalarTerm::value(ValueId::new(1).unwrap(), scalar);
+    let context =
+        PropositionContext::from_value_types([(ValueId::new(1).unwrap(), scalar)]).unwrap();
+    let literal = |number| ScalarTerm::integer(integer, IntegerValue::Unsigned(number)).unwrap();
+    let right = literal(7);
+    let root = ScalarTerm::exact_integer_add(integer, literal(0), right.clone()).unwrap();
+    let premise = Proposition::LessOrEqual(root.clone(), left.clone());
+    let goal = Proposition::IntegerMathLessOrEqual(
+        mathematical(&literal(0)),
+        IntegerMathTerm::Subtract(
+            Box::new(mathematical(&left)),
+            Box::new(mathematical(&right)),
+        ),
+    );
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            witness: IntegerAffineWitness {
+                root,
+                target: ScalarTerm::exact_integer_subtract(integer, left.clone(), right.clone())
+                    .unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        },
+    };
+    let assumptions = [premise];
+    verify_bounded_certificate(
+        &context,
+        &goal,
+        &assumptions,
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+    elaboration.node(&proof).unwrap();
+    assert!(elaboration.denotation.rule_axioms.is_empty());
+    assert_eq!(elaboration.denotation.subtraction.laws.len(), 1);
+    assert!(
+        elaboration
+            .denotation
+            .subtraction
+            .laws
+            .contains_key(&super::Law::CancelAddLeft)
+    );
+    assert_eq!(elaboration.denotation.addition.numeral_sums.len(), 1);
+    assert_eq!(
+        elaboration
+            .denotation
+            .addition
+            .numeral_sums
+            .keys()
+            .next()
+            .unwrap(),
+        &(
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(7),
+            IntegerValue::Unsigned(7)
+        )
+    );
+    // A tampered premise or conclusion rejects at the shared relation
+    // before denotation — the equation can only be `add 0 7 = 7`.
+    let mut wrong_premise = proof.clone();
+    let ProofRule::IntegerAffineBound { root_bound, .. } = &mut wrong_premise.rule else {
+        unreachable!()
+    };
+    root_bound.conclusion = Proposition::LessOrEqual(literal(8), left.clone());
+    let wrong_assumption = root_bound.conclusion.clone();
+    assert!(
+        verify_bounded_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&wrong_assumption),
+            &[],
+            &wrong_premise,
+            &mut Budget::default()
+        )
+        .is_err()
+    );
+    let mut wrong_goal = proof.clone();
+    wrong_goal.conclusion = Proposition::IntegerMathLessOrEqual(
+        mathematical(&literal(1)),
+        IntegerMathTerm::Subtract(
+            Box::new(mathematical(&left)),
+            Box::new(mathematical(&right)),
+        ),
+    );
+    assert!(
+        verify_bounded_certificate(
+            &context,
+            &goal,
+            &assumptions,
+            &[],
+            &wrong_goal,
+            &mut Budget::default()
+        )
+        .is_err()
+    );
+}
+
+/// `−128 + 7 ≤ x` proves `−128 ≤ x − 7` over `i8`: the signed numerals
+/// exercise the `negate` prefix through the interned `add (−128) 7 = −121`
+/// equation.
+#[test]
+fn correlated_subtract_signed_lower_uses_the_numeral_equation() {
+    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let left = ScalarTerm::value(ValueId::new(1).unwrap(), scalar);
+    let context =
+        PropositionContext::from_value_types([(ValueId::new(1).unwrap(), scalar)]).unwrap();
+    let literal = |number| ScalarTerm::integer(integer, IntegerValue::Signed(number)).unwrap();
+    let right = literal(7);
+    let root = ScalarTerm::exact_integer_add(integer, literal(-128), right.clone()).unwrap();
+    let premise = Proposition::LessOrEqual(root.clone(), left.clone());
+    let goal = Proposition::IntegerMathLessOrEqual(
+        mathematical(&literal(-128)),
+        IntegerMathTerm::Subtract(
+            Box::new(mathematical(&left)),
+            Box::new(mathematical(&right)),
+        ),
+    );
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            witness: IntegerAffineWitness {
+                root,
+                target: ScalarTerm::exact_integer_subtract(integer, left, right).unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        },
+    };
+    let assumptions = [premise];
+    verify_bounded_certificate(
+        &context,
+        &goal,
+        &assumptions,
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+    elaboration.node(&proof).unwrap();
+    assert!(elaboration.denotation.rule_axioms.is_empty());
+    assert!(
+        elaboration
+            .denotation
+            .subtraction
+            .laws
+            .contains_key(&super::Law::CancelAddLeft)
+    );
+    assert_eq!(
+        elaboration
+            .denotation
+            .addition
+            .numeral_sums
+            .keys()
+            .next()
+            .unwrap(),
+        &(
+            IntegerValue::Signed(-128),
+            IntegerValue::Signed(7),
+            IntegerValue::Signed(-121)
+        )
+    );
+}
+
+/// `x ≤ e + 7` with `e = max` proves `x − 7 ≤ max` over `u64` — the value
+/// root substitutes through its cited definition and the open sum reaches
+/// the adjunction directly, then the landed endpoint substitutes through
+/// its cited literal equality.
+#[test]
+fn correlated_subtract_upper_through_cited_definitions() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let context = PropositionContext::from_value_types(
+        (1..=4).map(|index| (ValueId::new(index).unwrap(), scalar)),
+    )
+    .unwrap();
+    let endpoint = ScalarTerm::integer(integer, integer.maximum_value()).unwrap();
+    let addend = ScalarTerm::integer(integer, IntegerValue::Unsigned(7)).unwrap();
+    let expression = ScalarTerm::exact_integer_add(integer, value(4), addend.clone()).unwrap();
+    let premise = Proposition::LessOrEqual(value(1), value(3));
+    let difference = IntegerMathTerm::Subtract(
+        Box::new(mathematical(&value(1))),
+        Box::new(mathematical(&addend)),
+    );
+    let goal = Proposition::IntegerMathLessOrEqual(difference, mathematical(&endpoint));
+    for reversed in [false, true] {
+        let equality = |left, right| {
+            if reversed {
+                Proposition::Equal(right, left)
+            } else {
+                Proposition::Equal(left, right)
+            }
+        };
+        let axioms = [
+            equality(value(4), endpoint.clone()),
+            equality(value(3), expression.clone()),
+        ];
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                witness: IntegerAffineWitness {
+                    root: value(3),
+                    target: ScalarTerm::exact_integer_subtract(integer, value(1), addend.clone())
+                        .unwrap(),
+                    definition_axioms: vec![1],
+                    literal_axioms: vec![Some(0)],
+                },
+            },
+        };
+        verify_bounded_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&premise),
+            &axioms,
+            &proof,
+            &mut Budget::default(),
+        )
+        .unwrap();
+        let parameters = BTreeSet::new();
+        let assumptions = [premise.clone()];
+        let mut elaboration =
+            Elaboration::new(&context, &goal, &assumptions, &axioms, &parameters).unwrap();
+        elaboration.node(&proof).unwrap();
+        assert!(elaboration.denotation.rule_axioms.is_empty());
+        assert_eq!(elaboration.denotation.subtraction.laws.len(), 1);
+        assert!(
+            elaboration
+                .denotation
+                .subtraction
+                .laws
+                .contains_key(&super::Law::CancelAddRight)
+        );
+        // The cited sum is open, so no numeral-operation equation is needed.
+        assert!(elaboration.denotation.addition.numeral_sums.is_empty());
+    }
+}
+
+/// `1 + 7 ≤ 30` proves `0 ≤ 30 − 7` over `u8` — every endpoint is closed,
+/// so the numeral laws decide the goal outright and no law chain runs.
+#[test]
+fn correlated_subtract_closed_goal_decides_by_numeral_laws() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let literal = |number| ScalarTerm::integer(integer, IntegerValue::Unsigned(number)).unwrap();
+    let context = PropositionContext::from_value_types([]).unwrap();
+    let left = literal(30);
+    let right = literal(7);
+    let root = ScalarTerm::exact_integer_add(integer, literal(0), right.clone()).unwrap();
+    let premise = Proposition::LessOrEqual(root.clone(), left.clone());
+    let goal = Proposition::IntegerMathLessOrEqual(
+        mathematical(&literal(0)),
+        IntegerMathTerm::Subtract(
+            Box::new(mathematical(&left)),
+            Box::new(mathematical(&right)),
+        ),
+    );
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            witness: IntegerAffineWitness {
+                root,
+                target: ScalarTerm::exact_integer_subtract(integer, left, right).unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        },
+    };
+    let assumptions = [premise];
+    verify_bounded_certificate(
+        &context,
+        &goal,
+        &assumptions,
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+    elaboration.node(&proof).unwrap();
+    assert!(elaboration.denotation.rule_axioms.is_empty());
+    assert!(elaboration.denotation.subtraction.laws.is_empty());
+}
+
 #[test]
 fn open_mathematical_subtraction_shares_scalar_terms_without_prefix_keys() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
