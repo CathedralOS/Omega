@@ -451,8 +451,10 @@ fn recognize_structural_state_leaves(
                     .into_iter()
                     .chain(common_fields)
                     .map(|field| {
+                        // These binders must never alias an authored identifier.
+                        // The NUL prefix is outside the source name alphabet.
                         let variable =
-                            format!("__ih_{}_{}_{}", state.name.as_str(), branch_id, field);
+                            format!("\0__ih_{}_{}_{}", state.name.as_str(), branch_id, field);
                         (field, StructuralTerm::Variable(variable))
                     })
                     .collect();

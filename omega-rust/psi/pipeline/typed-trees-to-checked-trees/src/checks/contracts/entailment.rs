@@ -248,9 +248,7 @@ pub(super) fn structural_call_requirement(
     else {
         return false;
     };
-    if !classification.is_proof_machine(program, machine)
-        || !entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver)
-    {
+    if !entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver) {
         return false;
     }
     let Some(state) = program
@@ -263,7 +261,6 @@ pub(super) fn structural_call_requirement(
     let Some(callee) = program
         .machines()
         .iter()
-        .filter(|machine| classification.is_proof_machine(program, machine))
         .flat_map(|machine| program.machine_states(machine))
         .find(|state| state.symbol == call_flow.target_symbol)
     else {

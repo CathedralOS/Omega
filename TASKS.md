@@ -3410,14 +3410,20 @@ Owners include
     substitution across shared consumers; never use unrefuted as proved.
     `opaque_receiver_call_cannot_hide_a_changed_requirement_argument` must retain
     wrong-argument rejection beside an accepted exact-argument twin.
-    Ordinary non-proof body calls also need the shared structural precondition
-    judgment: a Boolean caller of `restricted(false, false)` still rejects when
-    its requirement is `observe(left) == observe(right)` and `observe(value)`
-    returns `value == true`; its `false, true` twin must remain rejected.
-    These are implementation dependencies, not unanswered language design.
-    Nested body value-call operands still hit the existing nested-call fence
-    before premise checking; do not count that refusal as proof of call-premise
-    coverage. Then migrate
+    Finish Terminal transport of call-containing scalar requirements. Reuse
+    `contract_application_terms::runtime_body_calls_execute_with_checked_premises`:
+    its Boolean `caller(value)` invokes `restricted(saved, value)` under
+    `observe(left) == observe(right)`. Checked execution observes both results,
+    but `TerminalProductionRequest::new(&checked, "caller").produce_artifact()`
+    rejects with `scalar contract contains an unsupported clause` on macOS
+    AArch64. The checked contract's missing predicate reaches
+    `checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs::covered_requires`.
+    Acceptance is the same program's canonical reload, independent verification,
+    interpretation and native execution without dropping its requirement.
+    Runtime transport beyond builtin Boolean/integer equality still needs
+    citation and induction evidence; nested operands need actual premise
+    checking, not a separate lowering refusal counted as coverage.
+    These are implementation dependencies, not unanswered language design. Then migrate
     `core/nat.omg`'s `Nat::{subtract,less_or_equal}` from `operator` plus
     `satisfies` pairs to declaration-owned bodies; `Nat::saturating_sub` stays
     the separate total operation. Controls:

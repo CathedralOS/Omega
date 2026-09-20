@@ -4,8 +4,11 @@
 //! recursive call's eventual result and later citations are not entry evidence.
 //! A licensed induction hypothesis is different: it may establish an earlier
 //! premise, but only once its own premises hold in that earlier context.
-//! The checked caller separately establishes that these proof values cannot be
+//! The checked caller separately establishes that entry values cannot be
 //! mutated; this judgment does not replace the separate recursion validator.
+//! Runtime calls reuse the traversal with opaque invocation results and exact
+//! builtin equality domains. Empty write frames alone do not make observations
+//! deterministic, and IEEE equality is not structural reflexivity.
 
 use super::citations::{
     CitationFacts, CitationTarget, instantiate_citation, machine_requires_facts,
@@ -18,7 +21,7 @@ use super::structural_case_arms::{
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -42,14 +45,31 @@ pub fn structural_call_requirement_entailed(
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    if !classification.is_proof_machine(program, machine)
-        || !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
-            program, machine, entry,
-        )
-        || program
-            .state_parameters(callee)
+    if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
+        program, machine, entry,
+    ) || program
+        .state_parameters(callee)
+        .iter()
+        .any(|parameter| parameter.is_self)
+    {
+        return false;
+    }
+    let Some(callee_machine) = program.machines().iter().find(|candidate| {
+        program
+            .machine_states(candidate)
             .iter()
-            .any(|parameter| parameter.is_self)
+            .any(|state| state.symbol == callee.symbol)
+    }) else {
+        return false;
+    };
+    let runtime_values = !classification.is_proof_machine(program, machine)
+        || !classification.is_proof_machine(program, callee_machine);
+    let requires = machine_requires_facts(program, machine);
+    if runtime_values
+        && (!runtime_equality_fact(program, callee_machine, callee, expression)
+            || !requires
+                .iter()
+                .all(|fact| runtime_equality_fact(program, machine, entry, *fact)))
     {
         return false;
     }
@@ -63,8 +83,9 @@ pub fn structural_call_requirement_entailed(
         seen: false,
         proven: true,
     };
-    let requires = machine_requires_facts(program, machine);
-    let judge = if contains_case_premise(program, expression) {
+    let judge = if runtime_values {
+        StructuralJudge::from_runtime_requires(program, machine, &requires)
+    } else if contains_case_premise(program, expression) {
         StructuralJudge::from_case_requires(program, machine, &requires)
     } else {
         StructuralJudge::from_requires(program, machine, &requires)
@@ -110,10 +131,11 @@ impl CallRequirement<'_> {
             return;
         }
         guarantees.intake(&mut site_judge);
-        if let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == self.state)
+        if !judge.has_runtime_body_values()
+            && let Some(state) = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == self.state)
         {
             intake_state_induction(
                 program,
@@ -149,6 +171,43 @@ impl CallRequirement<'_> {
     }
 }
 
+/// Structural equations interpret builtin Boolean/integer equality, not an
+/// arbitrary selected operator or IEEE floating equality. Check assumptions as
+/// well as goals: misreading an assumption could manufacture vacuity.
+fn runtime_equality_fact(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Boolean(_)
+        );
+    };
+    if !crate::has_builtin_binary_expression_meaning(program, machine, Some(state), expression) {
+        return false;
+    }
+    match binary.operator {
+        BinaryOperator::And => {
+            runtime_equality_fact(program, machine, state, binary.left)
+                && runtime_equality_fact(program, machine, state, binary.right)
+        }
+        BinaryOperator::Equal | BinaryOperator::NotEqual => {
+            [binary.left, binary.right].iter().all(|operand| {
+                crate::expression_result_type_reference(program, machine, state, *operand)
+                    .and_then(|reference| program.primitive_type_reference(reference))
+                    .is_some_and(|primitive| {
+                        primitive == typed_trees::types::PrimitiveType::Bool
+                            || primitive.accepts_integer_literal()
+                    })
+            })
+        }
+        _ => false,
+    }
+}
+
 fn contains_case_premise(program: &TypedTrees, expression: ExpressionHandle) -> bool {
     if super::structural_terms::is_case_observation(program, expression) {
         return true;
@@ -174,6 +233,12 @@ pub(super) fn establish_citation(
     target: &CitationTarget,
     arguments: &[StructuralTerm],
 ) {
+    // Proof citations carry their own structural equality vocabulary. Runtime
+    // entry transport currently uses checked scalar assumptions and saved value
+    // identities; it must not import those wider equations or induction rules.
+    if judge.has_runtime_body_values() {
+        return;
+    }
     let mut site_judge = structural_arm_judge(program, machine, judge, hypotheses, equations);
     guarantees.intake(&mut site_judge);
     intake_state_induction(

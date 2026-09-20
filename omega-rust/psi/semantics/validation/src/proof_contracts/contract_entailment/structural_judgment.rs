@@ -415,6 +415,7 @@ pub(super) struct StructuralJudge<'program> {
     program: &'program TypedTrees,
     machine_symbol: SymbolHandle,
     resolve_applications: bool,
+    runtime_body_values: bool,
     pub(super) substitutions: Vec<(String, StructuralTerm)>,
     /// Application REWRITES (`add_zero_right(prev) -> prev`): hypothesis
     /// equations with an application side orient REDUCING -- the inductive
@@ -441,6 +442,7 @@ impl Clone for StructuralJudge<'_> {
             program: self.program,
             machine_symbol: self.machine_symbol,
             resolve_applications: self.resolve_applications,
+            runtime_body_values: self.runtime_body_values,
             substitutions: self.substitutions.clone(),
             rewrites: self.rewrites.clone(),
             case_facts: self.case_facts.clone(),
@@ -473,6 +475,23 @@ impl<'program> StructuralJudge<'program> {
         !self.resolve_applications
     }
 
+    /// Executed calls are values from individual invocations, not applications
+    /// of a mathematical function. Contracts retain their denotational terms;
+    /// body substitution must not identify two independent observations.
+    pub(super) fn from_runtime_requires(
+        program: &'program TypedTrees,
+        judged_machine: &Machine,
+        requires: &[ExpressionHandle],
+    ) -> Self {
+        let mut judge = Self::from_case_requires(program, judged_machine, requires);
+        judge.runtime_body_values = true;
+        judge
+    }
+
+    pub(super) fn has_runtime_body_values(&self) -> bool {
+        self.runtime_body_values
+    }
+
     fn from_requires_with_resolution(
         program: &'program TypedTrees,
         judged_machine: &Machine,
@@ -483,6 +502,7 @@ impl<'program> StructuralJudge<'program> {
             program,
             machine_symbol: judged_machine.symbol,
             resolve_applications,
+            runtime_body_values: false,
             substitutions: Vec::new(),
             rewrites: Vec::new(),
             case_facts: Vec::new(),
@@ -1195,6 +1215,13 @@ impl<'program> StructuralJudge<'program> {
                 .then_some(StructuralTerm::BoundValue(local.symbol));
         }
         self.callee_term(local.initial_value, environment, 0)
+            .or_else(|| {
+                // A saved computation has one identity even when its internal
+                // execution is outside this term language. Preserve aliases
+                // through normal substitution before using that opaque identity.
+                (self.runtime_body_values && local.symbol.is_valid())
+                    .then_some(StructuralTerm::BoundValue(local.symbol))
+            })
     }
 
     fn callee_term_with_machines(
@@ -1231,6 +1258,9 @@ impl<'program> StructuralJudge<'program> {
                     && call.evidence_arguments.is_empty()
                     && call.static_requirement_dispatch.is_none()
                 {
+                    if self.runtime_body_values {
+                        return None;
+                    }
                     let arguments = program
                         .expression_table
                         .expression_handles(call.arguments)
@@ -1342,7 +1372,8 @@ impl<'program> StructuralJudge<'program> {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
             ExpressionNode::Call(call) => {
-                if call.receiver.is_valid()
+                if self.runtime_body_values
+                    || call.receiver.is_valid()
                     || !call.evidence_arguments.is_empty()
                     || call.static_requirement_dispatch.is_some()
                 {
@@ -1510,7 +1541,6 @@ impl<'program> StructuralJudge<'program> {
                         continue;
                     };
                     return match replacement {
-                        StructuralTerm::Integer(_) => term.clone(),
                         StructuralTerm::BoundValue(subject) => StructuralTerm::BoundProjection {
                             subject: *subject,
                             path: suffix.to_owned(),
@@ -1524,18 +1554,32 @@ impl<'program> StructuralJudge<'program> {
                         StructuralTerm::Variable(root) | StructuralTerm::Opaque(root) => {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
-                        StructuralTerm::Application { .. }
+                        StructuralTerm::Integer(_)
+                        | StructuralTerm::Application { .. }
                         | StructuralTerm::CallProjection { .. }
                         | StructuralTerm::ScalarBinary { .. }
                         | StructuralTerm::Projection { .. } => StructuralTerm::Projection {
                             subject: Box::new(replacement.clone()),
                             path: suffix.to_owned(),
                         },
-                        StructuralTerm::Constructor { fields, .. } => fields
-                            .iter()
-                            .find(|(name, _)| name == suffix)
-                            .map(|(_, value)| value.clone())
-                            .unwrap_or_else(|| term.clone()),
+                        StructuralTerm::Constructor { .. } => suffix
+                            .split('.')
+                            .try_fold(replacement, |subject, field_name| {
+                                let StructuralTerm::Constructor { fields, .. } = subject else {
+                                    return None;
+                                };
+                                fields
+                                    .iter()
+                                    .find_map(|(name, field)| (name == field_name).then_some(field))
+                            })
+                            .cloned()
+                            .unwrap_or_else(|| StructuralTerm::Projection {
+                                // An unresolved path still belongs to the actual
+                                // receiver. Keeping the callee's spelling here
+                                // could alias an unrelated caller parameter.
+                                subject: Box::new(replacement.clone()),
+                                path: suffix.to_owned(),
+                            }),
                     };
                 }
                 term.clone()
