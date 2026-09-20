@@ -587,13 +587,49 @@ fn constant_fixed_index(program: &TypedTrees, index: ExpressionHandle) -> bool {
         .is_some()
 }
 
+/// Whether `value` is an exact projected place rooted at a reference carrier
+/// (`self.inventory` under `&mut self`, `x.slot` through `x: &Inventory`).
+/// Moving through such a place opens a borrowed-storage window the
+/// multiplicity checker owns -- the join receives a whole owned value on
+/// every agreeing edge while the hole stays with the caller's storage -- so
+/// the transfer is branch-local evidence, not the owned input custody or
+/// predecessor result custody this gate exists to reject. A bare reference
+/// root (no projection) moves the borrow itself and keeps every rejection.
+fn expression_moves_borrowed_place(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut expression = expression;
+    let mut projected = false;
+    loop {
+        let next = match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            _ => break,
+        };
+        projected = true;
+        expression = next;
+    }
+    projected
+        && declared_value_type(program, machine, state, expression).is_some_and(|reference| {
+            matches!(
+                program.type_reference_table.type_reference(reference),
+                typed_trees::types::TypeReferenceNode::Reference { .. }
+            )
+        })
+}
+
 fn result_needs_custody_join(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     value: ExpressionHandle,
 ) -> bool {
-    if selected_shared_borrow_place(program, machine, state, value) {
+    if selected_shared_borrow_place(program, machine, state, value)
+        || expression_moves_borrowed_place(program, machine, state, value)
+    {
         return false;
     }
     let reference = declared_value_type(program, machine, state, value);
@@ -832,25 +868,56 @@ fn selected_expression_transfers_owned(
                     typed_trees::operator::resolve_named_expression_call(program, call)
                         .map(|operator| program.operator_parameters(operator))
                 });
-                if parameters.is_some_and(|parameters| {
-                    parameters
+                let arguments = program
+                    .expression_table
+                    .expression_handles(call.arguments);
+                if let Some(parameters) = parameters {
+                    let supplied = parameters
                         .iter()
-                        .any(|parameter| requires_transfer(parameter.type_reference))
-                }) {
-                    return true;
+                        .filter(|parameter| !parameter.is_self)
+                        .collect::<Vec<_>>();
+                    // An argument rooted at a reference carrier moves borrowed
+                    // storage, not the caller's owned custody -- the window
+                    // checker and its arm-agreement rule own that hole. Any
+                    // other transfer-requiring parameter still selects the
+                    // plain rejection.
+                    if supplied.len() == arguments.len()
+                        && supplied.iter().zip(arguments.iter()).any(
+                            |(parameter, argument)| {
+                                requires_transfer(parameter.type_reference)
+                                    && !expression_moves_borrowed_place(
+                                        program,
+                                        machine,
+                                        state,
+                                        *argument,
+                                    )
+                            },
+                        )
+                    {
+                        return true;
+                    }
+                    if supplied.len() != arguments.len()
+                        && parameters
+                            .iter()
+                            .any(|parameter| requires_transfer(parameter.type_reference))
+                    {
+                        return true;
+                    }
                 }
             }
             ExpressionNode::Binary(binary) => {
                 if [binary.left, binary.right].iter().any(|operand| {
                     declared_value_type(program, machine, state, *operand)
                         .is_some_and(requires_transfer)
+                        && !expression_moves_borrowed_place(program, machine, state, *operand)
                 }) {
                     return true;
                 }
             }
             ExpressionNode::Unary(unary)
                 if declared_value_type(program, machine, state, unary.operand)
-                    .is_some_and(requires_transfer) =>
+                    .is_some_and(requires_transfer)
+                    && !expression_moves_borrowed_place(program, machine, state, unary.operand) =>
             {
                 return true;
             }

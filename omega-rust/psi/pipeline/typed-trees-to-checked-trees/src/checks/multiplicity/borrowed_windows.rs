@@ -595,6 +595,10 @@ fn expression_key(handle: ExpressionHandle) -> (u32, u32) {
 
 /// One `match` expression inside a statement's value evaluation.
 struct MatchWindowFrame {
+    /// The match expression itself: its `Invoke` step crosses the step stream
+    /// exactly once, after every reachable arm's own steps — the join point
+    /// where an agreeing arm debt becomes one hole on the joined edge.
+    expression: ExpressionHandle,
     /// The arm span is the frame's identity and its membership roster.
     arms: arena::HandleSpan<typed_trees::expression::TableMatchArm>,
     /// Arms that can evaluate: shadowed patterns and post-covered arms never
@@ -604,12 +608,20 @@ struct MatchWindowFrame {
     /// statement-rooted one. A nested match that agrees lifts its debt into
     /// this arm's set.
     enclosing_arm: ArmHandle,
+    /// Whether the match sits in a statement-conditional position — a
+    /// short-circuit operand or transition target that may not evaluate. A
+    /// conditional join cannot promise the hole on the statement's
+    /// fall-through edge. Arm membership is not conditional in this sense:
+    /// the arm's own edges are the frame's domain.
+    conditional: bool,
 }
 
 /// What the event loop should do with one arm-attributed borrowed move.
 pub(super) enum ArmWindowVerdict {
     /// Every reachable arm of the enclosing match agrees on this absent
-    /// place; open the join-level window through the ordinary path.
+    /// place. The hole is recorded as pending and commits at the frame's own
+    /// `Invoke` step — the join — so sibling arms' uses of the place still
+    /// see it present on their own edge.
     Open,
     /// A sibling arm already opened this place through this match — the
     /// debts agree, so the join carries one hole — but this event's authored
@@ -658,13 +670,37 @@ pub(super) struct ArmWindowPlan {
     /// Resolved debts this plan already opened per frame — sibling arms of an
     /// agreeing match contribute one hole per place, not one hole per event.
     opened: Vec<(usize, facts::PlaceRoot, Vec<facts::PlaceSegment>)>,
+    /// frame index → the agreed debt set its reachable arms carry.
+    agreed_debts: Vec<Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>>,
+    /// frame index → the match itself sits in a statement-conditional
+    /// position, or a match enclosing it does. Pending debts then can never
+    /// commit to the statement edge.
+    rooted_conditional: Vec<bool>,
+    /// Places already absent on one arm's own edge, in step order, as
+    /// (recording arm, resolved root, resolved path). A sibling arm's hole
+    /// does not appear on this edge — only the join shares it.
+    edge_absent: Vec<(ArmHandle, facts::PlaceRoot, Vec<facts::PlaceSegment>)>,
+    /// Agreed debts awaiting their root frame's join: (root frame index,
+    /// move event index, resolved place). The caller commits them through
+    /// `open` when the match's `Invoke` step crosses; the place fields dedupe
+    /// one hole per place at the join even when several frames contributed.
+    pending: Vec<(usize, usize, facts::PlaceRoot, Vec<facts::PlaceSegment>)>,
+    /// Expressions evaluated conditionally on their own arm's edge — a
+    /// short-circuit operand inside the arm's value, for example. A move
+    /// there cannot promise the hole on that edge.
+    edge_conditional: std::collections::BTreeSet<(u32, u32)>,
 }
 
 impl ArmWindowPlan {
     /// Collect the statement's `match` frames and the expression→arm map.
-    /// The walk mirrors `append_move_events_for_expression`: subjects and
-    /// patterns evaluate in the enclosing context, arm values in their arm.
-    pub(super) fn new(program: &typed_trees::TypedTrees, statement: &StatementNode) -> Self {
+    /// The walk mirrors `statement_steps`: subjects and patterns evaluate in
+    /// the enclosing context, arm values in their arm, and short-circuit
+    /// right operands stay conditional on both their edge and the statement.
+    pub(super) fn new(
+        program: &typed_trees::TypedTrees,
+        statement: &StatementNode,
+        operators: &checked_trees::CheckedOperatorFacts,
+    ) -> Self {
         let mut plan = Self {
             frames: Vec::new(),
             frame_by_arm: std::collections::BTreeMap::new(),
@@ -674,12 +710,20 @@ impl ArmWindowPlan {
             agreed: Vec::new(),
             rooted_agreed: Vec::new(),
             opened: Vec::new(),
+            agreed_debts: Vec::new(),
+            rooted_conditional: Vec::new(),
+            edge_absent: Vec::new(),
+            pending: Vec::new(),
+            edge_conditional: std::collections::BTreeSet::new(),
         };
         let mut roots: Vec<ExpressionHandle> = Vec::new();
         match statement {
             StatementNode::LocalData(local) => roots.push(local.initial_value),
             StatementNode::Expression(expression) => roots.push(*expression),
-            StatementNode::Assignment(assignment) => roots.push(assignment.value),
+            StatementNode::Assignment(assignment) => {
+                roots.push(assignment.value);
+                roots.push(assignment.target);
+            }
             StatementNode::Call(call) => roots.extend_from_slice(
                 program.statement_table.expression_handles(call.arguments),
             ),
@@ -692,7 +736,7 @@ impl ArmWindowPlan {
             _ => {}
         }
         for root in roots {
-            plan.collect_frames(program, root, ArmHandle::invalid());
+            plan.collect_frames(program, root, ArmHandle::invalid(), false, false, operators);
         }
         for (index, frame) in plan.frames.iter().enumerate() {
             for ordinal in 0..frame.arms.len() {
@@ -835,20 +879,28 @@ impl ArmWindowPlan {
         // An event opens only when its frame and every frame enclosing it
         // agreed; pre-order means each parent is already resolved.
         self.rooted_agreed = vec![false; count];
+        self.rooted_conditional = vec![false; count];
         for index in 0..count {
             let enclosing_arm = self.frames[index].enclosing_arm;
+            let parent = enclosing_arm
+                .is_valid()
+                .then(|| self.frame_by_arm.get(&arm_key(enclosing_arm)))
+                .flatten()
+                .copied();
             self.rooted_agreed[index] = self.agreed[index]
-                && (!enclosing_arm.is_valid()
-                    || self
-                        .frame_by_arm
-                        .get(&arm_key(enclosing_arm))
-                        .is_some_and(|parent| self.rooted_agreed[*parent]));
+                && parent.is_none_or(|parent| self.rooted_agreed[parent]);
+            self.rooted_conditional[index] = self.frames[index].conditional
+                || parent.is_some_and(|parent| self.rooted_conditional[parent]);
         }
+        self.agreed_debts = agreed_debts;
     }
 
     /// Decide what one arm-scoped borrowed move does under the computed
     /// agreement. `None` marks an unconditional event — the caller keeps the
-    /// ordinary `open` path.
+    /// ordinary `open` path. An `Open` verdict records the debt against this
+    /// arm's own edge immediately and stages the join-level window under its
+    /// root frame's pending list; `commit_pending` drains it when the match's
+    /// `Invoke` crosses, so a sibling arm's reads still see the place present.
     pub(super) fn verdict(
         &mut self,
         program: &typed_trees::TypedTrees,
@@ -856,6 +908,7 @@ impl ArmWindowPlan {
         state: &typed_trees::state::State,
         statements: &[StatementNode],
         statement_index: usize,
+        event_index: usize,
         event: &crate::flow::DiscoveredMoveEvent,
         path: &[facts::PlaceSegment],
     ) -> Option<ArmWindowVerdict> {
@@ -871,7 +924,14 @@ impl ArmWindowPlan {
         {
             return Some(ArmWindowVerdict::DeadArm);
         }
-        if !self.rooted_agreed[frame_index] {
+        // A move under a short-circuit operand inside its own arm cannot
+        // promise the hole on that arm's edge, and a match whose own position
+        // is statement-conditional cannot promise it on the joined edge.
+        let site = self.event_site_expression(program, machine, state, event);
+        if (site.is_valid() && self.edge_conditional.contains(&expression_key(site)))
+            || !self.rooted_agreed[frame_index]
+            || self.rooted_conditional[frame_index]
+        {
             return Some(ArmWindowVerdict::Reject);
         }
         let facts::PlaceRoot::Symbol(root_symbol) = event.root else {
@@ -886,12 +946,207 @@ impl ArmWindowPlan {
             root_symbol,
             path,
         );
-        let key = (frame_index, resolved.0, resolved.1);
-        if self.opened.contains(&key) {
+        self.edge_absent.push((arm, resolved.0, resolved.1.clone()));
+        let root = self.root_frame(frame_index);
+        if self.opened.contains(&(frame_index, resolved.0, resolved.1.clone()))
+            || self.pending.iter().any(|(pending_root, _, proot, ppath)| {
+                *pending_root == root && *proot == resolved.0 && *ppath == resolved.1
+            })
+        {
             return Some(ArmWindowVerdict::SiblingRoute);
         }
-        self.opened.push(key);
+        self.opened.push((frame_index, resolved.0, resolved.1.clone()));
+        self.pending.push((root, event_index, resolved.0, resolved.1));
         Some(ArmWindowVerdict::Open)
+    }
+
+    /// The root (statement-level) frame an agreeing move's pending hole
+    /// commits under: nested agreement lifts debts upward, so the hole exists
+    /// on the statement edge only once the outermost match joins.
+    fn root_frame(&self, mut frame: usize) -> usize {
+        loop {
+            let enclosing_arm = self.frames[frame].enclosing_arm;
+            let Some(&parent) = enclosing_arm
+                .is_valid()
+                .then(|| self.frame_by_arm.get(&arm_key(enclosing_arm)))
+                .flatten()
+            else {
+                return frame;
+            };
+            frame = parent;
+        }
+    }
+
+    /// Drain the pending debts of the root frame whose `Invoke` step this
+    /// `expression` is, returning their move event indices so the caller can
+    /// run them through `open`. Nested frames' debts already live in the
+    /// root's pending list, so one join commits the whole lifted set.
+    pub(super) fn commit_pending(&mut self, expression: ExpressionHandle) -> Vec<usize> {
+        let key = expression_key(expression);
+        let Some(root) = self
+            .frames
+            .iter()
+            .position(|frame| !frame.enclosing_arm.is_valid() && expression_key(frame.expression) == key)
+        else {
+            return Vec::new();
+        };
+        let (committed, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending)
+            .into_iter()
+            .partition(|(root_frame, _, _, _)| *root_frame == root);
+        self.pending = kept;
+        committed.into_iter().map(|(_, event, _, _)| event).collect()
+    }
+
+    /// Whether a hole recorded on `recorded_arm`'s edge is also present on
+    /// `arm`'s edge: the recording arm is the query arm itself or an arm of a
+    /// match nested inside its value subtree — the nested join leaves the
+    /// hole behind for the rest of the enclosing edge.
+    fn edge_covers(&self, recorded_arm: ArmHandle, arm: ArmHandle) -> bool {
+        let mut cursor = recorded_arm;
+        loop {
+            if cursor == arm {
+                return true;
+            }
+            let Some(&frame) = self.frame_by_arm.get(&arm_key(cursor)) else {
+                return false;
+            };
+            cursor = self.frames[frame].enclosing_arm;
+            if !cursor.is_valid() {
+                return false;
+            }
+        }
+    }
+
+    /// The arm-local counterpart of [`BorrowedStorageWindows::check_use`]: a
+    /// read inside an arm's edge while that edge's own extraction is absent.
+    /// Sibling edges' holes never apply, and the join-level ledger entry
+    /// exists only after the match commits.
+    pub(super) fn check_edge_use(
+        &self,
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        statements: &[StatementNode],
+        statement_index: usize,
+        expression: ExpressionHandle,
+        use_place: &CanonicalPlace,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        if self.edge_absent.is_empty() {
+            return;
+        }
+        let Some(&arm) = self.arm_of_expression.get(&expression_key(expression)) else {
+            return;
+        };
+        if !arm.is_valid() {
+            return;
+        }
+        let facts::PlaceRoot::Symbol(root_symbol) = use_place.root else {
+            return;
+        };
+        let (root, storage_path) = resolve_storage_place(
+            program,
+            machine,
+            state,
+            statements,
+            statement_index,
+            root_symbol,
+            &use_place.segments,
+        );
+        for (edge_arm, absent_root, absent_path) in &self.edge_absent {
+            if !self.edge_covers(*edge_arm, arm)
+                || *absent_root != root
+                || !place_paths_overlap(&storage_path, absent_path)
+            {
+                continue;
+            }
+            let spelling = place_spelling(program, machine, state, root, &storage_path);
+            let absent_spelling = place_spelling(program, machine, state, *absent_root, absent_path);
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot use `{spelling}` while `{absent_spelling}` is absent from borrowed \
+                 storage: the value moved out at statement {statement_index} must be restored first",
+            )));
+        }
+    }
+
+    /// The arm-local counterpart of [`BorrowedStorageWindows::check_invocation`]:
+    /// a call evaluated on an arm's edge meets the holes that arm already
+    /// opened, not the join's pending list.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_edge_invocation(
+        &self,
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        control: &checked_trees::FlowControlFacts,
+        state_calls: &[checked_trees::FlowCallFact],
+        service_reaches: &checked_trees::ServiceReachFacts,
+        operators: &checked_trees::CheckedOperatorFacts,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        if self.edge_absent.is_empty() {
+            return;
+        }
+        let Some(&arm) = self.arm_of_expression.get(&expression_key(expression)) else {
+            return;
+        };
+        if !arm.is_valid() {
+            return;
+        }
+        let absent_edges: Vec<&(ArmHandle, facts::PlaceRoot, Vec<facts::PlaceSegment>)> = self
+            .edge_absent
+            .iter()
+            .filter(|(edge_arm, _, _)| self.edge_covers(*edge_arm, arm))
+            .collect();
+        if state_calls.iter().any(|call| {
+            call.statement_index == statement_index
+                && call.authored_expression == expression
+                && !control.is_retired(state.symbol, call)
+                && (call.suspension.direct_may_suspend
+                    || call.suspension.transitive_may_suspend
+                    || call.blocking.direct_may_block
+                    || call.blocking.transitive_may_block)
+        }) {
+            for (_, absent_root, absent_path) in &absent_edges {
+                let spelling =
+                    place_spelling(program, machine, state, *absent_root, absent_path);
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot suspend or block at statement {statement_index} while `{spelling}` is \
+                     absent: restore the value moved out of borrowed storage first",
+                )));
+            }
+        }
+        if state_calls.iter().any(|call| {
+            call.statement_index == statement_index
+                && call.authored_expression == expression
+                && !control.is_retired(state.symbol, call)
+                && call_may_enter_boundary(
+                    program,
+                    service_reaches,
+                    control,
+                    operators,
+                    state.symbol,
+                    call,
+                )
+        }) || state_has_boundary_operator(
+            program,
+            control,
+            operators,
+            state.symbol,
+            Some(statement_index),
+            Some(expression),
+        ) {
+            for (_, absent_root, absent_path) in &absent_edges {
+                let spelling =
+                    place_spelling(program, machine, state, *absent_root, absent_path);
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot make a boundary or service call at statement {statement_index} while \
+                     `{spelling}` is absent: restore the value moved out of borrowed storage first",
+                )));
+            }
+        }
     }
 
     /// The arm this move evaluates on: the recorded `source_arm`, or — for
@@ -932,28 +1187,76 @@ impl ArmWindowPlan {
             .unwrap_or_default()
     }
 
+    /// The expression whose evaluation position carries this event: the
+    /// recorded operand, or the resolved call site for call-flow events that
+    /// name a statement-local call by ordinal instead.
+    fn event_site_expression(
+        &self,
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        event: &crate::flow::DiscoveredMoveEvent,
+    ) -> ExpressionHandle {
+        if event.expression.is_valid() {
+            return event.expression;
+        }
+        let crate::flow::FlowOwnershipEventSource::Call {
+            statement_index,
+            call_ordinal,
+            ..
+        } = event.source
+        else {
+            return ExpressionHandle::invalid();
+        };
+        match crate::semantic_calls::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            call_ordinal,
+        ) {
+            Some(crate::semantic_calls::CallSite::Expression { expression, .. }) => expression,
+            _ => ExpressionHandle::invalid(),
+        }
+    }
+
     fn collect_frames(
         &mut self,
         program: &typed_trees::TypedTrees,
         expression: ExpressionHandle,
         enclosing_arm: ArmHandle,
+        statement_conditional: bool,
+        edge_conditional: bool,
+        operators: &checked_trees::CheckedOperatorFacts,
     ) {
         if !expression.is_valid() {
             return;
         }
         self.arm_of_expression
             .insert(expression_key(expression), enclosing_arm);
+        if edge_conditional {
+            self.edge_conditional.insert(expression_key(expression));
+        }
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
                 self.frames.push(MatchWindowFrame {
+                    expression,
                     arms: dispatch.arms,
                     reachable: super::owned_selection::reachable_arms(program, dispatch.arms)
                         .into_iter()
                         .map(|(handle, _)| handle)
                         .collect(),
                     enclosing_arm,
+                    conditional: statement_conditional,
                 });
-                self.collect_frames(program, dispatch.subject, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    dispatch.subject,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
                 for (ordinal, arm) in program
                     .expression_table
                     .match_arms(dispatch.arms)
@@ -965,57 +1268,212 @@ impl ArmWindowPlan {
                         dispatch.arms.start().generation(),
                     );
                     if let MatchPattern::Value(pattern) = arm.pattern {
-                        self.collect_frames(program, pattern, enclosing_arm);
+                        self.collect_frames(
+                            program,
+                            pattern,
+                            enclosing_arm,
+                            true,
+                            edge_conditional,
+                            operators,
+                        );
                     }
-                    self.collect_frames(program, arm.value, arm_handle);
+                    // The arm's own subtree is a fresh edge: statement
+                    // conditionality carries down, but the arm's selection
+                    // is this frame's agreement domain, not an edge
+                    // condition.
+                    self.collect_frames(
+                        program,
+                        arm.value,
+                        arm_handle,
+                        statement_conditional,
+                        false,
+                        operators,
+                    );
                 }
             }
             ExpressionNode::Atomic(atomic) => {
-                self.collect_frames(program, atomic.value, enclosing_arm);
-                self.collect_frames(program, atomic.result, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    atomic.value,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
+                self.collect_frames(
+                    program,
+                    atomic.result,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
             }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in program.expression_table.expression_handles(*values) {
-                    self.collect_frames(program, *value, enclosing_arm);
+                    self.collect_frames(
+                        program,
+                        *value,
+                        enclosing_arm,
+                        statement_conditional,
+                        edge_conditional,
+                        operators,
+                    );
                 }
             }
             ExpressionNode::Binary(binary) => {
-                self.collect_frames(program, binary.left, enclosing_arm);
-                self.collect_frames(program, binary.right, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    binary.left,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
+                if matches!(
+                    binary.operator,
+                    typed_trees::expression::BinaryOperator::And
+                        | typed_trees::expression::BinaryOperator::Or
+                ) {
+                    let evaluate_when =
+                        binary.operator == typed_trees::expression::BinaryOperator::And;
+                    let left = crate::values::evaluate_closed_boolean_expression(
+                        program,
+                        operators,
+                        binary.left,
+                        &[],
+                    );
+                    if left != Some(!evaluate_when) {
+                        self.collect_frames(
+                            program,
+                            binary.right,
+                            enclosing_arm,
+                            statement_conditional || left.is_none(),
+                            edge_conditional || left.is_none(),
+                            operators,
+                        );
+                    }
+                } else {
+                    self.collect_frames(
+                        program,
+                        binary.right,
+                        enclosing_arm,
+                        statement_conditional,
+                        edge_conditional,
+                        operators,
+                    );
+                }
             }
             ExpressionNode::Borrow(borrow) => {
-                self.collect_frames(program, borrow.target, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    borrow.target,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
             }
             ExpressionNode::Call(call) => {
-                self.collect_frames(program, call.receiver, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    call.receiver,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    self.collect_frames(program, *argument, enclosing_arm);
+                    self.collect_frames(
+                        program,
+                        *argument,
+                        enclosing_arm,
+                        statement_conditional,
+                        edge_conditional,
+                        operators,
+                    );
                 }
             }
             ExpressionNode::Cast(cast) => {
-                self.collect_frames(program, cast.value, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    cast.value,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
             }
             ExpressionNode::Indexed(indexed) => {
-                self.collect_frames(program, indexed.collection, enclosing_arm);
-                self.collect_frames(program, indexed.index, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    indexed.collection,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
+                self.collect_frames(
+                    program,
+                    indexed.index,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
             }
             ExpressionNode::Member(member) => {
-                self.collect_frames(program, member.receiver, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    member.receiver,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
             }
             ExpressionNode::Range(range) => {
-                self.collect_frames(program, range.start, enclosing_arm);
-                self.collect_frames(program, range.end, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    range.start,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
+                self.collect_frames(
+                    program,
+                    range.end,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
             }
             ExpressionNode::StructLiteral(literal) => {
                 for field in program
                     .expression_table
                     .struct_fields(literal.fields)
                 {
-                    self.collect_frames(program, field.value, enclosing_arm);
+                    self.collect_frames(
+                        program,
+                        field.value,
+                        enclosing_arm,
+                        statement_conditional,
+                        edge_conditional,
+                        operators,
+                    );
                 }
             }
             ExpressionNode::Unary(unary) => {
-                self.collect_frames(program, unary.operand, enclosing_arm);
+                self.collect_frames(
+                    program,
+                    unary.operand,
+                    enclosing_arm,
+                    statement_conditional,
+                    edge_conditional,
+                    operators,
+                );
             }
             ExpressionNode::Name(_)
             | ExpressionNode::Boolean(_)
@@ -1255,7 +1713,12 @@ fn place_spelling(
 /// ownership classifier. Each observation precedes its exact move; invocations
 /// follow their operands, and the caller applies the repair after these steps.
 pub(super) enum WindowStep {
-    Observe(CanonicalPlace),
+    /// A read of one selected place by `expression`; the handle locates the
+    /// read on its match arm's edge for the arm-local checks.
+    Observe {
+        place: CanonicalPlace,
+        expression: ExpressionHandle,
+    },
     Move { event: usize, conditional: bool },
     Invoke(ExpressionHandle),
 }
@@ -1299,7 +1762,10 @@ pub(super) fn statement_steps(
                 &crate::semantic_calls::CallSite::Statement(call),
                 statement_index,
             ) {
-                order.steps.push(WindowStep::Observe(receiver));
+                order.steps.push(WindowStep::Observe {
+                    place: receiver,
+                    expression: ExpressionHandle::invalid(),
+                });
             }
             // A statement receiver has no expression handle. Its extraction
             // still precedes the first positional argument.
@@ -1402,7 +1868,10 @@ impl WindowOrder<'_> {
                     self.statement_index,
                     expression,
                 ) {
-                    self.steps.push(WindowStep::Observe(place));
+                    self.steps.push(WindowStep::Observe {
+                        place,
+                        expression,
+                    });
                 }
             }
             ExpressionNode::Call(call) => {

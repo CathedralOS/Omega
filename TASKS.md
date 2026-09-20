@@ -3030,9 +3030,18 @@ Owners include
     linux-x86_64). Omega lowering still rejects both operations via
     `LoweringError::UnsupportedBorrowedStorageWindow` — native realization
     remains open.
-  - Checker: a move inside a match arm or on a transition edge still takes the
-    plain rejection, so branch-local extraction/repair and the reconvergence
-    agreement rule are unimplemented. Open-window checking consumes the existing
+  - Checker (landed the reconvergence-agreement leg): a move evaluated inside
+    a `match` arm opens a pending debt on that arm's own edge and commits one
+    joined hole at the match's join point iff every reachable arm resolves the
+    same absent places — nested agreement lifts into the enclosing arm, call
+    argument moves attribute to the evaluating arm, dead arms owe nothing, and
+    per-edge holes fence the arm's own reads and suspending/boundary calls.
+    Arm disagreement, repeated extraction on one edge, moves in
+    short-circuit-conditional positions, matches on conditional or transition
+    edges, and an open window at the join all keep the plain rejection.
+    Match-result custody dispatch (`match_dispatch.rs`) admits borrowed-receiver
+    arm values through the transfer check and the result custody join so the
+    agreement rule can witness. Open-window checking consumes the existing
     per-call suspension/blocking summaries, including initializer, assignment,
     aggregate and call-argument positions; replacement evaluation is checked
     before the repair store. Quiet checked bodies remain usable even with an
@@ -3041,13 +3050,15 @@ Owners include
     ordinary wrappers, require repair first. The fence follows retained call
     topology and scheduled operator invocations; exact no-service builtins and
     quiet recursive helpers remain usable. Regressions:
-    `typed-trees-to-checked-trees --lib` filtered by `borrowed_restoration`,
-    `checked-interpreter --test suite` with the same filter, and compiler fail
-    canary `ownership/borrowed_storage_boundary_call` (macOS ARM64). Within one
-    statement, conditional extraction still requires a branch-specific restoration
-    join; unmatched or conditionally evaluated moves remain rejected rather than
-    treating one path as unconditional. Contained-loan transport and
-    recoverable-failure paths have no regression.
+    `typed-trees-to-checked-trees --lib` filtered by `borrowed_restoration`
+    (55/55, linux-x86_64), `checked-interpreter --test suite` with the same
+    filter (4/4), and compiler fail canary
+    `ownership/borrowed_storage_boundary_call` (macOS ARM64 — host
+    unavailable). Moves on transition edges still reject — they cannot be
+    repaired before the edge leaves — and conditional extraction outside the
+    arm-agreement shape keeps the rejection rather than treating one path as
+    unconditional. Contained-loan transport and recoverable-failure paths have
+    no regression.
 
   Acceptance: a consuming transform followed by replacement executes with
   caller-visible updated contents and exact-once custody in the Terminal
