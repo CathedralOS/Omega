@@ -4505,6 +4505,18 @@ Owners include
     `&write` admission still rejects constrained records. That spelling is
     **WRITE-ONLY-BORROW**'s surface, not a flow gap here.
 
+  Wave-9 recheck at `ac4e4eee9b` (linux x86-64, under claim on
+  `flow/mutation`): the claimed surface is green — all 286
+  mutation-matching `typed-trees-to-checked-trees` unit tests pass.
+  The two named remaining legs are unchanged: the `&mut self` widening is
+  parked on contract question `mutable-self-receiver-declared-field-rows`,
+  and the `&write` out-parameter spelling is WRITE-ONLY-BORROW's. No
+  unclaimed leg inside `flow/mutation` was found. Caveat for the next
+  picker: the `dungeon_crawler_cli` `--check` probe exceeded ~19 minutes
+  of CPU at this revision without emitting a diagnostic (prior green
+  witness 8421784e74 recorded no duration, so this may be scale, not a
+  hang) — worth timing before treating it as regression evidence.
+
   Acceptance: the dungeon's `RoomLookup`, `MazeBuilder`, and game-state calls
   satisfy default field obligations, while corrupted elements and stale
   aliased fields reject at calls, transitions, and returns.
