@@ -110,7 +110,10 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmReadCr4
         | BuiltinFunction::AsmWriteCr0
         | BuiltinFunction::AsmWriteCr3
-        | BuiltinFunction::AsmWriteCr4 => disposition([TerminalAuthorityClass::MachineControl]),
+        | BuiltinFunction::AsmWriteCr4
+        | BuiltinFunction::AsmWriteBackInvalidate => {
+            disposition([TerminalAuthorityClass::MachineControl])
+        }
         BuiltinFunction::AsmPortOut | BuiltinFunction::AsmPortIn => {
             disposition([TerminalAuthorityClass::PortIo])
         }
