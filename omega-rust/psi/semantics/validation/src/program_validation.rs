@@ -17,6 +17,7 @@ use crate::machine_calls::machine_data::validate_owned_data;
 use crate::proof_contracts::contract_entailment::validate_machine_contract_entailment;
 use crate::proof_contracts::domains::validate_domain_definitions;
 use crate::proof_contracts::proof_facts::validate_proposition_definitions;
+use crate::proof_contracts::quotients::QuotientRequestAdmission;
 use crate::value_custody::data::validate_data_field_types;
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::locals::validate_local_data_names;
@@ -99,6 +100,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         program,
         GenericContracts::Check,
         OpaquePropertyValidation::Required(&[]),
+        QuotientRequestAdmission::AtValidation,
     )
     .map(|_| ())
 }
@@ -110,7 +112,29 @@ pub fn validate_specialized_program(
     program: &TypedTrees,
     opaque_properties: OpaquePropertyValidation<'_>,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
-    validate(program, GenericContracts::Prevalidated, opaque_properties)
+    validate(
+        program,
+        GenericContracts::Prevalidated,
+        opaque_properties,
+        QuotientRequestAdmission::AtValidation,
+    )
+}
+
+/// [`validate_specialized_program`] for the checked stage, which judges
+/// sealed quotient requests itself through
+/// [`crate::admit_checked_quotient_requests`] once its termination facts
+/// exist. Everything else, including quotient formation checking, runs here
+/// unchanged; only the request rejection is deferred.
+pub fn validate_specialized_program_deferring_quotient_requests(
+    program: &TypedTrees,
+    opaque_properties: OpaquePropertyValidation<'_>,
+) -> Result<ProgramValidation, Vec<Diagnostic>> {
+    validate(
+        program,
+        GenericContracts::Prevalidated,
+        opaque_properties,
+        QuotientRequestAdmission::AfterCheckedFacts,
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -123,6 +147,7 @@ fn validate(
     program: &TypedTrees,
     generic_contracts: GenericContracts,
     opaque_properties: OpaquePropertyValidation<'_>,
+    quotient_admission: QuotientRequestAdmission,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     literals::validate_anonymous_remainders(program, &mut diagnostics);
@@ -177,7 +202,12 @@ fn validate(
     proof_embeddings::validate_proof_embeddings(program, &proof_only, &mut diagnostics);
     let integer_embedding_calls =
         proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);
-    quotients::validate_quotients(program, &proof_only, &mut diagnostics);
+    quotients::validate_quotients_with_admission(
+        program,
+        &proof_only,
+        quotient_admission,
+        &mut diagnostics,
+    );
     let fact_call_projections =
         fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
     proof_only_faces::validate_proof_only_consumption(program, &proof_only, &mut diagnostics);

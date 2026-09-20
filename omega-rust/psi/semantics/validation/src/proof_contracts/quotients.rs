@@ -237,19 +237,6 @@ pub enum QuotientRequestAdmission {
     AfterCheckedFacts,
 }
 
-pub(crate) fn validate_quotients(
-    program: &TypedTrees,
-    proof_only: &ProofOnlyClassification,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_quotients_with_admission(
-        program,
-        proof_only,
-        QuotientRequestAdmission::AtValidation,
-        diagnostics,
-    );
-}
-
 pub(crate) fn validate_quotients_with_admission(
     program: &TypedTrees,
     proof_only: &ProofOnlyClassification,

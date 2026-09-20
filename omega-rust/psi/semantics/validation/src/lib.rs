@@ -262,4 +262,5 @@ pub use program_validation::{
     checked_operator_contract_snapshot, collect_contract_entailment_stand_downs,
     proven_machine_contract_expressions, validate_checked_operator_realization_contract,
     validate_generic_machine_contract_entailment, validate_program, validate_specialized_program,
+    validate_specialized_program_deferring_quotient_requests,
 };

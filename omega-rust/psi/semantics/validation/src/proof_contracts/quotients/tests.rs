@@ -1,7 +1,8 @@
 //! Quotient validation tests.
 
 use super::{
-    exact_relation_application_matches, first_forbidden_carrier_content, validate_quotients,
+    QuotientRequestAdmission, exact_relation_application_matches, first_forbidden_carrier_content,
+    validate_quotients_with_admission,
 };
 use crate::proof_contracts::quotients::carrier_fence::CarrierFenceViolation;
 use symbols::SymbolHandle;
@@ -310,7 +311,12 @@ fn retained_sealed_request_is_not_executable_admission() {
     let proof_only = typed_trees::proof_only::classify(&program);
     let mut diagnostics = Vec::new();
 
-    validate_quotients(&program, &proof_only, &mut diagnostics);
+    validate_quotients_with_admission(
+        &program,
+        &proof_only,
+        QuotientRequestAdmission::AtValidation,
+        &mut diagnostics,
+    );
 
     assert_eq!(diagnostics.len(), 1);
     assert!(
