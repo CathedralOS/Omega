@@ -71,7 +71,7 @@ def partial_theory():
 
 
 def complete_theory():
-    """The 18-sort/361-constructor/108-function error-valued package."""
+    """The 18-sort/361-constructor/107-function error-valued package."""
     import encoding
     constructors, functions = partial_records()
     return encoding.section_bytes(constructors, functions)

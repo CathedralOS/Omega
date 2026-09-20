@@ -27,17 +27,17 @@ stages, and the public successor; `definitions/counters/` owns those pieces
 and their fixed template writers.
 `definitions/ordering.gamma` orders nibble, byte, and word comparisons;
 `definitions/ordering/` owns those equations. `definitions/encoding.gamma`
-orders the fifty-one encoder definitions after function 57, and
+orders the fifty encoder definitions after function 57, and
 `definitions/encoding/` owns the individual equations. Shared
 administrative-field and template writers live in `encoding/`, not in either
 arithmetic component.
 The checker receives Gamma-emitted package bytes, not host-generated
 definitions. No new checker primitive is introduced.
 
-The packed member closure materializes 3,427 lines / 131,059 bytes, SHA-256
-`5a5696ae678d81a6a94ccd184db8f22656bf76371916f18cef1d3bd584f13a6d`.
+The packed member closure materializes 3,408 lines / 130,363 bytes, SHA-256
+`48e7a097a1fa6f50a3528e1205d91b229e2f2cbf3216661902ff6bc037d6410d`.
 The manifest itself is 5,536 bytes, SHA-256
-`6bbb22c38cf490f8d659968524be1584ed4c426ff3c4f5fd4a07bc1f871fef0d`;
+`23f66be32b10de64929ea5721e98f8ae331323e03c5ad6bc40e361e5add08862`;
 `tools/bootstrap/proofs/sources_env.sh` checks both identities against every
 materialization and `tests/bootstrap/proofs-identity.sh` covers the refusals.
 A digest is an identity check on the member bytes, not artifact authority for
@@ -198,7 +198,7 @@ before emission and returns Gamma's marked application result to publish bytes
 without an extra scalar terminator. The exact closure and that entry are pinned
 by the [theory gate](../../../tests/gamma/beta-encoding-theory/README.md).
 
-The section has eighteen sorts, 361 constructors, and 108 functions. The
+The section has eighteen sorts, 361 constructors, and 107 functions. The
 vocabulary and outer fields occupy 4,508 bytes; lexical functions occupy
 33,200; sixteen fixed-high helpers occupy 8,640; the public join occupies 800;
 the split functions occupy 16,440; and word serialization occupies 348. Counter
@@ -206,16 +206,16 @@ byte helpers occupy 16,440 bytes, result selection 92, carry stages 2,896, and
 the public successor 188. Ordering adds 8,640 bytes of fixed-left nibble
 helpers, 800 for public nibble comparison, 124 for result selection, 224 for
 byte comparison, 628 for the right-word helper, and 208 for public word
-comparison. The error-valued encoder definitions 58..108 occupy 22,816 bytes,
+comparison. The error-valued encoder definitions 58..107 occupy 22,724 bytes,
 including the 47-state token automaton and the encode entrypoint. Thus the
-exact section is 116,992 bytes. All administrative fields fit u31;
+exact section is 116,900 bytes. All administrative fields fit u31;
 none supplies semantic integer constants or operations. [PROFILE.md](PROFILE.md)
 records the current source bounds and scoped measurements, separate from
 full-certificate acceptance.
 
 ## Error-valued encoder definitions
 
-Functions 58..108 implement the complete encoder over the Source tree: list
+Functions 58..107 implement the complete encoder over the Source tree: list
 reversal and flattening, per-byte and whole-source admission, hexadecimal
 token shifting, the 47-state token automaton with end-of-token classification,
 comment and separator scanning, operand-expectation dispatch, counted output
@@ -248,10 +248,10 @@ parsing, token and operand state, the complete mnemonic table, address
 assertions, failure values, and exact source/output limits and exhaustion.
 Structural recursion consumes an unchanged immediate source tail, using
 earlier total helpers for state changes; the only mode-1 self-calls are the
-structural recursions in functions 70, 71, 72, 74, 82, and 104.
+structural recursions in functions 69, 70, 71, 73, 81, and 103.
 
-Equation-level evidence now exists: the theory gate checks 200 encoder
-equations across all encoder functions 58..108, including tiny end-to-end
+Equation-level evidence now exists: the theory gate checks 198 encoder
+equations across all encoder functions 58..107, including tiny end-to-end
 encodes, through the ordinary checker. The generic stepper has also
 independently reconstructed the owner-fixed proposition over the complete
 selected subject and produced the full untrusted derivation — 3,182,484

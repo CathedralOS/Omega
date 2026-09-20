@@ -111,7 +111,7 @@ def main():
         f"512 splits, 256 composed roundtrips, 13 word emissions, "
         f"512 byte counter helper equations, 19 checked word successors, "
         f"256 nibble comparisons, 12 byte comparisons, 30 word comparisons, "
-        f"200 encoder equations over functions 58..108 including tiny "
+        f"198 encoder equations over functions 58..107 including tiny "
         f"end-to-end encodes and seven encoder-range rejections; "
         f"no artifact admission",
         flush=True,

@@ -1,4 +1,4 @@
-; Emit functions 58..108 in exact wire order; earlier identities
+; Emit functions 58..107 in exact wire order; earlier identities
 ; stay fixed and every new record follows function 57.
 (def beta_encoder_definitions () Int
   (let (
@@ -52,5 +52,4 @@
       (emitted105 Int (beta_encoding_fn105))
       (emitted106 Int (beta_encoding_fn106))
       (emitted107 Int (beta_encoding_fn107))
-      (emitted108 Int (beta_encoding_fn108))
       ) 0))

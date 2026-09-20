@@ -52,7 +52,7 @@ TAPE_IDENTITY = (8_575,
 
 SOURCE_LIMIT = 0x4000000
 OUTPUT_LIMIT = 0xFFFFFC
-ENCODE_FUNCTION = 108
+ENCODE_FUNCTION = 107
 S_EMPTY, S_LEAF, S_JOIN = 285, 286, 287
 R_SUCCESS = 361
 
@@ -78,7 +78,7 @@ RECORDED = {
     "congruence": 936_662,
     "unfolding": 1_018_733,
     "max_premise_depth": 204,
-    "request_bytes": 135_485_120,
+    "request_bytes": 135_485_028,
 }
 
 
