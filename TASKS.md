@@ -7084,17 +7084,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Delta compiler and executing it — live under `tests/epsilon` (DELTA-COMPILER
   claim, expires ~21:48Z) and require a seed-execution host (macOS arm64 or
   Windows x64). No unowned in-fence slice; this row records the resolution.
-- **DELTA-EPSILON-CLOSURE-COMPILE.** Mined candidate; scope verified — a named
-  sibling stub of EPSILON-EVALUATOR-BOOTSTRAP-PATH's resolved surface
-  (`83f5477357`, which lists this row among the same-path re-mines). The
-  compile leg is exactly the unclosed leg that resolution assigns elsewhere:
-  compiling the bound evaluator closure (plus `execution_driver.delta`)
-  through the bound Delta compiler — `tests/epsilon`, held by the
-  DELTA-COMPILER claim — and the Delta-compiler run itself requires a
-  seed-execution host (macOS arm64 or Windows x64, unavailable on Linux
-  x86-64 by landed design). Everything this row could own in-fence is
-  already done (epsilon-identity materialization/refusal, source-closure
-  manifest check) or owned (tests/epsilon legs). No independent slice exists.
+- **DELTA-EPSILON-CLOSURE-COMPILE.** Resolved — a named sibling stub of
+  EPSILON-EVALUATOR-BOOTSTRAP-PATH's resolved surface (`83f5477357`, which
+  lists this row among the same-path re-mines). The compile leg it names —
+  the bound evaluator closure (plus `execution_driver.delta`) through the
+  bound Delta compiler — is the `tests/epsilon` leg that resolution already
+  owns, and its "requires a seed-execution host" caveat lapsed when
+  `d3776b9890b` admitted Linux x86-64: the evaluator-entry and
+  interpreted-omega-experiment gates compiled the closure green on this host
+  at `ea025447fed` (exact 729,060-byte and 721,484-byte receipts).
+  Re-verified 2026-09-20 on Linux x86-64: `tests/bootstrap/epsilon-identity.sh`
+  materializes the exact bound closure and refuses corrupted shapes,
+  `tools/bootstrap/check-chain-hygiene.sh` passes, and
+  `tests/epsilon/evaluator-entry/run.sh` compiles the closure plus
+  `evaluator_entry.delta` through the bound Delta compiler green (108
+  exact/adjacent EEOUT controls, 2 Incomplete transports, 8 canonical
+  observations). No independent in-fence slice exists for this row.
 - **DELTA-EPSILON-CLOSURE-EXECUTION** — mined candidate; verify scope then implement.
 - **DELTA-EVALUATOR-EXHAUSTION-TRIAGE.** Resolved by audit — re-mines the DELTA-COMPILER bullet "for a witnessed evaluator exhaustion during compilation, trace its allocation owner and observation contract first" (TASKS_BOOTSTRAP.md ~P2). That obligation is conditional, and no evaluator exhaustion has been witnessed: every recorded stress refusal terminates in a canonical DCOUT V1 row with its allocation owner already traced — the 512-tree arithmetic probe (`Incomplete` resource 7, syntax ledger, 159.2s), the wide-constructor probe (`Incomplete` resource 7, retained-syntax ledger at field-atom 19,147, 650.7s), and the full-width reconstruction refusal (resource 12, 4,855.7s) — each documented in `bootstrap/3_delta/implementation/boundary/README.md` with owner attribution and the explicit rule that a Gamma-owned failure is not DCOUT and no general DCOUT heap code may be invented. Whole-producer pair containment is separately settled by the measured worst-shape study (417,063,339 pairs vs the 3,422,453,760-pair arena). Re-verified at `867443a8fd`: the probes and contract read as recorded. No witnessed instance exists to triage; fabricating one is explicitly disallowed. Sibling stub DELTA-EXHAUSTION-ATTRIBUTION (5995) mines the same bullet.
 - **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; scope verified
