@@ -50,54 +50,50 @@ pub(super) fn register(
     let inputs = topology::tree(function, range, legality)?;
     let mut cuts = CutIndex::new(fixed, &legality.entry_transitions);
     let mut next_segment_id = 0u32;
-    let source_input = &inputs[0];
-    let source_initial = point_domain(function, register, source_input.points.first())?;
-    let (source, source_closing) = fragment(
-        function,
-        register,
-        source_input.fragment,
-        source_input.points,
-        source_initial,
-        FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1,
-        &mut cuts,
-        &mut next_segment_id,
-        work,
-    )?;
-    let mut fragments = vec![source];
+    let mut fragments = Vec::with_capacity(inputs.len());
     // Every fragment's accumulated closing domain is retained under its block:
     // a deeper tree lets a later fragment's incoming connector originate at a
     // non-source parent, so the intersection base is the connector's own
-    // source fragment, not always the first fragment.
-    let mut closing_by_block = BTreeMap::from([(source_input.fragment.block, source_closing)]);
-
-    for input in &inputs[1..] {
-        let connector = input.incoming.expect("tree topology authenticated");
-        let parent = closing_by_block
-            .get(&connector.source)
-            .expect("tree topology admitted the connector source fragment");
+    // source fragment, not always the first fragment. A fragment with no
+    // incoming connector opens a fresh component — its domain is its own
+    // first point's, not any parent closing — and still publishes its closing
+    // domain so its own outgoing edges can parent later fragments.
+    let mut closing_by_block = BTreeMap::<_, BTreeSet<RegisterViewId>>::new();
+    for input in &inputs {
         let first_domain = point_domain(function, register, input.points.first())?;
-        let compatible = parent
-            .intersection(&first_domain)
-            .copied()
-            .collect::<BTreeSet<_>>();
-        let (initial, opening) = if compatible.is_empty() {
-            let first = input.points.first().expect("point domain established");
-            let (site, destination_view) = cuts.boundary(function, register, first)?;
-            cuts.require_transition(function, register, parent, site, destination_view)?;
-            work.incompatible_boundary()?;
-            (
+        let (initial, opening) = match input.incoming {
+            None => (
                 first_domain,
-                FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
-                    incoming: Some(connector),
-                    site,
-                    destination_view,
-                },
-            )
-        } else {
-            (
-                compatible,
-                FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector },
-            )
+                FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1,
+            ),
+            Some(connector) => {
+                let parent = closing_by_block
+                    .get(&connector.source)
+                    .expect("tree topology admitted the connector source fragment");
+                let compatible = parent
+                    .intersection(&first_domain)
+                    .copied()
+                    .collect::<BTreeSet<_>>();
+                if compatible.is_empty() {
+                    let first = input.points.first().expect("point domain established");
+                    let (site, destination_view) = cuts.boundary(function, register, first)?;
+                    cuts.require_transition(function, register, parent, site, destination_view)?;
+                    work.incompatible_boundary()?;
+                    (
+                        first_domain,
+                        FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
+                            incoming: Some(connector),
+                            site,
+                            destination_view,
+                        },
+                    )
+                } else {
+                    (
+                        compatible,
+                        FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector },
+                    )
+                }
+            }
         };
         let (derived, closing) = fragment(
             function,

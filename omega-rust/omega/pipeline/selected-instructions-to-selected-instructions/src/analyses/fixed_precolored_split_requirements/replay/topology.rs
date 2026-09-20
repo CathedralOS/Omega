@@ -1,5 +1,5 @@
-//! Independently reconstructed one-block or source-rooted-fragment-tree
-//! topology, keyed by block identity rather than positional assumptions.
+//! Independently reconstructed disjoint union of source-rooted fragment
+//! trees, keyed by block identity rather than positional assumptions.
 
 use std::collections::{HashMap, HashSet};
 
@@ -31,14 +31,11 @@ pub(super) fn reconstruct<'a>(
             return cross_block(function, register);
         }
     }
-    if incoming.len() != range.fragments.len().saturating_sub(1) {
-        return cross_block(function, register);
-    }
 
     let mut cursor = 0usize;
     let mut admitted = HashSet::new();
     let mut result = Vec::with_capacity(range.fragments.len());
-    for (index, source) in range.fragments.iter().enumerate() {
+    for source in range.fragments.iter() {
         let width =
             source.end.0.checked_sub(source.start.0).ok_or(
                 FixedPrecoloredSplitRequirementError::IntervalOverflow { function, register },
@@ -57,12 +54,14 @@ pub(super) fn reconstruct<'a>(
             },
         )?;
         cursor = limit;
-        let edge = (index != 0)
-            .then(|| incoming.remove(&source.block.0))
-            .flatten();
+        // Every fragment's block is probed once under the target-keyed dedup,
+        // so any connector left after the loop targets a block holding no
+        // fragment: a transport exit where the argument register's range ends
+        // at the edge while the bound parameter's range opens inside.
+        let edge = incoming.remove(&source.block.0);
         match edge {
             Some(connector) if admitted.contains(&connector.source.0) => {}
-            None if index == 0 => {}
+            None => {}
             _ => return cross_block(function, register),
         }
         admitted.insert(source.block.0);
@@ -72,7 +71,7 @@ pub(super) fn reconstruct<'a>(
             incoming: edge,
         });
     }
-    if cursor != legality.points.len() || !incoming.is_empty() {
+    if cursor != legality.points.len() {
         return cross_block(function, register);
     }
     Ok(result)

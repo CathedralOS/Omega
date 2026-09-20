@@ -2,12 +2,13 @@
 
 use crate::tests::{
     AdmissionProfile, Block, BlockId, ContractId, EdgeId, ExplicitOptimizationRequest, IntegerSign,
-    IntegerType, MachineContract, MachineId, NativeTarget, Operation, OperationId, OperationKind,
-    OperationResult, Optimization, OptimizationSelections, OptimizedTargetLoweringRequest,
-    ProofBundle, ScalarType, StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
-    lower_optimized_to_target_operations, optimize_artifact_sections, request,
-    selected_lowering_budget, stage_optimized_instruction_selection,
+    IntegerType, IntegerValue, MachineContract, MachineId, NativeTarget, Operation, OperationId,
+    OperationKind, OperationResult, Optimization, OptimizationSelections,
+    OptimizedTargetLoweringRequest, ProofBundle, ScalarType, StagedOptimizedSelectedInstructions,
+    SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    ValueDeclaration, ValueId, VocabularyMarker, lower_optimized_to_target_operations,
+    optimize_artifact_sections, request, selected_lowering_budget,
+    stage_optimized_instruction_selection,
 };
 pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(4_001).unwrap();
@@ -957,6 +958,385 @@ pub(crate) fn chained_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
         terminal_codec::encode_module(&module).unwrap(),
         terminal_codec::encode_proof_section(&module, &proof).unwrap(),
     )
+}
+
+/// A two-way join whose block parameter is bound from a different register on
+/// each incoming edge. Copy propagation cannot rewrite a parameter with two
+/// distinct sources into a single in-block copy, so the edge bindings survive
+/// selection as `Registers` transports: each argument register's connector
+/// ends at the join boundary (a transport exit, no fragment at the target)
+/// and the parameter register's fragment at the join has no incoming
+/// connector at all.
+pub(crate) fn joined_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
+    let machine = MachineId::new(4_601).unwrap();
+    let entry = BlockId::new(4_602).unwrap();
+    let when_true = BlockId::new(4_603).unwrap();
+    let when_false = BlockId::new(4_604).unwrap();
+    let join = BlockId::new(4_605).unwrap();
+    let condition = ValueId::new(4_606).unwrap();
+    let left = ValueId::new(4_607).unwrap();
+    let right = ValueId::new(4_608).unwrap();
+    let parameter = ValueId::new(4_609).unwrap();
+    let result = ValueId::new(4_610).unwrap();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
+    let module = TerminalModule {
+        scalar_qualifications: Default::default(),
+        scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: machine,
+            attachment: None,
+            parameters: vec![declaration(condition, ScalarType::Boolean)],
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry,
+            blocks: vec![
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
+                            structural_arguments: Vec::new(),
+                            edge: EdgeId::new(4_611).unwrap(),
+                            target: when_true,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
+                            structural_arguments: Vec::new(),
+                            edge: EdgeId::new(4_612).unwrap(),
+                            target: when_false,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: when_true,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        static_reach_binding: None,
+                        id: OperationId::new(4_613).unwrap(),
+                        result: OperationResult::Scalar(declaration(left, scalar_type)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(7),
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        edge: EdgeId::new(4_614).unwrap(),
+                        target: join,
+                        arguments: vec![left],
+                        residual_affine_discards: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: when_false,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        static_reach_binding: None,
+                        id: OperationId::new(4_615).unwrap(),
+                        result: OperationResult::Scalar(declaration(right, scalar_type)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(9),
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        edge: EdgeId::new(4_616).unwrap(),
+                        target: join,
+                        arguments: vec![right],
+                        residual_affine_discards: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: join,
+                    parameters: vec![declaration(parameter, scalar_type)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(4_617).unwrap(),
+                        value: parameter,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
+                id: ContractId::new(4_618).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    let proof = ProofBundle {
+        recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: Vec::new(),
+    };
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
+    )
+}
+
+/// The same diamond with no parameter binding: the forwarded register is live
+/// into the join on both edges, so its range carries two connectors into one
+/// target block — a join, which still fails closed.
+pub(crate) fn joined_unbound_artifact() -> (Vec<u8>, Vec<u8>) {
+    let machine = MachineId::new(4_701).unwrap();
+    let entry = BlockId::new(4_702).unwrap();
+    let when_true = BlockId::new(4_703).unwrap();
+    let when_false = BlockId::new(4_704).unwrap();
+    let join = BlockId::new(4_705).unwrap();
+    let condition = ValueId::new(4_706).unwrap();
+    let forwarded = ValueId::new(4_707).unwrap();
+    let result = ValueId::new(4_708).unwrap();
+    let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
+    let module = TerminalModule {
+        scalar_qualifications: Default::default(),
+        scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: machine,
+            attachment: None,
+            parameters: vec![
+                declaration(condition, ScalarType::Boolean),
+                declaration(forwarded, scalar_type),
+            ],
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry,
+            blocks: vec![
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            erased_arguments: Vec::new(),
+                            structural_arguments: Vec::new(),
+                            edge: EdgeId::new(4_711).unwrap(),
+                            target: when_true,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            erased_arguments: Vec::new(),
+                            structural_arguments: Vec::new(),
+                            edge: EdgeId::new(4_712).unwrap(),
+                            target: when_false,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: when_true,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        edge: EdgeId::new(4_713).unwrap(),
+                        target: join,
+                        arguments: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: when_false,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        erased_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        edge: EdgeId::new(4_714).unwrap(),
+                        target: join,
+                        arguments: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: join,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(4_715).unwrap(),
+                        value: forwarded,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
+                id: ContractId::new(4_716).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    let proof = ProofBundle {
+        recursive_components: Vec::new(),
+        control_cycles: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: Vec::new(),
+    };
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
+    )
+}
+
+pub(crate) fn staged_joined_parameter(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+    let (semantic, proof) = joined_parameter_artifact();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            selected_lowering_budget(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
+    stage_optimized_instruction_selection(target).unwrap()
+}
+
+pub(crate) fn staged_joined_unbound(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+    let (semantic, proof) = joined_unbound_artifact();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(
+            OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
+            selected_lowering_budget(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
+    stage_optimized_instruction_selection(target).unwrap()
 }
 
 pub(crate) fn staged_chained_forwarded(

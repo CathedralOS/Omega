@@ -31,10 +31,13 @@ impl FixedPrecoloredSplitRequirementPlanIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FixedPrecoloredSplitRequirementPolicy {
-    /// Partition one-block source ranges and source-rooted acyclic fragment
-    /// trees — every edge connector originates at an earlier fragment's block,
-    /// covering source fanout and deeper chains — only when a fixed `Use`
-    /// makes the accumulated physical-view domain empty.
+    /// Partition disjoint unions of source-rooted acyclic fragment trees —
+    /// every edge connector originates at an already-admitted fragment's
+    /// block, covering source fanout and deeper chains, while a fragment
+    /// carrying no connector opens a fresh component (an edge-bound parameter
+    /// is live-in without one) and a connector ending at a fragment-less
+    /// block closes the argument register's range at the edge — only when a
+    /// fixed `Use` makes the accumulated physical-view domain empty.
     FixedUseBoundaryRequirementsV1,
 }
 

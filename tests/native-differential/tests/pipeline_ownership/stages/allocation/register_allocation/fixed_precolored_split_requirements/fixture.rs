@@ -2,7 +2,7 @@ use crate::tests::{
     NativeTarget, OptimizationWorkBudget, OptimizationWorkUsage, StagedOptimizedAllocationLegality,
     StagedOptimizedSelectedInstructions, stage_optimized_allocation_legality,
     stage_optimized_live_ranges, stage_optimized_liveness, staged_chained_forwarded,
-    staged_forwarded_conditional,
+    staged_forwarded_conditional, staged_joined_parameter, staged_joined_unbound,
 };
 pub(super) const X64_EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
     rule_evaluations: 7,
@@ -37,6 +37,22 @@ pub(super) const ARM64_CHAIN_USAGE: OptimizationWorkUsage = OptimizationWorkUsag
     iterations: 15,
 };
 
+pub(super) const X64_JOIN_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
+    rule_evaluations: 11,
+    candidates: 24,
+    validation_steps: 308,
+    commits: 12,
+    iterations: 37,
+};
+
+pub(super) const ARM64_JOIN_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
+    rule_evaluations: 11,
+    candidates: 24,
+    validation_steps: 638,
+    commits: 12,
+    iterations: 37,
+};
+
 pub(super) fn exact_budget(target: NativeTarget) -> OptimizationWorkBudget {
     budget_for(if target == NativeTarget::linux_x64() {
         X64_EXACT_USAGE
@@ -50,6 +66,14 @@ pub(super) fn chain_exact_budget(target: NativeTarget) -> OptimizationWorkBudget
         X64_CHAIN_USAGE
     } else {
         ARM64_CHAIN_USAGE
+    })
+}
+
+pub(super) fn join_exact_budget(target: NativeTarget) -> OptimizationWorkBudget {
+    budget_for(if target == NativeTarget::linux_x64() {
+        X64_JOIN_USAGE
+    } else {
+        ARM64_JOIN_USAGE
     })
 }
 
@@ -78,6 +102,18 @@ pub(super) fn source(target: NativeTarget) -> SplitFixture {
 /// block, so its second connector does not originate at the source fragment.
 pub(super) fn chain(target: NativeTarget) -> SplitFixture {
     staged(staged_chained_forwarded(target))
+}
+
+/// The two-way join whose block parameter is bound from a different register
+/// on each incoming edge.
+pub(super) fn joined(target: NativeTarget) -> SplitFixture {
+    staged(staged_joined_parameter(target))
+}
+
+/// The same diamond with no parameter binding, so the forwarded register is
+/// live into the join on both edges and carries two connectors into one block.
+pub(super) fn joined_unbound(target: NativeTarget) -> SplitFixture {
+    staged(staged_joined_unbound(target))
 }
 
 fn staged(selected: StagedOptimizedSelectedInstructions) -> SplitFixture {
