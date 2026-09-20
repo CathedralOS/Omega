@@ -154,28 +154,39 @@ pub fn prepare_filesystem_scope(
                 })?
             }
         };
-        // The snapshot backing joins the sponsor's own session root: a
-        // provisioned private session then gives the captured source the
-        // same confined custody the output staging root already has, and a
-        // caller-supplied session still names the backing inside that
-        // session's namespace instead of an unrelated shared-temp leaf.
-        let Some(sponsor) = build_machine_filesystem_scope.sponsor.as_ref() else {
-            return Err(vec![Diagnostic::error(
-                "a captured source snapshot requires a filesystem sponsor session",
-            )]);
-        };
-        let snapshot_dir = sponsor
-            .session_root()
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "could not bind the captured source snapshot to the sponsor session: {error}"
-                ))]
-            })?
-            .join(format!(
-                "omega-captured-source-{}-{}",
+        // The snapshot backing lives under a private parent the occurrence
+        // alone can traverse: create-exclusive 0o700 custody mirrors
+        // `FilesystemSponsor::create_private`, while staying outside the
+        // sponsor's session root keeps snapshot reads on the accounting
+        // bypass every other outside-session read uses. The leaf name is
+        // fixed because the parent is already unique; a dropped empty
+        // parent is the release path's residue, swept by the host's temp
+        // reaper like every other orphaned staging dir.
+        let snapshot_parent = loop {
+            let candidate = std::env::temp_dir().join(format!(
+                "omega-captured-source-session-{}-{}",
                 std::process::id(),
                 NEXT_CAPTURED_SOURCE_SNAPSHOT.fetch_add(1, Ordering::Relaxed)
             ));
+            #[cfg_attr(not(unix), allow(unused_mut))]
+            let mut builder = std::fs::DirBuilder::new();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            match builder.create(&candidate) {
+                Ok(()) => break candidate,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "could not create the private captured-source snapshot staging directory `{}`: {error}",
+                        candidate.display()
+                    ))]);
+                }
+            }
+        };
+        let snapshot_dir = snapshot_parent.join("captured-source");
         build_machine_filesystem_scope = if package_inputs.is_some()
             && matches!(
                 build_snapshot.capture(),
@@ -308,28 +319,60 @@ mod tests {
         (project, snapshot_backing, scope)
     }
 
+    /// The snapshot backing's parent is the occurrence's private staging
+    /// directory: create-exclusive and owner-only on unix, and deliberately
+    /// outside the sponsor session so materialized reads keep bypassing
+    /// sponsor accounting like any other outside-session read.
+    fn assert_private_backing(snapshot_backing: &Path) {
+        let parent = snapshot_backing
+            .parent()
+            .expect("the snapshot backing has a private parent");
+        assert_eq!(
+            snapshot_backing.file_name().and_then(|name| name.to_str()),
+            Some("captured-source")
+        );
+        assert!(parent.starts_with(std::env::temp_dir()));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = std::fs::symlink_metadata(parent)
+                .expect("inspect the private snapshot parent")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o700, "the snapshot parent is owner-only");
+        }
+    }
+
     #[test]
-    fn captured_source_snapshot_backs_onto_the_sponsor_session_root() {
+    fn captured_source_snapshot_backs_onto_a_private_staging_parent() {
         let sponsor = BuildMachineFilesystemSponsor::create_private(fresh_path("session"))
             .expect("a private session sponsor");
         let session_root = sponsor.session_root().expect("the session root");
         let (project, snapshot_backing, scope) = prepared_scope(sponsor.clone());
-        assert!(snapshot_backing.starts_with(&session_root));
-        assert!(sponsor.owns_private_staging_root(&snapshot_backing));
+        assert_private_backing(&snapshot_backing);
+        // The backing must not join the sponsor's accounted namespace:
+        // in-session paths stop bypassing sponsor transactions, and a read
+        // staged there collides with pending output writes.
+        assert!(!snapshot_backing.starts_with(&session_root));
         drop(scope);
         sponsor.dispose_private_staging().expect("dispose");
+        let _ = std::fs::remove_dir_all(snapshot_backing.parent().unwrap());
         seal_source_tree(&project, false);
         let _ = std::fs::remove_dir_all(project);
     }
 
     #[test]
-    fn captured_source_snapshot_stays_inside_a_supplied_session_root() {
+    fn captured_source_snapshot_stays_private_with_a_supplied_session() {
         let supplied = fresh_root("supplied-session");
         let sponsor = BuildMachineFilesystemSponsor::new(&supplied).expect("a session sponsor");
         let session_root = std::fs::canonicalize(&supplied).expect("canonical session root");
         let (project, snapshot_backing, scope) = prepared_scope(sponsor);
-        assert!(snapshot_backing.starts_with(&session_root));
+        assert_private_backing(&snapshot_backing);
+        assert!(!snapshot_backing.starts_with(&session_root));
         drop(scope);
+        let _ = std::fs::remove_dir_all(snapshot_backing.parent().unwrap());
         seal_source_tree(&project, false);
         let _ = std::fs::remove_dir_all(project);
         let _ = std::fs::remove_dir_all(supplied);
