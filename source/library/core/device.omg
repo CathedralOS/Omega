@@ -1,0 +1,57 @@
+// Core device-extent access authority.
+//
+// A DMA transfer is an external borrow of an `Extent` range by a device the
+// checker cannot see. `DeviceLoan` is the linear proxy for that borrow: public
+// opaque data whose runtime identity is owned by the selected provider. Source
+// can carry it between boundary crossings but can never construct, copy, or
+// inspect it — direction, confinement, provenance, and completion obligations
+// are provider admission evidence, not source representation, and no package
+// can reconstruct a loan from fields.
+//
+// `DeviceReads` carries the shared borrow: the device observes the range while
+// ordinary CPU mutation is excluded. `DeviceWrites` carries the exclusive
+// borrow: all CPU access is excluded until completion. Direction is part of
+// the borrow's canonical identity and is established only by the admitted
+// lend crossing; reconstruction, forgery, or a reproduced loan copy
+// establishes neither.
+//
+// `complete` is the provider's completion obligation: it consumes a live loan
+// of either direction and restores the range's Stable CPU custody as
+// `Extent::Granted`, only after borrower release is proven at the provider
+// boundary. An ordinary call can mint none of these facts.
+//
+// Device protocols, DMA queue submission, and IPC ownership remain
+// consumer/provider code; this module publishes only the general authority
+// vocabulary (wiki/spec/resources/device_access.md). Ordering roles
+// (publication, cache maintenance, notification, completion, acquisition) are
+// distinct provider-admission identities and are intentionally not declared
+// in this milestone.
+use omega::language::core::extent;
+
+pub boundary data DeviceLoan [linear];
+
+pub domain DeviceLoan::DeviceReads
+established by
+    DeviceLoanProvider::lend_for_read;
+pub domain DeviceLoan::DeviceWrites
+established by
+    DeviceLoanProvider::lend_for_write;
+
+// The domain owner authorizes exactly these admitted loan crossings. The
+// caller supplies a `Granted` range; the selected provider plan's admission
+// receipt is what establishes the direction qualification on the returned
+// proxy, binding borrower, direction, space, provenance, rights, and the
+// completion obligation with an exact confinement receipt.
+pub boundary trait DeviceLoanProvider {
+    machine lend_for_read(range: Extent in Granted) -> DeviceLoan
+    ensures
+        result in DeviceLoan::DeviceReads;
+
+    machine lend_for_write(range: Extent in Granted) -> DeviceLoan
+    ensures
+        result in DeviceLoan::DeviceWrites;
+
+    machine complete(loan: DeviceLoan) -> Extent
+    ensures
+        result in Extent::Granted;
+}
