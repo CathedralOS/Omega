@@ -37,9 +37,12 @@
 //!   `Term::Constant`.
 //! - Explicit generic applications follow the callee's ordered telescope:
 //!   level binders instantiate `Constant.levels`, while the remaining binders
-//!   form ordinary `Apply` terms before the ordinary argument prefix. The
-//!   kernel rechecks the level scope and instantiated dependent applications;
-//!   generalized level inference remains unsupported.
+//!   form ordinary `Apply` terms before the ordinary argument prefix. A binder
+//!   that claimed a generalized universe parameter infers it from the supplied
+//!   type argument: the argument's inferred sort is `Type l`, so `l` is the
+//!   instantiation. Authored `core::Level` binders still require their explicit
+//!   argument — omitted ones are underdetermined and refuse — and the kernel
+//!   rechecks every level's scope and the instantiated dependent applications.
 //! - Inside a declaration, references resolve symbols first (parameters,
 //!   binders, earlier declarations) and fall back to names only for the
 //!   symbol-less nodes the mirror carries — a parameter used as a call
@@ -48,7 +51,8 @@
 //!   guessing.
 //!
 //! This leg refuses loudly rather than denoting what it cannot decide:
-//! inferred level arguments, references to the declaration being elaborated or a later one,
+//! level arguments omitted where no explicit type argument determines them
+//! (a bare reference to a generalized declaration), references to the declaration being elaborated or a later one,
 //! machine/evidence/quotient/private-layout call payloads, borrow /
 //! constrained / dynamic-trait / array / slice / unit type references,
 //! computed level expressions other than literals, and every body
@@ -60,8 +64,8 @@ mod applications;
 use std::collections::HashMap;
 
 use proof_admission::{
-    Budget, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term, TermArena,
-    TermHandle, check_signature,
+    Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
+    TermArena, TermHandle, check_signature, infer_sort,
 };
 use source::SourceSpan;
 use symbols::SymbolHandle;

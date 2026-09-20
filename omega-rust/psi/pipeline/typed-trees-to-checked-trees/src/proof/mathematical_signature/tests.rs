@@ -532,15 +532,93 @@ fn explicit_application_keeps_declaration_order_and_generalized_level_fences() {
             "{diagnostics:?}"
         );
     }
+}
+
+/// An omitted universe argument of a generalized binder infers from the
+/// supplied type argument's own sort: inside `use`, `A` binds at
+/// `Type u`, so `inferred<A>` instantiates `inferred`'s generalized
+/// parameter at `u`.
+#[test]
+fn generalized_level_infers_from_the_type_argument() {
+    let source = "let inferred<A>(x: A): A = x;
+        let use<u: core::Level, A: core::Type<u>>(x: A): A = inferred<A>(x);";
+    crate::lower_typed_trees(typed_program(source)).expect("inferred level application");
+    let checked = signature(source);
+    let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
+        .body
+        .unwrap();
+    while let Term::Lambda { body: inner, .. } = checked.term(body) {
+        body = inner;
+    }
+    let Term::Apply { function, .. } = checked.term(body) else {
+        panic!("ordinary argument")
+    };
+    let Term::Apply { function, .. } = checked.term(function) else {
+        panic!("generic type argument")
+    };
+    assert_eq!(
+        checked.term(function),
+        Term::Constant {
+            declaration: checked.authored()[0],
+            levels: vec![Level::Parameter(0)]
+        }
+    );
+}
+
+/// A closed carrier argument infers a closed generalized level:
+/// `u64` interned at `Type 0` instantiates the parameter at level `0`.
+#[test]
+fn generalized_level_infers_a_closed_carrier_level() {
+    let source = "let inferred<A>(x: A): A = x;
+        let closed(x: u64): u64 = inferred<u64>(x);";
+    crate::lower_typed_trees(typed_program(source)).expect("closed level inference");
+    let checked = signature(source);
+    let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
+        .body
+        .unwrap();
+    while let Term::Lambda { body: inner, .. } = checked.term(body) {
+        body = inner;
+    }
+    let Term::Apply { function, .. } = checked.term(body) else {
+        panic!("ordinary argument")
+    };
+    let Term::Apply { function, .. } = checked.term(function) else {
+        panic!("generic type argument")
+    };
+    assert_eq!(
+        checked.term(function),
+        Term::Constant {
+            declaration: checked.authored()[0],
+            levels: vec![Level::Constant(0)]
+        }
+    );
+}
+
+/// Inference is bounded to what the explicit application supplies: a
+/// non-type argument cannot determine a generalized level, and omitting
+/// the whole generic argument list stays an annotation requirement.
+#[test]
+fn generalized_level_inference_stays_bounded() {
     let diagnostics = crate::lower_typed_trees(typed_program(
         "let inferred<A>(x: A): A = x;
-         let use<u: core::Level, A: core::Type<u>>(x: A): A = inferred<A>(x);",
+         let f(x: u64): u64 = inferred<x>(x);",
     ))
-    .expect_err("no new universe inference");
+    .expect_err("a value cannot determine a universe");
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("implicit generalized level instantiation")),
+            .contains("cannot infer the generalized universe argument")),
+        "{diagnostics:?}"
+    );
+    let diagnostics = crate::lower_typed_trees(typed_program(
+        "let inferred<A>(x: A): A = x;
+         let use<A>(x: A): A = inferred(x);",
+    ))
+    .expect_err("omitted generic arguments stay refused");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("explicit level arguments")),
         "{diagnostics:?}"
     );
 }

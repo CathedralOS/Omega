@@ -3,7 +3,9 @@
 //! instantiated constant and the resulting dependent application spine.
 
 use super::{
-    CarrierHead, Elaborator, Identifier, Level, SymbolHandle, Term, TermHandle, TypeParameterKind,
+    Budget, CarrierHead, Context, DEFAULT_CONVERSION_STEPS, Elaborator, Identifier, Level,
+    LevelArgument, Signature, SymbolHandle, Term, TermHandle, TypeParameter, TypeParameterKind,
+    infer_sort,
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::StaticMachineArgument;
@@ -58,6 +60,7 @@ impl Elaborator<'_> {
         }
         let mut levels = Vec::new();
         let mut terms = Vec::new();
+        let mut generalized = Vec::new();
         for (binder, argument) in binders.iter().zip(arguments) {
             let is_level = match binder.kind {
                 TypeParameterKind::Const { type_reference }
@@ -68,15 +71,27 @@ impl Elaborator<'_> {
             };
             if is_level {
                 levels.push(self.static_level(argument)?);
-            } else {
-                terms.push(self.static_term(argument)?);
+                continue;
+            }
+            let term = self.static_term(argument)?;
+            if self.binder_claims_generalized_level(binder) {
+                generalized.push((term, binder.name.clone()));
+            }
+            terms.push(term);
+        }
+        if !generalized.is_empty() {
+            let context = self.instantiation_context();
+            let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+            for (term, name) in generalized {
+                levels.push(self.infer_argument_level(term, &name, &context, &mut budget)?);
             }
         }
         let level_arity = self.declarations[position as usize].level_arity;
         if levels.len() != level_arity as usize {
             return Err(self.refuse(format!(
-                "mathematical declaration `{}` needs {level_arity} level arguments; implicit generalized level instantiation is not supported",
-                definition.name
+                "mathematical declaration `{}` resolved {} level arguments for an arity of {level_arity}",
+                definition.name,
+                levels.len()
             )));
         }
         let mut function = self.arena.insert(Term::Constant {
@@ -146,5 +161,56 @@ impl Elaborator<'_> {
             return Ok(term);
         }
         Err(self.refuse("unresolved mathematical generic term argument".to_owned()))
+    }
+
+    /// Whether this binder claimed a generalized universe parameter during
+    /// elaboration — bare `T` and unapplied `core::Type` carriers. Those
+    /// parameters publish after the authored `core::Level` binders in claim
+    /// order, so inferred levels append after the authored ones in walk
+    /// order here.
+    fn binder_claims_generalized_level(&self, binder: &TypeParameter) -> bool {
+        match &binder.kind {
+            TypeParameterKind::Type => true,
+            TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference } => matches!(
+                self.carrier_head(*type_reference),
+                CarrierHead::Type(LevelArgument::Generalized)
+            ),
+            _ => false,
+        }
+    }
+
+    /// The caller's judgment scope at the application site: its own level
+    /// arity, the signature prefix elaborated so far, and the in-flight
+    /// telescope scope the argument terms were built under.
+    fn instantiation_context(&self) -> Context {
+        let mut context =
+            Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
+                .with_signature(Signature::from_declarations(self.declarations.clone()));
+        for entry in &self.scope {
+            context = context.extend(entry.domain);
+        }
+        context
+    }
+
+    /// The universe argument a generalized binder's parameter takes: the
+    /// supplied type argument's own inferred sort. `infer_sort` computes
+    /// the level at which the argument is a type, which is exactly the
+    /// level the binder's `Sort::Type` domain instantiates to — and the
+    /// kernel re-decides the instantiated constant, so a non-type argument
+    /// or a wrong layer still fails there.
+    fn infer_argument_level(
+        &mut self,
+        argument: TermHandle,
+        binder_name: &Identifier,
+        context: &Context,
+        budget: &mut Budget,
+    ) -> Result<Level, Vec<Diagnostic>> {
+        match infer_sort(&mut self.arena, context, argument, budget) {
+            Ok(sort) => Ok(sort.level()),
+            Err(error) => Err(self.refuse(format!(
+                "cannot infer the generalized universe argument of mathematical binder `{binder_name}`: {error:?}"
+            ))),
+        }
     }
 }
