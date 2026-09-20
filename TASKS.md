@@ -1274,22 +1274,29 @@ Owners include
 
   Remaining work:
 
-  - Array lengths still symbolic at layout time remain fenced: unapplied
-    templates or a `ConstCall`/`ConstParameter` surviving outside the connected
-    pipeline. Closed literal/generic zero-count arrays are no longer this gap.
-    Closed generic instances are no longer this gap either: `Log<const N>`
-    reached through a member typed `Log<2>` is one synthesized record whose
-    substituted members already carry `Literal` lengths, and the
-    materialization owners admit it only when the retained application origin
-    replays the const-evaluable closed-argument judgment
+  - Array lengths still symbolic at layout time remain fenced, and that
+    fence is now a recorded design boundary rather than pending capacity:
+    a `ConstParameter`/`ConstCall` length can only live inside an unapplied
+    template, and `build_layout_plan` never lays a template out — there is
+    no runtime layout a passed count could describe, and no bindings
+    channel exists to name one. Every concrete use arrives as a synthesized
+    closed instance whose substituted members already carry `Literal`
+    lengths: `Log<const N>` reached through a member typed `Log<2>`
+    materializes under the const-evaluable closed-argument judgment
     (`require_closed_generic_application`, mirrored backend-side in
-    `validate_closed_copy_record`);
+    `validate_closed_copy_record`), and
     `generic_instance_symbolic_materialization_realizes_on_both_linux_isas`
     in `layout_plans/writer_lowering.rs` lowers instance record paths —
     `Neighbor<two()>` beside `[Neighbor<1>; 2]` — on both Linux ISAs (native
-    execution on x86-64). Open templates and non-closed applications still
-    reject. Standalone rungs retain their narrower single-hop and
-    nonzero-length contracts.
+    execution on x86-64). Runtime-bound `value` counts cannot determine a
+    static layout at all (the `value_generic_runtime_static_length` fail
+    corpus pins the rejection), so the residual fence covers exactly the
+    shapes no closed checked identity can name: open templates and
+    non-closed applications. The recursive owner pins that boundary with
+    `open_templates_carrying_parameter_lengths_stay_fenced_under_the_recursive_owner`.
+    Closed literal/generic zero-count arrays are no longer this gap.
+    Standalone rungs retain their narrower single-hop and nonzero-length
+    contracts.
   - Obtain matching-host Linux AArch64 execution evidence. The writer harness
     validates both Linux ISA fragments and executes on Linux x86-64/AArch64
     or macOS AArch64; macOS execution does not close the Linux runtime row.
