@@ -46,6 +46,8 @@ Then examine:
   model. Unrestricted least-fixpoint proof search is not a prerequisite.
 - Typed-to-one-sorted encoding of `Nat`, `Int`, `addr`, slices, and a user sum:
   sort membership, definedness, junk models, revisions, borrows, and multiplicity.
+  The encoding is drafted in
+  [matching_logic_sort_encoding.md](matching_logic_sort_encoding.md).
 - One small external arithmetic proof with its exact source axiom closure and
   checked proof-object translation. Semantic expressibility alone is insufficient.
 
