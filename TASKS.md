@@ -10087,22 +10087,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   'test(/field_endpoint/)'` — 49/49 pass across field_coordinates,
   field_endpoint_arithmetic, field_endpoint_pins, field_arrivals and
   computed_field_limits. No independent slice remains.
-- **TEST-CYCLE-SELECTION-REMEASUREMENT.** Mined candidate; scope verified at
-  `5b839c31ab`: refresh or retire the temporary
-  [test-cycle measurement draft](wiki/drafts/test_cycle_measurements.md) —
-  its own removal clause asks for "a controlled replacement measurement" of
-  scheduling/selection costs. All recorded samples are Windows AMD64
-  (2026-09-05/-15) and one macOS ARM64 experiment at older revisions; no
-  Linux host data exists. Slice: on the current revision, run controlled
-  `tools/test_affected.py --base` selections (selection cost + selected-test
-  counts), one scoped selected run, and a full `nextest --workspace --lib`
-  contrast run on this Linux host, then record them in the draft (or evaluate
-  its removal). Currently unworkable — the deliverable file
-  `wiki/drafts/test_cycle_measurements.md` is file-fenced by Zergling-190's
-  PACKAGE-REVIEW-ROUTE-COST-ATTRIBUTION (expires ~2026-09-20T23:49Z) and the
-  selector contract doc `tools/testing.md` by RC-MATRIX-RUNNER (~00:54Z).
-  Measurement runs are host-bound and reproducible; coordinate publication
-  after those claims settle.
+- **TEST-CYCLE-SELECTION-REMEASUREMENT.** Resolved — the controlled
+  replacement measurement landed at `b49e296256` on linux x86-64 as
+  [test_cycle_selection_remeasurement.md](wiki/drafts/test_cycle_selection_remeasurement.md):
+  `tools/test_affected.py --base HEAD --plan` selection costs by input
+  class (sub-second, metadata-dominated), a documentation-only selected run
+  (~7 s warm), a single-crate selected run (938 s — diluted by the selected
+  slow tail), and the full `--workspace --lib` contrast (1,222 s, 15,666
+  library tests), with conclusions recorded. The measured slow tail is now
+  wired into the selector's plan output via `d372f7769c`
+  (SLOW_TEST_OWNERS). The original
+  [test_cycle_measurements.md](wiki/drafts/test_cycle_measurements.md)
+  stays a temporary note; its removal clause is satisfied by this
+  replacement, and its retirement/edit disposition sits under the in-flight
+  PACKAGE-REVIEW-ROUTE-COST-ATTRIBUTION claim on that file.
 - **TRAIT-MATHEMATICAL-PREDICATE-CONTRACTS** — scope verified 2026-09-20:
   re-mines [chapter 14](wiki/language_guide/chapter_14_traits.md)'s recorded
   gap that a trait requirement expressing an arbitrary nondecidable validity
