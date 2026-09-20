@@ -6877,7 +6877,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SUBJECT.
 - **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
 - **BENCHMARK-ROW-RESUMPTION** — mined candidate; verify scope then implement.
-- **BENCHMARK-SELECTION-CONTRAST-ROWS** — mined candidate; verify scope then implement.
+- **BENCHMARK-SELECTION-CONTRAST-ROWS.** Mined candidate — covered.
+  Sibling re-mine of the selection-row coverage recorded on the
+  BENCHMARK-SELECTION-ROW-COVERAGE cluster (this section): contrast
+  rows = selection-keyed `tools/benchmark/records/` records (e.g.
+  `wrapping_square_sum__linux_x86_64__sel-885944b13b84` vs the pending
+  default-selection row). Record production needs `tools/benchmark`
+  (fenced by BENCHMARK-ROW-RESUMPTION ~03:42Z) plus the matrix doc/test
+  pair — every slice is claimed elsewhere this wave. No independent
+  slice remains under this name.
 - **BENCHMARK-SELECTION-ISOLATION-ROWS.** Resolved — the per-selection row
   isolation the name asks for is the record contract itself and is already
   exercised on `origin/main`: one versioned JSON per
