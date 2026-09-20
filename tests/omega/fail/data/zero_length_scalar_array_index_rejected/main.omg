@@ -1,0 +1,7 @@
+// The same index fence applies to non-byte scalar leaves: a zero-length
+// `[u16; 0]` admits no provable index, so `self.xs[0]` must reject even
+// though the array itself is admitted.
+use omega::language::std::console;
+use omega::language::core::service;
+data Main { console: Service<Console>; xs: [u16; 0]; }
+machine Main::main(&mut self) reaches Console { self.console.exit_process(self.xs[0] as i32); }

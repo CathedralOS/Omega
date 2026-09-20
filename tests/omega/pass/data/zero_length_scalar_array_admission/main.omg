@@ -1,0 +1,24 @@
+// The zero-length fixed-array admission is element-generic over every closed
+// scalar leaf, not just bytes: `[u16; 0]` and `[u64; 0]` are first-class empty
+// values in the same structural positions -- locals, constants, parameters,
+// returns, record fields, and nested arrays. An empty array literal `[]`
+// constructs each exactly; the quoted byte literal form stays `u8`-only, and
+// `==`/`!=` stay byte-array-only. The use-site fences pinned for bytes (no
+// provable index, exact-length literals) apply equally; non-scalar-leaf
+// elements stay refused by fail/data/zero_length_non_scalar_array_rejected.
+const WIDE_EMPTY: [u64; 0] = [];
+
+data Holder { words: [u16; 0]; }
+
+machine first(rows: [[u64; 0]; 1]) -> [u64; 0] { rows[0] }
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let from_literal: [u16; 0] = [];
+    let held: Holder = Holder { words: [] };
+    let nested: [[u16; 0]; 0] = [];
+    let selected: [u64; 0] = first([WIDE_EMPTY]);
+    let count: u64 = selected.len;
+    let admitted: [u16; 0] = held.words;
+}
