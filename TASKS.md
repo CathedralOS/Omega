@@ -6585,7 +6585,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-STORAGE** — mined candidate; verify scope then implement.
 - **RUNTIME-SIZED-ACTIVATION-STORAGE-CONTRACT** — mined candidate; verify scope then implement.
-- **RUNTIME-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **RUST-COMPILER-RELEASE-RECORD** — mined candidate; verify scope then implement.
 - **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
 - **RUST-PRODUCER-OMISSION** — mined candidate; verify scope then implement.
