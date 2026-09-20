@@ -7695,7 +7695,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RUST-PRODUCER-RETENTION-POLICY** — mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RUST-RELEASE-RECORD.
 - **RUST-PRODUCER-RETIREMENT-GATE** — mined candidate; verify scope then implement.
 - **RUST-RELEASE-RECORD** — mined candidate; verify scope then implement.
-- **SAMPLES-COMPILE-MULTI-HOST** — mined candidate; verify scope then implement.
+- **SAMPLES-COMPILE-MULTI-HOST.** Verified scope — the per-host gate already
+  exists as `compiler`'s `samples_compile` suite
+  (`all_samples_reach_checked_trees` + per-cohort authored-entry legs +
+  `samples_with_documented_exit_run_correctly`); "multi-host" is each
+  required host running it, tracked per-sample in the cohort READMEs.
+  Witnessed RED on linux x86-64 at `e092723726` (run stopped after the
+  failure classes were established; no code was changed here):
+  (1) windows_x86_64 authored-entry selection rejects the std entry —
+    "target physical entry requirement … require either the exact bundled
+    Windows x86-64 contract or one accepted package-owned Windows x86-64
+    binding, not `source/library/std/targets/windows_x86_64/entry.omg`"
+    (basics, fletcher_checksum, caesar_cipher, format_number legs);
+  (2) linux_x86_64/linux_arm64/macos_arm64 "selected ProgramEntry
+    establishment rejoins 0 Terminal attachment identities; expected one"
+    (fletcher_checksum and likely siblings);
+  (3) `cli/basics/print_number` fails checked trees: "cannot prove
+    default-domain field requirement for return from Main::main …
+    self.out requires [u8; N]::Utf8". These are current-HEAD breaks in the
+    entry-establishment / package-owned-binding / default-domain surfaces —
+    repairs belong to the owning items (EXACT-PROGRAM-ENTRY-MULTIPLICITY,
+    ENTRY-CONTENT-ROOTS, field-obligation rows), not this gate. Remaining
+    here once main is green again: run the suite on windows_x86_64,
+    macos_arm64, linux_arm64 hosts — host-gated, none producible on this
+    machine.
 - **SCALAR-SCAN-AND-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
 - **SCAN-SCALAR-DISPATCH** — mined candidate; verify scope then implement.
