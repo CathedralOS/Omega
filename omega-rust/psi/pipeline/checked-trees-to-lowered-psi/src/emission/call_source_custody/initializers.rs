@@ -217,6 +217,11 @@ pub(crate) fn validate(
     let statements = checked.statement_table.statements(state.statement_nodes);
     let expression = match statements.get(coordinate.statement_index as usize) {
         Some(StatementNode::LocalData(local)) => local.initial_value,
+        // A store assignment's produced call is its written value; the store
+        // consumes the result by scalar position rather than by binding.
+        Some(StatementNode::Assignment(assignment)) if coordinate.call_ordinal == 0 => {
+            assignment.value
+        }
         // A final value-producing call has the same ordered operand custody as
         // an initializer. Its result destination is checked by scalar completion.
         Some(StatementNode::Expression(expression))

@@ -1,13 +1,14 @@
 //! Fail-closed rejoin of the composed carrier to checked flow and contracts.
 use super::super::super::{
-    CheckedComposedUnitControlTerminatorPlan, CheckedUnitStructuralTypeShape,
+    CheckedComposedUnitControlTerminatorPlan, CheckedUnitStructuralTypeShape, terminal_scalar_type,
 };
 use super::super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, Multiplicity, retain_exact_unit_boundary, unique_unit_boundary,
-    unsupported,
+    CheckedUnitEffectOperationPlan, Multiplicity, checked_unit_target_reach_matches,
+    retain_exact_unit_boundary, unique_unit_boundary, unsupported,
 };
 use super::{CheckedTrees, LoweringError, internal_calls};
+use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::unit::attached_unit::bodies::UnitBody;
 
 pub(crate) fn admit_dynamic_continuation<'a>(
@@ -404,6 +405,9 @@ pub(super) fn retain_call_targets<'a>(
                         &mut internal_targets,
                     )?;
                 }
+                CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
+                    retain_scalar_call(checked, machine, state, operation)?;
+                }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
@@ -558,6 +562,133 @@ pub(super) fn retain_call_boundary<'a>(
         *service_reach,
         expected_result,
     )
+}
+
+/// A scalar call in a composed state rejoins the same checked custody the
+/// ordinary operation path requires: exact flow occurrence, a callee resolvable
+/// by the shared scalar-call catalog, and its exact contract, signature, and
+/// reach. The callee enters the composed scalar catalog during preparation;
+/// structural custody has no composed rejoiner yet, so claim or structural
+/// operands stay unsupported.
+fn retain_scalar_call(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Result<(), LoweringError> {
+    crate::emission::call_source_custody::validate_operation(
+        checked,
+        machine,
+        state.state,
+        operation,
+        &state.structural_parameters,
+    )?;
+    let CheckedUnitEffectOperationPlan::ScalarCall {
+        coordinate,
+        result,
+        target_machine,
+        target_state,
+        target_contract_report_fingerprint,
+        target_contract_commitment,
+        service_reach,
+        scalar_arguments,
+        structural_arguments,
+        claim_transfers,
+        ..
+    } = operation
+    else {
+        unreachable!("dispatched scalar call");
+    };
+    let source_call =
+        crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
+            checked,
+            machine,
+            state.state,
+            *coordinate,
+            *target_state,
+        )?;
+    let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
+    // Structural operand custody rejoins through the ordinary caller's unit
+    // plan; a composed state cannot replay that validation yet.
+    if matches!(
+        target,
+        CheckedScalarCallee::Boundary(_) | CheckedScalarCallee::Structural(_)
+    ) || !structural_arguments.is_empty()
+        || !claim_transfers.is_empty()
+    {
+        return unsupported("composed Unit scalar call requires structural call custody");
+    }
+    let contract = checked
+        .facts
+        .contract_plans
+        .for_machine(*target_machine)
+        .ok_or(LoweringError::Unsupported(
+            "composed Unit scalar call target has no checked contract",
+        ))?;
+    let target_reaches = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter(|(_, candidate)| {
+            candidate.machine_symbol == *target_machine && candidate.state_symbol == *target_state
+        })
+        .map(|(_, candidate)| candidate.service_reach)
+        .collect::<Vec<_>>();
+    let reach_matches = match &target {
+        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_) => {
+            target_reaches.as_slice() == [*service_reach]
+        }
+        CheckedScalarCallee::Operations(plan) => {
+            // The body owns its direct effects; an ordinary call contributes
+            // the published callee ceiling transitively.
+            source_call.service_reach == *service_reach
+                && target_reaches.as_slice() == [plan.service_reach]
+                && checked
+                    .facts
+                    .service_reaches
+                    .plan_for_machine(*target_machine)
+                    == Some(plan.contract_service_reach)
+                && checked_unit_target_reach_matches(*service_reach, plan.contract_service_reach)
+        }
+        CheckedScalarCallee::Boundary(plan) => {
+            target_reaches.as_slice() == [plan.service_reach]
+                && checked_unit_target_reach_matches(*service_reach, plan.contract_service_reach)
+        }
+    };
+    if target.entry_state()? != *target_state
+        || target.parameter_types()?.len() != scalar_arguments.len()
+        || target.result_type()? != terminal_scalar_type(result.primitive_type)?
+        || contract.report_fingerprint != *target_contract_report_fingerprint
+        || contract.commitment != *target_contract_commitment
+        || !reach_matches
+    {
+        return unsupported(
+            "composed Unit scalar call disagrees with its checked target signature, contract, or reach",
+        );
+    }
+    if matches!(
+        target,
+        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_)
+    ) && (!checked
+        .facts
+        .service_reaches
+        .rows
+        .services(service_reach.direct)
+        .is_empty()
+        || !checked
+            .facts
+            .service_reaches
+            .rows
+            .services(service_reach.transitive)
+            .is_empty())
+    {
+        return unsupported(
+            "composed Unit scalar call with services requires scalar service lowering",
+        );
+    }
+    Ok(())
 }
 
 pub(super) fn validate_leaf(

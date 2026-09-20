@@ -572,23 +572,7 @@ impl Context<'_> {
             .checked
             .state_parameters(state)
             .get(parameter_position as usize)?;
-        Some(
-            parameter.symbol == authored.root
-                && path.len() == authored.path.len()
-                && path.iter().zip(&authored.path).all(|(retained, authored)| {
-                    match (retained, authored) {
-                        (
-                            checked_trees::CheckedStructuralPredicatePathSegment::Field(left),
-                            checked_trees::CheckedUnitStructuralPathSegment::Field(right),
-                        ) => left == right,
-                        (
-                            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(left),
-                            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(right),
-                        ) => left == right,
-                        _ => false,
-                    }
-                }),
-        )
+        Some(parameter.symbol == authored.root && paths_match(path, &authored.path))
     }
 
     fn boolean(
@@ -653,6 +637,13 @@ impl Context<'_> {
                 )
             }
             Boolean::And { left, right } | Boolean::Or { left, right } => {
+                if let ExpressionNode::Binary(binary) = node
+                    && binary.operator == BinaryOperator::Equal
+                    && matches!(value, Boolean::And { .. })
+                    && self.carrier_literal_equality(source, binary.left, binary.right, value)
+                {
+                    return true;
+                }
                 let expected = if matches!(value, Boolean::And { .. }) {
                     BinaryOperator::And
                 } else {
@@ -750,8 +741,138 @@ impl Context<'_> {
                     && self.scalar(left_source, left, operands, depth + 1)
                     && self.scalar(right_source, right, operands, depth + 1)
             }
+            Boolean::And { .. } if binary.operator == BinaryOperator::NotEqual => {
+                self.carrier_literal_equality(source, left_source, right_source, value)
+            }
             _ => false,
         }
+    }
+
+    /// `carrier == "literal"` on a bounded owned byte field has no scalar
+    /// operand pair, so checking decomposes it into the live-length comparison
+    /// folded with one indexed-read equality per literal byte
+    /// (typed-trees-to-checked-trees `bounded_carrier_literal_equality`). The
+    /// authored expression retains no conjunct nodes, so correspondence
+    /// replays that fold: the leftmost conjunct is the length equality and
+    /// each subsequent right child is the byte equality at its literal index,
+    /// in literal order. `!=` retains the same conjunction under `Not`, which
+    /// reaches here through the equality route above.
+    fn carrier_literal_equality(
+        &self,
+        source: ExpressionHandle,
+        left_source: ExpressionHandle,
+        right_source: ExpressionHandle,
+        value: &Boolean,
+    ) -> bool {
+        if !self.builtin(source) {
+            return false;
+        }
+        let mut conjuncts = Vec::new();
+        let mut spine = value;
+        while let Boolean::And { left, right } = spine {
+            conjuncts.push(right.as_ref());
+            spine = left;
+        }
+        conjuncts.push(spine);
+        conjuncts.reverse();
+        for (carrier, literal) in [(left_source, right_source), (right_source, left_source)] {
+            let ExpressionNode::String(bytes) = self.checked.expression_table.expression(literal)
+            else {
+                continue;
+            };
+            let Some((position, path)) = self.carrier_parameter_place(carrier) else {
+                continue;
+            };
+            if conjuncts.len() != bytes.len() + 1 {
+                return false;
+            }
+            let Boolean::IntegerComparison { kind, left, right } = conjuncts[0] else {
+                return false;
+            };
+            if *kind != CheckedIntegerComparisonKind::Equal
+                || !matches!(
+                    left.as_ref(),
+                    Scalar::StructuralParameterByteLength {
+                        parameter_position,
+                        path: retained,
+                    } if *parameter_position == position && paths_match(retained, &path)
+                )
+                || !matches!(
+                    right.as_ref(),
+                    Scalar::IntegerLiteral { literal }
+                        if literal.value_u64() == Some(bytes.len() as u64)
+                            && literal.landing().is_some_and(|landing| {
+                                landing.landed_type
+                                    == numerics::literals::LandedIntegerType::U64
+                            })
+                )
+            {
+                return false;
+            }
+            return conjuncts[1..]
+                .iter()
+                .copied()
+                .zip(bytes.iter())
+                .enumerate()
+                .all(|(index, (conjunct, byte))| {
+                    let Boolean::IntegerComparison { kind, left, right } = conjunct else {
+                        return false;
+                    };
+                    *kind == CheckedIntegerComparisonKind::Equal
+                        && matches!(
+                            left.as_ref(),
+                            Scalar::StructuralParameterIndexedRead {
+                                parameter_position,
+                                path: retained,
+                                index: retained_index,
+                                primitive_type,
+                            } if *parameter_position == position
+                                && paths_match(retained, &path)
+                                && *primitive_type == PrimitiveType::U8
+                                && matches!(
+                                    retained_index.as_ref(),
+                                    Scalar::IntegerLiteral { literal }
+                                        if literal.value_u64() == Some(index as u64)
+                                            && literal.landing().is_some_and(|landing| {
+                                                landing.landed_type
+                                                    == numerics::literals::LandedIntegerType::U64
+                                            })
+                                )
+                        )
+                        && matches!(
+                            right.as_ref(),
+                            Scalar::IntegerLiteral { literal }
+                                if literal.value_u64() == Some(u64::from(*byte))
+                                    && literal.landing().is_some_and(|landing| {
+                                        landing.landed_type
+                                            == numerics::literals::LandedIntegerType::U8
+                                    })
+                        )
+                });
+        }
+        false
+    }
+
+    fn carrier_parameter_place(
+        &self,
+        source: ExpressionHandle,
+    ) -> Option<(u32, Vec<checked_trees::CheckedUnitStructuralPathSegment>)> {
+        let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
+        let authored =
+            crate::emission::call_source_custody::projected_receivers::store_destination(
+                self.checked,
+                machine.symbol,
+                self.state,
+                None,
+                source,
+            )
+            .ok()?;
+        let position = self
+            .checked
+            .state_parameters(state)
+            .iter()
+            .position(|parameter| parameter.symbol == authored.root)?;
+        Some((position as u32, authored.path))
     }
 
     fn domain(&self, source: ExpressionHandle, depth: usize) -> Option<ArithmeticDomain> {
@@ -1033,6 +1154,27 @@ impl Context<'_> {
         i64::try_from(length).ok()?;
         Some(length)
     }
+}
+
+fn paths_match(
+    retained: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    authored: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> bool {
+    retained.len() == authored.len()
+        && retained
+            .iter()
+            .zip(authored)
+            .all(|(retained, authored)| match (retained, authored) {
+                (
+                    checked_trees::CheckedStructuralPredicatePathSegment::Field(left),
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(right),
+                ) => left == right,
+                (
+                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(left),
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(right),
+                ) => left == right,
+                _ => false,
+            })
 }
 
 fn integer_operator(kind: IntegerBinary) -> BinaryOperator {

@@ -57,6 +57,12 @@ pub(crate) fn authored_postorder(
             pending.push((local.initial_value, true, None));
             (false, local.initial_value)
         }
+        StatementNode::Assignment(assignment) => {
+            // A store assignment's produced call lives in the written value;
+            // the target path is an l-value destination, not a call operand.
+            pending.push((assignment.value, true, None));
+            (false, assignment.value)
+        }
         StatementNode::Expression(expression)
             if validation::unit_statement_call_is_supported(
                 &checked.typed,
