@@ -14,5 +14,7 @@ arm64, or from Git Bash on Windows x64 with Python 3 available as `python3`.
 The Alpha-to-Beta edge gate includes it. The Python helper supplies literal
 inputs and checks exact process status, stdout, and stderr; it does not assemble
 source or produce a trusted artifact. A rejected raw stdout prefix is not a
-published tape. The macOS-only `register-address-regression.sh` additionally
-checks the build wrapper preserves existing artifacts after late failures.
+published tape. `register-address-regression.sh` runs on the same two audited
+seed hosts (macOS arm64, or Git Bash on Windows x64; other hosts refuse) and
+additionally checks the build wrapper preserves existing artifacts after late
+failures.

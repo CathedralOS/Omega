@@ -7,9 +7,14 @@ export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
 
-case "$(uname -sm)" in
-  "Darwin arm64") ;;
-  *) echo "Beta addressed regression: skipped (requires Darwin arm64)"; exit 0 ;;
+# The materialized compiler and every stamped program run inside the audited
+# Alpha container: a Mach-O seed on macOS arm64, the Windows PE seed elsewhere.
+# Hosts that cannot exec the selected container refuse (exit 2) rather than
+# crash on the execs below.
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
+    *) echo "Beta addressed regression: requires macOS arm64 or Windows x64" >&2
+       exit 2 ;;
 esac
 command -v python3 >/dev/null 2>&1 || {
   echo "Beta addressed regression: skipped (python3 absent)"
