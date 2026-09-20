@@ -894,6 +894,12 @@ fn shared_vocabulary_representations_need_no_program_root() {
         // object and stack-demand traits and records. The sealed values stay
         // with their orchestration owners; only projections cross.
         ("installation-evidence", &[][..]),
+        // Deployment-target descriptions: profiles and their entry schemas,
+        // the symbolic target-semantic observation applications, and the
+        // UEFI/ELF loader, foreign-locator and x86 feature structures.
+        // Selection, realization and emission stages all read this vocabulary;
+        // no current program lives here.
+        ("target", &["target_semantics.rs"][..]),
     ] {
         let directory = repository()
             .join("omega-rust/omega/representations")
