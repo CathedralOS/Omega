@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 #[path = "representation_ownership/allocation_analysis.rs"]
 mod allocation_analysis;
+#[path = "representation_ownership/route_conformance.rs"]
+mod route_conformance;
 #[path = "representation_ownership/selected_analysis.rs"]
 mod selected_analysis;
 
