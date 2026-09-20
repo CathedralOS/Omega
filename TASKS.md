@@ -7885,7 +7885,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   a `tomli`-backed `tomllib` shim on `PYTHONPATH`.
 - **GEOMETRY-PARITY** — mined candidate; verify scope then implement.
 - **GEOMETRY-REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
-- **GEOMETRY-WINDOWS-LEG** — mined candidate; verify scope then implement.
+- **GEOMETRY-WINDOWS-LEG.** Mined candidate — resolved at `9beef2b045`:
+  re-mines the same Windows leg of the app repo's GEOMETRY-PARITY acceptance
+  that sibling row GEOMETRY-WINDOWS-VALIDATION (~this file, line 7842)
+  records: the 12-check geometry evidence is macOS ARM64 only ("Windows was
+  not run") and the acceptance is `python tools/verify.py native` on a
+  Windows host. Blocked identically two ways — no Windows development host
+  exists in this environment, and `samples/apps/squalr` is wholesale-fenced
+  this wave (SQUALR-TARGETS-AND-THROUGHPUT exp 21:39Z,
+  GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z). A Linux-side
+  `--target windows_x86_64` emit leg does not satisfy the run-based
+  acceptance and still needs the fenced tree. Owning parent:
+  SQUALR-GEOMETRY-PARITY; sibling re-mine stub GEOMETRY-WINDOWS-REVALIDATION
+  names the same leg.
 - **GEOMETRY-WINDOWS-REVALIDATION** — mined candidate; verify scope then implement.
 - **GEOMETRY-WINDOWS-VALIDATION.** Mined candidate; scope verified at
   `8734480a01`: names the Windows leg of the app repo's GEOMETRY-PARITY
