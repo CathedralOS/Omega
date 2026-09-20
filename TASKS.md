@@ -6629,7 +6629,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **REWRITE-CATALOG-ADMISSION** — mined candidate; verify scope then implement.
 - **REWRITE-VALIDATOR-INDEPENDENCE** — mined candidate; verify scope then implement.
 - **RO-CODEC-PLACEMENT** — mined candidate; verify scope then implement.
-- **RO-S2S-ANCESTRY-WALKS** — mined candidate; verify scope then implement.
+- **RO-S2S-ANCESTRY-WALKS** — resolved: verified on `99b24364c2`. Every
+  `live_range_stage()`/`liveness_stage()`/`selected_stage()`/
+  `source_legality_stage()`/`source_segment_home_stage()`/`transformation_stage()`
+  call in `selected-instructions-to-selected-instructions/src` is a custody
+  validator receiving the retained stage object as replay evidence; no
+  consumer climbs producer ancestry for current data, and
+  `.optimized_target()` survives only as `optimized_target_owner()`, the
+  sanctioned proof-input `Arc` handle. New pin
+  `selected_stages_read_current_data_not_producer_ancestry` in
+  `tests/architecture/representation_ownership.rs` enforces the contract;
+  REPRESENTATION-OWNERSHIP in TASKS_OPTIMIZER.md records the leg done.
 - **RO-STAGE-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **ROOT-FILE-DISCIPLINE** — mined candidate; verify scope then implement.
 - **RULE-PROMOTION-EVIDENCE** — mined candidate; verify scope then implement.
