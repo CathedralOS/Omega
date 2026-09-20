@@ -150,7 +150,8 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
-        | CheckedScalarExpression::IntegerWrappingCast { operand, .. } => {
+        | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
             contract_scoped_scalar(operand)
         }
         CheckedScalarExpression::Boolean(expression) => contract_scoped(expression),

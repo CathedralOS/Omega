@@ -108,6 +108,7 @@ fn project_scalar_expression(
         CheckedScalarExpression::ErasedParameter { .. } => return None,
         CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         CheckedScalarExpression::StorageRead { .. } => {

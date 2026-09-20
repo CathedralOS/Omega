@@ -410,6 +410,7 @@ impl Context<'_> {
                 Scalar::IntegerWiden { .. }
                     | Scalar::IntegerExactCast { .. }
                     | Scalar::IntegerWrappingCast { .. }
+                    | Scalar::IntegerSaturatingCast { .. }
                     | Scalar::IntegerTrappingCast { .. }
             )
             && self.checked.primitive_type_reference(cast.target_type) == value.primitive_type()
@@ -492,6 +493,10 @@ impl Context<'_> {
                 operand,
                 primitive_type,
             }
+            | Scalar::IntegerSaturatingCast {
+                operand,
+                primitive_type,
+            }
             | Scalar::IntegerTrappingCast {
                 operand,
                 primitive_type,
@@ -502,6 +507,9 @@ impl Context<'_> {
                 let policy = match value {
                     Scalar::IntegerWrappingCast { .. } => cast.domain == ArithmeticDomain::Wrapping,
                     Scalar::IntegerTrappingCast { .. } => cast.domain == ArithmeticDomain::Trapping,
+                    Scalar::IntegerSaturatingCast { .. } => {
+                        cast.domain == ArithmeticDomain::Saturating
+                    }
                     // The range payload is not authority at this boundary:
                     // scalar_graph_lowering discards it and emits a fresh
                     // Terminal exact-cast obligation for the actual operand.

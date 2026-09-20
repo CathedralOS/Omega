@@ -293,6 +293,7 @@ impl Builder<'_, '_> {
                     CheckedScalarExpression::IntegerWiden { .. }
                         | CheckedScalarExpression::IntegerExactCast { .. }
                         | CheckedScalarExpression::IntegerTrappingCast { .. }
+                        | CheckedScalarExpression::IntegerSaturatingCast { .. }
                         | CheckedScalarExpression::IntegerWrappingCast { .. }
                 ) {
                     let source_type = scalar_expression_type(&operand.value)?;

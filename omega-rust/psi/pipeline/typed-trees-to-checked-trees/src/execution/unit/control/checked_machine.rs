@@ -1650,6 +1650,7 @@ fn scalar_expression_reads_carrier(
         | checked_trees::CheckedScalarExpression::IntegerWiden { operand, .. }
         | checked_trees::CheckedScalarExpression::IntegerExactCast { operand, .. }
         | checked_trees::CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | checked_trees::CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
         | checked_trees::CheckedScalarExpression::IntegerTrappingCast { operand, .. }
         | checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
             index: operand,

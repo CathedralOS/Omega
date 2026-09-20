@@ -414,6 +414,7 @@ fn scalar_evidence_is_crash_lane_lowerable(
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
             scalar_evidence_is_crash_lane_lowerable(operand)
         }
@@ -684,6 +685,7 @@ fn substitute_checked_scalar_expression(
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         // A standalone integer field leaf is the same frozen structural leaf
         // the Boolean channel carries: the callee position binds the actual's

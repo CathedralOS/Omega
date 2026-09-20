@@ -205,6 +205,7 @@ impl EntryOperands<'_> {
             | CheckedScalarExpression::StructuralParameterByteLength { .. }
             | CheckedScalarExpression::IntegerTrappingCast { .. }
             | CheckedScalarExpression::IntegerWrappingCast { .. }
+            | CheckedScalarExpression::IntegerSaturatingCast { .. }
             | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
             CheckedScalarExpression::IntegerBinary { left, right, .. } => {
                 self.scalar(left)?;

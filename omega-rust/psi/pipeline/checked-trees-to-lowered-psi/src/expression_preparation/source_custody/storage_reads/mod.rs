@@ -887,7 +887,8 @@ fn collect_scalar_storage_reads(
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. }
-        | CheckedScalarExpression::IntegerWrappingCast { operand, .. } => {
+        | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
             collect_scalar_storage_reads(operand, namespace, path, reads, needs_value_replay);
         }
         CheckedScalarExpression::Boolean(expression) => {
