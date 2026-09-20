@@ -57,8 +57,9 @@ different output directory. These are host controls, not language semantics.
 [Scalar compilation](../../../bootstrap/5_omega/scalar_compilation.epsilon)
 accepts ordinary nullary free machines returning a `u8` terminal expression:
 unsuffixed nonnegative decimal literals without digit separators joined by the
-`+ - * / % << >> & | ^` binary operators, folded under the default Exact policy
-so every intermediate node must stay representable in `u8`. It checks every
+`+ - * / % << >> & | ^` binary operators and the `~` bitwise-complement
+prefix, folded under the default Exact policy so every intermediate node
+must stay representable in `u8`. It checks every
 admitted declaration, detects duplicate names,
 resolves an explicitly supplied entry name, checks the result range before
 emission, and uses the shared encoder's labels, call/return and finalization.
@@ -112,7 +113,7 @@ sh tests/bootstrap/omega-executable/run.sh --controls-g
 sh tests/bootstrap/omega-executable/run.sh --controls-h
 ```
 
-The ordinary Epsilon controls reuse one compiler across sixty-three
+The ordinary Epsilon controls reuse one compiler across sixty-six
 invocations split among [controls.epsilon](controls.epsilon),
 [controls_b.epsilon](controls_b.epsilon),
 [controls_c.epsilon](controls_c.epsilon),
@@ -126,7 +127,7 @@ multiple declarations and selection of a non-first entry, duplicate names,
 missing entry, out-of-range and oversized decimal values, an out-of-range
 expression operand, overflow, underflow, division and modulo by zero,
 out-of-width and overflowing shifts, an invalid unselected body, unsupported
-comparison, path, unary and other expressions and return types, a
+comparison, path, `!`/`-` unary, and other expressions and return types, a
 named-state-only machine, digit separators, malformed syntax, and successful
 reuse after failures; then checked control flow: call statements and grouped
 terminal calls between machines with exact emitted-tape assertions,
@@ -157,16 +158,16 @@ top of the bound member closure, never part of the manifested members.
 
 | Entry | Bytes | SHA-256 | Packed customer bytes | Packed customer SHA-256 |
 | --- | ---: | --- | ---: | --- |
-| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 559,918 | `fcf88cc850822c90a3caaf38a89d8bf594312b1e4ef154bc2ac63cb7234674cc` |
-| `main_ocreq.epsilon` | 19,253 | `9573d73423c2ed3e586b0298ae333733d8828c958a38f1859e1baff3d5ac4a9d` | 577,414 | `0195756cd505588cd1aa2aa22c4f7465fd09c4f5c299c4011bd7a71025b2828c` |
-| `controls.epsilon` | 3,339 | `44b8f0d15df414a80728918560ef988341537cfa25c0e21d6240a52c7f72f91b` | 561,500 | `f22dbae93f2b1cc4478fdaf1d7053dd2d9f6405bb1d651fec13a234e884361b8` |
-| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 561,245 | `e9d4627c6226ba39359708d5163010499210386dcb51e82577e89e757734a5c1` |
-| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 560,985 | `72ef281f99dd95a96287807d3e7d200b412aa831e570a3c290474eec59046d53` |
-| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 561,011 | `69fb11609028859b5584d464f1551269c0d0571aa7470e8e9d9bfec789253a82` |
-| `controls_e.epsilon` | 2,703 | `42090d41fbfa2068e1063bebfa7caae4373ac7b5825ede94b8edbc8877338248` | 560,864 | `f6d343ba22a3690ae7d42f47f41d0e65f7890dfe5ad7696626abb100d9288e4a` |
-| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 562,586 | `e3712a9642ade95f7733307198734da2613d186baf9e02b3ee40378e13178821` |
-| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 561,288 | `e9586c29c06358aef499ace1dc3f49144dca86a5bc24707d73b0639ce2f556de` |
-| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 561,354 | `c461e4ac6b09b109962148618880186d32ec8a87300befe53ae41814ff2cbdc5` |
+| `main.epsilon` | 1,757 | `c0af3126f13c8c511d04f224e630f60f3316c0f9fa6e310e72f66779c7c3ce9e` | 560,910 | `bc7b11ffb321aaab3a2a81b19c89288c0c6b30a3e5432e19efc44caa75927992` |
+| `main_ocreq.epsilon` | 19,253 | `9573d73423c2ed3e586b0298ae333733d8828c958a38f1859e1baff3d5ac4a9d` | 578,406 | `f1ba2ea384e4f6f264d4cfe15052fc3d8412a981f9eee1542b46596714a6dae7` |
+| `controls.epsilon` | 3,631 | `78995d1f7975bbd7b8d82230b557f43bb263addb5be3deb2b9bf56cb03efa0a9` | 562,784 | `f7598fc60621df7d115d61d7fadb23cdbbafa5e41a176b15fc1ffeff3c5f1914` |
+| `controls_b.epsilon` | 3,084 | `261d1529b50ab7b36c9dd228a0df7a4250d46d2913dcd85897ee8b911e98dbc3` | 562,237 | `20ab420819bda1cc2b3bee2feb95b44a057274f8b724723a25eac7318e2ef4f1` |
+| `controls_c.epsilon` | 2,824 | `0dbc7da705e7da63a7589b49a25677037dcd43c31c3266f31511986b3eba54ae` | 561,977 | `7b97fad5b22f1b6ac38673946c63892315ef46e101867e5f8e19f885399e67ed` |
+| `controls_d.epsilon` | 2,850 | `916218b57476fe59f22a2d493b6529502e3ac3a4fda856d4e16b9a156a0f57c9` | 562,003 | `c8d2cdbe21d472b81327d383b6850738d6cd920f605ca3fdebe8b2b1a18fa488` |
+| `controls_e.epsilon` | 2,797 | `83ce536dacd5efb9238d7f5869ed5d6269c6481a24b4cdd0b7d3985777c150bc` | 561,950 | `16b20dbbb30647f41f749d341a5d0875ce0048d7c6d270ff1862747b0aab77d9` |
+| `controls_f.epsilon` | 4,425 | `fbc7ed2868f9e70833fdfc36c927238c8fd11184e5127e372d732c8ab6ebff0e` | 563,578 | `e3b53686807708356950b719205994348be223110563c40508db7087c3eaec3a` |
+| `controls_g.epsilon` | 3,127 | `3c94d2e5430226dbeb20b311d5336f57ab11c8fd49ace137e44785fcbac6ecb9` | 562,280 | `199ceaae8285898d7cbd38deff6ec0e761e0d2b8a0d7329e7ffdeb32c9c29dea` |
+| `controls_h.epsilon` | 3,193 | `b48c672f09c8263d9d352fdb37af66a82c3083df38dabd533a93e0573e9e5c0e` | 562,346 | `05d9b92950c61a67104b75851838b7fe37dd3f9d841fc894c20d52b7b83d0d5e` |
 
 `tools/bootstrap/omega/compiler_env.sh` checks every entry identity before
 each packing and `tests/bootstrap/omega-identity.sh` covers the refusals and
