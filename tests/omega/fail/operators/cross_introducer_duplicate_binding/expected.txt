@@ -1,0 +1,1 @@
+binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape
