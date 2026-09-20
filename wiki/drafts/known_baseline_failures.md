@@ -129,6 +129,34 @@ repair beside this row. Only two of the six non-ledger failures were
   `EdgeAffineDiscardsInvalid` as malformed discard evidence rather than a
   bad argument. Passing at bbfda8bc2e.
 
+## pass fixtures that no roster runs
+
+Measured on 2026-09-20 at df5faae187 by comparing every
+`tests/omega/pass/<group>/<fixture>/main.omg` against the rosters in
+`compiler/tests/canary_suite.rs` and `compiler/tests/fixture_rosters/`:
+2011 pass fixtures exist, 1707 sit on an executing roster
+(`ACTIVE_PASS_CANARIES`, `CHECKED_ONLY_PASS_CANARIES`, or a rooted-target
+row), and 304 do not. Of those, 260 are inventoried in `fixture_rosters/`
+and so belong to a dedicated target, often host-gated; 44 appear in no
+roster of either kind and are compiled by nothing at all.
+
+The 44 are worth treating as a live process problem rather than historical
+debt, because several were added within hours of this measurement. They
+group as: 18 under `objc/`, 6 under `terminal_psi/`, 5 under `filesystem/`,
+3 under `float/`, 2 each under `arithmetic/`, `borrows/`, `control_flow/`,
+`domains/` and `inline_asm/`, and one each under `generics/` and
+`progress/`. Three separate fixtures this session were found unexercised
+this way before the pattern was measured, so the check is worth repeating
+after a wave of fixture work.
+
+Registering one is not automatically the repair. A fixture on
+`CHECKED_ONLY_PASS_CANARIES` is compiled only through checking: forcing the
+lowering custody validation to reject unconditionally leaves those canaries
+green, so a checked-only registration pins checked semantics and cannot
+exercise a lowering repair. Where the subject is lowering or native
+realization, the fixture needs an executing roster that reaches that stage,
+or a crate-level test beside the code.
+
 ## compiler canary suite (pass canaries)
 
 `cargo nextest run -p compiler --test canary_suite -E
