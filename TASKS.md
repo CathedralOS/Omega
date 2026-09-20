@@ -5769,7 +5769,35 @@ Proof/evidence:
 - **PROOF-SEARCH-MEASUREMENT.** Resolved — `check_proof_plan` already tallied obligation mix, certificate-route verdicts, and kernel receipts but discarded them; it now also records emitted-certificate `ProofNode` counts (the draft's storage axis) and whole-run wall-clock microseconds, and `OMEGA_PROOF_MEASUREMENTS` prints one `key=value` line per run for any `omega --check` (e.g. cli_mvp: 772 obligations, 22 certified / 20 uncovered, 148 nodes, 156975 us). Remaining unmeasurable axis is invalidation — needs a store to invalidate — tracked under PROOF-DERIVATION-STORE-INDEX / DERIVATION-RECHECK-CACHE.
 - **PROOF-DERIVATION-STORE-INDEX.** Resolved — landed at `68ce33d9de`: `derivation_store.rs` in `psi/semantics/proof` is the lookup substrate `wiki/drafts/proof_search_cache.md` requires — a content arena of untrusted derivation payloads indexed by each obligation's canonical `ProofObligationKey` (BTreeMap, deterministic iteration), generational `DerivationId` handles that can never alias a recycled slot, explicit capacity refusal (`DerivationStoreFull`), and key-granularity `invalidate` since a dependency change changes the key. Lookups return *candidate* evidence the caller re-decides through the admission kernel — never a trusted verdict; consultation inside `check_proof_plan` stays with DERIVATION-RECHECK-CACHE. Verified: `cargo nextest run -p proof --lib` derivation_store suite 6/6 green on linux x86-64.
 - **PROOF-OBLIGATION-IDENTITY-KEY.** Semantic identity key for proof obligations.
-- **PROOF-INTERCHANGE-IMPORT.** External proof interchange: sort encoding, induction certificate, arithmetic import (3 mined aliases merged).
+- **PROOF-INTERCHANGE-IMPORT.** External proof interchange: sort encoding,
+  induction certificate, arithmetic import (3 mined aliases merged).
+  Scope verified at `e76d715c8e` — per-alias disposition:
+  (a) **sort encoding** — landed by MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING:
+      `tools/matching-logic-sort-encoding/sort_encoding.py` emits the clause
+      inventory + evidence record and `check` enforces definedness coverage,
+      intended-model inhabitedness, revision refinement, loan disjointness,
+      injectivity/tag disjointness, memberships, and fixpoint certificates
+      (test 8/8 green); remaining acceptance = wiring into the bounded
+      comparison harness, fenced to MATCHING-LOGIC-BOUNDED-SLICE's live
+      claim on `tools/matching-logic-slice/`;
+  (b) **induction certificate** — the internal carrier certificate is
+      already landed (admission/recursion.rs `verify_recursive_component`,
+      per INDUCTIVE-CARRIER-CERTIFICATE's verified row); the external
+      matching-logic certificate has no importer;
+  (c) **arithmetic import** — `proof-admission` owns internal checked
+      integer rules (closed_integer, affine, cast, forbidden_root, shift)
+      plus the `mathematical_core` term model + kernel; no external
+      arithmetic import route exists — `admission/` has only
+      evidence/normalization/recursion routes, and
+      `AcceptedProofRule::foundation` admits a single trusted admission
+      (`SemanticAxiom`), pinned by
+      `no_accepted_rule_stands_on_a_classical_foundation`.
+  None of the three authorizes implementation: each route first needs
+  MATCHING-LOGIC-BOUNDED-SLICE's bounded comparison, then a concrete design
+  (a kernel replacement needs its own proposal + end-to-end proved bridge),
+  and imported rules must respect the classicality boundary. An
+  independently checked translation — not a trusted import — is the only
+  sound route, per MATCHING-LOGIC-EXTERNAL-PROOF-IMPORT's verified row.
 - **INDUCTIVE-CARRIER-CERTIFICATE.** Inductive carrier certificate production.
   Verified scope: already landed end-to-end — the recursive-component
   certificate is the inductive carrier's base/step/decrease certificate
