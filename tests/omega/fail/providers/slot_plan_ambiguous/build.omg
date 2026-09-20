@@ -2,4 +2,5 @@
 machine build(builder: &mut Build) {
     builder.application("slot-plan-ambiguous");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

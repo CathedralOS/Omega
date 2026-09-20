@@ -1,10 +1,10 @@
 // The Rust-style colon bound is rejected: property bounds are brackets
 // attached to the name they follow (`T [copy]`), everywhere (frozen
-// decision 13).
+// decision 13). The probe sits on a proposition parameter list because a
+// `data` header admits `Name: TypeRef` value binders, where `<T: copy>`
+// reads as a runtime-capable binder and never reaches this gate.
 
-data Box<T: copy> [copy] {
-    value: T;
-}
+proposition Rel<T: copy>(value: T);
 
 data Main {
     value: i32;

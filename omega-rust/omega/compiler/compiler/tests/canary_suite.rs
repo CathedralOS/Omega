@@ -753,6 +753,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "ownership/conditional_linear_payload_extraction",
     "ownership/linear_returned_obligation",
     "ownership/linear_zero_storage_unestablished",
+    // Graduated from fail/: normalized claim outcome maps now publish for
+    // path-aligned multi-claim results, so the source checks cleanly.
+    "ownership/linear_ambiguous_state_result_mapping",
     "ownership/move_keyword_field_assignment",
     "ownership/compound_assign_add_field",
     "ownership/copy_value_field_read_compile",
@@ -1550,7 +1553,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "operators/named_operator_result_overload_duplicate_dispatch",
     "ownership/copy_linear_conflict",
     "ownership/borrowed_storage_boundary_call",
-    "ownership/linear_ambiguous_state_result_mapping",
     "ownership/linear_mixed_branch_treatment",
     "ownership/linear_live_overwrite",
     "ownership/linear_transparent_record_sibling_scope_loss",
@@ -4727,6 +4729,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "operators/runtime_popcount_loop_exit",
     "calls/free_standing_machine_helper_compile",
     "calls/statement_call_recursive_argument_compile",
+    // Graduated from fail/: both pinned a lowering-time refusal that has
+    // since lifted, so the native route compiles them end to end.
+    "calls/guarded_value_call_terminal_compile",
+    "calls/machine_self_call_recursion_compile",
     "capabilities/provider_within_ceiling",
     "capabilities/derives_authority_via_boundary",
     "capabilities/acquires_through_helper_return",
@@ -4877,13 +4883,11 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "providers/provider_type_target_default_conflict",
     "providers/scoped_provider_selection_outside_build",
     "host/terminal_host_call_value",
-    "calls/guarded_value_call_terminal_rejected",
     "boundary/entry_typed_params_unmarked",
     "wire/layout_domain_on_stored_bytes",
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",
     "wire/layout_domain_on_non_bytes",
-    "calls/machine_self_call_recursion_rejected",
     "calls/ambiguous_spliced_second_receiver_rejected",
     "wire/wire_policy_plan_disagrees",
     "wire/wire_compatibility_preservation_unmet",

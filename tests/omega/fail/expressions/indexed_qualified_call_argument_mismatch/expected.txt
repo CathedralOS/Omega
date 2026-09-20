@@ -1,1 +1,1 @@
-cannot prove requires contract
+actual `Coordinate<7>` and expected `Coordinate<9>` are distinct normalized instances
