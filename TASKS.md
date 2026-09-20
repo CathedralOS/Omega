@@ -6368,7 +6368,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE, 23:09Z). No unfenced slice
   exists; retire or re-scope once the sibling lanes land detection.
 - **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; verify scope then implement.
-- **C2L-FAILURE-TRIAGE** — mined candidate; verify scope then implement.
+- **C2L-FAILURE-TRIAGE.** Resolved — the triage is already discharged by
+  `wiki/drafts/known_baseline_failures.md`'s checked-trees-to-lowered-psi
+  section, and it still holds on current main. Re-verified at
+  `fcfb576fe9` (linux x86-64): `cargo nextest run -p
+  checked-trees-to-lowered-psi --no-fail-fast` → 2152 run, 2096 passed
+  (6 slow), 56 failed, plus the recorded nonterminating
+  `mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+  member excluded from this run and still owned by PROOF-SEARCH-MEASUREMENT.
+  Every one of the 56 failures maps onto the ledger's owned families with
+  the same group membership: 30 library `tests::*` + 3 `unit_plan_omissions`
+  bare `Service<R>` fixture spellings (ENTRY-CONTENT-ROOTS), 6
+  `provider_attachment_source` + 9 `unit_state_graph::provider_attachments`
+  + 1 `guarded_scalar_returns_source` missing checked transitive machine
+  plans (GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF fences), 3 site_guard
+  crash-namespace rejections (WRITE-ONLY-BORROW integer-entry-ranges
+  fence), and 4 `owned_record_return_source` scalar-return custody cases.
+  One recorded family closed since the `210ffe3c93` reading:
+  `registered_callback_lifetime::
+  interpreted_register_unregister_round_trip_drives_the_ledger` (the
+  `established by` call-result qualification leg) now passes — shrinkage,
+  not a new tail. The unattributed tail remains empty; sibling re-mines
+  C2L-BOUNDARY-BYTE-BUFFER-FAILURES, C2L-SCALAR-RETURN-SOURCE-CUSTODY-
+  FAILURES and C2L-UNATTRIBUTED-FAILURE-TAIL name subsets or the empty
+  remainder of this same ledger surface.
 - **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES** — mined candidate; verify scope then implement.
 - **C2L-UNATTRIBUTED-FAILURE-TAIL** — mined candidate; verify scope then implement.
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
