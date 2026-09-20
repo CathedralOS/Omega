@@ -105,7 +105,7 @@ pub(crate) fn checked_scalar_call_closure(
     entry: symbols::SymbolHandle,
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let mut closure = vec![entry];
-    let mut authorized_static_scalar_realizations = Vec::new();
+    let mut authorized_static_scalar_callees = Vec::new();
     let mut next = 0usize;
     while let Some(machine) = closure.get(next).copied() {
         next += 1;
@@ -121,7 +121,7 @@ pub(crate) fn checked_scalar_call_closure(
             ))?;
         if selection.signature != CheckedTerminalSignatureEligibility::Eligible
             && !(selection.signature == CheckedTerminalSignatureEligibility::Attached
-                && authorized_static_scalar_realizations.contains(&machine))
+                && authorized_static_scalar_callees.contains(&machine))
         {
             return unsupported("direct scalar call target has an unsupported terminal signature");
         }
@@ -154,7 +154,7 @@ pub(crate) fn checked_scalar_call_closure(
             .chain(
                 computation_targets
                     .into_iter()
-                    .map(|target| (target, false)),
+                    .map(|target| (target, receiver_free_checked_body(checked, target))),
             )
         {
             let target_selection = checked
@@ -171,12 +171,11 @@ pub(crate) fn checked_scalar_call_closure(
                 && !authorized_static_scalar
             {
                 return unsupported(
-                    "attached scalar call target is not an exact bounded static scalar realization",
+                    "attached scalar call target has no checked receiver-free call edge",
                 );
             }
-            if authorized_static_scalar && !authorized_static_scalar_realizations.contains(&target)
-            {
-                authorized_static_scalar_realizations.push(target);
+            if authorized_static_scalar && !authorized_static_scalar_callees.contains(&target) {
+                authorized_static_scalar_callees.push(target);
             }
             if !closure.contains(&target) {
                 closure.push(target);
@@ -186,8 +185,37 @@ pub(crate) fn checked_scalar_call_closure(
     Ok(closure)
 }
 
-/// The bounded scalar named-witness rung is the sole exception that may pull
-/// an attached static realization into a free scalar caller's closure. Rejoin
+/// Attachment names a declaration owner, not necessarily a runtime receiver.
+/// Ordinary computed calls use the same scalar graph and independent source-call
+/// custody as free helpers. That path rejects named proof-output calls, which
+/// still need the exact dispatch coordinate checked below. Keep the declaration's
+/// Attached classification: structural consumers also use its nominal owner.
+fn receiver_free_checked_body(checked: &CheckedTrees, target: symbols::SymbolHandle) -> bool {
+    checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == target)
+        .is_some_and(|machine| {
+            machine.supply_mode.is_checked_body()
+                && machine.body_is_present
+                && !machine.structural_type_equations_pending
+                && machine.type_parameters.is_empty()
+                && machine.owned_data.is_empty()
+                && !machine.suspends
+                && !machine.blocks
+                && machine.invokes.is_empty()
+                && checked.typed.machine_states(machine).iter().all(|state| {
+                    checked
+                        .typed
+                        .state_parameters(state)
+                        .iter()
+                        .all(|parameter| !parameter.is_self)
+                })
+        })
+}
+
+/// An attached named-witness realization needs more than body eligibility. Rejoin
 /// the exact proof-output call coordinate here so an unrelated proof row cannot
 /// grant scalar eligibility to another attached machine.
 fn bounded_static_scalar_dispatch_edge(
