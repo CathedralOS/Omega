@@ -3552,6 +3552,16 @@ Owners include
     A range combined with Wrapping/Saturating also still hits ordinary
     declaration checking in `validation/src/proof_contracts/arithmetic_domains/range_constraints.rs`;
     endpoint admission alone cannot remove that storage/proof boundary.
+    Trapping parameters additionally depend on checked failure evidence under
+    **ARITHMETIC-POLICY-REALIZATION**. Do not merely add Trapping to
+    `range_endpoints/integer_type.rs`: at `59402436c4`, an experimental
+    `endpoint(value: u8 in Trapping) -> u64 { (value + 2) as u64 }`
+    folds `endpoint(5)`, but `endpoint(255)` reaches interpreter overflow
+    instead of rejecting before execution. The shared build-time admission
+    floor has no failure-discharge axis, and a concrete checked call's crash
+    summary still misses that unsupported arithmetic. Reuse the initializer
+    invocation proof route once it covers the primitive; require an admission
+    rejection for overflow and source-free native execution of the safe bound.
   - Runtime `Value` binders in data equations, which reject today as not
     statically recoverable. They depend on RUNTIME-VALUE-GENERICS; static
     matching proceeds first.
@@ -3640,7 +3650,15 @@ Owners include
     binder, a common concrete result and dispatch around a region-sized
     operation.
   - One source-produced family through Omega native tables and image replay,
-    with `tests/omega` pass, fail and run canaries. None exist.
+    with `tests/omega` pass, fail and run canaries. This depends on
+    **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**, not merely tuple tests:
+    the existing `REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE` pattern publishes
+    verified Terminal, but native staging at `59402436c4` rejects
+    `CallDynamicScalar` with `Selection(Legalization(UnsupportedScalarOperation))`.
+    The common-graph legalizer admits no descriptor-call family. Complete its
+    ordinary indirect-call, table and replay route; the native test must observe
+    distinct tuple results and the rebound selected instance, not discard a
+    result from a provider that ignores its width.
 
   Acceptance: a source program dispatches widths 16/32/64 from a runtime value
   through one selected conformance with no handwritten suffix-method family,
