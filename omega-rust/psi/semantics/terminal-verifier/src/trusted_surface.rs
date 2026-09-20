@@ -25,7 +25,10 @@
 //!   re-decides before it may join a roster — while its dependencies keep the
 //!   trusted checker rules it stands on explicit. `Unfinished` entries cannot
 //!   establish an independent claim merely because the implementation returns
-//!   success.
+//!   success. The proved set is recorded in [`PROVED_ENTRIES`] and checked
+//!   mechanically: proving a new row or regressing an existing one must edit
+//!   that list, and no claim-bearing row may name an `Unfinished` row as a
+//!   dependency.
 //!
 //! ## Mechanical coverage
 //!
@@ -210,6 +213,18 @@ pub static TRUST_ROOTS: &[TrustRoot] = &[
     },
 ];
 
+/// The entries currently discharged by checked evidence. The proved set is
+/// exactly this list: proving a new row must register it here, and a recorded
+/// row that is removed or returns to `ExplicitlyTrusted`/`Unfinished` fails
+/// `check_ledger_internals` as a regression — a soundness downgrade cannot
+/// hide inside an ordinary entry edit.
+pub const PROVED_ENTRIES: &[&str] = &[
+    "fact:boolean-polarity-implications",
+    "fact:branch-condition-transport",
+    "fact:header-invariant-members",
+    "fact:successor-path-transport",
+];
+
 /// Every ledger entry across all families.
 pub fn all_entries() -> impl Iterator<Item = &'static TrustedSurfaceEntry> {
     CHECKER_ENTRIES
@@ -268,6 +283,12 @@ pub enum LedgerFailure {
         entry: &'static str,
     },
     ProvedEntryMissingEvidence {
+        entry: &'static str,
+    },
+    ProvedEntryRegressed {
+        entry: &'static str,
+    },
+    ProvedEntryUnrecorded {
         entry: &'static str,
     },
     ProceduralEntryWithoutSites {
@@ -352,6 +373,14 @@ impl std::fmt::Display for LedgerFailure {
             Self::ProvedEntryMissingEvidence { entry } => write!(
                 formatter,
                 "ledger entry `{entry}` is Proved but binds no checked evidence"
+            ),
+            Self::ProvedEntryRegressed { entry } => write!(
+                formatter,
+                "ledger entry `{entry}` is recorded in PROVED_ENTRIES but is no longer Proved"
+            ),
+            Self::ProvedEntryUnrecorded { entry } => write!(
+                formatter,
+                "ledger entry `{entry}` is Proved but absent from PROVED_ENTRIES; register the proved set explicitly"
             ),
             Self::ProceduralEntryWithoutSites { entry } => write!(
                 formatter,
@@ -474,6 +503,7 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
     }
     let index = entry_index();
     check_dependency_edges(all_entries(), &index, &root_ids, &mut failures);
+    check_proved_set(all_entries(), &mut failures);
     // The trust graph is closed: dependencies resolve to entries or roots and
     // entry-to-entry edges must be acyclic. A cycle exists exactly when an
     // entry can reach itself through entry dependencies.
@@ -699,6 +729,32 @@ fn check_dependency_edges<'a>(
     }
 }
 
+/// The recorded [`PROVED_ENTRIES`] set must equal the rows still marked
+/// `Proved` exactly: a recorded row that regresses or disappears fails, and a
+/// row newly marked `Proved` fails until the set registers it. A soundness
+/// status change can never hide inside an ordinary entry edit.
+fn check_proved_set<'a>(
+    entries: impl Iterator<Item = &'a TrustedSurfaceEntry>,
+    failures: &mut Vec<LedgerFailure>,
+) {
+    let mut proved = BTreeSet::new();
+    for entry in entries {
+        if matches!(entry.soundness, SoundnessStatus::Proved { .. }) {
+            proved.insert(entry.id);
+        }
+    }
+    for &id in PROVED_ENTRIES {
+        if !proved.contains(id) {
+            failures.push(LedgerFailure::ProvedEntryRegressed { entry: id });
+        }
+    }
+    for &id in &proved {
+        if !PROVED_ENTRIES.contains(&id) {
+            failures.push(LedgerFailure::ProvedEntryUnrecorded { entry: id });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -812,6 +868,44 @@ mod tests {
         assert!(failures.contains(&LedgerFailure::DuplicateDependency {
             entry: "test:duplicate-dependent",
             dependency: "root:test-root",
+        }));
+    }
+
+    static NEWLY_PROVED: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "test:newly-proved-row",
+        family: LedgerFamily::SharedFormation,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &[],
+        implementation: &[],
+        soundness: SoundnessStatus::Proved {
+            evidence: "witness",
+        },
+    };
+    static REGRESSED: TrustedSurfaceEntry = TrustedSurfaceEntry {
+        id: "fact:boolean-polarity-implications",
+        family: LedgerFamily::ReconstructedFactKind,
+        binding: EntryBinding::Procedural,
+        premises: "a premises shape",
+        conclusion: "a conclusion",
+        dependencies: &[],
+        implementation: &[],
+        soundness: SoundnessStatus::ExplicitlyTrusted {
+            root: "root:verification-contract",
+            rationale: "justification",
+        },
+    };
+
+    #[test]
+    fn the_recorded_proved_set_matches_the_marked_rows() {
+        let mut failures = Vec::new();
+        check_proved_set([&NEWLY_PROVED, &REGRESSED].into_iter(), &mut failures);
+        assert!(failures.contains(&LedgerFailure::ProvedEntryUnrecorded {
+            entry: "test:newly-proved-row",
+        }));
+        assert!(failures.contains(&LedgerFailure::ProvedEntryRegressed {
+            entry: "fact:boolean-polarity-implications",
         }));
     }
 }

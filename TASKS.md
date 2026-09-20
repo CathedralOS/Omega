@@ -1980,11 +1980,19 @@ Owners include
   The [trusted-surface inventory](wiki/spec/terminal-psi/verification.md#trusted-surface-inventory)
   exists in `terminal-verifier/src/trusted_surface.rs` with mechanical
   dispatch and source coverage (`tests/trusted_surface.rs`). It establishes
-  coverage, not soundness: two rows are `Proved` by generation-time
-  certificates (`fact:boolean-polarity-implications`,
-  `fact:branch-condition-transport`), every other row is `ExplicitlyTrusted`,
+  coverage, not soundness: four reconstruction rows are `Proved` by
+  generation-time certificates (`fact:boolean-polarity-implications`,
+  `fact:successor-path-transport`, `fact:branch-condition-transport`,
+  `fact:header-invariant-members`), every other row is `ExplicitlyTrusted`,
   and the codec's trust-graph descriptor still names the Rust decoder and
-  verifier as trusted judgments. The codec implementation surface is
+  verifier as trusted judgments. Dependency edges are closed mechanically:
+  a duplicate edge or a claim-bearing row naming an `Unfinished` row fails
+  (`UnfinishedDependency`, `DuplicateDependency`). The proved set is recorded
+  in `PROVED_ENTRIES` and closed by `check_proved_set`: a row marked `Proved`
+  outside the recorded set fails, and a recorded row that regresses or
+  disappears fails, so a soundness status change can never hide inside an
+  ordinary entry edit (`the_recorded_proved_set_matches_the_marked_rows`).
+  The codec implementation surface is
   inventoried like the verifier and representation closures:
   `terminal-codec/build.rs` folds every Rust source under its `src/` into
   `terminal-codec/source-closure`, bound alongside `terminal-codec/Cargo.toml`
