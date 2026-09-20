@@ -6067,6 +6067,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-ALIGNMENT-STRING-PARSING.** Alignment string parsing.
 - **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity.
 - **SQUALR-GEOMETRY-PARITY.** Geometry parity gaps + debug assertions.
+  Re-witnessed `ac4e4eee9b` (z194, Linux x86-64): `Squalr geometry: PASS`,
+  native exit 0 through `tools/verify.py native` on the scratch-copied app
+  at pin `43329a3` — using `Source::Path` to the checkout's
+  `source/library/std` (the post-migration std), since the declared
+  git-pinned std `87d8b227` predates `32f5182254` ("reject bare
+  boundary-trait value spellings") and now fails `omega update` with 5
+  diagnostics (`host: FilesystemHost` etc. are `Service<R>` today). The
+  tracked `squalr-tests/omega.lock` is likewise rejected at HEAD
+  ("unsupported package lock version"), so BOTH recorded re-entry paths —
+  lock-bound run and fresh `omega update` — are red until the submodule's
+  std pin and lock advance to a post-`32f5182254` revision; that edit is
+  inside `samples/apps/squalr`, wholesale-fenced at this verification
+  (GEOMETRY-ALIGNMENT-REGIONS, exp 01:18Z).
   Verified-scope audit (z105, origin/main `e8bbe9fcc0`): the geometry lane's
   authored evidence is complete on one host — submodule TASKS records all 12
   authored geometry checks passing on macOS ARM64 at app `4b1f7a6` with std
