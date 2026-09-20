@@ -564,7 +564,7 @@ fn write_only_store_without_declared_destination_rejects() {
 }
 
 #[test]
-fn runtime_indexed_store_rejects_as_unsupported() {
+fn runtime_indexed_store_without_declared_destination_rejects() {
     let operation = op(
         1,
         OperationResult::Unit,
@@ -583,7 +583,7 @@ fn runtime_indexed_store_rejects_as_unsupported() {
     )]);
     assert_eq!(
         reject(&module),
-        LoweringError::UnsupportedIndexedPrimitiveStore(OperationId::new(1).unwrap())
+        LoweringError::InvalidWriteOnlyPrimitiveStore(OperationId::new(1).unwrap())
     );
 }
 

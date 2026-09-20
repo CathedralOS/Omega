@@ -37,6 +37,11 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
+        // The runtime selector and the stored value are both scalar uses.
+        O::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
+            replace(&mut index.value);
+            replace(&mut value.value);
+        }
         O::Call { arguments, .. }
         | O::CallStructural { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }

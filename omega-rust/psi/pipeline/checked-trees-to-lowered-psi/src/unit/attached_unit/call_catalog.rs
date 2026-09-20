@@ -49,6 +49,7 @@ pub(super) fn discover(
                     matches!(
                         operation,
                         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                     )
                 })
             {

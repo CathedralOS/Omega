@@ -182,12 +182,9 @@ fn validate_partial_moves(
                 let mut arm_plan =
                     borrowed_windows::ArmWindowPlan::new(program, statement, &facts.operators);
                 if !is_transition && arm_plan.has_frames() {
-                    for event in moves
-                        .iter()
-                        .filter(|event| {
-                            event_statement_index(event.source) == Some(statement_index)
-                        })
-                    {
+                    for event in moves.iter().filter(|event| {
+                        event_statement_index(event.source) == Some(statement_index)
+                    }) {
                         let path = segments.span_or_empty(event.segments);
                         if path.is_empty()
                             || move_event_is_production_target(program, state, event, path)
@@ -380,13 +377,13 @@ fn validate_partial_moves(
                                     );
                                 }
                             }
-                            Some(borrowed_windows::ArmWindowVerdict::Reject) => diagnostics.push(
-                                borrowed_windows::borrowed_transfer_diagnostic(
+                            Some(borrowed_windows::ArmWindowVerdict::Reject) => {
+                                diagnostics.push(borrowed_windows::borrowed_transfer_diagnostic(
                                     machine,
                                     state,
                                     event_statement_index(event.source).unwrap_or(0),
-                                ),
-                            ),
+                                ))
+                            }
                             Some(borrowed_windows::ArmWindowVerdict::DeadArm) => {}
                         }
                         continue;

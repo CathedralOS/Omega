@@ -155,9 +155,9 @@ fn open_range_token_use_rejects_instead_of_falling_back() {
     )
     .expect_err("an open range use has no implemented body supply");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("the range use omits its end")),
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("the range use omits its end")),
         "{diagnostics:?}"
     );
 }

@@ -101,6 +101,24 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             }
             encode_abstract_result(bytes, *value);
         }
+        O::WriteOnlyIndexedPrimitiveStore {
+            psi_operation,
+            destination,
+            path,
+            index,
+            value,
+            obligation,
+        } => {
+            // One tag regardless of path length: the runtime index is an
+            // operand, so an empty path legitimately names the root array.
+            bytes.u8(83);
+            bytes.id(*psi_operation);
+            encode_structural_parameter(bytes, destination);
+            encode_canonical_path(bytes, path);
+            encode_abstract_result(bytes, *index);
+            encode_abstract_result(bytes, *value);
+            bytes.id(*obligation);
+        }
         O::StructuralScalarFieldStore {
             psi_operation,
             destination,

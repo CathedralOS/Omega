@@ -258,14 +258,34 @@ pub(super) fn build_primitive_store_at(
         }
         None => (symbol, place.segments.clone()),
     };
-    let path = primitive_projection(program, machine, state, assignment.target, &segments)?;
+    // A trailing runtime index is an operand, not a path segment: it carries
+    // its retained bounds proof into a distinct checked operation. Literal
+    // tails keep the existing all-static projection.
+    let (path, index) = if matches!(segments.last(), Some(facts::PlaceSegment::Index { .. })) {
+        let (path, index) = primitive_indexed_tail(
+            program,
+            facts,
+            machine,
+            state,
+            statement_index,
+            assignment,
+            &segments,
+        )?;
+        (path, Some(index))
+    } else {
+        (
+            primitive_projection(program, machine, state, assignment.target, &segments)?,
+            None,
+        )
+    };
+    let whole = path.is_empty() && index.is_none();
     let (destination, primitive_type) = if let Some(local) = primitive_local_before(
         program,
         state,
         usize::try_from(statement_index).ok()?,
         symbol,
     ) {
-        if !path.is_empty() {
+        if !whole {
             return None;
         }
         (
@@ -283,7 +303,7 @@ pub(super) fn build_primitive_store_at(
                         .get(destination.position as usize)
                         .is_some_and(|parameter| parameter.symbol == symbol)
                 })?;
-        if (path.is_empty()
+        if (whole
             && (destination.is_self || destination.multiplicity != Multiplicity::Unrestricted))
             || destination.multiplicity == Multiplicity::Linear
             || !destination.qualifications.is_empty()
@@ -316,7 +336,7 @@ pub(super) fn build_primitive_store_at(
             language_semantics::ReferenceAccess::Shared => return None,
         };
         if destination.access != expected_access
-            || (path.is_empty()
+            || (whole
                 && !matches!(
                     program.type_reference_table.type_reference(*referee),
                     TypeReferenceNode::Named { .. }
@@ -328,7 +348,7 @@ pub(super) fn build_primitive_store_at(
             checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
-            program.primitive_type_reference(if path.is_empty() {
+            program.primitive_type_reference(if whole {
                 *referee
             } else {
                 validation::declared_place_type_raw(
@@ -370,12 +390,13 @@ pub(super) fn build_primitive_store_at(
         {
             return None;
         }
-        return Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        return Some(primitive_store_plan(
             statement_index,
             destination,
             path,
-            value: checked_trees::CheckedCallScalarArgument::Computation(root.root),
-        });
+            index,
+            checked_trees::CheckedCallScalarArgument::Computation(root.root),
+        ));
     }
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
@@ -384,7 +405,7 @@ pub(super) fn build_primitive_store_at(
     )?;
     if binding.expression != assignment.value
         || binding.destination
-            != if path.is_empty() {
+            != if whole {
                 authored_symbol
             } else {
                 SymbolHandle::invalid()
@@ -394,17 +415,47 @@ pub(super) fn build_primitive_store_at(
     {
         return None;
     }
-    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+    Some(primitive_store_plan(
         statement_index,
         destination,
         path,
-        value: checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
-    })
+        index,
+        checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
+    ))
+}
+
+/// The one checked operation for a primitive store: a retained runtime index
+/// selects the indexed variant, and a static or empty path keeps the literal
+/// operation.
+fn primitive_store_plan(
+    statement_index: u32,
+    destination: checked_trees::CheckedPrimitiveStoreDestination,
+    path: Vec<CheckedUnitStructuralPathSegment>,
+    index: Option<CheckedScalarExpression>,
+    value: checked_trees::CheckedCallScalarArgument,
+) -> CheckedUnitEffectOperationPlan {
+    match index {
+        Some(index) => CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+            statement_index,
+            destination,
+            path,
+            index,
+            value,
+        },
+        None => CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index,
+            destination,
+            path,
+            value,
+        },
+    }
 }
 
 /// Whole primitive storage and indexed primitive leaves use one operation.
 /// Field-only destinations retain their existing bounded-field write owner;
 /// an indexed leaf carries its real path, never an invented terminal field.
+/// Every segment here is literal; a trailing runtime index takes the
+/// `primitive_indexed_tail` route instead.
 fn primitive_projection(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -422,6 +473,160 @@ fn primitive_projection(
     {
         return None;
     }
+    static_index_chain(program, machine, state, expression)?;
+    primitive_leaf(program, machine, state, expression)?;
+    checked_unit_path(program, segments)
+}
+
+/// A trailing runtime index stays a scalar operand rather than a path
+/// segment. The retained `AssignmentIndex` binding must name this statement's
+/// authored selector, and the selector's closed integer entry range must
+/// discharge `0 <= index < extent` exactly. A literal index keeps the static
+/// route; a computed, mutable-carrier, or unproven selector keeps the
+/// rejection.
+fn primitive_indexed_tail(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    segments: &[facts::PlaceSegment],
+) -> Option<(
+    Vec<CheckedUnitStructuralPathSegment>,
+    CheckedScalarExpression,
+)> {
+    let facts::PlaceSegment::Index {
+        expression: index_expression,
+    } = segments.last()?
+    else {
+        return None;
+    };
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(assignment.target)
+    else {
+        return None;
+    };
+    if *index_expression != indexed.index
+        || !matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Name(_)
+        )
+        || !validation::place_has_builtin_coordinates(
+            program,
+            machine,
+            Some(state),
+            assignment.target,
+        )
+    {
+        return None;
+    }
+    // The collection chain keeps the same static-geometry contract as the
+    // literal route: every earlier selector is a proven literal or field.
+    static_index_chain(program, machine, state, indexed.collection)?;
+    let collection =
+        validation::declared_place_type_raw(program, machine, Some(state), indexed.collection)?;
+    let collection = validation::unwrapped_type_reference(program, collection)?;
+    let TypeReferenceNode::FixedArray {
+        length: typed_trees::types::FixedArrayLength::Literal(extent),
+        ..
+    } = program.type_reference_table.type_reference(collection)
+    else {
+        return None;
+    };
+    primitive_leaf(program, machine, state, assignment.target)?;
+    let index = proven_runtime_index(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        indexed.index,
+        *extent,
+    )?;
+    let path = checked_unit_path(program, &segments[..segments.len() - 1])?;
+    Some((path, index))
+}
+
+/// The checked proof a runtime array index stays in bounds: the retained
+/// `AssignmentIndex` expression must be this authored selector, resolved to
+/// one immutable scalar entry parameter whose closed integer entry range
+/// proves `0 <= index < extent`. Entry ranges live on the machine's entry
+/// state, so the proof applies only when the store runs there; every other
+/// shape keeps the rejection.
+fn proven_runtime_index(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    authored_index: typed_trees::expression::ExpressionHandle,
+    extent: usize,
+) -> Option<CheckedScalarExpression> {
+    if program.machine_states(machine).first()?.symbol != state.symbol {
+        return None;
+    }
+    let (binding, index) = facts.values.scalar_expressions.bound_expression_at(
+        state.symbol,
+        statement_index,
+        CheckedScalarExpressionRole::AssignmentIndex,
+    )?;
+    if binding.expression != authored_index {
+        return None;
+    }
+    let &CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    } = index
+    else {
+        return None;
+    };
+    // `CheckedScalarExpression::Parameter` positions skip erased primitive
+    // formals while the retained range roster counts every primitive
+    // parameter; translate through the authored parameter itself so both
+    // namespaces name one declared carrier.
+    let parameters = program.state_parameters(state);
+    let authored = parameters
+        .iter()
+        .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
+        .nth(position)?;
+    if program.primitive_type_reference(authored.type_reference) != Some(primitive_type) {
+        return None;
+    }
+    let authored_position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == authored.symbol)?;
+    let roster_position = parameters[..authored_position]
+        .iter()
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
+        .count();
+    let requirement = facts
+        .contract_plans
+        .for_machine(machine.symbol)?
+        .closed_scalar_values
+        .integer_entry_ranges()?
+        .iter()
+        .find(|requirement| {
+            requirement.position == roster_position && requirement.primitive_type == primitive_type
+        })?;
+    // A negative minimum fails `to_u64`, and the normalized inclusive maximum
+    // must fit strictly below the declared extent.
+    requirement.minimum.value_bignum()?.to_u64()?;
+    let maximum = requirement.maximum.value_bignum()?.to_u64()?;
+    (maximum < u64::try_from(extent).ok()?).then(|| index.clone())
+}
+
+/// Every selector in this expression chain is a proven literal index or a
+/// member; a runtime index never walks this loop.
+fn static_index_chain(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<()> {
     let mut cursor = expression;
     loop {
         match program.expression_table.expression(cursor) {
@@ -456,6 +661,17 @@ fn primitive_projection(
             _ => return None,
         }
     }
+    Some(())
+}
+
+/// The assignment leaf's declared type must be a named primitive, after the
+/// arithmetic-policy shell peel.
+fn primitive_leaf(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<PrimitiveType> {
     let mut leaf = validation::declared_place_type_raw(program, machine, Some(state), expression)?;
     // An arithmetic-policy shell (`i32 in Wrapping`) qualifies the element's
     // operations, not its storage identity, so it peels here like the primitive
@@ -485,7 +701,15 @@ fn primitive_projection(
     if name.as_str() != atom.symbol_name() {
         return None;
     }
-    program.primitive_type_reference(leaf)?;
+    program.primitive_type_reference(leaf)
+}
+
+/// Literal path segments keep their exact source identity; fields reject an
+/// erased or domain-constrained declaration.
+fn checked_unit_path(
+    program: &TypedTrees,
+    segments: &[facts::PlaceSegment],
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     segments
         .iter()
         .map(|segment| match segment {

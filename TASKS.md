@@ -2470,13 +2470,19 @@ Owners include
     control supplies the source; retain its encoding proof and exact source
     value through field-store planning, Terminal replay and native execution.
   - Runtime indexes. Terminal Psi has `WriteOnlyIndexedPrimitiveStore` with
-    verifier, codec and interpreter support. No Psi producer emits it, a
-    legacy fixture bounding the index to 0 through 3 still yields no plan,
-    and Omega rejects it
-    with `LoweringError::UnsupportedIndexedPrimitiveStore`
-    (`terminal-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs`)
-    because the abstract inventory has no runtime-index carrier or bounds
-    obligation.
+    verifier, codec and interpreter support. The producer now emits it when a
+    retained declared scalar range discharges `index < extent` — the checked
+    plan keeps the runtime selector as a `u64` operand beside the array path,
+    Terminal emission attaches the bounds obligation, and Omega's abstract
+    inventory carries `AbstractOperation::WriteOnlyIndexedPrimitiveStore`
+    through optimization mirrors (`indexed_stores::
+    declared_range_runtime_index_store_reaches_verified_abstract_inventory`).
+    Literal, out-of-range, computed and unranged indexes still fail closed.
+    The remaining hole is native target lowering:
+    `abstract-operations-to-target-operations` rejects the operation with
+    `LoweringError::UnsupportedWriteOnlyPrimitiveStore` until the
+    **PLACED-ACCESS-NATIVE-OPS** leg realizes parameter-address recovery,
+    element-width scaling and the proof-aware bounds step.
   - `&mut dyn` dispatch.
   - Computed IEEE stores: a source-selected floating operation, its result
     transport and an ordinary store, retaining format, selected occurrence and

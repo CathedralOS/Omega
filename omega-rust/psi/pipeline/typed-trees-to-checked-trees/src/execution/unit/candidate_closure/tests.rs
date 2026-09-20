@@ -551,6 +551,7 @@ fn retain_available_reference(
                     | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                    | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)

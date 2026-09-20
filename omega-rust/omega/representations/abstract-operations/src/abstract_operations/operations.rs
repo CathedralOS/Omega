@@ -149,6 +149,24 @@ pub enum AbstractOperation {
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         value: AbstractResult,
     },
+    /// One verifier-approved non-observing replacement of one primitive
+    /// element inside a declared fixed array beneath a mutable or write-only
+    /// structural parameter. `path` resolves from the destination root to the
+    /// fixed array itself; `index` is the exact dominating `u64` scalar
+    /// definition selecting the element and `obligation` certifies
+    /// `index < declared extent`. The complete parameter row keeps access,
+    /// multiplicity, nominal type, and signature position from being
+    /// reconstructed from physical ABI shape. The runtime index is an operand,
+    /// never a path segment. Target lowering must not realize this event
+    /// without a separate target address/width/store model.
+    WriteOnlyIndexedPrimitiveStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: AbstractResult,
+        value: AbstractResult,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// One verifier-approved scalar replacement at an exact field beneath a
     /// structural parameter root. The complete parameter row retains root
     /// authority, `path` and `field` retain the selected structural location,
