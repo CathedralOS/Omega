@@ -84,7 +84,14 @@ pub(super) fn transfer_statement_facts<'program>(
     sink: &mut dyn StatementTransferSink<'program>,
 ) {
     match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(binding) => {
+            for expression in [binding.receiver, binding.implementation_operand] {
+                if expression.is_valid() {
+                    sink.visit_expression(facts, expression);
+                }
+            }
+        }
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             sink.visit_expression(facts, assignment.target);
             sink.check_assignment_extent_window(facts, assignment);

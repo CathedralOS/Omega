@@ -527,7 +527,10 @@ pub(super) fn executable_statement_expression_roots(
                 }
             }
         }
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(binding) => {
+            roots.extend([binding.receiver, binding.implementation_operand]);
+        }
+        StatementNode::AssemblyFact(_) => {}
     }
     roots.retain(|expression| expression.is_valid());
     roots

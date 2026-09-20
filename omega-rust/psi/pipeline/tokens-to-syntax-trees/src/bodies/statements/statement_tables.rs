@@ -72,7 +72,7 @@ pub(crate) fn root_binding_declaration(
     }
     let invalid = || {
         ParseError::new(
-            "root-slot binding requires exactly one slot path and one implementation path",
+            "root-slot binding requires exactly one slot path and one implementation path or description expression",
         )
     };
     let [slot, implementation] = syntax_trees.expressions.expression_handles(call.arguments) else {
@@ -93,11 +93,12 @@ pub(crate) fn root_binding_declaration(
     };
     // A bare operand name may be a delegated `ProductEntryRef` place rather
     // than a product declaration path; keep its expression so name resolution
-    // can decide. Multi-member paths can only spell declarations and stay
-    // purely lexical.
+    // can decide. Non-name operands are ordinary description expressions;
+    // they have no product declaration path to fall back to. Multi-member
+    // declaration paths stay purely lexical.
     let described_operand = |handle: ExpressionHandle| {
         let ExpressionNode::Name(path) = syntax_trees.expressions.expression(handle) else {
-            return ExpressionHandle::invalid();
+            return handle;
         };
         let members = syntax_trees.expressions.identifier_path_members(*path);
         if members.len() == 1 && members[0].as_str() != "self" {
@@ -109,7 +110,14 @@ pub(crate) fn root_binding_declaration(
     Ok(Some(syntax_trees::statement::RootBinding {
         receiver: member.receiver,
         slot: operand(*slot)?,
-        implementation: operand(*implementation)?,
+        implementation: if matches!(
+            syntax_trees.expressions.expression(*implementation),
+            ExpressionNode::Name(_)
+        ) {
+            operand(*implementation)?
+        } else {
+            Box::default()
+        },
         implementation_operand: described_operand(*implementation),
         source_span: call.target.source_span(),
     }))

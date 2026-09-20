@@ -48,7 +48,20 @@ pub(crate) fn validate_struct_literal_fields(
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
-                    StatementNode::RootBinding(_) => {}
+                    StatementNode::RootBinding(binding) => {
+                        for expression in [binding.receiver, binding.implementation_operand] {
+                            if expression.is_valid() {
+                                scan_expression(
+                                    program,
+                                    machine,
+                                    state,
+                                    expression,
+                                    &empty,
+                                    diagnostics,
+                                );
+                            }
+                        }
+                    }
                     StatementNode::AssemblyFact(fact) => {
                         scan_expression(
                             program,

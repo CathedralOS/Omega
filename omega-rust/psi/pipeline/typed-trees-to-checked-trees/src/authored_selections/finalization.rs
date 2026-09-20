@@ -93,30 +93,18 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                     return Err(Diagnostic::error("root binding requires a compiler-issued &mut Build place; computed receiver results are not implemented")
                         .with_source_span(binding.source_span));
                 }
-                if binding.slot.is_empty() || binding.implementation.is_empty() {
-                    return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path")
+                if binding.slot.is_empty()
+                    || (binding.implementation.is_empty()
+                        && !binding.implementation_operand.is_valid())
+                {
+                    return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path or description expression")
                         .with_source_span(binding.source_span));
                 }
                 if binding.implementation_operand.is_valid() {
-                    let operand_place = crate::flow::canonical_place_from_expression_in_state(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        binding.implementation_operand,
-                    );
-                    if !operand_place.is_some_and(|place| {
-                        matches!(place.root, facts::PlaceRoot::Symbol(_))
-                            && place.segments.iter().all(|segment| {
-                                matches!(
-                                    segment,
-                                    facts::PlaceSegment::Field { .. }
-                                        | facts::PlaceSegment::FixedIndex { .. }
-                                )
-                            })
-                    }) {
-                        return Err(Diagnostic::error("delegated root binding requires a retained product-description place; computed description results are not implemented")
-                            .with_source_span(binding.source_span));
-                    }
+                    // Description expressions undergo the ordinary call,
+                    // effect and ownership checks. Their declared type is not
+                    // issuance authority: build evaluation still rejoins the
+                    // resulting value with this activation's issued entries.
                     let operand_type = crate::flow::expression_type_reference_in_state(
                         program,
                         state.symbol,

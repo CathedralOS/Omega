@@ -151,7 +151,20 @@ fn collect_statement_calls(
 ) {
     match statement {
         // Assembly contract facts are proof obligations, never runtime calls.
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => {}
+        StatementNode::RootBinding(binding) => {
+            for expression in [binding.receiver, binding.implementation_operand] {
+                if expression.is_valid() {
+                    collect_expression_calls(
+                        program,
+                        expression,
+                        statement_index,
+                        call_ordinal,
+                        calls,
+                    );
+                }
+            }
+        }
+        StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             collect_expression_calls(
                 program,
