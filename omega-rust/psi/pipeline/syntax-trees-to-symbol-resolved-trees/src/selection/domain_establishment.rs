@@ -314,24 +314,54 @@ fn type_reference_domain_symbols(
     program: &SymbolResolvedTrees,
     type_reference: &TypeReference,
 ) -> Vec<SymbolHandle> {
+    let mut domains = Vec::new();
+    collect_type_reference_domain_symbols(program, type_reference, &mut Vec::new(), &mut domains);
+    domains
+}
+
+/// A requirement result or external-root parameter "names" a domain when the
+/// qualification sits on the type itself or on an owned member position of a
+/// carrier it reaches: record fields, case payloads, and fixed-array elements
+/// all carry their declared constraints. The checked side grants those
+/// case-scoped positions the same way
+/// (`declared_owned_field_domain_identities`), so the authorization surface
+/// must traverse them here or `established by` can never route a sum result.
+fn collect_type_reference_domain_symbols(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+    ancestors: &mut Vec<SymbolHandle>,
+    domains: &mut Vec<SymbolHandle>,
+) {
     let constrained = match type_reference {
         TypeReference::Reference(reference) => {
-            return type_reference_domain_symbols(
+            collect_type_reference_domain_symbols(
                 program,
                 program.child_type_reference(reference.referee),
+                ancestors,
+                domains,
             );
+            return;
         }
         TypeReference::Constrained(constrained) => constrained,
-        TypeReference::FixedArray(_)
-        | TypeReference::Slice(_)
+        TypeReference::Named { symbol, .. } | TypeReference::SelfType { symbol } => {
+            collect_member_domain_symbols(program, *symbol, ancestors, domains);
+            return;
+        }
+        TypeReference::FixedArray(array) => {
+            collect_type_reference_domain_symbols(
+                program,
+                program.child_type_reference(array.element_type),
+                ancestors,
+                domains,
+            );
+            return;
+        }
+        TypeReference::Slice(_)
         | TypeReference::Generic(_)
         | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. }
-        | TypeReference::Named { .. }
-        | TypeReference::SelfType { .. }
-        | TypeReference::Unit => return Vec::new(),
+        | TypeReference::Unit => return,
     };
-    let mut domains = Vec::new();
     for constraint in program
         .tables
         .types
@@ -370,14 +400,55 @@ fn type_reference_domain_symbols(
             }
         }
     }
-    for inherited in
-        type_reference_domain_symbols(program, program.child_type_reference(constrained.base_type))
-    {
-        if !domains.contains(&inherited) {
-            domains.push(inherited);
+    collect_type_reference_domain_symbols(
+        program,
+        program.child_type_reference(constrained.base_type),
+        ancestors,
+        domains,
+    );
+}
+
+/// Domains declared on the owned member positions of a named carrier: record
+/// fields and case payload fields alike. A payload's qualification is
+/// conditional on its exact case, but for route authorization the question is
+/// only whether the domain is named anywhere on the carrier. Generic
+/// arguments are deliberately not consulted — instance member types resolve
+/// to their parameters at this stage, so an instantiated `Reply<T in D>`
+/// cannot serve as the declared authorization spelling.
+fn collect_member_domain_symbols(
+    program: &SymbolResolvedTrees,
+    data_symbol: SymbolHandle,
+    ancestors: &mut Vec<SymbolHandle>,
+    domains: &mut Vec<SymbolHandle>,
+) {
+    if ancestors.contains(&data_symbol) {
+        return;
+    }
+    let Some(data) = program
+        .data_definitions
+        .iter()
+        .find(|data| data.symbol == data_symbol)
+    else {
+        return;
+    };
+    ancestors.push(data_symbol);
+    for member in program.data_members(data.storage.members) {
+        let fields = match member {
+            symbol_resolved_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+            symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                program.data_payload_fields(variant.payload)
+            }
+        };
+        for field in fields {
+            collect_type_reference_domain_symbols(
+                program,
+                &field.type_reference,
+                ancestors,
+                domains,
+            );
         }
     }
-    domains
+    ancestors.pop();
 }
 
 fn ensured_result_domain_symbols(
