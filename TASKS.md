@@ -6516,7 +6516,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
   + `representations/abstract-operations` (read-only enumeration).
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — mined candidate; verify scope then implement.
-- **BASELINE-SERVICE-CARRIER-FAILURES** — mined candidate; verify scope then implement.
+- **BASELINE-SERVICE-CARRIER-FAILURES.** Mined candidate; scope verified at
+  `62c502f9f6` — the bare `Service<R>`-carrier family of
+  `known_baseline_failures.md`'s c2l attribution: 33 tests still spell
+  `console: Console` / `runtime: TaskRuntime` / `output: Output` in value
+  position and reject under `validate_no_bare_boundary_trait_values`
+  (32f5182254). Repairable leg (this slice): migrate the raw-pipeline
+  fixtures — `checked-trees-to-lowered-psi/src/tests/{attached_unit_cases,
+  composed_operand_catalogs{,/dynamic_unit}, composed_unit_nested_control,
+  dynamic_composed_unit, indexed_primitive_storage,
+  structural_control_cases}.rs` (21 bare spellings) and
+  `tests/unit_plan_omissions.rs` (4) — to the `&'s mut <boundary trait>`
+  receiver spelling per the 0e1977994b migration. Fixtures needing
+  service-activation semantics stay red until ENTRY-CONTENT-ROOTS'
+  receiver-lifecycle leg lands — recorded, not this row.
 - **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.
 - **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; verify scope then implement.
 - **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — names the
