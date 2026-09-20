@@ -127,6 +127,7 @@ pub(crate) fn collect_validated_quotient_formations(
 /// operation.
 pub(crate) fn reject_quotient_operation_requests(
     program: &TypedTrees,
+    termination: &dyn super::CheckedTerminationOracle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !program
@@ -160,8 +161,14 @@ pub(crate) fn reject_quotient_operation_requests(
             };
             planned_requests.push(result_root.request_expression);
             let operation = operation_name(request.kind);
-            match relation_plan::derive_direct_terminal_plan(program, machine, state, call, request)
-            {
+            match relation_plan::derive_direct_terminal_plan(
+                program,
+                termination,
+                machine,
+                state,
+                call,
+                request,
+            ) {
                 Ok(plan) => {
                     let congruence = &plan.theorem_evidence[0];
                     let representative_purity = relation_plan::pure_representative_effect(

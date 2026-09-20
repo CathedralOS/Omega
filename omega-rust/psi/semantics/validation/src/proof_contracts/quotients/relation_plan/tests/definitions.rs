@@ -128,8 +128,15 @@ fn define_correspondence_applies_closed_representative_type_substitution() {
         },
     );
 
-    let plan = derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request)
-        .expect("closed T := StaticType must instantiate the runtime telescope");
+    let plan = derive_direct_terminal_plan(
+        &program,
+        &program,
+        &Machine::default(),
+        &state,
+        &call,
+        &request,
+    )
+    .expect("closed T := StaticType must instantiate the runtime telescope");
     assert_eq!(
         plan.representative_precondition,
         Some(crate::proof_contracts::quotients::relation_plan::precondition::RepresentativePreconditionPartition {
@@ -215,7 +222,14 @@ fn define_runtime_correspondence_rejects_reordered_public_parameters() {
     request.kind = QuotientOperationKind::Define;
 
     assert_eq!(
-        derive_direct_terminal_plan(&program, &Machine::default(), &state, &call, &request,),
+        derive_direct_terminal_plan(
+            &program,
+            &program,
+            &Machine::default(),
+            &state,
+            &call,
+            &request,
+        ),
         Err(RelationPlanError::DefineArgumentOrderMismatch(0))
     );
 }
@@ -259,6 +273,7 @@ fn derived_direct_terminal_plan_remains_non_executable() {
     let mut diagnostics = Vec::new();
 
     crate::proof_contracts::quotients::formation_collection::reject_quotient_operation_requests(
+        &program,
         &program,
         &mut diagnostics,
     );
@@ -735,6 +750,7 @@ fn derived_immutable_alias_fallthrough_remains_non_executable() {
 
     crate::proof_contracts::quotients::formation_collection::reject_quotient_operation_requests(
         &program,
+        &program,
         &mut diagnostics,
     );
 
@@ -783,6 +799,7 @@ fn nonterminal_expression_request_cannot_claim_direct_result_flow() {
     let mut diagnostics = Vec::new();
 
     crate::proof_contracts::quotients::formation_collection::reject_quotient_operation_requests(
+        &program,
         &program,
         &mut diagnostics,
     );
@@ -1046,6 +1063,7 @@ fn rejected_two_argument_lift_reports_reconstructed_q_and_p_coordinates() {
 
     let mut diagnostics = Vec::new();
     crate::proof_contracts::quotients::formation_collection::reject_quotient_operation_requests(
+        &program,
         &program,
         &mut diagnostics,
     );

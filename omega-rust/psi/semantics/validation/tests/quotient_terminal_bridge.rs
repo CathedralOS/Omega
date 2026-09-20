@@ -8,7 +8,10 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees::TypedTrees;
-use validation::{extract_non_executable_quotient_correspondences, validate_program};
+use validation::{
+    admit_checked_quotient_requests, extract_non_executable_quotient_correspondences,
+    validate_program,
+};
 
 const TOTAL_DIRECT_DEFINE: &str = r#"
 use omega::language::core::relation;
@@ -716,5 +719,129 @@ fn an_admitted_closure_cannot_reach_a_representative_or_theorem_selection() {
     assert_mentions(
         &validation_messages(&program),
         "a selected theorem's transitive call closure reaches an admitted or boundary proof machine",
+    );
+}
+
+/// The checked stage's termination facts for the scratch program, as
+/// `build_check_facts` would record them once every proof machine and the
+/// requesting machine terminate unconditionally.
+fn checked_termination_proved(
+    program: &TypedTrees,
+) -> impl Fn(symbols::SymbolHandle) -> Option<language_semantics::TerminationGuarantee> + '_ {
+    move |machine| {
+        let name = program
+            .machines()
+            .iter()
+            .find(|candidate| candidate.symbol == machine)
+            .map(|candidate| candidate.name.as_str())?;
+        (name.starts_with("representative") || name.starts_with("admitted")).then(|| {
+            language_semantics::TerminationGuarantee::Terminates {
+                premises: Vec::new(),
+            }
+        })
+    }
+}
+
+fn admission_messages(
+    program: &TypedTrees,
+    termination: &dyn validation::CheckedTerminationOracle,
+) -> Vec<String> {
+    admit_checked_quotient_requests(program, termination)
+        .expect_err("the checked admission must refuse")
+        .iter()
+        .map(|diagnostic| diagnostic.message.clone())
+        .collect()
+}
+
+#[test]
+fn checked_admission_admits_the_unmodified_scratch_program_from_checked_termination() {
+    let source = format!(
+        "{TOTAL_DIRECT_DEFINE}\ndata Main {{\n}}\n\nmachine Main::main(&mut self) {{\n}}\n"
+    );
+    let program = try_lower_unmodified(&source).expect("the scratch program types");
+    assert!(program.machines().iter().all(|machine| matches!(
+        machine.termination_plan.checked_summary,
+        language_semantics::TerminationGuarantee::NoGuarantee
+    )));
+
+    // Answering from the typed summaries is what ordinary validation does
+    // today: the termination fence refuses.
+    let typed = admission_messages(&program, &program);
+    assert_mentions(&typed, "the termination fence");
+    assert_mentions(&typed, "the selected theorem termination fence");
+
+    // Answering from checked termination facts admits the batch.
+    admit_checked_quotient_requests(&program, &checked_termination_proved(&program))
+        .expect("checked termination admits the direct define");
+}
+
+#[test]
+fn checked_admission_keeps_every_non_extractable_batch_rejected() {
+    // No request: nothing to admit, nothing to refuse.
+    let plain = try_lower_unmodified("data Main {\n}\n\nmachine Main::main(&mut self) {\n}\n")
+        .expect("plain program types");
+    admit_checked_quotient_requests(&plain, &checked_termination_proved(&plain))
+        .expect("a program without requests admits trivially");
+
+    // A congruence-only lift has no canonical row even with proved termination.
+    let congruence_only = TOTAL_DIRECT_DEFINE.replace(
+        "Quotient::define<representative, representative_respects>(value)",
+        "Quotient::lift<representative, representative_respects>(value)",
+    );
+    let program = try_lower_unmodified(&congruence_only).expect("types");
+    let messages = admission_messages(&program, &checked_termination_proved(&program));
+    assert_mentions(
+        &messages,
+        "the proof-only bridge admits faithful `define` or direct transport-backed `lift` only",
+    );
+    assert!(
+        !messages
+            .iter()
+            .any(|message| message.contains("the termination fence")),
+        "checked termination is rendered into the refusal: {messages:#?}"
+    );
+
+    // All-or-nothing: an admitted define beside the congruence-only lift
+    // keeps both requests rejected.
+    let mixed = format!(
+        "{TOTAL_DIRECT_DEFINE}\n\nmachine unsupported(value: EquivalenceClass) -> EquivalenceClass {{\n    Quotient::lift<representative, representative_respects>(value)\n}}\n"
+    );
+    let program = try_lower_unmodified(&mixed).expect("types");
+    let messages = admission_messages(&program, &checked_termination_proved(&program));
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| message.starts_with("`Quotient::define`"))
+            .count(),
+        1,
+        "{messages:#?}"
+    );
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| message.starts_with("`Quotient::lift`"))
+            .count(),
+        1,
+        "{messages:#?}"
+    );
+
+    // A guarantee that carries progress premises is not unconditional.
+    let program = try_lower_unmodified(TOTAL_DIRECT_DEFINE).expect("types");
+    let conditional = |machine: symbols::SymbolHandle| {
+        checked_termination_proved(&program)(machine).map(|_| {
+            language_semantics::TerminationGuarantee::Terminates {
+                premises: vec![language_semantics::ProgressPremise {
+                    profile: language_semantics::SemanticDomainId(1),
+                    subject: language_semantics::ProgressSubject {
+                        root: machine,
+                        projections: Vec::new(),
+                    },
+                }],
+            }
+        })
+    };
+    assert_mentions(
+        &admission_messages(&program, &conditional),
+        "the termination fence",
     );
 }
