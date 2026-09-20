@@ -7232,7 +7232,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (exp 03:55Z), not this row. Sibling alias stubs:
   BETA-SEED-EXEC-HOST-REFUSAL (resolved), BETA-COMPILER-SEED-REFUSAL.
 - **BETA-SEED-EXEC-HOST-REFUSAL.** Resolved — re-mine of the landed Beta seed-refusal surface. The refusal leg exists: `tests/beta/compiler/reconstruction.sh`, `tests/beta/compiler/compiler-diamond.sh`, and `tools/bootstrap/beta/build.sh` each refuse exit 2 on hosts that cannot exec the selected container ("refuse rather than crash"), per the same landed host-degradation design recorded on sibling BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST (BETA-RECONSTRUCTION-REFUSAL). On Linux x86-64 the audited `alpha_x64_linux` seed IS executable, so the gates run their positive legs (`reconstruction.sh` re-ran green at tip — byte-identical Beta→Alpha tape). The refusal-on-unsupported-host side is host-gated by definition; no implementable slice remains here. Cluster: BETA-COMPILER-SEED-REFUSAL is the other alias stub; BETA-PE-SEED-REFUSAL owns the live `tests/beta/compiler` + `tools/bootstrap/beta` fence (exp 22:13Z).
-- **BOOTSTRAP-CHAIN-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
+- **BOOTSTRAP-CHAIN-NATIVE-EXECUTION.** Mined candidate; scope verified,
+  resolved — re-mines the native-execution leg already recorded on the
+  BETA-NATIVE-SELF-RECONSTRUCTION and BOOTSTRAP-HOST-COVERAGE rows. On
+  Linux x86-64 the audited `alpha_x64_linux` seed (landed `128ede9ec0`,
+  selected by `tools/bootstrap/alpha/seed_env.sh`) executes the whole
+  closed edge natively. Re-verified at `a51cb805cc1` (5m44s wall):
+  `sh tests/bootstrap/alpha-beta-edge.sh --edge` — Alpha container audit
+  green on all three committed seeds (pe/macho/elf valid, pristine hole
+  zeroed), foreign seeds refuse via `require_seed_execution_host`,
+  conformance 34/34, native bounds 78/78, Beta reconstruction
+  byte-identical, root audit 12,536-byte source → 52 assertions + 273
+  emitting items → 253 instructions + 160 table bytes → 1,773-byte tape,
+  word prefix 736 controls → "Alpha-to-Beta edge VERIFIED" exit 0;
+  `sh tools/bootstrap/check-chain-hygiene.sh` OK. The deeper rungs past
+  Beta — Gamma certificate production, the omega-parser/outcome/request/
+  executable gates, Omega-D and the omega0/omega tapes — are named items
+  on TASKS_BOOTSTRAP.md, and the Windows/macOS seed-execution legs are
+  host-bound under ALPHA-WINDOWS-CONFORMANCE / GAMMA-DERIVATION-CHECKER.
+  Every host-feasible leg on this box is green; no code slice remains.
 - **BOOTSTRAP-EPSILON-EVALUATOR** — mined candidate; verify scope then implement.
 - **BOOTSTRAP-HOST-COVERAGE** — mined candidate; host coverage recorded at `8734480a01` on linux x86-64, re-verified green at `bde84d1765` after the in-window bootstrap commits. Every host-feasible bootstrap gate passes with real seed execution: `tools/bootstrap/check-chain-hygiene.sh` OK; `tests/bootstrap/alpha-beta-edge.sh --edge` VERIFIED on the audited `alpha_x64_linux` seed (34/34 conformance, 78/78 native bounds, Beta reconstruction byte-identical, root audit 12,536→52+273→253 instructions, 736 word-prefix controls); all seven `*-identity.sh` gates stamp exactly and refuse corrupted/truncated inputs; `source-closure.sh` 4/4. The coverage already exists per-row on the bootstrap board — every remaining host-gated leg is a named item (ALPHA-WINDOWS-CONFORMANCE needs Windows x64; GAMMA-DERIVATION-CHECKER native acceptance needs Windows/macOS/QEMU; the omega-parser/outcome/request/executable gates are explicit slow gates). Nothing implementable remains on this host class; Windows/macOS legs stay host-gated to their owning items.
 - **BOOTSTRAP-OMEGA-D-COMPILER.** Scope verified 2026-09-20: this mined stub
