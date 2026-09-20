@@ -8077,7 +8077,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   and call-occurrence spans) belong to TRANSLATION-VALIDATION's named remaining
   work under DYNAMIC-CALL-OCCURRENCE-SPANS, not to access profiles.
 - **PHYSICAL-ENTRY-BRIDGES** — mined candidate; verify scope then implement.
-- **PHYSICAL-ENTRY-END-TO-END** — mined candidate; verify scope then implement.
+- **PHYSICAL-ENTRY-END-TO-END.** Mined candidate — resolved: the name
+  re-mines the "end-to-end physical entry" note in
+  `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an
+  entry does not claim that its native bridge has been installed"), which
+  the note itself assigns to ENTRY-CONTENT-ROOTS. Its acceptance leg now
+  passes natively on linux x86-64 at `cdee121ee9`:
+  `samples_with_documented_exit_run_correctly`
+  (`OMEGA_SAMPLE_RUNTIME_FILTER==cli__basics__number_guess`) compiles
+  number_guess — a published process with a `Service<Console>` receiver and
+  no test-supplied `self` — to a native artifact and runs it to its
+  documented exit 70. The intrinsic `Service<R>` cut also landed
+  (`f705cbdb5` admits carriers by exact closed identity; `Bound` is gone
+  from `core/service.omg`). The epic's remaining bullets — receiver
+  nominal-cleanup/completion occupancy and the per-host legs — stay with
+  ENTRY-CONTENT-ROOTS and are live-fenced this wave (program-entry-plan,
+  external-roots `ProgramLocalRootInstallationLedger`, image-emission
+  hosted_receiver). Sibling re-mine names on this surface:
+  PHYSICAL-ENTRY-BRIDGES, PHYSICAL-ACCESS-PROFILES.
 - **PIN-CONNECTED-PIPELINE-ROUTE** — mined candidate; verify scope then implement.
 - **PIPELINE-CRATE-SWEEP** — mined candidate; verify scope then implement.
 - **PIPELINE-DOC-LINK-DRIFT.** Resolved — the drift audit is landed and
