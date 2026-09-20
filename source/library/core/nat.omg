@@ -37,17 +37,29 @@ pub data Nat {
     case Succ(prev: Nat);
 }
 
-// Natural order and exact subtraction are ordinary proof-number operators.
-// `<=` is the public spelling of the structural order decided below;
-// subtraction is partial at formation, with its premise carried explicitly by
-// the operator contract. The total provider is the same recursive definition
-// as `Nat::saturating_sub`, but bare `-` can select it only after proving the
-// right operand no greater than the left.
-operator <= Nat::less_or_equal(left: Nat, right: Nat) -> bool;
+// Natural order and exact subtraction are ordinary proof-number operators
+// with declaration-owned bodies (OPERATOR-MACHINE-SUPPLY's machine
+// token-binding contract): each token-bound machine declaration owns both
+// the operator binding and its implementation, no separate `satisfies`
+// provider pair. `<=` is the public spelling of the structural order decided
+// below; subtraction is partial at formation, with its premise carried
+// explicitly by the machine's contract. The total provider is the same
+// recursive definition as `Nat::saturating_sub`, but bare `-` can select it
+// only after proving the right operand no greater than the left.
+machine <= Nat::less_or_equal(left: Nat, right: Nat) -> bool
+{
+    transition (saturating_sub(left, right)) {
+        Nat::Zero -> true
+        Nat::Succ { prev } -> false
+    }
+}
 
-operator - Nat::subtract(left: Nat, right: Nat) -> Nat
+machine - Nat::subtract(left: Nat, right: Nat) -> Nat
 requires
     right <= left;
+{
+    transition { _ -> (saturating_sub(left, right)) }
+}
 
 // N4 roster operations (2026-07-11): the Peano ring surface as ordinary
 // PROOF MACHINES -- free machines over proof-only data (machine-stratum
@@ -439,24 +451,11 @@ machine pred(a: Nat) -> Nat
 // from the exact operator above rather than silently routing bare `-` to
 // clamping.
 machine saturating_sub(a: Nat, b: Nat) -> Nat
-satisfies Nat::subtract
 terminates by b;
 {
     transition b {
         Nat::Zero -> (a)
         Nat::Succ { prev } -> (pred(saturating_sub(a, prev)))
-    }
-}
-
-// The structural decision procedure behind the public order operator. This
-// machine remains proof-only because both operands are recursive Nat data; it
-// contributes no runtime representation or primitive integer fallback.
-machine less_or_equal(a: Nat, b: Nat) -> bool
-satisfies Nat::less_or_equal
-{
-    transition (saturating_sub(a, b)) {
-        Nat::Zero -> true
-        Nat::Succ { prev } -> false
     }
 }
 
