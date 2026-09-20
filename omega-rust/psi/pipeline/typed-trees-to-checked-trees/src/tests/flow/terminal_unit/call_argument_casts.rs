@@ -95,25 +95,26 @@ fn nested_receiver_call_with_payload_bounded_exact_cast_argument_plans() {
     }
 }
 
-// Exact narrowing needs positive evidence that the value fits
-// (counts_and_addresses.md); an unbounded `i32` field carries none, so the
-// call argument has no computation and the machine keeps its omission.
+// Exact narrowing needs positive evidence that the value fits. An unbounded
+// input must fail source checking, before Unit planning is considered.
 #[test]
-fn exact_cast_argument_without_positive_evidence_stays_omitted() {
-    let (planned, omission) = composed_plan_exists(&entry_source(
+fn exact_cast_argument_without_positive_evidence_rejects_during_checking() {
+    let source = entry_source(
         "transition { _ -> retain(self.raw) }",
         "value: i32",
         "self.lexer.append_source_byte(value as u8)",
-    ));
-    assert!(!planned);
-    assert!(matches!(
-        omission,
-        Some(
-            checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-                phase: "statement sequence: call: call operation",
-                state_index: Some(1),
-                statement_index: Some(0),
-            }
-        )
-    ));
+    );
+    let tokens = super::Lexer::new(&source).tokenize().expect("tokenize");
+    let syntax = super::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = super::resolve(super::ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = super::lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = crate::lower_typed_trees(typed)
+        .expect_err("unproven narrowing is a checking error, not a Unit omission");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("Exact integer cast")
+                && diagnostic.message.contains("not provably representable")
+        }),
+        "{diagnostics:?}"
+    );
 }

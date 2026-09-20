@@ -5044,14 +5044,6 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
     checked result or artifact; `compiler/tests/alpha_profile_selection.rs`
     pins all three through `compiler::compile`. Rust Alpha emission stays
     out of scope.
-  - Exact narrowing with no positive evidence. Checking accepts
-    `self.lexer.append_source_byte(value as u8)` where `value` is an unbounded
-    `i32` field, contrary to
-    [counts and addresses](wiki/spec/language/counts_and_addresses.md); only
-    the Unit builder refuses it, pinned by
-    `typed-trees-to-checked-trees/src/tests/flow/terminal_unit/call_argument_casts.rs`
-    (`exact_cast_argument_without_positive_evidence_stays_omitted`). The repair
-    belongs in checking.
   - Std name shadowing. A user declaration spelled like a std one (`ByteRead`,
     `Lexer`) makes std's own machines fail checking: `read_line`'s `store`
     overflow and `MacosArm64::extent_shape`'s range. The three red
