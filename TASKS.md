@@ -5967,7 +5967,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   was held by BENCHMARK-COMPARISON-OCCURRENCE-GATE until
   2026-09-20T22:09:59Z during the z57 leg — records commit under it.
 - **BENCHMARK-COMPILE-ONLY-SUBJECTS** — mined candidate; verify scope then implement.
-- **BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES** — mined candidate; verify scope then implement.
+- **BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES.** Resolved — re-mines
+  the producer fix named in BENCHMARK-COMPILE-ONLY-ROWS: the integer
+  comparison-occurrence rejection that blocked benchmark subject compiles
+  after e48558bd41 ("unify direct call result custody") was repaired at
+  76dc49a99e ("distinguish selected comparison custody from builtin
+  operations"). `compilation-report`'s `terminal_product::integer_comparisons`
+  now counts selected integer occurrences only against the artifact-bound
+  checked scope — ordinary builtin comparisons and generated guards need no
+  provider row, and explicit `BooleanNot` consumers no longer turn selected
+  equality into selected inequality. Independent witness on Linux x86-64 at
+  6b610300e8: `cargo nextest run -p compiler --test
+  integer_comparison_publication` —
+  `selected_comparison_publication_preserves_complete_custody_among_builtins`
+  PASS (19.8s). The downstream evidence lives in the sibling row:
+  `wrapping_square_sum` compiles and publishes on windows_x86_64,
+  macos_arm64 and linux_arm64 at f2f39039da. Sibling re-mines of the same
+  resolution: BENCHMARK-COMPARISON-OCCURRENCE-GATE,
+  BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE,
+  COMPARISON-OCCURRENCE-PRODUCER-COVERAGE, and the
+  INTEGER-COMPARISON-OCCURRENCE-* family — the residual surface they name
+  (provider coverage for genuinely selected occurrences, std-wide
+  verification) is what the publication test pins.
 - **BENCHMARK-CROSS-HOST-ROWS** — mined candidate; verify scope then implement.
   Verified scope: re-mines the host-row matrix's runtime legs in
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md#host-row-matrix) —
