@@ -1,0 +1,10 @@
+// A declaration for (Wrapped, Wrapped) cannot supply (Wrapped, u64).
+data Wrapped { value: u8; }
+
+machine + Wrapped::add(left: Wrapped, right: Wrapped) -> u64 {
+    7u64
+}
+
+machine combine(left: Wrapped, right: u64) -> u64 {
+    left + right
+}

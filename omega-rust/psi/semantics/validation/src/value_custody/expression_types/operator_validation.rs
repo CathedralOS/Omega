@@ -358,16 +358,12 @@ fn binary_operator_spelling(
     })
 }
 
-/// Reject an arithmetic / ordering operator on a STRUCT operand for which no
-/// operator with that spelling is DECLARED (`self.a + self.b` for a plain
-/// `data P {}` lowered to a garbage byte op). A struct's only such operators are
-/// DOMAIN operators (`operator + Quantity::Additive::add ...`),
-/// so we ask the use-site authority `resolve_spelling`: an EMPTY candidate set for
-/// a concrete-data receiver means the operator is undeclared. Scalars (intrinsic
-/// builtins) and arrays are not concrete-data receivers, so they are untouched;
-/// when candidates DO exist, admissibility (the proof context) is enforced
-/// downstream from static binding selections, so a valid domain op
-/// (`Quantity + Quantity`) is never rejected.
+/// A concrete data operand requires a declared meaning for the complete tuple.
+/// A candidate sharing only the first operand cannot authorize the other
+/// operand's builtin arithmetic path. Preserve reference and domain shells for
+/// selection; unwrapping is only for detecting that an operand is a data type.
+/// Unknown expression types remain unknown to the shared candidate resolver.
+/// Admissibility and executable supply still belong to the checked selection.
 fn report_undeclared_struct_operator(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -380,21 +376,23 @@ fn report_undeclared_struct_operator(
     let Some(spelling) = binary_operator_spelling(operator) else {
         return false;
     };
-    let Some(receiver_type) =
-        crate::value_custody::places::declared_place_type(program, machine, state, left)
+    let operand_types = [left, right].map(|operand| {
+        state.and_then(|state| {
+            super::result_type::expression_result_type_reference(program, machine, state, operand)
+        })
+    });
+    let Some(type_name) = operand_types
+        .iter()
+        .flatten()
+        .find_map(|reference| concrete_data_type_name(program, *reference))
     else {
         return false;
     };
-    let Some(type_name) = concrete_data_type_name(program, receiver_type) else {
-        return false;
-    };
-    if !typed_trees::operator::resolve_spelling(program, spelling, Some(receiver_type)).is_empty() {
+    if !typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types)
+        .is_empty()
+    {
         return false;
     }
-    let operand_types = [
-        Some(receiver_type),
-        crate::value_custody::places::declared_place_type(program, machine, state, right),
-    ];
     if !typed_trees::operator::selected_trait_operator_meanings(
         program,
         machine.symbol,
@@ -407,8 +405,8 @@ fn report_undeclared_struct_operator(
     }
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}` applies `{operator:?}` to a `{type_name}` value, but no such \
-         operator is declared for it -- only `==`/`!=` (via `{type_name} satisfies Equatable`) \
-         or a top-level `operator {type_name}::Domain::name ...` meaning operates on a data type",
+         operator is declared for these operand types; declare a matching token-bearing \
+         machine or select its declared trait meaning",
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
     )));
