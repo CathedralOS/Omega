@@ -5,6 +5,7 @@ mod candidate;
 mod compare;
 mod decision;
 pub(crate) mod reconstruction;
+mod restricted_build_grants;
 mod symbolic_boundary_applications;
 
 pub(crate) use candidate::{
@@ -58,6 +59,9 @@ pub use reconstruction::{
     FreshPackageRootPolicyError, LocallyComposedPackageObligationEntry,
     LocallyComposedPackageObligationResults, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
     bind_fresh_package_root_policy,
+};
+pub use restricted_build_grants::{
+    UngrantedRestrictedBuildRequest, ungranted_restricted_build_requests,
 };
 pub use symbolic_boundary_applications::{
     ClosedSuppliedBoundaryApplicationDemand, ClosedSuppliedBoundaryApplicationDemands,

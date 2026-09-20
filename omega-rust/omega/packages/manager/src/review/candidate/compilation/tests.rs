@@ -149,7 +149,7 @@ fn check_retains_requested_package_entry_after_disposal_without_production() {
         .unwrap()
         .join("entry.omg");
     let build = fixture.0.join("check");
-    let checked = compile_resolved_package_candidate_for_check(
+    let (checked, _reviews) = compile_resolved_package_candidate_for_check(
         &closure.for_exact_target(target),
         &build,
         &entry,

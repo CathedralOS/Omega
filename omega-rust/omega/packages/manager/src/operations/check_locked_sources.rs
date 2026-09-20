@@ -9,6 +9,7 @@ use crate::resolution::graph::{PackageRootSourceRequest, ResolvedPackageSourceCl
 use crate::review::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet,
     LockedPolicyComparisonError, compare_locked_package_policies, compile_resolved_package_reviews,
+    ungranted_restricted_build_requests,
 };
 use package_source::SourceResolverStorage;
 use std::fmt;
@@ -65,6 +66,8 @@ impl<'lock> CheckedLockedSources<'lock> {
 pub enum CheckLockedSourcesError {
     Recovery(RecoverLockedSourcesError),
     Compilation(CompileResolvedPackageReviewsError),
+    GrantJoin(crate::lock::PackageLockError),
+    UngrantedRestrictedBuild(Vec<crate::review::UngrantedRestrictedBuildRequest>),
     Comparison(LockedPolicyComparisonError),
 }
 
@@ -77,6 +80,22 @@ impl fmt::Display for CheckLockedSourcesError {
                     formatter,
                     "fresh checking of locked sources failed: {error}"
                 )
+            }
+            Self::GrantJoin(error) => {
+                write!(
+                    formatter,
+                    "cannot project fresh package policy for the restricted build grant join: {error}"
+                )
+            }
+            Self::UngrantedRestrictedBuild(ungranted) => {
+                writeln!(
+                    formatter,
+                    "fresh checking projects restricted build authority the accepted lock policy does not grant:"
+                )?;
+                for gap in ungranted {
+                    writeln!(formatter, "  {gap}")?;
+                }
+                Ok(())
             }
             Self::Comparison(error) => {
                 write!(
@@ -93,6 +112,8 @@ impl std::error::Error for CheckLockedSourcesError {
         match self {
             Self::Recovery(error) => Some(error),
             Self::Compilation(error) => Some(error),
+            Self::GrantJoin(error) => Some(error),
+            Self::UngrantedRestrictedBuild(_) => None,
             Self::Comparison(error) => Some(error),
         }
     }
@@ -129,6 +150,14 @@ pub fn check_locked_sources<'lock>(
         SemanticBindingReview::Discover,
     )
     .map_err(CheckLockedSourcesError::Compilation)?;
+    // Locked-source checking is an executor of the accepted policy, not a
+    // review: a projected restricted build request the accepted rows do not
+    // grant rejects the recovered compile before its results are consumed.
+    let ungranted = ungranted_restricted_build_requests(accepted, &reviews)
+        .map_err(CheckLockedSourcesError::GrantJoin)?;
+    if !ungranted.is_empty() {
+        return Err(CheckLockedSourcesError::UngrantedRestrictedBuild(ungranted));
+    }
     let changed_policies = compare_locked_package_policies(accepted, &reviews)
         .map_err(CheckLockedSourcesError::Comparison)?;
     Ok(CheckedLockedSources {

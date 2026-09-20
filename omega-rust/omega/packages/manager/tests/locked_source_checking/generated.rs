@@ -6,7 +6,7 @@ use super::{
 use package_manager::resolution::graph::resolve_workspace_project_closure;
 use package_source::{SourceLineage, SourceRelativePath};
 
-fn generated_workspace(
+pub(super) fn generated_workspace(
     tree: &Tree,
     storage: &SourceResolverStorage,
 ) -> ResolvedPackageSourceClosure {

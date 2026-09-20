@@ -186,13 +186,18 @@ pub fn compile_resolved_package_candidate_for_production(
 }
 
 /// CHECK accepts either project role and preserves the requested entry through
-/// discovery and final binding, without entering production.
+/// discovery and final binding, without entering production. The occurrence
+/// reviews return beside the checked root: an executor of the accepted policy
+/// needs them for the restricted-build grant join.
 pub(crate) fn compile_resolved_package_candidate_for_check(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     entry_path: &Path,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-) -> Result<compiler::CheckedCompilation, CompileResolvedPackageReviewsError> {
+) -> Result<
+    (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
+    CompileResolvedPackageReviewsError,
+> {
     let compiled = compile_candidate(
         target_closure,
         build_root,
@@ -201,9 +206,12 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
         root_build_snapshot,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )?;
-    compiled
-        .checked_root
-        .map(|checked| *checked)
+    let CompiledPackageReviews {
+        reviews,
+        checked_root,
+    } = compiled;
+    checked_root
+        .map(|checked| (*checked, reviews))
         .ok_or_else(|| CompileResolvedPackageReviewsError::IdentityMismatch {
             package: target_closure.source_closure().graph().root().clone(),
         })
