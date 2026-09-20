@@ -1655,13 +1655,17 @@ Owners include
     `utf8_equals_literal_exit` already fail in this closure's custody
     gates at base, so the equality frontier is shared, not
     decimal-specific.
-  - Lowering still gives a live scalar call result only a `Return` or
-    `LocalInitializer` role in `emission/call_source_custody.rs`, so a store
-    consuming its own statement's call result has no authored destination
-    there. `filesystem/native_close` stops at that point. The checked-stage
-    half exists (`structural_scalar_store/tests/call_results.rs`).
-    **MATCH-SELECTIVE-LOWERING** works the same `values/scalar` and emission
-    paths; check the claims registry first.
+  - The same-statement store's lowering custody landed at 31945fb9066 and is
+    pinned by `emission/call_source_custody/tests.rs`, whose invalid control
+    keeps a bounded destination refusing an unproved call result. Note that
+    the checked-only canary roster does not reach this crate: registering a
+    fixture there pins its checked semantics only, and disabling the arm
+    leaves those canaries green, so a crate-level test is what exercises a
+    lowering repair. `filesystem/native_close` is registered there and now
+    compiles; its remaining stop is the entry-side `FilesystemHost`
+    fused-provider selection shared by the whole `filesystem/native_*`
+    family, owned by **ENTRY-CONTENT-ROOTS**, which does not reach this
+    crate.
   - Indexed byte-field writes need composed cyclic-Unit and customer closure
     coverage. Reuse the ordinary native bounded-field store and exact
     live-length replay, not a new byte-view adapter.
