@@ -129,23 +129,39 @@ impl ProofOnlyClassification {
                 .iter()
                 .find(|definition| definition.name.as_str() == attached.as_str())
                 .is_some_and(|definition| self.is_proof_only(definition.symbol));
-            return attached_is_proof_only
-                && program.machine_states(machine).iter().all(|state| {
-                    program
-                        .state_parameters(state)
-                        .iter()
-                        .find(|parameter| parameter.is_self)
-                        .is_some_and(|receiver| {
-                            !receiver.is_mutable
-                                && receiver.type_reference.is_valid()
-                                && !matches!(
-                                    program
-                                        .type_reference_table
-                                        .type_reference(receiver.type_reference),
-                                    TypeReferenceNode::Reference { .. }
-                                )
-                        })
-                });
+            let has_receiver = program.machine_states(machine).iter().any(|state| {
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .any(|parameter| parameter.is_self)
+            });
+            if !has_receiver {
+                // A static-style attached operation carries no receiver to
+                // fence (`machine - Nat::subtract(left, right)`): whether it
+                // is proof-side is decided by the ordinary signature rule
+                // below, exactly like a free machine over the same data.
+                if !attached_is_proof_only {
+                    return false;
+                }
+            } else {
+                return attached_is_proof_only
+                    && program.machine_states(machine).iter().all(|state| {
+                        program
+                            .state_parameters(state)
+                            .iter()
+                            .find(|parameter| parameter.is_self)
+                            .is_some_and(|receiver| {
+                                !receiver.is_mutable
+                                    && receiver.type_reference.is_valid()
+                                    && !matches!(
+                                        program
+                                            .type_reference_table
+                                            .type_reference(receiver.type_reference),
+                                        TypeReferenceNode::Reference { .. }
+                                    )
+                            })
+                    });
+            }
         }
         // Erased parameters and locals are proof-side occurrences: a
         // proof-only type there does not turn the machine into a computed

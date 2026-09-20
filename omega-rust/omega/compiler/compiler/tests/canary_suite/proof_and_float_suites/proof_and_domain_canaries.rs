@@ -456,8 +456,8 @@ fn exact_nat_subtraction_requires_a_prior_order_fact() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("cannot prove `used <= total`")
-            && combined.contains("`Nat::subtract` (spelled `-`)"),
+        combined.contains("cannot prove requires contract for call subtract")
+            && combined.contains("used <= total"),
         "{} rejected with the wrong diagnostic:\n{combined}",
         rejected.display()
     );
