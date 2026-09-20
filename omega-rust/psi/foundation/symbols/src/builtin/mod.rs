@@ -227,6 +227,27 @@ pub enum BuiltinFunction {
     AsmInstructionSyncBarrier,
     AsmSpinPause,
     AsmYieldHint,
+    /// AArch64 system-register access (`asm { read_sctlr_el1 dst }` /
+    /// `asm { write_sctlr_el1 src }` lowers to `mrs`/`msr`): each reaches the
+    /// canonical `MachineControl` service and requires machine-owner
+    /// authority. Syndrome registers (ESR/FAR) are read-only in the catalog.
+    /// Unnameable from source (see AsmHlt).
+    AsmReadSctlrEl1,
+    AsmReadTcrEl1,
+    AsmReadTtbr0El1,
+    AsmReadTtbr1El1,
+    AsmReadMairEl1,
+    AsmReadVbarEl1,
+    AsmReadTpidrEl1,
+    AsmReadEsrEl1,
+    AsmReadFarEl1,
+    AsmWriteSctlrEl1,
+    AsmWriteTcrEl1,
+    AsmWriteTtbr0El1,
+    AsmWriteTtbr1El1,
+    AsmWriteMairEl1,
+    AsmWriteVbarEl1,
+    AsmWriteTpidrEl1,
     /// Internal unary predicate used only by selected named-float plans. The
     /// `#` keeps it unnameable from source during the provider migration.
     FloatIsNan,
@@ -297,7 +318,7 @@ pub enum BuiltinFunction {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 76;
+    pub const COUNT: usize = 92;
 
     pub const ALL: [Self; Self::COUNT] = [
         Self::Max,
@@ -376,6 +397,22 @@ impl BuiltinFunction {
         Self::AsmInstructionSyncBarrier,
         Self::AsmSpinPause,
         Self::AsmYieldHint,
+        Self::AsmReadSctlrEl1,
+        Self::AsmReadTcrEl1,
+        Self::AsmReadTtbr0El1,
+        Self::AsmReadTtbr1El1,
+        Self::AsmReadMairEl1,
+        Self::AsmReadVbarEl1,
+        Self::AsmReadTpidrEl1,
+        Self::AsmReadEsrEl1,
+        Self::AsmReadFarEl1,
+        Self::AsmWriteSctlrEl1,
+        Self::AsmWriteTcrEl1,
+        Self::AsmWriteTtbr0El1,
+        Self::AsmWriteTtbr1El1,
+        Self::AsmWriteMairEl1,
+        Self::AsmWriteVbarEl1,
+        Self::AsmWriteTpidrEl1,
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -406,6 +443,22 @@ impl BuiltinFunction {
             Self::AsmWriteCr0 => "asm#write_cr0",
             Self::AsmWriteCr3 => "asm#write_cr3",
             Self::AsmWriteCr4 => "asm#write_cr4",
+            Self::AsmReadSctlrEl1 => "asm#read_sctlr_el1",
+            Self::AsmReadTcrEl1 => "asm#read_tcr_el1",
+            Self::AsmReadTtbr0El1 => "asm#read_ttbr0_el1",
+            Self::AsmReadTtbr1El1 => "asm#read_ttbr1_el1",
+            Self::AsmReadMairEl1 => "asm#read_mair_el1",
+            Self::AsmReadVbarEl1 => "asm#read_vbar_el1",
+            Self::AsmReadTpidrEl1 => "asm#read_tpidr_el1",
+            Self::AsmReadEsrEl1 => "asm#read_esr_el1",
+            Self::AsmReadFarEl1 => "asm#read_far_el1",
+            Self::AsmWriteSctlrEl1 => "asm#write_sctlr_el1",
+            Self::AsmWriteTcrEl1 => "asm#write_tcr_el1",
+            Self::AsmWriteTtbr0El1 => "asm#write_ttbr0_el1",
+            Self::AsmWriteTtbr1El1 => "asm#write_ttbr1_el1",
+            Self::AsmWriteMairEl1 => "asm#write_mair_el1",
+            Self::AsmWriteVbarEl1 => "asm#write_vbar_el1",
+            Self::AsmWriteTpidrEl1 => "asm#write_tpidr_el1",
             Self::AsmSerialize => "asm#serialize",
             Self::AsmInstructionSyncBarrier => "asm#isb",
             Self::AsmSpinPause => "asm#pause",
@@ -549,6 +602,22 @@ impl BuiltinFunction {
             Self::AsmInstructionSyncBarrier => 73,
             Self::AsmSpinPause => 74,
             Self::AsmYieldHint => 75,
+            Self::AsmReadSctlrEl1 => 76,
+            Self::AsmReadTcrEl1 => 77,
+            Self::AsmReadTtbr0El1 => 78,
+            Self::AsmReadTtbr1El1 => 79,
+            Self::AsmReadMairEl1 => 80,
+            Self::AsmReadVbarEl1 => 81,
+            Self::AsmReadTpidrEl1 => 82,
+            Self::AsmReadEsrEl1 => 83,
+            Self::AsmReadFarEl1 => 84,
+            Self::AsmWriteSctlrEl1 => 85,
+            Self::AsmWriteTcrEl1 => 86,
+            Self::AsmWriteTtbr0El1 => 87,
+            Self::AsmWriteTtbr1El1 => 88,
+            Self::AsmWriteMairEl1 => 89,
+            Self::AsmWriteVbarEl1 => 90,
+            Self::AsmWriteTpidrEl1 => 91,
         }
     }
 
@@ -570,7 +639,23 @@ impl BuiltinFunction {
             | Self::AsmReadCr4
             | Self::AsmWriteCr0
             | Self::AsmWriteCr3
-            | Self::AsmWriteCr4 => Some("MachineControl"),
+            | Self::AsmWriteCr4
+            | Self::AsmReadSctlrEl1
+            | Self::AsmReadTcrEl1
+            | Self::AsmReadTtbr0El1
+            | Self::AsmReadTtbr1El1
+            | Self::AsmReadMairEl1
+            | Self::AsmReadVbarEl1
+            | Self::AsmReadTpidrEl1
+            | Self::AsmReadEsrEl1
+            | Self::AsmReadFarEl1
+            | Self::AsmWriteSctlrEl1
+            | Self::AsmWriteTcrEl1
+            | Self::AsmWriteTtbr0El1
+            | Self::AsmWriteTtbr1El1
+            | Self::AsmWriteMairEl1
+            | Self::AsmWriteVbarEl1
+            | Self::AsmWriteTpidrEl1 => Some("MachineControl"),
             Self::AsmPortOut | Self::AsmPortIn => Some("PortIo"),
             Self::Max
             | Self::Min
@@ -713,6 +798,22 @@ impl BuiltinFunction {
             | Self::AsmWriteCr0
             | Self::AsmWriteCr3
             | Self::AsmWriteCr4
+            | Self::AsmReadSctlrEl1
+            | Self::AsmReadTcrEl1
+            | Self::AsmReadTtbr0El1
+            | Self::AsmReadTtbr1El1
+            | Self::AsmReadMairEl1
+            | Self::AsmReadVbarEl1
+            | Self::AsmReadTpidrEl1
+            | Self::AsmReadEsrEl1
+            | Self::AsmReadFarEl1
+            | Self::AsmWriteSctlrEl1
+            | Self::AsmWriteTcrEl1
+            | Self::AsmWriteTtbr0El1
+            | Self::AsmWriteTtbr1El1
+            | Self::AsmWriteMairEl1
+            | Self::AsmWriteVbarEl1
+            | Self::AsmWriteTpidrEl1
             | Self::AsmSerialize
             | Self::AsmInstructionSyncBarrier
             | Self::AsmSpinPause
@@ -749,10 +850,26 @@ impl BuiltinFunction {
                 | Self::AsmInstructionSyncBarrier
                 | Self::AsmSpinPause
                 | Self::AsmYieldHint
+                | Self::AsmReadSctlrEl1
+                | Self::AsmReadTcrEl1
+                | Self::AsmReadTtbr0El1
+                | Self::AsmReadTtbr1El1
+                | Self::AsmReadMairEl1
+                | Self::AsmReadVbarEl1
+                | Self::AsmReadTpidrEl1
+                | Self::AsmReadEsrEl1
+                | Self::AsmReadFarEl1
+                | Self::AsmWriteSctlrEl1
+                | Self::AsmWriteTcrEl1
+                | Self::AsmWriteTtbr0El1
+                | Self::AsmWriteTtbr1El1
+                | Self::AsmWriteMairEl1
+                | Self::AsmWriteVbarEl1
+                | Self::AsmWriteTpidrEl1
         )
     }
 
-    pub fn asm_intrinsics() -> [Self; 23] {
+    pub fn asm_intrinsics() -> [Self; 39] {
         [
             Self::AsmHlt,
             Self::AsmPortOut,
@@ -777,6 +894,22 @@ impl BuiltinFunction {
             Self::AsmInstructionSyncBarrier,
             Self::AsmSpinPause,
             Self::AsmYieldHint,
+            Self::AsmReadSctlrEl1,
+            Self::AsmReadTcrEl1,
+            Self::AsmReadTtbr0El1,
+            Self::AsmReadTtbr1El1,
+            Self::AsmReadMairEl1,
+            Self::AsmReadVbarEl1,
+            Self::AsmReadTpidrEl1,
+            Self::AsmReadEsrEl1,
+            Self::AsmReadFarEl1,
+            Self::AsmWriteSctlrEl1,
+            Self::AsmWriteTcrEl1,
+            Self::AsmWriteTtbr0El1,
+            Self::AsmWriteTtbr1El1,
+            Self::AsmWriteMairEl1,
+            Self::AsmWriteVbarEl1,
+            Self::AsmWriteTpidrEl1,
         ]
     }
 }
@@ -1096,6 +1229,70 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         (
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::AsmYieldHint.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadSctlrEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadTcrEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadTtbr0El1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadTtbr1El1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadMairEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadVbarEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadTpidrEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadEsrEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmReadFarEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteSctlrEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteTcrEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteTtbr0El1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteTtbr1El1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteMairEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteVbarEl1.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteTpidrEl1.name()),
         ),
     ]
 }

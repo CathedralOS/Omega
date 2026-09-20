@@ -1,0 +1,1 @@
+asm instruction `write_sctlr_el1`, which requires a FREESTANDING boundary root
