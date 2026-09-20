@@ -355,12 +355,13 @@ pub(super) fn crossed_window<'function>(
 mod tests {
     use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
     use selected_instructions::{
-        SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedInstructionKind,
+        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
+        SelectedInstructionId, SelectedInstructionKind, SelectedSuccessor, SelectedSuccessorRole,
         SelectedTerminator,
     };
     use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
-    use super::*;
+    use super::{RelocationCrossing, crossed_window};
 
     const BLOCK_A: SelectedBlockId = SelectedBlockId(0);
     const BLOCK_B: SelectedBlockId = SelectedBlockId(1);

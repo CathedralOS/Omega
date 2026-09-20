@@ -367,19 +367,22 @@ pub(super) fn admit_run_relocation(
 
 #[cfg(test)]
 mod tests {
-    use register_model::{RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey};
+    use register_model::{
+        RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
+    };
     use selected_instructions::{
-        SelectedBlock, SelectedBlockOrigin, SelectedBoundarySettlement,
-        SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstructionId,
-        SelectedInstructionKind, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
-        SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessorRole, SelectedTerminator,
-        SelectedValueBinding, SelectedValueTransport,
+        SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
+        SelectedBoundarySettlementPayload, SelectedFunction, SelectedInstruction,
+        SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
+        SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand,
+        SelectedSuccessorRole, SelectedTerminator, SelectedValueBinding, SelectedValueTransport,
+        VirtualRegisterId,
     };
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, ValueId,
     };
 
-    use super::*;
+    use super::{RunRelocationRejection, admit_run_relocation};
     use crate::rewrites::block_edges::crossed_window;
 
     const BLOCK_A: SelectedBlockId = SelectedBlockId(0);
