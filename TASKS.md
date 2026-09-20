@@ -5968,7 +5968,44 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **DUPLICATE-NAMED-MACHINE-OVERLOAD** — mined candidate; verify scope then implement.
 - **DUPLICATE-OVERLOAD-RESOLUTION** — mined candidate; verify scope then implement.
 - **DURABLE-CODEC-EXTRACTION** — mined candidate; verify scope then implement.
-- **DURABLE-CODEC-RELOCATION** — mined candidate; verify scope then implement.
+- **DURABLE-CODEC-RELOCATION.** Mined candidate. Upstream: the
+  [PIPELINE-OWNER-CONSOLIDATION](TASKS_OPTIMIZER.md) remaining-work bullet in
+  TASKS_OPTIMIZER.md: "Move durable codecs out of transforms and coordinators
+  with their consuming stage changes: `post_allocation_manifest/codec` and
+  `rewrites/allocation_recovery/fixed_view_copy/codec` in the two selected
+  stages, and `optimized_semantic_wrapper_object/codec` in `native-realization`
+  (see `PIPELINE-OWNER-CONSOLIDATION` for whether that owner survives)."
+  Durable artifact encoders/decoders belong beside their durable types in
+  `omega-rust/omega/representations/` (precedent: `register-homes`'s
+  `register_homes/codec.rs`, `physical-instructions`'s `codec/`,
+  `optimization-unit`'s `ledger/codec/`); transforms keep private working
+  state, not self-authenticating artifact codecs.
+
+  Verified scope (origin/main ff596a06e6): three codec sites —
+  `selected-instructions-to-register-homes/src/assignment/post_allocation_manifest/codec.rs`
+  (V9 `PostAllocationOptimizationManifest` codec),
+  `selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/`
+  (V35 `FixedViewCopyPlan` codec, ~3k lines incl. tests), and
+  `native-realization/src/optimized_semantic_wrapper_object/codec.rs`
+  (container codec whose encode calls `validate_object`). Their consumers and
+  the architecture-gate entrance tables in
+  `tests/architecture/optimizer_source_organization/` (protocols.rs,
+  requirements/executable/selection_allocation.rs, pipeline_native.rs)
+  update in the same lane.
+
+  Remaining: land in dependency order — (1) move the durable identity newtypes
+  the manifest references that still live inside transforms
+  (`FixedViewCopyIdentity`, `LiteralFoldIdentity`,
+  `PressureRematerializationIdentity`, ~10 consumer files each) into their
+  representations homes; (2) move `post_allocation_manifest` model+codec into
+  `representations/register-homes` (its other field types already live there or
+  in `optimization-core`/`selected-instructions`); (3) move
+  `fixed_view_copy/codec` with `FixedViewCopyPlan` into its representations
+  home — `VirtualFixedConstraintSite` and sibling analysis types it references
+  decide whether `representation-selections` hosts it or a new area is named;
+  (4) `optimized_semantic_wrapper_object/codec` moves only after
+  PIPELINE-OWNER-CONSOLIDATION resolves whether native-realization retains
+  that owner — skip it while undecided.
 - **DYNAMIC-CALL-OCCURRENCE-SPANS** — mined candidate; verify scope then implement.
 - **DYNAMIC-CALL-PHYSICAL-EVIDENCE** — mined candidate; verify scope then implement.
 - **DYNAMIC-DISPATCH-ROW-MAPS** — mined candidate; verify scope then implement.
