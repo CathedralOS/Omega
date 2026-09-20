@@ -27,10 +27,10 @@ use omega::language::core::service;
 //     `Executor::take_one`, `Executor::close`) rides TR3-TR8's provider
 //     route; this canary satisfies the `WorkerProvider` trait, which is the
 //     provider-selection leg.
-//   * `&Executor` borrows cannot cross a suspending settle
+//   * `&mut Executor` borrows cannot cross a suspending settle
 //     (carry(suspension: forbidden)) — the claim settles against the
 //     executor's wait word by value, which is the shape the package's
-//     `Ticket::settle(&Executor)` requirement records.
+//     `Ticket::settle(&mut Executor)` requirement records.
 
 data Token {
     id: u64;
