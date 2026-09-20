@@ -6240,7 +6240,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT** — mined candidate; verify scope then implement.
 - **BENCHMARK-HOST-ROW-MATRIX.** Host-row matrix machinery verified already landed: `tools/benchmark/benchmark.py matrix` renders one row per committed `tools/benchmark/records/` record plus one explicit row per catalogued deployment profile (`HOST_LEGS`, `TargetProfile::ALL` order) so unavailable host legs stay visible; the rendered table is embedded in `wiki/drafts/benchmarks.md` between `benchmark-matrix` markers and drift-pinned by `tools/tests/test_benchmark.py` (regenerate via the `matrix` command after each row lands). At `749794ddeb` the comparison-occurrence rejection recorded in that note is lifted — a `cli_mvp` default-selection probe on linux x86-64 reached `published native output` after `29ca2fd46e` — and the frontier paragraph now records it. Remaining legs belong to sibling items: new record production under `tools/benchmark/records/` (BENCHMARK-LINUX-X64-ROW-REFRESH, BENCHMARK-CROSS-TARGET-COMPILE-ROWS) and uncovered host rows (BENCHMARK-LINUX-ARM64-ROW, BENCHMARK-MACOS-ARM64-ROW, windows/uefi hosts); `macos_x86_64` stays structurally unavailable under MACOS-X64-HOST-PROFILE.
 - **BENCHMARK-LINUX-X64-ROW-REFRESH** — mined candidate; verify scope then implement.
-- **BENCHMARK-MACOS-ARM64-ROW** — mined candidate; verify scope then implement.
+- **BENCHMARK-MACOS-ARM64-ROW.** Mined candidate; scope verified at
+  50425f1c70 — re-mines the macos_arm64 leg of the host-row matrix (see
+  BENCHMARK-HOST-ROW-MATRIX and BENCHMARK-CROSS-HOST-ROWS' verified
+  scope): one committed `tools/benchmark/records/` row measured on a
+  macos_arm64 host via `benchmark.py measure --target macos_arm64`. Not
+  producible on a linux_x86_64 build host — the row is a per-host runtime
+  measurement and this machine has no macOS arm64 route (compile-only
+  `--no-run` records belong to BENCHMARK-COMPILE-ONLY-ROWS / cross-target
+  legs, not this row). Producing surfaces fenced this wave:
+  `tools/benchmark` under BENCHMARK-COMPARISON-OCCURRENCE-GATE (22:09Z),
+  `wiki/drafts/benchmarks.md` + `tools/tests/test_benchmark.py` under
+  BENCHMARK-HOST-ROW-MATRIX (22:11Z). Prerequisite: a seeded macOS arm64
+  host (per SEED-HOST-CHAIN-LEGS' audited host list).
 - **BENCHMARK-MEASURABLE-SUBJECT-CORPUS** — mined candidate; verify scope then implement.
 - **BENCHMARK-PRIME-COUNTER-ROW** — mined candidate; verify scope then implement.
 - **BENCHMARK-PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
