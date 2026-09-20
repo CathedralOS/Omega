@@ -3307,13 +3307,17 @@ Owners include
     conservatively; they need checked evidence
     (`typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`, shared
     with **CRASH-CONTRACT**), not successful interpretation or provider-body
-    inspection. `machine_execution/admission/closure_validation.rs` fences
-    authored `requires` without discharged concrete-invocation evidence;
-    successful interpretation alone cannot discharge them.
-    Preserve `module_machine_indices::machine_initializers::widened_constant_helper_executes_natively_after_source_removal`
-    and `indexed_constant_helper_discharge_reaches_source_free_execution`,
-    including nested array aliases and zero, wrapping-to-zero, mutated-operand
-    and unselected-constructor-crash rejection controls.
+    inspection. Authored preconditions also need propagation through argument
+    conversions: at `87581fd1dc` on macOS ARM64, a `forward(value: u8)` with
+    `requires value != 0` still cannot call `divide(value as u64)` when
+    `divide` requires its argument to be nonzero. The ordinary call checker in
+    `typed-trees-to-checked-trees/src/checks/contracts/` rejects before concrete
+    initializer admission; this is not a blanket ban on authored `requires`.
+    Preserve `module_machine_indices::machine_initializers::widened_constant_helper_executes_natively_after_source_removal`,
+    `indexed_constant_helper_discharge_reaches_source_free_execution`, and
+    `constant_helper_preconditions_reach_native_execution_after_source_removal`,
+    including nested array aliases and zero, wrapping-to-zero, mutated-operand,
+    unselected-constructor-crash and false-precondition rejection controls.
   - `const_generic_expressions/value/match_dispatch.rs` needs nonconstant
     divisor integrality beyond singleton sign intervals, nonzero proofs beyond
     retained lattice gaps, and exact fractional-warning evidence for
