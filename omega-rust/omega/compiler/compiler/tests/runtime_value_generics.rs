@@ -1895,3 +1895,77 @@ fn native_leg_requires_a_macos_arm64_host() {
         std::env::consts::ARCH
     );
 }
+
+/// A `data` header admits a runtime `Value` binder on the same spine as a
+/// machine signature (`data Wrap<Count:u32>`). Instantiation is a separate
+/// leg: the static identity of `Wrap<4>` versus `Wrap<7>` and the
+/// construction-time obligation live in typed-tree equality and seeded
+/// instances, so the template refuses loudly at symbol resolution until
+/// those land -- an admitted binder must never erase into an unsound
+/// instance. Both a field-free template and one whose field range would
+/// read the binder refuse with the same deliberate diagnostic.
+#[test]
+fn data_templates_admit_a_runtime_value_binder_then_hold() {
+    for (name, body) in [
+        ("stored-field", "data Wrap<Count: u32> { value: u32; }"),
+        (
+            "field-range",
+            "data Wrap<Limit: u32> { items: u32[0..Limit]; }",
+        ),
+    ] {
+        let source = format!("{body}\ndata Main {{}}\nmachine Main::main(&mut self) {{}}\n");
+        let diagnostics = check_source(name, &source)
+            .expect_err("a runtime-counted data template must refuse loudly");
+        assert!(
+            diagnostics.contains("a value parameter")
+                && diagnostics.contains("not supported on a data template"),
+            "{name}: {diagnostics}"
+        );
+    }
+}
+
+/// `const` keeps the static specialization path untouched: a
+/// `const`-parameterized data template still instantiates with a closed
+/// literal, nests as a field of the owning record, and the field read
+/// publishes into the artifact. Interpreter replay of a nested
+/// instance field path is not asserted here.
+#[test]
+fn const_counted_data_still_specializes_statically() {
+    let _published = publish(
+        "const-counted-data",
+        r#"
+use omega::language::core::external_binding;
+
+boundary trait Trace { machine record(value: u64); }
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+
+data Wrap<const Count: u32> {
+    value: u32;
+}
+
+data Main {
+    wrap: Wrap<7>;
+}
+
+machine Main::main(&mut self) reaches Trace {
+    Trace::record(self.wrap.value as u64);
+}
+"#,
+    );
+}
+
+/// `boundary data` keeps `StaticBinders`: a runtime value binder on a
+/// boundary template still refuses at parse, a different stage and
+/// diagnostic than the deliberate symbol-resolution hold on ordinary `data`.
+#[test]
+fn boundary_data_still_keeps_static_binders_only() {
+    let diagnostics = check_source(
+        "boundary-value-binder",
+        "boundary data Buffer<Count: u32> { value: u64; }\ndata Main {}\nmachine Main::main(&mut self) {}\n",
+    )
+    .expect_err("a value binder on boundary data must refuse");
+    assert!(
+        !diagnostics.contains("not supported on a data template"),
+        "boundary refusal is the parse gate, not the data-template hold: {diagnostics}"
+    );
+}

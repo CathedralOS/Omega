@@ -106,6 +106,28 @@ fn lower_data_definition_with_argument_origins(
     syntax_trees: &SyntaxTrees,
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
+    // A `data` header admits a `Value` binder (`data Wrap<Count:u32>`) so the
+    // runtime subject rides the same spine as on machine signatures. What a
+    // later leg must still own is instantiation: the static identity of
+    // `Wrap<4>` versus `Wrap<7>` and the construction-time obligation live in
+    // typed-tree equality and seeded-instance code outside this boundary, and
+    // without them a runtime argument would silently erase from the type.
+    // Refuse the template here rather than admit an unsound instance.
+    for parameter in syntax_trees
+        .items
+        .type_parameters(data_definition.type_parameters)
+    {
+        if let syntax::item::TypeParameterKind::Value { .. } = parameter.kind {
+            return Err(Diagnostic::error(format!(
+                "data `{}`: a value parameter (`{}`) is not supported on a data \
+                 template yet -- a runtime subject in static argument position has \
+                 no construction obligation and no distinct type identity; a \
+                 `const` parameter still specializes statically",
+                data_definition.name.as_str(),
+                parameter.name.as_str(),
+            )));
+        }
+    }
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
     let case_fact_gate = GenericCaseFactGate::new(syntax_trees, data_definition.type_parameters);
