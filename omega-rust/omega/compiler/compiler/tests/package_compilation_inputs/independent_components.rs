@@ -283,7 +283,7 @@ fn write_consuming_root_selecting(
             r#"machine build(builder: &mut Build) {{
     builder.application("independent-consumer");
     builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
-    builder.select_provider<Pick, PickProvider>(CompositionMode::{composition_mode});
+    builder.select_provider<dep::Pick, dep::PickProvider>(CompositionMode::{composition_mode});
 {extra_build}    builder.roots.bind({target_name}::ProgramEntry, Main::main);
 }}
 "#
@@ -1002,8 +1002,8 @@ fn a_description_for_one_dependency_cannot_realize_anothers_selection() {
     builder.application("independent-consumer");
     builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
     builder.depend_as("dep2", Source::Path {{ location: "../other-component" }});
-    builder.select_provider<Pick, PickProvider>(CompositionMode::Independent);
-    builder.select_provider<Other, OtherProvider>(CompositionMode::Independent);
+    builder.select_provider<dep::Pick, dep::PickProvider>(CompositionMode::Independent);
+    builder.select_provider<dep2::Other, dep2::OtherProvider>(CompositionMode::Independent);
     builder.roots.bind({target_name}::ProgramEntry, Main::main);
 }}
 "#
