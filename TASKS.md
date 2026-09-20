@@ -7174,6 +7174,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NATIVE-MATRIX-MATCHING-HOSTS** — mined candidate; verify scope then implement.
 - **NON-X86-LAYOUT-RELAXATION** — mined candidate; verify scope then implement.
 - **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
+  Verified scope at `ac4e4eee9b`: already landed — the mined clause is the
+  `wiki/drafts/proof_search_cache.md` requirement that cache keys carry
+  normalized semantic identity (exact retained content plus schema/checker
+  compatibility; a meaning-preserving rename must not invalidate the
+  obligation). `proof_obligation_key`
+  (`omega-rust/psi/semantics/proof/src/obligations/identity.rs`, landed
+  `cbe5022e80`) renders each obligation as canonical content: variant,
+  resolved declaration identity of every retained `SymbolHandle`,
+  normalized base-type identity, `ProofConstraint` content in declared
+  order, and structural expression/guard/operand payloads keyed by
+  resolved symbols rather than spellings; `KEY_SCHEMA` versions the
+  encoding. Witnessed green on linux-x86_64:
+  `cargo nextest run -p proof -E 'test(identity)'` — 9/9 pass, including
+  `display_spellings_do_not_disturb_identity`,
+  `statement_index_does_not_disturb_identity`,
+  `names_key_by_resolved_symbol_not_spelling`, and
+  `schema_versions_the_encoding`. The cache itself is still an
+  exploratory draft ("no measured proof-search bottleneck ... is
+  selected") — no residual here beyond the draft's explicit gate.
 - **OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
 - **OCREQ-REQUEST-BINDING** — mined candidate; verify scope then implement.
 - **OCREQ-REQUEST-ENTRY-BINDING** — mined candidate; verify scope then implement.
