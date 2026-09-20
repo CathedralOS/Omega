@@ -219,6 +219,10 @@ discharged by the borrow-proof landings since.
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 d8d48fe4ff (2026-09-20, Linux x86-64) runs the whole crate: 2143 run, 2085
 passed, 58 failed (57 FAIL plus one test killed by SIGTERM after ~1300s).
+Reproduced unchanged at bcb0086e22: 2146 run — the three tests added since
+all pass — with the same 57 FAIL signatures and the same nonterminating
+`mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+(killed after ~1380s).
 The prior whole-crate reading at 9d0d864656 (2026-09-18, macOS arm64) was
 2032 run / 20 failed; of its named groups, boundary byte buffers,
 crash-member byte entries, and the ordered-boolean row are green now, while
