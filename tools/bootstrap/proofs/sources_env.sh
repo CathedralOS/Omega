@@ -5,6 +5,7 @@
 
 [ -n "${OMEGA_PATH_DERIVATION_CHECKER_SOURCES:-}" ] && \
   [ -n "${OMEGA_PATH_BETA_ENCODING_SOURCES:-}" ] && \
+  [ -n "${OMEGA_PATH_BETA_ENCODING_PACKAGE:-}" ] && \
   [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
   echo "Proof sources: source tools/bootstrap/paths.sh first" >&2
   return 2 2>/dev/null || exit 2
@@ -30,6 +31,8 @@ BETA_ENCODING_MANIFEST_SIZE=5536
 BETA_ENCODING_MANIFEST_SHA256=f93d98315b2197d81babcc8b3345a1df0e4eb219bf7e5c3288132ec2d3fe2e5d
 BETA_ENCODING_PACKED_SIZE=130363
 BETA_ENCODING_PACKED_SHA256=632871b5c22c22a0ba397ad4dc6054af797a364f789570e6b25be08840b41ddf
+BETA_ENCODING_DEFINITION_PACKAGE_SIZE=116900
+BETA_ENCODING_DEFINITION_PACKAGE_SHA256=6bbdd15abac8060a9c5718f58944f758c5c647c1aae827d92f61231b01c3987c
 
 # Bound gate-local prefix entries packed on top of the bound member bytes.
 # Each derivation gate packs its own diagnostic entry on the packed checker
@@ -116,7 +119,8 @@ require_bound_manifest_closure() {
   return "$PROOF_IDENTITY_RC"
 }
 
-# require_derivation_checker_identity / require_beta_encoding_theory_identity :
+# require_derivation_checker_identity / require_beta_encoding_theory_identity /
+# require_beta_encoding_definition_package_identity :
 # the canonical manifest is the bound file and repacking it reproduces exactly
 # the bound member closure. Every materialization runs its check; tests may
 # call them directly. bootstrap_sha256 and require_bound_identity live in
@@ -134,6 +138,20 @@ require_beta_encoding_theory_identity() {
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" \
     "$BETA_ENCODING_MANIFEST_SIZE" "$BETA_ENCODING_MANIFEST_SHA256" \
     "$BETA_ENCODING_PACKED_SIZE" "$BETA_ENCODING_PACKED_SHA256" \
+    "bootstrap/proofs/beta_encoding/README.md"
+}
+
+# The emitted definition package is the bound file itself, not a manifest:
+# the artifact owner fixes these bytes independently of the certificate
+# producer (bootstrap/proofs/beta_encoding/ACCEPTANCE.md), and the checker
+# request envelope's theory section is exactly this file. theory.gamma emits
+# it under the selected evaluator; the host-side mirror reproduces identical
+# bytes. Every consumer that trusts the package verifies this identity first.
+require_beta_encoding_definition_package_identity() {
+  require_bound_identity "definition_package.bin" \
+    "$OMEGA_PATH_BETA_ENCODING_PACKAGE" \
+    "$BETA_ENCODING_DEFINITION_PACKAGE_SIZE" \
+    "$BETA_ENCODING_DEFINITION_PACKAGE_SHA256" \
     "bootstrap/proofs/beta_encoding/README.md"
 }
 

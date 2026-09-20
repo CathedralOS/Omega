@@ -213,6 +213,21 @@ none supplies semantic integer constants or operations. [PROFILE.md](PROFILE.md)
 records the current source bounds and scoped measurements, separate from
 full-certificate acceptance.
 
+## Definition package
+
+[definition_package.bin](definition_package.bin) commits the emitted package
+itself: the exact 116,900-byte theory section `theory.gamma` writes under the
+selected evaluator, SHA-256
+`6bbdd15abac8060a9c5718f58944f758c5c647c1aae827d92f61231b01c3987c`. The
+checker request envelope's theory section is exactly these bytes
+([REQUEST.md](../checker/REQUEST.md)), so this file is the owner-fixed
+definition package the [acceptance contract](ACCEPTANCE.md) fixes
+independently of the certificate producer. It is not host-authored: the
+host-side mirror reproduces the evaluator emission byte-for-byte, and
+`tools/bootstrap/proofs/sources_env.sh` binds the file to the same identity
+(`require_beta_encoding_definition_package_identity`). A digest is an identity
+check on the package bytes, not a proof of the encoded source.
+
 ## Error-valued encoder definitions
 
 Functions 58..107 implement the complete encoder over the Source tree: list
