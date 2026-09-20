@@ -4,7 +4,7 @@ import struct
 
 
 MAGIC = b"GDREQ\x01\x00\x00"
-LIMIT = 8388608
+LIMIT = 136314880
 
 
 def envelope(theory=b"", proposition=b"", certificate=b""):

@@ -135,8 +135,8 @@ canonical closure and diagnostic compositions are measured by their
 manifests/pins; the whole artifact owner must retain its exact entry
 composition and verify this framing requirement.
 The [checking diagnostic](../../../tests/gamma/derivation-checking/source.tsv)
-is 1,391 lines and 63,504 bytes; an exact-limit checker input yields
-`4 + 63,504 + 136,314,880 = 136,382,488` framed bytes.
+is 1,391 lines and 63,510 bytes; an exact-limit checker input yields
+`4 + 63,510 + 136,314,880 = 136,382,494` framed bytes.
 
 Formation retains its independent 65,536-sort and 8,388,608-work-estimate
 preflights. The physical extent bounds payload words below 34,078,720 (< 2^26),

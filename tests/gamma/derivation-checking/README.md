@@ -76,9 +76,11 @@ one row yields `4P+8`. The 163,838-row fixture therefore completes at exactly
 
 A 262,143-row table consumes 262,144 units during setup and the remaining
 393,216 in 131,072 Ref rows. The next row reservation refuses at byte 2,097,268
-with the full limit/requested values. A fresh proof-index reservation cannot
-exhaust this larger work provision: the 8 MiB envelope permits fewer than
-524,288 minimum-size proof rows. Substitution's bulk controls separately cover
+with the full limit/requested values. The 136,314,880-byte envelope now admits
+up to 8,519,679 minimum-size proof rows — enough that proof-index setup itself
+can exhaust the 655,360-unit work provision, which is why the remaining
+67,108,864-unit provision leg cannot re-derive these vectors: they materialize
+rows sized against the counter, not the envelope. Substitution's bulk controls separately cover
 exact and adjacent reservation refusal in an already consumed session.
 The 32,768-row backward Symmetry chain costs `6P+3 = 196,611`; it checks logical
 proof depth without expanding the chain or recursively traversing premises.
