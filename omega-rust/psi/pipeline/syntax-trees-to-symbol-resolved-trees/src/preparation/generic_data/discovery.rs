@@ -91,6 +91,8 @@ pub(crate) enum ClosedArgumentIdentity {
     Instance(syntax_trees::item::ItemHandle, Vec<ClosedArgumentIdentity>),
     Constant(String),
     Array(Box<ClosedArgumentIdentity>, usize),
+    Reference(language_core::ReferenceAccess, Box<ClosedArgumentIdentity>),
+    Slice(Box<ClosedArgumentIdentity>),
     Constrained(Box<ClosedArgumentIdentity>, Vec<ClosedConstraintIdentity>),
 }
 
