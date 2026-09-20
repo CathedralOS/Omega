@@ -62,8 +62,29 @@ pub(crate) fn lower_structural_member_path(
             selected_case_fields = Some(&case.fields);
             continue;
         }
+        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
+            segment
+        {
+            // A literal fixed-array index selects an inline element; it can
+            // appear anywhere below the root but cannot terminate the path,
+            // since the leaf must stay a field-typed value.
+            if selected_case_fields.is_some() || index + 1 == path.len() {
+                return unsupported("structural scalar contract has a malformed indexed path");
+            }
+            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+                return unsupported(
+                    "structural scalar contract index receiver is not a fixed array",
+                );
+            };
+            if *element_index >= *length {
+                return unsupported("structural scalar contract fixed index is out of bounds");
+            }
+            terminal_path.push(CanonicalStructuralPathSegment::FixedIndex(*element_index));
+            structural_type = *element;
+            continue;
+        }
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            unreachable!("case path handled above")
+            unreachable!("case and index paths handled above")
         };
         let fields = if let Some(fields) = selected_case_fields.take() {
             fields
@@ -203,8 +224,26 @@ pub(crate) fn lower_structural_sum_subject(
             selected_case_fields = Some(&case.fields);
             continue;
         }
+        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
+            segment
+        {
+            // The subject path may end at an inline element: `options[0]`
+            // names the element's own sum value for case membership.
+            if selected_case_fields.is_some() {
+                return unsupported("structural sum predicate has an indexed case selection");
+            }
+            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+                return unsupported("structural sum predicate index receiver is not a fixed array");
+            };
+            if *element_index >= *length {
+                return unsupported("structural sum predicate fixed index is out of bounds");
+            }
+            terminal_path.push(CanonicalStructuralPathSegment::FixedIndex(*element_index));
+            structural_type = *element;
+            continue;
+        }
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            unreachable!("case path handled above")
+            unreachable!("case and index paths handled above")
         };
         let fields = if let Some(fields) = selected_case_fields.take() {
             fields

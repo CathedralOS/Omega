@@ -14,9 +14,12 @@
 //! A `zero_gated` definition's ZII value violates its domain, so its own
 //! facts are withheld (the access gate owns those reads); descent still
 //! continues beneath it because a nested zero-satisfying carrier's facts hold
-//! independently. Anything outside the emittable fragment -- operator
-//! spellings, arithmetic, case paths, indexed reads, borrowed fields -- is
-//! withheld rather than weakening the fact's enforcement elsewhere.
+//! independently. Descent through a literal-length fixed array publishes the
+//! element's facts once per index at its exact `FixedIndex` prefix, since
+//! each inline element is zero-satisfying on its own. Anything outside the
+//! emittable fragment -- operator spellings, arithmetic, case paths, indexed
+//! reads authored inside the fact expression, borrowed fields -- is withheld
+//! rather than weakening the fact's enforcement elsewhere.
 
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedOperatorFacts,
@@ -164,6 +167,51 @@ fn append_where_requirements(
             continue;
         };
         if !field.symbol.is_valid() || field.relevance.is_erased() {
+            continue;
+        }
+        // A literal-length fixed array owns every element inline: each index
+        // carries the element declaration's facts at its exact FixedIndex
+        // prefix, the same expansion the field-domain paths already perform.
+        // Non-literal extents stay withheld.
+        let mut carrier = field.type_reference;
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(carrier)
+        {
+            carrier = *base_type;
+        }
+        if let TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(length),
+        } = program.type_reference_table.type_reference(carrier)
+        {
+            let Some(nested) = owned_field_data_definition(program, *element_type) else {
+                continue;
+            };
+            if visited.contains(&nested.symbol) {
+                continue;
+            }
+            visited.push(nested.symbol);
+            prefix.push(CheckedStructuralPredicatePathSegment::Field(
+                field_identity(field),
+            ));
+            for index in 0..*length {
+                let Ok(index) = u64::try_from(index) else {
+                    break;
+                };
+                prefix.push(CheckedStructuralPredicatePathSegment::FixedIndex(index));
+                append_where_requirements(
+                    program,
+                    operators,
+                    parameter_position,
+                    prefix,
+                    nested,
+                    visited,
+                    requirements,
+                );
+                prefix.pop();
+            }
+            prefix.pop();
+            visited.pop();
             continue;
         }
         let Some(nested) = owned_field_data_definition(program, field.type_reference) else {

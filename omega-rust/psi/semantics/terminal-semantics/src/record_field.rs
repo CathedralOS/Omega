@@ -11,8 +11,11 @@ pub struct RecordFieldCarrier {
 }
 
 /// Resolve record-only scalar observation carriers; the final scalar field is
-/// deliberately separate. Access, ownership and scalar leaf validation remain
-/// the consuming operation's independent obligations.
+/// deliberately separate. One literal fixed-array index may end the carrier
+/// when the element is itself a record (`maps[1]` for a `maps[1].value`
+/// observation), matching the checked-unit bounded projection grammar.
+/// Access, ownership and scalar leaf validation remain the consuming
+/// operation's independent obligations.
 pub fn record_field_carrier<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -20,7 +23,26 @@ pub fn record_field_carrier<'types>(
 ) -> Option<RecordFieldCarrier> {
     let mut structural_type = root;
     let mut runtime_path = Vec::with_capacity(path.len());
-    for segment in path {
+    for (index, segment) in path.iter().enumerate() {
+        if let CanonicalStructuralPathSegment::FixedIndex(element_index) = segment {
+            // The index may only end the carrier; the record check below then
+            // confirms the element owns the observed field.
+            if index + 1 != path.len() {
+                return None;
+            }
+            let declaration = types
+                .clone()
+                .find(|declaration| declaration.id == structural_type)?;
+            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+                return None;
+            };
+            if *element_index >= *length {
+                return None;
+            }
+            runtime_path.push(StructuralPathSegment::FixedIndex(*element_index));
+            structural_type = *element;
+            continue;
+        }
         let CanonicalStructuralPathSegment::Field(field) = segment else {
             return None;
         };

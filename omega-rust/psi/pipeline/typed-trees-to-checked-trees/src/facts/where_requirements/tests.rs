@@ -116,6 +116,77 @@ fn nested_standing_bound_reaches_the_receiver_path() {
 }
 
 #[test]
+fn fixed_array_element_facts_publish_at_their_indexed_paths() {
+    let checked = checked(
+        "boundary trait Console { machine exit_process(code: i32) reaches Console; }
+         data Map
+         where
+             value <= 60,
+         {
+             value: i32;
+         }
+         data Main<'s> { console: &'s mut Console; maps: [Map; 2]; }
+         machine Main::main(&mut self) reaches Console {
+             let return_code: i32 = 70 + self.maps[1].value;
+             self.console.exit_process(return_code);
+         }",
+    );
+    let requirements = machine_requirements(&checked, "main");
+    let indexed_bound = |index: u64| CheckedBooleanExpression::IntegerComparison {
+        kind: CheckedIntegerComparisonKind::LessOrEqual,
+        left: Box::new(CheckedScalarExpression::StructuralParameterField {
+            parameter_position: 0,
+            path: vec![
+                CheckedStructuralPredicatePathSegment::Field("maps".to_string()),
+                CheckedStructuralPredicatePathSegment::FixedIndex(index),
+                CheckedStructuralPredicatePathSegment::Field("value".to_string()),
+            ],
+            primitive_type: PrimitiveType::I32,
+        }),
+        right: Box::new(CheckedScalarExpression::IntegerLiteral {
+            literal: numerics::literals::IntegerLiteral::from_parts(
+                false,
+                numerics::literals::IntegerRadix::Decimal,
+                "60",
+            )
+            .unwrap()
+            .with_landing(numerics::literals::IntegerLanding {
+                landed_type: numerics::literals::LandedIntegerType::I32,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            }),
+        }),
+    };
+    for index in 0..2 {
+        assert!(
+            requirements.contains(&indexed_bound(index)),
+            "expected the element bound at maps[{index}], got {requirements:?}"
+        );
+    }
+}
+
+#[test]
+fn const_parameter_array_element_facts_stay_withheld() {
+    let checked = checked(
+        "boundary trait Console { machine exit_process(code: i32) reaches Console; }
+         data Map
+         where
+             value <= 60,
+         {
+             value: i32;
+         }
+         data Main<'s, const N: u64> { console: &'s mut Console; maps: [Map; N]; }
+         machine Main::main(&mut self) reaches Console {
+             self.console.exit_process(70);
+         }",
+    );
+    let requirements = machine_requirements(&checked, "main");
+    assert!(
+        requirements.is_empty(),
+        "a non-literal extent cannot enumerate element paths: {requirements:?}"
+    );
+}
+
+#[test]
 fn gated_definition_facts_are_withheld() {
     let checked = checked(
         "boundary trait Console { machine exit_process(code: i32) reaches Console; }
