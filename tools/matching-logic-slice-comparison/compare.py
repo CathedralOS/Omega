@@ -13,7 +13,11 @@ This tool produces the record for the route that exists today: it measures
 the current receiver-checking and theory surfaces, inventories the accepted
 proof-rule foundations from proof-admission's enforced classifier, and runs
 the pinned positive/negative corpus pairs through `omega --check`. The
-matching-logic candidate columns are emitted as `pending` until
+candidate side's translation leg is measured: the typed-to-one-sorted
+encoder under `tools/matching-logic-sort-encoding` is run over its pinned
+case corpus and its emitted clause inventory — every clause an axiom
+admission — lands under `candidate.sort_encoding`. The candidate checker,
+theory, and certificate columns stay `pending` until
 MATCHING-LOGIC-BOUNDED-SLICE (tools/matching-logic-slice) and
 MATCHING-LOGIC-COMPARISON-METRICS (tools/matching-logic-metrics) land; the
 record schema already carries their keys so the second column is a fill, not
@@ -48,6 +52,7 @@ PINNED_CASES = HERE / "pinned_cases.json"
 CLASSICALITY = Path(
     "omega-rust/psi/semantics/proof-admission/src/classicality.rs"
 )
+SORT_ENCODING = Path("tools/matching-logic-sort-encoding")
 
 # Receiver-side checking surfaces, by honest role. The comparison measures
 # what a receiver or producer must trust/run, so components are broken out
@@ -116,9 +121,9 @@ def repo_root() -> Path:
     )
 
 
-def count_lines(path: Path) -> dict:
-    """Physical line counts for a file or directory of .rs sources."""
-    files = sorted(path.rglob("*.rs")) if path.is_dir() else [path]
+def count_lines(path: Path, pattern: str = "*.rs") -> dict:
+    """Physical line counts for a file or directory of matching sources."""
+    files = sorted(path.rglob(pattern)) if path.is_dir() else [path]
     total = 0
     nonblank = 0
     missing = []
@@ -260,6 +265,87 @@ def run_pinned_cases(
             }
         )
     return results
+
+
+def sort_encoding_cases(root: Path, timeout: int = 120) -> dict:
+    """Run the typed-to-one-sorted encoder over its pinned case corpus.
+
+    The encoder is the candidate route's translation leg: each case is a
+    typed subject schema, and `check` emits the clause inventory — every
+    clause is an axiom admission — plus the consistency diagnostics the
+    comparison checklist requires. Per-case rows retain the checklist
+    provenance (fragment, versions, subject, capsule, bridge graph,
+    admissions) verbatim from the encoder's emitted record."""
+    tool = root / SORT_ENCODING / "sort_encoding.py"
+    cases_dir = root / SORT_ENCODING / "cases"
+    if not tool.exists() or not cases_dir.is_dir():
+        return {
+            "status": "absent",
+            "tool": str(SORT_ENCODING / "sort_encoding.py"),
+            "note": "encoding tool not in this checkout; "
+            "candidate translation column unmeasured",
+        }
+    results = []
+    for case_path in sorted(cases_dir.glob("*.json")):
+        start = time.monotonic()
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(tool), "check", str(case_path)],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            results.append(
+                {
+                    "case": case_path.name,
+                    "timed_out": True,
+                    "exit_code": None,
+                    "elapsed_ms": timeout * 1000,
+                }
+            )
+            continue
+        try:
+            emitted = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            emitted = {}
+        row = {
+            "case": case_path.name,
+            "exit_code": proc.returncode,
+            "elapsed_ms": round((time.monotonic() - start) * 1000, 1),
+            "check_clean": proc.returncode == 0,
+            "diagnostics": emitted.get("diagnostics", []),
+            "admissions": emitted.get("admissions", []),
+            "declared_memberships": len(
+                emitted.get("declared_type_memberships", [])
+            ),
+        }
+        for key in (
+            "schema",
+            "fragment",
+            "rule_version",
+            "semantics_version",
+            "subject",
+            "target_capsule",
+            "observation_profile",
+            "bridge_graph",
+        ):
+            row[key] = emitted.get(key)
+        results.append(row)
+    clean = sum(1 for r in results if r.get("check_clean"))
+    pinning = sum(1 for r in results if r.get("exit_code") not in (0, None))
+    first = results[0] if results else {}
+    return {
+        "status": "measured",
+        "tool": str(SORT_ENCODING / "sort_encoding.py"),
+        "schema": first.get("schema"),
+        "fragment": first.get("fragment"),
+        "rule_version": first.get("rule_version"),
+        "translation_surface": count_lines(root / SORT_ENCODING, "*.py"),
+        "cases": results,
+        "clean_cases": clean,
+        "violation_pinning_cases": pinning,
+    }
 
 
 def version_context(root: Path, omega: Path) -> dict:
@@ -423,13 +509,54 @@ def render_report(record: dict) -> str:
         "`.psi.proof` sidecar via `--native-sidecar` and currently recorded "
         f"as: `{record['omega_route']['certificate']}`.",
         "",
-        "## Candidate side (pending)",
+        "## Candidate side",
         "",
         "The matching-logic slice checker, its theory/axiom set, and its "
-        "certificate format do not exist in the tree yet. When "
-        "tools/matching-logic-slice lands, this record's `candidate` section "
-        "is filled with the same axes over the same pinned pairs.",
+        "certificate format do not exist in the tree yet; those columns stay "
+        "pending until tools/matching-logic-slice and "
+        "tools/matching-logic-metrics land.",
+        "",
     ]
+    encoding = record["candidate"].get("sort_encoding", {})
+    if encoding.get("status") == "measured":
+        surface = encoding["translation_surface"]
+        lines += [
+            "### Sort encoding (measured translation leg)",
+            "",
+            f"`{encoding['tool']}` — {surface['lines']} physical lines "
+            f"({surface['nonblank_lines']} nonblank) across {surface['files']} "
+            "file(s). Every emitted clause is an axiom admission on the "
+            f"candidate side. Fragment: `{encoding['fragment']}`; record "
+            f"schema `{encoding['schema']}` at semantics version "
+            f"`{(encoding['cases'][0] if encoding['cases'] else {}).get('semantics_version')}`.",
+            "",
+            f"{encoding['clean_cases']} case(s) check clean; "
+            f"{encoding['violation_pinning_cases']} pin an expected "
+            "violation.",
+            "",
+            "| case | exit | admissions | diagnostics |",
+            "| --- | --- | --- | --- |",
+        ]
+        for case in encoding["cases"]:
+            if case.get("timed_out"):
+                lines.append(
+                    f"| `{case['case']}` | timed out | — | — |"
+                )
+                continue
+            rules_seen = ", ".join(
+                f"`{row.get('rule')}`" for row in case.get("diagnostics", [])
+            ) or "—"
+            lines.append(
+                f"| `{case['case']}` | {case['exit_code']} "
+                f"| {len(case.get('admissions', []))} | {rules_seen} |"
+            )
+    else:
+        lines += [
+            "### Sort encoding (absent)",
+            "",
+            f"`{encoding.get('tool')}` is not present in this checkout; the "
+            "candidate translation column is unmeasured.",
+        ]
     return "\n".join(lines) + "\n"
 
 
@@ -496,6 +623,7 @@ def main() -> int:
     cases = [] if options.skip_run else run_pinned_cases(
         options.omega, root, options.timeout, options.include_heavy
     )
+    encoding = sort_encoding_cases(root)
 
     record = {
         "record": "matching-logic-slice-comparison/v1",
@@ -511,13 +639,16 @@ def main() -> int:
         },
         "candidate": {
             "status": "pending",
+            "sort_encoding": encoding,
             "blocked_on": [
                 "MATCHING-LOGIC-BOUNDED-SLICE (tools/matching-logic-slice)",
                 "MATCHING-LOGIC-COMPARISON-METRICS (tools/matching-logic-metrics)",
             ],
-            "note": "columns mirror omega_route: checker/theory/translation "
-            "sizes, rule and axiom admissions, certificate bytes, and the same "
-            "pinned positive/negative case verdicts",
+            "note": "checker/theory/certificate sizes and the pinned "
+            "positive/negative case verdicts stay pending on the bounded "
+            "slice; the typed-to-one-sorted translation leg is measured "
+            "under sort_encoding — translation surface lines plus per-case "
+            "clause admissions, diagnostics, and checklist provenance",
         },
     }
 
