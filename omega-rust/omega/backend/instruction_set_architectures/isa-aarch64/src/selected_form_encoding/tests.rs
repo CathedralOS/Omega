@@ -35,6 +35,86 @@ fn alternative(family: MachineAlternativeFamily) -> MachineAlternativeKey {
 }
 
 #[test]
+fn scalar_operand_effects_cover_remainder_wrapping_and_bitwise_forms() {
+    let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+    let obligation = ObligationId::new(1).unwrap();
+    let accepted_fact = AcceptedObligationFactIdentity::from_bytes([3; 32]);
+    for (kind, family, count) in [
+        (
+            SelectedInstructionKind::WrappingSubtractI64,
+            MachineAlternativeFamily::WrappingSubtractI64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::WrappingMultiplyI64,
+            MachineAlternativeFamily::WrappingMultiplyI64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::BitwiseOrI64,
+            MachineAlternativeFamily::BitwiseOrI64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::BitwiseNotI64,
+            MachineAlternativeFamily::BitwiseNotI64,
+            2,
+        ),
+        (
+            SelectedInstructionKind::ExactRemainderU64 {
+                obligation,
+                accepted_fact,
+            },
+            MachineAlternativeFamily::ExactRemainderU64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::WrappingDivideI64 {
+                obligation,
+                accepted_fact,
+            },
+            MachineAlternativeFamily::WrappingDivideI64,
+            3,
+        ),
+    ] {
+        for names in [["x9", "x10", "x11"], ["x9", "x9", "x11"]] {
+            let registers = names.map(|name| physical.model().view_named(name).unwrap().id);
+            let operands = &registers[..count];
+            let key = alternative(family);
+            let encoded = encode_aarch64_selected_form(&physical, kind, key, operands).unwrap();
+            let decoded = validate_aarch64_selected_form_encoding(
+                &physical,
+                kind,
+                key,
+                operands,
+                encoded.bytes(),
+            )
+            .unwrap();
+            assert_eq!(decoded.footprint().register_reads, operands[..count - 1]);
+            assert_eq!(decoded.footprint().register_writes, operands[count - 1..]);
+            assert_eq!(
+                decoded.footprint().encoded,
+                MachineEncodedEffects::fallthrough_v1(
+                    (0..count as u16 - 1).collect(),
+                    vec![count as u16 - 1],
+                )
+            );
+            for bit in 0..encoded.bytes().len() * 8 {
+                let mut changed = encoded.bytes().to_vec();
+                changed[bit / 8] ^= 1 << (bit % 8);
+                assert!(
+                    validate_aarch64_selected_form_encoding(
+                        &physical, kind, key, operands, &changed,
+                    )
+                    .is_err(),
+                    "{kind:?} accepted changed bit {bit}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn saturating_subtract_binds_registers_condition_and_flag_effects() {
     let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
     let kind = SelectedInstructionKind::SaturatingSubtract {
