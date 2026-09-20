@@ -2564,6 +2564,17 @@ Owners include
   authority are preserved. An owned inline byte field must not acquire a
   standalone type identity or inherit the borrowed-parent view adapter.
 
+  Claim evidence (2026-09-20 ~19:10Z, Zergling-181): same-item claim by
+  Jarod / swarm-w9-structural-borrow-identity (expires 21:38Z) fences
+  `execution/unit/receiver_calls`, `src/tests/borrow`,
+  `lowering/unit/structural_call.rs`,
+  `validation/structural_call_arguments.rs`, image-emission
+  `call_custody{,/argument_custody}.rs` and terminal-verifier
+  `structural_arguments.rs` — the item's own named surfaces. The
+  runtime-record leg's `tests/native-differential/tests/
+  terminal_psi_indexed_receivers*` is additionally under WRITE-ONLY-BORROW
+  (01:30Z+1d). Do not re-mine while these are live.
+
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md): relational
   evidence may establish disjointness or containment between existing places
