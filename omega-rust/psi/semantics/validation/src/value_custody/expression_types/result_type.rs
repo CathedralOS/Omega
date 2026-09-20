@@ -23,6 +23,80 @@ use typed_trees::types::{
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod domain_carrier_subjects {
+    use super::*;
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+    use tokens_to_syntax_trees::parse_syntax_trees;
+    use typed_trees::TypedTrees;
+    use typed_trees::domain::ProofFact;
+
+    fn typed_source(source: &str) -> TypedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let syntax = parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution");
+        lower_symbol_resolved_trees(&resolved).expect("typing")
+    }
+
+    fn membership_subject<'program>(
+        program: &'program TypedTrees,
+        domain_name: &str,
+    ) -> (
+        &'program typed_trees::domain::DomainDefinition,
+        ExpressionHandle,
+    ) {
+        let domain = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.name.as_str().ends_with(domain_name))
+            .unwrap_or_else(|| panic!("domain {domain_name}"));
+        let [ProofFact::Membership(membership)] = program.proof_facts(domain) else {
+            panic!("domain {domain_name} carries one membership fact");
+        };
+        (domain, membership.value)
+    }
+
+    #[test]
+    fn member_subject_reads_declared_field_type() {
+        let program = typed_source(
+            "data Inner { pos: u8; neg: u8; }
+             data Rat { num: Inner; tail: u64; }
+             domain u8::NonZero;
+             domain u64::Big;
+             domain Rat::Whole requires self.num.pos in u8::NonZero;
+             domain Rat::Tailed requires self.tail in u64::Big;",
+        );
+        for (domain_name, expected) in
+            [("Whole", PrimitiveType::U8), ("Tailed", PrimitiveType::U64)]
+        {
+            let (domain, subject) = membership_subject(&program, domain_name);
+            let resolved = domain_expression_result_type_reference(&program, domain, subject);
+            assert_eq!(
+                resolved
+                    .and_then(|reference| program.type_reference_table.primitive_type(reference)),
+                Some(expected),
+                "domain {domain_name} member subject"
+            );
+        }
+    }
+
+    #[test]
+    fn indexed_subject_reads_declared_element_type() {
+        let program = typed_source(
+            "domain u8::NonZero;
+             domain [u8; 8]::Full requires self[0] in u8::NonZero;",
+        );
+        let (domain, subject) = membership_subject(&program, "Full");
+        let resolved = domain_expression_result_type_reference(&program, domain, subject);
+        assert_eq!(
+            resolved.and_then(|reference| program.type_reference_table.primitive_type(reference)),
+            Some(PrimitiveType::U8)
+        );
+    }
+}
+
 /// Return an existing result reference, never an expected-type guess. An
 /// unresolved result does not establish anonymous numeric meaning. Builtin
 /// computed results retain their carrier and policy, not input predicates.
@@ -251,6 +325,59 @@ fn result_type(
                             [name] if name.as_str() == "self") =>
                     {
                         Some(domain.target_type)
+                    }
+                    // Membership subjects project the declared carrier:
+                    // `self.num in NonZero` reads `num`'s declared field type,
+                    // `self[i] in Utf8` the declared element type. The shared
+                    // embedding resolver cannot see the domain telescope, so
+                    // the receiver recurses through `result_type` (which owns
+                    // bare `self`) and the projection lands on its result.
+                    ExpressionNode::Member(member) => {
+                        result_type(program, owner, member.receiver, active).and_then(|receiver| {
+                            if let Some(data) =
+                                crate::value_custody::places::data_definition_for_type(
+                                    program, receiver,
+                                )
+                            {
+                                program.data_members(data).iter().find_map(|data_member| {
+                                    match data_member {
+                                        typed_trees::data::DataMember::Field(field)
+                                            if field.name == member.member =>
+                                        {
+                                            Some(field.type_reference)
+                                        }
+                                        _ => None,
+                                    }
+                                })
+                            } else {
+                                program
+                                    .data_definitions()
+                                    .iter()
+                                    .flat_map(|data| program.data_members(data))
+                                    .find_map(|data_member| match data_member {
+                                        typed_trees::data::DataMember::Field(field)
+                                            if member.member_symbol.is_valid()
+                                                && field.symbol == member.member_symbol =>
+                                        {
+                                            Some(field.type_reference)
+                                        }
+                                        _ => None,
+                                    })
+                            }
+                        })
+                    }
+                    ExpressionNode::Indexed(indexed) => {
+                        result_type(program, owner, indexed.collection, active).and_then(
+                            |collection| match program.type_reference_table.type_reference(
+                                crate::value_custody::places::unwrapped_type_reference(
+                                    program, collection,
+                                )?,
+                            ) {
+                                TypeReferenceNode::FixedArray { element_type, .. }
+                                | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+                                _ => None,
+                            },
+                        )
                     }
                     _ => crate::proof_contracts::proof_embeddings::expression_type_reference(
                         program, expression,
