@@ -7135,8 +7135,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOF-CACHE-DEPENDENCY-INVALIDATION** — mined candidate; verify scope then implement.
 - **PROOF-DERIVATION-STORE** — mined candidate; verify scope then implement.
 - **PROOF-DERIVED-LOAN-COMPATIBILITY** — mined candidate; verify scope then implement.
-- **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC** — mined candidate; verify scope then implement.
-- **PROOF-INTERCHANGE-INDUCTION-CERTIFICATE** — mined candidate; scope verified, merged alias of PROOF-INTERCHANGE-IMPORT, which already names this clause verbatim ("External proof interchange: sort encoding, induction certificate, arithmetic import (3 mined aliases merged)"). Per the matching-logic lane's settled reading, an external induction certificate carries a translation or foreign-theorem admission with no independently checked translation, so any route runs through MATCHING-LOGIC-BOUNDED-SLICE's bounded comparison before a concrete design; `terminal-codec/tests/mathematical_certificate.rs` already covers the internal W-induction certificate end to end. No independent slice exists here. Sibling alias stub: PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC.
+- **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC** — mined candidate; scope
+  verified: merged alias of PROOF-INTERCHANGE-IMPORT's "arithmetic import"
+  clause (the third of its 3 mined aliases, adjudicated at e76d715c8e).
+  Re-verified on this host at b972133cad: `proof-admission/src/admission/`
+  contains only `evidence.rs`, `normalization.rs` and `recursion.rs` — no
+  external import route exists — `integer_rules/` owns the internal checked
+  rules (closed_integer, integer_affine, integer_cast,
+  integer_forbidden_root, integer_shift), and `AcceptedProofRule` admits
+  only internal checked rules plus the single trusted `SemanticAxiom`
+  admission pinned by `classicality.rs`. An external arithmetic import is
+  a translation or foreign-theorem admission with no independently checked
+  translation, so any route runs through MATCHING-LOGIC-BOUNDED-SLICE's
+  bounded comparison before a concrete design; imported rules must also
+  respect the constructive/classical boundary. No independent slice exists
+  here. Sibling alias stub (resolved): PROOF-INTERCHANGE-INDUCTION-CERTIFICATE.
+- **PROOF-INTERCHANGE-INDUCTION-CERTIFICATE** — mined candidate; scope verified, merged alias of PROOF-INTERCHANGE-IMPORT, which already names this clause verbatim ("External proof interchange: sort encoding, induction certificate, arithmetic import (3 mined aliases merged)"). Per the matching-logic lane's settled reading, an external induction certificate carries a translation or foreign-theorem admission with no independently checked translation, so any route runs through MATCHING-LOGIC-BOUNDED-SLICE's bounded comparison before a concrete design; `terminal-codec/tests/mathematical_certificate.rs` already covers the internal W-induction certificate end to end. No independent slice exists here. Sibling alias stub (resolved): PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC.
 - **PROOF-OBLIGATION-SEMANTIC-IDENTITY** — mined candidate; verify scope then implement.
 - **PROOF-OBLIGATION-SEMANTIC-KEY** — mined candidate; verify scope then implement.
 - **PROOF-QUANTIFIER-AUTOMATION** — mined candidate; verify scope then implement.
