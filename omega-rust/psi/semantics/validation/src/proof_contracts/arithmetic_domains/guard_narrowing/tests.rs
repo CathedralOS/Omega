@@ -21,6 +21,47 @@ fn arrival_program(source: &str) -> TypedTrees {
 }
 
 #[test]
+fn a_receiver_requires_bound_proves_the_entry_self_increment() {
+    // A `requires` fact rooted at `self` is a precondition on the established
+    // receiver, so it belongs to the entry state's proof obligations: its
+    // exact ceiling must seed the ordered relations that prove the increment.
+    // Bounds below the carrier's own headroom stay fail-closed.
+    for (source, accepted) in [
+        (
+            "data Application { launch_count: u64; }
+             machine Application::launch(&mut self)
+                 requires self.launch_count < 18446744073709551615u64
+             { self.launch_count += 1; }",
+            true,
+        ),
+        (
+            "data Application { launch_count: u64; }
+             machine Application::launch(&mut self)
+                 requires self.launch_count < 18446744073709551615u64
+             { self.launch_count += 2; }",
+            false,
+        ),
+        (
+            "data Application { launch_count: u64; }
+             machine Application::launch(&mut self)
+                 requires self.launch_count <= 18446744073709551615u64
+             { self.launch_count += 1; }",
+            false,
+        ),
+        (
+            "data Application { launch_count: u64; }
+             machine Application::launch(&mut self)
+             { self.launch_count += 1; }",
+            false,
+        ),
+    ] {
+        let program = arrival_program(source);
+        let result = crate::validate_program(&program);
+        assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+    }
+}
+
+#[test]
 fn a_live_unsigned_ceiling_proves_joint_addition_fits_its_carrier() {
     let source = "machine sum(left: u64, right: u64, capacity: u64) -> u64
         requires right <= capacity;
