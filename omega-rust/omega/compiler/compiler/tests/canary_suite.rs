@@ -782,6 +782,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "proofs/named_witness_static_trait_i32_compile",
     "proofs/named_witness_static_trait_bool_compile",
     "proofs/named_witness_static_trait_plural_compile",
+    "proofs/named_witness_static_trait_inherited_compile",
     "proofs/proof_constant_arithmetic_identity",
     "proofs/proof_bignum_constant_fold",
     "proofs/proof_order_transitivity",
