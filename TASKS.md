@@ -8554,7 +8554,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   *-LOAN-ORIGIN stubs beside this row.
 - **PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE** — mined candidate; scope verified, covered — same package-evidence contract surface as resolved siblings PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION and PACKAGE-PROJECTION-EVIDENCE-MIGRATION (this section). The resolution-scope leg is already implemented and pinned in `omega-rust/omega/packages/review/evidence/src/capture/`: unique-trait selection rejects non-unique/absent cases at each leg (`provider_schema.rs`, `services/authority.rs`, `calling/application/signature.rs`, `providers/policy/rows.rs`, `terminal_authority_permissions/declarations.rs` — each "has no unique exact declaring trait"), scoped per subject ordinal + selected application + lifetimes + structural arguments. The genuinely unfinished ledger joins (certificates, transitive open obligations, schema migration, admission decisions in `src/ledger/obligation_ledger.rs`) are named under PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
-- **PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION** — mined candidate; verify scope then implement.
+- **PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.** — mined candidate; scope
+  verified, covered at `c267df86ac` (linux x86-64, claim a8d7bd21 on
+  `packages/review/evidence/src/capture` until 04:50Z). The scope-collision
+  rejection is already implemented and pinned inside
+  `capture/semantics/declarations/provider_schema.rs`: a second
+  `TraitDefinition` bound to the reviewed trait's symbol is the scope
+  collision, and `provider_requirement_schema` rejects it with "selected
+  schema has no unique exact declaring trait" instead of picking one
+  (`provider_requirement_rejects_a_scope_colliding_declaring_trait` PASS,
+  alongside `provider_requirement_rejoins_its_unique_declaring_trait`).
+  Same covered contract surface as resolved siblings
+  PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE and
+  PACKAGE-PROJECTION-EVIDENCE-MIGRATION — the genuinely unfinished joins
+  (certificates, transitive open obligations, schema migration, admission
+  decisions in `src/ledger/obligation_ledger.rs`) are named under
+  PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent slice
+  exists under this stub. Unrelated base red observed in-filter:
+  `calling_policy_source::inherited_requirement_retains_declaring_trait_and_concrete_parent_application`
+  expects `pub boundary trait ProcedureBase<Value>` in rendered fixture
+  source — preexisting drift on the base commit, outside this claim.
 - **PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.** Mined candidate;
   scope verified, covered — the name re-mines the package-evidence contract
   pair in `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md`:
