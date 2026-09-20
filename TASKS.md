@@ -8825,7 +8825,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-PARSER-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; scope verified, residual owned — re-mines OMEGA-PRODUCT-COMPILER-SOURCE wholesale (the Omega-written production compiler chain IS that item: `source/psi/` target-neutral phases + `source/omega/` Terminal-Psi consumer). Its documented frontier is not a separable zergling slice: (1) the parser gate's next Unit omission — `source_full` statement-sequence call through a nested receiver with a copy-enum case literal — is measured but `Main::main`'s next stop is unmeasured; (2) native production stops on `terminal_psi_indexed_receivers` legs owned by STATE-LOCAL-VALUE-FRONTIER (live claim to ~02:17Z); (3) the gate-check cost regression (~6,500 s wall) needs attribution before further slices iterate; (4) everything after the parser — resolution/typing/checking/proof/Terminal production in `source/psi` and the whole `source/omega` consumer — is unwritten by design. No independent slice exists here.
-- **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
+- **OPTIMIZATION-CATALOG-EXECUTION-ROUTE.** Mined candidate — resolved
+  at `a0b906db93`: seventh stub on the SELECTED-REWRITE-CATALOG cluster
+  (the name merges the catalog + execution + route legs already covered
+  by SELECTED-REWRITE-CATALOG-{DISPOSITION,EXECUTION,ROUTE,WIRING});
+  re-mines the route leg of EXACT-MACHINE-SIMPLIFICATIONS
+  (TASKS_OPTIMIZER.md:641). Re-verified: `rewrites/module_catalog.rs`
+  still carries 42 `Orphaned` rows and `optimize_selected_instructions`
+  (selected_optimization.rs:18) still dispatches only
+  `run_selected_lowering_optimizations`. Implementing surfaces are under
+  live sibling claims at verification time — SELECTED-REWRITE-CATALOG-
+  ROUTE (04:11Z), -DISPOSITION (00:20Z), -WIRING (05:01Z),
+  PIPELINE-REWRITE-ORPHANS (01:57Z), REWRITE-VALIDATOR-INDEPENDENCE
+  (02:35Z), COMPOSABLE-PAIR-DESCRIPTORS (03:23Z), RO-CODEC-PLACEMENT
+  (04:35Z). Folds into SELECTED-REWRITE-CATALOG-EXECUTION /
+  EXACT-MACHINE-SIMPLIFICATIONS; no independent slice.
 - **OPTIMIZATION-WORKLOAD-CORPUS.** Mined candidate; scope verified at
   7a5a87d5a1, authorization gate recorded — same verdict as both scoped
   siblings on this surface (WORKLOAD-CORPUS, GRAPH-COST-EVIDENCE-CORPUS).
