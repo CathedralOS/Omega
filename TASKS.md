@@ -10045,7 +10045,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SERVICE-ERA-REPLACEMENT-SUBSTRATE.** Mined candidate — scope verified, resolved — the `Bound` service-era replacement substrate is landed on `origin/main` at `6d00135b89`: `core/service.omg` declares `pub boundary data Service<R>` with the closed identity as the only carrier (`Bound` deleted; documented "any `Service<R> in <domain>` spelling is rejected during source checking"), `typed-trees-to-checked-trees/src/checking/program_validation.rs` rejects bare boundary traits in value position verbatim ("the intrinsic `Service<R>` carrier is the only service value spelling"), and no `in Bound` spelling survives in `source/`, `samples/cli/`, or non-fail `tests/omega/`. The wave evidence row on ENTRY-CONTENT-ROOTS records the landing; residual legs (fused-parameter rejoin gates, receiver lifecycle spellings) are named to their own owners there, not here. Re-verified on linux x86-64 at `12ecbe98f8`: `source/library/core/service.omg:13` still declares `pub boundary data Service<R>` with the `Bound`-deleted note, `program_validation.rs` still emits the "only service value spelling" rejection, and no `in Bound` spelling survives in `source/` or `samples/cli/`.
 - **SHARED-WORD-PREFIX-NATIVE-RUN** — mined candidate; verify scope then implement.
 - **SIGNATURE-FREE-TRAIT-CANDIDATE-SCOPE** — mined candidate; verify scope then implement.
-- **SINGLE-PROGRAM-ENTRY-SELECTION** — mined candidate; verify scope then implement.
+- **SINGLE-PROGRAM-ENTRY-SELECTION** — mined candidate; scope verified, covered.
+  Re-mines the resolved PROGRAM-ENTRY-SELECTION-DIVISION row's exactly-one axis
+  (verified 8479b3ab86): `build-evaluation`'s `admission/selection.rs` already
+  enforces the single-selection contract on every entry surface — exactly one
+  loaded boundary schema per required root slot (:584), exactly one evaluated
+  calling plan per semantic (:613) and physical (:627) requirement, and exactly
+  one boundary trait (:951)/machine (:962) declaration per entry arrival
+  requirement. No distinct "single entry" mechanism exists to implement; sibling
+  stub PROGRAM-ENTRY-SELECTION-EXACTNESS names the same enforced axis.
 - **SNAPSHOT-STORAGE** — mined candidate; verify scope then implement.
 - **SNAPSHOT-STORAGE-AND-FILTERING** — mined candidate; verify scope then implement.
 - **SOURCE-SEMANTICS-SUITE** — mined candidate; verify scope then implement.
