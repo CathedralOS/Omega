@@ -5969,6 +5969,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-COMPILE-ONLY-SUBJECTS** — mined candidate; verify scope then implement.
 - **BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES** — mined candidate; verify scope then implement.
 - **BENCHMARK-CROSS-HOST-ROWS** — mined candidate; verify scope then implement.
+  Verified scope: re-mines the host-row matrix's runtime legs in
+  [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md#host-row-matrix) —
+  one committed `tools/benchmark/records/` row per catalogued deployment
+  profile measured on its own host (linux_arm64 host, macos_arm64,
+  windows_x86_64 [peak-RSS leg stays `unavailable` — no `os.wait4`],
+  uefi_x86_64 under QEMU/hardware). None is producible on a linux_x86_64
+  build host; the local legs are compile-only rows owned by
+  **BENCHMARK-COMPILE-ONLY-ROWS** (three measured records already sit at
+  `~/bench-records-z57/` on the w9 machine pending commit). The producing
+  surfaces are under live claims: `tools/benchmark` is held by
+  BENCHMARK-COMPARISON-OCCURRENCE-GATE (expires 22:09Z) and
+  `benchmarks.md` + `tools/tests/test_benchmark.py` by
+  BENCHMARK-HOST-ROW-MATRIX (22:11Z). A new `linux_x86_64` measured row
+  additionally needs the post-f2f39039da compile frontier re-verified on a
+  runnable subject. Sibling re-mine names: BENCHMARK-CROSS-TARGET-COMPILE-LEGS,
+  BENCHMARK-CROSS-TARGET-COMPILE-ROWS, BENCHMARK-LINUX-ARM64-ROW,
+  BENCHMARK-LINUX-X64-ROW-REFRESH, BENCHMARK-MACOS-ARM64-ROW,
+  BENCHMARK-PRIME-COUNTER-ROW, BENCHMARK-HOST-ROW-MATRIX.
 - **BENCHMARK-CROSS-TARGET-COMPILE-LEGS** — mined candidate; verify scope then implement.
 - **BENCHMARK-CROSS-TARGET-COMPILE-ROWS** — mined candidate; verify scope then implement.
 - **BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT** — mined candidate; verify scope then implement.
