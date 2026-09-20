@@ -76,6 +76,45 @@ fn scalar_operand_effects_cover_remainder_wrapping_and_bitwise_forms() {
             MachineAlternativeFamily::WrappingDivideI64,
             3,
         ),
+        (
+            SelectedInstructionKind::WrappingShiftLeftI64,
+            MachineAlternativeFamily::WrappingShiftLeftI64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::WrappingShiftRightI64,
+            MachineAlternativeFamily::WrappingShiftRightI64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::WrappingShiftRightU64,
+            MachineAlternativeFamily::WrappingShiftRightU64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::ExactShiftLeftI64 {
+                obligation,
+                accepted_fact,
+            },
+            MachineAlternativeFamily::ExactShiftLeftI64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::ExactShiftRightI64 {
+                obligation,
+                accepted_fact,
+            },
+            MachineAlternativeFamily::ExactShiftRightI64,
+            3,
+        ),
+        (
+            SelectedInstructionKind::ExactShiftRightU64 {
+                obligation,
+                accepted_fact,
+            },
+            MachineAlternativeFamily::ExactShiftRightU64,
+            3,
+        ),
     ] {
         for names in [["x9", "x10", "x11"], ["x9", "x9", "x11"]] {
             let registers = names.map(|name| physical.model().view_named(name).unwrap().id);
