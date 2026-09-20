@@ -9739,7 +9739,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   and PROOF-SUBJECT-CALL-SELECTION (~05:39Z), `arithmetic_judgment` under
   the SIGNED-CALL-PREMISES family (~22:38Z).
 - **PROOF-SAMPLES-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
-- **PROOF-SEARCH-COST-MEASUREMENT** — mined candidate; verify scope then implement.
+- **PROOF-SEARCH-COST-MEASUREMENT** — mined candidate; resolved — the
+  measurement instrument this stub asks for is landed and live:
+  `proof/src/checker/measurement.rs` records the `ProofPlanMeasurements`
+  for one `check_proof_plan` run (obligation mix at the dispatch match,
+  per-leg certificate route verdicts, emitted certificate sizes, run
+  wall-clock cost, and kernel receipt figures aggregated across accepted
+  certificates), emitted as `key=value` lines under the
+  `OMEGA_PROOF_MEASUREMENTS` opt-in convention — exactly the measured hit
+  rate/invalidation/cost/storage evidence `wiki/drafts/proof_search_cache.md`
+  demands before a derivation store is chosen. The store it gates is
+  already landed and decomposed (PROOF-DERIVATION-STORE — canonical key
+  index + DERIVATION-RECHECK-CACHE consultation); sibling annotations cite
+  the resolved measurement row as PROOF-SEARCH-MEASUREMENT. Measurements
+  describe cost and never decide a verdict, so there is no second
+  instrument to add here. Scope verified at `d74f2145b96`.
 - **PROOF-SEARCH-DERIVATION-CACHE.** Resolved — the derivation recheck
   consultation is wired into `check_proof_plan`: a caller-supplied
   `ProofDerivationCache` (`checker::derivation_cache`, entered via
