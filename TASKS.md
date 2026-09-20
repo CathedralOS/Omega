@@ -8188,7 +8188,37 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Windows host before working it.
 - **GLOB-SELF-IMPORTS-REPAIR** — mined candidate; scope verified, slice landed. The name resolves to `tests/architecture/glob_self_imports.rs`: a per-crate ratchet over files carrying `use super::*;`/`use crate::*;`, whose ceiling table is already empty — so every surviving glob self-import fails `glob_self_imports_never_grow_per_crate`. Repair means removing the glob, not raising ceilings. Residual at `33eb8d92ff`: twelve files across eleven crates (new glob files keep landing, so the residual regrows while the ratchet is red). This slice converted four files to explicit `use super::{names}`/`use super::Name` imports — `component-description`'s `component_description/tests.rs`, `omega`'s `execution/mod.rs`, `machine-emission`'s `startup_trampoline.rs`, and `selected-instructions-to-selected-instructions`' `address_fold/tests.rs` `independence_tests` module — plus corrected the gate's stale "more than two thousand" preamble (crate suites green: 23/23, 4/4, 50/50, 41/41 filtered). Remaining files sit under sibling claims: BUILD-PACKAGES-GATE holds `sources/acquisition` traversal.rs, MACOS-X64-HOST-PROFILE/validators-leg holds image-emission `final_image_validation.rs`, MATCH-SELECTIVE-LOWERING holds validation `result_type.rs`, PROOF-RULE-CLASSICALITY-AUDIT holds proof-admission `classicality.rs`, and RC-REPOSITORY-BASELINE-GREEN glob legs hold optimization-unit-semantics `replay.rs`, checked-trees-to-lowered-psi `operation_crash_contracts.rs`, proof `measurement.rs`, and both terminal-verifier files. The gate stays red until those legs land; the ratchet then guards zero. Second slice (z103): the residual regrew to 24 files while red; this pass converted the eleven unfenced survivors — `target`'s `elf_loader`, `foreign_locator`, `target_semantics`, `uefi_loaded_image/{mod,occurrence}`, `x86_features`, `image-emission`'s `final_image_validation`, `build-evaluation`'s `evidence/filesystem_scope/preparation`, and the three `selected-instructions-to-selected-instructions` `*_relocation/tests.rs` `independence_tests` modules (the uefi_boot_services/uefi_system_table quartet was repaired by its claim owner in the interim). Nested `mod tests` globs needed the parent file's own `use` bindings listed explicitly (`use super::{TargetProfile}` / `use super::{Field, LayoutPlacementReport}`); rustc E0432/E0425 drive convergence. Four-crate lib suites 1896/1896 green. Residual at this commit: nine files, all sibling-fenced (BUILD-PACKAGES-GATE, RC-REPOSITORY-BASELINE-GREEN glob legs 1-2, RUNTIME-SIZED-ACTIVATION-STORAGE, PROOF-RULE-CLASSICALITY-AUDIT, MATCH-SELECTIVE-LOWERING); the ratchet stays red until they land.
 - **GRAPH-COST-EVIDENCE-CORPUS** — mined candidate; scope verified, authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg of GRAPH-COST-MODEL-STUDY (a versioned workload corpus is the missing evidence for the `predicted_cost_delta` comparison). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records; the comparison protocol is scoped in `wiki/drafts/graph_cost_model_study.md`. Sibling stubs on the same gated surface: OPTIMIZATION-WORKLOAD-CORPUS, WORKLOAD-CORPUS.
-- **GRAPH-FEATURE-PROJECTION-SCHEMA** — mined candidate; verify scope then implement.
+- **GRAPH-FEATURE-PROJECTION-SCHEMA.** Scope verified — the projection schema
+  is a landed seam; the open residual is feature families, gated the same way
+  as the study's corpus leg. Re-mines GRAPH-COST-MODEL-STUDY's named sibling
+  leg of the
+  [graph-cost-model study](wiki/drafts/graph_cost_model_study.md): "the
+  deterministic graph-feature projection joined under the versioned decision
+  schema". Verified live: `optimization-core`'s
+  `decisions/external_schema/model.rs::ExternalCandidateFeatures` is the
+  authoritative identity-bearing feature row (`ValidatedCandidateSummary`
+  binding candidate identity + `predicted_cost_delta`, `AnalysisSet` consumed
+  analyses, sorted-and-dedup-validated `OptimizationFactReference`s — sorted
+  in the constructor precisely so insertion order never reaches the
+  policy boundary); `pass_manager/external_policy/candidate_features.rs::derive`
+  projects that exact policy-visible row only after the ordinary validator
+  admits the candidate; the row joins the versioned decision schema through
+  `ExternalDecisionPoint`/`BaselineDecisionRecord`, each binding the input's
+  `OptimizationUnitIdentity` (the exact graph revision); `recording.rs` and
+  `replay.rs` give the independently-reconstructed log and the
+  replay-on-exact-equality check. The study itself records this seam as
+  implemented and proposes no code. Residual — the feature *families* the doc
+  lists (op-kind histogram, block/edge counts, loop-nesting depth,
+  custody/fuel-bearing edge counts, live-value density, terminal
+  state-transition topology) — has no implementable slice: the doc leaves the
+  high-level vs target-specific feature boundary an open question, and
+  training/evaluation features are gated on the versioned workload corpus
+  (WORKLOAD-CORPUS-AND-MULTIVERSIONING, authorization-gated;
+  `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the
+  reference compiler). The implementing surface is also under live claim
+  (`GRAPH-COST-MODEL-STUDY` holds `pass_manager/`, exp ~00:04Z).
+  Sibling stubs on the same gated surface: GRAPH-COST-EVIDENCE-CORPUS,
+  OPTIMIZATION-WORKLOAD-CORPUS, WORKLOAD-CORPUS.
 - **HOST-ALIAS-BUILD-DIR-DETECTION.** Advanced — the race-window residual
   verified at `7452910c6e` (a host alias planted between admission's
   `overlap_key` check and the first write is invisible to the
