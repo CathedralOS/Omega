@@ -10,6 +10,10 @@
 //! Premises prove bound ordering, equality or disequality the structural
 //! judgment could not. Disequality distinguishes singleton elements without
 //! choosing an ordering; it says nothing about overlap of wider windows.
+//! When no single premise names both bounds, one ordered premise pair may
+//! compose transitively through a shared middle bound (`i < n` with
+//! `n <= j` proves `i < j`); `==` legs substitute from either side and `!=`
+//! legs never compose.
 //! No relation can form a loan, extend a lifetime, or widen access.
 //! Required domain membership uses the same decomposition with a definition
 //! scope: its reserved self binds the immutable membership subject. The
@@ -582,6 +586,126 @@ fn premise_orientation_proves(
     }
 }
 
+/// Whether `first` and `second` transitively prove `left <query> right`
+/// through one shared middle bound: `first` supplies `a r1 m1`, `second`
+/// supplies `m2 r2 b`, and the pair composes when `m1 <= m2` on a common term
+/// line. A strictly separating middle (`m1 < m2`) makes the composed relation
+/// strict; at an equal middle the relation is strict when either leg is
+/// strict and loose when both are loose, with `==` absorbing a leg outright.
+/// `!=` legs never compose: a distinct middle could reorder or collapse the
+/// endpoints. Each query endpoint transports through its own premise's
+/// parameter bindings, so a guard-scope premise may chain with a state-scope
+/// one. The composed outer endpoints still participate in the ordinary
+/// constant-offset algebra, so `i < n && n <= j` proves `i < j + 1`.
+pub fn premise_chain_proves(
+    first: &StatedOrderingPremise,
+    second: &StatedOrderingPremise,
+    left: NormalizedBound,
+    query: BorrowCompatibilityPremiseRelation,
+    right: NormalizedBound,
+) -> bool {
+    first_legs(first).into_iter().flatten().any(|first_leg| {
+        second_legs(second).into_iter().flatten().any(|second_leg| {
+            chained_legs_prove(first_leg, second_leg, first, second, left, query, right)
+        })
+    })
+}
+
+/// One usable orientation of a premise in a chain. The first leg is
+/// `outer <relation> middle`; the second is `middle <relation> outer`.
+#[derive(Clone, Copy)]
+struct ChainLeg {
+    outer: NormalizedBound,
+    relation: BorrowCompatibilityPremiseRelation,
+    middle: NormalizedBound,
+}
+
+/// Orientations of `premise` usable as the left leg of a chain: the shared
+/// middle is its right endpoint. `==` contributes both orientations.
+fn first_legs(premise: &StatedOrderingPremise) -> [Option<ChainLeg>; 2] {
+    let stored = Some(ChainLeg {
+        outer: premise.left,
+        relation: premise.relation,
+        middle: premise.right,
+    });
+    let flipped =
+        matches!(premise.relation, BorrowCompatibilityPremiseRelation::Equal).then_some(ChainLeg {
+            outer: premise.right,
+            relation: premise.relation,
+            middle: premise.left,
+        });
+    [stored, flipped]
+}
+
+/// Orientations of `premise` usable as the right leg of a chain: the shared
+/// middle is its left endpoint. `==` contributes both orientations.
+fn second_legs(premise: &StatedOrderingPremise) -> [Option<ChainLeg>; 2] {
+    let stored = Some(ChainLeg {
+        outer: premise.right,
+        relation: premise.relation,
+        middle: premise.left,
+    });
+    let flipped =
+        matches!(premise.relation, BorrowCompatibilityPremiseRelation::Equal).then_some(ChainLeg {
+            outer: premise.left,
+            relation: premise.relation,
+            middle: premise.right,
+        });
+    [stored, flipped]
+}
+
+fn chained_legs_prove(
+    first_leg: ChainLeg,
+    second_leg: ChainLeg,
+    first: &StatedOrderingPremise,
+    second: &StatedOrderingPremise,
+    left: NormalizedBound,
+    query: BorrowCompatibilityPremiseRelation,
+    right: NormalizedBound,
+) -> bool {
+    use BorrowCompatibilityPremiseRelation as Relation;
+    if matches!(
+        (first_leg.relation, second_leg.relation),
+        (Relation::NotEqual, _) | (_, Relation::NotEqual)
+    ) {
+        return false;
+    }
+    // The legs meet only when the first middle provably precedes or equals
+    // the second on one shared term line.
+    let Some(middle_gap) = bound_shift(second_leg.middle, first_leg.middle) else {
+        return false;
+    };
+    if middle_gap < 0 {
+        return false;
+    }
+    let relation = if middle_gap > 0 {
+        Relation::StrictlyBefore
+    } else {
+        match (first_leg.relation, second_leg.relation) {
+            (Relation::Equal, relation) | (relation, Relation::Equal) => relation,
+            (Relation::StrictlyBefore, _) | (_, Relation::StrictlyBefore) => {
+                Relation::StrictlyBefore
+            }
+            (Relation::LessOrEqual, Relation::LessOrEqual) => Relation::LessOrEqual,
+            _ => return false,
+        }
+    };
+    let (Some(left), Some(right)) = (
+        transport_query_bound(first, left),
+        transport_query_bound(second, right),
+    ) else {
+        return false;
+    };
+    premise_orientation_proves(
+        first_leg.outer,
+        relation,
+        second_leg.outer,
+        left,
+        query,
+        right,
+    )
+}
+
 /// A premise with no durable fact identity, for unit tests that exercise the
 /// ordering consult without a contract-fact arena.
 #[cfg(test)]
@@ -640,7 +764,7 @@ mod tests {
     use super::BorrowCompatibilityPremiseRelation;
     use crate::checks::borrows::overlap::StatedOrderingPremise;
     use crate::checks::borrows::overlap::premises::NormalizedBound;
-    use crate::checks::borrows::overlap::premises::premise_proves;
+    use crate::checks::borrows::overlap::premises::{premise_chain_proves, premise_proves};
 
     fn symbol(index: u32) -> symbols::SymbolHandle {
         symbols::SymbolHandle::from_arena_index(index)
@@ -952,5 +1076,177 @@ mod tests {
             Relation::StrictlyBefore,
             sym(3, 0)
         ));
+    }
+
+    #[test]
+    fn chained_ordering_premises_compose_through_one_shared_middle() {
+        // `i < mid` with `mid <= j` composes to `i < j`: strict ordering,
+        // loose ordering, and disequality queries all settle.
+        let before_mid = premise(sym(1, 0), Relation::StrictlyBefore, sym(2, 0));
+        let mid_at_most = premise(sym(2, 0), Relation::LessOrEqual, sym(3, 0));
+        for query in [
+            Relation::StrictlyBefore,
+            Relation::LessOrEqual,
+            Relation::NotEqual,
+        ] {
+            assert!(premise_chain_proves(
+                &before_mid,
+                &mid_at_most,
+                sym(1, 0),
+                query,
+                sym(3, 0)
+            ));
+        }
+        assert!(!premise_chain_proves(
+            &before_mid,
+            &mid_at_most,
+            sym(1, 0),
+            Relation::Equal,
+            sym(3, 0)
+        ));
+        // The composed endpoints still shift on their own term lines.
+        assert!(premise_chain_proves(
+            &before_mid,
+            &mid_at_most,
+            sym(1, 1),
+            Relation::StrictlyBefore,
+            sym(3, 1)
+        ));
+        assert!(!premise_chain_proves(
+            &before_mid,
+            &mid_at_most,
+            sym(1, 1),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        // The legs do not commute: `mid <= j` then `i < mid` has no
+        // ordered shared middle and proves nothing about `i`/`j`.
+        for query in [
+            Relation::StrictlyBefore,
+            Relation::LessOrEqual,
+            Relation::Equal,
+            Relation::NotEqual,
+        ] {
+            assert!(!premise_chain_proves(
+                &mid_at_most,
+                &before_mid,
+                sym(1, 0),
+                query,
+                sym(3, 0)
+            ));
+        }
+    }
+
+    #[test]
+    fn equality_legs_substitute_from_either_side() {
+        // `i == mid` with `mid < j` proves `i < j`; `i < mid` with
+        // `mid == j` proves `i < j`.
+        let equals_mid = premise(sym(1, 0), Relation::Equal, sym(2, 0));
+        let mid_before = premise(sym(2, 0), Relation::StrictlyBefore, sym(3, 0));
+        assert!(premise_chain_proves(
+            &equals_mid,
+            &mid_before,
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        let before_mid = premise(sym(1, 0), Relation::StrictlyBefore, sym(2, 0));
+        let equals_j = premise(sym(2, 0), Relation::Equal, sym(3, 0));
+        assert!(premise_chain_proves(
+            &before_mid,
+            &equals_j,
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        // `==` orientation is symmetric: `mid == j` also chains.
+        let j_equals_mid = premise(sym(3, 0), Relation::Equal, sym(2, 0));
+        assert!(premise_chain_proves(
+            &before_mid,
+            &j_equals_mid,
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+    }
+
+    #[test]
+    fn chained_middles_must_share_one_term_line_in_order() {
+        let before_mid = premise(sym(1, 0), Relation::StrictlyBefore, sym(2, 0));
+        let mid_at_most = premise(sym(2, 0), Relation::LessOrEqual, sym(3, 0));
+        // A middle shifted past the second leg's middle still composes: the
+        // gap only strengthens the derived relation.
+        let tighter_mid = premise(sym(1, 0), Relation::StrictlyBefore, sym(2, -1));
+        assert!(premise_chain_proves(
+            &before_mid,
+            &mid_at_most,
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        let later_mid = premise(sym(2, 1), Relation::LessOrEqual, sym(3, 0));
+        assert!(premise_chain_proves(
+            &before_mid,
+            &later_mid,
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        // A middle ordered after the second leg's middle composes nothing.
+        assert!(!premise_chain_proves(
+            &tighter_mid,
+            &premise(sym(2, -2), Relation::LessOrEqual, sym(3, 0)),
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        // A distinct middle symbol shares no term line.
+        let foreign_mid = premise(sym(4, 0), Relation::LessOrEqual, sym(3, 0));
+        assert!(!premise_chain_proves(
+            &before_mid,
+            &foreign_mid,
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+        // Integer middles order on their own line.
+        let under_three = premise(sym(1, 0), Relation::StrictlyBefore, integer(3));
+        let five_at_most = premise(integer(5), Relation::LessOrEqual, sym(3, 0));
+        assert!(premise_chain_proves(
+            &under_three,
+            &five_at_most,
+            sym(1, 0),
+            Relation::StrictlyBefore,
+            sym(3, 0)
+        ));
+    }
+
+    #[test]
+    fn disequality_legs_never_compose() {
+        // `i != mid` with `mid <= j` could leave `i` anywhere relative to
+        // `j`; no relation derives.
+        let distinct_mid = premise(sym(1, 0), Relation::NotEqual, sym(2, 0));
+        let mid_at_most = premise(sym(2, 0), Relation::LessOrEqual, sym(3, 0));
+        for query in [
+            Relation::StrictlyBefore,
+            Relation::LessOrEqual,
+            Relation::Equal,
+            Relation::NotEqual,
+        ] {
+            assert!(!premise_chain_proves(
+                &distinct_mid,
+                &mid_at_most,
+                sym(1, 0),
+                query,
+                sym(3, 0)
+            ));
+            assert!(!premise_chain_proves(
+                &mid_at_most,
+                &distinct_mid,
+                sym(1, 0),
+                query,
+                sym(3, 0)
+            ));
+        }
     }
 }
