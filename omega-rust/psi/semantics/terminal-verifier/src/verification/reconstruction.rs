@@ -459,9 +459,16 @@ fn reconstruct_machine_semantics_with_crash_facts(
             // An acyclic assertion augments common incoming facts; it must not
             // turn a join into a loop cut. All actual arrivals prove the same
             // scoped predicate before this transaction grants any authority.
-            axioms.extend(scalar_block_invariants::header_axioms(
-                module, machine.id, current,
-            ));
+            axioms.extend(
+                scalar_block_invariants::header_axioms(
+                    module,
+                    machine.id,
+                    current,
+                    context.proposition_context(),
+                )
+                .into_iter()
+                .map(|fact| fact.proposition),
+            );
         }
         if crash_facts {
             axioms.retain(|proposition| {

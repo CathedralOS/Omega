@@ -65,6 +65,7 @@ static OWNER_SCALAR_BLOCK_INVARIANT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     conclusion: "a derivable obligation whose proposition is the declared invariant instantiated for that edge's arrival state",
     dependencies: &[
         "fact:semantic-axiom-roster",
+        "fact:header-invariant-members",
         "fact:branch-condition",
         "fact:branch-condition-transport",
         "scope:header-edge-arrival",
@@ -560,6 +561,25 @@ static FACT_BRANCH_CONDITION_TRANSPORT: TrustedSurfaceEntry = TrustedSurfaceEntr
     },
 };
 
+static FACT_HEADER_INVARIANT_MEMBERS: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:header-invariant-members",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "a validated scalar block invariant declaration on a machine header block",
+    conclusion: "each conjunction member proposition joining the header's arrival roster, emitted only after its fixed-shape certificate is accepted: the declared predicate is assumption zero and the member is eliminated along its exact conjunct-index path, so the checker re-decides membership of the declaration itself; alternatives and implications are never split since their members are not independently established",
+    dependencies: &[
+        "scope:header-edge-arrival",
+        "rule:assumption",
+        "rule:conjunction-elimination",
+        "formation:scalar-block-invariants",
+        "formation:mathematical-core",
+    ],
+    implementation: &[BLOCK_INVARIANTS],
+    soundness: SoundnessStatus::Proved {
+        evidence: "certified_members walks each declared predicate's conjunction tree recording the conjunct-index path, and member_certified builds a fixed-shape Assumption-plus-chained-ConjunctionElimination certificate that proof-admission's certificate checker re-decides before the emission is classified; only an accepted certificate marks the fact under this entry — a rejected certificate leaves the emission under scope:header-edge-arrival's licensed premise introductions and never fails the module",
+    },
+};
+
 static FACT_STRUCTURAL_CASE_ARM: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:structural-case-arm",
     family: LedgerFamily::ReconstructedFactKind,
@@ -628,6 +648,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_SUCCESSOR_PATH_TRANSPORT,
     FACT_BRANCH_CONDITION,
     FACT_BRANCH_CONDITION_TRANSPORT,
+    FACT_HEADER_INVARIANT_MEMBERS,
     FACT_STRUCTURAL_CASE_ARM,
     FACT_RETURN_RESULT_BINDING,
     FACT_CRASH_SITE_RETENTION,
