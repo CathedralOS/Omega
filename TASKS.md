@@ -6875,7 +6875,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GENERIC-VIRTUAL-CALLS** — mined candidate; scope verified, covered — same leg as FINITE-GENERIC-DISPATCH's remaining-work bullet "Runtime-capable family calls in Psi checking (`execution/unit/dynamic_scalar_calls/`)": a `Value` argument proven a roster member selects its row through generated dispatch among the closed bodies, and an unproven argument rejects. The item itself declares the leg depends on RUNTIME-VALUE-GENERICS (still open), the `dynamic_scalar_calls` surface is fenced by that parent item's own live claim, and the item explicitly rules out "a new reflection API or arbitrary generic virtual method" — no independent slice exists under this stub. Sibling stubs on the same bullet: GENERIC-DYNAMIC-FAMILY-DISPATCH, GENERIC-VIRTUAL-DISPATCH.
 - **GENERIC-VIRTUAL-DISPATCH** — mined candidate; verify scope then implement.
 - **GEOMETRY-ALIGNMENT-PARSING** — mined candidate; verify scope then implement.
-- **GEOMETRY-ALIGNMENT-REGIONS** — mined candidate; verify scope then implement.
+- **GEOMETRY-ALIGNMENT-REGIONS.** Mined candidate (split-of:
+  [samples/apps/squalr/TASKS.md](samples/apps/squalr/TASKS.md) GEOMETRY-PARITY
+  "region alignment/expansion" parity gap). Resolved — the gap is already
+  ported at Squalr-Omega `52bcf254c983a9ae9bf6e0c3661cafd656ca056b` (on that
+  repo's `main`): `squalr-engine-api`'s `NormalizedRegion` gained
+  `set_alignment` (forward-distance add to the next multiple, wrapped add at
+  the address edge, end address retained — matching the upstream
+  early-return/no-op cases) and `expand` (saturating base subtract and size
+  add around the released doubling multiply), and `squalr-tests` exercises
+  `expand` natively for growth plus low/high saturation. The residual is not
+  geometry work: `set_alignment` is source-checked but not exercised because
+  a `&mut self` machine taking a data parameter loses the entry attachment
+  identity (selected ProgramEntry establishment rejoins 0 Terminal
+  attachment identities) — a compiler entry-mechanics gap the app board now
+  tracks as "the set_alignment call-site gate" under GEOMETRY-PARITY.
+  Sibling stubs on the same parity-gaps sentence:
+  GEOMETRY-ALIGNMENT-PARSING, GEOMETRY-ALIGNMENT-STRING-PARSING (the
+  "alignment string parsing" gap), GEOMETRY-CLONE-SERIALIZATION,
+  GEOMETRY-DEBUG-ASSERTIONS, GEOMETRY-NAMED-TRAIT-OPERATORS.
 - **GEOMETRY-ALIGNMENT-STRING-PARSING** — mined candidate; verify scope then implement.
 - **GEOMETRY-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
 - **GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
