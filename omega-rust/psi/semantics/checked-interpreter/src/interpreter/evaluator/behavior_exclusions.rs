@@ -1,5 +1,5 @@
-//! Executed behavior exclusions: `builder.exclude_crash(cause)` and
-//! `builder.exclude_service<Trait>()` recorded as they evaluate.
+//! Executed Build behavior exclusions recorded as they evaluate: crash
+//! causes, physical-authority classes, and abstract services.
 //!
 //! Exclusions are evaluated Build selections
 //! (wiki/spec/build/behavior_exclusions.md): recording the call as it
@@ -20,11 +20,11 @@ use crate::{
 use typed_trees::statement::StatementHandle;
 
 impl<'program> Evaluator<'program> {
-    /// A `StatementNode::Call` that is one of the two exclusion spellings.
-    /// `exclude_crash` arrives as an ordinary resolved call to the exact
-    /// toolchain `Build::exclude_crash` machine; `exclude_service<Trait>` is
-    /// the parser-carved marker (no resolved target machine). Neither body
-    /// runs — the call IS the selection.
+    /// A `StatementNode::Call` selecting a behavior exclusion.
+    /// Enum-valued selections arrive as ordinary calls to exact toolchain
+    /// Build machines; `exclude_service<Trait>` is the parser-carved marker
+    /// (no resolved target machine). The evaluator intercepts these calls:
+    /// the call IS the selection, not execution of the declared empty body.
     pub(super) fn try_behavior_exclusion_statement(
         &mut self,
         statement: StatementHandle,
@@ -43,11 +43,30 @@ impl<'program> Evaluator<'program> {
             && self.exact_build_facet_method("Build", "exclude_crash", call.target_symbol)
         {
             ExecutedBehaviorExclusionKind::CrashCause {
-                case_symbol: self.evaluated_crash_cause(
+                case_symbol: self.evaluated_exclusion_case(
                     self.program
                         .statement_table
                         .expression_handles(call.arguments),
                     frame,
+                    "exclude_crash",
+                    "CrashCause",
+                )?,
+            }
+        } else if call.target.as_str() == "exclude_physical_authority"
+            && self.exact_build_facet_method(
+                "Build",
+                "exclude_physical_authority",
+                call.target_symbol,
+            )
+        {
+            ExecutedBehaviorExclusionKind::PhysicalAuthorityClass {
+                case_symbol: self.evaluated_exclusion_case(
+                    self.program
+                        .statement_table
+                        .expression_handles(call.arguments),
+                    frame,
+                    "exclude_physical_authority",
+                    "PhysicalAuthorityClass",
                 )?,
             }
         } else {
@@ -81,11 +100,30 @@ impl<'program> Evaluator<'program> {
             && self.exact_build_facet_method("Build", "exclude_crash", call.target_symbol)
         {
             ExecutedBehaviorExclusionKind::CrashCause {
-                case_symbol: self.evaluated_crash_cause(
+                case_symbol: self.evaluated_exclusion_case(
                     self.program
                         .expression_table
                         .expression_handles(call.arguments),
                     frame,
+                    "exclude_crash",
+                    "CrashCause",
+                )?,
+            }
+        } else if call.target.as_str() == "exclude_physical_authority"
+            && self.exact_build_facet_method(
+                "Build",
+                "exclude_physical_authority",
+                call.target_symbol,
+            )
+        {
+            ExecutedBehaviorExclusionKind::PhysicalAuthorityClass {
+                case_symbol: self.evaluated_exclusion_case(
+                    self.program
+                        .expression_table
+                        .expression_handles(call.arguments),
+                    frame,
+                    "exclude_physical_authority",
+                    "PhysicalAuthorityClass",
                 )?,
             }
         } else {
@@ -108,17 +146,21 @@ impl<'program> Evaluator<'program> {
         Ok(Some(Value::Unit))
     }
 
-    /// Evaluate the `exclude_crash` argument and recover the exact toolchain
-    /// `CrashCause` variant the value carries. The argument is an ordinary
-    /// evaluated expression — a bound local or a computed case selects as
-    /// much as a literal `CrashCause::Trap` spelling.
-    fn evaluated_crash_cause(
+    /// Recover the exact toolchain variant from an ordinary evaluated value.
+    /// Locals and computed cases select just as literal cases do. Both enum
+    /// axes share the same identity check; names are interpreted only at this
+    /// compiler-owned source boundary, never as physical classification.
+    fn evaluated_exclusion_case(
         &mut self,
         arguments: &[ExpressionHandle],
         frame: &Frame,
+        method_name: &str,
+        type_name: &str,
     ) -> EvalResult<SymbolHandle> {
         let [argument] = arguments else {
-            return trap("behavior exclusion `exclude_crash` takes exactly one CrashCause value");
+            return trap(format!(
+                "behavior exclusion `{method_name}` takes exactly one {type_name} value"
+            ));
         };
         let Value::Enum {
             type_symbol,
@@ -126,24 +168,24 @@ impl<'program> Evaluator<'program> {
             payload,
         } = self.eval_expression(*argument, frame)?
         else {
-            return trap(
-                "behavior exclusion `exclude_crash` argument did not evaluate to a compiler-owned CrashCause case",
-            );
+            return trap(format!(
+                "behavior exclusion `{method_name}` argument did not evaluate to a compiler-owned {type_name} case"
+            ));
         };
-        let is_toolchain_cause = type_symbol != SymbolHandle::invalid()
+        let is_toolchain_case = type_symbol != SymbolHandle::invalid()
             && self.symbol_has_build_prelude_source(type_symbol)
             && self.program.data_definitions().iter().any(|definition| {
-                definition.symbol == type_symbol && definition.name.as_str() == "CrashCause"
+                definition.symbol == type_symbol && definition.name.as_str() == type_name
             });
-        if !is_toolchain_cause {
-            return trap(
-                "behavior exclusion `exclude_crash` argument did not evaluate to a compiler-owned CrashCause case",
-            );
+        if !is_toolchain_case {
+            return trap(format!(
+                "behavior exclusion `{method_name}` argument did not evaluate to a compiler-owned {type_name} case"
+            ));
         }
         if !payload.is_empty() {
-            return trap(
-                "compiler-owned CrashCause case unexpectedly carries a payload".to_owned(),
-            );
+            return trap(format!(
+                "compiler-owned {type_name} case unexpectedly carries a payload"
+            ));
         }
         let variant = self
             .program
@@ -164,9 +206,9 @@ impl<'program> Evaluator<'program> {
                     })
             });
         variant.ok_or_else(|| {
-            Halt::Trap(
-                "evaluated CrashCause value names no declared compiler-owned case".to_owned(),
-            )
+            Halt::Trap(format!(
+                "evaluated {type_name} value names no declared compiler-owned case"
+            ))
         })
     }
 

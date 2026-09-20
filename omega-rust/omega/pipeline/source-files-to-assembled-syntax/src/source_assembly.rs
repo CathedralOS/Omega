@@ -602,6 +602,24 @@ pub data CrashCause [copy] {
     case Trap;
     case Abort;
 }
+// The closed physical-authority vocabulary selected by Build exclusions.
+// These are admission requirements, not grants to use the named authority.
+pub data PhysicalAuthorityClass [copy] {
+    case FilesystemContentRead;
+    case FilesystemContentWrite;
+    case FilesystemMetadataQuery;
+    case DirectoryEnumeration;
+    case FilesystemNamespaceMutation;
+    case FilesystemMetadataMutation;
+    case ProcessOutput;
+    case ProcessTermination;
+    case MachineControl;
+    case PortIo;
+    case InterruptControl;
+    case InterruptEntry;
+    case RootMemoryAccess;
+    case ProcessInput;
+}
 // compiler-owned TargetProfile declaration
 // compiler-owned X86DeploymentFeatures declaration
 // compiler-owned optimization declarations
@@ -722,10 +740,14 @@ pub machine Build::artifact_only(&mut self) {
 // Behavior exclusion (wiki/spec/build/behavior_exclusions.md): a
 // product-admission requirement that the selected executable composition
 // contains no reachable site of the named crash cause. The selection is
-// harvested statically with its authored span from the build machine's
-// checked call scope; the declared body is the evaluator no-op, and a
+// recorded when this call executes against the original Build value;
+// the evaluator intercepts the declaration, and a
 // declaration that permits Trap cannot override it.
 pub machine Build::exclude_crash(&mut self, cause: CrashCause) {
+}
+// Native realization checks this executed selection using the shared
+// physical mechanism classifier, independently of receiver permissions.
+pub machine Build::exclude_physical_authority(&mut self, authority: PhysicalAuthorityClass) {
 }
 // Independent-component assumption acceptance
 // (wiki/spec/build/component_publication.md): a verified component

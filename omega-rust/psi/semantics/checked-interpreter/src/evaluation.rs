@@ -387,12 +387,12 @@ pub struct ExecutedRootBinding {
     pub described: Option<DescribedProductEntry>,
 }
 
-/// One `builder.exclude_crash`/`builder.exclude_service` selection that
+/// One crash, physical-authority, or service exclusion selection that
 /// actually evaluated against the activation's original Build value
 /// (wiki/spec/build/behavior_exclusions.md): exclusions are evaluated Build
 /// selections, so a call present in the static call scope but never executed
 /// selects nothing. The coordinate rejoins the authored call in the exact
-/// evaluated program; the crash case is the EVALUATED value's exact variant
+/// evaluated program; an enum case is the EVALUATED value's exact variant
 /// symbol, not the spelled argument shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutedBehaviorExclusion {
@@ -421,6 +421,10 @@ pub enum ExecutedBehaviorExclusionKind {
     /// value here — a bound local or a computed case selects as much as a
     /// literal spelling.
     CrashCause { case_symbol: symbols::SymbolHandle },
+    /// The exact compiler-owned physical-authority case selected at run time.
+    /// Omega admission maps this source identity to its physical vocabulary;
+    /// the target-neutral evaluator does not classify mechanisms.
+    PhysicalAuthorityClass { case_symbol: symbols::SymbolHandle },
     /// `builder.exclude_service<Trait>()`: the marker executed; the retained
     /// call node still carries the resolved trait identity admission
     /// validates.

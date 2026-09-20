@@ -53,10 +53,33 @@ Service names must resolve to exact authorized declarations, not string labels.
 Unrecognized crash causes, unknown classifications, and ambiguous identities
 reject. Arbitrary authored crash categories, user-defined predicates, Boolean
 effect-row syntax, and a general policy-plugin language are not part of this
-contract. Exact Build API signatures and versioned encoding fields must be
-specified by the existing build/protocol owners before claiming source or wire
-compatibility; this document fixes the required semantics rather than inventing
-an illustrative spelling that appears shipped.
+contract. Versioned encoding and installation-envelope coverage remain separate
+from source authoring; an available Build method does not establish portable
+wire or replacement support.
+
+### Physical exclusion authoring
+
+The compiler-owned Build prelude provides:
+
+```omega
+pub machine Build::exclude_physical_authority(&mut self, authority: PhysicalAuthorityClass) {}
+```
+
+For example, `builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);`
+requests absence of process-output mechanisms. `PhysicalAuthorityClass` is a
+compiler-owned `[copy]` data type with payload-free cases:
+`FilesystemContentRead`, `FilesystemContentWrite`, `FilesystemMetadataQuery`,
+`DirectoryEnumeration`, `FilesystemNamespaceMutation`, `FilesystemMetadataMutation`,
+`ProcessOutput`, `ProcessTermination`, `MachineControl`, `PortIo`,
+`InterruptControl`, `InterruptEntry`, `RootMemoryAccess`, and `ProcessInput`.
+These cases select the existing closed terminal-authority vocabulary; they do
+not introduce new classification rules.
+
+The argument is an evaluated value, so locals and authorized helper parameters
+work just as literal cases do. The receiver must be the activation's original
+Build value. Only executed calls select exclusions. Admission retains the exact
+toolchain case identity, selecting machine, and authored source span before
+forming the canonical union; a same-spelled user declaration is not equivalent.
 
 ## Selection and scope
 
