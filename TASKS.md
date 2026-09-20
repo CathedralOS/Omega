@@ -2002,21 +2002,6 @@ Owners include
 
   Remaining work:
 
-  - Close actual foreign-call execution through the fragment object writer,
-    owned by **EVALUATED-FOREIGN-BINDINGS**. Mixed scalar/borrowed-record
-    arguments and reused scalar results reach native artifact replay, but
-    `image-emission/src/function_fragments/production.rs` publishes empty
-    import/relocation tables; `validation.rs` requires those empty tables.
-    The macOS ARM64 customer in `compiler/tests/efb3_flat_record_probe.rs`
-    times out at an unresolved `BL` with zero displacement, and its Mach-O
-    dylib list omits the requested provider. This is missing implementation,
-    not an owner design question. Preserve the source program and enable
-    `mixed_scalar_record_arguments_and_reused_result_execute_natively` when
-    the writer and independent replay land. Run the currently ignored outer
-    acceptance with `RUST_MIN_STACK=67108864 cargo nextest run -p compiler
-    --test efb3_flat_record_probe mixed_scalar_record_arguments_and_reused_result_execute_natively
-    --run-ignored only --no-fail-fast --no-tests fail` on macOS ARM64 with `cc`.
-    Artifact-custody replay alone does not establish executable import binding.
   - Widen foreign arguments and results. The scalar lane admits fixed-width
     integers only; add floating-point and other admitted scalar shapes. Borrowed
     flat-record projections compose with scalars in retained formal order

@@ -1067,9 +1067,8 @@ pub(crate) fn derive_normalized_foreign_child(
     )
     .ok_or("normalized foreign D41 child has an invalid provider execution")?;
 
-    // The image's foreign-call roster is the object's own roster plus any
-    // fragment-publication custody rows; the call must rejoin exactly the
-    // projected row the emitted image now retains.
+    // Fragment publication independently projects the same object roster;
+    // the image carries that complete roster without appending extra calls.
     let retained_calls: &[image_emission::ObjectForeignCall] = match publication {
         Some(binding) => binding.foreign_call_custody(),
         None => object.foreign_calls(),

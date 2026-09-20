@@ -13,9 +13,8 @@ use super::model::ValidatedOptimizedNativePhysicalEvidenceScope;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct FragmentPublicationBinding {
     object: Arc<ObjectArtifact>,
-    /// Foreign-call custody projected from the retained fragment source at
-    /// publication time; the emitted image receives it through artifact
-    /// construction, not through the sealed object roster.
+    /// Independent projection of the foreign-call roster already published in
+    /// the object and used for stack sizing and image emission.
     foreign_call_custody: Vec<image_emission::ObjectForeignCall>,
     /// The relocation-free object plan the custody rows were projected from.
     /// Its identity is already bound by the container custody digested into

@@ -6,9 +6,8 @@ use crate::{
     ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
 };
 use object_file::{
-    ObjectPlan, RelocationPlan, SectionKind, SectionPlan,
-    StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
-    entry_symbol_name,
+    ObjectPlan, SectionKind, SectionPlan, StagedOptimizedRelocationFreeObjectContainer, SymbolKind,
+    SymbolPlan, SymbolSection, entry_symbol_name,
 };
 use std::sync::Arc;
 
@@ -175,6 +174,11 @@ pub fn build_function_fragment_object_artifact(
             });
         }
     }
+    // Stack sizing happens before image emission. Keep the admitted external
+    // contributions on the ordinary object, not in a later image-only append.
+    let foreign_calls = crate::derive_normalized_foreign_call_custody(source)
+        .map_err(|_| Error::Mismatch("fragment import lacks selected call custody"))?;
+    let relocations = super::imports::publish(source, &mut object, &functions, &foreign_calls)?;
     let artifact = ObjectArtifact {
         hosted_receiver: None,
         requires_graph_storage_replay,
@@ -185,7 +189,7 @@ pub fn build_function_fragment_object_artifact(
         x86_scalar_fma_provider: None,
         entry: text.semantic_entry,
         object,
-        relocations: RelocationPlan::with_target(text.target),
+        relocations,
         text_bytes: text.bytes.clone(),
         data_bytes: Vec::new(),
         dynamic_conformance_tables: Vec::new(),
@@ -196,7 +200,7 @@ pub fn build_function_fragment_object_artifact(
         semantic_code_attribution,
         port_effects: Vec::new(),
         boundary_settlements: super::structural::settlements(source)?,
-        foreign_calls: Vec::new(),
+        foreign_calls,
     };
     validate_function_fragment_object_artifact(source, &artifact)?;
     Ok(artifact)

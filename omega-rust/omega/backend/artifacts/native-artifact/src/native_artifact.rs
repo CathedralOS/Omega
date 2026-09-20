@@ -129,25 +129,20 @@ impl NativeArtifact {
             NativePhysicalEvidenceDerivation::Unavailable
             | NativePhysicalEvidenceDerivation::Blocked(_) => None,
         };
-        // The fragment route seals the object's foreign-call roster inside its
-        // replay surface; the emitted image receives that custody here, bound
-        // from the scope the publication derivation produced for this exact
-        // object before the artifact records it as emitted evidence.
+        // Fragment calls already belong to the object and its emitted image.
+        // Check the independent projection instead of appending calls after
+        // image emission, which would omit their admitted stack demand.
         let custody = parts
             .physical_evidence_scope
-            .normalized_foreign_call_custody()
-            .to_vec();
-        let mut image = parts.image;
-        if !custody.is_empty() {
-            image
-                .bind_normalized_foreign_call_custody(custody)
-                .map_err(|_| "native artifact image rejects fragment foreign call custody")?;
+            .normalized_foreign_call_custody();
+        if !custody.is_empty() && parts.image.foreign_calls() != custody {
+            return Err("native artifact image differs from fragment foreign call custody");
         }
         Self::from_replayed_parts(NativeArtifactParts {
             target: parts.target,
             psi_artifact: parts.psi_artifact,
             object: parts.object,
-            image,
+            image: parts.image,
             selected_provider_closure_report_identity: parts
                 .selected_provider_closure_report_identity,
             selected_provider_closure_digest: parts.selected_provider_closure_digest,

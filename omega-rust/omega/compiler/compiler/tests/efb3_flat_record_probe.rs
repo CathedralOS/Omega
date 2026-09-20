@@ -516,14 +516,157 @@ fn mixed_scalar_record_arguments_and_reused_result_replay() {
         artifact.image().foreign_calls()[1].scalar_arguments[0].source,
         machine_code::InternalUnitScalarArgumentSourceRecord::Home(_)
     ));
+    let object = artifact.object();
+    assert_eq!(object.foreign_calls(), artifact.image().foreign_calls());
+    assert_eq!(object.object().layout.normalized_imports.len(), 1);
+    assert_eq!(object.relocations().record_count(), 2);
+    let stack = image_emission::derive_stack_demand(object, object.entry()).unwrap();
+    let call = &object.foreign_calls()[0];
+    assert_eq!(
+        stack.ceiling_bytes(),
+        u64::from(call.caller_live_bytes) + 64 * 1024
+    );
+    assert!(
+        stack
+            .admitted_contribution_commitments()
+            .contains(&call.same_stack_contribution.commitment())
+    );
 }
 
-/// This is the outer customer acceptance, not established by artifact replay.
-/// Function-fragment object publication currently drops the import/relocation
-/// rows before final image emission, leaving ARM64 BL immediates at zero.
-/// EVALUATED-FOREIGN-BINDINGS owns that writer and its independent replay.
 #[test]
-#[ignore = "blocked on EVALUATED-FOREIGN-BINDINGS: fragment object import/relocation publication"]
+fn fragment_foreign_imports_reject_substituted_object_records() {
+    let (_probe, artifact) = realize_mixed_arguments_probe();
+    let object = artifact.object();
+    let source = object.fragment_source_for_test().unwrap();
+    for mutation in 0..18 {
+        let mut changed = object.clone();
+        let import_symbol = changed.object().layout.normalized_imports[0].symbol;
+        let relocation_handle = changed.relocations().records().next().unwrap().0;
+        match mutation {
+            0 => changed
+                .object_mut_for_test()
+                .layout
+                .normalized_imports
+                .clear(),
+            1 => {
+                let extra = changed.object().layout.normalized_imports[0].clone();
+                changed
+                    .object_mut_for_test()
+                    .layout
+                    .normalized_imports
+                    .push(extra);
+            }
+            2 => {
+                changed.object_mut_for_test().layout.normalized_imports[0].locator =
+                    target::normalize_foreign_locator(
+                        target::ForeignLocatorCandidate::MachODylibSymbol {
+                            install_name: b"@executable_path/other.dylib".to_vec(),
+                            symbol: b"_shift".to_vec(),
+                        },
+                        target::TargetProfile::MacosArm64,
+                    )
+                    .unwrap();
+            }
+            3 => changed
+                .object_mut_for_test()
+                .layout
+                .symbols
+                .get_mut(import_symbol)
+                .name
+                .push_str("changed"),
+            4 => {
+                *changed.relocations_mut_for_test() =
+                    object_file::RelocationPlan::with_target(object.target())
+            }
+            5 => {
+                let extra = changed.relocations().records().next().unwrap().1.clone();
+                changed.relocations_mut_for_test().push_record(extra);
+            }
+            6 => {
+                changed
+                    .relocations_mut_for_test()
+                    .record_set
+                    .records
+                    .get_mut(relocation_handle)
+                    .offset += 4
+            }
+            7 => {
+                changed
+                    .relocations_mut_for_test()
+                    .record_set
+                    .records
+                    .get_mut(relocation_handle)
+                    .byte_width = 8
+            }
+            8 => {
+                changed
+                    .relocations_mut_for_test()
+                    .record_set
+                    .records
+                    .get_mut(relocation_handle)
+                    .addend = 4
+            }
+            9 => {
+                changed
+                    .relocations_mut_for_test()
+                    .record_set
+                    .records
+                    .get_mut(relocation_handle)
+                    .kind = object_file::RelocationKind::Absolute64
+            }
+            10 => {
+                changed
+                    .relocations_mut_for_test()
+                    .record_set
+                    .records
+                    .get_mut(relocation_handle)
+                    .section = object_file::SectionKind::Data
+            }
+            11 => {
+                changed
+                    .relocations_mut_for_test()
+                    .record_set
+                    .records
+                    .get_mut(relocation_handle)
+                    .symbol_handle = object.functions()[0].symbol
+            }
+            12 => {
+                changed
+                    .relocations_mut_for_test()
+                    .record_set
+                    .records
+                    .get_mut(relocation_handle)
+                    .origin = object_file::RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: object.functions()[0].symbol,
+                    operation_identity: u64::MAX,
+                }
+            }
+            13 => changed.foreign_calls_mut_for_test().clear(),
+            14 => changed.foreign_calls_mut_for_test()[0].caller_live_bytes = 0,
+            15 => changed.foreign_calls_mut_for_test().swap(0, 1),
+            16 => {
+                changed
+                    .object_mut_for_test()
+                    .layout
+                    .symbols
+                    .get_mut(import_symbol)
+                    .section = object_file::SymbolSection::Section(object_file::SectionKind::Text)
+            }
+            _ => {
+                let extra = changed.object().layout.symbols.get(import_symbol).clone();
+                changed.object_mut_for_test().layout.symbols.insert(extra);
+            }
+        }
+        assert!(
+            image_emission::validate_function_fragment_object_artifact(source, &changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+/// Exercise the complete object-import, stack-provisioning, loader and native
+/// ABI route; artifact replay alone does not establish foreign-call execution.
+#[test]
 fn mixed_scalar_record_arguments_and_reused_result_execute_natively() {
     let (probe, artifact) = realize_mixed_arguments_probe();
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
