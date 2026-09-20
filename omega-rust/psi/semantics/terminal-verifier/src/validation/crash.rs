@@ -160,20 +160,31 @@ pub(super) fn validate_call_crash_coverage(
         // Each surviving alternative needs coverage or an independent disproof
         // under invocation-entry requirements. Keep the original continuation
         // roster: disproving this use must not rewrite the callee's ceiling.
-        let uncovered = continuation.alternatives.iter().filter(|route| {
-            !published_routes.iter().any(|published| {
-                published.cause == continuation.cause
-                    && (published.alternatives == [CrashRouteGuard::Truth]
-                        || published.alternatives.contains(route))
+        if covered(&continuation) {
+            continue;
+        }
+        let uncovered: Vec<&CrashRouteGuard> = continuation
+            .alternatives
+            .iter()
+            .filter(|route| {
+                !published_routes.iter().any(|published| {
+                    published.cause == continuation.cause
+                        && (published.alternatives == [CrashRouteGuard::Truth]
+                            || published.alternatives.contains(route))
+                })
             })
-        });
-        if !covered(&continuation)
-            && !published_routes.iter().any(|published| {
-                published.cause == continuation.cause
-                    && entry_requirements::covers(caller, published)
-            })
-            && !entry_requirements::refutes(caller, uncovered)
-        {
+            .collect();
+        // The producer stage runs the bounded searches for every entry-
+        // requirement question this continuation asks; the consumer
+        // re-derives each goal and only re-decides supplied certificates.
+        let certificates = entry_requirements::certify_continuation(
+            caller,
+            published_routes
+                .iter()
+                .filter(|published| published.cause == continuation.cause),
+            &uncovered,
+        );
+        if !certificates.discharges(caller) {
             return Err(ModuleError::CallCrashContinuationUncovered {
                 operation,
                 cause: continuation.cause,
