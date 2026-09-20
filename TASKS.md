@@ -9634,7 +9634,33 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-REPOSITORY-BASELINE-GREEN** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY-CLOSURE.** Close the `RC-REPOSITORY` gate row from [rust_compiler_completion](wiki/drafts/rust_compiler_completion.md): its command block (`cargo fmt --all -- --check`, `mbx clippy --workspace --all-targets -- -D warnings`, `mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast`, `mbx check --workspace --all-targets`, `mbx nextest run --workspace --lib --no-fail-fast`) must pass on one commit. Row measured 2026-09-20 at `a9fa1a4fe6` (Linux x86-64, cargo — no mbx): **open, all five commands red**. fmt: 16 unformatted files across external-roots interrupt_table/stack_demand, compiler layout_plans/module_machine_indices tests, calling-conventions, c2l integer_policy_realization, t2c2 multiplicity/termination-origins, validation domain_weakening/match_dispatch. clippy: `permissions_set_readonly_false` at `omega-rust/omega/packages/sources/acquisition/src/tree/capture/traversal.rs:513`. arch-test: 12/547 — glob-self-import ceilings grew in 7 crates; 9 boundary-ensures/symbolic-walk recast-witness rejections (RECAST lane in flight); 2 provider-receiver fixtures stale under the `Service<R>`-only service spelling. check: `omega-native-differential-test` `abstract_publication/decision_custody.rs:58` fixture declares 6 Psi catalog members vs 7 actual. libtests: 95/15,621 failed — selected-dispatch 64 (mostly `Service<R>`-spelling stale fixtures), terminal-codec 20 (wire-tag drift), package-manager 14, a2a2 14, sf2as 6, t2c2 4, calling-conventions 4, native-realization 2, a2t2 2 — most unattributed in [known_baseline_failures](wiki/drafts/known_baseline_failures.md).
 - **RC-REPOSITORY-GATE** — mined candidate; verify scope then implement.
-- **RC-REPOSITORY-GATE-CLOSURE** — mined candidate; verify scope then implement.
+- **RC-REPOSITORY-GATE-CLOSURE.** Mined candidate — scope verified,
+  slice landed on `zergling/z93-rc-repository-gate-closure`. Re-mines the
+  `RC-REPOSITORY` gate row ([RC-REPOSITORY-CLOSURE](wiki/drafts/rust_compiler_completion.md)
+  carries the acceptance: all five baseline commands green on one commit).
+  Fresh re-measure at `19aff0a14ae3` (linux x86-64, cargo): `cargo fmt
+  --all -- --check` RED with 19 drifted files — three unfenced, repaired
+  in this slice (`compiler/tests/canary_suite/task_runtime.rs`,
+  `target-operations-to-selected-instructions` legalization
+  `dynamic_parameter_call.rs`, `omega` `inspect_terminal`
+  `integer_comparison_custody.rs`); the remaining sixteen sit under
+  sibling fences — RC-REPOSITORY-BASELINE-GREEN legs (interrupt_table
+  trio + stack_demand, layout_plans/module_machine_indices,
+  termination/progress origins trio, structural_scalar_fields),
+  ADDRESS-TRANSLATION-CANARY (multiplicity borrowed_windows +
+  linear_obligations), PSI-NATIVE-FIELD-STORES (structural_scalar_store
+  tests/mod.rs), CORPUS-RED-FAMILY-CASTSEED (token_bound_machine_calls),
+  NAMED-TRAIT-OPERATORS (checked-interpreter trait_operators), and
+  PIPELINE-CRATE-SWEEP (optimizer_source_organization inventory.rs —
+  drift introduced by ORPHAN-STAGE-OUTPUT-AUDIT's fddf82a61dfe).
+  `cargo check --workspace --all-targets` RED with a new library break:
+  `external-roots` `effects` dropped `ComponentEraJournal{,Roster}`
+  under `2d8c5136cc97` but `program_local` epoch_cohorts + test
+  fixtures still import them — fenced to FOREIGN-RETAINED-ARGUMENT-
+  BACKING (program_local, 04:01Z) and PHYSICAL-ENTRY-BRIDGES
+  (external-roots, 03:56Z). clippy/arch/libtests not re-run; the
+  a9fa1a4fe6 attribution stands and its residual is sibling-fenced.
+  Gate stays open until the fenced repairs land.
 - **RC-REPRESENTATIVE-PROGRAMS-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GREEN** — mined candidate; scope verified, gate is RED on the available host. The gate (`wiki/drafts/rust_compiler_completion.md`): `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host — every maintained sample reaches checked semantics, host-entry samples reach their native product, deterministic oracles pass. Measured at `d8041919ad` on linux x86-64 (cargo, no mbx): red — the authored-entry-binding legs fail on the known residuals, `windows_x86_64` entry selection rejects the std `targets/windows_x86_64/entry.omg` against the `named-callable(WindowsProcessEntry::enter)` schema (basics, fletcher_checksum, caesar_cipher, format_number legs), the other three targets fail with "selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one" (fletcher_checksum), and `named_integer_conversion_samples_reach_checked_trees` fails on `cli/basics/print_number` — "cannot prove default-domain field requirement for return from Main::main: self.out requires [u8; N]::Utf8". Passing legs observed before the red ones: dutch_flag, euclid_gcd (service-call entry plan retained), cli_mvp (both lines + EOF + enter), generic_counter. The failure families are the named ProgramEntry-rejoin / hosted-entry residuals on this board (ENTRY-CONTENT-ROOTS lane) plus the print_number domain-field leg; macOS/Windows/QEMU legs unavailable on this host per protocol. Sibling re-mines of the same matrix row: RC-REPRESENTATIVE-PROGRAMS-CLOSURE, -GATE, -PER-HOST (:8966-8969).
