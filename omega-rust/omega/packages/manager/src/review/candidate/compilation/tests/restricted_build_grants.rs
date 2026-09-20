@@ -120,9 +120,13 @@ fn supplied_host_scope_requires_exact_retained_request_and_occurrence() {
     let text = lock.canonical_text().unwrap();
     let recovered = PackageLock::recover_text(&text, PackageLockRecoveryLimits::default()).unwrap();
     assert!(
-        ungranted_restricted_build_requests(recovered.target(target).unwrap(), &reviews)
-            .unwrap()
-            .is_empty()
+        ungranted_restricted_build_requests(
+            recovered.target(target).unwrap(),
+            &reviews,
+            exact.source_closure(),
+        )
+        .unwrap()
+        .is_empty()
     );
 
     // A structurally valid, manually edited lock cannot grant absent meaning.
@@ -130,14 +134,33 @@ fn supplied_host_scope_requires_exact_retained_request_and_occurrence() {
     assert_ne!(stripped, text);
     let missing =
         PackageLock::recover_text(&stripped, PackageLockRecoveryLimits::default()).unwrap();
-    let gaps =
-        ungranted_restricted_build_requests(missing.target(target).unwrap(), &reviews).unwrap();
+    let gaps = ungranted_restricted_build_requests(
+        missing.target(target).unwrap(),
+        &reviews,
+        exact.source_closure(),
+    )
+    .unwrap();
     assert!(!gaps.is_empty());
     assert!(
         gaps.iter()
             .all(|gap| gap.package() == review.key().identity()
                 && gap.purpose() == crate::declarations::DependencyPurpose::Product)
     );
+    // Restricted-build acceptance attributes each request to its originating
+    // package *and dependency path*: every gap names the exact request route
+    // resolution took to the requesting package.
+    assert!(
+        gaps.iter().all(|gap| {
+            gap.request_path().is_some_and(|path| {
+                path.steps()
+                    .last()
+                    .map_or_else(|| path.root(), |step| step.target())
+                    == review.key()
+            })
+        }),
+        "each ungranted request carries the dependency path to its package"
+    );
+    assert!(gaps.iter().all(|gap| gap.to_string().contains("    path ")));
 
     // Recompile the same source with a larger real host-storage allowance.
     // Source equality and a retained narrower request do not grant that bound.
@@ -164,9 +187,12 @@ fn supplied_host_scope_requires_exact_retained_request_and_occurrence() {
     )
     .expect("compile a wider supplied host allowance")
     .reviews;
-    let wider_gaps =
-        ungranted_restricted_build_requests(recovered.target(target).unwrap(), &wider_reviews)
-            .unwrap();
+    let wider_gaps = ungranted_restricted_build_requests(
+        recovered.target(target).unwrap(),
+        &wider_reviews,
+        exact.source_closure(),
+    )
+    .unwrap();
     assert_eq!(wider_gaps.len(), gaps.len());
     assert_ne!(wider_gaps[0].request_meaning(), gaps[0].request_meaning());
     let widened = compare_package_policy_changes(
@@ -193,9 +219,12 @@ fn supplied_host_scope_requires_exact_retained_request_and_occurrence() {
             bundle.source_consumption_commitment(),
             bundle.sources().to_vec(),
         );
-    let purpose_gaps =
-        ungranted_restricted_build_requests(recovered.target(target).unwrap(), &other_purpose)
-            .unwrap();
+    let purpose_gaps = ungranted_restricted_build_requests(
+        recovered.target(target).unwrap(),
+        &other_purpose,
+        exact.source_closure(),
+    )
+    .unwrap();
     assert_eq!(purpose_gaps.len(), gaps.len());
     assert!(
         purpose_gaps
@@ -314,6 +343,7 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     let cross_grants = checkpoint.ungranted_requests(
         review.key().identity(),
         other_purpose,
+        exact.source_closure().dependency_path(review.key()),
         projected.iter().map(String::as_str),
     );
     assert_eq!(cross_grants.len(), projected.len());

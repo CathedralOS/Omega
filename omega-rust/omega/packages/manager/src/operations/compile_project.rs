@@ -193,8 +193,9 @@ pub fn compile_prepared_local_project_for_native<Observation>(
     // restricted build request the accepted rows do not grant rejects before
     // the compile's generated sources and checked root reach realization.
     if let Some(accepted) = accepted_target.as_ref() {
-        let ungranted = ungranted_restricted_build_requests(accepted, candidate.reviews())
-            .map_err(CompilePreparedLocalProjectNativeError::GrantJoin)?;
+        let ungranted =
+            ungranted_restricted_build_requests(accepted, candidate.reviews(), &source_closure)
+                .map_err(CompilePreparedLocalProjectNativeError::GrantJoin)?;
         if !ungranted.is_empty() {
             return Err(
                 CompilePreparedLocalProjectNativeError::UngrantedRestrictedBuild(ungranted),
