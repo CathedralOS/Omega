@@ -41,6 +41,7 @@ pub fn settle_checked_providers(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
+    accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: &[BoundaryCallingPlanRealization],
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
@@ -132,8 +133,10 @@ pub fn settle_checked_providers(
     // must be realized by exactly one of them and every component must
     // realize one selection, so a build that supplies none, several, an
     // unmatched extra, or a mismatched realization rejects here.
-    let independent_components =
-        independent_components::verify_independent_components(package_inputs)?;
+    let independent_components = independent_components::verify_independent_components(
+        package_inputs,
+        accepted_component_assumptions,
+    )?;
     let (selected_provider_plan_facts, selected_provider_provenance) =
         provider_planning::selected_provider_plan_facts_with_independent_components(
             typed,

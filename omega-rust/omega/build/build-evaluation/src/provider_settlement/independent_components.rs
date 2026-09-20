@@ -27,20 +27,22 @@ use semantic_vocabulary::PackageKeyIdentity;
 ///
 /// The expected subject is the identity the dependency's compilation
 /// observed, carried beside the bytes rather than read from them. The build
-/// admits the current description schema only, and it accepts no assumption
-/// digests: the build program has no vocabulary yet for accepting a declared
-/// physical mechanism, so a description that binds one rejects as an
+/// admits the current description schema only, and it accepts exactly the
+/// assumption digests the build machine declared through
+/// `builder.accept_component_assumption`: a description that binds a
+/// physical-mechanism digest the build did not accept rejects as an
 /// unaccepted assumption rather than being admitted on the producer's word.
 /// The module-proof admission profile is likewise empty: only a module whose
 /// obligations are kernel-dischargeable verifies, until the build grows the
 /// vocabulary to accept site-bound admission evidence.
 fn verification_request(
     description: &IndependentComponentDescription,
+    accepted_assumptions: &BTreeSet<[u8; 32]>,
 ) -> ComponentVerificationRequest {
     ComponentVerificationRequest {
         expected_subject: description.expected_subject(),
         accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
-        accepted_assumptions: BTreeSet::new(),
+        accepted_assumptions: accepted_assumptions.clone(),
         admission_profile: AdmissionProfile::default(),
     }
 }
@@ -51,12 +53,13 @@ fn verification_request(
 /// supply a lookup that yields `None` and leave the package unnamed.
 pub fn verify_independent_component_descriptions<'a>(
     descriptions: impl IntoIterator<Item = &'a IndependentComponentDescription>,
+    accepted_assumptions: &BTreeSet<[u8; 32]>,
     package_name: impl Fn(PackageKeyIdentity) -> Option<&'a str>,
 ) -> Result<Vec<VerifiedComponent>, Vec<Diagnostic>> {
     let mut components = Vec::new();
     let mut diagnostics = Vec::new();
     for description in descriptions {
-        let request = verification_request(description);
+        let request = verification_request(description, accepted_assumptions);
         match verify_component(description.description(), &request) {
             Ok(component) => components.push(component),
             Err(rejection) => {
@@ -79,12 +82,14 @@ pub fn verify_independent_component_descriptions<'a>(
 /// components, so its `Independent` selections reject at the join.
 pub(super) fn verify_independent_components(
     package_inputs: Option<&PackageCompilationInputs>,
+    accepted_assumptions: &BTreeSet<[u8; 32]>,
 ) -> Result<Vec<VerifiedComponent>, Vec<Diagnostic>> {
     let Some(package_inputs) = package_inputs else {
         return Ok(Vec::new());
     };
     verify_independent_component_descriptions(
         package_inputs.independent_component_descriptions(),
+        accepted_assumptions,
         |package| package_inputs.package_name(package),
     )
 }

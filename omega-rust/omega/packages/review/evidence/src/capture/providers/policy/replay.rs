@@ -51,6 +51,7 @@ pub(super) fn validate(
     // verified set rather than trusting the retained join outcome.
     let independent_components = build_evaluation::verify_independent_component_descriptions(
         compilation.custody.independent_component_descriptions(),
+        compilation.custody.accepted_component_assumptions(),
         |_| None,
     )?;
     let (replayed, _) =

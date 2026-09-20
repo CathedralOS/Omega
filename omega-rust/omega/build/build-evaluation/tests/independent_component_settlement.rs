@@ -244,6 +244,7 @@ impl Build {
             None,
             Some(&package_inputs),
             &[selection],
+            &std::collections::BTreeSet::new(),
             &[],
             &[],
         )

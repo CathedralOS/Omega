@@ -3,6 +3,7 @@ mod machine_evaluation;
 mod observation_projection;
 mod output_custody;
 
+use crate::admission::component_assumptions::harvest_component_assumption_acceptances;
 use crate::admission::configuration::{BuildConfig, extract_build_config};
 use crate::admission::declarations::{
     harvest_behavior_exclusions, harvest_provider_selections, harvest_root_grants,
@@ -137,6 +138,8 @@ fn execute_admitted_build_occurrence(
         representation_planning::harvest_opaque_representation_selections(typed, machine)?;
     config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
     config.behavior_exclusions = harvest_behavior_exclusions(typed, &executed_exclusions)?;
+    config.accepted_component_assumptions =
+        harvest_component_assumption_acceptances(typed, machine)?;
     config.root_bindings = root_bindings;
 
     // Capture the actual execution's staged output, then check host reach.
