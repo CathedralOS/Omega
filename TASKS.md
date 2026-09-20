@@ -7291,7 +7291,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   WORKLOAD-CORPUS-AND-MULTIVERSIONING and the product compiler. Row
   consumed — the canonical item carries the frontier.
 - **LEGACY-COMPATIBILITY-WRAPPER-PRUNING** — landed. The original Unit-only demand entry point kept a compat surface in `object_artifact/stack_demand.rs`: `derive_unit_stack_demand` forwarding to `derive_stack_demand` and `pub type UnitStackDemand = StackDemand`, both doc-marked "new callers should use" the canonical names with only test callers left. Removed the wrapper, alias, and their `image-emission` re-exports; the two `object_replays.rs` call sites now use `derive_stack_demand`/`StackDemand`. Deliberately retained: `NativeArtifact as RetainedNativeArtifact` (compilation-report), whose compatibility name is pinned by `tests/architecture/layering.rs` and now carries report-domain vocabulary (`CompileOutputKind::RetainedNativeArtifact`, `retained_native_artifact()`); and `legacy_cli_alias` in `representations/target`, a still-live transitional CLI normalization seam rather than a dead wrapper.
-- **LIFETIME-MULTI-SOURCE-AND-OUTLIVES** — mined candidate; verify scope then implement.
+- **LIFETIME-MULTI-SOURCE-AND-OUTLIVES** — mined candidate; scope verified,
+  two legs — re-mines the [lifetimes](wiki/spec/language/lifetimes.md)
+  returned-view frontier and the [conformances](wiki/spec/language/conformances.md)
+  application-matching boundary. Multi-source leg:
+  `typed-trees-to-checked-trees/src/borrow/view_link.rs` maps an explicit
+  result lifetime to one input parameter plus its complete matching
+  structural leaves; reusing one lifetime on multiple input parameters
+  currently rejects and is not a general multiple-source relation
+  (README#lifetime-source-correspondence). Implementing it means every
+  parameter carrying the selected lifetime contributes its leaves as
+  possible sources, each supporting the returned access. Outlives leg:
+  general authored outlives bounds have no surface — lifetimes.md spells
+  binders only, conformances.md states whole-conformance applications do
+  not gain outlives/variance/subtyping and introducing them requires
+  revisiting the application-matching rule; there is no authored syntax or
+  semantics to implement, so that leg waits on a spec decision, not a
+  checker gap. Dispatch note (`669925b8b9`): the multi-source surface is
+  fenced — `view_link.rs`, `view_link/`, `loans.rs` under
+  GENERIC-RETURNED-VIEW-LIFETIMES (22:27Z) and `checks/borrows/` under
+  DYNAMIC-RECEIVER-LOAN-ORIGIN (01:47Z); sibling row
+  LIFETIME-SOURCE-CORRESPONDENCE is the same clause family and is itself
+  claimed (01:51Z).
 - **LIFETIME-SOURCE-CORRESPONDENCE** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-MEASUREMENT-AUDIT** — mined candidate; verify scope then implement.
