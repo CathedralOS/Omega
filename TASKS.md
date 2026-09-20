@@ -10177,7 +10177,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   stays on the live **TRANSLATION-VALIDATION.** item in
   TASKS_OPTIMIZER.md.
 - **TV-OPERATOR-APPLICATIONS-REPLAY** — mined candidate; verify scope then implement.
-- **TV-PRIVILEGED-PORT-EFFECTS** — mined candidate; verify scope then implement.
+- **TV-PRIVILEGED-PORT-EFFECTS.** Resolved — stale mined stub; the leg it
+  names is already implemented and recorded on the canonical
+  **TRANSLATION-VALIDATION.** row in TASKS_OPTIMIZER.md ("Privileged port
+  effects. Implemented"). Verified at `0f5ae41e7d`:
+  `native-artifact/src/physical/derivation/evidence.rs` requires every
+  retained port effect to be consumed by an exact `MetadataOnlyPort`
+  settlement join (`consumed_port_effects`), and one unowned effect drops
+  the artifact's evidence as a `Blocked` `UnownedPortEffect` gap naming
+  machine, service, port, value, ordinals and span (introduced at
+  `95c5e9513e`). Distinct from sibling PRIVILEGED-PORT-EFFECT-SETTLEMENTS,
+  which owns the effect-emission transport legs (adapter route, `PortWrite`
+  selection, `out` encoding, `PortRead`) — partially resolved there with
+  live claims (22:50Z; asm-intrinsic-typing 00:01Z). The implementation
+  directory is additionally fenced by PHYSICAL-ACCESS-PROFILES (02:00Z);
+  no residual edit remains on this row either way.
 - **UNSEQUENCED-SPILL-DISPOSITION.** Mined candidate; scope verified at
   a4ffd1aff8 — fifth mined stub for the same directory; the full verified
   scope, family inventory, dependency chain and fence map are recorded on
