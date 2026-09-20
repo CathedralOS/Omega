@@ -313,7 +313,7 @@ pub(crate) fn checked_store_literal_matches(
             terminal_scalar_type(primitive_type).ok() == Some(ScalarType::IeeeFloat(value.format()))
         }
         (CheckedScalarExpression::IntegerLiteral { .. }, primitive_type) => {
-            primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
+            primitive_type.accepts_integer_literal()
         }
         (CheckedScalarExpression::Boolean(boolean), PrimitiveType::Bool) => {
             matches!(boolean.as_ref(), CheckedBooleanExpression::Constant(_))
