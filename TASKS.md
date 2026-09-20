@@ -5718,7 +5718,15 @@ Build/packages:
 - **C2L-BASELINE-FAILURE-ATTRIBUTION.** checked-trees-to-lowered-psi baseline-failure attribution set (boundary byte buffers, scalar return custody, operation proof-machine calls, unit failure attribution).
 - **DELTA-EXHAUSTION-ATTRIBUTION.** Delta compiler exhaustion attribution.
 - **BETA-ENCODER-DEFINITION-PACKAGE.** Beta encoder definition package.
-- **BETA-RECONSTRUCTION-REFUSAL.** Beta reconstruction refusal.
+- **BETA-RECONSTRUCTION-REFUSAL.** Beta reconstruction refusal. Landed: every
+  Beta compiler-exec entrypoint refuses (exit 2) on hosts that cannot run the
+  audited Alpha container — `tests/beta/compiler/reconstruction.sh`,
+  `compiler-diamond.sh`, and `tools/bootstrap/beta/build.sh`; bound-identity
+  refusals stay with `tests/bootstrap/beta-identity.sh`, malformed-source and
+  publication refusals with `word-prefix.sh` and the Darwin
+  `register-address-regression.sh`. Remaining: none at the shell surface —
+  reconstructed-proposition mutation controls belong to the
+  GAMMA-DERIVATION-CHECKER certificate acceptance.
 
 Platform/cross-host (structurally gated — document host limits):
 
