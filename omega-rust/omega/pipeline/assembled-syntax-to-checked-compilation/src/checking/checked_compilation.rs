@@ -657,6 +657,13 @@ impl CheckedCompilation {
         &self.timings
     }
 
+    /// The measurement accumulator the compiler's later product legs record
+    /// into, so stage timings survive inside the checked record until the
+    /// report-facing leg prints them.
+    pub fn timings_mut(&mut self) -> &mut CompileTimings {
+        &mut self.timings
+    }
+
     pub fn into_program(self) -> CheckedTrees {
         Arc::try_unwrap(self.execution.settled.program).unwrap_or_else(|shared| (*shared).clone())
     }

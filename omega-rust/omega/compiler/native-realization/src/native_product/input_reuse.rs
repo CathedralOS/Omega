@@ -1,8 +1,19 @@
 //! Invocation-local reuse of exactly matching Terminal inputs.
 
 use super::prepared::{NativeInputReuseKey, PreparedNativeCompilation};
+use artifacts::compile_timings::{StageMeta, TimingCategory};
 use compilation_report::CompileReport;
 use diagnostics::Diagnostic;
+
+/// The shared Terminal-input preparation each exact input pays once: the
+/// artifact's lowering and physical planning legs run inside this row until
+/// the native realization internals own their own stage rows.
+const NATIVE_INPUT_PREPARATION_STAGE: StageMeta = StageMeta::new(
+    "native-input-preparation",
+    "TerminalArtifact",
+    "PreparedNativeRealizationInput",
+    TimingCategory::Pipeline,
+);
 
 /// Prepared native realization inputs shared by every target of one
 /// invocation whose exact Terminal identity, admission profile and physical
@@ -21,7 +32,7 @@ impl NativeInputReuse {
     /// own prepared compilation.
     pub fn realize(
         &mut self,
-        compilation: PreparedNativeCompilation,
+        mut compilation: PreparedNativeCompilation,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         let key = compilation.reuse_key();
         let input_index = match self
@@ -32,8 +43,12 @@ impl NativeInputReuse {
             Some(input_index) => input_index,
             None => {
                 let input_index = self.inputs.len();
-                self.inputs
-                    .push((key, compilation.prepare_reusable_input()));
+                let mut stage_timings = std::mem::take(compilation.checked.timings_mut());
+                let prepared = stage_timings.record_result(NATIVE_INPUT_PREPARATION_STAGE, || {
+                    compilation.prepare_reusable_input()
+                });
+                *compilation.checked.timings_mut() = stage_timings;
+                self.inputs.push((key, prepared));
                 input_index
             }
         };
