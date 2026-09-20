@@ -570,6 +570,203 @@ fn real_filesystem_host_schema_accepts_settled_portable_facet_rows() {
 }
 
 #[test]
+fn real_filesystem_host_explicit_empty_policy_retains_reach_and_review_identity() {
+    // An explicit-empty consumer policy is still an exact binding, not a
+    // fabricated broad union over the schema: the final review keeps the
+    // service's exact identity in the transitional authority row and emits
+    // an empty permission table.
+    let tree = TempTree::new();
+    let consumer = tree.package("filesystem-empty-consumer");
+    let standard_library = repository_standard_library();
+    write_filesystem_consumer(&consumer, &standard_library);
+
+    let storage = SourceResolverStorage::for_hardened_base(
+        tree.0.join("filesystem-empty-resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create filesystem consumer resolver storage");
+    let closure = resolve_external_local_package_closure(
+        &consumer,
+        ExternalSourceContext::derive(b"real-filesystem-empty-policy"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve consumer with the real standard library");
+    let target = closure.for_exact_target(target::TargetProfile::LinuxX64);
+    let preliminary = compile_resolved_package_reviews(
+        &target,
+        &tree.0.join("filesystem-empty-preliminary-build"),
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .expect("compile preliminary filesystem review");
+    let root = closure.graph().root();
+    let root_review = preliminary.review(root).expect("preliminary root review");
+    let candidates = root_review
+        .semantic_binding_candidates()
+        .iter()
+        .filter(|candidate| {
+            candidate.binding().role() == AcceptedSemanticBindingRole::FilesystemHostService
+        })
+        .collect::<Vec<_>>();
+    let [candidate] = candidates.as_slice() else {
+        panic!(
+            "real FilesystemHost reach must expose one exact review candidate, found {}",
+            candidates.len()
+        );
+    };
+
+    let binding = candidate
+        .binding()
+        .clone()
+        .with_terminal_authority_permissions(Vec::new())
+        .expect("an explicit-empty permission table is a valid exact binding");
+    let final_reviews = compile_resolved_package_reviews(
+        &target,
+        &tree.0.join("filesystem-empty-final-build"),
+        SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
+            root.clone(),
+            root_review.checked_context(),
+            binding,
+        )]),
+    )
+    .expect("recompile with the explicit-empty policy");
+    let final_root = final_reviews.review(root).expect("final root review");
+
+    let filesystem_authorities = final_root
+        .projection()
+        .dangerous_authorities()
+        .iter()
+        .filter(|authority| authority.class() == PackageReviewDangerousAuthorityClass::Filesystem)
+        .collect::<Vec<_>>();
+    let [broad] = filesystem_authorities.as_slice() else {
+        panic!(
+            "explicit-empty policy must retain the transitional filesystem row, found {}",
+            filesystem_authorities.len()
+        );
+    };
+    assert_eq!(
+        broad.service().path(),
+        "FilesystemHost",
+        "the retained row keeps the exact service identity",
+    );
+    assert!(
+        final_root
+            .projection()
+            .terminal_authority_permissions()
+            .is_empty(),
+        "explicit-empty policy emits no permission rows",
+    );
+}
+
+#[test]
+fn real_filesystem_host_policy_rejects_unknown_and_duplicate_requirements() {
+    // Exact receiver rows reject at both boundaries: a substituted
+    // requirement identity rejoins zero schema methods during the checked
+    // recompile, and a repeated identity is refused by the binding itself.
+    let tree = TempTree::new();
+    let consumer = tree.package("filesystem-unknown-consumer");
+    let standard_library = repository_standard_library();
+    write_filesystem_consumer(&consumer, &standard_library);
+
+    let storage = SourceResolverStorage::for_hardened_base(
+        tree.0.join("filesystem-unknown-resolved"),
+        PrimaryGitChoices::default(),
+    )
+    .expect("create filesystem consumer resolver storage");
+    let closure = resolve_external_local_package_closure(
+        &consumer,
+        ExternalSourceContext::derive(b"real-filesystem-unknown-policy"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve consumer with the real standard library");
+    let target = closure.for_exact_target(target::TargetProfile::LinuxX64);
+    let preliminary = compile_resolved_package_reviews(
+        &target,
+        &tree.0.join("filesystem-unknown-preliminary-build"),
+        SemanticBindingReview::Explicit(&[]),
+    )
+    .expect("compile preliminary filesystem review");
+    let root = closure.graph().root();
+    let root_review = preliminary.review(root).expect("preliminary root review");
+    let candidates = root_review
+        .semantic_binding_candidates()
+        .iter()
+        .filter(|candidate| {
+            candidate.binding().role() == AcceptedSemanticBindingRole::FilesystemHostService
+        })
+        .collect::<Vec<_>>();
+    let [candidate] = candidates.as_slice() else {
+        panic!(
+            "real FilesystemHost reach must expose one exact review candidate, found {}",
+            candidates.len()
+        );
+    };
+    let schema_digest = candidate.service_schema().identity_digest();
+
+    let known = ServiceTerminalAuthorityPermission::for_filesystem_facets(
+        schema_digest,
+        candidate
+            .service_schema()
+            .methods
+            .iter()
+            .find(|method| method.name == "read")
+            .expect("real schema carries a read method")
+            .requirement_identity
+            .clone(),
+        [PortableFilesystemAuthorityFacet::ContentRead],
+    );
+    let duplicate_rejection = candidate
+        .binding()
+        .clone()
+        .with_terminal_authority_permissions(vec![known.clone(), known])
+        .expect_err("a repeated exact requirement identity must reject at the binding");
+    assert_eq!(
+        duplicate_rejection,
+        "terminal-authority permissions repeat an exact requirement"
+    );
+
+    let unknown = ServiceTerminalAuthorityPermission::for_filesystem_facets(
+        schema_digest,
+        "FilesystemHost::never_declared#substituted".to_owned(),
+        [PortableFilesystemAuthorityFacet::ContentRead],
+    );
+    let binding = candidate
+        .binding()
+        .clone()
+        .with_terminal_authority_permissions(vec![unknown])
+        .expect("a substituted identity still satisfies binding shape checks");
+    let Err(error) = compile_resolved_package_reviews(
+        &target,
+        &tree.0.join("filesystem-unknown-final-build"),
+        SemanticBindingReview::Explicit(&[ConsumerScopedSemanticBindingReviewInput::new(
+            root.clone(),
+            root_review.checked_context(),
+            binding,
+        )]),
+    ) else {
+        panic!("an unknown requirement identity must reject the checked recompile");
+    };
+    let diagnostics = match error {
+        package_manager::review::CompileResolvedPackageReviewsError::Compilation {
+            diagnostics,
+            ..
+        } => diagnostics,
+        other => {
+            panic!("unknown requirement must surface as compilation diagnostics, got {other:?}")
+        }
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("rejoins 0 exact service methods")),
+        "expected the exact-rejoin diagnostic, got {diagnostics:?}"
+    );
+}
+
+#[test]
 fn standard_library_alias_has_no_undeclared_bundled_fallback() {
     let tree = TempTree::new();
     let live_root = tree.package("missing-edge-consumer");
