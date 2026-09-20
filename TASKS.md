@@ -1192,9 +1192,18 @@ Owners include
   - Array lengths still symbolic at layout time remain fenced: unapplied
     templates or a `ConstCall`/`ConstParameter` surviving outside the connected
     pipeline. Closed literal/generic zero-count arrays are no longer this gap.
-    ConstMaterializable value materialization retains its separate
-    `generic_instance` fence. Standalone rungs retain their narrower single-hop
-    and nonzero-length contracts.
+    Closed generic instances are no longer this gap either: `Log<const N>`
+    reached through a member typed `Log<2>` is one synthesized record whose
+    substituted members already carry `Literal` lengths, and the
+    materialization owners admit it only when the retained application origin
+    replays the const-evaluable closed-argument judgment
+    (`require_closed_generic_application`, mirrored backend-side in
+    `validate_closed_copy_record`);
+    `generic_instance_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
+    in `layout_plans/writer_lowering.rs` lowers the instance element writer
+    on both Linux ISAs (native execution on x86-64). Open templates and
+    non-closed applications still reject. Standalone rungs retain their
+    narrower single-hop and nonzero-length contracts.
   - Obtain matching-host Linux AArch64 execution evidence. The writer harness
     validates both Linux ISA fragments and executes on Linux x86-64/AArch64
     or macOS AArch64; macOS execution does not close the Linux runtime row.

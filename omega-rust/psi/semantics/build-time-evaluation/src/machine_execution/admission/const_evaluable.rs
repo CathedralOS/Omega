@@ -277,8 +277,11 @@ fn require_closed_data_shape(
 /// the open generic template, lifetime arguments must already be erased, and
 /// each argument must satisfy its parameter kind — a closed const literal for
 /// `const`/`value` parameters, a closed type for `type` parameters. Machine
-/// parameters can never supply a const-evaluable argument.
-fn require_closed_generic_application(
+/// parameters can never supply a const-evaluable argument. Layout-plan
+/// materialization admission reuses this same judgment so a substituted
+/// literal member — a `const N` array length, say — keeps one closed-argument
+/// rule across the interpreter and materialization boundaries.
+pub(crate) fn require_closed_generic_application(
     program: &TypedTrees,
     definition: &DataDefinition,
     application: TypeReferenceHandle,

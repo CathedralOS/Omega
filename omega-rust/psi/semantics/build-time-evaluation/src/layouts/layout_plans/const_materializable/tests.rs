@@ -8,6 +8,9 @@ use super::{
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    GenericDataRequest, normalize_generic_data,
+};
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use tokens_to_syntax_trees::parse_syntax_trees;
 
@@ -523,4 +526,80 @@ fn sample_value() -> BuildTimeValue {
             ),
         ],
     }
+}
+
+#[test]
+fn closed_generic_instance_members_carry_substituted_literal_arrays() {
+    // `Pair<const N>`'s authored `items: [u64; N]` is a non-literal length;
+    // `Root.pair`'s `Pair<2>` member reaches the value walk as one closed
+    // synthesized record whose substituted member is already literal. The
+    // open template stays fenced and the instance encodes at exact offsets.
+    let typed = typed_generic(
+        "data Pair<const N: u64> [copy] { items: [u64; N]; }
+         data Root [copy] { pair: Pair<2>; tail: u8; }",
+    );
+    let layout = layout(&typed, "Root", &[0, 16], 24, 8);
+    let value = BuildTimeValue::Struct {
+        type_name: "Root".into(),
+        fields: vec![
+            (
+                "pair".into(),
+                BuildTimeValue::Struct {
+                    type_name: "Pair<2>".into(),
+                    fields: vec![(
+                        "items".into(),
+                        BuildTimeValue::Array(vec![
+                            BuildTimeValue::Int(0x1122_3344_5566_7788),
+                            BuildTimeValue::Int(0xcafe),
+                        ]),
+                    )],
+                },
+            ),
+            ("tail".into(), BuildTimeValue::Int(9)),
+        ],
+    };
+    let materialized = validate_const_materializable_typed_owned_layout(
+        &typed,
+        "Root",
+        &layout,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("a closed instance member materializes under its exact identity");
+    let mut expected = [0_u8; 24];
+    expected[0..8].copy_from_slice(&0x1122_3344_5566_7788_u64.to_le_bytes());
+    expected[8..16].copy_from_slice(&0xcafe_u64.to_le_bytes());
+    expected[16] = 9;
+    assert_eq!(materialized.bytes(), expected);
+
+    // The open template itself still has no closed checked-shape identity.
+    let template = unique_data_by_name(&typed, "Pair").expect("the open template");
+    let open_layout = LayoutPlanReport {
+        schema_report_fingerprint: normalized_schema_report_fingerprint(&typed, template),
+        entries: Vec::new(),
+        offsets: Some(Vec::new()),
+        size: Some(0),
+        align: 1,
+    };
+    let error = validate_const_materializable_typed_owned_layout(
+        &typed,
+        "Pair",
+        &open_layout,
+        &BuildTimeValue::Struct {
+            type_name: "Pair".into(),
+            fields: vec![("items".into(), BuildTimeValue::Array(Vec::new()))],
+        },
+        ByteOrder::LittleEndian,
+    )
+    .expect_err("the open generic template stays fenced");
+    assert!(error.0.contains("generic, opaque, quotient"), "{error:?}");
+}
+
+fn typed_generic(source: &str) -> TypedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let syntax =
+        normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    lower_symbol_resolved_trees(&resolved).expect("type")
 }

@@ -1,7 +1,8 @@
 //! Recursive record/sum projection and replay, including hostile geometry and custody.
 use super::{
     BuildTimeValue, ByteOrder, DataMember, DataShape, LayoutPlacementReport, NativeTarget,
-    SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode, checked, unique_data_layout,
+    SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode, checked, checked_generic,
+    unique_data_layout,
 };
 use crate::project_conventional_record_with_recursive_nested_sums_materialization_layout;
 use build_time_evaluation::ValidatedConstRecordSumChildMaterialization;
@@ -1979,4 +1980,108 @@ fn symbolic_length_spelling_fences_the_owner_until_checking_substitutes_it() {
             .contains("reaches a sum through a non-literal-length array"),
         "{error:?}"
     );
+}
+
+#[test]
+fn recursive_record_path_carries_a_closed_generic_instance_interior() {
+    // `Log<const N>`'s authored `events: [Event; N]` is a non-literal length;
+    // `Root.log`'s `Log<2>` member reaches the recursion as one closed
+    // synthesized record whose substituted members are already literal. The
+    // record path retains the instance's leaf level — count, stride, and
+    // element interior — once, exactly as a directly-authored literal array.
+    let checked = checked_generic(
+        "data Event [copy] { case Idle; case Hit(code: u64); }
+         data Log<const N: u64> [copy] { events: [Event; N]; }
+         data Root [copy] { log: Log<2>; marker: u64; }",
+    );
+    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Root")
+        .unwrap();
+    let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
+        &checked,
+        &plan,
+        owner.symbol,
+    )
+    .expect("a closed instance record path projects under the recursive owner");
+    // `marker` carries no sum reachability, so `log` is the level's one child:
+    // a field hop into the instance's own recursive report.
+    let [log_row] = paths.children.as_slice() else {
+        panic!("the outer record spells its one instance record path")
+    };
+    assert_eq!(log_row.field, "log");
+    assert!(matches!(log_row.hop, ConventionalRecordSumChildHop::Field));
+    let ConventionalRecordSumChildInterior::Record(log_report) = &log_row.interior else {
+        panic!("the closed instance's interior is a nested record report")
+    };
+    // Inside `Log<2>` the substituted `events: [Event; 2]` is the packed
+    // index hop — count 2 at the Event stride 16 — exactly as an authored
+    // literal array would spell it.
+    let [events_row] = log_report.children.as_slice() else {
+        panic!("the instance interior carries its one packed sum-array row")
+    };
+    assert_eq!(events_row.field, "events");
+    assert!(matches!(
+        events_row.hop,
+        ConventionalRecordSumChildHop::Index {
+            element_count: 2,
+            element_stride: 16,
+        }
+    ));
+    let ConventionalRecordSumChildInterior::Sum(element_layout) = &events_row.interior else {
+        panic!("the packed row carries the element sum interior")
+    };
+    assert_eq!(element_layout.size, 16);
+
+    let value = BuildTimeValue::Struct {
+        type_name: "Root".into(),
+        fields: vec![
+            (
+                "log".into(),
+                BuildTimeValue::Struct {
+                    type_name: "Log<2>".into(),
+                    fields: vec![(
+                        "events".into(),
+                        BuildTimeValue::Array(vec![
+                            BuildTimeValue::Case {
+                                variant: "Hit".into(),
+                                payload: vec![(
+                                    "code".into(),
+                                    BuildTimeValue::Int(0x1122_3344_5566_7788),
+                                )],
+                            },
+                            BuildTimeValue::Case {
+                                variant: "Idle".into(),
+                                payload: Vec::new(),
+                            },
+                        ]),
+                    )],
+                },
+            ),
+            ("marker".into(), BuildTimeValue::Int(0xcafe)),
+        ],
+    };
+    let custody = validate_const_materializable_record_with_recursive_nested_sums(
+        &checked,
+        "Root",
+        &paths,
+        &value,
+        ByteOrder::LittleEndian,
+    )
+    .expect("the instance interior materializes under retained custody");
+    // `log` spans 0..32; `marker` follows at 32. Element 0 carries
+    // Hit.code at its payload offset 8.
+    let mut expected = [0_u8; 40];
+    expected[0..4].copy_from_slice(&1_u32.to_le_bytes());
+    expected[8..16].copy_from_slice(&0x1122_3344_5566_7788_u64.to_le_bytes());
+    expected[32..40].copy_from_slice(&0xcafe_u64.to_le_bytes());
+    assert_eq!(custody.bytes(), expected);
+
+    let mut destination = [0xa5_u8; 40];
+    custody
+        .apply(&checked, &mut destination)
+        .expect("retained custody replays into a destination");
+    assert_eq!(destination.as_slice(), custody.bytes());
 }
