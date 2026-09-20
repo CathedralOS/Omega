@@ -13,10 +13,11 @@
 //! provider's call path — the only route that turns a sealed
 //! `InstalledEntryReference` into the resident entry content a physical call
 //! enters; `retire` unwinds the write-to-execute transition for a drained
-//! realization, reporting executor quiescence the `&mut self` receiver
-//! establishes structurally. Receipts are minted only for steps actually
-//! performed, and a demand for facts outside this provider's performed set
-//! is refused before any mutation.
+//! realization, and `quarantine` parks a drain that cannot complete as an
+//! unserved trapping reservation — both reporting the executor quiescence
+//! the `&mut self` receiver establishes structurally. Receipts are minted
+//! only for steps actually performed, and a demand for facts outside this
+//! provider's performed set is refused before any mutation.
 //!
 //! Honest boundaries: an owned buffer cannot be hardware-protected, so this
 //! provider reports `WxEnforcement::ConventionOnly` — write authority is the
@@ -34,11 +35,13 @@
 //! remains the consuming platform executor's obligation, and holding the
 //! returned `ResidentEntryCall` keeps the image borrowed so no `patch` or
 //! `release` can run while a call is in flight — and that same exclusive
-//! borrow is the executor-quiescence evidence `retire` reports. Retirement
-//! clears the image's execute-enabled flag and restores write authority;
-//! `release` merely drops resident storage once the caller holds the
-//! lifecycle's retired or quarantined outcome, and quarantine itself stays a
-//! caller obligation this provider cannot establish.
+//! borrow is the executor-quiescence evidence `retire` and `quarantine`
+//! report. Retirement clears the image's execute-enabled flag and restores
+//! write authority; quarantine marks the image trapping — every serve path
+//! refuses, and `release` refuses while the range stays reserved — so a stale
+//! entry attempt faults at the provider rather than being served or
+//! silently freed. Which ending a failed drain takes, and the attributed
+//! residual holder the quarantine receipt names, stay caller obligations.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -48,9 +51,9 @@ use crate::executable_installation::{
     Artifact, ArtifactContentDigest, EntryContractDigest, EntryReferenceAuthority,
     EntryReferenceFactDigest, EntryReferenceReceipt, InstallAuthority, InstallationDiagnostic,
     InstallationFactDigest, InstallationReceipt, InstalledCode, InstalledCodeId,
-    InstalledEntryReference, ReplacementAuthority, ReplacementFactDigest, ReplacementReceipt,
-    RetirementAuthority, RetirementFactDigest, RetirementReceipt, ValidatedPlacement,
-    WxEnforcement,
+    InstalledEntryReference, MappingQuarantineCause, MappingQuarantineId, MappingQuarantineReceipt,
+    ReplacementAuthority, ReplacementFactDigest, ReplacementReceipt, RetirementAuthority,
+    RetirementFactDigest, RetirementReceipt, ValidatedPlacement, WxEnforcement,
 };
 use layout_plans::EntryStubId;
 use target::Architecture;
@@ -123,14 +126,18 @@ pub const OWNED_IMAGE_RETIRE_WRITE_AUTHORITY_RESTORED: &[u8] =
 /// resumes it. `execute_enabled` is the matching execute authority: install
 /// sets it with the write suspension, `retire` clears it and restores write
 /// authority — the W+NX transition in reverse — and `call`/`seal_entry`
-/// consult it. `patched_sites` retains the exact bytes each patch committed
-/// at a declared entry, so `seal_entry` replays committed content rather
-/// than the superseded pre-patch bytes.
+/// consult it. `quarantined` marks a mapping whose drain could not complete:
+/// the provider stops serving it for every operation and `release` cannot
+/// free it, keeping the range reserved — the owned-buffer analogue of an
+/// unmapped, trapping reservation. `patched_sites` retains the exact bytes
+/// each patch committed at a declared entry, so `seal_entry` replays
+/// committed content rather than the superseded pre-patch bytes.
 #[derive(Debug)]
 struct OwnedImage {
     bytes: Vec<u8>,
     write_suspended: bool,
     execute_enabled: bool,
+    quarantined: bool,
     patched_sites: BTreeMap<EntryStubId, Vec<u8>>,
 }
 
@@ -205,16 +212,19 @@ pub struct OwnedImageProvider {
     architecture: Architecture,
     images: BTreeMap<InstalledCodeId, OwnedImage>,
     next_installed_identity: u64,
+    next_quarantine_identity: u64,
 }
 
 impl OwnedImageProvider {
-    /// A provider serving one target architecture. Installed-code identities
-    /// are minted from its own issuance counter, never supplied by callers.
+    /// A provider serving one target architecture. Installed-code and
+    /// quarantine identities are minted from its own issuance counters,
+    /// never supplied by callers.
     pub const fn for_architecture(architecture: Architecture) -> Self {
         Self {
             architecture,
             images: BTreeMap::new(),
             next_installed_identity: 1,
+            next_quarantine_identity: 1,
         }
     }
 
@@ -287,18 +297,40 @@ impl OwnedImageProvider {
     }
 
     /// Whether execute authority over one resident image is currently held.
-    /// Cleared by `retire`; `call` and `seal_entry` refuse without it.
+    /// Cleared by `retire` and `quarantine`; `call` and `seal_entry` refuse
+    /// without it.
     pub fn execute_enabled(&self, installed: InstalledCodeId) -> Option<bool> {
         self.images
             .get(&installed)
             .map(|image| image.execute_enabled)
     }
 
+    /// Whether one resident image is held as a quarantined trapping
+    /// reservation — set by `quarantine`, never cleared: the range stays
+    /// reserved until a wider isolation domain retires it, which this
+    /// provider has no evidence of.
+    pub fn quarantined(&self, installed: InstalledCodeId) -> Option<bool> {
+        self.images.get(&installed).map(|image| image.quarantined)
+    }
+
     /// Drop the resident image of a drained realization. This is storage
     /// release only — it mints no retirement or quarantine evidence, and the
-    /// caller must already hold the lifecycle outcome before calling it.
-    pub fn release(&mut self, installed: InstalledCodeId) -> bool {
-        self.images.remove(&installed).is_some()
+    /// caller must already hold the lifecycle outcome before calling it. A
+    /// quarantined image refuses: its range stays reserved until a wider
+    /// isolation domain retires, and a provider that freed it would have
+    /// reported `range_reserved` falsely.
+    pub fn release(&mut self, installed: InstalledCodeId) -> Result<bool, InstallationDiagnostic> {
+        if self
+            .images
+            .get(&installed)
+            .is_some_and(|image| image.quarantined)
+        {
+            return Err(InstallationDiagnostic(
+                "a quarantined range stays reserved; releasing it is not this provider's to decide"
+                    .into(),
+            ));
+        }
+        Ok(self.images.remove(&installed).is_some())
     }
 
     /// Perform the contracted write-to-execute operation: copy the validated
@@ -343,6 +375,7 @@ impl OwnedImageProvider {
             bytes,
             write_suspended: false,
             execute_enabled: true,
+            quarantined: false,
             patched_sites: BTreeMap::new(),
         };
         if image.bytes.as_slice() != source {
@@ -396,16 +429,29 @@ impl OwnedImageProvider {
                 "replacement authority is not scoped to the handed realizations".into(),
             ));
         }
-        if !self.images.contains_key(&successor.identity()) {
-            return Err(InstallationDiagnostic(
-                "provider holds no resident image for the successor realization".into(),
-            ));
+        match self.images.get(&successor.identity()) {
+            Some(successor_image) if successor_image.quarantined => {
+                return Err(InstallationDiagnostic(
+                    "cannot route calls to a quarantined successor realization".into(),
+                ));
+            }
+            Some(_) => {}
+            None => {
+                return Err(InstallationDiagnostic(
+                    "provider holds no resident image for the successor realization".into(),
+                ));
+            }
         }
         let image = self.images.get(&superseded.identity()).ok_or_else(|| {
             InstallationDiagnostic(
                 "provider holds no resident image for the superseded realization".into(),
             )
         })?;
+        if image.quarantined {
+            return Err(InstallationDiagnostic(
+                "cannot patch the trapping reservation of a quarantined realization".into(),
+            ));
+        }
         let artifact = &superseded.validated.frozen.artifact.artifact;
         let image_length = image.bytes.len() as u64;
 
@@ -533,6 +579,11 @@ impl OwnedImageProvider {
                 "provider holds no resident image for the installed realization".into(),
             )
         })?;
+        if image.quarantined {
+            return Err(InstallationDiagnostic(
+                "cannot seal an entry of a quarantined realization".into(),
+            ));
+        }
         if !image.execute_enabled {
             return Err(InstallationDiagnostic(
                 "cannot seal an entry after the realization's execute authority was removed".into(),
@@ -604,6 +655,11 @@ impl OwnedImageProvider {
                     "provider holds no resident image for the sealed realization".into(),
                 )
             })?;
+        if image.quarantined {
+            return Err(InstallationDiagnostic(
+                "cannot invoke an entry of a quarantined realization".into(),
+            ));
+        }
         if !image.execute_enabled {
             return Err(InstallationDiagnostic(
                 "cannot invoke an entry after the realization's execute authority was removed"
@@ -666,6 +722,11 @@ impl OwnedImageProvider {
                 "provider holds no resident image for the installed realization".into(),
             )
         })?;
+        if image.quarantined {
+            return Err(InstallationDiagnostic(
+                "the realization's mapping is already quarantined".into(),
+            ));
+        }
         image.execute_enabled = false;
         image.write_suspended = false;
         Ok(RetirementReceipt::from_provider(
@@ -677,10 +738,55 @@ impl OwnedImageProvider {
         ))
     }
 
+    /// Perform the quarantine transition a failed drain asks for: stop
+    /// serving the realization's mapping — execute authority off, write
+    /// authority restored, and every serve path refusing — while retaining
+    /// the image so the range stays reserved. The receipt reports exactly
+    /// those performed changes; the attributed `cause` is the caller's
+    /// evidence of who still holds authority over the drained mapping, so an
+    /// unattributed cause refuses before any mutation. Quiescence is
+    /// structural: `&mut self` is unreachable while a [`ResidentEntryCall`]
+    /// borrows the provider.
+    pub fn quarantine(
+        &mut self,
+        installed: &InstalledCode,
+        cause: MappingQuarantineCause,
+    ) -> Result<MappingQuarantineReceipt, InstallationDiagnostic> {
+        if !cause.is_attributed() {
+            return Err(InstallationDiagnostic(
+                "cannot quarantine a mapping without an attributed residual holder".into(),
+            ));
+        }
+        let image = self.images.get_mut(&installed.identity()).ok_or_else(|| {
+            InstallationDiagnostic(
+                "provider holds no resident image for the installed realization".into(),
+            )
+        })?;
+        if image.quarantined {
+            return Err(InstallationDiagnostic(
+                "the realization's mapping is already quarantined".into(),
+            ));
+        }
+        image.execute_enabled = false;
+        image.write_suspended = false;
+        image.quarantined = true;
+        let quarantine = self.next_quarantine_identity();
+        Ok(MappingQuarantineReceipt::from_provider(
+            installed, quarantine, true, true, true, cause,
+        ))
+    }
+
     fn next_installed_identity(&mut self) -> InstalledCodeId {
         let identity = self.next_installed_identity;
         self.next_installed_identity += 1;
         InstalledCodeId::from_normalized_identity(identity)
+            .expect("provider issuance counter never produces zero")
+    }
+
+    fn next_quarantine_identity(&mut self) -> MappingQuarantineId {
+        let identity = self.next_quarantine_identity;
+        self.next_quarantine_identity += 1;
+        MappingQuarantineId::from_normalized_identity(identity)
             .expect("provider issuance counter never produces zero")
     }
 }

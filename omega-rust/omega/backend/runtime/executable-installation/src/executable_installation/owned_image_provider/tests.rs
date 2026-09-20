@@ -8,10 +8,12 @@ use crate::executable_installation::{
     DecodedArtifactRelocation, EntryContractDigest, EntryReferenceAuthority,
     EntryReferenceFactDigest, EntryReferenceReceipt, EntrySetId, InstallAuthority,
     InstallationFactDigest, InstalledCode, InstalledCodeId, InstalledEntryReference,
-    MachineContractSetId, MachineFootprintId, PlacementPlanId, RelocationSetId,
-    ReplacementAuthority, ReplacementFactDigest, ReplacementOutcome, RetiredInstallation,
-    RetirementAuthority, RetirementFactDigest, ValidatedPlacement, install_validated,
-    replace_installed, retire_installed, validate_final_placement,
+    MachineContractSetId, MachineFootprintId, MappingQuarantineCause, PlacementPlanId,
+    QuarantinedInstallation, RelocationSetId, ReplacementAuthority, ReplacementFactDigest,
+    ReplacementOutcome, RetiredInstallation, RetirementAuthority, RetirementFactDigest,
+    RetirementReceipt, UninstallOutcome, ValidatedPlacement, install_validated,
+    quarantine_installed, replace_installed, retire_installed, uninstall_installed,
+    validate_final_placement,
 };
 use layout_plans::{EntryStubId, RelocationTarget};
 use target::Architecture;
@@ -187,7 +189,7 @@ fn patch_splices_admitted_fragments_at_declared_sites_and_the_receipt_replaces()
         matches!(outcome, ReplacementOutcome::Retired { .. }),
         "a complete drain retires rather than quarantining"
     );
-    assert!(provider.release(superseded_id));
+    assert!(provider.release(superseded_id).unwrap());
     assert_eq!(provider.installed_image(superseded_id), None);
 }
 
@@ -798,7 +800,7 @@ fn retire_leaves_the_image_resident_until_the_caller_releases() {
     let retired = retire_through_provider(&mut provider, installed);
 
     assert!(provider.installed_image(installed_id).is_some());
-    assert!(provider.release(installed_id));
+    assert!(provider.release(installed_id).unwrap());
     assert_eq!(provider.installed_image(installed_id), None);
     drop(retired);
 }
@@ -809,8 +811,242 @@ fn release_drops_only_resident_images() {
     let (installed, _code) = install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
     let unknown = InstalledCodeId::from_normalized_identity(77).unwrap();
 
-    assert!(!provider.release(unknown));
-    assert!(provider.release(installed));
+    assert!(!provider.release(unknown).unwrap());
+    assert!(provider.release(installed).unwrap());
     assert_eq!(provider.installed_image(installed), None);
-    assert!(!provider.release(installed));
+    assert!(!provider.release(installed).unwrap());
+}
+
+/// Park a realization whose drain cannot complete: the provider performs the
+/// quarantine transition and the crossing consumes the receipt it minted.
+fn quarantine_through_provider(
+    provider: &mut OwnedImageProvider,
+    installed: InstalledCode,
+    cause: MappingQuarantineCause,
+) -> QuarantinedInstallation {
+    let receipt = provider
+        .quarantine(&installed, cause)
+        .expect("provider performs the quarantine");
+    quarantine_installed(installed, receipt).expect("the provider's receipt quarantines")
+}
+
+#[test]
+fn quarantine_parks_the_mapping_as_an_unserved_reserved_range() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let reference = seal_through_provider(&provider, &installed, entry_id(1041));
+    let context = installed.receipt_context();
+    let extent = installed.validated.frozen.placement.extent.length();
+
+    let receipt = provider
+        .quarantine(
+            &installed,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        )
+        .expect("provider performs the quarantine");
+
+    // Execute off, write authority restored, the range retained but no
+    // longer served — the owned-buffer trapping reservation. A stale call
+    // faults rather than being served.
+    assert_eq!(provider.execute_enabled(installed_id), Some(false));
+    assert_eq!(provider.write_suspended(installed_id), Some(false));
+    assert_eq!(provider.quarantined(installed_id), Some(true));
+    let error = provider
+        .call(&installed, &reference)
+        .expect_err("a call into a quarantined mapping faults");
+    assert!(error.0.contains("quarantined"));
+
+    let quarantined =
+        quarantine_installed(installed, receipt).expect("the provider's receipt quarantines");
+    assert_eq!(quarantined.installed_code(), installed_id);
+    assert_eq!(quarantined.attributed_capacity_loss(), extent);
+    let fault = quarantined
+        .stale_entry_fault(&context)
+        .expect("a stale entry attempt faults at the trapping mapping");
+    assert!(!fault.discharged_obligations());
+}
+
+#[test]
+fn uninstall_routes_a_failed_drain_to_the_provider_quarantine() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_installed_id, installed) =
+        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+    let authority =
+        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
+    // The drain refuses: this receipt establishes none of the demanded
+    // retirement facts — residual authority outstanding sends the uninstall
+    // to the quarantine ending the provider's receipt supplies.
+    let drain =
+        RetirementReceipt::from_provider(&installed, false, false, false, std::iter::empty());
+    let quarantine = provider
+        .quarantine(
+            &installed,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 2,
+            },
+        )
+        .expect("provider performs the quarantine");
+
+    let outcome = uninstall_installed(installed, authority, drain, Some(quarantine))
+        .expect("the failed drain parks at the provider's trapping quarantine");
+
+    let UninstallOutcome::Quarantined(quarantined) = outcome else {
+        panic!("an incomplete drain quarantines rather than retiring")
+    };
+    assert_eq!(
+        quarantined.cause(),
+        &MappingQuarantineCause::IncompleteDrain {
+            residual_authority_count: 2
+        }
+    );
+}
+
+#[test]
+fn quarantine_refuses_without_an_attributed_residual_holder() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+
+    let error = provider
+        .quarantine(
+            &installed,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 0,
+            },
+        )
+        .expect_err("an unattributed quarantine refuses");
+
+    assert!(error.0.contains("attributed"));
+    // A refused quarantine mutates nothing: the mapping stays served.
+    assert_eq!(provider.execute_enabled(installed_id), Some(true));
+    assert_eq!(provider.quarantined(installed_id), Some(false));
+}
+
+#[test]
+fn quarantine_refuses_when_the_provider_holds_no_resident_image() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let admitted = admit(&artifact(41));
+    let installed = installed_code(&admitted, 41, 0x4000);
+
+    let error = provider
+        .quarantine(
+            &installed,
+            MappingQuarantineCause::PossibleOpaqueHolder {
+                provider_identity: "other-provider".into(),
+            },
+        )
+        .expect_err("a nonresident realization refuses");
+
+    assert!(error.0.contains("no resident image"));
+}
+
+#[test]
+fn quarantine_refuses_a_second_parking_and_retire_refuses_a_parked_mapping() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (_installed_id, installed) =
+        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+    let cause = || MappingQuarantineCause::IncompleteDrain {
+        residual_authority_count: 1,
+    };
+
+    provider
+        .quarantine(&installed, cause())
+        .expect("provider performs the first quarantine");
+
+    let error = provider
+        .quarantine(&installed, cause())
+        .expect_err("a second parking refuses");
+    assert!(error.0.contains("already quarantined"));
+    let authority =
+        RetirementAuthority::from_admitted_provider(&installed, OwnedImageProvider::retire_facts());
+    let error = provider
+        .retire(&installed, &authority)
+        .expect_err("the drain ending is exclusive once quarantined");
+    assert!(error.0.contains("already quarantined"));
+}
+
+#[test]
+fn release_refuses_to_free_a_quarantined_range() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &artifact(41), 41, 0x4000);
+
+    quarantine_through_provider(
+        &mut provider,
+        installed,
+        MappingQuarantineCause::PossibleOpaqueHolder {
+            provider_identity: "mystery-holder".into(),
+        },
+    );
+
+    let error = provider
+        .release(installed_id)
+        .expect_err("a quarantined range stays reserved");
+    assert!(error.0.contains("stays reserved"));
+    assert_eq!(provider.quarantined(installed_id), Some(true));
+    assert!(provider.installed_image(installed_id).is_some());
+}
+
+#[test]
+fn seal_and_patch_refuse_a_quarantined_mapping() {
+    let mut provider = OwnedImageProvider::for_architecture(Architecture::X86_64);
+    let (installed_id, installed) =
+        install_through_provider(&mut provider, &two_site_artifact(41), 41, 0x4000);
+    let (_successor_id, successor) =
+        install_through_provider(&mut provider, &artifact(42), 42, 0x8000);
+    provider
+        .quarantine(
+            &installed,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        )
+        .expect("provider performs the quarantine");
+    assert_eq!(provider.quarantined(installed_id), Some(true));
+
+    let seal_authority = EntryReferenceAuthority::from_admitted_provider(
+        &installed,
+        entry_id(1041),
+        seal_contract(),
+    );
+    let error = provider
+        .seal_entry(&installed, &seal_authority)
+        .expect_err("sealing a quarantined mapping refuses");
+    assert!(error.0.contains("quarantined"));
+
+    let patch_authority = ReplacementAuthority::from_admitted_provider(
+        &installed,
+        &successor,
+        [],
+        OwnedImageProvider::patch_facts(),
+    );
+    let error = provider
+        .patch(&installed, &successor, &patch_authority)
+        .expect_err("patching a quarantined mapping refuses");
+    assert!(error.0.contains("quarantined"));
+
+    // And the symmetric direction: calls cannot route to a quarantined
+    // successor either.
+    provider
+        .quarantine(
+            &successor,
+            MappingQuarantineCause::IncompleteDrain {
+                residual_authority_count: 1,
+            },
+        )
+        .expect("provider quarantines the successor");
+    let (_other_id, other) = install_through_provider(&mut provider, &artifact(43), 43, 0xC000);
+    let patch_authority = ReplacementAuthority::from_admitted_provider(
+        &other,
+        &successor,
+        [],
+        OwnedImageProvider::patch_facts(),
+    );
+    let error = provider
+        .patch(&other, &successor, &patch_authority)
+        .expect_err("patching toward a quarantined successor refuses");
+    assert!(error.0.contains("quarantined"));
 }

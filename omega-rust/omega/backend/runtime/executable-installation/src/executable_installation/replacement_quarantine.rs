@@ -12,6 +12,22 @@ pub enum MappingQuarantineCause {
     PossibleOpaqueHolder { provider_identity: String },
 }
 
+impl MappingQuarantineCause {
+    /// Whether the cause names a concrete residual holder — an unattributed
+    /// quarantine refuses at the provider and at the crossing, since the
+    /// receipt must answer who still holds authority over the mapping.
+    pub fn is_attributed(&self) -> bool {
+        match self {
+            Self::IncompleteDrain {
+                residual_authority_count,
+            } => *residual_authority_count > 0,
+            Self::PossibleOpaqueHolder { provider_identity } => {
+                !provider_identity.trim().is_empty()
+            }
+        }
+    }
+}
+
 /// Provider result establishing the fail-closed quarantine transition for one
 /// exact installed realization. The compact quarantine identity is a report
 /// key only; authorization retains and compares the complete installed
@@ -126,14 +142,7 @@ pub fn quarantine_installed(
     receipt: MappingQuarantineReceipt,
 ) -> Result<QuarantinedInstallation, Box<MappingQuarantineError>> {
     let evidence = InstalledCodeEvidence::from_installed(&installed);
-    let cause_valid = match &receipt.cause {
-        MappingQuarantineCause::IncompleteDrain {
-            residual_authority_count,
-        } => *residual_authority_count > 0,
-        MappingQuarantineCause::PossibleOpaqueHolder { provider_identity } => {
-            !provider_identity.trim().is_empty()
-        }
-    };
+    let cause_valid = receipt.cause.is_attributed();
     let mismatch = if receipt.installed != evidence {
         Some("mapping-quarantine receipt does not match installed code")
     } else if !receipt.execute_disabled {

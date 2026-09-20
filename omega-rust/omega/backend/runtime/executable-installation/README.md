@@ -22,17 +22,22 @@ Follow the subordinate protocols as needed:
 - [Replacement quarantine](src/executable_installation/replacement_quarantine.rs)
   retains incompletely drained installed realizations.
 - [Owned-image provider](src/executable_installation/owned_image_provider.rs)
-  performs the contracted install, patch, entry-sealing, and retirement
-  operations over resident image buffers it owns — real byte writes,
-  ordering fence, read-back, custody write-suspension and execute-enabled
-  flags honestly reported as `ConventionOnly` enforcement. Its call path
-  consumes a sealed `InstalledEntryReference` and hands the caller the exact
-  resident entry content under seal; the physical control transfer stays
-  with the consuming platform executor. Retirement unwinds the same
-  transition — executor quiescence established structurally by the
-  exclusive provider borrow, execute authority removed, write authority
-  restored — and mints the `RetirementReceipt` `retire_installed` and the
-  replacement drain consume.
+  performs the contracted install, patch, entry-sealing, retirement, and
+  quarantine operations over resident image buffers it owns — real byte
+  writes, ordering fence, read-back, custody write-suspension,
+  execute-enabled and quarantined flags honestly reported as
+  `ConventionOnly` enforcement. Its call path consumes a sealed
+  `InstalledEntryReference` and hands the caller the exact resident entry
+  content under seal; the physical control transfer stays with the
+  consuming platform executor. Retirement unwinds the same transition —
+  executor quiescence established structurally by the exclusive provider
+  borrow, execute authority removed, write authority restored — and mints
+  the `RetirementReceipt` `retire_installed` and the replacement drain
+  consume. Quarantine is the drain's other ending: the image stays
+  reserved but unserved — every operation refuses it and `release` cannot
+  free it — so the minted `MappingQuarantineReceipt` reaches
+  `quarantine_installed`/`uninstall_installed` with performed evidence
+  instead of a caller-recorded claim.
 
 Keep exact bytes, relocation/proof payload, placement lineage, final-byte
 snapshot, footprint, audience, and provider receipts behind report identities.
