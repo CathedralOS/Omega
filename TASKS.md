@@ -10295,7 +10295,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `selected-instructions-to-register-homes` dir; claim returned exit 2.
 - **UNSEQUENCED-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
-- **UNSEQUENCED-SPILL-STAGE-TRIAGE** — mined candidate; verify scope then implement.
+- **UNSEQUENCED-SPILL-STAGE-TRIAGE.** Mined candidate — resolved at
+  `0f5ae41e7d`: one of the four mined duplicates the
+  UNSEQUENCED-SPILL-STAGES-DISPOSITION row (~this file, line 10032) names
+  for the same `unsequenced_spill_stages/` directory — "triage" is that
+  item's sequence-or-delete disposition of the 18 staged spill families.
+  The verified scope, family inventory, dependency chain and the
+  `stack_slot_coloring`/`runtime_spill/slot.rs` duplicate-owner pair are
+  recorded on that sibling row; the whole territory is fenced this wave
+  (`selected-instructions-to-register-homes` wholesale under
+  POC-SPILL-FAMILY-SEQUENCING, exp 22:30Z). Folds into that item; no
+  independent slice. Sibling stubs: UNSEQUENCED-SPILL-DISPOSITION
+  (resolved same-way), UNSEQUENCED-SPILL-STAGE-DISPOSITION,
+  UNSEQUENCED-SPILL-FAMILY-DISPOSITION.
 - **UNSEQUENCED-SPILL-STAGES-DISPOSITION.** Mined candidate. Upstream:
   [TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md) PIPELINE-OWNER-CONSOLIDATION flag —
   `selected-instructions-to-register-homes/src/unsequenced_spill_stages/` holds
