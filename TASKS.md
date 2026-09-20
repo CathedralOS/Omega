@@ -6405,7 +6405,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   item tracked under GEOMETRY-PARITY, not this row. Sibling re-mine
   stubs on the same surface: GEOMETRY-ALIGNMENT-PARSING,
   GEOMETRY-ALIGNMENT-STRING-PARSING, SQUALR-ALIGNMENT-STRING-PARSING.
-- **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
+- **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION.** Resolved — scope verified:
+  re-mines the TASKS_BOOTSTRAP "native acceptance" leg of the 128-GiB
+  MEMSIZE provisioning (`bootstrap/0_alpha` seeds obtain `M` by
+  `VirtualAlloc`/anonymous `mmap` over `0x2000000000`). The Linux x86-64
+  leg re-witnessed green at `62c502f9f6` on the committed
+  `alpha_x64_linux` identity (16,789,856 bytes, SHA-256
+  `39ccffa0…b775b1`, matching the retention inventory):
+  `python3 tests/alpha/bounds.py` native battery 78/78, including the
+  exact/adjacent fetch, data-access, and loader cases at the
+  `MEMORY`/`MEMSIZE` boundary and the full-profile stack loops (the last
+  legal push at `sp = 8`, push at zero, last return word, next return at
+  `MEMSIZE`, and call after `sp = MEMSIZE` — 33,554,432 calls and
+  201,326,592 returns, 3m52s). Remaining legs are host-gated off this
+  worker: Windows x64 native execution stays outstanding, and macOS
+  arm64 MEMSIZE validation is additionally blocked on the container
+  re-forge (committed `alpha_arm64_macos` still encodes the
+  32-TiB immediate; see the README's known-divergence note).
 - **ALPHA-SEED-WINDOWS-X64-EXECUTION** — mined candidate; verify scope then implement.
 - **ALPHA-WINDOWS-CONFORMANCE** — mined candidate; verify scope then implement.
 - **ARTIFACT-AUTHORITY-CHECKS** — mined candidate; verify scope then implement.
