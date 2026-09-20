@@ -6345,7 +6345,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   -CERTIFICATE-PRODUCTION, -DEFINITION-PACKAGE (BETA-ENCODER-DEFINITION-
   PACKAGE landed at 6e8dd6fa33), -NATIVE-CONTAINER-ACCEPTANCE;
   BETA-ENCODING-MUTATION-REJECTION is the active controls row.
-- **BETA-NATIVE-SELF-RECONSTRUCTION** — mined candidate; verify scope then implement.
+- **BETA-NATIVE-SELF-RECONSTRUCTION.** Mined candidate — resolved: the name
+  re-mines the Beta self-reconstruction leg of the Alpha→Beta edge, listed in
+  TASKS_BOOTSTRAP.md's OFFLINE-REBUILD frontier among the legs "still
+  requiring macOS arm64 or Windows x64". That frontier is stale: the audited
+  Linux x86-64 Alpha seed (`alpha_x64_linux`, hole offset 12288) landed at
+  `128ede9ec0`, `tools/bootstrap/alpha/seed_env.sh` selects it and marks
+  `Linux-x86_64` `ALPHA_SEED_EXECUTABLE=1`, and
+  `tests/beta/compiler/reconstruction.sh` runs it through
+  `require_seed_execution_host`. Re-verified on linux x86-64 at `1edade1a48`:
+  `sh tests/beta/compiler/reconstruction.sh` prints "reconstruction — Beta
+  reconstructs its direct Alpha tape byte-identically" and exits 0, and
+  `sh tests/bootstrap/alpha-beta-edge.sh --edge` now executes the leg inside
+  the full edge (alpha conformance 34/34, bounds 78/78, root audit
+  12536-byte source → 1773-byte tape, word prefix 736 controls) →
+  "Alpha-to-Beta edge VERIFIED", exit 0. The stale host-matrix sentence in
+  TASKS_BOOTSTRAP.md's OFFLINE-REBUILD paragraph belongs to that row's
+  owner; sibling re-mine names on this surface: BETA-SEED-EXEC-HOST-REFUSAL,
+  BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST, BOOTSTRAP-CHAIN-NATIVE-EXECUTION.
 - **BETA-PE-SEED-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-SEED-EXEC-HOST-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-SEED-REFUSAL-ON-UNSUPPORTED-HOST** — mined candidate; verify scope then implement.
