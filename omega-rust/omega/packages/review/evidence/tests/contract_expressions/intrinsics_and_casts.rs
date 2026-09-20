@@ -61,6 +61,65 @@ fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
 }
 
 #[test]
+fn review_projects_collection_capacity_as_an_exact_compiler_intrinsic() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub proposition has_capacity(items: &[u8]) = items.capacity > 0;\n",
+    );
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+    })
+    .expect("public collection-capacity proposition should check");
+    let capacity_selection = checked
+        .authored_declaration_selections()
+        .iter()
+        .find(|selection| {
+            selection.kind()
+                == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
+                && selection.target()
+                    == language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
+                    )
+        })
+        .expect("checked contract must retain its exact collection-capacity selection");
+    assert_eq!(
+        capacity_selection.exposure(),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    );
+
+    let review = project_checked_package_review(&checked)
+        .expect("collection-capacity intrinsic should have exact review identity");
+    let proposition = review
+        .public_propositions()
+        .iter()
+        .find(|proposition| proposition.identity().path() == "has_capacity")
+        .expect("public proposition row");
+    let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+        PackageReviewContractExpression::Binary { left, .. },
+    )) = proposition.body()
+    else {
+        panic!("binary transparent proposition body")
+    };
+    assert_eq!(
+        left.as_ref(),
+        &PackageReviewContractExpression::CollectionCapacity {
+            collection: Box::new(PackageReviewContractExpression::Parameter(0)),
+        }
+    );
+    review
+        .canonical_review_bytes()
+        .expect("collection-capacity review must be canonically encodable");
+}
+
+#[test]
 fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
     let package = TempPackage::new();
     package.write(

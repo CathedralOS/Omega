@@ -2,10 +2,10 @@
 
 use super::super::calls::exact_fact_call_projection;
 use super::super::members::{
-    checked_contract_member_path, contract_member_has_exact_collection_length,
+    CollectionMeasure, checked_contract_member_path, contract_member_collection_measure,
     contract_member_path_root, contract_member_path_source, is_data_subject_field_expression,
     project_computed_contract_member_expression, project_contract_member_expression,
-    require_exact_checked_contract_collection_length,
+    require_exact_checked_contract_collection_measure,
     require_exact_checked_contract_nominal_member,
 };
 use super::super::names::contract_parameter_field_symbol;
@@ -26,10 +26,22 @@ pub(super) fn project_member_expression(
     checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
-    if contract_member_has_exact_collection_length(compilation, expression) {
-        require_exact_checked_contract_collection_length(compilation, context, expression, member)?;
-        return Ok(PackageReviewContractExpression::CollectionLength {
-            collection: Box::new(child(member.receiver)?),
+    if let Some(measure) = contract_member_collection_measure(compilation, expression) {
+        require_exact_checked_contract_collection_measure(
+            compilation,
+            context,
+            expression,
+            member,
+            measure,
+        )?;
+        let collection = Box::new(child(member.receiver)?);
+        return Ok(match measure {
+            CollectionMeasure::Length => {
+                PackageReviewContractExpression::CollectionLength { collection }
+            }
+            CollectionMeasure::Capacity => {
+                PackageReviewContractExpression::CollectionCapacity { collection }
+            }
         });
     }
     if matches!(

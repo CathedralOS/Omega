@@ -74,7 +74,10 @@ pub(in crate::record) fn expression(
         }
         Expression::Reference { target, .. } => expression(target, scope, nesting + 1)?,
         Expression::AtomicLoad { value, .. } => expression(value, scope, nesting + 1)?,
-        Expression::CollectionLength { collection } => expression(collection, scope, nesting + 1)?,
+        Expression::CollectionLength { collection }
+        | Expression::CollectionCapacity { collection } => {
+            expression(collection, scope, nesting + 1)?
+        }
         Expression::Member {
             receiver,
             member,

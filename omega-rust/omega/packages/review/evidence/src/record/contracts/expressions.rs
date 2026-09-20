@@ -361,6 +361,12 @@ pub enum PackageReviewContractExpression {
     CollectionLength {
         collection: Box<PackageReviewContractExpression>,
     },
+    /// Compiler-owned `capacity` projection on a fixed array or slice. The
+    /// exact checked authored-selection occurrence must identify this
+    /// intrinsic; same-spelled package fields remain ordinary nominal members.
+    CollectionCapacity {
+        collection: Box<PackageReviewContractExpression>,
+    },
     Member {
         receiver: Box<PackageReviewContractExpression>,
         member: PackageReviewNominalIdentity,

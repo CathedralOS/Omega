@@ -129,6 +129,9 @@ pub(super) fn expression(
                 subject: reader.boxed(expression)?,
                 case: nominal(reader)?,
             },
+            23 => Expression::CollectionCapacity {
+                collection: reader.boxed(expression)?,
+            },
             _ => return Err(Error::InvalidTag),
         })
     })
