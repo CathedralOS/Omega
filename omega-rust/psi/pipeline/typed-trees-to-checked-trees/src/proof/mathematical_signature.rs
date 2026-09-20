@@ -33,7 +33,9 @@
 //!   integers) share the bounded denotation's `Int : Type 0` carrier;
 //!   `bool` and `addr` share one dedicated carrier each, kept distinct
 //!   from `Int` because the bounded vocabulary's order relations are
-//!   fixed non-address integers. Every other resolved non-core symbol —
+//!   fixed non-address integers. `f32` and `f64` intern one dedicated
+//!   `Type 0` carrier per format, kept distinct so an `f32` element
+//!   never denotes into `f64`. Every other resolved non-core symbol —
 //!   authored `data` types, other builtin atoms — interns a per-symbol
 //!   `Declaration::assumption(0, Type 0)` in the shared signature prefix
 //!   (the `bounded_denotation` pattern), so later declarations can
@@ -46,12 +48,17 @@
 //!   operand's scalar carrier, right-nested `Σ`, and the tagged
 //!   `Σ(t : Two). caseTwo` sum), a bare `bool` subject `x` means
 //!   `x = true`, and a `core::Strict` result wraps the proposition in
-//!   `Squash` at the authored boundary. Every other machine expression
-//!   whose scalar carrier is determinable — open products, quotients,
-//!   shifts and bitwise operations, unary `~`/`!`, field projections
-//!   and casts — interns an opaque assumption constant keyed by the
-//!   expression's own structure, the same rule the bounded denotation
-//!   applies to open terms it does not name (`MathTermKey::Open`,
+//!   `Squash` at the authored boundary. Float literals intern one
+//!   constant per exact value at their format carrier — `1.5` and
+//!   `1.50` share — and unlanded literals defer to the demanded
+//!   carrier exactly as anonymous integer literals do. Every other
+//!   machine expression whose scalar carrier is determinable — open
+//!   products, quotients, shifts and bitwise operations including
+//!   float arithmetic at its format carrier, unary `~`/`!`, field
+//!   projections and casts — interns an opaque assumption constant
+//!   keyed by the expression's own structure, the same rule the
+//!   bounded denotation applies to open terms it does not name
+//!   (`MathTermKey::Open`,
 //!   `scalar_integer_terms`): `x * y` and `x * y` share one constant,
 //!   `x * y` and `x * z` do not. Machine calls follow the same rule:
 //!   the callee carries no kernel declaration, so `next(x)` interns
@@ -85,18 +92,20 @@
 //! machine/evidence/quotient/private-layout call payloads, borrow /
 //! constrained / dynamic-trait / array / slice / unit type references,
 //! computed level expressions other than literals, `!=` as a proposition
-//! (the bounded vocabulary holds no negation), order relations and
-//! scalar equality over operands whose carriers differ or cannot be
-//! determined, and every body expression whose scalar carrier cannot be
-//! determined at all (matches, aggregates, indexing, floats, strings,
-//! ranges, borrows, atomics).
+//! (the bounded vocabulary holds no negation), order relations over
+//! non-integer operands — floats included, since `IntLt`/`IntLe` are
+//! fixed non-address integers only — scalar equality over operands
+//! whose carriers differ or cannot be determined, a whole-body float
+//! literal with no landing to determine its carrier, and every body
+//! expression whose scalar carrier cannot be determined at all
+//! (matches, aggregates, indexing, strings, ranges, borrows, atomics).
 
 mod applications;
 
 use std::collections::{BTreeMap, HashMap};
 
 use numerics::bignum::BigInt;
-use numerics::literals::{IntegerLiteral, LandedIntegerType};
+use numerics::literals::{FloatFormat, FloatLiteral, IntegerLiteral, LandedIntegerType};
 use proof_admission::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
     TermArena, TermHandle, check_signature, infer_sort, shift,
@@ -180,6 +189,11 @@ struct Elaborator<'a> {
     /// `addr`'s carrier — deliberately distinct from `Int`: the bounded
     /// vocabulary's order relations are fixed non-address integers only.
     address: Option<u32>,
+    /// `f32`'s carrier — the float formats intern one `Type 0` carrier
+    /// each, so an `f32` element never meets an `f64` one.
+    float32: Option<u32>,
+    /// `f64`'s carrier.
+    float64: Option<u32>,
     /// `IntLt`/`IntLe : Π(_ : Int). Π(_ : Int). Type 0`, interned on demand.
     integer_less_than: Option<u32>,
     integer_less_or_equal: Option<u32>,
@@ -201,6 +215,11 @@ struct Elaborator<'a> {
     numeric_literals: BTreeMap<(u32, BigInt), u32>,
     /// `true`/`false` interned at the `bool` carrier.
     boolean_literals: [Option<u32>; 2],
+    /// Float literals interned by `(carrier position, exact bits at the
+    /// carrier's format)` — the denotation is by value, so `1.5` and
+    /// `1.50` name one constant at a format while the formats stay
+    /// distinct.
+    float_literals: BTreeMap<(u32, u64), u32>,
     /// Elaborated authored declaration symbol -> signature position.
     authored_positions: HashMap<SymbolHandle, u32>,
     /// Every authored declaration symbol -> authored index, so a reference
@@ -239,6 +258,8 @@ pub(crate) fn check_mathematical_signature(
         integer: None,
         boolean: None,
         address: None,
+        float32: None,
+        float64: None,
         integer_less_than: None,
         integer_less_or_equal: None,
         integer_add: None,
@@ -246,6 +267,7 @@ pub(crate) fn check_mathematical_signature(
         numeric_literals: BTreeMap::new(),
         open_terms: BTreeMap::new(),
         boolean_literals: [None, None],
+        float_literals: BTreeMap::new(),
         authored_positions: HashMap::new(),
         authored_index: program
             .mathematical_definitions()
@@ -807,6 +829,10 @@ impl<'a> Elaborator<'a> {
                 let literal = literal.clone();
                 self.literal_term(&literal)
             }
+            ExpressionNode::Float(literal) => {
+                let literal = literal.clone();
+                self.float_literal_term(&literal)
+            }
             ExpressionNode::Boolean(value) => Ok(self.boolean_literal(*value)),
             ExpressionNode::Binary(binary) => {
                 let binary = *binary;
@@ -820,7 +846,17 @@ impl<'a> Elaborator<'a> {
                     | BinaryOperator::ShiftRight
                     | BinaryOperator::BitwiseAnd
                     | BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseXor => self.integer_operation_term(handle, &binary),
+                    | BinaryOperator::BitwiseXor => match self.operand_carrier(handle) {
+                        // Open arithmetic at another determined carrier —
+                        // floats, `data` carriers — composes no named
+                        // function and interns opaquely there. An
+                        // undetermined carrier refuses inside
+                        // `open_term` rather than claiming `Int`.
+                        Some(ScalarCarrier::Integer) => {
+                            self.integer_operation_term(handle, &binary)
+                        }
+                        _ => self.open_term(handle),
+                    },
                     _ => match self.elaborate_proposition(handle)? {
                         Some(proposition) => Ok(proposition),
                         None => self.open_term(handle),
@@ -1131,6 +1167,10 @@ impl<'a> Elaborator<'a> {
                 }
                 Ok(self.boolean_literal(*value))
             }
+            ExpressionNode::Float(literal) => {
+                let literal = literal.clone();
+                self.float_operand_term(&literal, carrier)
+            }
             ExpressionNode::ZeroValue(reference) => {
                 let reference = *reference;
                 match self.scalar_carrier_of_type_reference(reference) {
@@ -1157,18 +1197,29 @@ impl<'a> Elaborator<'a> {
                         | BinaryOperator::BitwiseXor
                 ) =>
             {
-                if carrier != ScalarCarrier::Integer {
-                    return Err(self.refuse(format!(
-                        "arithmetic expression `{}` is not a `{}` operand",
-                        self.program.render_proof_expression(
-                            handle,
-                            typed_trees::proposition::ProofSubstitutions::None
-                        ),
-                        self.carrier_name(carrier)
-                    )));
-                }
                 let binary = *binary;
-                self.integer_operation_term(handle, &binary)
+                match carrier {
+                    ScalarCarrier::Integer => self.integer_operation_term(handle, &binary),
+                    _ => match self.operand_carrier(handle) {
+                        // A float-carried operation (`x * y` inside
+                        // `x * y == z`) interns opaquely at it.
+                        Some(determined) if determined == carrier => self.open_term(handle),
+                        Some(..) => Err(self.refuse(format!(
+                            "operand `{}` inhabits a different scalar carrier",
+                            self.program.render_proof_expression(
+                                handle,
+                                typed_trees::proposition::ProofSubstitutions::None
+                            )
+                        ))),
+                        None => Err(self.refuse(format!(
+                            "cannot determine the scalar carrier of operand `{}`",
+                            self.program.render_proof_expression(
+                                handle,
+                                typed_trees::proposition::ProofSubstitutions::None
+                            )
+                        ))),
+                    },
+                }
             }
             ExpressionNode::Name(..)
             | ExpressionNode::Call(..)
@@ -1221,9 +1272,19 @@ impl<'a> Elaborator<'a> {
                 })
             }
             ExpressionNode::Boolean(_) => Some(ScalarCarrier::Boolean),
+            // Anonymous float literals defer like integer ones; only a
+            // landed literal determines its carrier.
+            ExpressionNode::Float(literal) => literal.landing().map(|format| match format {
+                FloatFormat::F32 => ScalarCarrier::Float32,
+                FloatFormat::F64 => ScalarCarrier::Float64,
+            }),
             ExpressionNode::Name(path) => self.name_carrier(path),
             ExpressionNode::Call(call) => self.declaration_result_carrier(call.target_symbol),
-            ExpressionNode::Binary(binary) => Some(match binary.operator {
+            // An arithmetic expression's carrier is the operands' shared
+            // carrier: `Int` for integers, the format carrier for floats,
+            // and one operand's carrier when an anonymous literal defers.
+            // Operands that disagree determine no carrier.
+            ExpressionNode::Binary(binary) => match binary.operator {
                 BinaryOperator::Add
                 | BinaryOperator::Subtract
                 | BinaryOperator::Multiply
@@ -1233,9 +1294,32 @@ impl<'a> Elaborator<'a> {
                 | BinaryOperator::ShiftRight
                 | BinaryOperator::BitwiseAnd
                 | BinaryOperator::BitwiseOr
-                | BinaryOperator::BitwiseXor => ScalarCarrier::Integer,
-                _ => ScalarCarrier::Boolean,
-            }),
+                | BinaryOperator::BitwiseXor => {
+                    match (
+                        self.operand_carrier(binary.left),
+                        self.operand_carrier(binary.right),
+                    ) {
+                        (Some(left), Some(right)) if left == right => Some(left),
+                        (Some(carrier), None) | (None, Some(carrier)) => Some(carrier),
+                        // All-anonymous operands (`2 + 3`) are integer
+                        // arithmetic when the expression evaluates
+                        // closed — but only when no float leaf sneaks
+                        // into that evaluation (`4.0 / 2.0` evaluates
+                        // to `2` too; it is not `Int` arithmetic).
+                        (None, None)
+                            if !self.expression_has_float_leaf(handle)
+                                && self
+                                    .program
+                                    .closed_integer_expression_value(handle)
+                                    .is_some() =>
+                        {
+                            Some(ScalarCarrier::Integer)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => Some(ScalarCarrier::Boolean),
+            },
             ExpressionNode::Unary(unary) => Some(match unary.operator {
                 UnaryOperator::LogicalNot => ScalarCarrier::Boolean,
                 UnaryOperator::BitwiseNot => ScalarCarrier::Integer,
@@ -1275,6 +1359,25 @@ impl<'a> Elaborator<'a> {
                 carrier
             }
             _ => None,
+        }
+    }
+
+    /// Whether an expression's syntax carries a float literal leaf.
+    /// `closed_integer_expression_value` evaluates rationals, so a
+    /// closed `4.0 / 2.0` yields `2` — the gate that keeps all-integer
+    /// anonymous arithmetic on `Int` must not admit it.
+    fn expression_has_float_leaf(&self, handle: ExpressionHandle) -> bool {
+        if !handle.is_valid() {
+            return false;
+        }
+        match self.program.expression_table.expression(handle) {
+            ExpressionNode::Float(_) => true,
+            ExpressionNode::Binary(binary) => {
+                self.expression_has_float_leaf(binary.left)
+                    || self.expression_has_float_leaf(binary.right)
+            }
+            ExpressionNode::Unary(unary) => self.expression_has_float_leaf(unary.operand),
+            _ => false,
         }
     }
 
@@ -1408,7 +1511,8 @@ impl<'a> Elaborator<'a> {
             return match primitive {
                 PrimitiveType::Bool => Some(ScalarCarrier::Boolean),
                 PrimitiveType::Addr => Some(ScalarCarrier::Address),
-                PrimitiveType::F32 | PrimitiveType::F64 => None,
+                PrimitiveType::F32 => Some(ScalarCarrier::Float32),
+                PrimitiveType::F64 => Some(ScalarCarrier::Float64),
                 _ => Some(ScalarCarrier::Integer),
             };
         }
@@ -1418,6 +1522,8 @@ impl<'a> Elaborator<'a> {
             return match self.program.symbols.builtin_type_atom(*symbol) {
                 Some(BuiltinTypeAtom::Bool) => Some(ScalarCarrier::Boolean),
                 Some(BuiltinTypeAtom::Address) => Some(ScalarCarrier::Address),
+                Some(BuiltinTypeAtom::F32) => Some(ScalarCarrier::Float32),
+                Some(BuiltinTypeAtom::F64) => Some(ScalarCarrier::Float64),
                 Some(
                     BuiltinTypeAtom::I8
                     | BuiltinTypeAtom::I16
@@ -1449,6 +1555,10 @@ impl<'a> Elaborator<'a> {
             ScalarCarrier::Boolean
         } else if self.address == Some(position) {
             ScalarCarrier::Address
+        } else if self.float32 == Some(position) {
+            ScalarCarrier::Float32
+        } else if self.float64 == Some(position) {
+            ScalarCarrier::Float64
         } else {
             ScalarCarrier::Carrier(position)
         }
@@ -1460,6 +1570,8 @@ impl<'a> Elaborator<'a> {
             ScalarCarrier::Integer => "integer",
             ScalarCarrier::Boolean => "boolean",
             ScalarCarrier::Address => "address",
+            ScalarCarrier::Float32 => "f32",
+            ScalarCarrier::Float64 => "f64",
             ScalarCarrier::Carrier(..) => "scalar",
         }
     }
@@ -1470,6 +1582,8 @@ impl<'a> Elaborator<'a> {
             ScalarCarrier::Integer => self.integer_carrier(),
             ScalarCarrier::Boolean => self.boolean_carrier(),
             ScalarCarrier::Address => self.address_carrier(),
+            ScalarCarrier::Float32 => self.float32_carrier(),
+            ScalarCarrier::Float64 => self.float64_carrier(),
             ScalarCarrier::Carrier(position) => position,
         }
     }
@@ -1504,6 +1618,23 @@ impl<'a> Elaborator<'a> {
             self.address = Some(self.push_type_carrier());
         }
         self.address.unwrap()
+    }
+
+    /// `f32 : Type 0` — the float formats each intern one carrier, kept
+    /// distinct so an `f32` element never denotes into `f64`.
+    fn float32_carrier(&mut self) -> u32 {
+        if self.float32.is_none() {
+            self.float32 = Some(self.push_type_carrier());
+        }
+        self.float32.unwrap()
+    }
+
+    /// `f64 : Type 0`.
+    fn float64_carrier(&mut self) -> u32 {
+        if self.float64.is_none() {
+            self.float64 = Some(self.push_type_carrier());
+        }
+        self.float64.unwrap()
     }
 
     /// `Π(_ : Int). Π(_ : Int). Type 0` — the shape `IntLt`/`IntLe`
@@ -1649,6 +1780,83 @@ impl<'a> Elaborator<'a> {
         Ok(self.numeric_literal(carrier, value))
     }
 
+    /// A float literal in term position denotes at its landing carrier,
+    /// interned by its exact value read at that format — `1.5f32` lands
+    /// at `f32`. An unlanded literal has no demanded carrier to defer
+    /// to and refuses rather than guessing a width.
+    fn float_literal_term(
+        &mut self,
+        literal: &FloatLiteral,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let Some(landing) = literal.landing() else {
+            return Err(self.refuse(format!(
+                "cannot determine the float carrier of literal `{}`",
+                literal.text()
+            )));
+        };
+        let carrier = match landing {
+            FloatFormat::F32 => ScalarCarrier::Float32,
+            FloatFormat::F64 => ScalarCarrier::Float64,
+        };
+        self.float_operand_term(literal, carrier)
+    }
+
+    /// A float literal demanded at `carrier`: a landed literal must
+    /// match the format exactly, an unlanded one adopts it — anonymous
+    /// literals deferring to the demanded carrier, mirroring the
+    /// integer rule. The constant interns by the literal's exact value
+    /// read at the demanded format, so `1.5` and `1.50` share.
+    fn float_operand_term(
+        &mut self,
+        literal: &FloatLiteral,
+        carrier: ScalarCarrier,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let format = match carrier {
+            ScalarCarrier::Float32 => FloatFormat::F32,
+            ScalarCarrier::Float64 => FloatFormat::F64,
+            _ => {
+                return Err(self.refuse(format!(
+                    "float literal is not a `{}` operand",
+                    self.carrier_name(carrier)
+                )));
+            }
+        };
+        if let Some(landing) = literal.landing()
+            && landing != format
+        {
+            return Err(self.refuse(format!(
+                "a `{}` float literal is not a `{}` operand",
+                landing.name(),
+                self.carrier_name(carrier)
+            )));
+        }
+        // The format's own correct rounding of the spelling — an f32
+        // read never routes through f64 (`FloatLiteral::f32_bits`).
+        let bits = match format {
+            FloatFormat::F32 => u64::from(literal.f32_bits()),
+            FloatFormat::F64 => literal.value_f64().to_bits(),
+        };
+        let position = self.carrier_position(carrier);
+        Ok(self.float_literal(position, bits))
+    }
+
+    /// One float literal's constant at `carrier` position, interned by
+    /// `(carrier, exact bits)` — denotation by value, matching
+    /// `numeric_literal`.
+    fn float_literal(&mut self, carrier: u32, bits: u64) -> TermHandle {
+        let key = (carrier, bits);
+        let position = match self.float_literals.get(&key) {
+            Some(&position) => position,
+            None => {
+                let ty = self.constant(carrier);
+                let position = self.push_assumption(ty);
+                self.float_literals.insert(key, position);
+                position
+            }
+        };
+        self.constant(position)
+    }
+
     /// The zero value of a scalar carrier.
     fn zero_literal(
         &mut self,
@@ -1656,6 +1864,11 @@ impl<'a> Elaborator<'a> {
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
         match carrier {
             ScalarCarrier::Boolean => Ok(self.boolean_literal(false)),
+            ScalarCarrier::Float32 | ScalarCarrier::Float64 => {
+                // +0.0's bit pattern at either width.
+                let position = self.carrier_position(carrier);
+                Ok(self.float_literal(position, 0))
+            }
             ScalarCarrier::Carrier(..) => Err(self.refuse(
                 "the zero value of a non-numeric carrier has no bounded denotation".to_owned(),
             )),
@@ -1690,7 +1903,12 @@ impl<'a> Elaborator<'a> {
         handle: ExpressionHandle,
         binary: &TableBinaryExpression,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
-        if let Some(value) = self.program.closed_integer_expression_value(handle) {
+        // The closed evaluator reads rationals — an expression with a
+        // float leaf (`4.0 / 2.0` -> `2`) is not `Int` arithmetic and
+        // must not collapse to an integer constant.
+        if !self.expression_has_float_leaf(handle)
+            && let Some(value) = self.program.closed_integer_expression_value(handle)
+        {
             let carrier = self.integer_carrier();
             return Ok(self.numeric_literal(carrier, value));
         }
@@ -1749,8 +1967,10 @@ impl<'a> Elaborator<'a> {
             ScalarCarrier::Integer => out.push(0),
             ScalarCarrier::Boolean => out.push(1),
             ScalarCarrier::Address => out.push(2),
+            ScalarCarrier::Float32 => out.push(3),
+            ScalarCarrier::Float64 => out.push(4),
             ScalarCarrier::Carrier(position) => {
-                out.push(3);
+                out.push(5);
                 out.extend_from_slice(&position.to_le_bytes());
             }
         }
@@ -1844,7 +2064,18 @@ impl<'a> Elaborator<'a> {
             }
             ExpressionNode::Float(literal) => {
                 out.push(7);
-                out.extend_from_slice(literal.text().as_bytes());
+                // Literals denote by exact value — `1.5` and `1.50`
+                // share — so the key is the spelling's correct rounding
+                // at each format plus the landing, not the authored
+                // text. Writing both reads keeps the key independent of
+                // which float carrier encloses the open term.
+                out.push(match literal.landing() {
+                    None => 0,
+                    Some(FloatFormat::F32) => 1,
+                    Some(FloatFormat::F64) => 2,
+                });
+                out.extend_from_slice(&literal.f32_bits().to_le_bytes());
+                out.extend_from_slice(&literal.value_f64().to_bits().to_le_bytes());
             }
             ExpressionNode::Indexed(indexed) => {
                 out.push(8);
@@ -2278,6 +2509,8 @@ impl<'a> Elaborator<'a> {
                     ) => self.integer_carrier(),
                     Some(BuiltinTypeAtom::Bool) => self.boolean_carrier(),
                     Some(BuiltinTypeAtom::Address) => self.address_carrier(),
+                    Some(BuiltinTypeAtom::F32) => self.float32_carrier(),
+                    Some(BuiltinTypeAtom::F64) => self.float64_carrier(),
                     _ => self.push_type_carrier(),
                 }
             }
@@ -2365,13 +2598,16 @@ enum BinderPlan {
 /// Which scalar carrier a denoted machine operand inhabits, mirroring
 /// the bounded denotation's carrier split: `Integer` is the shared `Int`
 /// every fixed-width integer denotes into, `Boolean` and `Address` are
-/// the dedicated `bool`/`addr` carriers, and `Carrier` names an interned
+/// the dedicated `bool`/`addr` carriers, `Float32`/`Float64` the
+/// dedicated `f32`/`f64` carriers, and `Carrier` names an interned
 /// per-symbol `Type 0` assumption (`data` types, other builtin atoms).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ScalarCarrier {
     Integer,
     Boolean,
     Address,
+    Float32,
+    Float64,
     Carrier(u32),
 }
 
