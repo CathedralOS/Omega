@@ -15,9 +15,8 @@ use crate::{
     ValidatedDiamondRunRelocation, ValidatedEdgeRelocation, ValidatedEdgeRunRelocation,
     ValidatedEquivalentCompare, ValidatedFixedViewCopies, ValidatedForkRelocation,
     ValidatedForkRunRelocation, ValidatedInflowRelocation, ValidatedJoinRelocation,
-    ValidatedLiteralArithmetic, ValidatedLiteralCompare, ValidatedLiteralFold,
-    ValidatedLiteralMinuend, ValidatedLocalRelocation, ValidatedLocalSchedule,
-    ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
+    ValidatedLiteralFold, ValidatedLiteralMinuend, ValidatedLocalRelocation,
+    ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedPredecessorRelocation,
     ValidatedPredecessorRunRelocation, ValidatedPressureRematerialization,
     ValidatedProjectedAccess, ValidatedRedundantCompare, ValidatedRedundantExtension,
     ValidatedRunInterchange, ValidatedRunRelocation, ValidatedRuntimeRematerialization,
@@ -632,46 +631,6 @@ impl ValidatedSelectedAnalysis for ValidatedInflowRelocation {
 impl sealed::Sealed for ValidatedJoinRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedJoinRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedLiteralArithmetic {}
-
-impl ValidatedSelectedAnalysis for ValidatedLiteralArithmetic {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedLiteralCompare {}
-
-impl ValidatedSelectedAnalysis for ValidatedLiteralCompare {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

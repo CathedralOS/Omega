@@ -1,7 +1,8 @@
 //! Left-operand literal folding on the selected CFG.
 //!
-//! `rewrites/literal_compare` folds a `CompareI64` whose right operand is a
-//! uniquely materialized literal into `CompareI64Immediate`/`CompareI64Zero`,
+//! The selected-lowering compare pair rules fold a `CompareI64` whose right
+//! operand is a uniquely materialized literal into
+//! `CompareI64Immediate`/`CompareI64Zero`,
 //! because the immediate forms always subtract the encoded literal from the
 //! register operand. A `CompareI64` whose left operand — the minuend — is
 //! the materialized literal cannot use that rule: rewriting it in place

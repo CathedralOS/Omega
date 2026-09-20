@@ -11,9 +11,9 @@
 //! backward path audit then refuses, or by literal, where the register's
 //! unique `MaterializeI64` producer pins the bits function-wide and no
 //! interval audit is needed at all. The cross-form shadow is the shape the
-//! selection folds leave behind: `literal_compare` rewrites `CompareI64`
-//! into `CompareI64Immediate` or `CompareI64Zero` while the materialization
-//! stays for its other readers, so a later register-form compare computes
+//! selection folds leave behind: the compare pair rules rewrite
+//! `CompareI64` into `CompareI64Immediate` or `CompareI64Zero` while the
+//! materialization stays for its other readers, so a later register-form compare computes
 //! the subtraction the folded shadow already published.
 use std::collections::BTreeSet;
 

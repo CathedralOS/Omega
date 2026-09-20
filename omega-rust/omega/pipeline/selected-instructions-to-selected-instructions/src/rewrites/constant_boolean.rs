@@ -1,8 +1,8 @@
 //! Constant condition materialization on the selected CFG.
 //!
-//! `rewrites/literal_compare` and `rewrites/literal_minuend` select the
-//! immediate or zero compare form when one operand is a uniquely
-//! materialized literal. Between them an operand gap remains: when *every*
+//! The selected-lowering compare pair rules and `rewrites/literal_minuend`
+//! select the immediate or zero compare form when one operand is a
+//! uniquely materialized literal. Between them an operand gap remains: when *every*
 //! input a compare reads is compile-time known, the condition state the
 //! compare publishes is itself a constant — and a `MaterializeBoolean*`
 //! observing that state is a `MaterializeI64` of the predicate outcome.
