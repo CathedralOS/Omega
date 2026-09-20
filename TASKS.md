@@ -6606,7 +6606,31 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-COMPILER-TAPE-BINDING** — mined candidate; verify scope then implement.
 - **OMEGA-D** — mined candidate; verify scope then implement.
 - **OMEGA-D-COMPILER-REQUEST-TABLES** — mined candidate; verify scope then implement.
-- **OMEGA-D-ENTRY-ADAPTER** — mined candidate; verify scope then implement.
+- **OMEGA-D-ENTRY-ADAPTER.** Scope verified at `cec5934277` (assigned as the
+  OMEGA-D-ENTRY-ADAPTER-ROUTE fusion; this row is the clause's canonical
+  stub). The entry adapter route is already implemented and exercised in the
+  bound D member `bootstrap/5_omega/scalar_compilation.epsilon`:
+  `finish_machine`/`select` route the request's `entry` bytes to the machine
+  whose single path member matches (`span_equals`), `check_entry` rejects
+  with code 11 when none match, duplicate machine names reject code 10
+  before selection, and `adapter()` emits the tape head — an unconditional
+  `emit_jump_label` to the selected machine's label (which is its entry
+  state's label) followed by `emit_r`. Customer 7 of
+  `tests/epsilon/d-composition` runs the whole route —
+  `compile(program.omg, "answer")` on `machine answer() -> u8 { 42 }` —
+  emitting the pinned `expected.hex` tape (executed on macOS arm64;
+  Linux x86-64 cannot run the seed, so host execution evidence is the
+  recorded run). The remaining clause legs are the sibling rows':
+  trampoline elimination is OMEGA-D-ENTRY-ADAPTER-RETIREMENT's, real
+  `main`-form routing is OMEGA-D-REAL-ENTRY-ROUTE's, and the EREQ v1
+  request side is the OMEGA-D-REQUEST-* family's. Qualified-name entries
+  stay refused upstream (`machine_shape` requires `path_member_count == 1`)
+  — a deliberate slice bound, not a route gap. No bounded leg exists inside
+  the available fence: source edits to this member require the
+  `omega_compiler.epsilon.sources` digest record (claimed by
+  OMEGA-D-REQUEST-AND-SCALAR-COMPILATION until 00:07Z) and the
+  `tests/epsilon` acceptance gates (claimed by DELTA-COMPILER until
+  21:48Z).
 - **OMEGA-D-ENTRY-ADAPTER-RETIREMENT** — mined candidate; verify scope then implement.
 - **OMEGA-D-REAL-ENTRY-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-ADMISSION** — mined candidate; verify scope then implement.
