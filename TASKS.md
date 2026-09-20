@@ -5797,21 +5797,27 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
 
 - **LEARNED-OPTIMIZATION-COST-MODEL.** Learned cost model (includes LEARNED-COST-MODEL). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation, and `wiki/spec/build/optimizations.md` forbids a trainer, training corpus, model evaluator, or inference path in the Rust reference compiler — a premature trainer was already removed (`55ba7f6ab3`). GRAPH-COST-MODEL-STUDY recorded the ranking question's seam (`wiki/drafts/graph_cost_model_study.md`): the validated-candidate, feature-projection, and replay substrate exists; the missing evidence is a versioned workload corpus and measured comparison against the `predicted_cost_delta` baseline, gated on WORKLOAD-CORPUS-AND-MULTIVERSIONING plus the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) with a concrete justification. The doc's own predecessor leg is the model-free BOUNDED-OPTIMIZATION-SEARCH.
 - **BOUNDED-OPTIMIZATION-SEARCH.** Bounded candidate search + revalidation at scale (merges BOUNDED-CANDIDATE-SEARCH, CANDIDATE-REVALIDATION-AT-SEARCH-SCALE). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: a bounded model-free search over the validated candidate interface and any search-scale revalidation-cost study are far-future extensions gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification. The seam such a search would plug into already exists — every pass runs bounded on all five `OptimizationWorkBudget` axes (iterations, rule evaluations, candidates, validation steps, commits), `choose_baseline` selects deterministically over independently validated `ValidatedCandidateSummary` rows with duplicate-candidate rejection and a strictly decreasing convergence measure per commit, `pass_manager/external_policy` replays explicitly supplied decisions on exact context and row equality, candidates are revalidated against the exact input revision they bind (`validate_psi_rewrite_candidate` per iteration; `CandidateContractAxis::Input` rejects stale-input candidates), and `AnalysisManager::commit_revision(validate_retained)` cold-recomputes every supposedly retained analysis and fails `UndeclaredInvalidation` on drift — so revalidation at scale is the existing behavior's measured cost, not a missing mechanism. The versioned workload corpus and measurement protocol its evaluation needs are gated under WORKLOAD-CORPUS-AND-MULTIVERSIONING, with the comparison protocol scoped in `wiki/drafts/graph_cost_model_study.md`.
-- **GRAPH-COST-MODEL-STUDY.** Study whether typed operation/state graph
-  features can rank optimization candidates before expensive measurement
-  (source: `wiki/drafts/learned_optimization_policy.md`; the policy surface
-  in `abstract-operations-to-abstract-operations`' `pass_manager/external_policy`
-  already projects only independently validated candidates). Study recorded in
-  `wiki/drafts/graph_cost_model_study.md`: the structural substrate exists —
-  `ValidatedCandidateSummary`/`ExternalCandidateFeatures` rows, the
-  `predicted_cost_delta` baseline in `pass_manager/baseline.rs`, and decision
-  recording with replay-on-equality. The missing evidence is measured
-  prediction improvement over that scalar cost delta on a versioned workload
-  corpus. Remaining legs: workload-corpus instrumentation (see
-  WORKLOAD-CORPUS-AND-MULTIVERSIONING), a deterministic graph-feature
-  projection joined under the versioned decision schema, and the empirical
-  comparison itself, which belongs to the Omega-written product compiler per
-  the spec's nonauthoritative-policy clause.
+- **GRAPH-COST-MODEL-STUDY.** Resolved — the study is complete and its
+  claims verify current at `7452910c6e`. `wiki/drafts/graph_cost_model_study.md`
+  records the seam and the measurement protocol and proposes no code: the
+  substrate exists (`validated_candidate_features` projecting
+  `ValidatedCandidateSummary` → `ExternalCandidateFeatures` in
+  `pass_manager/external_policy/candidate_features.rs`, the
+  `min_by_key((predicted_cost_delta, candidate))` negative-only baseline in
+  `pass_manager/baseline.rs`, and `BaselineDecisionRecord` recording +
+  replay-on-equality). Every remaining leg is owned or gated elsewhere, so
+  this item holds no implementable work: the versioned workload corpus is
+  **WORKLOAD-CORPUS-AND-MULTIVERSIONING** (authorization-gated — the source
+  doc authorizes no implementation and `wiki/spec/build/optimizations.md`
+  forbids trainer-side machinery in the reference compiler; same verdict
+  recorded on GRAPH-COST-EVIDENCE-CORPUS and WORKLOAD-CORPUS); the
+  deterministic graph-feature projection joined under the versioned decision
+  schema is the sibling item **GRAPH-FEATURE-PROJECTION-SCHEMA**; and the
+  empirical comparison against `choose_baseline` belongs to the
+  Omega-written product compiler per the nonauthoritative-policy clause
+  (OMEGA-PRODUCT-COMPILER-SOURCE). The item's own predecessor leg,
+  model-free bounded search, is BOUNDED-OPTIMIZATION-SEARCH (also
+  gate-recorded). Sibling stubs on this surface: GRAPH-COST-EVIDENCE-CORPUS.
 - **GENERAL-CYCLIC-EXECUTION-OPTIMIZER.** General cyclic execution optimizer.
   Verified scope: the name re-mines the optimizer half of
   **GENERAL-CYCLIC-EXECUTION** — TASKS_OPTIMIZER.md carries the same-named item
