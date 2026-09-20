@@ -8504,7 +8504,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the sibling resolved stub PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not
   here. Sibling stubs on this surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION,
   PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
-- **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF** — mined candidate; verify scope then implement.
+- **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF.** Mined candidate — resolved:
+  re-mines the computed-constant leaf surface landed under
+  PKG-INPUTS-FLOAT-IDENTITY-LANDING (`742a2f1d84`), same resolution as
+  sibling COMPUTED-CONSTANT-LEAF-CARRIER.
+  `syntax-trees-to-symbol-resolved-trees/src/constant/
+  initializer_leaves.rs` carries every computed leaf kind with exact
+  declared carriers and explicit refusals. Re-verified at `9ff8673b310`
+  (linux x86-64): `cargo nextest run -p compiler -E
+  'test(~public_float_constants_retain_landed_identity_and_exact_
+  import_owner)'` — 1/1 pass. No independent slice remains.
 - **PACKAGE-INPUTS-PSI-FAILURES** — mined candidate; verify scope then implement.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-REVIEW-HOTSPOT-ATTRIBUTION** — mined candidate; verify scope then implement.
