@@ -1,24 +1,379 @@
 //! Constant evaluation: templates.
 use super::super::{
-    DataMember, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier, IntegerLiteral, Item,
-    StatementNode, SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle,
-    TypeReferenceNode,
+    DataMember, Diagnostic, ExpressionNode, HashMap, HashSet, Identifier, Item, StatementNode,
+    SyntaxTrees, TypeConstraintNode, TypeParameterKind, TypeReferenceHandle, TypeReferenceNode,
 };
 
+use crate::preparation::generic_data::ConstructorFrontier;
 use crate::preparation::generic_data::EvaluatedConst;
+use crate::preparation::generic_data::collect_expression_handles;
+use crate::preparation::generic_data::collect_statement_expression_handles;
 use crate::preparation::generic_data::concrete_machine_expression_handles;
 use crate::preparation::generic_data::evaluate_const_argument_expression;
 use crate::preparation::generic_data::generic_const_integer_types;
+use arena::HandleSpan;
+use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::expression::StaticMachineArgument;
+use syntax_trees::item::CapabilityContract;
+use syntax_trees::item::Machine;
+use syntax_trees::item::ProofFact;
 
 pub(in crate::preparation::generic_data) fn replace_const_expression_names_from(
     syntax: &mut SyntaxTrees,
     expression_watermark: u32,
-    const_literals: &HashMap<String, IntegerLiteral>,
+    const_expressions: &HashMap<String, ExpressionNode>,
+) {
+    replace_uncaptured_const_names(
+        syntax,
+        expression_watermark,
+        const_expressions,
+        &HashSet::new(),
+    );
+}
+
+/// Runtime bindings keep their authored selection. A local enters the frontier
+/// only after its initializer; machine-header expressions use entry parameters.
+#[derive(Default)]
+pub(in crate::preparation::generic_data) struct RuntimeTemplateCaptures {
+    expressions: HashSet<ExpressionHandle>,
+    type_references: HashSet<TypeReferenceHandle>,
+}
+
+impl RuntimeTemplateCaptures {
+    pub fn captures_type_reference(&self, reference: TypeReferenceHandle) -> bool {
+        self.type_references.contains(&reference)
+    }
+}
+
+pub(in crate::preparation::generic_data) fn capture_machine_runtime_template_names(
+    syntax: &SyntaxTrees,
+    machine: &Machine,
+    type_watermark: u32,
+    expression_watermark: u32,
+) -> RuntimeTemplateCaptures {
+    let states = syntax.items.state_handles(machine.states);
+    let parameters = states
+        .first()
+        .map(|state| syntax.items.state(*state).parameters)
+        .unwrap_or_default();
+    let mut captured = RuntimeTemplateCaptures::default();
+    let header_frontier = ConstructorFrontier {
+        parameters,
+        prior_statements: &[],
+    };
+    for (handle, expression) in syntax.expressions.iter_expressions() {
+        if handle.arena_index() >= expression_watermark
+            && let ExpressionNode::Name(path) = expression
+            && header_frontier.captures(syntax, *path)
+        {
+            captured.expressions.insert(handle);
+        }
+    }
+    for (handle, _) in syntax.type_references.named_nodes_from(type_watermark) {
+        if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(handle)
+            && header_frontier.captures_name(syntax, name)
+        {
+            captured.type_references.insert(handle);
+        }
+    }
+    for state in states {
+        let state = syntax.items.state(*state);
+        let mut signature = HashSet::new();
+        let mut signature_types = HashSet::new();
+        collect_type_expression_handles(
+            syntax,
+            state.return_type,
+            &mut signature,
+            &mut signature_types,
+        );
+        for parameter in syntax.items.state_parameters(state.parameters) {
+            collect_type_expression_handles(
+                syntax,
+                syntax.items.state_parameter(*parameter).type_reference,
+                &mut signature,
+                &mut signature_types,
+            );
+        }
+        collect_contract_expression_handles(
+            syntax,
+            state.contracts,
+            &mut signature,
+            &mut signature_types,
+        );
+        let statements = syntax.items.statements(state.statements);
+        update_captured_names(
+            syntax,
+            &mut signature,
+            &mut signature_types,
+            &ConstructorFrontier {
+                parameters: state.parameters,
+                prior_statements: &[],
+            },
+            &mut captured,
+        );
+        for (ordinal, statement) in statements.iter().enumerate() {
+            let mut expressions = HashSet::new();
+            let mut type_references = HashSet::new();
+            collect_statement_expression_handles(syntax, *statement, &mut expressions);
+            match syntax.statements.statement(*statement) {
+                StatementNode::LocalData(local) => {
+                    collect_type_expression_handles(
+                        syntax,
+                        local.type_reference,
+                        &mut expressions,
+                        &mut type_references,
+                    );
+                }
+                StatementNode::Call(call) => {
+                    collect_static_argument_expression_handles(
+                        syntax,
+                        &call.machine_arguments,
+                        &mut expressions,
+                        &mut type_references,
+                    );
+                }
+                _ => {}
+            }
+            update_captured_names(
+                syntax,
+                &mut expressions,
+                &mut type_references,
+                &ConstructorFrontier {
+                    parameters: state.parameters,
+                    prior_statements: &statements[..ordinal],
+                },
+                &mut captured,
+            );
+        }
+    }
+    captured
+}
+
+pub(in crate::preparation::generic_data) fn replace_machine_const_expression_names_from(
+    syntax: &mut SyntaxTrees,
+    expression_watermark: u32,
+    const_expressions: &HashMap<String, ExpressionNode>,
+    captured: &RuntimeTemplateCaptures,
+) {
+    replace_uncaptured_const_names(
+        syntax,
+        expression_watermark,
+        const_expressions,
+        &captured.expressions,
+    );
+}
+
+fn update_captured_names(
+    syntax: &SyntaxTrees,
+    expressions: &mut HashSet<ExpressionHandle>,
+    type_references: &mut HashSet<TypeReferenceHandle>,
+    frontier: &ConstructorFrontier<'_>,
+    captured: &mut RuntimeTemplateCaptures,
+) {
+    // The executable child walker deliberately excludes type positions. Those
+    // positions still belong to the same lexical frontier during substitution.
+    let mut visited = HashSet::new();
+    loop {
+        let pending = expressions
+            .difference(&visited)
+            .copied()
+            .collect::<Vec<_>>();
+        if pending.is_empty() {
+            break;
+        }
+        for handle in pending {
+            visited.insert(handle);
+            match syntax.expressions.expression(handle) {
+                ExpressionNode::Cast(cast) => {
+                    collect_type_expression_handles(
+                        syntax,
+                        cast.target_type,
+                        expressions,
+                        type_references,
+                    );
+                    for argument in syntax
+                        .type_references
+                        .type_reference_handles(cast.semantic_domain_arguments)
+                    {
+                        collect_type_expression_handles(
+                            syntax,
+                            *argument,
+                            expressions,
+                            type_references,
+                        );
+                    }
+                }
+                ExpressionNode::TypeExpression(reference)
+                | ExpressionNode::ZeroValue(reference) => {
+                    collect_type_expression_handles(
+                        syntax,
+                        *reference,
+                        expressions,
+                        type_references,
+                    );
+                }
+                ExpressionNode::Call(call) => {
+                    collect_static_argument_expression_handles(
+                        syntax,
+                        &call.machine_arguments,
+                        expressions,
+                        type_references,
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    for handle in expressions.iter() {
+        if let ExpressionNode::Name(path) = syntax.expressions.expression(*handle) {
+            if frontier.captures(syntax, *path) {
+                captured.expressions.insert(*handle);
+            } else {
+                captured.expressions.remove(handle);
+            }
+        }
+    }
+    for reference in type_references.iter() {
+        if let TypeReferenceNode::Named(name) = syntax.type_references.type_reference(*reference) {
+            if frontier.captures_name(syntax, name) {
+                captured.type_references.insert(*reference);
+            } else {
+                captured.type_references.remove(reference);
+            }
+        }
+    }
+}
+
+fn collect_static_argument_expression_handles(
+    syntax: &SyntaxTrees,
+    arguments: &[StaticMachineArgument],
+    expressions: &mut HashSet<ExpressionHandle>,
+    type_references: &mut HashSet<TypeReferenceHandle>,
+) {
+    for argument in arguments {
+        if argument.type_reference.is_valid() {
+            collect_type_expression_handles(
+                syntax,
+                argument.type_reference,
+                expressions,
+                type_references,
+            );
+        }
+        if let Some(application) = &argument.application {
+            collect_static_argument_expression_handles(
+                syntax,
+                &application.arguments,
+                expressions,
+                type_references,
+            );
+        }
+    }
+}
+
+fn collect_contract_expression_handles(
+    syntax: &SyntaxTrees,
+    contracts: HandleSpan<CapabilityContract>,
+    expressions: &mut HashSet<ExpressionHandle>,
+    type_references: &mut HashSet<TypeReferenceHandle>,
+) {
+    for contract in syntax.items.capability_contracts(contracts) {
+        for fact in syntax.items.proof_facts(contract.facts) {
+            match fact {
+                ProofFact::Expression(expression) => {
+                    collect_expression_handles(syntax, *expression, expressions)
+                }
+                ProofFact::Membership(membership) => {
+                    collect_expression_handles(syntax, membership.value, expressions);
+                    for argument in syntax
+                        .type_references
+                        .type_reference_handles(membership.domain_arguments)
+                    {
+                        collect_type_expression_handles(
+                            syntax,
+                            *argument,
+                            expressions,
+                            type_references,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn collect_type_expression_handles(
+    syntax: &SyntaxTrees,
+    reference: TypeReferenceHandle,
+    expressions: &mut HashSet<ExpressionHandle>,
+    type_references: &mut HashSet<TypeReferenceHandle>,
+) {
+    if !reference.is_valid() || !type_references.insert(reference) {
+        return;
+    }
+    match syntax.type_references.type_reference(reference) {
+        TypeReferenceNode::ConstExpression(expression) => {
+            collect_expression_handles(syntax, *expression, expressions)
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_type_expression_handles(syntax, *referee, expressions, type_references)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            collect_type_expression_handles(syntax, *element_type, expressions, type_references)
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in syntax.type_references.type_reference_handles(*arguments) {
+                collect_type_expression_handles(syntax, *argument, expressions, type_references);
+            }
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            collect_type_expression_handles(syntax, *base_type, expressions, type_references);
+            for constraint in syntax.type_references.constraints(*constraints) {
+                match constraint {
+                    TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } => {
+                        collect_expression_handles(syntax, *minimum, expressions);
+                        collect_expression_handles(syntax, *maximum, expressions);
+                    }
+                    TypeConstraintNode::Domain(domain) => {
+                        for argument in syntax
+                            .type_references
+                            .type_reference_handles(domain.arguments)
+                        {
+                            collect_type_expression_handles(
+                                syntax,
+                                *argument,
+                                expressions,
+                                type_references,
+                            );
+                        }
+                    }
+                    TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                }
+            }
+        }
+        TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named(_)
+        | TypeReferenceNode::SelfType
+        | TypeReferenceNode::Unit => {}
+    }
+}
+
+fn replace_uncaptured_const_names(
+    syntax: &mut SyntaxTrees,
+    expression_watermark: u32,
+    const_expressions: &HashMap<String, ExpressionNode>,
+    captured: &HashSet<ExpressionHandle>,
 ) {
     let replacements = syntax
         .expressions
         .iter_expressions()
         .filter(|(handle, _)| handle.arena_index() >= expression_watermark)
+        .filter(|(handle, _)| !captured.contains(handle))
         .filter_map(|(handle, expression)| {
             let ExpressionNode::Name(path) = expression else {
                 return None;
@@ -26,16 +381,14 @@ pub(in crate::preparation::generic_data) fn replace_const_expression_names_from(
             let [name] = syntax.expressions.identifier_path_members(*path) else {
                 return None;
             };
-            const_literals
+            const_expressions
                 .get(name.as_str())
                 .cloned()
-                .map(|literal| (handle, literal))
+                .map(|value| (handle, value))
         })
         .collect::<Vec<_>>();
-    for (handle, literal) in replacements {
-        syntax
-            .expressions
-            .replace_expression(handle, ExpressionNode::Integer(literal));
+    for (handle, value) in replacements {
+        syntax.expressions.replace_expression(handle, value);
     }
 }
 

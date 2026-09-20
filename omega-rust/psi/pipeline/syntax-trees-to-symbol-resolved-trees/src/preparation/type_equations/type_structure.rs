@@ -1,6 +1,7 @@
 //! Decompose declared type constructors without observing runtime contents.
 //!
 //! Element positions bind types and length positions bind integer constants.
+//! Nominal const positions additionally preserve Boolean identity and kind.
 //! Arrays and nominal applications share recursion; `applications` selects the
 //! exact declaration and parameter kinds of each nominal head. Closed leaves
 //! use the existing identity owner. This is not an arithmetic solver or a new
@@ -143,7 +144,7 @@ impl Solver<'_, '_> {
                             .syntax
                             .type_references
                             .insert(TypeReferenceNode::Named(name)),
-                        Some(Binding::Integer(_) | Binding::Opaque) => {
+                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
                             return Err(self.type_structure_error(
                                 "mixes type and value kinds in an element position",
                                 span,
@@ -270,11 +271,12 @@ impl Solver<'_, '_> {
                                 .type_references
                                 .insert(TypeReferenceNode::Named(name)),
                         )),
-                        Some(Binding::Integer(_) | Binding::Opaque) => Err(self
-                            .type_structure_error(
+                        Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Opaque) => {
+                            Err(self.type_structure_error(
                                 "mixes type and value kinds in an element position",
                                 span,
-                            )),
+                            ))
+                        }
                     };
                 }
             }
