@@ -8788,7 +8788,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SELECTED-OPTIMIZATION-ANCESTRY-READS** — mined candidate; scope verified, already landed. Same settled surface as SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL (annotated sibling, this section): the staged types expose `selected`/`selections`/`budget_per_pass`/`liveness`/`ranges`/`legality` directly, `83766d57bf` moved custody reads to the retained `optimized_target_owner` handle, and `tests/ancestry_contract.rs` pins the contract — zero `.optimized_target()` data reads and no unsanctioned `selected_stage()` walks. Re-verified at `54d5dc1cb1`: `cargo nextest run -p selected-instructions-to-selected-instructions --test ancestry_contract` 2/2 green on linux x86-64.
 - **SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL** — mined candidate; scope verified, already landed. REPRESENTATION-OWNERSHIP's bullet for this crate (`selected_optimization.rs` reaching selections through `ranges.liveness_stage().selected_stage().optimized_target().optimized()`) is closed on main: the staged types expose `selected`/`register_environment`/`selections`/`budget_per_pass`/`liveness`/`ranges`/`legality` directly, `83766d57bf` moved custody reads to the retained `optimized_target_owner` handle, and `tests/ancestry_contract.rs` pins the contract — zero `.optimized_target()` data reads and no unsanctioned `selected_stage()` walks remain (witnessed: `cargo nextest run -p selected-instructions-to-selected-instructions --test ancestry_contract` 1/1 green at 4a6bd936dc, Linux x86-64). Surviving `live_range_stage`/`liveness_stage`/`source_legality_stage`/`source_segment_home_stage`/`transformation_stage` hops are the contract's named custody-validator inputs, not data reads. Sibling stubs on the same settled surface: RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION, SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS, SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS, STAGED-ANCESTRY-ELIMINATION.
 - **SELECTED-OPTIMIZATION-CATALOG-ROUTE** — mined candidate; verify scope then implement.
-- **SELECTED-OPTIMIZATION-DIRECT-READS** — mined candidate; verify scope then implement.
+- **SELECTED-OPTIMIZATION-DIRECT-READS.** Mined candidate — resolved,
+  covered. Re-mine of the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL
+  surface (the direct-reads leg): `selected_optimization.rs` no longer
+  reaches selections through `ranges.liveness_stage().selected_stage()
+  .optimized_target().optimized()` — staged types expose
+  `selected`/`register_environment`/`selections`/`budget_per_pass`/
+  `liveness`/`ranges`/`legality` directly, `83766d57bf` moved custody
+  reads to `optimized_target_owner`, and `tests/ancestry_contract.rs`
+  pins zero `.optimized_target()` data reads (witnessed 1/1 green at
+  `4a6bd936dc`). Surviving custody-validator hops are contract inputs,
+  not data reads. Sibling stubs on the same settled surface:
+  RO-S2S-ANCESTRY-WALKS, RO-STAGE-ANCESTRY-ELIMINATION,
+  SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS/-REMOVAL,
+  SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS,
+  STAGED-ANCESTRY-ELIMINATION.
 - **SELECTED-REWRITE-ANCESTRY-REMOVAL** — mined candidate; resolved: sibling stub on the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface (see that row). Re-verified at `e12b9e8e06` on Linux x86-64: `cargo nextest run -p selected-instructions-to-selected-instructions --test ancestry_contract` 2/2 green; the only `liveness_stage()`/`selected_stage()` hops left in the crate are `validate_optimized_liveness_custody`/`validate_optimized_live_range_custody` custody-validator inputs, and no `.optimized_target()` data reads exist. No independent slice remains.
 - **SELECTED-REWRITE-CATALOG-DISPOSITION.** Resolved — the deep-mine
   fragmented one optimizer bullet into a five-row cluster. The underlying
