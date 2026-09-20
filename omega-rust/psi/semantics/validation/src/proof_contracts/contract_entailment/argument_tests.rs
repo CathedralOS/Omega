@@ -107,6 +107,120 @@ fn argument(
 }
 
 #[test]
+fn signed_disequality_substitution_preserves_difference_but_not_direction() {
+    let mut fixture = Fixture::new();
+    let zero = fixture.integer(0);
+    let one = fixture.integer(1);
+    let premise = fixture.binary(fixture.caller_expression, BinaryOperator::NotEqual, zero);
+    let unchanged = argument(fixture.formal, fixture.caller_expression);
+    for (operator, expected) in [
+        (
+            BinaryOperator::NotEqual,
+            StrictArithmeticImplicationJudgment::Proven,
+        ),
+        (
+            BinaryOperator::Equal,
+            StrictArithmeticImplicationJudgment::Refuted,
+        ),
+        (
+            BinaryOperator::Greater,
+            StrictArithmeticImplicationJudgment::Unknown,
+        ),
+        (
+            BinaryOperator::Less,
+            StrictArithmeticImplicationJudgment::Unknown,
+        ),
+    ] {
+        for (left, right) in [
+            (fixture.formal_expression, zero),
+            (zero, fixture.formal_expression),
+        ] {
+            let goal = fixture.binary(left, operator, right);
+            assert_eq!(fixture.judge(&[premise], goal, &[unchanged]), expected);
+        }
+    }
+    let goal = fixture.binary(fixture.formal_expression, BinaryOperator::NotEqual, zero);
+    let shifted = fixture.binary(fixture.caller_expression, BinaryOperator::Add, one);
+    assert_eq!(
+        fixture.judge(&[premise], goal, &[argument(fixture.formal, shifted)]),
+        StrictArithmeticImplicationJudgment::Unknown
+    );
+    assert_eq!(
+        fixture.judge(&[], goal, &[unchanged]),
+        StrictArithmeticImplicationJudgment::Unknown
+    );
+}
+
+#[test]
+fn retained_disequality_follows_later_equations_without_equating_scoped_atoms() {
+    use super::arithmetic_judgment::{Engine, Judgment};
+    use super::{ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticValue};
+
+    let mut fixture = Fixture::new();
+    let zero = fixture.integer(0);
+    let original_nonzero =
+        fixture.binary(fixture.caller_expression, BinaryOperator::NotEqual, zero);
+    let other_nonzero = fixture.binary(fixture.second_expression, BinaryOperator::NotEqual, zero);
+    let same_value = fixture.binary(
+        fixture.caller_expression,
+        BinaryOperator::Equal,
+        fixture.second_expression,
+    );
+    let bindings = [
+        StrictArithmeticSymbolBinding {
+            symbol: fixture.caller,
+            value: StrictArithmeticBindingValue::Atom {
+                identity: "original".to_owned(),
+                unsigned: false,
+            },
+        },
+        StrictArithmeticSymbolBinding {
+            symbol: fixture.second,
+            value: StrictArithmeticBindingValue::Atom {
+                identity: "other".to_owned(),
+                unsigned: false,
+            },
+        },
+    ];
+    let mut engine =
+        Engine::strict_with_symbol_bindings(&fixture.program, &Machine::default(), &bindings);
+    let mut comparisons = Vec::new();
+    assert!(engine.collect_comparisons(&[original_nonzero], &mut comparisons));
+    assert!(engine.install_hypotheses(comparisons));
+    assert!(matches!(
+        engine.judge(other_nonzero),
+        Judgment::Unknown { .. }
+    ));
+    let mut comparisons = Vec::new();
+    assert!(engine.collect_comparisons(&[same_value], &mut comparisons));
+    assert!(engine.install_hypotheses(comparisons));
+    assert!(matches!(engine.judge(other_nonzero), Judgment::Proven));
+
+    let roster = |identity: &str| {
+        [ScopedArithmeticBinding {
+            binder: ScopedArithmeticBinder::Symbol(fixture.caller),
+            value: ScopedArithmeticValue::Atom {
+                identity: identity.to_owned(),
+                unsigned: false,
+            },
+        }]
+    };
+    let mut engine =
+        Engine::strict_with_symbol_bindings(&fixture.program, &Machine::default(), &[]);
+    assert!(engine.install_scoped_bindings(&roster("before")));
+    let mut comparisons = Vec::new();
+    assert!(engine.collect_comparisons(&[original_nonzero], &mut comparisons));
+    assert!(engine.install_hypotheses(comparisons));
+    assert!(engine.install_scoped_bindings(&roster("after")));
+    assert!(matches!(
+        engine.judge(original_nonzero),
+        Judgment::Unknown { .. }
+    ));
+    assert!(engine.install_scoped_bindings(&roster("before")));
+    assert!(matches!(engine.judge(original_nonzero), Judgment::Proven));
+}
+
+#[test]
 fn exact_argument_widening_does_not_change_other_strict_reader_languages() {
     let source = "machine caller(input: u8) -> u64 { input as u64 }";
     let tokens = source_files_to_tokens::Lexer::new(source)

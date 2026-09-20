@@ -1,5 +1,5 @@
 //! Ordered Unit scalar definitions retain their exact widening source and result.
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use abstract_operations::{AbstractOperation, AbstractOperationPlan, AbstractParameter};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
@@ -108,14 +108,13 @@ fn unit_u8_to_i32_widening_selects_one_definition_before_byte_output() {
         )
         .unwrap();
         let instructions = &selected.plan().functions[0].blocks[0].instructions;
+        let widening = instructions
+            .iter()
+            .find(|row| row.provenance.operations == [OperationId::new(8).unwrap()])
+            .unwrap();
         assert_eq!(
-            instructions
-                .iter()
-                .filter(
-                    |row| row.kind == selected_instructions::SelectedInstructionKind::ZeroExtendU8
-                )
-                .count(),
-            1
+            widening.kind,
+            selected_instructions::SelectedInstructionKind::ZeroExtendU8
         );
         assert_eq!(
             instructions
@@ -131,7 +130,7 @@ fn unit_u8_to_i32_widening_selects_one_definition_before_byte_output() {
         let widening = changed.functions[0].blocks[0]
             .instructions
             .iter_mut()
-            .find(|row| row.kind == selected_instructions::SelectedInstructionKind::ZeroExtendU8)
+            .find(|row| row.provenance.operations == [OperationId::new(8).unwrap()])
             .unwrap();
         widening.kind = selected_instructions::SelectedInstructionKind::ZeroExtendU32;
         assert!(
@@ -144,6 +143,90 @@ fn unit_u8_to_i32_widening_selects_one_definition_before_byte_output() {
             )
             .is_err()
         );
+    }
+}
+
+#[test]
+fn all_total_native_widenings_preserve_source_custody_and_replay() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for source_sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            for target_sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+                for source_bits in [8, 16, 32] {
+                    for target_bits in [16, 32, 64] {
+                        let source_type = integer(source_sign, source_bits);
+                        let target_type = integer(target_sign, target_bits);
+                        if !source_type.can_widen_to(target_type) {
+                            continue;
+                        }
+                        let (mut source, _, _) =
+                            crate::tests::fixtures::plain_unit::plain_unit_fixture();
+                        let operand = ValueId::new(5).unwrap();
+                        let result = ValueId::new(9).unwrap();
+                        source.functions[0].parameters = vec![AbstractParameter {
+                            value: operand,
+                            scalar_type: ScalarType::Integer(source_type),
+                        }];
+                        source.functions[0].operations.insert(
+                            0,
+                            AbstractOperation::IntegerWiden {
+                                psi_operation: OperationId::new(8).unwrap(),
+                                result,
+                                source_type,
+                                target_type,
+                                operand,
+                            },
+                        );
+                        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                            &source,
+                            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+                        ).unwrap();
+                        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                            &source,
+                            FuelScheduleIdentity::new(1).unwrap(),
+                        )
+                        .unwrap();
+                        let legalized = legalize_target_operations(&target, &source, &unit)
+                            .unwrap_or_else(|error| {
+                                panic!("{source_type:?} -> {target_type:?}: {error:?}")
+                            });
+                        validate_legalized_operations(
+                            &target,
+                            &source,
+                            &unit,
+                            legalized.plan().clone(),
+                        )
+                        .unwrap();
+                        for mutation in 0..3 {
+                            let mut changed = legalized.plan().clone();
+                            let row = &mut changed.scalar_functions[0].blocks[0].instructions[0];
+                            let legalized_operations::LegalizedScalarInstructionKind::IntegerWiden {
+                                operand: actual_operand,
+                                source_type: actual_source,
+                            } = &mut row.kind else {
+                                panic!("widening");
+                            };
+                            match mutation {
+                                0 => *actual_operand = result,
+                                1 => *actual_source = target_type,
+                                _ => {
+                                    row.result.as_mut().unwrap().scalar_type =
+                                        ScalarType::Integer(source_type)
+                                }
+                            }
+                            assert!(
+                                validate_legalized_operations(&target, &source, &unit, changed,)
+                                    .is_err()
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

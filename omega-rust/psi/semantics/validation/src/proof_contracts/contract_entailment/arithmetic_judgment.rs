@@ -355,6 +355,9 @@ pub(super) struct Engine<'program> {
     pub(super) substitutions: BTreeMap<String, Polynomial>,
     /// Lower bounds: each entry means `polynomial >= bound`.
     bounds: Vec<(Polynomial, BigInt)>,
+    /// Exact integer disequalities retained by strict adapters. A nonzero
+    /// difference has no sign; it can establish disequality, not an order bound.
+    nonzero_differences: Vec<Polynomial>,
     /// Derived bounds for truncating integer quotient and remainder atoms.
     arithmetic_intervals: BTreeMap<String, Interval>,
     /// Opaque quotient/remainder atoms this engine minted, in mint order with
@@ -415,6 +418,7 @@ impl<'program> Engine<'program> {
             unsigned_atoms,
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
+            nonzero_differences: Vec::new(),
             arithmetic_intervals: BTreeMap::new(),
             opaque_terms: Vec::new(),
             matrix: BTreeMap::new(),
@@ -1040,6 +1044,7 @@ impl<'program> Engine<'program> {
             unsigned_atoms: Vec::new(),
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
+            nonzero_differences: Vec::new(),
             arithmetic_intervals: BTreeMap::new(),
             opaque_terms: Vec::new(),
             matrix: BTreeMap::new(),
@@ -1210,9 +1215,16 @@ impl<'program> Engine<'program> {
         self.close_matrix();
         // Disequality alone has no direction. Once the ordinary bounds prove
         // a direction, excluding zero strengthens that integer bound by one.
-        // Unoriented differences remain unused; this is not a branch search.
+        // Strict integer adapters also retain an unoriented difference as
+        // itself nonzero. Legacy readers admit a wider expression language
+        // (including floating operands), so they keep only the old bound rule.
         let previous_bounds = self.bounds.len();
         for difference in nonzero_differences {
+            if self.strict_symbol_bindings.is_some()
+                && !self.nonzero_differences.contains(&difference)
+            {
+                self.nonzero_differences.push(difference.clone());
+            }
             let opposite = difference.neg();
             let nonnegative = self.prove_at_least(&difference, &BigInt::zero());
             let nonpositive = self.prove_at_least(&opposite, &BigInt::zero());
@@ -1309,7 +1321,8 @@ impl<'program> Engine<'program> {
                     && self.prove_at_least(&difference_lr, &zero)
             }
             BinaryOperator::NotEqual => {
-                self.prove_at_least(&difference_rl, &one)
+                self.is_known_nonzero(&difference_lr)
+                    || self.prove_at_least(&difference_rl, &one)
                     || self.prove_at_least(&difference_lr, &one)
             }
             _ => {
@@ -1329,7 +1342,8 @@ impl<'program> Engine<'program> {
             BinaryOperator::Greater => self.prove_at_least(&difference_rl, &zero),
             BinaryOperator::GreaterOrEqual => self.prove_at_least(&difference_rl, &one),
             BinaryOperator::Equal => {
-                self.prove_at_least(&difference_rl, &one)
+                self.is_known_nonzero(&difference_lr)
+                    || self.prove_at_least(&difference_rl, &one)
                     || self.prove_at_least(&difference_lr, &one)
             }
             BinaryOperator::NotEqual => {
@@ -1345,6 +1359,16 @@ impl<'program> Engine<'program> {
         Judgment::Unknown {
             goal_in_language: true,
         }
+    }
+
+    fn is_known_nonzero(&self, difference: &Polynomial) -> bool {
+        let opposite = difference.neg();
+        self.nonzero_differences.iter().any(|known| {
+            // Hypothesis installation is additive: later equations can rename
+            // atoms, but cannot change the captured difference's meaning.
+            let known = self.substituted(known);
+            known == *difference || known == opposite
+        })
     }
 
     /// Prove a lower bound directly or by adding one stored lower bound to

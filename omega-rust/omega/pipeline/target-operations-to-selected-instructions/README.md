@@ -38,10 +38,14 @@ become fictional source values. Compiler condition tests, copies and address
 work do not invent Psi operations or logical charges. Returns retain their exact
 Unit/scalar/aggregate role, complete result constraints, and edge fuel.
 
-Unsigned 64-bit saturation and exact division retain their arithmetic policy on
-this graph. Division preserves its accepted nonzero-divisor obligation; x86-64
-additionally materializes the zero high half under explicit scratch constraints.
-That target setup adds no source operation or fuel charge. The
+Unsigned 64-bit saturation retains its arithmetic policy on this graph. Exact
+division and remainder accept fixed 8/16/32/64-bit signed and unsigned carriers,
+retaining the full definedness obligation: nonzero divisor and representable
+quotient, including rejection of signed `MIN % -1`. Normalized operands use the
+existing Exact signed division instructions except for full-width unsigned
+operands, which retain their unsigned realization. x86-64 zero/sign high-half
+preparation retains explicit scratch constraints and adds no source operation or
+fuel charge. The
 [arithmetic controls](../../../../tests/native-differential/tests/scalar_case_results/u64_kernels.rs)
 exercise full-width values, proof substitution and four-target publication.
 
@@ -473,11 +477,12 @@ and traps if the kernel returns. Source, target, builtin, operand, and complete
 exit span are independently replayed through publication.
 
 Ordered Unit scalar definitions join their exact source operations before
-entering the same legalized SSA graph. Explicit `u8` widening to fixed
-16/32/64-bit signed or unsigned integers reuses ordinary copies after byte
-inputs are zero-extended at the ABI boundary. Result type, defining operation,
-source identity and value residence remain independently replayed; no new
-instruction or forced stack home is needed. Proof-bearing exact casts retain
+entering the same legalized SSA graph. Total widening between fixed
+8/16/32/64-bit carriers reuses existing sign/zero-extension instructions selected
+from the source width and signedness. Signed-to-unsigned conversion is not total
+and does not enter this route. Result type, defining operation, source identity
+and value residence remain independently replayed; no new instruction or forced
+stack home is needed. Proof-bearing exact casts retain
 their accepted obligation in ordinary control graphs, independently replay the
 source/result types, and normalize narrow results by exact width and signedness.
 Supported casts use fixed 8/16/32/64-bit carriers. Signed-to-signed casts involving

@@ -425,7 +425,7 @@ fn indexed_constant_helper_discharge_reaches_source_free_execution() {
              machine read() -> u64 {{ SIZE }}"
             ),
         );
-        assert_native_constant_after_source_removal(tree, root);
+        assert_native_result_after_source_removal(tree, root, &[target::NativeTarget::host()], &[]);
     }
 }
 
@@ -467,7 +467,7 @@ fn computed_table_selector_discharge_reaches_source_free_native_execution() {
                  machine read() -> u64 {{ SIZE }}"
             ),
         );
-        assert_native_constant_after_source_removal(tree, root);
+        assert_native_result_after_source_removal(tree, root, &[target::NativeTarget::host()], &[]);
     }
 }
 
@@ -602,7 +602,7 @@ fn widened_constant_helper_executes_natively_after_source_removal() {
         root.join("main.omg"),
         "use settings; machine read() -> u64 { settings::VALUE }",
     );
-    assert_native_constant_after_source_removal(tree, root);
+    assert_native_result_after_source_removal(tree, root, &[target::NativeTarget::host()], &[]);
 }
 
 #[test]
@@ -622,7 +622,7 @@ fn constant_helper_preconditions_reach_native_execution_after_source_removal() {
         root.join("main.omg"),
         "use settings; machine read() -> u64 { settings::VALUE }",
     );
-    assert_native_constant_after_source_removal(tree, root);
+    assert_native_result_after_source_removal(tree, root, &[target::NativeTarget::host()], &[]);
 }
 
 #[test]
@@ -642,7 +642,7 @@ fn widened_helper_preconditions_reach_native_execution_after_source_removal() {
         root.join("main.omg"),
         "use settings; machine read() -> u64 { settings::VALUE }",
     );
-    assert_native_constant_after_source_removal(tree, root);
+    assert_native_result_after_source_removal(tree, root, &[target::NativeTarget::host()], &[]);
 }
 
 #[test]
@@ -657,7 +657,149 @@ fn widened_runtime_call_preconditions_execute_after_source_removal() {
          }
          machine read() -> u64 { forward(2u8) }",
     );
-    assert_native_constant_after_source_removal(tree, root);
+    assert_native_result_after_source_removal(tree, root, &[target::NativeTarget::host()], &[]);
+}
+
+#[test]
+fn signed_nonzero_call_preconditions_execute_after_source_removal() {
+    for (source_type, argument, quotient) in [
+        ("i8", "-2i8", "-5"),
+        ("i8", "2i8", "5"),
+        ("i16", "-2i16", "-5"),
+        ("i16", "2i16", "5"),
+        ("i32", "-2i32", "-5"),
+        ("i32", "2i32", "5"),
+    ] {
+        let tree = Sources::new();
+        let root = tree.package("root");
+        Sources::write(
+            root.join("main.omg"),
+            &format!(
+                "machine divide(value: i64) -> i64 requires value != 0 {{ 10 / value }}
+                 machine forward(value: {source_type}) -> i64 requires value != 0 {{
+                     divide(value as i64)
+                 }}
+                 machine read() -> u64 {{
+                     transition {{
+                         forward({argument}) == {quotient} -> 5
+                         _ -> 0
+                     }}
+                 }}"
+            ),
+        );
+        assert_native_result_after_source_removal(tree, root, &native_arithmetic_targets(), &[]);
+    }
+}
+
+fn native_arithmetic_targets() -> [target::NativeTarget; 4] {
+    [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ]
+}
+
+#[test]
+fn exact_native_division_and_remainder_execute_after_source_removal() {
+    for bits in [8, 16, 32, 64] {
+        for (sign, argument, divisor, quotient, remainder) in [
+            ("i", "-7", "2", "-3", "-1"),
+            ("i", "7", "-2", "-3", "1"),
+            ("u", "7", "2", "3", "1"),
+        ] {
+            for (operator, expected) in [("/", quotient), ("%", remainder)] {
+                let tree = Sources::new();
+                let root = tree.package("root");
+                Sources::write(
+                    root.join("main.omg"),
+                    &format!(
+                        "machine calculate(value: {sign}{bits}) -> {sign}{bits} {{ value {operator} {divisor} }}
+                         machine read() -> u64 {{ transition {{
+                             calculate({argument}{sign}{bits}) == {expected} -> 5
+                             _ -> 0
+                         }} }}"
+                    ),
+                );
+                assert_native_result_after_source_removal(
+                    tree,
+                    root,
+                    &native_arithmetic_targets(),
+                    &[],
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn exact_native_division_rejects_zero_and_unrepresentable_quotients() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    for (bits, minimum) in [
+        (8, "-128"),
+        (16, "-32768"),
+        (32, "-2147483648"),
+        (64, "-9223372036854775808"),
+    ] {
+        for operator in ["/", "%"] {
+            for expression in [
+                format!("({minimum}i{bits}) {operator} (-1i{bits})"),
+                format!("(7i{bits}) {operator} (0i{bits})"),
+            ] {
+                Sources::write(
+                    root.join("main.omg"),
+                    &format!("machine read() -> i{bits} {{ {expression} }}"),
+                );
+                assert_exact_arithmetic_rejected(&root, &expression);
+            }
+            // A nonzero divisor does not exclude the unrepresentable MIN/-1 quotient.
+            Sources::write(
+                root.join("main.omg"),
+                &format!(
+                    "machine calculate(value: i{bits}) -> i{bits} requires value != 0 {{ ({minimum}i{bits}) {operator} value }}
+                     machine read() -> i{bits} {{ calculate(2i{bits}) }}"
+                ),
+            );
+            assert_exact_arithmetic_rejected(
+                &root,
+                &format!("i{bits} {operator}: nonzero is not quotient representability"),
+            );
+        }
+    }
+}
+
+fn assert_exact_arithmetic_rejected(root: &std::path::Path, context: &str) {
+    // Runtime divide/remainder formation is discharged during Terminal
+    // production, not necessarily by the checked-tree API. Neither stage may
+    // publish executable custody for zero or an unrepresentable quotient.
+    match compiler::compile_to_checked(compiler::CheckedCompileRequest::new(
+        &root.join("main.omg"),
+        None,
+    )) {
+        Err(diagnostics) => assert!(!diagnostics.is_empty(), "{context}"),
+        Ok(checked) => {
+            let result = terminal_production::TerminalProductionRequest::new(&checked, "read")
+                .produce_artifact();
+            assert!(
+                result.is_err(),
+                "{context}: invalid Exact arithmetic published {result:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn exact_remainder_minus_one_executes_with_selected_rule_enabled() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("main.omg"),
+        "machine remainder(value: i64) -> i64 requires value >= -10 && value <= 10 { value % -1 }
+         machine read() -> u64 { transition { remainder(-7i64) == 0 -> 5 _ -> 0 } }",
+    );
+    assert_native_result_after_source_removal(tree, root, &native_arithmetic_targets(),
+        &[optimization_core::Optimization::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization]);
 }
 
 #[test]
@@ -688,7 +830,12 @@ fn constant_helper_preconditions_reject_false_concrete_invocations() {
     );
 }
 
-fn assert_native_constant_after_source_removal(tree: Sources, root: std::path::PathBuf) {
+fn assert_native_result_after_source_removal(
+    tree: Sources,
+    root: std::path::PathBuf,
+    targets: &[target::NativeTarget],
+    optimizations: &[optimization_core::Optimization],
+) {
     let checked = compile(&root, root_inputs(&root));
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "read")
         .produce_artifact()
@@ -710,54 +857,60 @@ fn assert_native_constant_after_source_removal(tree: Sources, root: std::path::P
         TerminalExecutionResult::Scalar(super::array_construction::integer(5, 64)),
     );
 
-    let selections = optimization_core::OptimizationSelections::new([]).unwrap();
-    let optimized = native_realization::optimize_artifact_sections(
-        artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        &proof_admission::AdmissionProfile::default(),
-        native_realization::compiler_baseline_request_v1(&selections),
-    )
-    .unwrap();
-    let physical =
+    let selections =
+        optimization_core::OptimizationSelections::new(optimizations.iter().copied()).unwrap();
+    for native in targets {
+        let optimized = native_realization::optimize_artifact_sections(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            native_realization::compiler_baseline_request_v1(&selections),
+        )
+        .unwrap();
+        let physical =
         native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimized,
-            target::NativeTarget::host(),
+            *native,
             &[],
         )
         .unwrap();
-    let fragments = machine_emission::stage_optimized_function_fragment_emission(
-        physical.into_function_fragment_emission_source(),
-    )
-    .unwrap();
-    let framed = machine_emission::stage_function_fragment_frame_application(fragments).unwrap();
-    let text = machine_emission::stage_optimized_fixed_frame_text_section(framed).unwrap();
-    let source = std::sync::Arc::new(
-        object_file::stage_optimized_relocation_free_object_container(text).unwrap(),
-    );
-    let object = image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
-    image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
-    let image = image_emission::emit_executable_image(&object, 0).unwrap();
-    image_emission::validate_executable_image(&object, &image).unwrap();
-    #[cfg(any(
-        all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ),
-        all(target_os = "macos", target_arch = "aarch64")
-    ))]
-    native_function::assert_c_text(
-        &image.output().final_text_bytes,
-        object.entry_function().text_offset,
-        "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) { return omega_entry() == 5 ? 0 : 1; }",
-    );
-    #[cfg(not(any(
-        all(
-            target_os = "linux",
-            any(target_arch = "x86_64", target_arch = "aarch64")
-        ),
-        all(target_os = "macos", target_arch = "aarch64")
-    )))]
-    eprintln!("SKIP: native constant execution requires Linux x64/ARM64 or macOS ARM64");
+        let emission_source = physical.into_function_fragment_emission_source();
+        let fragments =
+            machine_emission::stage_optimized_function_fragment_emission(emission_source).unwrap();
+        let framed =
+            machine_emission::stage_function_fragment_frame_application(fragments).unwrap();
+        let text = machine_emission::stage_optimized_fixed_frame_text_section(framed).unwrap();
+        let source = std::sync::Arc::new(
+            object_file::stage_optimized_relocation_free_object_container(text).unwrap(),
+        );
+        let object =
+            image_emission::build_function_fragment_object_artifact(source.clone()).unwrap();
+        image_emission::validate_function_fragment_object_artifact(&source, &object).unwrap();
+        let image = image_emission::emit_executable_image(&object, 0).unwrap();
+        image_emission::validate_executable_image(&object, &image).unwrap();
+        #[cfg(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        ))]
+        if *native == target::NativeTarget::host() {
+            native_function::assert_c_text(
+                &image.output().final_text_bytes,
+                object.entry_function().text_offset,
+                "#include <stdint.h>\nextern uint64_t omega_entry(void);\nint main(void) { return omega_entry() == 5 ? 0 : 1; }",
+            );
+        }
+        #[cfg(not(any(
+            all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            ),
+            all(target_os = "macos", target_arch = "aarch64")
+        )))]
+        eprintln!("SKIP: native constant execution requires Linux x64/ARM64 or macOS ARM64");
+    }
 }
 
 #[test]
