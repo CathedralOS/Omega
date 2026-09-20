@@ -7036,8 +7036,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **FMA-PROVIDER-PIPELINE-TRANSPORT** — mined candidate; merged alias of
   X86-FMA-PROVIDER-TRANSPORT (verify-scope: the named tests confirmed the
   frontier; see that row for landed legs and the remaining transport work).
-- **FMA-PROVIDER-TRANSPORT** — mined candidate; merged alias of
-  X86-FMA-PROVIDER-TRANSPORT (same: verified and in progress on that row).
+- **FMA-PROVIDER-TRANSPORT.** Resolved at aff2da2cb3 — merged alias of
+  **X86-FMA-PROVIDER-TRANSPORT** (~TASKS.md:5867), in progress on that row.
+  Verified live: the upstream custody leg landed (`zergling/z132` branch —
+  `bind_checked_x86_scalar_fma_plan_associations` now scans both named-uses
+  and requirement-use facts, matching the `SelectedIntrinsicUse` view), and
+  the recorded transport tests again stop at the documented `FMA provider
+  transport is not implemented in the common instruction pipeline` fence
+  (`native_realization/object_emission.rs`) instead of upstream. Remaining
+  legs stay on the canonical row: (a) production arm for
+  `TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd` in
+  target-operations-to-selected-instructions (legalization
+  `scalar_graph_input/target/unit.rs` ingest + `unit/ieee_float.rs`
+  selection — verified no arm exists; machine-code `X86ScalarFma*` records
+  already exist); (b) s2s carry, s2rh XMM allocation, post-allocation plan,
+  machine-emission VFMADD + MXCSR envelope + object records; (c) removal of
+  the object_emission.rs, program_entry.rs, and optimization_stage.rs
+  fences. Sibling alias stub on the same row: FMA-PROVIDER-PIPELINE-TRANSPORT.
 - **FRONTIER-EDGE-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
