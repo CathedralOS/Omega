@@ -37,17 +37,16 @@ fn procedure_source() -> String {
 
 fn checked(source: &str) -> (TempPackage, ReviewFixture) {
     let package = TempPackage::new();
-    package.write("main.omg", source);
     package.write(
-        "calling.omg",
-        &fs::read_to_string(repository_root().join("source/library/std/calling.omg")).unwrap(),
+        "main.omg",
+        &source.replace("use calling;", "use omega_language_std::calling;"),
     );
     package.write(
         "build.omg",
         "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
-        package_inputs: Some(package_inputs(&package.0)),
+        package_inputs: Some(package_inputs_with_std(&package.0)),
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
     })
     .expect("source calling policy should check without native emission");

@@ -1,6 +1,6 @@
 use super::super::contracts::propositions::evidence::collect_evidence_requirements;
 use super::super::semantics::declarations::{
-    nominal_identity, reviewed_package_owns, trait_requirement_identity,
+    is_product_scope_instance, nominal_identity, reviewed_package_owns, trait_requirement_identity,
 };
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
@@ -19,11 +19,10 @@ pub(crate) fn project_public_conformances(
     package: PackageKeyIdentity,
 ) -> Result<Vec<ProjectedReviewRow<PackageReviewConformanceShape>>, Vec<Diagnostic>> {
     let mut projected = Vec::new();
-    for conformance in compilation
-        .conformances()
-        .iter()
-        .filter(|conformance| conformance.is_public)
-    {
+    for conformance in compilation.conformances().iter().filter(|conformance| {
+        conformance.is_public
+            && is_product_scope_instance(&compilation.typed.symbols, conformance.symbol)
+    }) {
         let identity = nominal_identity(compilation, conformance.symbol)?;
         if !reviewed_package_owns(&identity, package)? {
             continue;
