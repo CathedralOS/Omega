@@ -210,6 +210,21 @@ pub(crate) fn evaluate_const_membership_fact(
         selection,
         warnings,
     )
+    .map(|proof| proof.map(|proof| proof.holds()))
+}
+
+/// A refuted membership is still a Boolean operand. Keep its selected atom
+/// separately so direct constant establishment can explain the failed alias
+/// without turning false into an evaluation error inside a larger predicate.
+enum DomainFactProof {
+    Holds,
+    Refuted { domain: String },
+}
+
+impl DomainFactProof {
+    fn holds(&self) -> bool {
+        matches!(self, Self::Holds)
+    }
 }
 
 /// Evaluate `value in <authored>` against one declared domain. With a constant
@@ -219,17 +234,17 @@ pub(crate) fn evaluate_const_membership_fact(
 /// or unauthorized occurrence declines instead of guessing. Without a
 /// selection (header-free probes) a leaf expands against the value carrier
 /// exactly as the original name-only lookup did.
-pub(crate) fn evaluate_named_const_domain(
+fn evaluate_named_const_domain(
     syntax: &SyntaxTrees,
     authored: &str,
     carrier: &str,
     value: ConstScalarValue,
     const_values: &HashMap<String, i128>,
-    visiting: &mut Vec<String>,
+    visiting: &mut Vec<(source::SourceSpan, String)>,
     reference: source::SourceSpan,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
-) -> Result<Option<bool>, String> {
+) -> Result<Option<DomainFactProof>, String> {
     let domain = match selection {
         Some(selection) => selection.domain(syntax, authored, reference).or_else(|| {
             selection
@@ -264,8 +279,8 @@ pub(crate) fn evaluate_named_const_domain(
             index_parameters.len(),
         ));
     }
-    // The visiting key is the selected declaration's complete logical path so
-    // two authored spellings of the same owner still catch recursion.
+    // Keep the logical path for diagnostics; recursive replay additionally
+    // retains the selected declaration's source occurrence below.
     let domain_key = module_domain_key(syntax, domain);
     evaluate_selected_domain_facts(
         syntax,
@@ -282,8 +297,8 @@ pub(crate) fn evaluate_named_const_domain(
 }
 
 /// The selected declaration's complete logical path — module prefix plus the
-/// declared name — so two authored spellings of the same owner share one
-/// recursion-guard key.
+/// declared name. This label alone is not declaration identity: distinct
+/// packages can publish identical logical paths.
 fn module_domain_key(
     syntax: &SyntaxTrees,
     domain: &syntax_trees::item::DomainDefinition,
@@ -312,16 +327,18 @@ fn evaluate_selected_domain_facts(
     value: ConstScalarValue,
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, ConstScalarValue>,
-    visiting: &mut Vec<String>,
+    visiting: &mut Vec<(source::SourceSpan, String)>,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
-) -> Result<Option<bool>, String> {
-    if visiting.iter().any(|name| name == &domain_key) {
+) -> Result<Option<DomainFactProof>, String> {
+    if visiting
+        .iter()
+        .any(|(span, name)| *span == domain.name.source_span() && name == &domain_key)
+    {
         return Ok(None);
     }
-    // Predicate truth is not issuance. Aliases also need their constituents'
-    // obligations, not the empty fact list on the authored alias declaration.
-    if !domain.authored_routes.is_empty() || domain.alias.is_some() {
+    // Predicate truth is not issuance, including through an alias.
+    if !domain.authored_routes.is_empty() {
         return Ok(None);
     }
     let TypeReferenceNode::Named(domain_target) =
@@ -354,8 +371,43 @@ fn evaluate_selected_domain_facts(
         Some(value)
     };
     let warning_start = warnings.len();
-    visiting.push(domain_key);
+    visiting.push((domain.name.source_span(), domain_key));
     let result = (|| {
+        if let Some(alias) = &domain.alias {
+            if alias.constituents.is_empty() {
+                return Ok(None);
+            }
+            // Discharge conjunction obligations without rewriting the alias or
+            // manufacturing normalized identity. The typed normalizer still
+            // expands its retained constituents and checks publication legality.
+            // Each edge is selected in its author's source, never the caller's.
+            for constituent in &alias.constituents {
+                let members = syntax.items.identifier_path_members(*constituent);
+                let Some(first) = members.first() else {
+                    return Ok(None);
+                };
+                let path = members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                match evaluate_named_const_domain(
+                    syntax,
+                    &path,
+                    carrier,
+                    value,
+                    const_values,
+                    visiting,
+                    first.source_span(),
+                    selection,
+                    warnings,
+                )? {
+                    Some(DomainFactProof::Holds) => {}
+                    Some(refuted) => return Ok(Some(refuted)),
+                    None => return Ok(None),
+                }
+            }
+        }
         for fact in syntax.items.proof_facts(domain.facts) {
             let holds = match fact {
                 ProofFact::Expression(expression) => evaluate_const_domain_expression(
@@ -424,17 +476,19 @@ fn evaluate_selected_domain_facts(
                             warnings,
                         )?
                     };
-                    holds.map(ConstFactValue::Boolean)
+                    holds.map(|proof| ConstFactValue::Boolean(proof.holds()))
                 }
             };
             let Some(ConstFactValue::Boolean(holds)) = holds else {
                 return Ok(None);
             };
             if !holds {
-                return Ok(Some(false));
+                return Ok(Some(DomainFactProof::Refuted {
+                    domain: module_domain_key(syntax, domain),
+                }));
             }
         }
-        Ok(Some(true))
+        Ok(Some(DomainFactProof::Holds))
     })();
     visiting.pop();
     if !matches!(result, Ok(Some(_))) {
@@ -496,11 +550,11 @@ fn evaluate_indexed_const_domain(
     const_values: &HashMap<String, i128>,
     argument_values: &HashMap<String, ConstScalarValue>,
     argument_parameters: &[syntax_trees::item::TypeParameter],
-    visiting: &mut Vec<String>,
+    visiting: &mut Vec<(source::SourceSpan, String)>,
     reference: source::SourceSpan,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
-) -> Result<Option<bool>, String> {
+) -> Result<Option<DomainFactProof>, String> {
     let domain = match selection {
         Some(selection) => selection
             .domain_family(syntax, authored, reference)
@@ -923,10 +977,12 @@ pub(crate) fn prove_declared_const_domain_constraints(
             )?
         };
         match holds {
-            Some(true) => {}
-            Some(false) => {
+            Some(DomainFactProof::Holds) => {}
+            Some(DomainFactProof::Refuted {
+                domain: failed_domain,
+            }) => {
                 return Err(format!(
-                    "domain constraint `{}` for const `{}` is false",
+                    "domain constraint `{}` for const `{}` is false; failed domain `{failed_domain}`",
                     domain.name.as_str(),
                     super::qualified_const_name(definition),
                 ));
@@ -950,7 +1006,7 @@ pub(crate) fn evaluate_const_domain_expression(
     parameter_values: &HashMap<String, ConstScalarValue>,
     self_value: Option<ConstScalarValue>,
     carrier: &str,
-    visiting: &mut Vec<String>,
+    visiting: &mut Vec<(source::SourceSpan, String)>,
     selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Option<ConstFactValue>, String> {
@@ -998,7 +1054,7 @@ pub(crate) fn evaluate_const_domain_expression(
                 selection,
                 warnings,
             )
-            .map(|result| result.map(ConstFactValue::Boolean))
+            .map(|result| result.map(|proof| ConstFactValue::Boolean(proof.holds())))
         }
         ExpressionNode::Binary(binary) => {
             if !has_builtin_const_operator(syntax, binary.operator) {

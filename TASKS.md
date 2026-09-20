@@ -3358,8 +3358,10 @@ Owners include
     constraints and unprovable facts. Carrier-polymorphic scalar constants
     discharge carrier-independent closed predicates; carrier-property bounds
     and operations on abstract `self` still need typed application evidence.
-    Routed and aliased constraints require their establishment/expansion
-    evidence, not empty predicate replay (`generic_data/const_evaluation/facts.rs`).
+    Routed constraints still require establishment evidence. Carrier-polymorphic
+    alias constituents need exact binder correspondence and compiler-owned
+    alias atoms need their typed evidence; neither follows from empty predicate
+    replay (`generic_data/const_evaluation/facts.rs`).
     Reuse typed expression evaluation, not untyped fact folding that erases
     operand widths and selected-operation custody.
   - Extend concrete failure discharge in `const_initializers/invocations.rs`

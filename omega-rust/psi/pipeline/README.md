@@ -460,8 +460,15 @@ intermediate arithmetic and nested membership; comparisons cannot hide an
 earlier Exact overflow or borrow the enclosing subject's width. Anonymous
 peers land against that carrier, while authored operator meanings still need
 ordinary typed selection. Generic `self` and carrier-property bounds remain
-unavailable to this early evaluator. Predicates alone never discharge routed
-authority or an unexpanded alias. Trait-default preparation retains the source
+unavailable to this early evaluator. Fixed scalar aliases discharge every
+constituent through the same source-owned membership replay; nested aliases
+retain ordinary Boolean truth, and direct rejection names the failing domain.
+The original alias stays intact for typed expansion and identity normalization.
+The recursion guard uses declaration source custody as well as logical names,
+so equal alias paths in distinct packages do not form a false cycle. Predicates
+alone never discharge routed authority, and generic carrier-alias correspondence
+and compiler-owned alias atoms still need typed evidence.
+Trait-default preparation retains the source
 map and import bindings when it rechecks these declarations, so that later
 pass cannot merge equal logical domain paths from distinct packages.
 The shared symbol selector distinguishes a generic family's carrier qualifier

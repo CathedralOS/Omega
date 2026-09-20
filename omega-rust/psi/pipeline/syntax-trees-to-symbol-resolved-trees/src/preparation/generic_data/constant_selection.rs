@@ -325,18 +325,22 @@ impl<'base> ConstantSelection<'base> {
     fn domain_symbol_is_reachable(
         &self,
         symbol: symbols::SymbolHandle,
+        selected: symbols::SymbolHandle,
         authored: &str,
         reference: source::SourceSpan,
     ) -> bool {
+        // Ordinary package-qualified paths and exact imports join the same
+        // candidate pool as attached-domain exposure, as in membership lookup.
+        // A dependency alias need not equal the declaration's logical module
+        // path, so display-path matching alone cannot establish this route.
+        if selected == symbol {
+            return true;
+        }
         // A complete logical path can occur in several checked packages.
         // Rejoin ordinary source-owned lookup before accepting that spelling;
         // matching display text alone cannot select the declaration's owner.
         if authored.contains("::") && self.symbols.display_path(symbol, "::") == authored {
-            return self.symbols.find_top_level_by_name_and_kinds_from_source(
-                authored,
-                &[SymbolKind::Domain],
-                reference,
-            ) == Some(symbol);
+            return false;
         }
         self.symbols.get(symbol).kind == SymbolKind::Domain
             && self
@@ -363,11 +367,21 @@ impl<'base> ConstantSelection<'base> {
         authored: &str,
         reference: source::SourceSpan,
     ) -> bool {
+        let selected = self
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                authored,
+                &[SymbolKind::Domain],
+                reference,
+            )
+            .unwrap_or_else(symbols::SymbolHandle::invalid);
         self.symbols
             .child_handles(self.symbols.root())
             .into_iter()
             .flatten()
-            .filter(|symbol| self.domain_symbol_is_reachable(*symbol, authored, reference))
+            .filter(|symbol| {
+                self.domain_symbol_is_reachable(*symbol, selected, authored, reference)
+            })
             .any(|symbol| {
                 let Some(span) = self.symbols.symbol_source_span(symbol) else {
                     return false;
@@ -394,6 +408,14 @@ impl<'base> ConstantSelection<'base> {
         symbols::SymbolHandle,
         &'syntax syntax_trees::item::DomainDefinition,
     )> {
+        let selected = self
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                authored,
+                &[SymbolKind::Domain],
+                reference,
+            )
+            .unwrap_or_else(symbols::SymbolHandle::invalid);
         let mut pool = Vec::new();
         for symbol in self
             .symbols
@@ -401,7 +423,7 @@ impl<'base> ConstantSelection<'base> {
             .into_iter()
             .flatten()
         {
-            if !self.domain_symbol_is_reachable(symbol, authored, reference) {
+            if !self.domain_symbol_is_reachable(symbol, selected, authored, reference) {
                 continue;
             }
             let Some(span) = self.symbols.symbol_source_span(symbol) else {
