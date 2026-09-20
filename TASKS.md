@@ -10091,7 +10091,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   names are retained on `TraitRefinementClause.service_reaches`, pending a
   clause-location variant of the reach-row table), `_` reach wildcards, and
   the evidence-binder fit check that consumes the refinement bound.
-- **TRUSTED-SURFACE-DIGEST-RE-RECORDING** — mined candidate; verify scope then implement.
+- **TRUSTED-SURFACE-DIGEST-RE-RECORDING** — mined candidate; implemented.
+  The self-audit was red at `0f5ae41e7d` (contradicting the resolved
+  siblings' "ledger is current" notes — it drifted since): `e2974a6a80`
+  added `bounded_denotation/integer_operations.rs` (uninterpreted
+  fixed-integer operations as applicative denotations) and bumped
+  `bounded_denotation.rs` without re-recording. Re-recorded in this
+  commit: `integer_operations.rs` registered as a ledger implementation
+  site (`b2bcfe6f…`) and cited by `formation:mathematical-core`,
+  `bounded_denotation.rs` digest re-recorded (`3d15c6eb…`). Green: 9/9
+  trusted_surface on linux x86-64 including
+  `recorded_digests_match_the_working_tree`.
 - **TRUSTED-SURFACE-DIGEST-REFRESH** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-DIGEST-RERECORD** — mined candidate; verify scope then implement.
 - **TRUSTED-SURFACE-LEDGER-REFRESH** — mined candidate; scope verified, resolved — the trusted-surface digest ledger is current on main, same settled surface as TRUSTED-SURFACE-LEDGER-RERECORD (annotated sibling, this section): BASELINE-VERIFIER-DIGEST-LEDGER re-recorded the drifted rows and registered `proof-admission/src/classicality.rs`, and `terminal-verifier`'s `trusted_surface` suite re-verifies green (`cargo nextest run -p terminal-verifier --test suite trusted_surface`: 9/9, linux x86-64, including `recorded_digests_match_the_working_tree`; re-run at 54984323b2, re-run again at 5b839c31ab). The ledger self-audits — any future drift fails that test — so no standing refresh task remains on this row.
