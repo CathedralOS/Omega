@@ -5927,7 +5927,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 ## Mined items (deep-mine sweep, wave 9)
 
-- **AARCH64-BRANCH-RELAXATION** — mined candidate; verify scope then implement.
 - **ABI-LAYOUT-REDERIVATION-AUDIT.** Audit that every retained ABI plan
   coordinate on `ForeignCallRelocation` is re-derived at image custody:
   `object_artifact/call_sites.rs` re-derives the call facet via

@@ -26,6 +26,7 @@ pub(super) fn validate(
     expected_offset: u64,
     block_offsets: &BTreeMap<SelectedBlockId, u64>,
     candidate: &ResolvedSelectedFormRow,
+    widened: bool,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
     if candidate.instruction != instruction.id
         || candidate.alternative != pre.alternative
@@ -90,6 +91,7 @@ pub(super) fn validate(
             machine,
             physical,
             candidate,
+            widened,
         ),
         _ => Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch),
     }

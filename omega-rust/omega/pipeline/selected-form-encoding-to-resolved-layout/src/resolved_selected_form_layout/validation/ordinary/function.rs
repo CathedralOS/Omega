@@ -79,6 +79,7 @@ pub(super) fn validate(
                 instruction_offset,
                 &layout.block_offsets,
                 candidate_row,
+                layout.widened_branches.contains(&instruction.id),
             )?;
             instruction_offset = instruction_offset
                 .checked_add(
@@ -98,3 +99,6 @@ pub(super) fn validate(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

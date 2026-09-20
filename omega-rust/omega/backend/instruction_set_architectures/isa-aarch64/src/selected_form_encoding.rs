@@ -33,12 +33,19 @@ mod tests;
 
 pub use branch_forms::{
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-    encode_aarch64_selected_i64_less_than_branch_form, encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_selected_i64_less_than_branch_form,
+    encode_aarch64_selected_i64_less_than_widened_branch_form,
+    encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_selected_nonzero_widened_branch_form,
     encode_aarch64_selected_u64_less_than_branch_form,
+    encode_aarch64_selected_u64_less_than_widened_branch_form,
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     validate_aarch64_selected_i64_less_than_branch_form,
+    validate_aarch64_selected_i64_less_than_widened_branch_form,
     validate_aarch64_selected_nonzero_branch_form,
+    validate_aarch64_selected_nonzero_widened_branch_form,
     validate_aarch64_selected_u64_less_than_branch_form,
+    validate_aarch64_selected_u64_less_than_widened_branch_form,
 };
 pub use encoding_types::{
     Aarch64MovkPatch, Aarch64MovnSeed, Aarch64SelectedFormEncodingError,

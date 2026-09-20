@@ -705,6 +705,16 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(8),
         },
+        // Conditional branches resolve to a 4-byte `B.cond` when the taken
+        // edge fits imm19 and widen to `B.<invcond> +8; B target` past it.
+        MachineSemanticKind::ConditionalBranchNonZero
+        | MachineSemanticKind::ConditionalBranchU64LessThan
+        | MachineSemanticKind::ConditionalBranchI64LessThan => {
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4,
+                maximum_bytes: Some(8),
+            }
+        }
         _ => MachineSizeKnowledge::ExactBytes(4),
     }
 }
