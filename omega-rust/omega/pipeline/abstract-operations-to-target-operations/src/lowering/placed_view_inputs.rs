@@ -8,8 +8,9 @@ use crate::{
     TargetLoweringRequest, lower_to_target_operations,
 };
 
-/// Lower the first bounded plan-laid input family: one direct program-entry
-/// pointer on an otherwise parameterless, one-block Unit function.
+/// Lower the bounded plan-laid input family: every declared direct
+/// program-entry input contributes one pointer parameter on the entry ABI, in
+/// roster order, on an otherwise parameterless, one-block Unit function.
 ///
 /// This produces ABI custody only. It does not select backing, establish a
 /// lifetime, or emit a placed access event.
@@ -61,20 +62,21 @@ fn derive_placed_entry_abi(
     target: NativeTarget,
     selections: &[SelectedPlacedViewInputPlan<'_>],
 ) -> Result<(CallPlan, Vec<TargetPlacedViewInput>), LoweringError> {
-    let [input] = source.placed_view_inputs.as_slice() else {
-        return Err(PlacedViewInputTranslationError::UnsupportedInputCount(
-            source.placed_view_inputs.len(),
-        )
-        .into());
-    };
-    if selections.len() != 1 {
+    let inputs = source.placed_view_inputs.as_slice();
+    if inputs.is_empty() {
+        return Err(PlacedViewInputTranslationError::UnsupportedInputCount(0).into());
+    }
+    if selections.len() != inputs.len() {
         return Err(PlacedViewInputTranslationError::SelectionCountMismatch {
-            expected: 1,
+            expected: inputs.len(),
             actual: selections.len(),
         }
         .into());
     }
-    if input.machine != source.plan.entry {
+    if inputs
+        .iter()
+        .any(|input| input.machine != source.plan.entry)
+    {
         return Err(PlacedViewInputTranslationError::InputIsNotDirectEntry.into());
     }
     let Some(entry) = source
@@ -98,27 +100,6 @@ fn derive_placed_entry_abi(
                 .into(),
         );
     }
-    let selection = &selections[0];
-    if selection.terminal_input != input {
-        return Err(PlacedViewInputTranslationError::SelectionRowMismatch.into());
-    }
-    if selection
-        .placement_plan
-        .identity()
-        .compatibility_fingerprint()
-        != input.placement_report_fingerprint
-        || selection
-            .placement_plan
-            .content_interpretation()
-            .commitment()
-            != input.placement_commitment
-    {
-        return Err(PlacedViewInputTranslationError::PlacementPlanIdentityMismatch.into());
-    }
-    let layout = selection.placement_plan.layout();
-    let Some(referent_byte_size) = layout.size else {
-        return Err(PlacedViewInputTranslationError::PlacementPlanHasNoConcreteSize.into());
-    };
     let pointer_size = u16::try_from(target.pointer_size)
         .map_err(|_| PlacedViewInputTranslationError::TargetPointerShapeUnsupported)?;
     let pointer_alignment = u16::try_from(target.pointer_alignment)
@@ -127,25 +108,53 @@ fn derive_placed_entry_abi(
     let entry_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![pointer_shape],
+            parameters: vec![pointer_shape; inputs.len()],
             result: None,
         },
     )
     .map_err(PlacedViewInputTranslationError::AbiPlan)?;
-    let [placement] = entry_call_plan.parameters.as_slice() else {
-        return Err(PlacedViewInputTranslationError::TargetPointerShapeUnsupported.into());
-    };
-    let placement = placement.clone();
-    Ok((
-        entry_call_plan,
-        vec![TargetPlacedViewInput {
+    // Every declared row must be answered by exactly one selection, in roster
+    // order — a missing, duplicated, or stale supply fails the same custody
+    // rule the executable input boundary applies to establishments.
+    let mut placed_view_inputs = Vec::with_capacity(inputs.len());
+    for (ordinal, input) in inputs.iter().enumerate() {
+        let matching = selections
+            .iter()
+            .filter(|selection| selection.terminal_input == input)
+            .collect::<Vec<_>>();
+        let [selection] = matching.as_slice() else {
+            return Err(PlacedViewInputTranslationError::SelectionRowMismatch.into());
+        };
+        if selection
+            .placement_plan
+            .identity()
+            .compatibility_fingerprint()
+            != input.placement_report_fingerprint
+            || selection
+                .placement_plan
+                .content_interpretation()
+                .commitment()
+                != input.placement_commitment
+        {
+            return Err(PlacedViewInputTranslationError::PlacementPlanIdentityMismatch.into());
+        }
+        let layout = selection.placement_plan.layout();
+        let Some(referent_byte_size) = layout.size else {
+            return Err(PlacedViewInputTranslationError::PlacementPlanHasNoConcreteSize.into());
+        };
+        let Some(placement) = entry_call_plan.parameters.get(ordinal) else {
+            return Err(PlacedViewInputTranslationError::TargetPointerShapeUnsupported.into());
+        };
+        placed_view_inputs.push(TargetPlacedViewInput {
             terminal: input.clone(),
-            abi_parameter_ordinal: 0,
+            abi_parameter_ordinal: u32::try_from(ordinal)
+                .map_err(|_| PlacedViewInputTranslationError::TargetPointerShapeUnsupported)?,
             referent_byte_size,
             referent_alignment: layout.align,
-            placement,
-        }],
-    ))
+            placement: placement.clone(),
+        });
+    }
+    Ok((entry_call_plan, placed_view_inputs))
 }
 
 fn placed_error_from_lowering(error: LoweringError) -> PlacedViewInputTranslationError {
