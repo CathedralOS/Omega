@@ -512,57 +512,6 @@ accepted contracts, not claims of implementation. Existing
 extend that route, not a second build language or plugin executor. Any semantic
 or trust amendment found here or later goes through [owner questions](OWNER_QUESTIONS.md).
 
-- **BUILD-DEPENDENCY-PURPOSES.** Complete the
-  [separate checked contexts and prerequisite graph](wiki/spec/build/scoped_execution.md#two-checked-contexts)
-  for host/build and product code. Purpose-tagged acquisition, review, lock rows,
-  alias isolation, build-only target selection, and per-scope checked
-  instances already exist: `SourceFile::dependency_scope` carries the
-  importer's scope through the import queue, so one path checked in both
-  scopes produces two instances; `SourceMap::same_checked_instance` keeps
-  module dedup, binding ownership, and target rows instance-correct, and the
-  canonical consumption/review projections dedupe the identical fact rows a
-  second instance re-derives.
-
-  - Finish per-occurrence production in
-    `review/candidate/compilation/package_pass.rs`, then reconstruction and
-    admission in `review/reconstruction` and `review/decision`. The lock and
-    comparison now retain independent `PackageCheckedContext` records (purpose,
-    checked target, execution profile), with exact source-roster coverage; no
-    package-only acceptance slot remains. The producer and reconstructed ledger
-    still need separate outputs for coexisting purposes, rather than one policy
-    annotated with a purpose set. Reuse `PackageOccurrenceRoster`, join every
-    issued review and evidence subject to its exact occurrence, and version
-    affected evidence encodings. Keep acquisition package-keyed;
-    do not union policy or copy package-only consent into both roles.
-    The compiler handoff already retains distinct generated bundles, even at
-    the same package-relative path, and rejects purpose/profile substitution.
-    Reuse `package_compilation_inputs::generated_sources_and_dependencies::generated_dependency_handoff_keeps_build_and_product_occurrences_distinct`
-    as the direct-compiler control: a Linux build helper and Windows product
-    publish different APIs from the same source package. Carry that capability
-    through real acquisition, CLI update/review/resume, and locked `--check`.
-    `review/candidate/compilation/package_pass.rs` rejects dual-purpose and
-    cross-profile review graphs before builds execute, including non-nested
-    graphs. Lift that fence only once production, reconstruction, and admission
-    preserve the occurrence-bound lock/comparison contract. Non-root build edges still belong to separate
-    activations, not the consumer's import graph. The existing Windows nested
-    CLI test also needs its review/resume step:
-    `a_build_helper_runs_its_own_build_dependency_before_the_consumer` reaches
-    all three builds but expects success before settling the requested review.
-  - Retain exact purpose/profile/target and accepted authority through
-    acquisition, review, lock recovery, generated-source handoff, and checking.
-    Extend the existing owners; no second dependency resolver or build executor.
-
-  Acceptance: real acquisition and CLI multi-file builds admit a helper that
-  needs its own build dependency. Reject cross-purpose cycles
-  before affected execution, conflicting within-scope aliases, missing edges,
-  and stale or cross-profile cached outputs. Cross-scope aliases may differ;
-  removing one edge affects only its authorized selections. Reuse
-  `omega/tests/package_commands/build_purposes.rs`,
-  `package-manager/tests/dependency_purposes.rs`, and assembled checking's
-  `checking/execution_profile_tests.rs`; include physical and generated files.
-  `build_purposes::a_root_local_module_checked_in_both_scopes_keeps_two_instances`
-  witnesses the dual-context check.
-
 - **BUILD-PRODUCT-REFERENCES.** Finish
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
   Entry/provider/schema queries, opaque descriptions, delegated entry binding,
@@ -585,8 +534,8 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     Re-run `mbx nextest run -p compiler --test build_target_activation --no-fail-fast --no-tests fail -E 'test(two_checked_instances)'`;
     eventual acceptance is successful compilation with the boundary trait,
     not weakening duplicate-schema rejection.
-  - Extend the existing provider/description owners, with
-    BUILD-DEPENDENCY-PURPOSES for separate contexts and
+  - Extend the existing provider/description owners, retaining the
+    [separate checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts) and using
     BUILD-ADMISSION-CHECKPOINT for source custody.
     Do not add a general compiler-query interface or allow target execution.
 
@@ -654,7 +603,7 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   `build-output` and `build-evaluation` custody owners, assembled checking,
   and compiler/compilation-report publication. Reuse
   BUILD-ADMISSION-CHECKPOINT for admitted-source/generated-source replay and
-  BUILD-DEPENDENCY-PURPOSES for occurrence identity. No second executor,
+  the existing `PackageCheckedContext` for occurrence identity. No second executor,
   live-host grant extension, or persistent writable cache.
 
   Acceptance: an acquired ordinary generator reads a narrowed template and
@@ -4724,12 +4673,12 @@ Owners include
     exemption, recoverable review/resume, audit-only inspection, and the
     execution-time grant join all remain. Do not implement an arbitrary
     recursive build API or a new host protocol as part of this join.
-  - Bind dependency purpose on checkpoints and generated handoffs, joining the
-    [scoped build work](#scoped-build-execution). This waits on
-    **BUILD-DEPENDENCY-PURPOSES** supplying a per-occurrence purpose value:
-    `DependencyPurpose` exists only on dependency edges, and the only
-    compilation occurrence is the root product-purpose one, so there is no
-    purpose fact to bind and no second occurrence to witness drift against.
+  - Bind restricted-request checkpoints to the existing `PackageCheckedContext`
+    and generated handoff. Build/product occurrences already have independent
+    producer reviews, lock policy and reconstruction; acceptance for one must
+    not authorize a restricted action by the other, even on the same target.
+    Exercise checkpoint drift with the dual-role generated-source customer in
+    `omega/tests/package_commands/build_purposes.rs`.
 
   Acceptance: initial install and an update adding a restricted helper request
   both stop before its host effect and show package, dependency path,
