@@ -8041,7 +8041,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SPILL-FAMILY-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
 - **SPILL-STAGES-OWNERSHIP** — mined candidate; verify scope then implement.
 - **SQUALR-CLI-ENTRY-AND-MODEL** — mined candidate; verify scope then implement.
-- **SQUALR-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
+- **SQUALR-CLONE-SERIALIZATION.** Implemented under `samples/apps/squalr`
+  (submodule branch zergling/z61-squalr-clone-serialization): `NormalizedRegion`
+  fields carry wire schema numbers, so the synthesized `encode`/`decode` pair
+  is the upstream `Serialize`/`Deserialize`, exercised in-package by
+  `wire_roundtrip` (clone -> encode -> decode -> equals); `clone`/`clone_from`
+  are the authored `Clone` halves on `NormalizedRegion` and
+  `SnapshotRegionFilter` (`clone_consistent` exercises both in-package);
+  `MemoryAlignment` keeps `[copy]` for Clone/Copy and names the case-bearing
+  wire-codec gap as the serde deviation. Further named edges, not patched
+  over: `&mut`-receiver calls with borrowed arguments and static calls taking
+  `&` arguments do not attach under selected ProgramEntry establishment
+  cross-package, nested runtime-receiver calls cannot produce record results,
+  and the codec's ordered statement calls are only admitted to native closure
+  in the entry machine — so the exercises are checked in-package while
+  squalr-tests retains `Squalr geometry: PASS` natively (linux_x86_64:
+  `omega update` checks all 17 packages; `omega run --keep` exits 0).
 - **SQUALR-DEBUG-ASSERTION-PARITY.** Mined candidate; scope verified at
   `e8bbe9fcc0` against upstream `568aa7589b68`: a re-mine of the
   "Rust debug-only assertions" gap in the app repo's GEOMETRY-PARITY row
