@@ -732,10 +732,10 @@ impl Invocation<'_> {
     }
 
     /// Evaluate a fresh scalar application probe — a const-generic argument
-    /// whose whole expression is an ordinary closed machine call such as
-    /// `sized(4)`. There is no earlier phase roster to rejoin; the exact
-    /// transitive call closure collected beside the evaluation is returned so
-    /// the caller can confirm every authored call survived into custody. Each
+    /// whose expression composes ordinary closed machine calls such as
+    /// `sized(4) + 2`. The exact transitive call closure collected beside
+    /// evaluation is returned so the caller can rejoin its original lexical
+    /// selections, including skipped branches, before replacing the index. Each
     /// authored call still undergoes the same selection, argument snapshot,
     /// and concrete premise/failure discharge as initializer invocations.
     pub(crate) fn evaluate_application_probe(

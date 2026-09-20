@@ -26,6 +26,9 @@ mod floating_constants;
 #[path = "scalar_case_results/generic_constants.rs"]
 mod generic_constants;
 
+#[path = "scalar_case_results/const_arguments.rs"]
+mod const_arguments;
+
 #[path = "scalar_case_results/projected_membership.rs"]
 mod projected_membership;
 
