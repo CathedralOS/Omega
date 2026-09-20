@@ -114,6 +114,15 @@ pub use fragments::{
 mod x86_fma;
 pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_fma};
 
+mod startup_trampoline;
+pub use startup_trampoline::{
+    X86_64_STARTUP_TRAMPOLINE_BYTE_COUNT, X86_64ResolvedStartupTrampoline,
+    X86_64StartupTrampolineFields, X86_64StartupTrampolineFootprint,
+    X86_64StartupTrampolineResolution, X86_64StartupTrampolineResolutionError,
+    X86_64StartupTrampolineTemplate, emit_x86_64_startup_trampoline,
+    resolve_x86_64_startup_trampoline, validate_x86_64_startup_trampoline,
+};
+
 mod entry_exit_stub;
 pub use entry_exit_stub::{
     ValidatedX86_64DeriverStubEmission, ValidatedX86_64ResolvedDeriverStub,
