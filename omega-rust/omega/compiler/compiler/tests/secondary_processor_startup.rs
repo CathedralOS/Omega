@@ -952,3 +952,126 @@ fn authored_startup_rejects_stale_evidence_and_resource_conflicts() {
         };
     assert_eq!(second_started.invocation(), second_invocation);
 }
+
+/// The authored startup contract survives both production boundaries the
+/// installed-entry leg must cross: the canary binds host program entries, so
+/// the package produces a retained Terminal artifact whose native proposal
+/// still selects each root's exact `enter` requirement — the strict Pending
+/// entry claim and the plan-scoped `MachineControl` reach — and the native
+/// artifact carries the same two provider plans. The provider bodies are
+/// selected boundary entries, not machines reachable from `main`, so their
+/// bytes stay absent from the emitted image until the entry/stub emission
+/// leg lands; the plans that leg must bind are what production retains.
+#[test]
+fn authored_startup_contract_survives_terminal_and_native_production() {
+    use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct, compile};
+
+    let options = CompileOptions {
+        root_path: canary_main(),
+        build_dir: None,
+        target_name: Some("linux_x86_64".to_owned()),
+    };
+    let request = CompileRequest::new(options)
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+    let report = compile(request)
+        .unwrap_or_else(|diagnostics| {
+            panic!("secondary-processor canary Terminal production rejected: {diagnostics:?}")
+        })
+        .into_single_report()
+        .expect("one compile report");
+    let retained = report
+        .into_retained_terminal_artifact()
+        .expect("Terminal production retains its artifact");
+    retained
+        .validate()
+        .expect("the retained terminal artifact replays");
+
+    // The retained product carries the Omega-side proposal the later
+    // native realization re-joins: the provider plans cross the
+    // source-free boundary here, not at checked time.
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained terminal artifact carries its native proposal");
+    let facts = proposal.selected_provider_plans();
+    for trait_name in [
+        "FirstSecondaryProcessorRoot",
+        "SecondSecondaryProcessorRoot",
+    ] {
+        let selected = selected_external_root_provider_plan(facts, trait_name)
+            .unwrap_or_else(|_| panic!("the retained proposal selects `{trait_name}`"));
+        let [entry] = selected.schema.methods.as_slice() else {
+            panic!("`{trait_name}` still inherits one exact entry requirement")
+        };
+        assert_eq!(entry.name, "enter");
+        assert_eq!(entry.requirement_owner, "SecondaryProcessorEntry");
+        let claims = selected
+            .entry_claims(&entry.requirement_identity)
+            .expect("the retained plan lowers its Pending claim");
+        let [pending] = claims.as_slice() else {
+            panic!("the retained plan publishes one Pending entry claim")
+        };
+        assert_eq!(pending.parameter_index, 0);
+        assert_eq!(pending.domain, "StartupEnvelope::Pending");
+        assert_eq!(
+            pending.effective_carry,
+            language_semantics::CarryPolicy::STRICT
+        );
+        let resolution = facts
+            .installation_reach_resolution_for_plan(
+                selected.identity.normalized_identity(),
+                &entry.requirement_identity,
+            )
+            .expect("the retained plan still resolves the entry's bounded reach");
+        assert_eq!(resolution.resolved_row, ["MachineControl".to_owned()]);
+        assert_eq!(resolution.upper_bound, ["MachineControl".to_owned()]);
+    }
+
+    // Native realization keeps both provider plans as retained custody: the
+    // emitted image carries only the program entry today — the boundary
+    // providers' bodies emit through the entry/stub lane this item still
+    // owes — but the artifact's exact plan identities are the rows that lane
+    // joins when it lands.
+    let options = CompileOptions {
+        root_path: canary_main(),
+        build_dir: None,
+        target_name: Some("linux_x86_64".to_owned()),
+    };
+    let request = CompileRequest::new(options)
+        .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    let report = compile(request)
+        .unwrap_or_else(|diagnostics| {
+            panic!("secondary-processor canary native production rejected: {diagnostics:?}")
+        })
+        .into_single_report()
+        .expect("one compile report");
+    let artifact = report
+        .into_retained_native_artifact()
+        .expect("native production retains its artifact");
+    artifact
+        .validate()
+        .expect("the retained native artifact replays");
+    let plans = artifact.selected_provider_plans();
+    assert_eq!(
+        plans.len(),
+        2,
+        "the native artifact retains both secondary-processor provider plans"
+    );
+    assert_ne!(
+        plans[0].report_identity(),
+        plans[1].report_identity(),
+        "the two startup roots retain distinct provider plans"
+    );
+    for plan in plans {
+        let [requirement] = plan.requirement_identities() else {
+            panic!("each startup provider plan carries exactly one requirement")
+        };
+        assert!(
+            requirement.contains("SecondaryProcessorEntry::enter"),
+            "the retained requirement is the shared entry contract"
+        );
+        assert!(
+            requirement.contains("StartupEnvelope::Pending"),
+            "the retained requirement keeps the Pending domain constraint"
+        );
+    }
+}
