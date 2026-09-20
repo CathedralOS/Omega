@@ -14,9 +14,10 @@ use checked_interpreter::EvaluationObservations;
 use diagnostics::Diagnostic;
 
 /// Every filesystem attempt of the run as an observation row, with grant roots
-/// resolved to the compiler-issued Source and Output roots.
+/// joined to the compiler-issued Source, Output, and named input roots.
 pub(super) fn project_filesystem_operation_attempts(
     observations: &EvaluationObservations,
+    filesystem_scope: &crate::BuildMachineFilesystemScope,
     machine_name: &str,
 ) -> Result<Vec<BuildFilesystemOperationAttempt>, Vec<Diagnostic>> {
     observations
@@ -31,6 +32,8 @@ pub(super) fn project_filesystem_operation_attempts(
                         BuildFilesystemRoot::Source
                     } else if path.root() == BUILD_OUTPUT_ROOT_IDENTITY {
                         BuildFilesystemRoot::Output
+                    } else if filesystem_scope.named_input_inventory(path.root()).is_some() {
+                        BuildFilesystemRoot::NamedInput(path.root().get())
                     } else {
                         return Err(Diagnostic::error(format!(
                             "build-time evaluation of `{machine_name}` returned unknown filesystem grant-root identity `{}`",

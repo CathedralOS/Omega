@@ -12,6 +12,80 @@ const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
 pub(super) const OUTPUT_ROOT_FACET_TYPE: &str = "$OmegaBuildOutputRoot";
 
 impl<'program> Evaluator<'program> {
+    /// Slot lookup returns an existing compiler-issued read root. It never
+    /// interprets a slot name as a host pathname or extends filesystem grants.
+    pub(super) fn try_build_named_input_value_call(
+        &mut self,
+        call: &typed_trees::expression::TableCallExpression,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        if call.target.as_str() != "get"
+            || !call.receiver.is_valid()
+            || !self.exact_build_facet_method("BuildInputs", "get", call.target_symbol)
+        {
+            return Ok(None);
+        }
+        let receiver = self.resolve_place(call.receiver, frame)?;
+        let receiver = self.deref_cell(receiver);
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        let [name] = arguments else {
+            return Err(Halt::Trap(
+                "named build input lookup requires one slot name".to_owned(),
+            ));
+        };
+        let name = self.build_relative_bytes(*name, frame)?;
+        validate_build_relative_path(&name)?;
+        let receiver = receiver.borrow();
+        let Value::Struct {
+            type_name, fields, ..
+        } = &*receiver
+        else {
+            return Err(Halt::Trap(
+                "named build inputs require a compiler-issued facet".to_owned(),
+            ));
+        };
+        if type_name != "$OmegaBuildInputSlots" {
+            return Err(Halt::Trap(
+                "named build inputs require a compiler-issued facet".to_owned(),
+            ));
+        }
+        let name = std::str::from_utf8(&name)
+            .map_err(|_| Halt::Trap("named build input slot is not UTF-8".to_owned()))?;
+        let input = fields.get(name).ok_or_else(|| {
+            Halt::Trap(format!(
+                "named build input `{name}` is not assigned to this activation"
+            ))
+        })?;
+        Ok(Some(input.borrow().clone()))
+    }
+
+    fn build_relative_bytes(
+        &mut self,
+        expression: ExpressionHandle,
+        frame: &Frame,
+    ) -> EvalResult<Vec<u8>> {
+        match self.eval_expression(expression, frame)? {
+            Value::Str(bytes) => Ok(bytes.borrow().to_vec()),
+            Value::Array(cells) => cells
+                .iter()
+                .map(|cell| {
+                    cell.borrow()
+                        .as_int()
+                        .and_then(|byte| u8::try_from(byte).ok())
+                        .ok_or_else(|| {
+                            Halt::Trap("build-root path contains a non-byte element".to_owned())
+                        })
+                })
+                .collect(),
+            other => Err(Halt::Trap(format!(
+                "build-root path must be byte data, got {other:?}"
+            ))),
+        }
+    }
+
     pub(super) fn enable_rooted_build_paths_from_arguments(
         &mut self,
         arguments: &[crate::build_time::BuildTimeValue],
@@ -81,26 +155,7 @@ impl<'program> Evaluator<'program> {
                 "build-root resolution requires one relative path".to_owned(),
             ));
         };
-        let relative = match self.eval_expression(*relative, frame)? {
-            Value::Str(bytes) => bytes.borrow().to_vec(),
-            Value::Array(cells) => cells
-                .iter()
-                .map(|cell| {
-                    let value = cell.borrow();
-                    value
-                        .as_int()
-                        .and_then(|byte| u8::try_from(byte).ok())
-                        .ok_or_else(|| {
-                            Halt::Trap("build-root path contains a non-byte element".to_owned())
-                        })
-                })
-                .collect::<EvalResult<Vec<_>>>()?,
-            other => {
-                return Err(Halt::Trap(format!(
-                    "build-root path must be byte data, got {other:?}"
-                )));
-            }
-        };
+        let relative = self.build_relative_bytes(*relative, frame)?;
         validate_build_relative_path(&relative)?;
         Ok(Some(Value::Struct {
             type_symbol: SymbolHandle::invalid(),

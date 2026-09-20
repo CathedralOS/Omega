@@ -47,11 +47,15 @@ use typed_trees::TypedTrees;
 /// alias, and target — under a canonical slot name. Binding rejects an input
 /// whose occurrence does not exist in the reconciled graph rather than
 /// attaching it to another edge; a keyed input can never widen an occurrence
-/// or substitute host filesystem access.
+/// or substitute host filesystem access. An edge assignment applies to each
+/// checked context that edge serves within this target invocation. Shared
+/// scheduling nodes require all incoming complete maps to agree; aliases do
+/// not create extra package instances or accumulate grants.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSnapshotRequest {
     required_outputs: Vec<Vec<u8>>,
     capture: BuildSnapshotCapture,
+    inputs: BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
     dependency_inputs:
         BTreeMap<BuildDependencyOccurrence, BTreeMap<Vec<u8>, CapturedBuildSourceInput>>,
 }
@@ -78,6 +82,7 @@ impl BuildSnapshotRequest {
         Self {
             required_outputs: required_outputs.into_iter().collect(),
             capture: BuildSnapshotCapture::PackageInventory,
+            inputs: BTreeMap::new(),
             dependency_inputs: BTreeMap::new(),
         }
     }
@@ -92,8 +97,33 @@ impl BuildSnapshotRequest {
         Self {
             required_outputs: required_outputs.into_iter().collect(),
             capture: BuildSnapshotCapture::Scoped(capture),
+            inputs: BTreeMap::new(),
             dependency_inputs: BTreeMap::new(),
         }
+    }
+
+    /// Supply immutable slots to this activation, separately from its source
+    /// inventory. The caller owns capture; these names never select host paths.
+    pub fn with_inputs(
+        mut self,
+        inputs: impl IntoIterator<Item = (Vec<u8>, CapturedBuildSourceInput)>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        for (name, input) in inputs {
+            insert_named_input(&mut self.inputs, name, input)?;
+        }
+        Ok(self)
+    }
+
+    pub fn inputs(&self) -> &BTreeMap<Vec<u8>, CapturedBuildSourceInput> {
+        &self.inputs
+    }
+
+    /// Package orchestration consumes edge assignments before issuing each
+    /// activation. Retaining the graph-wide map in the root evaluator would
+    /// expose inputs that belong only to dependencies.
+    pub fn without_dependency_inputs(mut self) -> Self {
+        self.dependency_inputs.clear();
+        self
     }
 
     /// Assign caller-captured immutable inputs to exact dependency
@@ -105,22 +135,11 @@ impl BuildSnapshotRequest {
         inputs: impl IntoIterator<Item = (BuildDependencyOccurrence, Vec<u8>, CapturedBuildSourceInput)>,
     ) -> Result<Self, Vec<Diagnostic>> {
         for (occurrence, name, input) in inputs {
-            if !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(&name, false) {
-                return Err(vec![Diagnostic::error(format!(
-                    "named build input slot is not a canonical relative name: {name:?}"
-                ))]);
-            }
-            if self
-                .dependency_inputs
-                .entry(occurrence)
-                .or_default()
-                .insert(name.clone(), input)
-                .is_some()
-            {
-                return Err(vec![Diagnostic::error(format!(
-                    "named build input slot {name:?} is declared twice for one dependency occurrence"
-                ))]);
-            }
+            insert_named_input(
+                self.dependency_inputs.entry(occurrence).or_default(),
+                name,
+                input,
+            )?;
         }
         Ok(self)
     }
@@ -136,6 +155,14 @@ impl BuildSnapshotRequest {
         &self.capture
     }
 
+    /// Read one validated edge assignment without rebuilding its lookup index.
+    pub fn dependency_input_slots(
+        &self,
+        occurrence: &BuildDependencyOccurrence,
+    ) -> Option<&BTreeMap<Vec<u8>, CapturedBuildSourceInput>> {
+        self.dependency_inputs.get(occurrence)
+    }
+
     /// Immutable inputs assigned to exact dependency occurrences.
     pub fn dependency_inputs(
         &self,
@@ -147,6 +174,53 @@ impl BuildSnapshotRequest {
     > {
         self.dependency_inputs.iter()
     }
+}
+
+// These are implementation resource ceilings, not extra authority. Count
+// complete inventories, including unread files and names, before materializing.
+fn insert_named_input(
+    slots: &mut BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
+    name: Vec<u8>,
+    input: CapturedBuildSourceInput,
+) -> Result<(), Vec<Diagnostic>> {
+    if std::str::from_utf8(&name).is_err()
+        || !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(&name, false)
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "named build input slot is not a canonical UTF-8 relative name: {name:?}"
+        ))]);
+    }
+    if slots.contains_key(&name) {
+        return Err(vec![Diagnostic::error(format!(
+            "named build input slot {name:?} is declared twice for one dependency occurrence"
+        ))]);
+    }
+    let entries = slots
+        .values()
+        .try_fold(input.entry_count(), |total, input| {
+            total.checked_add(input.entry_count())
+        });
+    let bytes = slots.values().try_fold(input.file_bytes(), |total, input| {
+        total.checked_add(input.file_bytes())
+    });
+    let names = slots
+        .keys()
+        .try_fold(name.len(), |total, name| total.checked_add(name.len()));
+    if slots.len() >= 4096
+        || entries.is_none_or(|entries| {
+            entries > checked_interpreter::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT as u64
+        })
+        || bytes.is_none_or(|bytes| bytes > 512 * 1024 * 1024)
+        || names.is_none_or(|names| {
+            names > checked_interpreter::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT
+        })
+    {
+        return Err(vec![Diagnostic::error(
+            "named build inputs exceed the activation's captured-inventory limits",
+        )]);
+    }
+    slots.insert(name, input);
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -690,6 +764,9 @@ pub fn admit_build_program(
             ),
         ]);
     }
+    if has_exact_toolchain_build_facet(typed, "BuildInputs") {
+        build_fields.push(("inputs".to_owned(), filesystem_scope.named_input_facet()));
+    }
     let zero_build = BuildTimeValue::Struct {
         type_name: "Build".to_owned(),
         fields: build_fields,
@@ -782,7 +859,10 @@ fn restricted_build_requests(
         } else if identity == BUILD_OUTPUT_ROOT_IDENTITY {
             (RestrictedBuildGrantRoot::StagedOutput, None)
         } else {
-            (RestrictedBuildGrantRoot::Other(identity.get()), None)
+            (
+                RestrictedBuildGrantRoot::Other(identity.get()),
+                filesystem_scope.named_input_inventory(identity),
+            )
         };
         RestrictedBuildGrant {
             root,

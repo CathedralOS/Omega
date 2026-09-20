@@ -548,30 +548,6 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   required-output settlement, private-staging cleanup, and audit reporting
   already have implementations and integration tests. Remaining:
 
-  - Finish named immutable extra-input consumption at exact dependency
-    occurrences. `BuildSnapshotRequest` already carries scoped capture and
-    occurrence-keyed input maps; ordinary `CompileRequest::with_build_snapshot`
-    and per-target configurations now carry that request through production.
-    CLI `--build-input` / `--optional-build-input` supply a root inventory
-    through both package review passes; dependencies retain their own inputs.
-    `omega/tests/build_input_inventory.rs` witnesses narrowed template reads,
-    denied undeclared siblings, missing-input rejection, unchanged acceptance,
-    and native publication with macOS ARM64 exit 0. Full package provenance
-    and selected-inventory identity stay distinct through review-only replay.
-    `omega audit packages` accepts the same root inventory across requested
-    targets without changing lock acceptance or publishing outputs. Install/update
-    retain that inventory through pending review and fresh resume checking;
-    changed inputs require a new proposal and risk-bearing policy still requires
-    exact acceptance. The occurrence map is validated and retained but has no
-    consumer delivering its slots to dependency activations or authored input
-    capabilities. Finish that route and exercise two dependency occurrences
-    in one prerequisite graph with identical slot/output names and distinct
-    bytes. Preserve root/target publication isolation and acquired-helper
-    acceptance in `omega/tests/completed_build_outputs.rs`, and Terminal
-    companion/final-check controls in `compiler/tests/build_snapshot_outputs.rs`.
-    Do not capture the whole working directory, merge slots into the package's
-    source inventory, widen another occurrence's inputs, or substitute the
-    live-host filesystem.
   - Complete host-backed capture/staging assurance and Windows execution
     coverage. Mutable-root copies in
     `packages/sources/acquisition/src/tree/filesystem.rs` now check the retained
@@ -599,7 +575,10 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   publishes a required file via both artifact-only and companion builds.
   Run `compiler/tests/build_snapshot_outputs.rs` and
   `omega/tests/package_commands/snapshot_outputs.rs`, and
-  `omega/tests/completed_build_outputs.rs`. Cover negative lookups and metadata,
+  `omega/tests/completed_build_outputs.rs`. Preserve named-slot isolation and
+  generated-source-to-publication coverage in `compiler/tests/build_named_inputs.rs`
+  and `package-manager`'s `suite` filter `build_named_inputs::`.
+  Cover negative lookups and metadata,
   substitution/link escapes, sealed mutation, cross-occurrence receipts,
   retry, omitted outputs, interruption, final-check failure, and two packages
   or targets using identical logical names. Measure retained state and compare

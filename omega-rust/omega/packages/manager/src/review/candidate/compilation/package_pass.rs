@@ -4,6 +4,13 @@
 //! and product occurrences share those inputs, not checked output: each has its
 //! own target, generated sources, bindings and review. The same source-roster
 //! contract drives production, lock comparison and independent reconstruction.
+//!
+//! Named input assignments are reconciled across all incoming edges before
+//! running authored code. A shared package/purpose/profile node may reuse equal
+//! complete maps; unioning unequal maps would grant one requester another's
+//! inputs. A separate tool package would still need capture, grant issuance and
+//! checked generated-source handoff. Routing into these existing owners keeps
+//! that enforcement in one execution path without making aliases new instances.
 
 use super::session_accounting::verify_build_session_accounting;
 use compiler::CheckedCompileRequest;
@@ -91,6 +98,16 @@ pub(super) fn compile_dependency_closure(
             },
         );
     }
+    // Reconcile the entire invocation before any authored dependency runs.
+    // Shared scheduling nodes may share equal assignments, never the union of
+    // grants from different incoming edges (an unassigned edge is empty).
+    let dependency_inputs = reconcile_build_inputs(target_closure, roster, root_build_snapshot)
+        .map_err(
+            |diagnostics| CompileResolvedPackageReviewsError::Compilation {
+                package: closure.graph().root().clone(),
+                diagnostics,
+            },
+        )?;
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(roster.occurrence_count());
     let mut review_positions = vec![[None::<usize>; 2]; closure.graph().packages().len()];
     let mut checked_root = None;
@@ -290,8 +307,9 @@ pub(super) fn compile_dependency_closure(
             // canonical metadata index the binding validated above, materializes
             // a fresh private Source root for this occurrence, and records the
             // inventory extent in the review's build observation. Only the root
-            // may receive a caller-selected inventory and fixed output roster;
-            // dependency builds retain their own complete inventories. Otherwise
+            // may receive a caller-selected source inventory and fixed output
+            // roster; dependency source inventories remain their own. Explicit
+            // named inputs are separate grants selected for this occurrence. Otherwise
             // the outputs a package build must complete are declared through
             // `builder.output.require`, registered during evaluation, and settled
             // against sealed staged custody before the result publishes; package
@@ -300,9 +318,13 @@ pub(super) fn compile_dependency_closure(
             // that scoped execution forbids (a conditional branch omitting
             // `require` must not be reinterpreted as having checked the artifact).
             let build_snapshot = if &key == closure.graph().root() {
-                root_build_snapshot.cloned()
+                root_build_snapshot
+                    .cloned()
+                    .map(build_evaluation::BuildSnapshotRequest::without_dependency_inputs)
             } else {
-                None
+                dependency_inputs[position][purpose_slot(purpose)]
+                    .as_ref()
+                    .map(|assignment| assignment.snapshot.clone())
             }
             .unwrap_or_else(|| {
                 build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
@@ -634,4 +656,95 @@ fn publish_independent_component_descriptions(
                 errors,
             },
         )
+}
+
+struct OccurrenceBuildInputs {
+    incoming: package_compilation::BuildDependencyOccurrence,
+    snapshot: build_evaluation::BuildSnapshotRequest,
+}
+
+/// The spec's scheduling node is package/purpose/profiles, not import alias.
+/// Equal edge assignments can reuse that node; incompatible complete maps
+/// reject before execution rather than granting their union or multiplying
+/// package identity. Product edges propagate their requester's purposes, as
+/// in PackageOccurrenceRoster; build edges always select the build purpose.
+fn reconcile_build_inputs(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    roster: &PackageOccurrenceRoster,
+    request: Option<&build_evaluation::BuildSnapshotRequest>,
+) -> Result<Vec<[Option<OccurrenceBuildInputs>; 2]>, Vec<Diagnostic>> {
+    use build_evaluation::BuildSnapshotRequest;
+    use package_compilation::BuildDependencyOccurrence;
+
+    let graph = target_closure.source_closure().graph();
+    let mut assigned: Vec<[Option<OccurrenceBuildInputs>; 2]> =
+        graph.packages().iter().map(|_| [None, None]).collect();
+    let Some(request) = request else {
+        return Ok(assigned);
+    };
+    for (occurrence, _) in request.dependency_inputs() {
+        let exists = graph.packages().iter().any(|node| {
+            node.source().key().identity() == occurrence.requester()
+                && node.dependencies().iter().any(|edge| {
+                    edge.purpose() == occurrence.purpose()
+                        && edge.alias().as_str() == occurrence.alias()
+                        && edge.target().identity() == occurrence.target()
+                })
+        });
+        if !exists {
+            return Err(vec![Diagnostic::error(format!(
+                "named build inputs are assigned to a dependency occurrence that does not exist: {occurrence:?}"
+            ))]);
+        }
+    }
+    let empty = BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
+    for node in graph.packages() {
+        let requester = node.source().key();
+        for edge in node.dependencies() {
+            let occurrence = BuildDependencyOccurrence::new(
+                requester.identity(),
+                edge.purpose(),
+                edge.alias().as_str(),
+                edge.target().identity(),
+            );
+            let slots = request
+                .dependency_input_slots(&occurrence)
+                .unwrap_or_else(|| empty.inputs());
+            let position = graph
+                .package_position(edge.target())
+                .expect("validated graph edge target");
+            for &requester_purpose in roster
+                .purposes(requester)
+                .expect("closed occurrence roster")
+            {
+                let purpose = if edge.purpose().is_product() {
+                    requester_purpose
+                } else {
+                    DependencyPurpose::Build
+                };
+                let assignment = &mut assigned[position][purpose_slot(purpose)];
+                if let Some(previous) = assignment {
+                    if previous.snapshot.inputs() != slots {
+                        return Err(vec![Diagnostic::error(format!(
+                            "conflicting named build input assignments for shared {:?} activation of `{}`: {:?} and {:?}; assignments must match exactly, including unassigned inputs",
+                            purpose,
+                            edge.target().name().as_str(),
+                            previous.incoming,
+                            occurrence,
+                        ))]);
+                    }
+                } else {
+                    *assignment = Some(OccurrenceBuildInputs {
+                        incoming: occurrence.clone(),
+                        snapshot: empty.clone().with_inputs(
+                            slots
+                                .iter()
+                                .map(|(name, input)| (name.clone(), input.clone())),
+                        )?,
+                    });
+                }
+            }
+        }
+    }
+    Ok(assigned)
 }

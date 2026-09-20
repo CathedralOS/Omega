@@ -4,7 +4,9 @@ pub mod preparation;
 
 use crate::{
     BuildCanonicalSourceMetadataIdentity,
-    evidence::observations::{BuildActivation, BuildCapturedSourceInventory},
+    evidence::observations::{
+        BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,
+    },
 };
 use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture,
@@ -57,10 +59,17 @@ pub struct BuildMachineFilesystemScope {
     captured_source_input: Option<CapturedBuildSourceInput>,
     snapshot_dir: Option<PathBuf>,
     required_outputs: BTreeSet<Vec<u8>>,
-    dependency_inputs: BTreeMap<
-        package_compilation::BuildDependencyOccurrence,
-        BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
-    >,
+    named_inputs: Vec<NamedBuildInput>,
+}
+
+/// One slot retains both its immutable bytes and its activation-local grant.
+/// Source and input roots share the same read protocol, never the same namespace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NamedBuildInput {
+    name: Vec<u8>,
+    input: CapturedBuildSourceInput,
+    root: BuildMachineFilesystemGrantRootIdentity,
+    snapshot_dir: PathBuf,
 }
 
 /// Maximum declared required sealed outputs for one build occurrence.
@@ -69,7 +78,7 @@ const REQUIRED_BUILD_OUTPUT_LIMIT: usize = 4_096;
 /// Release handle for one occurrence's private captured-source backing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CapturedSnapshotRelease {
-    snapshot_dir: Option<PathBuf>,
+    snapshot_dirs: Vec<PathBuf>,
 }
 
 impl CapturedSnapshotRelease {
@@ -77,7 +86,7 @@ impl CapturedSnapshotRelease {
     /// An already-absent backing is not an error, so the release may run on
     /// the settlement path and again on the occurrence's final exit.
     pub(crate) fn release(&self) {
-        if let Some(snapshot_dir) = &self.snapshot_dir {
+        for snapshot_dir in &self.snapshot_dirs {
             let _ = discard_materialized_snapshot(snapshot_dir);
         }
     }
@@ -107,7 +116,7 @@ impl BuildMachineFilesystemScope {
             captured_source_input: None,
             snapshot_dir: None,
             required_outputs: BTreeSet::new(),
-            dependency_inputs: BTreeMap::new(),
+            named_inputs: Vec::new(),
         }
     }
 
@@ -131,7 +140,7 @@ impl BuildMachineFilesystemScope {
             captured_source_input: None,
             snapshot_dir: None,
             required_outputs: BTreeSet::new(),
-            dependency_inputs: BTreeMap::new(),
+            named_inputs: Vec::new(),
         }
     }
 
@@ -234,27 +243,73 @@ impl BuildMachineFilesystemScope {
         Ok(self)
     }
 
-    /// Bind caller-captured immutable inputs assigned to exact dependency
-    /// occurrences. The request's binding already validated every key
-    /// against the reconciled graph, so this custody move never rereads the
-    /// host and cannot widen an occurrence's inputs.
-    pub fn with_dependency_inputs(
+    pub(crate) fn with_named_inputs(
         mut self,
-        inputs: BTreeMap<
-            package_compilation::BuildDependencyOccurrence,
-            BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
-        >,
+        inputs: &BTreeMap<Vec<u8>, CapturedBuildSourceInput>,
     ) -> Self {
-        self.dependency_inputs = inputs;
+        if inputs.is_empty() {
+            return self;
+        }
+        let source_backing = self
+            .snapshot_dir
+            .as_ref()
+            .expect("named inputs accompany captured source");
+        self.named_inputs = inputs
+            .iter()
+            .enumerate()
+            .map(|(index, (name, input))| NamedBuildInput {
+                name: name.clone(),
+                input: input.clone(),
+                root: BuildMachineFilesystemGrantRootIdentity::new(index as u32 + 3)
+                    .expect("bounded slot ordinal follows the source and output roots"),
+                snapshot_dir: source_backing.with_extension(format!("input-{index}")),
+            })
+            .collect();
         self
     }
 
-    /// Inputs assigned to one exact dependency occurrence, in slot order.
-    pub fn dependency_inputs(
+    pub(crate) fn named_input_facet(&self) -> build_time_evaluation::BuildTimeValue {
+        use build_time_evaluation::BuildTimeValue;
+        BuildTimeValue::Struct {
+            type_name: "$OmegaBuildInputSlots".to_owned(),
+            fields: self
+                .named_inputs
+                .iter()
+                .map(|input| {
+                    (
+                        String::from_utf8(input.name.clone()).expect("validated UTF-8 slot"),
+                        BuildTimeValue::Struct {
+                            type_name: "$OmegaBuildSourceRoot".to_owned(),
+                            fields: vec![(
+                                "root".to_owned(),
+                                BuildTimeValue::Int(i64::from(input.root.get())),
+                            )],
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    pub(crate) fn named_input_inventory(
         &self,
-        occurrence: &package_compilation::BuildDependencyOccurrence,
-    ) -> Option<&BTreeMap<Vec<u8>, CapturedBuildSourceInput>> {
-        self.dependency_inputs.get(occurrence)
+        root: BuildMachineFilesystemGrantRootIdentity,
+    ) -> Option<BuildCapturedSourceInventory> {
+        self.named_inputs
+            .iter()
+            .find(|input| input.root == root)
+            .map(|input| captured_inventory(&input.input))
+    }
+
+    pub(crate) fn named_input_inventories(&self) -> Vec<BuildNamedInputInventory> {
+        self.named_inputs
+            .iter()
+            .map(|input| BuildNamedInputInventory {
+                name: input.name.clone(),
+                root_identity: input.root.get(),
+                inventory: captured_inventory(&input.input),
+            })
+            .collect()
     }
 
     /// Declare the required sealed outputs this build occurrence must
@@ -321,18 +376,7 @@ impl BuildMachineFilesystemScope {
     }
 
     pub(crate) fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
-        self.captured_source_input
-            .as_ref()
-            .map(|input| BuildCapturedSourceInventory {
-                entry_count: input.entry_count(),
-                file_bytes: input.file_bytes(),
-                source_metadata_identity: BuildCanonicalSourceMetadataIdentity::new(
-                    input.canonical_source_metadata().policy_version(),
-                    *input
-                        .canonical_source_metadata()
-                        .source_content_commitment(),
-                ),
-            })
+        self.captured_source_input.as_ref().map(captured_inventory)
     }
 
     pub(crate) fn filesystem_access(&self) -> BuildMachineFilesystemAccess {
@@ -353,8 +397,13 @@ impl BuildMachineFilesystemScope {
         {
             source_root = source_root.with_canonical_metadata(metadata.clone());
         }
+        let mut read_roots = vec![source_root];
+        read_roots.extend(self.named_inputs.iter().map(|input| {
+            BuildMachineFilesystemGrantRoot::new(input.root, input.snapshot_dir.clone())
+                .with_canonical_metadata(input.input.canonical_source_metadata().clone())
+        }));
         let grants = BuildMachineFilesystemGrants {
-            read_roots: vec![source_root],
+            read_roots,
             write_roots: vec![BuildMachineFilesystemGrantRoot::new(
                 BUILD_OUTPUT_ROOT_IDENTITY,
                 self.build_dir.clone(),
@@ -425,10 +474,29 @@ impl BuildMachineFilesystemScope {
     /// occurrence. The backing is created read-only and independently
     /// re-inspected before the build is admitted to it.
     pub(crate) fn ensure_captured_snapshot(&self) -> Result<(), Vec<Diagnostic>> {
-        let (Some(input), Some(snapshot_dir)) = (&self.captured_source_input, &self.snapshot_dir)
-        else {
-            return Ok(());
-        };
+        let snapshots = self
+            .captured_source_input
+            .as_ref()
+            .zip(self.snapshot_dir.as_deref())
+            .into_iter()
+            .chain(
+                self.named_inputs
+                    .iter()
+                    .map(|input| (&input.input, input.snapshot_dir.as_path())),
+            );
+        for (input, directory) in snapshots {
+            if let Err(diagnostics) = Self::materialize_snapshot(input, directory) {
+                self.captured_snapshot_release().release();
+                return Err(diagnostics);
+            }
+        }
+        Ok(())
+    }
+
+    fn materialize_snapshot(
+        input: &CapturedBuildSourceInput,
+        snapshot_dir: &Path,
+    ) -> Result<(), Vec<Diagnostic>> {
         match std::fs::symlink_metadata(snapshot_dir) {
             Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
                 discard_materialized_snapshot(snapshot_dir).map_err(|error| {
@@ -537,7 +605,16 @@ impl BuildMachineFilesystemScope {
     /// across the run without cloning retained inventory bytes.
     pub(crate) fn captured_snapshot_release(&self) -> CapturedSnapshotRelease {
         CapturedSnapshotRelease {
-            snapshot_dir: self.snapshot_dir.clone(),
+            snapshot_dirs: self
+                .snapshot_dir
+                .iter()
+                .cloned()
+                .chain(
+                    self.named_inputs
+                        .iter()
+                        .map(|input| input.snapshot_dir.clone()),
+                )
+                .collect(),
         }
     }
 
@@ -559,6 +636,19 @@ impl BuildMachineFilesystemScope {
             return Ok(None);
         };
         capture(&self.build_dir, sponsor).map(Some)
+    }
+}
+
+fn captured_inventory(input: &CapturedBuildSourceInput) -> BuildCapturedSourceInventory {
+    BuildCapturedSourceInventory {
+        entry_count: input.entry_count(),
+        file_bytes: input.file_bytes(),
+        source_metadata_identity: BuildCanonicalSourceMetadataIdentity::new(
+            input.canonical_source_metadata().policy_version(),
+            *input
+                .canonical_source_metadata()
+                .source_content_commitment(),
+        ),
     }
 }
 

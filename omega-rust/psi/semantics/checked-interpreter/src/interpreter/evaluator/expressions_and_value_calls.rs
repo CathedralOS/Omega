@@ -485,6 +485,9 @@ impl<'program> Evaluator<'program> {
 
         // Builtins: max / min over two integer/float operands.
         let target = call.target.as_str();
+        if let Some(value) = self.try_build_named_input_value_call(call, frame)? {
+            return Ok(value);
+        }
         if let Some(value) = self.try_build_root_resolve_value_call(call, frame)? {
             return Ok(value);
         }
