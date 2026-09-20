@@ -10,7 +10,14 @@
 //! non-admitted tag would show up as a missing rejection rather than as a
 //! wrong position.
 
-use super::*;
+use super::{
+    BTreeSet, COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescription, ComponentEntry,
+    ComponentEntryKind, CustodyConstraint, CustodyEvidence, CustodyKind,
+    DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ImportSlot,
+    InstallationObligation, InstallationServiceBound, MAX_COMPONENT_DESCRIPTION_BYTES,
+    ObligationKind, OutgoingAuthority, OutgoingAuthorityClass, OutgoingEvidence, ServiceId,
+    decode_component_description, encode_component_description,
+};
 
 /// A description whose populated rosters place every closed vocabulary on the
 /// wire: each tag byte is present, so a non-admitted value must name the
