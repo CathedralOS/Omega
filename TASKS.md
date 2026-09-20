@@ -8432,7 +8432,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   — 2/2 pass on linux x86-64. The remaining physical-evidence legs (dynamic-call
   and call-occurrence spans) belong to TRANSLATION-VALIDATION's named remaining
   work under DYNAMIC-CALL-OCCURRENCE-SPANS, not to access profiles.
-- **PHYSICAL-ENTRY-BRIDGES** — mined candidate; verify scope then implement.
+- **PHYSICAL-ENTRY-BRIDGES** — mined candidate; scope verified, covered — the resolved sibling PHYSICAL-ENTRY-END-TO-END row names this stub as a re-mine of the "end-to-end physical entry" note in `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an entry does not claim that its native bridge has been installed"), which the note itself assigns to ENTRY-CONTENT-ROOTS. The physical-entry-bridge acceptance leg already passes natively on linux x86-64 at `cdee121ee9` (`samples_with_documented_exit_run_correctly` under `OMEGA_SAMPLE_RUNTIME_FILTER==cli__basics__number_guess`: published process with `Service<Console>` receiver compiles to a native artifact and runs to exit 70); the intrinsic `Service<R>` carrier cut landed at `f705cbdb5`. The epic's remaining bridge legs (receiver nominal-cleanup/completion occupancy, per-host legs) stay with ENTRY-CONTENT-ROOTS and are live-fenced this wave (program-entry-plan, external-roots `ProgramLocalRootInstallationLedger`, image-emission hosted_receiver). No independent slice exists here.
 - **PHYSICAL-ENTRY-END-TO-END.** Mined candidate — resolved: the name
   re-mines the "end-to-end physical entry" note in
   `wiki/language_guide/chapter_3_machines.md` ("selecting and checking an
