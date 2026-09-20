@@ -220,18 +220,22 @@ pub enum BuiltinFunction {
     AsmWriteCr3,
     AsmWriteCr4,
     /// Instruction-stream serialization and scheduling-hint directives
-    /// (`serialize`/`isb`, `pause`/`yield`). Zero-operand asm intrinsics with
-    /// no service-reach effect and no modeled machine-state write; legal
-    /// pipeline behavior is pinned by the catalog contract.
+    /// (`serialize`/`isb`, `pause`/`yield`/`nop`). Zero-operand asm
+    /// intrinsics with no service-reach effect and no modeled machine-state
+    /// write; legal pipeline behavior is pinned by the catalog contract.
     AsmSerialize,
     AsmInstructionSyncBarrier,
     AsmSpinPause,
     AsmYieldHint,
-    /// `asm { wbinvd }`: x86 cache-maintenance write-back-and-invalidate, a
-    /// serializing privileged operation. It reaches the canonical
+    AsmNop,
+    /// x86 cache-maintenance operations (`wbinvd`/`invd`/`wbnoinvd`):
+    /// serializing privileged operations that act on the cache hierarchy
+    /// rather than a modeled place. Each reaches the canonical
     /// `MachineControl` service and requires machine-owner authority.
     /// Unnameable from source (see AsmHlt).
     AsmWriteBackInvalidate,
+    AsmInvalidate,
+    AsmWriteBackNoInvalidate,
     /// Internal unary predicate used only by selected named-float plans. The The
     /// `#` keeps it unnameable from source during the provider migration.
     FloatIsNan,
@@ -302,7 +306,7 @@ pub enum BuiltinFunction {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 77;
+    pub const COUNT: usize = 80;
 
     pub const ALL: [Self; Self::COUNT] = [
         Self::Max,
@@ -382,6 +386,9 @@ impl BuiltinFunction {
         Self::AsmSpinPause,
         Self::AsmYieldHint,
         Self::AsmWriteBackInvalidate,
+        Self::AsmInvalidate,
+        Self::AsmWriteBackNoInvalidate,
+        Self::AsmNop,
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -416,7 +423,10 @@ impl BuiltinFunction {
             Self::AsmInstructionSyncBarrier => "asm#isb",
             Self::AsmSpinPause => "asm#pause",
             Self::AsmYieldHint => "asm#yield",
+            Self::AsmNop => "asm#nop",
             Self::AsmWriteBackInvalidate => "asm#wbinvd",
+            Self::AsmInvalidate => "asm#invd",
+            Self::AsmWriteBackNoInvalidate => "asm#wbnoinvd",
             Self::FloatIsNan => "float#is_nan",
             Self::FloatMultiplyThenAddF32 => "float#multiply_then_add_f32",
             Self::FloatMultiplyThenAddF64 => "float#multiply_then_add_f64",
@@ -557,6 +567,9 @@ impl BuiltinFunction {
             Self::AsmSpinPause => 74,
             Self::AsmYieldHint => 75,
             Self::AsmWriteBackInvalidate => 76,
+            Self::AsmInvalidate => 77,
+            Self::AsmWriteBackNoInvalidate => 78,
+            Self::AsmNop => 79,
         }
     }
 
@@ -579,7 +592,9 @@ impl BuiltinFunction {
             | Self::AsmWriteCr0
             | Self::AsmWriteCr3
             | Self::AsmWriteCr4
-            | Self::AsmWriteBackInvalidate => Some("MachineControl"),
+            | Self::AsmWriteBackInvalidate
+            | Self::AsmInvalidate
+            | Self::AsmWriteBackNoInvalidate => Some("MachineControl"),
             Self::AsmPortOut | Self::AsmPortIn => Some("PortIo"),
             Self::Max
             | Self::Min
@@ -641,6 +656,7 @@ impl BuiltinFunction {
             | Self::AsmInstructionSyncBarrier
             | Self::AsmSpinPause
             | Self::AsmYieldHint
+            | Self::AsmNop
             | Self::AsmSnapshotFlags => None,
         }
     }
@@ -726,7 +742,10 @@ impl BuiltinFunction {
             | Self::AsmInstructionSyncBarrier
             | Self::AsmSpinPause
             | Self::AsmYieldHint
+            | Self::AsmNop
             | Self::AsmWriteBackInvalidate
+            | Self::AsmInvalidate
+            | Self::AsmWriteBackNoInvalidate
             | Self::ContentOld
             | Self::ContentSeparate
             | Self::IntegerEmbed => false,
@@ -759,11 +778,14 @@ impl BuiltinFunction {
                 | Self::AsmInstructionSyncBarrier
                 | Self::AsmSpinPause
                 | Self::AsmYieldHint
+                | Self::AsmNop
                 | Self::AsmWriteBackInvalidate
+                | Self::AsmInvalidate
+                | Self::AsmWriteBackNoInvalidate
         )
     }
 
-    pub fn asm_intrinsics() -> [Self; 24] {
+    pub fn asm_intrinsics() -> [Self; 27] {
         [
             Self::AsmHlt,
             Self::AsmPortOut,
@@ -789,6 +811,9 @@ impl BuiltinFunction {
             Self::AsmSpinPause,
             Self::AsmYieldHint,
             Self::AsmWriteBackInvalidate,
+            Self::AsmInvalidate,
+            Self::AsmWriteBackNoInvalidate,
+            Self::AsmNop,
         ]
     }
 }
@@ -1112,6 +1137,18 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         (
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::AsmWriteBackInvalidate.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmInvalidate.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmWriteBackNoInvalidate.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::AsmNop.name()),
         ),
     ]
 }
