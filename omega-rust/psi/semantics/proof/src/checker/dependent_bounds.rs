@@ -105,6 +105,170 @@ fn guard_conjunct_proves_dependent_upper(
     implied_offset.is_some_and(|implied| implied <= max_offset)
 }
 
+/// Route (d) for CALL arguments: the call statement has no co-located guard,
+/// but its state can still carry a dominating relational fact. A `requires`
+/// contract on the state is an arrival contract -- every incoming transition
+/// establishes it -- and the machine's `requires` likewise holds on the entry
+/// state. Failing those, EVERY incoming edge must carry a `when` guard that
+/// proves the bound, so the fact holds however the state was reached. The
+/// bound field and the argument's place must survive the whole state: a write
+/// between arrival and the call would invalidate the carried fact.
+///
+/// The route speaks only of `self.<field>` arguments -- the guard's bound
+/// names `self.<max_field>`, and the preservation scan is a `self.` path
+/// comparison; a local argument's writes would not be caught by it.
+pub(crate) fn incoming_guard_proves_dependent_call_upper(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedCallArgumentObligation,
+    max_field: &Identifier,
+    max_offset: i64,
+) -> bool {
+    use typed_trees::signature::SignatureContractKind;
+    use typed_trees::statement::StatementNode;
+    let program = &proof_plan.program;
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == obligation.machine_symbol)
+    else {
+        return false;
+    };
+    let states = program.machine_states(machine);
+    let Some((state_index, state)) = states
+        .iter()
+        .enumerate()
+        .find(|(_, state)| state.symbol == obligation.state_symbol)
+    else {
+        return false;
+    };
+    let argument_label = expression_display_name(proof_plan, obligation.argument);
+    let Some(argument_field) = argument_label.strip_prefix("self.").filter(|field| {
+        !field.is_empty()
+            && field
+                .chars()
+                .all(|character| character.is_alphanumeric() || character == '_')
+    }) else {
+        return false;
+    };
+    // Only statements BEFORE the call can invalidate the arrival fact; a
+    // later write (for example the terminal `exit_process` service call) is
+    // outside the fact's window of relevance.
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let call_index = statements
+        .iter()
+        .position(|statement| {
+            matches!(statement, StatementNode::Call(call)
+                if call.target_symbol == obligation.target_symbol
+                    && program
+                        .statement_table
+                        .expression_handles(call.arguments)
+                        .contains(&obligation.argument))
+        })
+        .unwrap_or(statements.len());
+    if !place_preserved_in_statements(
+        proof_plan,
+        machine,
+        &format!("self.{argument_field}"),
+        &statements[..call_index],
+    ) || !place_preserved_in_statements(
+        proof_plan,
+        machine,
+        &format!("self.{}", max_field.as_str()),
+        &statements[..call_index],
+    ) {
+        return false;
+    }
+    let proves = |condition: ExpressionHandle| {
+        guard_conjunct_proves_dependent_upper(
+            proof_plan,
+            condition,
+            &argument_label,
+            max_field,
+            max_offset,
+        )
+    };
+    let requires_proves = |contracts: &[typed_trees::signature::SignatureContract]| {
+        contracts
+            .iter()
+            .filter(|contract| contract.kind == SignatureContractKind::Requires)
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
+            .any(|fact| {
+                matches!(fact, typed_trees::domain::ProofFact::Expression(condition)
+                    if proves(*condition))
+            })
+    };
+    if requires_proves(program.state_contracts(state)) {
+        return true;
+    }
+    let mut incoming_edges = 0usize;
+    for source in states {
+        for statement in program.statement_table.statements(source.statement_nodes) {
+            let StatementNode::Transition(row) = statement else {
+                continue;
+            };
+            // A value-dispatch edge could reach any state at runtime; the
+            // route cannot prove it does not reach this one.
+            if (row.target.is_valid()
+                && matches!(
+                    program.statement_table.transition_target(row.target),
+                    typed_trees::statement::TransitionTargetNode::Value(_)
+                ))
+                || (row.continuation.is_valid()
+                    && matches!(
+                        program.statement_table.transition_target(row.continuation),
+                        typed_trees::statement::TransitionTargetNode::Value(_)
+                    ))
+            {
+                return false;
+            }
+            // The `target` arm arrives under the row's guard; the
+            // `continuation` arm is the else path and carries no guard of its
+            // own, so it can never witness this route.
+            if target_enters_state(proof_plan, row.target, source, state) {
+                let TransitionGuardNode::When(condition) = row.guard else {
+                    return false;
+                };
+                if !proves(condition) {
+                    return false;
+                }
+                incoming_edges += 1;
+            }
+            if row.continuation.is_valid()
+                && target_enters_state(proof_plan, row.continuation, source, state)
+            {
+                return false;
+            }
+        }
+    }
+    if state_index == 0 {
+        // The entry state's machine `requires` holds on the initial entry
+        // edge only; a backedge would re-enter without re-discharging it, so
+        // any incoming edge retires this leg.
+        return incoming_edges == 0 && requires_proves(program.machine_contracts(machine));
+    }
+    incoming_edges > 0
+}
+
+/// Whether `target` names `state`: a `Named` target by its resolved symbol,
+/// or a `SelfTarget` on an edge written inside the state itself.
+fn target_enters_state(
+    proof_plan: &ProofPlan,
+    target: typed_trees::statement::TransitionTargetHandle,
+    source: &typed_trees::state::State,
+    state: &typed_trees::state::State,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+    match proof_plan.program.statement_table.transition_target(target) {
+        typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
+            path.symbol == state.symbol
+        }
+        typed_trees::statement::TransitionTargetNode::SelfTarget => source.symbol == state.symbol,
+        _ => false,
+    }
+}
+
 /// Route (b): the named field's OWN enforced literal range minimum -- an
 /// argument bounded by `min(field) + offset` satisfies `field + offset` for
 /// EVERY runtime value the field's store-enforced range admits. `None` when
@@ -207,7 +371,6 @@ pub(crate) fn state_preserves_field(
     state_name: &str,
     field: &Identifier,
 ) -> bool {
-    use typed_trees::statement::StatementNode;
     let program = &proof_plan.program;
     let Some(machine) = program
         .machines()
@@ -223,9 +386,54 @@ pub(crate) fn state_preserves_field(
     else {
         return false;
     };
+    state_preserves_place_path(
+        proof_plan,
+        machine,
+        state,
+        &format!("self.{}", field.as_str()),
+    )
+}
+
+/// The `state_preserves_field` scan over a concrete `self.<...>` place path:
+/// assignments to the place and resolved statement/value calls whose shared
+/// R5 frame overlaps it defeat the route. Opaque calls remain fail-closed.
+fn state_preserves_place_path(
+    proof_plan: &ProofPlan,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    field_path: &str,
+) -> bool {
+    place_preserved_in_statements(
+        proof_plan,
+        machine,
+        field_path,
+        proof_plan
+            .program
+            .statement_table
+            .statements(state.statement_nodes),
+    )
+}
+
+/// The preservation scan over an explicit statement slice -- the incoming-
+/// guard route passes the prefix before the call so later writes cannot
+/// invalidate a fact that only needs to describe the call's argument.
+fn place_preserved_in_statements(
+    proof_plan: &ProofPlan,
+    machine: &typed_trees::machine::Machine,
+    field_path: &str,
+    statements: &[typed_trees::statement::StatementNode],
+) -> bool {
+    use typed_trees::statement::StatementNode;
+    let program = &proof_plan.program;
     let call_frames = validation::CallFrameResolver::new(program);
-    let field_path = format!("self.{}", field.as_str());
-    for statement in program.statement_table.statements(state.statement_nodes) {
+    let field = &Identifier::generated(
+        field_path
+            .strip_prefix("self.")
+            .unwrap_or(field_path)
+            .to_owned(),
+    );
+    let field_path = field_path.to_owned();
+    for statement in statements {
         let Some(value_written) = call_frames
             .as_ref()
             .and_then(|frames| frames.statement_value_may_write_paths(machine, statement))
