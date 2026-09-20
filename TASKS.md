@@ -7144,7 +7144,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   that owner's lane. Sibling re-mine name: REPLACEMENT-REJECTION-INVENTORY
   (replacement-side inventory, separately claimed).
 - **COMPARE-TEST-SELECTION** — mined candidate; verify scope then implement.
-- **COMPARISON-OCCURRENCE-PRODUCER-COVERAGE** — mined candidate; verify scope then implement.
+- **COMPARISON-OCCURRENCE-PRODUCER-COVERAGE.** Resolved — scope verified,
+  already landed. Un-prefixed re-mine of the
+  INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE row (same leg, already
+  Resolved): the producer-coverage residual is what `a5ebf162af`
+  ("compilation-report: pin integer-comparison occurrence roster
+  coverage") landed — `terminal_product`'s cfg(test) module exercises
+  `TerminalIntegerComparisonOccurrenceProposal::validate_roster` /
+  `validate_integer_comparison_occurrences` acceptance plus each
+  rejection axis (repeated occurrence, absent selected-plan index,
+  changed plan commitment, non-comparison or missing operation,
+  operation-kind drift, missing authored negation for `!=`, operand
+  type/identity drift), on top of the producer fix at `76dc49a99e` and
+  the artifact carry at `29ca2fd46e`. Re-verified green at `d32183a35c`
+  (linux x86-64): `cargo nextest run -p compilation-report --lib` →
+  63/63 PASS including all 13 roster tests; `cargo nextest run
+  -p compiler --test integer_comparison_publication` →
+  `selected_comparison_publication_preserves_complete_custody_among_builtins`
+  PASS (27.3s). Remaining family re-mines:
+  INTEGER-COMPARISON-OCCURRENCE-RETENTION,
+  BENCHMARK-COMPARISON-OCCURRENCE-GATE.
 - **COMPILER-BATCH-MANIFEST** — mined candidate; verify scope then implement.
 - **COMPILER-EXECUTABLE-PUBLICATION-OPERATION.** Resolved — the compiler's
   executable publication operation exists and is the CLI's only route to
