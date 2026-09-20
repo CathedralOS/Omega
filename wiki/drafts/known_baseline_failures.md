@@ -103,18 +103,20 @@ repair beside this row. Only two of the six non-ledger failures were
   `None` now, which closes the same hole in terminal-codec's independent
   validation; all seven leaf-shape consumers were followed and none needed
   explicit byte handling.
-- `structural_unit::boundary_buffers::fixed_array_views::fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence`
-  expects `InvalidStructuralArrayLength(StructuralTypeId(3))` for a
-  zero-length fixed byte array and now sees
+- Repaired: `structural_unit::boundary_buffers::fixed_array_views::fixed_byte_array_unit_view_keeps_existing_zero_array_admission_fence`
+  expected `InvalidStructuralArrayLength(StructuralTypeId(3))` for a
+  zero-length fixed byte array and saw
   `StructuralArgumentTypeMismatch { operation: OperationId(1), argument_index: 0, expected: StructuralTypeId(1), actual: StructuralTypeId(3) }`.
   The type-table fence in `validation/foundation/structural_types.rs` fires
   only when `terminal_semantics::scalar_array_leaf_shape` is `None`, which a
-  byte array's primitive-scalar element is not, so the rejection moved to the
-  presentation check: `mutable_fixed_byte_array_extent` answers `None` for a
-  zero extent, no presentation applies, and the exact-type comparison fails.
-  The module is still rejected. Whether a zero-length byte array should be
-  refused by the type table or by presentation is a decision for the fixed
-  array lane; the fixture pins the former.
+  byte array's primitive-scalar element is not, so the rejection had moved to
+  the presentation check. The settled semantics admit a zero-length fixed
+  array whose element carries a scalar leaf as an empty scalar array, while
+  the `InvalidStructuralArrayLength` fence remains for elements without a
+  scalar leaf: d96a0fda39 retargeted the fixture's element at a record so the
+  pin still exercises the type-table fence on both the machine and boundary
+  routes. The fence question this row left open is answered — presentation
+  admits the scalar-leaf case, the type table owns the remaining rejection.
 - `structural_scalar_fields::owned_reads::block_parameters::owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
   expects `InvalidStructuralSuccessorArgument { edge: EdgeId(3), place: PlaceId(2) }`
   and now sees `EdgeAffineDiscardsInvalid { edge: EdgeId(3) }`. Both reject
