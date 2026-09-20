@@ -14,11 +14,7 @@ command -v python3 >/dev/null 2>&1 || {
     exit 0
 }
 
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ;;
-    *) echo "Omega request: unsupported host; needs macOS arm64 or Windows x64" >&2
-       exit 2 ;;
-esac
+require_seed_execution_host "Omega request"
 
 OUTPUT_DIR=${OMEGA_REQUEST_BUILD_DIR:-"$OMEGA_REPO_ROOT/build/omega-request"}
 mkdir -p "$OUTPUT_DIR"
