@@ -7,7 +7,8 @@ use proof_admission::{
     check_predicate_denotations, check_predicate_denotations_with_value_equalities,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, MachineId, Proposition, PropositionContext, StructuralPlaceKind,
+    BlockId, EdgeId, MachineId, Proposition, PropositionContext, ScalarTerm, ScalarType,
+    StructuralPlaceKind,
 };
 use terminal_psi::{
     CrashRouteBucket, CrashRouteGuard, TerminalMachine, TerminalModule, Terminator,
@@ -427,11 +428,11 @@ fn common_consequence(
     }
 }
 
-pub(super) fn covers(caller: &TerminalMachine, published: &CrashRouteBucket) -> bool {
+fn entry_context(caller: &TerminalMachine) -> Option<PropositionContext> {
     // Body values, result pseudo-values and current storage do not belong to
     // this context. Ordinary module validation separately verifies complete
     // contract scope, including the declared structural parameter associations.
-    let Ok(context) = PropositionContext::from_value_types_and_places(
+    PropositionContext::from_value_types_and_places(
         caller
             .parameters
             .iter()
@@ -440,7 +441,87 @@ pub(super) fn covers(caller: &TerminalMachine, published: &CrashRouteBucket) -> 
             matches!(place.kind, StructuralPlaceKind::Parameter { .. })
                 .then_some((place.id, place.kind))
         }),
-    ) else {
+    )
+    .ok()
+}
+
+/// Disproof is a proof of the opposite predicate, never failure to prove the
+/// route. Only exact invocation formals enter this context; forwarded CFG
+/// parameters must already have been rejoined by the caller. Body definitions,
+/// current storage and the route itself supply no assumptions.
+pub(super) fn refutes<'route>(
+    caller: &TerminalMachine,
+    routes: impl Iterator<Item = &'route CrashRouteGuard>,
+) -> bool {
+    let Some(context) = entry_context(caller) else {
+        return false;
+    };
+    let mut remaining = MAXIMUM_SEARCH_STEPS;
+    let mut goals = Vec::new();
+    for route in routes {
+        let CrashRouteGuard::Predicate(predicate) = route else {
+            return false;
+        };
+        // Check the whole route before any denotation simplification. An
+        // unresolved body value must not disappear in a constant branch.
+        if context.validate(predicate.proposition()).is_err() {
+            return false;
+        }
+        let Some(goal) = opposite(predicate.proposition(), &mut remaining, 0) else {
+            return false;
+        };
+        goals.push(goal);
+    }
+    let goal = match goals.len() {
+        0 => return true,
+        1 => goals.remove(0),
+        _ => Proposition::Conjunction(goals),
+    };
+    // All alternatives must be false. One goal bounds conversion and proof
+    // search across the entire uncovered union, not separately per route.
+    establishes(&context, &goal, &caller.contract.requires, &[])
+}
+
+// The crash predicate vocabulary has no general negation constructor. Form
+// the exact complement of supported scalar propositions; Boolean comparisons
+// retain their operands and use the proof owner's checked denotation rules.
+// No float, opaque, content or case law is inferred here.
+fn opposite(proposition: &Proposition, remaining: &mut usize, depth: usize) -> Option<Proposition> {
+    step(remaining, depth)?;
+    Some(match proposition {
+        Proposition::Truth => Proposition::Falsehood,
+        Proposition::Falsehood => Proposition::Truth,
+        Proposition::LessThan(left, right) => Proposition::LessOrEqual(right.clone(), left.clone()),
+        Proposition::LessOrEqual(left, right) => Proposition::LessThan(right.clone(), left.clone()),
+        Proposition::Equal(left, right) => {
+            let comparison = match left.scalar_type() {
+                ScalarType::Boolean => {
+                    ScalarTerm::boolean_equal(left.clone(), right.clone()).ok()?
+                }
+                ScalarType::Integer(integer_type) => {
+                    ScalarTerm::integer_equal(integer_type, left.clone(), right.clone()).ok()?
+                }
+                _ => return None,
+            };
+            Proposition::Equal(comparison, ScalarTerm::boolean(false))
+        }
+        Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
+            let alternatives = children
+                .iter()
+                .map(|child| opposite(child, remaining, depth + 1))
+                .collect::<Option<Vec<_>>>()?;
+            if matches!(proposition, Proposition::Conjunction(_)) {
+                Proposition::Disjunction(alternatives)
+            } else {
+                Proposition::Conjunction(alternatives)
+            }
+        }
+        _ => return None,
+    })
+}
+
+pub(super) fn covers(caller: &TerminalMachine, published: &CrashRouteBucket) -> bool {
+    let Some(context) = entry_context(caller) else {
         return false;
     };
     match published.alternatives.as_slice() {

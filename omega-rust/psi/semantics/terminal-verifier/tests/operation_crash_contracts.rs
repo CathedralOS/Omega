@@ -35,6 +35,13 @@ fn negative(value: u64) -> Proposition {
     )
 }
 
+fn nonnegative(value: u64) -> Proposition {
+    Proposition::LessOrEqual(
+        ScalarTerm::integer(i32_type(), IntegerValue::Signed(0)).unwrap(),
+        integer(value),
+    )
+}
+
 fn guarded(cause: CrashCause, proposition: Proposition) -> CrashRouteBucket {
     CrashRouteBucket {
         cause,
@@ -225,6 +232,183 @@ fn substituted_continuations_need_same_cause_caller_coverage() {
     let mut ceiling = module();
     ceiling.machines[0].contract.crash_routes = vec![unconditional(CrashCause::Trap)];
     validate_module(&ceiling).expect("an unconditional caller route covers the guarded one");
+}
+
+#[test]
+fn entry_requirements_disprove_exact_substituted_continuations() {
+    let mut safe = module();
+    safe.machines[0].contract.crash_routes.clear();
+    safe.machines[0].contract.requires = vec![Proposition::LessOrEqual(
+        ScalarTerm::integer(i32_type(), IntegerValue::Signed(0)).unwrap(),
+        integer(RIGHT),
+    )];
+    validate_module(&safe).expect("the exact right operand cannot be negative");
+    let retained = safe.operation_crash_contracts.clone();
+    assert!(!retained[0].published_routes.is_empty());
+    assert!(!retained[0].crash_continuations.is_empty());
+
+    let mut wrong_operand = safe.clone();
+    wrong_operand.machines[0].contract.requires = vec![Proposition::LessOrEqual(
+        ScalarTerm::integer(i32_type(), IntegerValue::Signed(0)).unwrap(),
+        integer(LEFT),
+    )];
+    assert!(matches!(
+        row_error(&wrong_operand),
+        ModuleError::CallCrashContinuationUncovered { .. }
+    ));
+    let mut wrong_polarity = safe.clone();
+    wrong_polarity.machines[0].contract.requires = vec![negative(RIGHT)];
+    assert!(matches!(
+        row_error(&wrong_polarity),
+        ModuleError::CallCrashContinuationUncovered { .. }
+    ));
+    let mut missing = safe.clone();
+    missing.machines[0].contract.requires.clear();
+    assert!(matches!(
+        row_error(&missing),
+        ModuleError::CallCrashContinuationUncovered { .. }
+    ));
+    assert_eq!(safe.operation_crash_contracts, retained);
+}
+
+#[test]
+fn each_alternative_needs_coverage_or_disproof() {
+    let mut checked = module();
+    let mut published = [negative(1), negative(2)]
+        .map(|predicate| CrashRouteGuard::Predicate(CrashPredicateTerm::new(predicate)))
+        .to_vec();
+    published.sort();
+    contract(&mut checked).published_routes[0].alternatives = published;
+    let mut actuals = [negative(LEFT), negative(RIGHT)]
+        .map(|predicate| CrashRouteGuard::Predicate(CrashPredicateTerm::new(predicate)))
+        .to_vec();
+    actuals.sort();
+    contract(&mut checked).crash_continuations[0].alternatives = actuals;
+    checked.machines[0].contract.crash_routes.clear();
+    checked.machines[0].contract.requires = vec![nonnegative(LEFT), nonnegative(RIGHT)];
+    validate_module(&checked).expect("both alternatives are disproved");
+    checked.machines[0].contract.requires = vec![nonnegative(RIGHT)];
+    assert!(matches!(
+        row_error(&checked),
+        ModuleError::CallCrashContinuationUncovered { .. }
+    ));
+    checked.machines[0].contract.crash_routes = vec![guarded(CrashCause::Trap, negative(LEFT))];
+    validate_module(&checked).expect("left is covered and right is disproved");
+    checked.machines[0].contract.crash_routes = vec![guarded(CrashCause::Abort, negative(LEFT))];
+    assert!(matches!(
+        row_error(&checked),
+        ModuleError::CallCrashContinuationUncovered { .. }
+    ));
+}
+
+#[test]
+fn current_body_value_cannot_borrow_an_entry_disproof() {
+    let mut checked = module();
+    checked.machines[0].contract.crash_routes.clear();
+    checked.machines[0].contract.requires = vec![nonnegative(RIGHT)];
+    let comparison = &mut checked.machines[0].blocks[0].operations[0].kind;
+    let OperationKind::IntegerEqual { right, .. } = comparison else {
+        panic!("comparison");
+    };
+    *right = id(50, ValueId::new);
+    // The existing constant is an ordinary SSA body value, not formal RIGHT.
+    // Even its known zero must not be inferred from unrelated entry facts.
+    checked.machines[0].blocks[0].operations.swap(0, 1);
+    contract(&mut checked).crash_continuations = vec![guarded(CrashCause::Trap, negative(50))];
+    assert!(matches!(
+        row_error(&checked),
+        ModuleError::CallCrashContinuationUncovered { .. }
+    ));
+}
+
+#[test]
+fn compound_route_disproof_preserves_boolean_connectives() {
+    for conjunction in [false, true] {
+        let mut checked = module();
+        let combine = |mut children: Vec<Proposition>| {
+            children.sort();
+            if conjunction {
+                Proposition::Conjunction(children)
+            } else {
+                Proposition::Disjunction(children)
+            }
+        };
+        contract(&mut checked).published_routes = vec![guarded(
+            CrashCause::Trap,
+            combine(vec![negative(1), negative(2)]),
+        )];
+        contract(&mut checked).crash_continuations = vec![guarded(
+            CrashCause::Trap,
+            combine(vec![negative(LEFT), negative(RIGHT)]),
+        )];
+        checked.machines[0].contract.crash_routes.clear();
+        checked.machines[0].contract.requires = vec![nonnegative(RIGHT)];
+        if conjunction {
+            validate_module(&checked).expect("one false conjunct disproves the route");
+        } else {
+            assert!(matches!(
+                row_error(&checked),
+                ModuleError::CallCrashContinuationUncovered { .. }
+            ));
+        }
+        checked.machines[0]
+            .contract
+            .requires
+            .push(nonnegative(LEFT));
+        validate_module(&checked).expect("both negative operands are impossible");
+    }
+}
+
+#[test]
+fn entry_disproof_requires_the_same_formal_on_every_incoming_edge() {
+    let mut checked = module();
+    let machine = &mut checked.machines[0];
+    machine.contract.crash_routes.clear();
+    machine.contract.requires = vec![nonnegative(RIGHT)];
+    machine
+        .parameters
+        .push(declaration(70, ScalarType::Boolean));
+    let mut call_block = machine.blocks.remove(0);
+    call_block.id = id(2, BlockId::new);
+    call_block.parameters = vec![declaration(60, ScalarType::Integer(i32_type()))];
+    let OperationKind::IntegerEqual { right, .. } = &mut call_block.operations[0].kind else {
+        panic!("comparison");
+    };
+    *right = id(60, ValueId::new);
+    let successor = |edge| terminal_psi::SuccessorEdge {
+        edge: id(edge, EdgeId::new),
+        target: id(2, BlockId::new),
+        arguments: vec![id(RIGHT, ValueId::new)],
+        structural_arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    machine.blocks = vec![
+        Block {
+            erased_scalar_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            id: id(1, BlockId::new),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Conditional {
+                condition: id(70, ValueId::new),
+                when_true: successor(2),
+                when_false: successor(3),
+            },
+        },
+        call_block,
+    ];
+    contract(&mut checked).crash_continuations = vec![guarded(CrashCause::Trap, negative(60))];
+    validate_module(&checked).expect("both arrivals forward the exact right formal");
+    let Terminator::Conditional { when_false, .. } = &mut checked.machines[0].blocks[0].terminator
+    else {
+        panic!("conditional");
+    };
+    when_false.arguments[0] = id(LEFT, ValueId::new);
+    assert!(matches!(
+        row_error(&checked),
+        ModuleError::CallCrashContinuationUncovered { .. }
+    ));
 }
 
 #[test]
