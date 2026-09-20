@@ -10227,6 +10227,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo clippy -p build-evaluation --all-targets` clean. The remaining
   leg — in-window establishment coverage inside `build-output` — belongs
   to the sibling detector item's request/options admission lane.
+  The discard-side residual inside `build-output` is closed here:
+  `discard_materialized_snapshot`'s unseal wrote modes through every
+  non-directory, so a planted symlink or a hard-linked entry inside the
+  private snapshot rewrote the mode of a host file outside the tree;
+  entries that alias external custody (a symlink, or a file whose link
+  count is not one) are now unlinked without a mode write, and an alias
+  at the destination itself is unlinked rather than followed.
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate.
   Verified scope: re-mines the same race-window residual assigned to
   **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** (see
