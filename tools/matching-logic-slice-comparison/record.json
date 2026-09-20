@@ -1,0 +1,443 @@
+{
+  "record": "matching-logic-slice-comparison/v1",
+  "generated_utc": "2026-09-20T15:38:14Z",
+  "checklist_source": "wiki/drafts/matching_logic.md#possible-bounded-comparison",
+  "versions": {
+    "repository_revision": "1ccc88fb51cfa5d1999c152a066344acd1c8f239",
+    "toolchain_channel": "nightly-2026-09-04",
+    "omega_binary_sha256_prefix": null,
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "python": "3.10.12"
+    },
+    "omega_binary": "target/debug/omega",
+    "omega_binary_bytes": 324087040
+  },
+  "omega_route": {
+    "surface_lines": {
+      "receiver_terminal_verifier": {
+        "files": 153,
+        "lines": 51849,
+        "nonblank_lines": 50372,
+        "missing": []
+      },
+      "receiver_pcc_codec": {
+        "files": 16,
+        "lines": 11369,
+        "nonblank_lines": 10826,
+        "missing": []
+      },
+      "admission_kernel": {
+        "files": 21,
+        "lines": 5873,
+        "nonblank_lines": 5598,
+        "missing": []
+      },
+      "theory_surface": {
+        "files": 49,
+        "lines": 32204,
+        "nonblank_lines": 30881,
+        "missing": []
+      },
+      "derivation_support": {
+        "files": 30,
+        "lines": 13011,
+        "nonblank_lines": 12265,
+        "missing": []
+      },
+      "trusted_check_total": {
+        "lines": 63218,
+        "nonblank_lines": 61198,
+        "note": "receiver-side verification surface only; producer derivation and admission machinery are reported separately"
+      }
+    },
+    "rule_inventory": {
+      "rules": {
+        "Assumption": "Constructive",
+        "ConjunctionElimination": "Constructive",
+        "ConjunctionIntroduction": "Constructive",
+        "DisjunctionElimination": "Constructive",
+        "DisjunctionIntroduction": "Constructive",
+        "EqualitySymmetry": "Constructive",
+        "EqualityTransitivity": "Constructive",
+        "ImplicationElimination": "Constructive",
+        "ImplicationIntroduction": "Constructive",
+        "IntegerAffineBound": "ConstructiveDecidable",
+        "IntegerCastBound": "ConstructiveDecidable",
+        "IntegerCorrelatedForbiddenRoots": "ConstructiveDecidable",
+        "IntegerExactAddDefinitionBound": "ConstructiveDecidable",
+        "IntegerLessOrEqualTransitivity": "Constructive",
+        "IntegerOrderDiscreteness": "ConstructiveDecidable",
+        "IntegerOrderSubstitution": "Constructive",
+        "IntegerOrderWeakening": "Constructive",
+        "IntegerStrictOrderTransitivity": "Constructive",
+        "IntegerSubtractOrder": "ConstructiveDecidable",
+        "PredicateDenotation": "ConstructiveDecidable",
+        "Primitive": "ConstructiveDecidable",
+        "SemanticAxiom": "TrustedAdmission",
+        "ValueEqualityTransport": "Constructive"
+      },
+      "counts_by_foundation": {
+        "ConstructiveDecidable": 8,
+        "TrustedAdmission": 1,
+        "Constructive": 14
+      },
+      "declared_rule_count": 23,
+      "declared_rules": [
+        "Primitive",
+        "SemanticAxiom",
+        "Assumption",
+        "ConjunctionIntroduction",
+        "ConjunctionElimination",
+        "DisjunctionIntroduction",
+        "DisjunctionElimination",
+        "ImplicationIntroduction",
+        "ImplicationElimination",
+        "EqualityTransitivity",
+        "EqualitySymmetry",
+        "PredicateDenotation",
+        "ValueEqualityTransport",
+        "IntegerOrderWeakening",
+        "IntegerOrderDiscreteness",
+        "IntegerSubtractOrder",
+        "IntegerLessOrEqualTransitivity",
+        "IntegerStrictOrderTransitivity",
+        "IntegerOrderSubstitution",
+        "IntegerAffineBound",
+        "IntegerExactAddDefinitionBound",
+        "IntegerCastBound",
+        "IntegerCorrelatedForbiddenRoots"
+      ],
+      "unclassified_declared": []
+    },
+    "translation_lines": 0,
+    "certificate": "pending: no --native-sidecar supplied",
+    "pinned_cases": [
+      {
+        "subject": "add_comm",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_addition_commutativity/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 18.0,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_addition_commutativity/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/addition_commutativity_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 12.1,
+          "output": "error: machine `false_add_commutative` ensures contract proof fact `embed(a) + embed(b) == embed(b) + embed(a) + 1` is disproved by constant arithmetic",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved by constant arithmetic"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "bag_view",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_bag_view_reflexivity/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 13.8,
+          "output": "error: authored Call declaration selection occurrence 0 remained unresolved after successful checking (CheckedCall)",
+          "accepted": false
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/bag_view_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 11.7,
+          "output": "error: cannot prove ensures contract for exit from false_bag_distinct at statement 0: Bag(items) != Bag(before)",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract for exit from false_bag_distinct"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "congruence",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_congruence_add_constant/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 15.6,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_congruence_add_constant/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/congruence_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 10.6,
+          "output": "error: machine `false_add_congruence` ensures contract proof fact `embed(a) + 1 == embed(b) + 2` is disproved by constant arithmetic",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved by constant arithmetic"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "constant_equation",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_constant_arithmetic_identity/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 12.6,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_constant_arithmetic_identity/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/constant_equation_refuted/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 11.6,
+          "output": "error: cannot prove ensures contract for exit from false_constant_equation at statement 0: false",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract for exit from false_constant_equation at statement 0: false"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "climbing_sum_step",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 26.2,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/inductive_climbing_sum_step_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 12.7,
+          "output": "error: exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\nerror: exact arithmetic in machine `Main::climb` ensures contract may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).\nerror: machine `Main::climb` cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `index < limit == true`",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `index < limit == true`"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "climbing_sum_unbounded",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 26.4,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_inductive_climbing_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/inductive_climbing_sum_unbounded_accumulator/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 14.6,
+          "output": "error: exact arithmetic in machine `Main::climb` state `climb` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
+          "rejected": true,
+          "expected_fragments": [
+            "transition argument may overflow `u64`: the operands are not provably in range"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "gauss_sum",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 19.4,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/inductive_gauss_sum_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 12.6,
+          "output": "error: machine `Main::gauss_sum` ensures contract proof fact `result * 2 == acc * 2 + n * n + 1 + 1` is disproved on the transition arm guarded by `n > 0 == false`: the arm's facts entail its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved on the transition arm guarded by `n > 0 == false`: the arm's facts entail its negation"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "gauss_sum_step",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 20.0,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_inductive_gauss_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/inductive_gauss_sum_step_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 12.5,
+          "output": "error: machine `Main::gauss_sum` ensures contract proof fact `result * 2 == acc * 2 + n * n + 3` is disproved on the transition arm guarded by `n > 0 == true`: the arm's facts entail its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved on the transition arm guarded by `n > 0 == true`"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "kernel_theorem_equality",
+        "positive": {
+          "path": "tests/omega/pass/proofs/kernel_theorem_equality_certificates/main.omg",
+          "skipped": "heavy"
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/kernel_theorem_equality_false_twin/main.omg",
+          "skipped": "heavy"
+        }
+      },
+      {
+        "subject": "linear_range_sum",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_linear_range_sum/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 13.4,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_linear_range_sum/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/linear_range_sum_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 10.3,
+          "output": "error: machine `false_sum_of_bounded` cannot prove ensures contract proof fact `a + b >= 2 && a + b <= 19` from the requires contract",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract proof fact"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "nonlinear_square_range",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_nonlinear_square_range/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 12.8,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_nonlinear_square_range/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/nonlinear_square_range_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 9.9,
+          "output": "error: machine `false_square_bounded` cannot prove ensures contract proof fact `a * a >= 0 && a * a <= 99` from the requires contract",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract proof fact"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "order_antisymmetry",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_order_antisymmetry/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 13.0,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_order_antisymmetry/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/order_antisymmetry_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 12.0,
+          "output": "error: machine `false_antisymmetric_distinct` ensures contract proof fact `a != b` is disproved: the requires contract entails its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved: the requires contract entails its negation"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "order_asymmetry",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_order_transitivity/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 12.8,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_order_transitivity/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/order_asymmetry_refuted/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 11.8,
+          "output": "error: machine `false_order_asymmetry` ensures contract proof fact `j < i` is disproved: the requires contract entails its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved: the requires contract entails its negation"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "order_transitivity",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_order_transitivity/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 13.1,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_order_transitivity/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/order_transitivity_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 10.8,
+          "output": "error: machine `false_transitive_order` ensures contract proof fact `c < a` is disproved: the requires contract entails its negation",
+          "rejected": true,
+          "expected_fragments": [
+            "is disproved: the requires contract entails its negation"
+          ],
+          "fragment_observed": true
+        }
+      },
+      {
+        "subject": "ranked_accumulator",
+        "positive": {
+          "path": "tests/omega/pass/proofs/runtime_ranked_accumulator_guarantee_exit/main.omg",
+          "skipped": "heavy"
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/ranked_accumulator_guarantee_wrong_step_twin/main.omg",
+          "skipped": "heavy"
+        }
+      },
+      {
+        "subject": "remainder_range",
+        "positive": {
+          "path": "tests/omega/pass/proofs/proof_remainder_range/main.omg",
+          "exit_code": 0,
+          "elapsed_ms": 13.0,
+          "output": "compiled 1 source file(s) from /home/ubuntu/repos/Omega/.codex/worktrees/mlsc/tests/omega/pass/proofs/proof_remainder_range/main.omg; wrote_output=false",
+          "accepted": true
+        },
+        "negative": {
+          "path": "tests/omega/fail/proofs/remainder_range_false_twin/main.omg",
+          "exit_code": 1,
+          "elapsed_ms": 9.3,
+          "output": "error: machine `false_remainder_bounded` cannot prove ensures contract proof fact `a % 2 >= 0 && a % 2 <= 0` from the requires contract",
+          "rejected": true,
+          "expected_fragments": [
+            "cannot prove ensures contract proof fact"
+          ],
+          "fragment_observed": true
+        }
+      }
+    ]
+  },
+  "candidate": {
+    "status": "pending",
+    "blocked_on": [
+      "MATCHING-LOGIC-BOUNDED-SLICE (tools/matching-logic-slice)",
+      "MATCHING-LOGIC-COMPARISON-METRICS (tools/matching-logic-metrics)"
+    ],
+    "note": "columns mirror omega_route: checker/theory/translation sizes, rule and axiom admissions, certificate bytes, and the same pinned positive/negative case verdicts"
+  }
+}
