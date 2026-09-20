@@ -9905,7 +9905,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **STATEMENT-CALL-RECURSIVE-OVERLOAD** — mined candidate; verify scope then implement.
 - **STRUCTURAL-GENERIC-INFERENCE** — mined candidate; verify scope then implement.
 - **STRUCTURAL-PROOFS-CHECKED-CALL-SELECTION** — mined candidate; scope verified, resolved — mis-mined leg: `benchmarks.md` records that of the two depend-free proof subjects, "one fails earlier at checked-call selection" — that is `math_proofs` (undeclared `Bag(items)` calls in `bag_equality_carries`, occurrence 42). `structural_proofs` has no call-selection gap: `omega --check samples/cli/proofs/structural_proofs/main.omg` compiles 4 sources clean at `5b839c31ab` on linux x86-64. The remaining `Bag` repair lives under the math_proofs stubs (PROOF-SAMPLES-CHECKED-CALL-SELECTION family).
-- **STRUCTURAL-SUCCESSOR-DISCARD-ORDERING** — mined candidate; verify scope then implement.
+- **STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.** Mined candidate; scope verified
+  at 10d93dd448, resolved — this stub owns the lowered-psi cleanup-roster
+  emission leg (per OWNED-SUCCESSOR-DISCARD-ORDER's sibling note), which is
+  landed: `scalar_graph_lowering/structural_values.rs` emits the cleanup
+  `Jump`'s `trivial_affine_discards` in reverse destination/declaration
+  order, matching the verifier's `expected_trivial_affine_discards`
+  canonical sequence (operation results reverse producer order, then
+  trivial-affine locals reverse declaration order, then affine parameters
+  reverse parameter order) enforced by `apply_edge_trivial_affine_discards`
+  as an in-order subsequence. Witnessed this host at 10d93dd448:
+  `return_disposes_only_surviving_affine_parameters_in_reverse_declaration_order`
+  PASS; the discard battery legs pass (12/13 + 4/6 filtered runs) — the 3
+  failures are the known preexisting `Service<R>`-spelling fixture drift
+  (`bare boundary trait Console`) recorded under RC-REPOSITORY-CLOSURE, not
+  ordering defects. Sibling verifier-side rows (resolved): EDGE-CLEANUP-
+  ERROR-PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER, SUCCESSOR-DISCARD-ORDER,
+  VERIFIER-EDGE-CLEANUP-PHASE-ORDER.
 - **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
 - **SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
