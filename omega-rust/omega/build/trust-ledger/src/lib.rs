@@ -9,5 +9,7 @@
 //! lifecycle is in `admission_policy.rs`.
 
 mod admission_policy;
+#[cfg(test)]
+mod admission_policy_test_support;
 
 pub use admission_policy::{accept_trust_admissions, read_trust_admissions};

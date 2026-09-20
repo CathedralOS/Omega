@@ -19,3 +19,4 @@ typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-ch
 
 [dev-dependencies]
 arena = { path = "../../../psi/foundation/arena" }
+optimization-core = { path = "../../representations/optimization-core", features = ["test-support"] }

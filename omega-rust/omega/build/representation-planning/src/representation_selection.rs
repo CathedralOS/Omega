@@ -13,6 +13,8 @@ use typed_trees::TypedTrees;
 
 mod carrier_closure;
 #[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod tests;
 
 const SELECTION_MARKER: &str = "select_representation";
