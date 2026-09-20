@@ -31,6 +31,115 @@ fn runtime_receivers_and_open_generic_callees_are_not_pending_endpoints() {
 }
 
 #[test]
+fn pending_type_bound_keeps_even_an_unused_application_unreplaced() {
+    let mut program = typed(
+        "machine limit() -> u64 { 7 }
+         machine ignored<T>() -> u64 { 7 }
+         machine keep(value: u64[0..=ignored<u64[0..=limit()]>()]) {}",
+    );
+    let pending = pending_endpoints(&program).unwrap();
+    let outer = pending
+        .iter()
+        .find(|endpoint| endpoint.static_application)
+        .unwrap()
+        .expression;
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&program).unwrap();
+    assert!(
+        program.pending_const_range_endpoints.is_empty(),
+        "preparation stays private"
+    );
+    assert!(
+        prepared.typed().machine_specializations.is_empty(),
+        "pending types grant no instance"
+    );
+    let ExpressionNode::Call(call) = prepared.typed().expression_table.expression(outer) else {
+        panic!("the unresolved call must remain authored");
+    };
+    assert_eq!(call.machine_arguments.len(), 1);
+    evaluate_const_range_endpoints(&mut program, None).unwrap();
+    let ExpressionNode::Integer(value) = program.expression_table.expression(outer) else {
+        panic!("closed application must execute after its bound is evaluated");
+    };
+    assert_eq!(value.value_u64(), Some(7));
+    assert!(program.pending_const_range_endpoints.is_empty());
+}
+
+#[test]
+fn pending_type_bound_blocks_transitive_invocation_before_interpretation() {
+    let program = typed(
+        "machine limit() -> u64 { 7 }
+         machine ignored<T>() -> u64 { 7 }
+         machine wrapper() -> u64 { ignored<u64[0..=limit()]>() }
+         machine keep(value: u64[0..=wrapper()]) {}",
+    );
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&program).unwrap();
+    let execution = prepared.typed();
+    let wrapper = execution
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "wrapper")
+        .unwrap();
+    let admission = crate::BuildTimeAdmissionPlan::infer(execution, None);
+    admission
+        .require_common_floor(execution, wrapper)
+        .expect_err("a concrete wrapper cannot execute a still-open generic callee");
+    for mode in [
+        crate::BuildMachineExecutionMode::Pure,
+        crate::BuildMachineExecutionMode::Granted {
+            filesystem: crate::BuildMachineFilesystemAccess::Virtual,
+            filesystem_metadata_layout: Default::default(),
+        },
+    ] {
+        let error = crate::evaluate_build_machine_measured(
+            &prepared,
+            crate::BuildMachineInvocation {
+                machine: crate::PreparedBuildMachine::Name("wrapper"),
+                arguments: Vec::new(),
+                mode,
+                sponsor: None,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            error,
+            crate::BuildMachineEvaluationError::Entry(_)
+        ));
+        assert!(
+            error
+                .to_string()
+                .contains("unspecialized static application"),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn failed_type_bound_restores_folds_and_does_not_discharge_an_unused_argument() {
+    let mut program = typed(
+        "machine limit() -> u64 { 7 }
+         machine ignored<T>() -> u64 { 7 }
+         machine keep(first: u64[0..=limit()], second: u64[0..=ignored<u64[0..=limit() / 0]>()]) {}",
+    );
+    let authored = pending_endpoints(&program).unwrap();
+    let errors = evaluate_const_range_endpoints(&mut program, None).expect_err("zero divisor");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("range endpoint")),
+        "{errors:?}"
+    );
+    assert_eq!(pending_endpoints(&program).unwrap().len(), authored.len());
+    for endpoint in authored {
+        assert!(matches!(
+            program.expression_table.expression(endpoint.expression),
+            ExpressionNode::Call(_)
+        ));
+    }
+    assert!(program.pending_const_range_endpoints.is_empty());
+    assert!(program.machine_specializations.is_empty());
+}
+
+#[test]
 fn substituted_target_cannot_borrow_another_type_qualifier() {
     let mut program = typed(
         "data Limits {} data Other {}
@@ -982,6 +1091,44 @@ fn provider_boundary_endpoint_waits_for_selected_execution() {
     assert!(
         !super::pending_endpoint_calls_need_operator_selection(&independent, None).unwrap(),
         "an independent endpoint keeps its early route"
+    );
+}
+
+#[test]
+fn pending_type_bound_does_not_hide_the_callees_provider_dependency() {
+    let mut program = typed(
+        "data Math {}
+         boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+         data Provider {}
+         machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
+         machine count() -> u64 { 7 }
+         machine limit<T>() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
+         machine keep(value: u64[0..=limit<u64[0..=count()]>()]) {}",
+    );
+    let outer = pending_endpoints(&program)
+        .unwrap()
+        .into_iter()
+        .find(|endpoint| endpoint.static_application)
+        .unwrap()
+        .expression;
+    assert!(super::pending_endpoint_calls_need_operator_selection(&program, None).unwrap());
+    let rows = provider_rows(&program);
+    super::evaluate_selected_range_endpoints(
+        &mut program,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &rows,
+        },
+    )
+    .unwrap();
+    assert!(pending_endpoints(&program).unwrap().is_empty());
+    assert_eq!(
+        validation::closed_integer_range_bound(&program, outer)
+            .unwrap()
+            .to_string(),
+        "7",
+        "the selected provider computes 7, not builtin remainder 1"
     );
 }
 

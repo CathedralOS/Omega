@@ -50,13 +50,17 @@
 //!
 //! Evaluation runs in rounds. Each round prepares the execution program from
 //! the current working tree and folds every endpoint that closes; the driver
-//! publishes those folds and prepares again only when a static application
-//! failed while progress was made, because its instance's cloned signature
+//! publishes those folds and prepares again when an invocation
+//! failed while progress was made, because an instance's cloned signature
 //! bounds are read from the prepared tree and a template bound that folded
 //! this round (`bounded<const N>(value: u64[0..=limit()])`) is only visible
 //! there after re-preparation. A round with no progress reports its
 //! failures and every published fold is restored, so a rejected program
 //! keeps its authored calls.
+//! Type-argument bounds follow the same rounds: private preparation retains
+//! their pending marks, and specialization leaves the enclosing call untouched
+//! until those arguments validate. Even an unused binder cannot disappear
+//! before its bound is evaluated. No pending application is executable.
 //!
 //! Each complete endpoint runs through the shared closed scalar evaluator.
 //! Discovery collects roots independently of calls: removing a helper cannot
@@ -146,10 +150,12 @@ pub(crate) fn pending_endpoint_calls_need_operator_selection(
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(execution);
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority);
     Ok(pending.iter().any(|endpoint| {
-        // An unresolvable application reports at evaluation, not here.
-        resolve_endpoint_callee(execution, endpoint).is_ok_and(|callee| {
-            admission.closure_needs_operator_selection(execution, callee.instance, &facts)
-        })
+        // A type argument awaiting its own bound keeps this application
+        // unspecialized. Its original template can still demand a provider;
+        // this conservative deferral scan grants no invocation admission.
+        let machine = resolve_endpoint_callee(execution, endpoint)
+            .map_or(endpoint.machine, |callee| callee.instance);
+        admission.closure_needs_operator_selection(execution, machine, &facts)
     }))
 }
 
@@ -194,6 +200,12 @@ fn resolve_endpoint_callee(
         .find(|machine| machine.symbol == endpoint.machine)
         .ok_or("range endpoint lost its generic template")?;
     if !call.machine_arguments.is_empty() {
+        if call.machine_arguments.len() == template.type_parameters.len() {
+            return Err(format!(
+                "static application of `{}` awaits a complete validated specialization",
+                template.name,
+            ));
+        }
         return Err(format!(
             "static application of `{}` supplies {} of {} static arguments; supply every static argument explicitly",
             template.name,
@@ -318,12 +330,11 @@ pub(crate) fn evaluate_selected_range_endpoints(
         if round.diagnostics.is_empty() {
             break;
         }
-        // Another preparation can only change the outcome of a static
-        // application: its instance's cloned signature bounds are read from
-        // the prepared tree, which this round's folds have just changed. A
-        // plain callee reads the working tree directly, and a round without
-        // progress would only repeat the same failures.
-        if !(progress && round.failed_static_application) {
+        // A static tuple may belong to this endpoint or a transitive callee.
+        // Reprepare after a fold so either closure sees its newly closed types.
+        // Each progressing round permanently removes a nonliteral root; no
+        // progress means another round would repeat the same failures.
+        if !progress {
             restore(typed, published);
             return Err(round.diagnostics);
         }
@@ -340,9 +351,6 @@ struct Round {
     /// Successfully folded whole bounds, in dependency order.
     folds: Vec<(ExpressionHandle, ExpressionNode)>,
     diagnostics: Vec<Diagnostic>,
-    /// At least one failure was an explicit static application, whose
-    /// instance bounds only a later preparation can close.
-    failed_static_application: bool,
 }
 
 fn evaluate_round(
@@ -353,21 +361,24 @@ fn evaluate_round(
     provider_bodies: &[crate::SelectedBuildTimeProviderBody],
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Round, Vec<Diagnostic>> {
-    let prepared = crate::PreparedBuildMachineProgram::prepare(typed)?;
+    // Bind exact authored provider occurrences before cloning specializations.
+    // Rebinding only the template after preparation would leave its cloned
+    // body with an unselected operator. Both steps remain private, and the
+    // existing provider validator checks the original occurrence first.
     let selected_execution = if provider_bodies.is_empty() {
         None
     } else {
         Some(
             crate::machine_execution::selected_operators::apply_selected_provider_bodies(
-                prepared.typed(),
+                typed,
                 provider_bodies,
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?,
         )
     };
-    let execution = selected_execution
-        .as_ref()
-        .unwrap_or_else(|| prepared.typed());
+    let prepared =
+        crate::PreparedBuildMachineProgram::prepare(selected_execution.as_ref().unwrap_or(typed))?;
+    let execution = prepared.typed();
     let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority.clone())
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -375,7 +386,6 @@ fn evaluate_round(
     let mut round = Round {
         folds: Vec::new(),
         diagnostics: Vec::new(),
-        failed_static_application: false,
     };
     let mut originals = Vec::new();
     for endpoint in &plan.roots {
@@ -399,16 +409,13 @@ fn evaluate_round(
                 round.folds.push((endpoint.expression, folded));
             }
             Err(reason) => {
-                let mut required_calls = plan
+                let required = plan
                     .calls
                     .iter()
-                    .filter(|call| call.root == endpoint.expression)
-                    .peekable();
-                if required_calls.peek().is_none() {
+                    .any(|call| call.root == endpoint.expression);
+                if !required {
                     continue;
                 }
-                round.failed_static_application |=
-                    required_calls.any(|call| call.static_application);
                 round.diagnostics.push(Diagnostic::error(format!(
                     "range endpoint of `{}`: const evaluation failed: {reason}",
                     typed

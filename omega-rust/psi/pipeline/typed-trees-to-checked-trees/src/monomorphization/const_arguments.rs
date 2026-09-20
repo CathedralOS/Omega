@@ -433,6 +433,83 @@ pub(super) fn validate_bindings(
     Ok(())
 }
 
+// A range-bound call belongs to the declaration containing its type, not
+// to whichever machine happens to share its arena. Follow only that
+// caller's type roots; named data does not lend its separate binder scope.
+fn collect_type_expressions(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    visited: &mut Vec<TypeReferenceHandle>,
+    expressions: &mut Vec<ExpressionHandle>,
+) {
+    if !reference.is_valid() || visited.contains(&reference) {
+        return;
+    }
+    visited.push(reference);
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_type_expressions(program, *referee, visited, expressions);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            collect_type_expressions(program, *element_type, visited, expressions);
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                collect_type_expressions(program, *argument, visited, expressions);
+            }
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            collect_type_expressions(program, *base_type, visited, expressions);
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                match constraint {
+                    TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } => {
+                        super::selection::collect_expression_tree(program, *minimum, expressions);
+                        super::selection::collect_expression_tree(program, *maximum, expressions);
+                    }
+                    TypeConstraintNode::Domain(domain) => {
+                        for argument in &domain.arguments {
+                            collect_type_expressions(program, *argument, visited, expressions);
+                        }
+                    }
+                    TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                }
+            }
+        }
+        TypeReferenceNode::ConstExpression(expression) => {
+            super::selection::collect_expression_tree(program, *expression, expressions);
+        }
+        TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Unit => {}
+    }
+}
+
+pub(super) fn has_pending_type_arguments(
+    program: &TypedTrees,
+    arguments: &[Option<TypeReferenceHandle>],
+) -> bool {
+    if program.pending_const_range_endpoints.is_empty() {
+        return false;
+    }
+    let mut visited = Vec::new();
+    let mut expressions = Vec::new();
+    for argument in arguments.iter().flatten() {
+        collect_type_expressions(program, *argument, &mut visited, &mut expressions);
+    }
+    expressions
+        .iter()
+        .any(|expression| program.pending_const_range_endpoints.contains(expression))
+}
+
 /// A static type is checked under the source caller even when the callee never
 /// uses its type binder. Unowned arena expressions cannot borrow another scope.
 fn validate_structural_type_arguments(
@@ -440,73 +517,6 @@ fn validate_structural_type_arguments(
     callees: &[CalleeState],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // A range-bound call belongs to the declaration containing its type, not
-    // to whichever machine happens to share its arena. Follow only that
-    // caller's type roots; named data does not lend its separate binder scope.
-    fn collect_type_expressions(
-        program: &TypedTrees,
-        reference: TypeReferenceHandle,
-        visited: &mut Vec<TypeReferenceHandle>,
-        expressions: &mut Vec<ExpressionHandle>,
-    ) {
-        if !reference.is_valid() || visited.contains(&reference) {
-            return;
-        }
-        visited.push(reference);
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. } => {
-                collect_type_expressions(program, *referee, visited, expressions);
-            }
-            TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => {
-                collect_type_expressions(program, *element_type, visited, expressions);
-            }
-            TypeReferenceNode::Generic { arguments, .. } => {
-                for argument in program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                {
-                    collect_type_expressions(program, *argument, visited, expressions);
-                }
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                collect_type_expressions(program, *base_type, visited, expressions);
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    match constraint {
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            super::selection::collect_expression_tree(
-                                program,
-                                *minimum,
-                                expressions,
-                            );
-                            super::selection::collect_expression_tree(
-                                program,
-                                *maximum,
-                                expressions,
-                            );
-                        }
-                        TypeConstraintNode::Domain(domain) => {
-                            for argument in &domain.arguments {
-                                collect_type_expressions(program, *argument, visited, expressions);
-                            }
-                        }
-                        TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
-                    }
-                }
-            }
-            TypeReferenceNode::ConstExpression(expression) => {
-                super::selection::collect_expression_tree(program, *expression, expressions);
-            }
-            TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Unit => {}
-        }
-    }
     fn contains_type(arguments: &[StaticMachineArgument]) -> bool {
         arguments.iter().any(|argument| {
             argument.type_reference.is_valid()
