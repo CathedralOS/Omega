@@ -295,6 +295,12 @@ and the expectation now names it.)
   `carries_parameter_custody`) first: `Unsupported("direct Unit parameter plan
   has no exact typed machine")`. The expectation dates from 3fcf8240e3; the
   gate order moved in a 2026-09-15 lowering commit and was not bisected.
+  Ordering is now pinned:
+  `contracts_and_frontend_drop::source_statement_custody_gate_runs_after_the_parameter_custody_gate`
+  drops only `typed.statement_table`, leaving the parameter gate fully
+  resolved so per-machine lowering reports the statement-scoped custody gap
+  (`scalar source custody has no authored statement`) — parameter custody is
+  program-level and statement-free, source custody follows per machine.
 - `locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
   (1): `UnsupportedControlFlow(MachineId(1))` from
   `abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
