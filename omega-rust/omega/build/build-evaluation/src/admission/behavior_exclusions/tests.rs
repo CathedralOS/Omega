@@ -11,6 +11,7 @@ use effects::provider_plan::{
 use effects::{SelectedProviderPlanFacts, TerminalAuthorityClass};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ContractId, EdgeId, MachineId, OperationId, ServiceId,
+    StructuralTypeId, ValueId,
 };
 use symbols::SymbolHandle;
 use terminal_psi::{
@@ -1114,6 +1115,169 @@ fn canonical_machine_overload_sharing_a_service_name_counts_conservatively() {
         BehaviorExclusions::from_selections([BehaviorExclusion::Service(service_id(1))]);
     let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
     assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+}
+
+/// An entry whose `Return` edge commits `cleanup_actions`: the nominal
+/// invocations carry executable cleanup machines, while the claim-free
+/// discards carry no code and must not join the closure.
+fn cleanup_edge_entry(
+    raw: u64,
+    cleanups: Vec<terminal_psi::NominalAffineCleanup>,
+) -> TerminalMachine {
+    let cleanup_actions = cleanups
+        .into_iter()
+        .map(terminal_psi::TerminalAffineCleanupAction::InvokeNominal)
+        .chain([terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+            place_id(raw),
+        )])
+        .collect();
+    unit_machine(
+        raw,
+        vec![Block {
+            terminator: Terminator::Return {
+                edge: edge_id(raw),
+                value: ValueId::new(raw).expect("nonzero value identity"),
+                cleanup_actions,
+            },
+            ..return_unit_block(raw)
+        }],
+    )
+}
+
+fn nominal_cleanup(raw: u64, cleanup_machine: MachineId) -> terminal_psi::NominalAffineCleanup {
+    terminal_psi::NominalAffineCleanup {
+        place: place_id(raw),
+        structural_type: StructuralTypeId::new(raw).expect("nonzero structural type identity"),
+        cleanup_machine,
+        cleanup_receiver: None,
+        requirement_obligations: Vec::new(),
+    }
+}
+
+fn place_id(raw: u64) -> semantic_vocabulary::PlaceId {
+    semantic_vocabulary::PlaceId::new(raw).expect("nonzero place identity")
+}
+
+#[test]
+fn nominal_cleanup_edge_joins_the_cleanup_machine_to_the_closure() {
+    // A cleanup machine that can Trap is prohibited possible behavior:
+    // the Return edge's InvokeNominal action runs it even though no call
+    // operation names it.
+    let entry = cleanup_edge_entry(1, vec![nominal_cleanup(1, machine_id(2))]);
+    let module = terminal_module(vec![entry, trapping_machine(2)], Vec::new());
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+    assert_eq!(
+        report.prohibited,
+        vec![ProhibitedBehavior {
+            exclusion: BehaviorExclusion::CrashCause(CrashCause::Trap),
+            entry: machine_id(1),
+            machine: machine_id(2),
+            site: ProhibitedSite::CrashTerminator { block: block_id(2) },
+        }]
+    );
+    assert!(report.gaps.is_empty());
+}
+
+#[test]
+fn nominal_unit_cleanup_edge_joins_the_cleanup_machine_to_the_closure() {
+    // The nominal-affine ReturnUnit variant carries the same executable
+    // cleanup invocations directly, without the ordered action list.
+    let entry = unit_machine(
+        1,
+        vec![Block {
+            terminator: Terminator::ReturnUnitNominalAffine {
+                edge: edge_id(1),
+                cleanups: vec![nominal_cleanup(1, machine_id(2))],
+            },
+            ..return_unit_block(1)
+        }],
+    );
+    let module = terminal_module(vec![entry, trapping_machine(2)], Vec::new());
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+    assert_eq!(report.prohibited[0].machine, machine_id(2));
+}
+
+#[test]
+fn nominal_cleanup_reaching_an_excluded_service_is_prohibited() {
+    // The cleanup machine's own body is walked: a boundary call inside it
+    // invokes the service exactly as an ordinary call would.
+    let console = service_id(1);
+    let mut boundary = boundary_declaration(1);
+    boundary.fixed_service_reach = vec![console];
+    let cleanup_body = unit_machine(
+        2,
+        vec![Block {
+            operations: vec![unit_operation(
+                2,
+                OperationKind::BoundaryCall {
+                    boundary: boundary_id(1),
+                    arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+            )],
+            ..return_unit_block(2)
+        }],
+    );
+    let entry = cleanup_edge_entry(1, vec![nominal_cleanup(1, machine_id(2))]);
+    let module = terminal_module(vec![entry, cleanup_body], vec![boundary]);
+    let exclusions = BehaviorExclusions::from_selections([BehaviorExclusion::Service(console)]);
+    let report = establish_behavior_exclusions(&module, &entries(), &exclusions, &empty_plans());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Prohibited);
+    assert_eq!(
+        report.prohibited,
+        vec![ProhibitedBehavior {
+            exclusion: BehaviorExclusion::Service(console),
+            entry: machine_id(1),
+            machine: machine_id(2),
+            site: ProhibitedSite::BoundaryCall {
+                block: block_id(2),
+                operation: operation_id(2),
+                boundary: boundary_id(1),
+            },
+        }]
+    );
+}
+
+#[test]
+fn an_absent_cleanup_machine_is_an_evidence_gap_not_a_pass() {
+    // A cleanup edge whose selected machine is not retained cannot certify
+    // absence: the edge still commits a body the module does not show.
+    let entry = cleanup_edge_entry(1, vec![nominal_cleanup(1, machine_id(9))]);
+    let module = terminal_module(vec![entry], Vec::new());
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(
+        report.gaps,
+        vec![EvidenceGap {
+            entry: machine_id(1),
+            machine: machine_id(1),
+            block: Some(block_id(1)),
+            operation: None,
+            kind: EvidenceGapKind::UnknownCallee(machine_id(9)),
+        }]
+    );
+    assert_eq!(
+        report.verdict(),
+        BehaviorExclusionVerdict::InsufficientEvidence
+    );
+}
+
+#[test]
+fn inert_nominal_cleanup_satisfies_the_exclusion() {
+    // A verified-shape cleanup machine — a Unit body with no retained
+    // excluded behavior — joins the closure without changing the verdict.
+    let entry = cleanup_edge_entry(1, vec![nominal_cleanup(1, machine_id(2))]);
+    let cleanup_body = unit_machine(2, vec![return_unit_block(2)]);
+    let module = terminal_module(vec![entry, cleanup_body], Vec::new());
+    let report =
+        establish_behavior_exclusions(&module, &entries(), &trap_exclusions(), &empty_plans());
+    assert_eq!(report, BehaviorExclusionReport::default());
+    assert_eq!(report.verdict(), BehaviorExclusionVerdict::Satisfied);
 }
 
 fn physical_exclusions(classes: &[TerminalAuthorityClass]) -> BehaviorExclusions {

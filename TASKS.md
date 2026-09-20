@@ -634,11 +634,15 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   they execute against the live root Build authority exist. Remaining:
 
   - Complete absence evidence for the full admitted entry/call closure,
-    including callbacks, cleanup, generated entries, and all admitted dynamic
-    targets. Parameter dispatch still reports missing evidence; preserve that
-    rejection until its exact target set or conservative contract suffices.
-    Sound guard evidence may establish unreachable behavior, but optional
-    optimization and broad public ceilings are not absence proofs.
+    including generated entries and all admitted dynamic targets. Executable
+    nominal cleanup now joins the walk: `Return`/`ReturnUnitNominalAffine`
+    `cleanup_machine` edges are followed like static calls, an absent target
+    is an evidence gap, and callback thunk bodies verify at their own
+    production site. Parameter dispatch still reports missing evidence;
+    preserve that rejection until its exact target set or conservative
+    contract suffices. Sound guard evidence may establish unreachable
+    behavior, but optional optimization and broad public ceilings are not
+    absence proofs.
   - Close the assertion customer's ordinary Unit/native lowering gaps through
     CRASH-CONTRACT and the owning pipeline lanes. The native fixture currently
     expects `UnsupportedControlFlow`, not the retired

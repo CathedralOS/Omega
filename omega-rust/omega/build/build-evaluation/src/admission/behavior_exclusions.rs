@@ -458,7 +458,10 @@ pub fn establish_behavior_exclusions(
 /// [`establish_behavior_exclusions`] with the boundary-to-service ownership
 /// the join reconstructed: a boundary call then counts as an invocation of
 /// its owning service and that service's parents, beside the fixed reach
-/// the declaration spelled.
+/// the declaration spelled. Executable edge work joins the closure too:
+/// a nominal affine cleanup commits a selected machine's body on the edge,
+/// so the walk follows `cleanup_machine` targets like static calls and
+/// treats an absent one as an evidence gap rather than trusted inertness.
 pub fn establish_behavior_exclusions_with_owners(
     module: &TerminalModule,
     entries: &[MachineId],
@@ -759,6 +762,60 @@ fn inspect_machine<'module>(
                 site: ProhibitedSite::CrashTerminator { block: block.id },
             });
         }
+        // An executable nominal cleanup commits a selected machine's body
+        // when the edge commits; it is a call edge carried on the terminator
+        // rather than an operation, so its possible behavior joins the
+        // closure exactly like a static call. Claim-free discards carry no
+        // code and are not invocations.
+        for cleanup_machine in nominal_cleanup_machines(&block.terminator) {
+            match module
+                .machines
+                .iter()
+                .find(|target| target.id == cleanup_machine)
+            {
+                Some(target) => pending.push_back(target),
+                None => report.gaps.push(EvidenceGap {
+                    entry,
+                    machine: machine.id,
+                    block: Some(block.id),
+                    operation: None,
+                    kind: EvidenceGapKind::UnknownCallee(cleanup_machine),
+                }),
+            }
+        }
+    }
+}
+
+/// The executable cleanup-machine invocations one terminator commits. Only
+/// nominal affine cleanups carry a `cleanup_machine` — the exact selected
+/// cleanup body that runs for a whole affine structural parameter —
+/// reached through `Return`'s ordered cleanup actions and through the
+/// nominal-affine `ReturnUnit` variant's cleanup list. The walk must not
+/// rely on upstream shape validation having bounded those bodies: an
+/// independently replayed module needs no second checker to see that a
+/// cleanup edge runs code.
+fn nominal_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
+    let collect = |cleanups: &[terminal_psi::NominalAffineCleanup]| {
+        cleanups
+            .iter()
+            .map(|cleanup| cleanup.cleanup_machine)
+            .collect()
+    };
+    match terminator {
+        Terminator::Return {
+            cleanup_actions, ..
+        } => cleanup_actions
+            .iter()
+            .filter_map(|action| match action {
+                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    Some(cleanup.cleanup_machine)
+                }
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+                | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => None,
+            })
+            .collect(),
+        Terminator::ReturnUnitNominalAffine { cleanups, .. } => collect(cleanups),
+        _ => Vec::new(),
     }
 }
 
