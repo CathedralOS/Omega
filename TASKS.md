@@ -2168,14 +2168,20 @@ Owners include
   borrowed copies. A following callee seeing the staged write is not
   caller-visible writeback.
 
-  Consolidate duplicated static-path/access rules in `terminal-semantics`,
-  following the settled [loan table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access).
-  The rule is parent custody, requested access and an exact type-resolved
-  `Field`/`FixedIndex` path, not a roster selected by the callee's result kind.
-  Preserve material write-only path restrictions, separate byte-view
-  presentation authority, qualification/claim obligations and overlapping-loan
-  rejection. An owned inline byte field must not acquire a standalone type
-  identity or inherit the borrowed-parent view adapter.
+  The duplicated static-path rule is consolidated in
+  `terminal-semantics::static_path`, following the settled
+  [loan table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access):
+  `canonical_structural_path_tip` (declaration-local field ids, unique match)
+  and `runtime_structural_path_tip` (runtime field identities) now serve
+  `primitive_place`, `call_composition` and `fixed_byte_view`, which keep
+  their access, multiplicity, qualification and tip-shape obligations. The
+  rule is parent custody and an exact type-resolved `Field`/`FixedIndex`
+  path, not a roster selected by the callee's result kind.
+  `record_field_carrier` keeps its own walk because it emits each hop's
+  runtime identity rather than only the tip; overlapping-loan rejection,
+  material write-only path restrictions and the byte-view presentation
+  authority are preserved. An owned inline byte field must not acquire a
+  standalone type identity or inherit the borrowed-parent view adapter.
 
 - **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
   under the [loan contract](wiki/spec/terminal-psi/loans.md): relational
