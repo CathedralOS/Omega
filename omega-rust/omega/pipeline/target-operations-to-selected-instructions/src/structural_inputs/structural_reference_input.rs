@@ -750,8 +750,10 @@ fn scalar_field_geometry(
     None
 }
 
-/// Exact field-only carrier geometry. Callers independently reconstruct readable root
-/// custody and availability; this helper does not grant access to storage.
+/// Exact bounded carrier geometry: record fields, optionally followed by one
+/// literal fixed-array index — the same grammar the store projection shares.
+/// Callers independently reconstruct readable root custody and availability;
+/// this helper does not grant access to storage.
 pub(crate) fn field_read(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -760,9 +762,7 @@ pub(crate) fn field_read(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8)> {
     if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
-        || !path
-            .iter()
-            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
     {
         return None;
     }
