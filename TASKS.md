@@ -6055,7 +6055,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CONSTANT-LEAF-EXACT-CARRIER** — mined candidate; verify scope then implement.
 - **CONSTRUCTIVE-REAL-FOUNDATIONS** — mined candidate; verify scope then implement.
 - **COORDINATOR-OVEROWNERSHIP-AUDIT** — mined candidate; verify scope then implement.
-- **COORDINATOR-SCOPE-AUDIT** — mined candidate; verify scope then implement.
 - **CRATE-ROOT-RESPONSIBILITY-AUDIT** — mined candidate; verify scope then implement.
 - **CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
 - **CROSS-COMPILER-DIFFERENTIAL-LANE** — mined candidate; verify scope then implement.
