@@ -1,0 +1,1 @@
+a transition block must carry at least one arm
