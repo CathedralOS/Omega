@@ -9022,7 +9022,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   slice exists. Sibling stubs: RC-NATIVE-MATRIX, -CLOSURE,
   -HOST-EXECUTION, -HOST-LEGS, -HOST-RUNS, -HOSTS,
   -LINUX-ARM64, -MACOS-ARM64, -WINDOWS-X64.
-- **RC-NATIVE-MATRIX-HOST-EXECUTION** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-HOST-EXECUTION** — mined candidate; scope verified,
+  covered. Re-mines the [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
+  "matching host" execution requirement — each hosted target's products
+  executed and independently validated on its own host — which the
+  umbrella record `wiki/drafts/rc_native_matrix_hosts.md` (0977a4249e)
+  already enumerates as four required runner rows: linux_x86_64 red on a
+  full sweep (618 pass / 108 fail across 726 legs; `pipeline_ownership`
+  target unbuildable on that revision), linux_arm64 cross-emit only
+  (real execution needs a linux/arm64 host), macos_arm64 unrecorded
+  (no runner), windows_x86_64 procedure recorded but unexecuted. The
+  execution leg itself is partitioned per host and every row is separately
+  owned and live: RC-NATIVE-MATRIX-LINUX-X86-64, RC-NATIVE-MATRIX-LINUX-ARM64,
+  RC-NATIVE-MATRIX-MACOS-ARM64 (plus per-suite slice claims), and
+  RC-NATIVE-MATRIX-WINDOWS-X64; coordination siblings RC-NATIVE-MATRIX-HOSTS
+  (recorded), -HOST-RUNS and -HOST-LEGS (live claims) name the same
+  requirement. Re-run per row when the fixture-migration families and host
+  runners land; no independent slice exists under this name.
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOSTS** — recorded at
