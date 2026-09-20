@@ -6436,7 +6436,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **FRONTIER-EDGE-ERROR-ORDERING** — mined candidate; scope verified, resolved — named alias of the terminal-verifier cleanup-order row already repaired on `origin/main`: edge validation consumes owned successor sources before the residual and trivial discard rosters (`validation/frontier/block_parameters.rs` documents the order; `terminators.rs` runs it), and `d96a0fda39` repinned `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to expect `EdgeAffineDiscardsInvalid`. EDGE-CLEANUP-ERROR-PRECEDENCE's landed annotation already names `FRONTIER-EDGE-*` stubs among the row's aliases; VERIFIER-EDGE-CLEANUP-PHASE-ORDER carries the same landed resolution.
 - **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
 - **GAMMA-CERT-FULL-CHECK** — mined candidate; verify scope then implement.
-- **GAMMA-CERT-NATIVE-CONTAINERS** — mined candidate; verify scope then implement.
+- **GAMMA-CERT-NATIVE-CONTAINERS.** Resolved — the surface already landed in
+  `7a29238279` (`tests/gamma/seed-native-acceptance`): the gate binds the
+  canonical evaluator source/tape identities, stamps the shipped evaluator
+  tape into both audited Alpha seeds (host-selected through the real
+  materializer, non-host at its own recorded hole offset), and verifies the
+  native-container contract (`tests/alpha/container.py`: format structure,
+  executable entry, loader imports/signature, `[length][tape][zeros]` hole)
+  on every Python-3 host. Verified passing on linux x86-64 at `ffb0497618`
+  (`sh tests/gamma/seed-native-acceptance/run.sh` — identity + both stamped
+  containers accepted). Remaining is structurally host-gated, not a
+  Rust/shell leg: the native-execution leg (`ALPHA_SEED_EXECUTABLE=1`)
+  reports an explicit skip unless the host execs an audited seed — macOS
+  arm64 + Windows x64 seed-execution hosts (Windows tracked under
+  ALPHA-WINDOWS-CONFORMANCE-HOST). Sibling re-mines of this gate's surface:
+  GAMMA-CERTIFICATE-NATIVE-ACCEPTANCE, GAMMA-CONTAINER-NATIVE-ACCEPTANCE,
+  GAMMA-NATIVE-CONTAINER-ACCEPTANCE, GAMMA-PROVISION-NATIVE-ACCEPTANCE.
 - **GAMMA-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE** — mined candidate; verify scope then implement.
 - **GAMMA-CERTIFICATE-CHECKING** — mined candidate; verify scope then implement.
