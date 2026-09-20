@@ -4058,8 +4058,9 @@ Owners include
   shared-reference leaves through their slot stores including leaf reads
   spelled through an exclusive `&mut` carrier binding when every frontier
   names the leaf's writes exactly, leaf spellings demanded as call operands
-  through exclusive bindings replayed from the binding's own provenance,
-  helper-returned
+  through exclusive bindings replayed from the binding's own provenance, `&`
+  bindings declared from literal-indexed carrier leaves resolved through the
+  binding's own provenance replay, helper-returned
   reference leaves resolved through caller slot stores including callee-local
   binding transfers and nested helper calls, and nested call-result
   arguments; partition replay follows reference and generic-application leaves
@@ -4067,7 +4068,8 @@ Owners include
   Remaining work:
 
   - Complete owned value loads through references — additional
-    reference-boundary loads, and indexed or replaced carriers.
+    reference-boundary loads, and carriers demanded through index
+    projections directly rather than through a binding's provenance.
   - Mutable demanded paths, helper bodies that may write the demanded
     projection, write-tainted nested calls, generic or dispatched callees,
     ambiguous or dynamic projections, opaque or overlapping write frames,
