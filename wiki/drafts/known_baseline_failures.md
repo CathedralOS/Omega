@@ -324,6 +324,18 @@ Service<R> family). The current failure set attributes to six families:
   `cargo nextest run -p checked-trees-to-lowered-psi --test nominal_affine_source`
   to time it.
 
+Residual attribution at 9d07a59a48 (2026-09-20, Linux x86-64), same command:
+2146 run, 2088 passed, 58 failed (57 FAIL plus the same proof-search member,
+killed externally after >1440s — the same blowup, still unbisected). Every
+failure maps onto the six families above with identical diagnostics —
+33 bare `Service<R>` spellings, 16 missing transitive machine plans, 3
+site_guard crash-namespace rejections, 4 scalar-return custody cases, 1
+`established by` qualification, 1 blowup — so the residual tail is empty.
+The three added tests since d8d48fe4ff all pass. One boundary-timing note:
+`owned_match_nested_record_replays_every_selected_payload` passed at 336s
+(was not flagged slow in the d8d48fe4ff reading) — a near-threshold pass on
+this host, not a failure.
+
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
 macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the

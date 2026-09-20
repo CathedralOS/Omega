@@ -6004,7 +6004,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION** — mined candidate; verify scope then implement.
 - **C2L-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; verify scope then implement.
 - **C2L-FAILURE-TRIAGE** — mined candidate; verify scope then implement.
-- **C2L-RESIDUAL-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES** — mined candidate; verify scope then implement.
 - **C2L-UNATTRIBUTED-FAILURE-TAIL** — mined candidate; verify scope then implement.
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; verify scope then implement.
