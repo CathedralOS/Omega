@@ -5986,7 +5986,16 @@ Proof/evidence:
 
 - **PROOF-SEARCH-MEASUREMENT.** Resolved — `check_proof_plan` already tallied obligation mix, certificate-route verdicts, and kernel receipts but discarded them; it now also records emitted-certificate `ProofNode` counts (the draft's storage axis) and whole-run wall-clock microseconds, and `OMEGA_PROOF_MEASUREMENTS` prints one `key=value` line per run for any `omega --check` (e.g. cli_mvp: 772 obligations, 22 certified / 20 uncovered, 148 nodes, 156975 us). Remaining unmeasurable axis is invalidation — needs a store to invalidate — tracked under PROOF-DERIVATION-STORE-INDEX / DERIVATION-RECHECK-CACHE.
 - **PROOF-DERIVATION-STORE-INDEX.** Resolved — landed at `68ce33d9de`: `derivation_store.rs` in `psi/semantics/proof` is the lookup substrate `wiki/drafts/proof_search_cache.md` requires — a content arena of untrusted derivation payloads indexed by each obligation's canonical `ProofObligationKey` (BTreeMap, deterministic iteration), generational `DerivationId` handles that can never alias a recycled slot, explicit capacity refusal (`DerivationStoreFull`), and key-granularity `invalidate` since a dependency change changes the key. Lookups return *candidate* evidence the caller re-decides through the admission kernel — never a trusted verdict; consultation inside `check_proof_plan` stays with DERIVATION-RECHECK-CACHE. Verified: `cargo nextest run -p proof --lib` derivation_store suite 6/6 green on linux x86-64.
-- **PROOF-OBLIGATION-IDENTITY-KEY.** Semantic identity key for proof obligations.
+- **PROOF-OBLIGATION-IDENTITY-KEY.** Semantic identity key for proof
+  obligations — resolved, already landed at `cbe5022e80` ("psi: canonical
+  semantic identity for proof obligations"): `proof_obligation_key` in
+  `omega-rust/psi/semantics/proof/src/obligations/identity.rs` renders the
+  canonical key (`KEY_SCHEMA` versioned) the proof-search draft requires.
+  Green at `f1675418b1` per sibling row PROOF-OBLIGATION-SEMANTIC-KEY:
+  `cargo nextest run -p proof --lib -E 'test(~identity)|test(~key)'` —
+  11/11. Sibling stubs on the same surface:
+  PROOF-OBLIGATION-SEMANTIC-IDENTITY, PROOF-OBLIGATION-SEMANTIC-KEY
+  (resolved).
 - **PROOF-INTERCHANGE-IMPORT.** External proof interchange: sort encoding,
   induction certificate, arithmetic import (3 mined aliases merged).
   Scope verified at `e76d715c8e` — per-alias disposition:
