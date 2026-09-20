@@ -7645,7 +7645,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (22:33Z). Sibling re-mine names are listed on the
   WRAPPER-OBJECT-OWNERSHIP row.
 - **PORTABLE-PROCESS-EXIT-OBSERVATION** — mined candidate; verify scope then implement.
-- **PORTABLE-REVIEW-LOCK** — mined candidate; verify scope then implement.
+- **PORTABLE-REVIEW-LOCK.** Resolved — scope verified; the portable
+  review/acceptance lock contract is already landed end-to-end. The spec's
+  portability clauses
+  ([locks.md](wiki/spec/packages/locks.md)) — the lock carries no secrets,
+  machine-specific absolute grant paths, or temporary host capabilities;
+  logical resource names are reviewable data, not authority; loading
+  requires neither an old checkout nor a compiler invocation; bounded
+  deterministic diffable text with explicit schema versions — are
+  implemented by `manager/src/lock/` (version-3 line-oriented ASCII codec,
+  canonical target identities, source-qualified pins and complete readable
+  policy rows) and `lock/decisions/capture.rs` (historical decisions bound
+  to the exact source-closure fingerprint — no replay data enters the
+  retained state). Pending review state (`build/package-manager/`) is
+  deliberately project-local control state, not a portable artifact.
+  Witness on Linux x86-64 at `b28abc01fe`: `cargo nextest run -p
+  package-manager --lib -E 'test(~lock) or test(~review)'` — 82/86 PASS;
+  every lock suite green (`lock::acceptance`, `lock::occurrences`,
+  `accepted_lock` publication recovery, `prepare_project::tests::locked`
+  offline/recovery gates, `check_locked_sources`). The 4 failures are the
+  previously-attributed stale `Service<R>` fixture-spelling family in
+  `review::candidate::compilation::tests` (bare boundary trait / `in
+  Bound` spellings — owned by ENTRY-CONTENT-ROOTS, unchanged by this row).
+  No independent slice remains.
 - **PRIME-COUNTER-BENCHMARK-ROW** — mined candidate; verify scope then implement.
 - **PRIME-COUNTER-I32-REMAINDER.** Mined candidate — resolved: the name
   re-mines the `i32` remainder legalization gap recorded in
