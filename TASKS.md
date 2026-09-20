@@ -7704,7 +7704,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
   to expect `EdgeAffineDiscardsInvalid`. Re-verified green on linux
   x86-64 at this revision (`cargo nextest run -p terminal-verifier`).
-- **EFI-MATRIX-PROMOTION** — mined candidate; verify scope then implement.
+- **EFI-MATRIX-PROMOTION.** Mined candidate; scope verified, authorization
+  gate recorded — re-mines the hosted-matrix clause of
+  `wiki/drafts/rust_compiler_completion.md`: the required matrix is exactly
+  the four hosted rows (linux x86-64, linux aarch64, macOS aarch64, Windows
+  x86-64) and "freestanding EFI work remains a separately stated target
+  milestone until it is promoted into this hosted matrix." Promotion is a
+  deliberate matrix revision per the doc's own rule (a support-matrix
+  change must revise the finite matrix in the same change, and the hosted
+  gates already keep EFI out), and it additionally waits on the UEFI legs
+  this board owns separately (UEFI-PHYSICAL-SEMANTIC-ENTRY,
+  UEFI-OS-HANDOFF — the source-authored two-surface entry and the
+  handoff that make an EFI host row possible at all). No implementable
+  slice exists inside the current matrix fence; the promotion decision is
+  a milestone statement, not a lane task.
 - **ENCODER-CANDIDATE-CONTINUATION** — mined candidate; verify scope then implement.
 - **ENCODER-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
 - **ENTRY-MECHANICS-RUNTIME-CONSOLIDATION.** Mined candidate — resolved,
