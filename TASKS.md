@@ -8837,7 +8837,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   run -p package-manager --lib -E 'test(~lock) or test(~review)'` — 82/86
   PASS, identical to the PORTABLE-REVIEW-LOCK row's record at `b28abc01fe`;
   the same 4 failures are the attributed stale `Service<R>` fixture-spelling
-  family owned by ENTRY-CONTENT-ROOTS. No independent slice remains.
+  family owned by ENTRY-CONTENT-ROOTS. Re-verified at `9ff8673b31`: same
+  command, 82/86 — the four failures
+  (`discovery_proposes_the_root_console_{exit,output_and_input,filesystem_
+  cohort}_permission*` and
+  `review_publishes_the_named_component_description_for_an_independent_selection`
+  in `review/candidate/compilation/tests.rs`) each panic on the fixture's
+  "the core `Service` carrier is closed; it admits no authored
+  qualification" diagnostic — the same attributed family. No independent
+  slice remains.
 - **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-REVIEW-HOTSPOT-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PACKAGE-REVIEW-ROUTE-ATTRIBUTION.** Mined candidate; scope verified at
