@@ -767,13 +767,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   to a `BooleanConstant` carrying the proven verdict, with separate
   proposal, validation and application. The roster basis covers places no
   producer can fix (parameters, block parameters, results, and
-  non-`EstablishScalarCase` operation results). `lib.rs` exports it, but it
-  has no `PSI_PASS_CATALOG` entry, selection name, or caller outside its
-  tests. It declines memberships on places carrying neither proof —
-  multi-case rosters without an establishment — non-empty source paths, and
-  machines holding cyclic components. Field relevance on `EstablishRecord`
-  results still lacks operand-substitution machinery, and no
-  invariant-window operation reaches this stage yet.
+  non-`EstablishScalarCase` operation results), and a membership's non-empty
+  path folds when the position it resolves to — a `Record`/`Mixed` common
+  field, `FixedArray` element, or `Reference` referent — closes over exactly
+  one case. `lib.rs` exports it, but it has no `PSI_PASS_CATALOG` entry,
+  selection name, or caller outside its tests. It declines memberships whose
+  observed position carries no proof — unestablished multi-case roots and
+  paths ending on multi-case or non-structural positions — and machines
+  holding cyclic components. Field relevance on `EstablishRecord` results
+  still lacks operand-substitution machinery, and no invariant-window
+  operation reaches this stage yet.
   Acceptance: a source-produced machine selects the rule by exact name
   through `optimize_abstract_operations`, publishes, and replays
   independently, with forged or stale membership provenance behaving as
