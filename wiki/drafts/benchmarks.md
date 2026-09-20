@@ -109,6 +109,23 @@ legs (`tools/benchmark/records/`) and the uncovered host rows —
 still need their named runtime environment, and `macos_x86_64` stays
 structurally unavailable under MACOS-X64-HOST-PROFILE.
 
+Update (w9): the gate resolved at `f2f39039da` — `76dc49a99e`
+("distinguish selected comparison custody from builtin operations")
+counts selected integer occurrences against the artifact-bound checked
+scope, so ordinary builtin comparisons and generated guards no longer
+need provider rows. `wrapping_square_sum` (added `3dd805679c`, the
+dependency-free CLI subject) was witnessed compiling and publishing on
+`windows_x86_64`, `macos_arm64`, and `linux_arm64` (~24-28s each on a
+Linux x86-64 host; the subject does not reach the deep-pipeline stage
+where the rejection fired). No committed records exist for those legs
+yet — `measure --no-run` rows resume once `tools/benchmark` frees; the
+matrix block above is current against the committed record set.
+`macos_x86_64` and `uefi_x86_64` are not valid CLI-subject targets:
+both fail review settlement with "no bound required root slot
+`<target>::ProgramEntry`" (MACOS-X64-HOST-PROFILE owns the x86-64
+macOS host-profile gap) — record them as non-applicable, not failed
+compiles.
+
 ## Reading a row
 
 `key.selection.enabled`/`disabled` name the exact rules in effect, not
