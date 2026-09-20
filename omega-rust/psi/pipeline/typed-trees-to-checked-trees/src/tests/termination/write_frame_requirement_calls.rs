@@ -1,11 +1,19 @@
 use super::{Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve};
 use crate::lower_typed_trees;
+use typed_trees::TypedTrees;
+
+fn typed_boundary_source(source: &str) -> TypedTrees {
+    let syntax =
+        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    lower_symbol_resolved_trees(&resolved).expect("type")
+}
 
 fn generic_boundary_call_source(subject: &str) -> String {
     format!(
         "data Cell {{ value: u64; }}
          boundary trait Device<T> {{ machine consume(carrier: &mut T); }}
-         data Main {{ device: Device<Cell>; cell: Cell; untouched: u64; }}
+         data Main<'s> {{ device: &'s mut Device<Cell>; cell: Cell; untouched: u64; }}
          machine Main::inspect(&mut self)
          reaches Device
          requires {subject} == 7;
@@ -17,9 +25,7 @@ fn generic_boundary_call_source(subject: &str) -> String {
 #[test]
 fn generic_boundary_receiver_preserves_disjoint_caller_facts() {
     let source = generic_boundary_call_source("self.untouched");
-    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_boundary_source(&source);
     let checked = lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
         panic!("an instantiated boundary signature must preserve disjoint facts: {diagnostics:#?}")
     });
@@ -42,9 +48,7 @@ fn generic_boundary_receiver_preserves_disjoint_caller_facts() {
 #[test]
 fn generic_boundary_receiver_invalidates_written_caller_facts() {
     let source = generic_boundary_call_source("self.cell.value");
-    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_boundary_source(&source);
     let diagnostics = lower_typed_trees(typed)
         .expect_err("an exclusive boundary argument may overwrite the referenced field");
     assert!(
@@ -59,15 +63,13 @@ fn generic_boundary_receiver_invalidates_written_caller_facts() {
 fn generic_boundary_owner_and_method_arguments_preserve_disjoint_facts() {
     let source = "data Cell { value: u64; }
         boundary trait Device<T> { machine consume<U>(carrier: &mut T, other: &mut U); }
-        data Main { device: Device<Cell>; cell: Cell; audit: u64; untouched: u64; }
+        data Main<'s> { device: &'s mut Device<Cell>; cell: Cell; audit: u64; untouched: u64; }
         machine Main::inspect(&mut self)
         reaches Device
         requires self.untouched == 7;
         ensures self.untouched == 7;
         { self.device.consume(&mut self.cell, &mut self.audit); }";
-    let syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_boundary_source(source);
     lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
         panic!("owner and method type arguments must preserve disjoint facts: {diagnostics:#?}")
     });
@@ -81,9 +83,7 @@ fn generic_boundary_value_argument_does_not_invalidate_its_source() {
             "consume(&mut self.cell)",
             "consume(&mut self.cell, self.untouched)",
         );
-    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_boundary_source(&source);
     lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
         panic!(
             "copying a scalar argument does not authorize a write to its source: {diagnostics:#?}"
@@ -96,7 +96,7 @@ fn shadowed_boundary_call_source(subject: &str) -> String {
         "data Cell {{ value: u64; }}
          data Other {{ value: u64; }}
          boundary trait Device<T> {{ machine consume<T>(carrier: &mut T, metadata: u64); }}
-         data Main {{ device: Device<Cell>; other: Other; untouched: u64; }}
+         data Main<'s> {{ device: &'s mut Device<Cell>; other: Other; untouched: u64; }}
          machine Main::inspect(&mut self)
          reaches Device
          requires {subject} == 7;
@@ -108,9 +108,7 @@ fn shadowed_boundary_call_source(subject: &str) -> String {
 #[test]
 fn generic_boundary_shadowed_method_binder_preserves_disjoint_facts() {
     let source = shadowed_boundary_call_source("self.untouched");
-    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_boundary_source(&source);
     let checked = lower_typed_trees(typed).unwrap_or_else(|diagnostics| {
         panic!("a method binder must select Other independently of owner Cell: {diagnostics:#?}")
     });
@@ -132,9 +130,7 @@ fn generic_boundary_shadowed_method_binder_preserves_disjoint_facts() {
 #[test]
 fn generic_boundary_shadowed_method_binder_invalidates_written_facts() {
     let source = shadowed_boundary_call_source("self.other.value");
-    let syntax = parse_syntax_trees(&Lexer::new(&source).tokenize().unwrap()).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = typed_boundary_source(&source);
     let diagnostics = lower_typed_trees(typed)
         .expect_err("shadowing cannot hide the exclusive argument's writes");
     assert!(
