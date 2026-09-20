@@ -10931,7 +10931,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   re-mines the explicit-crash leg of the resolved
   STAGED-LOCAL-SEQUENCE-LOWERING row, identical to sibling verdict
   STAGED-LOCAL-CRASH-LOWERING-ATTRIBUTION (this section). Re-verified
-  at `9ff8673b310` (linux x86-64) and again at `d4dff2f9e9`: `cargo
+  at `9ff8673b310` (linux x86-64) and again at `7110606f46e`: `cargo
   nextest run -p omega-native-differential-test --test
   terminal_psi_source -E 'test(~staged_local)'` — 7/7 pass, including
   `checked_source_staged_local_sequences_before_an_explicit_crash`.
