@@ -12,7 +12,7 @@ use std::path::PathBuf;
 
 use build_evaluation::settle_checked_providers;
 use build_evaluation::target_machines::{
-    filter_target_machines, SelectedTargetMachineDeclarations,
+    SelectedTargetMachineDeclarations, filter_target_machines,
 };
 use effects::provider_plan::ProviderBinding;
 use package_compilation::{

@@ -13,14 +13,14 @@ pub use independent_components::verify_independent_component_descriptions;
 
 use crate::admission::target_machines::SelectedTargetMachineDeclarations;
 use diagnostics::Diagnostic;
-use effects::provider_plan::ProviderPlan;
 use effects::SelectedProviderPlanFacts;
+use effects::provider_plan::ProviderPlan;
 use package_compilation::PackageCompilationInputs;
+use provider_planning::ProviderSelection;
+use provider_planning::SelectedProviderReviewProvenance;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 use provider_planning::derive_satisfies_plans;
 use provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable;
-use provider_planning::ProviderSelection;
-use provider_planning::SelectedProviderReviewProvenance;
 use typed_trees::TypedTrees;
 
 /// Final typed provider choices and their evidence, retained for checking and

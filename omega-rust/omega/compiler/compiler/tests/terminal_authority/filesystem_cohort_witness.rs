@@ -13,8 +13,9 @@
 //! claim exactly.
 
 use compiler::{
-    compile, compile_to_checked, realize_retained_native_artifact, CheckedCompileRequest,
-    CompileOptions, CompileRequest, RequestedCompileProduct, RetainedNativeRealizationRequest,
+    CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
+    RetainedNativeRealizationRequest, compile, compile_to_checked,
+    realize_retained_native_artifact,
 };
 use diagnostics::Diagnostic;
 use native_realization as native;
