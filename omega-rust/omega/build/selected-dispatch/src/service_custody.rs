@@ -63,6 +63,22 @@ pub fn validate_fused_service_terminal_custody(
                     .map(|machine| machine.attached_data_symbol)
             })
             .collect::<Vec<_>>();
+        if owner_symbols.is_empty() {
+            // A record attached only to boundary-supply machines carries no
+            // unit plan, yet its machines still hold it by `&mut self`:
+            // provider nominals and leg records are owned exactly by their
+            // attached boundary leaves. The owner stays unique — the shape
+            // identity is the data definition's exact normalized identity.
+            owner_symbols = checked
+                .machines()
+                .iter()
+                .filter(|machine| {
+                    attached_data_shape_identity(checked, machine).as_deref()
+                        == Some(plan.identity.as_str())
+                })
+                .map(|machine| machine.attached_data_symbol)
+                .collect();
+        }
         owner_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
         owner_symbols.dedup();
         let owners = owner_symbols
@@ -278,6 +294,40 @@ fn data_field_identity(field: &DataField) -> String {
         .identity
         .map(|identity| format!("#{identity}"))
         .unwrap_or_else(|| field.name.as_str().to_owned())
+}
+
+/// The unit-plan attachment identity of a machine's declared owner, matching
+/// the shape collector's spelling: the exact applied reference when the
+/// machine carries one, else the non-generic data definition's own.
+fn attached_data_shape_identity(
+    checked: &CheckedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> Option<String> {
+    if machine.attached_data_application.is_valid() {
+        return Some(
+            checked
+                .normalized_type_identity(machine.attached_data_application)
+                .into_string(),
+        );
+    }
+    let data = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == machine.attached_data_symbol)?;
+    if let Some(application) = data.generic_instance {
+        return Some(checked.normalized_type_identity(application).into_string());
+    }
+    if !checked.data_type_parameters(data).is_empty() {
+        return None;
+    }
+    let mut escaped = String::new();
+    for character in checked.symbols.display_path(data.symbol, "::").chars() {
+        if matches!(character, '\\' | '(' | ')' | ',') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    Some(format!("named(name({escaped}))"))
 }
 
 fn structural_shape_contains_fused_service(shape: &CheckedUnitStructuralTypeShape) -> bool {

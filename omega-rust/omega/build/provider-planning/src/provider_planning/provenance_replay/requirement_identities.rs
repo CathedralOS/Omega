@@ -264,6 +264,99 @@ pub(crate) fn inferred_hosted_console_compiler_intrinsic(
     ))
 }
 
+/// Payload-free selected-target compiler leaf: a bodyless `boundary machine`
+/// satisfying a boundary-trait requirement, claimed by exactly one selected
+/// target-machine origin. Hosted targets admit only the catalog above —
+/// their realization machinery is name-keyed and every listed leaf is gated
+/// per target. Every other target package owns its compiler leaves outright:
+/// a `boundary machine` satisfies on the selected non-hosted target binds by
+/// its exact normalized realization identity. Candidate derivation only:
+/// realization authority is re-derived downstream from that same identity
+/// and custody.
+pub(crate) fn inferred_selected_target_compiler_leaf(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    conformance: &typed_trees::machine::TraitConformance,
+    selected_target: Option<&str>,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
+) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
+    let hosted = selected_target
+        .is_none_or(|target| matches!(target, "linux_x86_64" | "linux_arm64" | "macos_arm64"));
+    if hosted
+        || inferred_hosted_catalog_leaf(machine.name.as_str()).is_some()
+        || machine.supply_mode != language_semantics::MachineSupplyMode::Boundary
+        || machine.body_is_present
+        || machine.attached_data.is_none()
+        || !machine.lifetime_parameters.is_empty()
+        || !typed.machine_type_parameters(machine).is_empty()
+        || conformance.external_binding.is_some()
+        || conformance.via_expression.is_valid()
+        || conformance.external_binding_source_span.is_some()
+    {
+        return None;
+    }
+    let origins = target_machine_origins
+        .iter()
+        .filter(|origin| {
+            origin.machine == machine.symbol && selected_target == Some(origin.target.as_str())
+        })
+        .collect::<Vec<_>>();
+    let [origin] = origins.as_slice() else {
+        return None;
+    };
+    let typed_trees::machine::SatisfiedDeclaration::Trait {
+        definition,
+        requirement,
+    } = typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance)?
+    else {
+        return None;
+    };
+    if !definition.is_boundary
+        || definition.symbol != conformance.symbol
+        || requirement.symbol != conformance.requirement_symbol
+    {
+        return None;
+    }
+    let [_entry] = typed.machine_states(machine) else {
+        return None;
+    };
+    let machine = typed
+        .normalized_machine_overload_identity(machine)?
+        .identity();
+    (!machine.is_empty()).then_some((
+        ProviderBinding::CompilerIntrinsic { machine },
+        (*origin).clone(),
+    ))
+}
+
+/// Source-inferred compiler-leaf authority: the hosted catalog's stricter
+/// admission first, then any other target-owned boundary leaf the selected
+/// target-machine origins claim.
+pub(crate) fn inferred_compiler_leaf_binding(
+    typed: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    conformance: &typed_trees::machine::TraitConformance,
+    selected_target: Option<&str>,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
+) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
+    inferred_hosted_console_compiler_intrinsic(
+        typed,
+        machine,
+        conformance,
+        selected_target,
+        target_machine_origins,
+    )
+    .or_else(|| {
+        inferred_selected_target_compiler_leaf(
+            typed,
+            machine,
+            conformance,
+            selected_target,
+            target_machine_origins,
+        )
+    })
+}
+
 fn exact_catalog_i32_to_unit_signature(
     typed: &TypedTrees,
     parameters: &[typed_trees::signature::StateParameter],

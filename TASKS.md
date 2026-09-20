@@ -1038,10 +1038,21 @@ Owners include
   exhaustion answer; `UefiOsHandoffTermination` keeps entry/stack transfer and
   firmware return compiler-owned. `build/uefi_os_handoff_invocation` binds
   `Loader::run` and checks end-to-end
-  (`checked_uefi_os_handoff_invocation_retains_edge_binding`). First refusing
-  emission stage: attached-Unit closure — the legs' bodied boundary machines
-  carry no boundary plan for a unit caller, and scalar-returning boundary calls
-  (`BoundaryScalarCall`) have no state-graph custody admission
+  (`checked_uefi_os_handoff_invocation_retains_edge_binding`). Two refusing
+  stages are routed: provider derivation now admits a non-hosted target
+  package's bodyless `boundary machine` satisfies leaf as a `CompilerIntrinsic`
+  row on exact selected target-machine origin custody (hosted targets keep the
+  name-keyed catalog gate;
+  `selected_target_compiler_leaf_requires_nonhosted_origin_custody` pins it), so
+  both `UefiOsHandoffTermination` leaves derive plans and the provider record's
+  fused `Service` fields erase; and fused-Service custody rejoin now resolves
+  owners through every checked machine's attachment identity, covering records
+  attached only to boundary-supply machines which never produce unit plans
+  (`attached_data_shape_identity` in `selected-dispatch::service_custody`). First
+  refusing emission stage remains attached-Unit closure — the legs' bodied
+  boundary machines carry no boundary plan for a unit caller, and
+  scalar-returning boundary calls (`BoundaryScalarCall`) have no state-graph
+  custody admission
   (`native_uefi_os_handoff_invocation_reports_missing_boundary_plan` pins the
   diagnostic). Next acceptance: lower bodied boundary machines as callees (or
   admit boundary scalar results to unit edges), then emit the cycle and run the
