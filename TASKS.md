@@ -6238,7 +6238,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BENCHMARK-WINDOWS-PEAK-MEMORY** — mined candidate; verify scope then implement.
 - **BENCHMARK-WINDOWS-PEAK-RSS** — mined candidate; verify scope then implement.
 - **BETA-COMPILER-SEED-REFUSAL** — mined candidate; verify scope then implement.
-- **BETA-ENCODING-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
+- **BETA-ENCODING-CERTIFICATE-CHECK** — verified 7ec604d7ef: re-mines the
+  certificate surface the sibling annotation on
+  BETA-ENCODING-SELECTED-CHAIN-PRODUCTION already resolved — the selected
+  checker cannot admit the request, so there is nothing to check.
+  `bootstrap/proofs/beta_encoding/PROFILE.md:173-183` records admission
+  settled by owner decision `beta-encoding-certificate-admission` and the
+  coupled provisions (136,314,880-byte request extent, 137,363,456-byte
+  evaluator frame, 67,108,864-unit work counter, 3,387,293,850-pair arena)
+  "pending the Alpha extent-supply leg that realizes them". The checker's
+  rejection controls already landed under BETA-ENCODING-MUTATION-REJECTION
+  (`tests/gamma/beta-encoding-theory/mutations.py`, 18 mutated requests,
+  `--mutations-self-test` green on linux x86-64). Row consumed — residual
+  is the upstream extent-supply leg plus the host-gated `--mutations`
+  verdict run (macOS arm64 / Windows x64 seed hosts).
 - **BETA-ENCODING-CERTIFICATE-PRODUCTION** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
