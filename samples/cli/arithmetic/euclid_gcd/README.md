@@ -37,8 +37,12 @@ in a different checkout rather than copying its lock.
 
 The ordinary CLI route is verified on macOS ARM64: package update, explicit
 review decisions, resume, native compilation, and execution produce the exact
-stdout above, empty stderr, and exit 12 with both EOF and Enter. Windows x86-64
-and both Linux hosts remain open in [SAMPLE-CORPUS](../../../../TASKS.md).
+stdout above, empty stderr, and exit 12 with both EOF and Enter. On Linux
+x86-64 the compiler-library regression below (filtered to this sample)
+compiles, publishes, and runs natively to exit 12 with the documented stdout
+under EOF input; its test-owned acceptance does not cover the ordinary CLI
+review route. Windows x86-64
+and the ordinary Linux CLI route remain open in [SAMPLE-CORPUS](../../../../TASKS.md).
 
 Run the native sample regression from the repository root:
 
