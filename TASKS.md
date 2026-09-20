@@ -5145,13 +5145,19 @@ Owners include
   to `DynamicParameter{Scalar,Unit}Call` with two pointer
   words per descriptor, and independently replays roster binding, requirement
   slot, dispatch plan, table offset, obligations and result home
-  (`lowering/unit/parameter_dynamic.rs`, `tests/dynamic_parameters.rs`). No
-  later stage names those operations.
+  (`lowering/unit/parameter_dynamic.rs`, `tests/dynamic_parameters.rs`). The
+  next stage names them and stops at instruction selection.
 
   Remaining work, by owner:
 
-  - `target-operations-to-selected-instructions`: legalized/selected call
-    representations and target-to-selected replay for the indirect call.
+  - `target-operations-to-selected-instructions`: the legalized
+    `DynamicParameterCall` representation, legalization admission, and
+    target-side plus legalized replay custody are restored for
+    `DynamicParameter{Scalar,Unit}Call` — the descriptor ABI row, requirement
+    slot, erased dispatch plan, table offset, and result home recompute from
+    the roster and target ABI. Selection still names no
+    `SelectedInstructionKind` for it: remaining work is the selected call
+    representation and its construction/validation replay.
   - ISA crates: selected encoding/decoding and post-allocation emission.
   - `native-artifact` and image crates: table and relocation custody.
   - Delete the superseded Unit/scalar parameter recognizers with that closure.

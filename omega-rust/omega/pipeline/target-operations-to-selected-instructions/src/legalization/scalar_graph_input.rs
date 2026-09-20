@@ -80,6 +80,7 @@ pub(super) fn structural_contract(
     }
     None
 }
+pub(in crate::legalization) mod indirect_calls;
 mod nodes;
 mod target;
 use header::function_abi;
