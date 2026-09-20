@@ -1,0 +1,64 @@
+// `Resident<P, T>` is a bodyless, route-free family declared on the linear
+// `Extent` carrier: `placed_access.md` fixes its introduction route set —
+// initialization from `Vacant` and an owned `T`, a `ResidentContentTransfer`
+// issuance occurrence, or forwarded custody — and none of those ran here.
+// Restating a call's result as `Resident` asks the declared type to seed
+// custody the callee never established: `hand_back` returns `Granted &
+// Vacant` and names no `Resident` instance in either its return type or its
+// `ensures`, so the restatement has no establishment to consume. The
+// pass-side sibling (`tests/omega/pass/memory/bump_allocator_canary`,
+// `exercise_resident_restated`) carries the same instance through the real
+// `ResidentStorage::place` route instead.
+use omega::language::core::extent;
+use omega::language::core::content;
+
+data Split {
+    taken: Extent in Granted & Vacant;
+    rest: Extent in Granted & Vacant;
+}
+
+boundary trait ExtentPartition {
+    machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
+    ensures
+        result.taken.length == length,
+        embed(result.taken.length) + embed(result.rest.length) == embed(whole.length),
+        Granted::content(old(&whole))
+        == separate(
+            Granted::content(&result.taken),
+            Granted::content(&result.rest),
+        );
+}
+
+data Slot [copy] {
+    value: u32;
+}
+
+data SlotPlacement {}
+
+boundary trait ResidentStorage {
+    // A custody-consuming view over exactly the indexed `Resident`
+    // application: legitimate callers obtain it from `place` issuance.
+    machine inspect(storage: &Extent in Resident<SlotPlacement, Slot>) -> Slot;
+}
+
+machine hand_back(given: Extent in Granted & Vacant) -> Extent in Granted & Vacant {
+    given
+}
+
+machine exercise(
+    partition: &ExtentPartition,
+    storage: &ResidentStorage,
+    whole: Extent in Granted & Vacant
+) -> Slot
+requires whole.length >= 16
+reaches ExtentPartition, ResidentStorage
+{
+    let parts: Split = partition.split(whole, 16);
+    let allocation: Extent in Granted & Vacant = parts.taken;
+    let forged: Extent in Resident<SlotPlacement, Slot> = hand_back(allocation);
+    storage.inspect(&forged)
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}
