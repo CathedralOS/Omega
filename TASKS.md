@@ -6275,7 +6275,21 @@ Platform/cross-host (structurally gated — document host limits):
   FAULT-INJECTED-TARGET-READER — x86_64 Mach-O images with thunk regions
   fail-closed there until it lands), and a real x86_64-apple-darwin host run
   (requires the Intel host; this session ran on linux x86-64).
-- **WINDOWS-SET-FILE-TIME-RESPELL.** Windows SetFileTime respell incl. unsigned carrier (merges FILESYSTEM-WINDOWS-FILETIME-RESPELL).
+- **WINDOWS-SET-FILE-TIME-RESPELL.** Resolved — the respell landed at
+  `ff782bdf21`: `tests/omega/pass/filesystem/windows_set_file_time_exit`
+  now assembles the `st_mtime` nanos-through-100ns conversion through the
+  u64 carrier (`widen_u8_to_u64`/`narrow_u64_to_i64_wrapping`, `| … << 40`
+  chain) instead of the overflowing `widen_u8_to_i64(byte) << 56` idiom
+  (~1.84e19 vs the i64 ceiling). Re-verified present at `59610bf8097e`.
+  The fixture is Windows-gated, so the repaired failure cannot be measured
+  on a Linux host — the residual acceptance is a Windows x64 run of the
+  canary, and the bookkeeping residual is the
+  `wiki/drafts/known_baseline_failures.md` row update (file fenced at
+  resolution time to LOWERED-UNIT-FAILURE-ATTRIBUTION, exp 01:17Z+1d,
+  BASELINE-PACKAGE-COMPILATION-INPUTS, and CHECKED-TO-LOWERED-BASELINE-
+  ATTRIBUTION). Merged aliases resolved on this clause:
+  FILESYSTEM-WINDOWS-FILETIME-RESPELL, WINDOWS-FILE-TIME-CARRIER-RESPELL,
+  WINDOWS-SET-FILE-TIME-CARRIER, WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
 - **ALPHA-SEED-CONTAINER-NATIVE-VALIDATION.** Alpha seed container native
   validation. Landed: `tests/alpha/container.sh` (+ `container.py`), wired as a
   host-free `alpha-beta-edge.sh` leg, validates both committed containers as
