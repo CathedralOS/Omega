@@ -7487,7 +7487,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is fenced to that doc's live claims (LOWERED-UNIT-FAILURE-ATTRIBUTION,
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
-- **CLI-COMMANDS** — mined candidate; verify scope then implement.
+- **CLI-COMMANDS.** Mined candidate — scope verified, adjudicated
+  dependency-blocked; same verdict as the already-resolved sibling
+  row SQUALR-CLI-COMMANDS, which this stub re-mines: the submodule
+  row (`samples/apps/squalr/TASKS.md` `CLI-COMMANDS`) ports the
+  request/response model through squalr-engine-session,
+  squalr-engine and squalr-cli with acceptance "native command
+  sequence creates a scan, filters it again and pages exact results
+  through the production engine" — and sits after SUPPLIED-BYTES-
+  SCAN in the submodule's ordered list. Verified on the recorded
+  pin `251699c4669d`: the engine-scanning/api legs that
+  SUPPLIED-BYTES-SCAN named are present (element_scan_dispatcher,
+  scanner_scalar_iterative, scanner_scalar_single_element,
+  snapshot_region_filter_run_length_encoder + api structures), but
+  squalr-engine and squalr-cli are still `build.omg`-only and
+  squalr-engine-session carries only `engine_os_provider.omg` —
+  no command/session surface exists to route through, and the
+  submodule's AGENTS.md forbids success stubs. Execution belongs
+  to the submodule's own lane under its pin (submodule path
+  live-fenced by GEOMETRY-ALIGNMENT-REGIONS 01:18Z and
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION 05:49Z; the ordering
+  prerequisite has a live sibling claim SQUALR-SUPPLIED-BYTES-SCAN
+  05:50Z). No parent-repo slice exists under this name.
 - **COMMON-ROUTE-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
   Verified scope: re-mines NORMALIZED-ABI-LOWERING's callback-transport
   bullet (TASKS.md:2273) — "the common route rejects every request carrying
