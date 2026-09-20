@@ -194,10 +194,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         },
     },
     RewriteModuleRow {
-        module: "literal_minuend",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
         module: "load_forwarding",
         route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
     },
