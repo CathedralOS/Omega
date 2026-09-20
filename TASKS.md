@@ -6578,7 +6578,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **EXECUTABLE-PUBLICATION-STEP** — mined candidate; verify scope then implement.
 - **FAULT-INJECTED-TARGET-READER** — mined candidate; verify scope then implement.
 - **FILESYSTEM-SNAPSHOT-ISOLATION** — mined candidate; verify scope then implement.
-- **FINITE-GENERIC-METHOD-FAMILIES** — mined candidate; verify scope then implement.
+- **FINITE-GENERIC-METHOD-FAMILIES.** Mined candidate — alias for the
+  [finite generic method families](wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
+  section, the exact spec surface owned by FINITE-GENERIC-DISPATCH (the
+  roster authority `finite_signature_family`, `dynamic_families.rs`
+  tuple-specialization generation, boundary settle coverage, and
+  `family_tuple` join coordinates are landed; remaining work is
+  runtime-capable family calls gated on RUNTIME-VALUE-GENERICS and one
+  native family customer gated on
+  RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY). No independent slice
+  exists: every implementation path is inside FINITE-GENERIC-DISPATCH's
+  own live claim. Sibling stubs on the same surface:
+  GENERIC-DYNAMIC-FAMILY-DISPATCH, GENERIC-VIRTUAL-DISPATCH,
+  GENERIC-VIRTUAL-CALLS (resolved as the same leg).
 - **FIXED-ARRAY-ZERO-EXTENT-FENCE** — mined candidate; verify scope then implement.
 - **FLOATING-MATCH-SUBJECTS.** Resolved — the mined row re-covered a stale
   limitation note, not missing work. Floating Match subjects are implemented
