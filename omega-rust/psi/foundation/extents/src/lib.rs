@@ -50,7 +50,9 @@ pub use loans::{ExtentLoan, LoanPolarity};
 pub use mapping::{
     BorrowedMappingError, MapActivationError, MappedExtent, MappedRangeReceiptContext,
     MappingGrant, MappingGrantId, MappingId, MappingReceiptContext, MappingSourceMode,
-    OwnedMappingError, PendingMap, PendingUnmap, TranslationActivationFactId,
+    OwnedMappingError, PeerWriteRevocationError, PeerWriteRevocationFactId,
+    PeerWriteRevocationObligations, PeerWriteRevocationReceipt, PeerWriteRevocationStartError,
+    PendingMap, PendingPeerWriteRevocation, PendingUnmap, TranslationActivationFactId,
     TranslationActivationReceipt, TranslationCompletionFactId, TranslationInstallObligations,
     TranslationReleaseObligations, TranslationReleaseReceipt, UnmapCompletionError,
     UnmappedExtents, map_borrowed, map_owned,
