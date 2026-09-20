@@ -21,8 +21,9 @@ esac
 GROUND_TMP=$(mktemp -d)
 trap 'rm -rf -- "$GROUND_TMP"' EXIT HUP INT TERM
 # The bound member closure is checked against its audited record; the gate's
-# own diagnostic prefix entry packs on top of those bound members.
+# bound diagnostic prefix entry packs on top of those bound members.
 require_derivation_checker_identity
+require_derivation_ground_entry_identity
 python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$GROUND_TMP/diagnostic.gamma" --prefix "$GATE_DIR/main.gamma"

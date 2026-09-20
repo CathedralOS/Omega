@@ -52,8 +52,9 @@ on top of the bound member bytes, each recorded in its gate's README.
 `tools/bootstrap/proofs/sources_env.sh` binds the
 `implementation.gamma.sources` and `theory.gamma.sources` manifests and their
 repacked member closures against `bootstrap/proofs/checker/README.md` and
-`bootstrap/proofs/beta_encoding/README.md`; test gates still supply their own
-diagnostic prefix entries on top of the bound member bytes.
+`bootstrap/proofs/beta_encoding/README.md`, plus the derivation gates'
+diagnostic prefix entries packed on top of the bound member bytes, each
+recorded in its gate's README.
 
 `check-chain-hygiene.sh` is the single repository-topology gate. It positively
 enumerates the implemented compiler source/tape identities, inventories every
