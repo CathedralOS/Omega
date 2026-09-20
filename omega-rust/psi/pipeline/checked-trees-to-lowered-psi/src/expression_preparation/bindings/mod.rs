@@ -607,7 +607,8 @@ impl ScalarBindings {
                 self.boolean(left)?;
                 self.boolean(right)?;
             }
-            CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            CheckedBooleanExpression::IntegerComparison { left, right, .. }
+            | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
                 self.scalar(left)?;
                 self.scalar(right)?;
             }

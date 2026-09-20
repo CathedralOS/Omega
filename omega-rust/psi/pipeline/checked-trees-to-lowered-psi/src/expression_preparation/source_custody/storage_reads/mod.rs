@@ -1003,7 +1003,8 @@ fn collect_boolean_storage_reads(
                 path.pop();
             }
         }
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             for (position, operand) in [(0, left), (1, right)] {
                 path.push(position);
                 collect_scalar_storage_reads(operand, namespace, path, reads, needs_value_replay);

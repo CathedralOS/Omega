@@ -17,7 +17,8 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
             validate(left)?;
             validate(right)
         }
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar(left)?;
             scalar(right)
         }

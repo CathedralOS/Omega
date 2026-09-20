@@ -436,7 +436,8 @@ fn boolean_evidence_is_crash_lane_lowerable(
 ) -> bool {
     use checked_trees::CheckedBooleanExpression;
     match expression {
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar_evidence_is_crash_lane_lowerable(left)
                 && scalar_evidence_is_crash_lane_lowerable(right)
         }
@@ -616,6 +617,17 @@ pub(crate) fn substitute_checked_boolean_expression(
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
             CheckedBooleanExpression::IntegerComparison {
+                kind: *kind,
+                left: Box::new(substitute_checked_scalar_expression(
+                    left, arguments, fields,
+                )?),
+                right: Box::new(substitute_checked_scalar_expression(
+                    right, arguments, fields,
+                )?),
+            }
+        }
+        CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
+            CheckedBooleanExpression::ScalarIeeeFloatComparison {
                 kind: *kind,
                 left: Box::new(substitute_checked_scalar_expression(
                     left, arguments, fields,

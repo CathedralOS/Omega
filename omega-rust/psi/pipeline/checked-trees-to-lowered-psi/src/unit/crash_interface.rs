@@ -124,7 +124,8 @@ fn contract_scoped(expression: &CheckedBooleanExpression) -> bool {
         | CheckedBooleanExpression::Or { left, right } => {
             contract_scoped(left) && contract_scoped(right)
         }
-        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
             contract_scoped_scalar(left) && contract_scoped_scalar(right)
         }
     }

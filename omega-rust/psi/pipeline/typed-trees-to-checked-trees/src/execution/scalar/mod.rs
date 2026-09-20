@@ -1134,7 +1134,8 @@ fn boolean_expression_reads_position(
             boolean_expression_reads_position(left, position)
                 || boolean_expression_reads_position(right, position)
         }
-        Boolean::IntegerComparison { left, right, .. } => {
+        Boolean::IntegerComparison { left, right, .. }
+        | Boolean::ScalarIeeeFloatComparison { left, right, .. } => {
             scalar_expression_reads_position(left, position)
                 || scalar_expression_reads_position(right, position)
         }

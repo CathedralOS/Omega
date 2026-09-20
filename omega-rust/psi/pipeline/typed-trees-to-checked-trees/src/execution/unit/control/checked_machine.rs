@@ -1716,7 +1716,10 @@ fn boolean_expression_reads_carrier(
             boolean_expression_reads_carrier(left, symbols)
                 || boolean_expression_reads_carrier(right, symbols)
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            left, right, ..
+        } => {
             scalar_expression_reads_carrier(left, symbols)
                 || scalar_expression_reads_carrier(right, symbols)
         }
