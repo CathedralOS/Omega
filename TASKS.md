@@ -7371,7 +7371,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   all Devin / swarm-w9-macos-x64-host-profile).
 - **INTERNAL-PASS-PROFILE-TIMINGS** — mined candidate; verify scope then implement.
 - **INTRINSIC-PHYSICAL-SPAN-ARMS** — mined candidate; verify scope then implement.
-- **KNOWN-BASELINE-FAILURES-DOC-REFRESH** — mined candidate; verify scope then implement.
+- **KNOWN-BASELINE-FAILURES-DOC-REFRESH.** Mined candidate; scope verified at
+  `669925b8b9`: the item is a refresh sweep of
+  `wiki/drafts/known_baseline_failures.md` — several board entries record
+  stale rows pending this lane (e.g. the `5774` baseline-repair block notes
+  "doc rows were fenced to another wave member; update pending", and the
+  line ~447 `UnsupportedControlFlow(MachineId(1))` staged-local row is
+  verified stale). Currently unworkable — the deliverable file is
+  file-fenced by three live claims: LOWERED-UNIT-FAILURE-ATTRIBUTION
+  (zergling-81, ~2026-09-21T01:17Z), CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION
+  (Zergling-112, ~01:42Z), and BASELINE-PACKAGE-COMPILATION-INPUTS
+  (Claude/fable-zac-goal3, ~20:19Z). The refresh belongs to whichever lane
+  holds the file when those settle.
 - **KNOWN-BASELINE-FAILURES-REFRESH** — mined candidate; verify scope then implement.
 - **LEARNED-COST-MODEL** — verified 05416dd1a0: duplicate pointer to the
   live **LEARNED-OPTIMIZATION-COST-MODEL.** item (TASKS.md:5889), which
