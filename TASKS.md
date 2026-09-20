@@ -8225,7 +8225,31 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   9/9 `borrowed_indexed`/`indexed_case`/`indexed_observation` tests
   PASS. Sibling stub on the same surface:
   INDEXED-OPERAND-ATTACHED-RECEIVER.
-- **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
+- **INLINE-ASSEMBLY-CATALOG-EXPANSION.** Mined candidate — scope
+  verified; resolved as a duplicate re-mine of the ASM-CATALOG-*
+  family with no unfenced slice this wave. The stub re-mines the
+  expansion line in `language-core/inline_assembly.md` ("atomics,
+  cache/TLB operations, mode transitions and AArch64 system
+  operations must extend the same contract/replay model"), the
+  same scope ASM-CATALOG-FAMILY-EXPANSION's row already owns: its
+  landed leg is the pipeline-directive family (`eaa7993a23` +
+  `9c964aabdf`) and its live claim (Devin / swarm-w9-ffival,
+  expires 2026-09-21T05:22Z) fences the whole implementing
+  surface — `language-core/src/inline_assembly/{mod,tests}.rs`,
+  `inline_assembly.md`, the parser arm, the builtin intrinsic
+  table, `asm_discharge.rs`, `call_gates.rs`, the checked
+  interpreter evaluator, and `terminal_authority_policy` — while
+  its fixture fences pin the cache-maintenance family
+  (`asm_cache_maintenance_compile`,
+  `asm_wbinvd_requires_machine_authority`) as the in-flight slice.
+  Of the remaining named families, cache/TLB is that lane, the
+  memory/authority-bearing families stay blocked on
+  UnmodeledMemoryAccess plus service admission per the sibling
+  row's Remaining, and mode transitions need a prior/next-regime
+  contract field `AsmInstructionContract` does not carry — each
+  unfenced family still writes into the same fenced files. No
+  independent slice exists here; retire or re-scope once the
+  sibling lane lands.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE.** Mined candidate —
   resolved, covered. Member of the INTEGER-COMPARISON-OCCURRENCE-*
