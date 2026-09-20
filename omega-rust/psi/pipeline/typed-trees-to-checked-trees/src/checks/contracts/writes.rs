@@ -1136,7 +1136,13 @@ fn construction_value_proves_qualification(
     // construction whose scalar value already establishes the predicate.
     if typed_trees::domain::supports_symbol_only_proof(program, domain)
         && subject.as_ref().is_some_and(|subject| {
-            super::prover::prove_domain_at_place(program, &facts.semantic, contexts, subject, domain)
+            super::prover::prove_domain_at_place(
+                program,
+                &facts.semantic,
+                contexts,
+                subject,
+                domain,
+            )
         })
     {
         return true;
