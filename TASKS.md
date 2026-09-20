@@ -5082,42 +5082,28 @@ Owners include
     (`execution/unit/returns/guarded_call_returns.rs`), `call_result_place`
     (`checks/termination/progress/origins.rs`) and
     `retain_call_expression_machines` (`product_pruning/dependencies.rs`).
-    The checked-route admission exists in validation:
-    `admit_checked_quotient_requests(program, &oracle)` admits a program
-    without requests or a batch the bridge extracts whole, and otherwise
-    returns the existing per-request diagnostics rendered against the
-    oracle's termination; `QuotientRequestAdmission::AfterCheckedFacts`
-    (`validate_quotients_with_admission`) lets validation defer the request
-    rejection to it. Not wired: `lower_typed_trees` must call the admission
-    right after `build_check_facts` (answering from `facts.termination`) and
-    `validate_typed_program` must select `AfterCheckedFacts`
-    (`typed-trees-to-checked-trees/src/checking.rs`,
-    `checking/program_validation.rs`, validation `program_validation.rs`,
-    held by PACKAGE-REVIEW-ROUTE-COST-ATTRIBUTION). With that wiring applied
-    locally, `omega --check` on a standalone scratch direct `define`
-    discharges the termination fence and stops at the bridge's hermetic
-    identity rule ("declaration `EquivalenceClass` has non-hermetic source
-    origin `User`", `normalized_hermetic_symbol_identity`: a standalone
-    source has no `package:` provenance); the same program as a managed
-    project (`build.omg` binding `Main::main`) is admitted through the
-    checked route and stops at `finalize_checked_authored_selections`
-    (`typed-trees-to-checked-trees/src/authored_selections/finalization.rs`,
-    "authored Call declaration selection occurrence N remained unresolved
-    after successful checking (CheckedCall)") because the sealed request
-    call selects compiler vocabulary, not a declaration. A second prepared
-    patch resolves that occurrence proof-only as
+    The compiler route admits the extractable batch: `validate_typed_program`
+    defers request rejection
+    (`validate_specialized_program_deferring_quotient_requests`,
+    `QuotientRequestAdmission::AfterCheckedFacts`) and `lower_typed_trees`
+    calls `admit_checked_quotient_requests` right after `build_check_facts`,
+    answering the `CheckedTerminationOracle` from `facts.termination`; the
+    sealed request call finalizes as the proof-only
     `AuthoredDeclarationSelectionIntrinsic::{QuotientDefine, QuotientLift}`
-    (`language-semantics/src/declaration_selection/mod.rs`,
-    `finalization.rs`, `typed-trees inspection/snapshot.rs`; the request's
-    flow occurrence keeps no callee, the value-path exits keep skipping it);
-    with both patches `omega --check` on the managed direct `define`
-    compiles (exit 0) while the standalone refusal is unchanged. Both
-    patches wait for the `checking.rs` claim; after them the admitted
-    request still has no checked value plan (a proof-only result binding of
-    the representative call) and no Terminal row on this route until
-    `lower_machine` runs on a machine whose closure carries it. The parked
-    branch `work/quotient-validation-admit` (typed-summary admission at
-    validation) is superseded by this route.
+    (no callee, no value plan, no Terminal row). `omega --check` on a managed
+    project holding a total direct `define` compiles; a standalone source
+    still stops at the bridge's hermetic identity rule ("declaration
+    `EquivalenceClass` has non-hermetic source origin `User`",
+    `normalized_hermetic_symbol_identity`) because it has no `package:`
+    provenance. Remaining on this leg: a checked value plan for the request
+    (a proof-only result binding of the representative call) through the
+    `quotient_operation` exits above, so a machine whose closure carries the
+    request can lower and `retain_checked_quotient_correspondences` installs
+    the row (stopping at `ModuleError::NonExecutableQuotientCorrespondence`);
+    and a checked-only corpus fixture for the managed shape once
+    `tests/omega/pass/proofs` is free (PROOF-CERTIFICATION-BRIDGE). The
+    parked branch `work/quotient-validation-admit` (typed-summary admission
+    at validation) is superseded and can be dropped.
   - A canonical wire payload for congruence-only `lift<F, Congruence>`; its
     language-semantics, codec, verifier and review rows belong to
     **PROOF-CONTRACT-MIGRATION**.
