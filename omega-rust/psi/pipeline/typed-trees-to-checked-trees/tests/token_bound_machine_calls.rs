@@ -157,7 +157,7 @@ fn open_range_token_use_rejects_instead_of_falling_back() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("the range use is open or inclusive")),
+            .contains("the range use omits its end")),
         "{diagnostics:?}"
     );
 }
