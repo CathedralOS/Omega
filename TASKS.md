@@ -1114,10 +1114,25 @@ Owners include
   replayed across re-admission or minted for another processor refuse;
   overlapping state or shared stack class refuse admission; started
   accounts retire only on a quiescence receipt bound to the started
-  record. Remaining before full acceptance: native emission of the
-  trampoline and entry/exit stub bodies (the installed bytes are authored
-  data, not emitted code), real receipt ingress under BOUNDARY-ISSUANCE,
-  and the Windows/macOS/QEMU legs which are host-unavailable here.
+  record. The ledger surface inside
+  `external-roots/src/platform_bringup/secondary_processor` is complete:
+  bind, admission, invocation, nondispatch/unconfirmed/arrival verdicts,
+  two-premise settlement, replay/foreign/stale rejection, overlapping
+  resource refusal, and quiescence retirement are all witnessed in
+  `secondary_processor/tests.rs` (plus ledger-side adversarial rows).
+  Remaining before full acceptance: (1) native emission of the trampoline
+  and entry/exit stub bodies — the installed bytes are authored data, not
+  emitted code; this is a new emission lane, not a ledger edit, since
+  `secondary_processor.rs` deliberately owns custody only and
+  `calling-conventions`' `entry_exit_stub` derives the deriver contract
+  (push list, saved-area geometry, iretq exit, contract binding at
+  `identity`) without emitting bytes — the leg needs a byte emitter fed
+  by that deriver (or an ISA-crate encoding surface for the real-mode
+  trampoline) plus wiring so the test installs emitted bytes instead of
+  the authored `trampoline_bytes` array in
+  `tests/omega/pass/memory/secondary_processor_canary`; (2) real receipt
+  ingress under BOUNDARY-ISSUANCE; (3) the Windows/macOS/QEMU legs, which
+  are host-unavailable here.
 
   Reuse installed-code, per-processor stack/state and retirement joins. Bind the
   provider-declared profile to its selected contract; low-memory/vector geometry
