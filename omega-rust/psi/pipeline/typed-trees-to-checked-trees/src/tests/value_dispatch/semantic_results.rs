@@ -150,3 +150,59 @@ fn match_retains_compatible_domains_and_accepts_explicit_arm_erasure() {
         check(source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
     }
 }
+
+#[test]
+fn bound_generic_operator_arms_join_scalar_peers() {
+    for source in [
+        "operator + Math::sum<T>(left: T, right: T) -> T;
+         machine choose(flag: bool, left: u8, right: u8) -> u8 {
+             match flag { true -> left + right, false -> 1 }
+         }",
+        "operator + Math::sum<T>(left: T, right: T) -> T;
+         domain u8::Counted;
+         machine choose(flag: bool, left: u8, right: u8, counted: u8 in Counted) -> u8 {
+             match flag { true -> left + right, false -> counted as u8 }
+         }",
+    ] {
+        check(source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+    }
+}
+
+// A `-> T` result bound by the operands carries the same custody contract as
+// a concrete `-> Payload`: both arms face the branch custody join. An unbound
+// result parameter supplies no identity, so only the declared arm is judged.
+#[test]
+fn bound_generic_operator_arms_enter_the_owned_custody_join() {
+    let errors = check(
+        "data Payload { value: u64; }
+         operator + Math::combine<T>(left: T, right: T) -> T;
+         machine choose(flag: bool, left: Payload, right: Payload, spare: Payload) -> Payload {
+             match flag { true -> left + right, false -> spare }
+         }",
+    )
+    .expect_err("an owned `-> T` arm must face the same custody join");
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|error| error.message.contains("branch custody join"))
+            .count(),
+        2,
+        "{errors:?}"
+    );
+    let errors = check(
+        "data Payload { value: u64; }
+         operator + Math::pick<T>(left: Payload, right: Payload) -> T;
+         machine choose(flag: bool, left: Payload, right: Payload, spare: Payload) -> Payload {
+             match flag { true -> left + right, false -> spare }
+         }",
+    )
+    .expect_err("the declared owned arm still needs the join");
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|error| error.message.contains("branch custody join"))
+            .count(),
+        1,
+        "{errors:?}"
+    );
+}

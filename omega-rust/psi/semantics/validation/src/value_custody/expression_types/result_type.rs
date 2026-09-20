@@ -141,8 +141,18 @@ fn result_type(
         }
         ExpressionNode::Call(call) => {
             crate::machine_calls::calls::resolved_call_result_type(program, call).or_else(|| {
-                typed_trees::operator::resolve_named_expression_call(program, call)
-                    .map(|operator| operator.return_type)
+                typed_trees::operator::resolve_named_expression_call(program, call).map(
+                    |operator| {
+                        let operands: Vec<_> = program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .map(|argument| result_type(program, owner, *argument, active))
+                            .collect();
+                        bound_result_type_parameter(program, operator, &operands)
+                            .unwrap_or(operator.return_type)
+                    },
+                )
             })
         }
         ExpressionNode::StructLiteral(literal) => program
@@ -401,9 +411,13 @@ fn binary_result(
         }
         // This is the selected declaration's result, never an operand guess.
         // A concrete result needs no substitution even if operands are generic.
-        // Dependent predicates and result binders need an instantiated reference;
-        // exporting their declaration-local subjects would invent caller facts.
+        // Dependent predicates and composite result binders need an
+        // instantiated reference; exporting their declaration-local subjects
+        // would invent caller facts.
         let result = selected.operator.return_type;
+        if let Some(bound) = bound_result_type_parameter(program, selected.operator, &operands) {
+            return Some(bound);
+        }
         qualified_builtin_carrier(program, result, false)?;
         return Some(result);
     }
@@ -476,6 +490,55 @@ fn binary_result(
                 .then_some(carrier)
         }
     }
+}
+
+/// A `-> T` result instantiates through the same binding operand selection
+/// already performed: parameters in normalized order (self first) pair with
+/// operand references, and the first position declared as a bare `T` fixes
+/// that parameter's bound reference. A result parameter reached only through
+/// composite declarations (`Pair<T>`) or bound by no operand stays
+/// unresolved: rebuilding instantiated shells or inventing an unbound
+/// identity would fabricate caller facts.
+fn bound_result_type_parameter(
+    program: &TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+    operands: &[Option<TypeReferenceHandle>],
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::Named {
+        symbol: result_symbol,
+        name: result_name,
+    } = program
+        .type_reference_table
+        .type_reference(operator.return_type)
+    else {
+        return None;
+    };
+    let result_parameter = program
+        .operator_type_parameters(operator)
+        .iter()
+        .find(|parameter| {
+            matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                && ((result_symbol.is_valid() && parameter.symbol == *result_symbol)
+                    || parameter.name.as_str() == result_name.as_str())
+        })?;
+    let parameters = program.operator_parameters(operator);
+    parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .chain(parameters.iter().filter(|parameter| !parameter.is_self))
+        .zip(operands.iter())
+        .find_map(|(parameter, operand)| {
+            let operand = (*operand)?;
+            let TypeReferenceNode::Named { symbol, name } = program
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            else {
+                return None;
+            };
+            ((symbol.is_valid() && *symbol == result_parameter.symbol)
+                || name.as_str() == result_parameter.name.as_str())
+            .then_some(operand)
+        })
 }
 
 fn compatible_operands(
