@@ -5064,6 +5064,46 @@ Owners include
   role-swapped children. Raw foreign bytes remain locator data, never Omega
   symbol names or ambient lookup authority.
 
+  Scope verified at `201d58c5915` — the consuming machinery is landed; the
+  producing chain is missing and every producing surface is under a live
+  sibling claim:
+  (a) **consumed half landed** — `machine-code` functions carry
+      `port_effects: Vec<PortEffectRecord>` (service/port/value +
+      operation/byte-span custody); `object_artifact` construction rebases
+      them to absolute `.text` and validates provenance, uniqueness and the
+      exact `x86_encoding::encode_immediate_port_write` bytes
+      (`function_validation.rs`); the installation record constructs, codecs
+      and replays them (`port_effect_codec.rs`, `record_shape.rs`
+      `validate_port_effects`, record-vs-image equality in
+      `record_validation.rs`); native physical custody replays each effect
+      against machine/object/final-image bytes and rejects missing
+      (unconsumed), duplicate/substituted ("does not rejoin one privileged
+      port effect") and role-swapped (settlement ordinal must be
+      effect+1) children in `native-artifact/physical/derivation`
+      (`provider_custody.rs`, `evidence.rs`, `children.rs`).
+  (b) **locator custody landed** — PE, versioned ELF and Mach-O import
+      tables each produce `(symbol, NormalizedForeignLocator)` pairs and the
+      shared image builder carries them into
+      `FinalImageImportPlan::Normalized`; raw foreign bytes stay locator
+      data, never Omega symbol names.
+  (c) **producer missing** — `TargetUnitOperation::PortWrite` and the
+      `MetadataOnlyPort`/`DirectPortReadU8` realizations exist (with the
+      settlement-must-follow-port-write custody check in
+      `lowering/unit/boundary_call.rs`), and the fixed-width x86 encodings
+      exist, but no selected instruction or machine-emission fragment ever
+      emits the bytes, and nothing anywhere constructs a `PortEffectRecord`:
+      the function-fragment production writer
+      (`function_fragments/production.rs`) and the private callback thunk
+      lane (`callback_thunks.rs`) both hardcode `port_effects: Vec::new()`.
+  Fences: PRIVILEGED-PORT-EFFECT-SETTLEMENTS (Zergling-185) owns
+  `machine-code/boundary`, `object_artifact/construction`,
+  `terminal_authority_policy` and the `tests/omega/{pass,fail}/ports`
+  corpus — the production writer and its admission policy live there;
+  PSI-NATIVE-FIELD-STORES (Devin) owns `function_fragments`;
+  PHYSICAL-ACCESS-PROFILES (Devin) owns `native-artifact/src/physical`;
+  NORMALIZED-ABI-LOWERING/imports-leg (Jarod) owns the normalized-import
+  evidence tests. No unfenced slice remains on this host.
+
 - **FLOAT-PROVIDERS.** Complete runtime Boolean/machine operations for exact
   `FloatMeaning`, kernel discharge, and remaining artifact-aware proof sources
   under the [FloatMeaning contract](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
