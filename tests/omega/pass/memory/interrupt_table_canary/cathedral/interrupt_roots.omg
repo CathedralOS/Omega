@@ -15,14 +15,13 @@
 // runtime resource columns (stack/fuel/machine-state receipts) that
 // admitted-provider custody still supplies in the compiler test.
 //
-// `CriticalStackPolicy` fixes the divide-error member's stack class: the
-// wire profile admits class 11 for vector 0, and the emitted boundary
-// plan is what `admit_interrupt_table_member` joins against. Per-member
-// classes arrive with later authored members; a single authored root is
-// this leg's honest unit because `InterruptEntry::enter` is one shared
-// requirement identity -- every root trait inheriting it resolves to the
-// same requirement row, and installation-reach resolution today retains
-// exactly one selected resolution per requirement identity.
+// `CriticalStackPolicy` fixes the divide-error member's stack class (11)
+// and `TimerStackPolicy` the timer member's (14): the emitted boundary
+// plans are what `admit_interrupt_table_member` joins against the
+// declared membership. `InterruptEntry::enter` is deliberately one shared
+// requirement identity -- every root trait inheriting it names the same
+// requirement, and the retained closure carries each heir's row under its
+// own selected provider plan.
 
 use omega::language::core::interrupt;
 use omega::language::std::calling;
@@ -156,6 +155,116 @@ pub data FatalExceptionProvider {
 pub FatalExceptionProviderRoot: FatalExceptionProvider satisfies FatalExceptionRoot;
 
 machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
+    satisfies InterruptEntry::enter
+    reaches PortIo
+{
+    acknowledgement.complete();
+}
+
+// The timer root's calling policy: the same validated envelope as
+// `CriticalStackPolicy`, but its arrivals land on dedicated critical
+// stack class 14 -- the declared membership joins vector 0x20 to that
+// class, and the table profile refuses two members sharing one class.
+pub data TimerStackPolicy {
+}
+pub TimerStackPolicyCalling: TimerStackPolicy satisfies CallingPolicy;
+
+machine TimerStackPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 1 {
+        true -> accept(signature, signature.parameters[0])
+        _ -> reject()
+    }
+
+    state accept(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition root < 256 {
+            true -> size(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state size(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].byte_size == 40 {
+            true -> alignment(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state alignment(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        transition signature.shapes[root].alignment == 8 {
+            true -> build(signature, root)
+            _ -> reject()
+        }
+    }
+
+    state build(signature: BoundarySignature, root: u64) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.parameter_count = 1;
+        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.byte_size = signature.shapes[root].byte_size;
+        output.call.parameters[0].shape.alignment = signature.shapes[root].alignment;
+        output.call.parameters[0].location_count = 1;
+        output.call.parameters[0].locations[0] = ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[root].byte_size,
+            alignment: 8
+        };
+        output.call.stack_alignment = 16;
+        output.call.entry_control = EntryControl::InterruptReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.interrupted_state.general_registers = true;
+        output.state.interrupted_state.vector_registers = true;
+        output.state.interrupted_state.flags = true;
+        output.state.interrupted_state.instruction_pointer = true;
+        output.state.interrupted_state.stack_pointer = true;
+        output.state.saved_state.general_registers = true;
+        output.state.saved_state.flags = true;
+        output.state.saved_state.instruction_pointer = true;
+        output.state.saved_state.stack_pointer = true;
+        output.state.restored_state.general_registers = true;
+        output.state.restored_state.flags = true;
+        output.state.restored_state.instruction_pointer = true;
+        output.state.restored_state.stack_pointer = true;
+        output.state.permitted_transitive_use.general_registers = true;
+        output.state.permitted_transitive_use.flags = true;
+        output.state.stack = EntryStack::Dedicated { class: 14 };
+        output.state.preemption = Preemption::Masked;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "timer roots take exactly one acknowledgement",
+            },
+        }
+    }
+}
+
+// The timer root contract: the same inherited `InterruptEntry::enter`
+// requirement under its own calling policy. `InterruptEntry::enter` is
+// deliberately one shared requirement identity -- the selected closure
+// now retains one resolution row per (requirement, plan), so this second
+// inheriting trait resolves through its own provider plan.
+pub boundary trait TimerRoot: InterruptEntry + Calling<TimerStackPolicy> {
+}
+
+// The timer provider. Its tick machine realizes `InterruptEntry::enter`:
+// the hard handler only acknowledges -- `complete` discharges the linear
+// Pending acknowledgement and wakes ordinary work. The device source and
+// tick record are the later device leg's package code; the LAPIC reach
+// `complete` settles through stays inside the requirement's declared
+// `MachineControl + PortIo` bound.
+pub data TimerProvider {
+}
+pub TimerProviderRoot: TimerProvider satisfies TimerRoot;
+
+machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)
     satisfies InterruptEntry::enter
     reaches PortIo
 {
