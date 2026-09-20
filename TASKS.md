@@ -6149,7 +6149,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BETA-ENCODING-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-CERTIFICATE-PRODUCTION** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
-- **BETA-ENCODING-MUTATION-REJECTION.** Full-subject mutation controls for the Beta encoding certificate per `bootstrap/proofs/beta_encoding/ACCEPTANCE.md`: through the checked-in Stepper, mutate each covered element (source, tape, assertions, theory identity, rule ids/clauses, substitution, premises, sorts, arities, partition joints, endpoints, final-root selection) and require rejection — invalid or exhausted input must not accept after a valid prefix. Harness lives in `tests/gamma/beta-encoding-theory/` as a new run.sh mode using the existing full-subject derivation.
+- **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
+  mutation controls exist as `tests/gamma/beta-encoding-theory/mutations.py`
+  exposed via `run.sh --mutations` / `--mutations-self-test`
+  (`97f2bd6faf`, `54d5dc1cb1`). Every acceptance axis is covered — source,
+  tape, assertions, theory identity, rule ids/clauses, substitution,
+  premises, sorts, arities, partition joints, endpoints, final-root
+  selection, and rejection after a valid prefix — each carrying the exact
+  expected checker diagnostic. Witnessed on linux x86-64:
+  `sh run.sh --mutations-self-test` reproduced the full-subject derivation
+  (24s) and constructed 18 mutated requests over the 135,485,028-byte
+  certificate request, verifying each patch lands at its claimed field.
+  Residual (host-gated, same as the other evaluator gates): the
+  `run.sh --mutations` verdict leg asserting the checker's actual
+  rejections runs only on evaluator-seed hosts (macOS arm64, Windows x64).
 - **BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-SELECTED-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
   Verified scope: re-mines BETA-ENCODING-CERTIFICATE-PRODUCTION's surface —
