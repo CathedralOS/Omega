@@ -80,8 +80,18 @@ fn module(placed_view_inputs: Vec<TerminalPlacedViewInput>) -> TerminalModule {
         vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
         entry: machine_id(1),
         scalar_qualifications: Default::default(),
-        structural_types: Vec::new(),
-        structural_domains: Vec::new(),
+        structural_types: vec![terminal_psi::StructuralTypeDeclaration {
+            id: StructuralTypeId::new(1).unwrap(),
+            identity: "Backing".to_owned(),
+            shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+        }],
+        structural_domains: vec![terminal_psi::StructuralDomainDeclaration {
+            id: StructuralDomainId::new(7).unwrap(),
+            semantic_domain: semantic_vocabulary::DomainSemanticId::new(7).unwrap(),
+            identity: "Backing::Granted".to_owned(),
+            carrier: StructuralTypeId::new(1).unwrap(),
+            content_projection: None,
+        }],
         services: Vec::new(),
         root_service_reach: Default::default(),
         placed_view_inputs,
@@ -321,5 +331,130 @@ fn exclusive_establishment_aliasing_structural_argument_rejects() {
             None
         ),
         Err(TerminalInterpretError::PlacedViewInputEstablishmentAliasing(0xBEEF))
+    ));
+}
+
+#[test]
+fn substituted_referent_axes_reject_before_binding() {
+    use terminal_semantics::PlacedViewReferentError;
+    let mut placed = module(Vec::new());
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(placed.entry, 0));
+    let original = establishment(placed.placed_view_inputs[0].clone(), 0xC0FFEE);
+    let missing_type = StructuralTypeId::new(99).unwrap();
+    let missing_domain = StructuralDomainId::new(99).unwrap();
+    let mut backing = original.clone();
+    backing.referent.structural_type = missing_type;
+    let mut path = original.clone();
+    path.referent
+        .path
+        .push(terminal_psi::StructuralPathSegment::FixedIndex(0));
+    let mut qualification = original.clone();
+    qualification.referent.qualifications = vec![missing_domain];
+    for (supply, expected) in [
+        (
+            backing,
+            PlacedViewReferentError::BackingUndeclared(missing_type),
+        ),
+        (path, PlacedViewReferentError::RangeUnresolved),
+        (
+            qualification,
+            PlacedViewReferentError::QualificationUndeclared(missing_domain),
+        ),
+    ] {
+        assert!(matches!(
+            TerminalExecution::start_verified_module(
+                placed.clone(), &[], &[], &[], &[], &[supply], None
+            ),
+            Err(TerminalInterpretError::PlacedViewReferent(error)) if error == expected
+        ));
+    }
+    // The domain exists, but it qualifies a different declared root carrier.
+    placed
+        .structural_types
+        .push(terminal_psi::StructuralTypeDeclaration {
+            id: StructuralTypeId::new(2).unwrap(),
+            identity: "OtherBacking".to_owned(),
+            shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+        });
+    placed.structural_domains[0].carrier = StructuralTypeId::new(2).unwrap();
+    assert!(matches!(
+        TerminalExecution::start_verified_module(
+            placed, &[], &[], &[], &[], &[original], None
+        ),
+        Err(TerminalInterpretError::PlacedViewReferent(
+            PlacedViewReferentError::QualificationCarrier(domain)
+        )) if domain == StructuralDomainId::new(7).unwrap()
+    ));
+}
+
+#[test]
+fn qualified_nested_referent_resolves_and_retires_but_out_of_range_rejects() {
+    use terminal_psi::{
+        StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let mut placed = module(Vec::new());
+    placed
+        .placed_view_inputs
+        .push(placed_view_row(placed.entry, 0));
+    let array_type = StructuralTypeId::new(2).unwrap();
+    let element_type = StructuralTypeId::new(3).unwrap();
+    placed.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            identity: "cells".to_owned(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(array_type),
+        }],
+    };
+    placed.structural_types.extend([
+        StructuralTypeDeclaration {
+            id: array_type,
+            identity: "Cells".to_owned(),
+            shape: StructuralTypeShape::FixedArray {
+                element: element_type,
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: element_type,
+            identity: "Cell".to_owned(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        },
+    ]);
+    let mut supply = establishment(placed.placed_view_inputs[0].clone(), 0xC0FFEE);
+    supply.referent.path = vec![
+        StructuralPathSegment::Field("cells".to_owned()),
+        StructuralPathSegment::FixedIndex(1),
+    ];
+    let mut execution = TerminalExecution::start_verified_module(
+        placed.clone(),
+        &[],
+        &[],
+        &[],
+        &[],
+        std::slice::from_ref(&supply),
+        None,
+    )
+    .expect("declared field and in-range element bind the qualified root's loan");
+    assert_eq!(execution.placed_view_occurrences.len(), 1);
+    assert!(matches!(
+        execution
+            .resume(
+                &mut TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    ));
+    assert!(execution.placed_view_occurrences.is_empty());
+    supply.referent.path[1] = StructuralPathSegment::FixedIndex(2);
+    assert!(matches!(
+        TerminalExecution::start_verified_module(placed, &[], &[], &[], &[], &[supply], None),
+        Err(TerminalInterpretError::PlacedViewReferent(
+            terminal_semantics::PlacedViewReferentError::RangeUnresolved
+        ))
     ));
 }

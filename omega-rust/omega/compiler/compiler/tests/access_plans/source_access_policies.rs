@@ -1019,9 +1019,9 @@ machine Inspector::inspect(
     // The ordinary establishment route supplies the roster's custody at
     // interpretation: each direct-entry row joins exactly one establishment
     // lending the qualified referent backing for the invocation's duration.
-    // The referent carrier stays opaque — Psi never interprets its type,
-    // layout, or address — so the provider's structural runtime value is the
-    // whole supply, and the entry machine completes with the input bound.
+    // The referent's occurrence stays opaque, not an address. Its declared
+    // type, path and qualifications still rejoin the artifact before the
+    // entry machine can run with that input bound.
     // The referent's declared carrier is the entry attachment's own declared
     // structural type: the establishment route joins the supply against the
     // artifact's structural catalogs, so the backing must be a type the module
@@ -1214,6 +1214,30 @@ machine Inspector::inspect(
     let mut undeclared_backing = establishments[0].clone();
     undeclared_backing.referent.structural_type =
         semantic_vocabulary::StructuralTypeId::new(0x5a17).expect("nonzero structural type");
+    let reject_interpreted_supply =
+        |supply: &terminal_interpreter::TerminalPlacedViewEstablishment| {
+            assert!(
+                matches!(
+                    terminal_interpreter::TerminalExecution::start_artifact(
+                        &semantic,
+                        &proof,
+                        &profile,
+                        &[],
+                        terminal_interpreter::TerminalStructuralInputs {
+                            placed_view_establishments: std::slice::from_ref(supply),
+                            ..Default::default()
+                        },
+                    ),
+                    Err(
+                        terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                            terminal_interpreter::TerminalInterpretError::PlacedViewReferent(_)
+                        )
+                    )
+                ),
+                "the interpreter must reject the same substituted backing as native admission"
+            );
+        };
+    reject_interpreted_supply(&undeclared_backing);
     assert!(matches!(
         readmit_native()
             .try_into_native_input_with_placed_view_establishments(&[undeclared_backing]),
@@ -1223,6 +1247,7 @@ machine Inspector::inspect(
     stale_range.referent.path = vec![terminal_psi::StructuralPathSegment::Field(
         "status".to_owned(),
     )];
+    reject_interpreted_supply(&stale_range);
     assert!(matches!(
         readmit_native()
             .try_into_native_input_with_placed_view_establishments(&[stale_range]),
@@ -1231,6 +1256,7 @@ machine Inspector::inspect(
     let mut forged_qualification = establishments[0].clone();
     forged_qualification.referent.qualifications =
         vec![semantic_vocabulary::StructuralDomainId::new(1).expect("nonzero domain")];
+    reject_interpreted_supply(&forged_qualification);
     assert!(matches!(
         readmit_native()
             .try_into_native_input_with_placed_view_establishments(&[forged_qualification]),
