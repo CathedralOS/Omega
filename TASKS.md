@@ -6201,7 +6201,18 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   The first two are provider/selection resolution; the third is a package-use
   authority collision on an instantiated template method. Re-run the command above
   before attributing any of them, since the roster moves.
-- **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Three unrepaired failures in the `terminal_psi_source` native-differential lane.
+- **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Resolved — the lane is fully
+  green: `cargo nextest run -p omega-native-differential-test --test
+  terminal_psi_source --no-fail-fast` reports 90 run / 90 passed / 0 skipped
+  on linux x86-64 at `17fec446ef2` (the emitted images install and execute
+  natively, so the three named failures are repaired, not skipped). The
+  repairs arrived through the harness-migration lane: `aecc5533d35` moved the
+  hosted receiver harness into the differential tests, then `30f4189a58c`
+  (retired artifact policy), `8d9fa4ca8e7` (effect handler on terminal
+  resume), `294b6cfbf4a` (erased-formals scalar term lane), `27f345e527a`
+  (direct Unit parameter custody gate), `b972133cade` (checked program-entry
+  route) and `c9e496b426a` (complete emitted image text) staged the target to
+  match.
 - **BASELINE-EXTERNAL-ROOTS-FIXED-FUEL-CEILINGS.** (new-scope) Unrepaired
   failure in `external-roots`:
   `stack_and_fuel::fixed_fuel::tests::installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence`
