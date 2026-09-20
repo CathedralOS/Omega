@@ -3504,8 +3504,13 @@ Owners include
     `self.<field>` predicates discharge at declaration site
     (`module_namespace_residuals::constrained_record_const_discharges_field_domain_facts`
     holds the discharge, refutation and unprojectable-projection controls).
-    Constrained constants
-    still fence aggregate indices, whole-aggregate `self` operands, fields
+    Array-carried constrained constants bind `self` through their
+    scalar-decodable elements, so closed `self[<index>]` membership and
+    comparison facts discharge the same way
+    (`module_namespace_residuals::constrained_array_const_discharges_element_domain_facts`
+    holds the discharge, refutation, out-of-bounds-index and
+    non-scalar-element controls). Constrained constants
+    still fence whole-aggregate `self` operands, fields and elements
     without a scalar leaf, open applications, non-domain
     constraints and unprovable facts. Carrier-polymorphic scalar constants
     discharge carrier-independent closed predicates; carrier-property bounds
