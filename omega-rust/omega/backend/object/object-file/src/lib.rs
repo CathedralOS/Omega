@@ -148,6 +148,10 @@ pub use names::{
 pub use object_plan::container::{
     ObjectContainerInput, ObjectContainerOutput, emit_omega_object_container,
 };
+pub use object_plan::relocations::admission::{
+    RelocationAdmissionError, RelocationAdmissionFailure, ValidatedRelocationPlan,
+    admit_relocation_plan,
+};
 pub use object_plan::relocations::{
     RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord, RelocationRecordSet,
 };
