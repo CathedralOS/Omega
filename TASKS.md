@@ -6812,6 +6812,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   runtime leg needs QEMU/UEFI hardware, gated on UEFI-PHYSICAL-SEMANTIC-ENTRY
   + UEFI-OS-HANDOFF. Sibling re-mines: BENCHMARK-HOST-ROW-MATRIX,
   BENCHMARK-CROSS-TARGET-COMPILE-{LEGS,ROWS}, BENCHMARK-ROW-RESUMPTION.
+  Claim evidence (Zergling-181, `edc77c2148`, ~19:14Z): all gates still
+  under live claims — UEFI-OS-HANDOFF (20:00Z) and
+  UEFI-PHYSICAL-SEMANTIC-ENTRY (22:59Z) fence `std/targets/uefi_x86_64`,
+  `tools/benchmark` under BENCHMARK-COMPARISON-OCCURRENCE-GATE (22:09Z);
+  claim returned exit 2.
 - **BENCHMARK-WINDOWS-PEAK-MEMORY.** Scope verified — the windows_x86_64
   peak-memory leg of the benchmarks matrix. The measurement machinery is
   already landed in `tools/benchmark/benchmark.py`: spawned children are
