@@ -6497,7 +6497,13 @@ Build/packages:
   publication refusals with `word-prefix.sh` and the Darwin
   `register-address-regression.sh`. Remaining: none at the shell surface —
   reconstructed-proposition mutation controls belong to the
-  GAMMA-DERIVATION-CHECKER certificate acceptance.
+  GAMMA-DERIVATION-CHECKER certificate acceptance. Re-verified at
+  `bde84d1765` (Zergling-181): the refusal surface is landed and this row
+  is closable; a same-item claim is live (Devin /
+  cbe21c11-beta-reconstruction-refusal, exp 21:49Z) and the
+  `tests/beta/compiler` + `tools/bootstrap/beta` dirs sit under
+  BETA-PE-SEED-REFUSAL (w9-ffival, exp 22:13Z) — do not re-mine while the
+  same-item claim stands.
 
 Platform/cross-host (structurally gated — document host limits):
 
