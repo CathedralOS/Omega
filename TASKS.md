@@ -3047,6 +3047,39 @@ Owners include
   cleanup as covered by that Rust test, although no program can reach the
   ledger. It is supporting machinery until an authored registrar drives it.
 
+  Wave state at `9f48bb2a59` (~21:55Z Sep 20): the grammar seam named in
+  the first remaining bullet is landed — `3cfe2d969d` ("routed domains
+  authorize owned case payloads on result carriers") made
+  `type_reference_domain_symbols` descend a named carrier's record
+  fields, case payloads and fixed-array elements, and
+  `check_call_result_qualifications` admit the case-scoped claim under
+  the route's issuance authority, so `register -> Reply{Registered(
+  registration: Registration in Live)}` now checks at admission (pinned
+  by `sum_reply_case_payload_authorizes_the_routed_domain` plus the
+  non-route and unqualified-payload controls in
+  `checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs`).
+  The authored customer still cannot run: unit-machine plan admission
+  for the affine-classified sum result is sibling-fenced
+  (`typed-trees-to-checked-trees/src/execution/unit` legs under
+  PROVIDER-ATTACHMENT-MACHINE-PLAN ~22:37Z, STRUCTURAL-BORROW-IDENTITY
+  ~05:17Z, GENERAL-CYCLIC-EXECUTION-OPTIMIZER ~03:48Z, and
+  PSI-NATIVE-FIELD-STORES ~02:12Z), and the installed-provider seam is
+  still open — `supported_result` in terminal-interpreter
+  `call_operations.rs` admits only claim-free affine results, and the
+  suspended-frame machinery (`rebind_structural_result_claims`) models
+  callee-*returned* claim transfers, while a boundary route *mints* the
+  claim by establishment authority: installing `result.claims` on the
+  caller at resume needs the minted-claim path made case-conditional
+  (a `Rejected` return must not mint `Live` on a payload that does not
+  exist) — no current frame records that distinction. Native foreign
+  invocation still waits on CALLBACK-PRIVATE-MATERIALIZATION; the
+  interpreted ledger join and the uninstalled-path claimed-result
+  round-trip are already landed. Ordered frontier: execution/unit plan
+  admission (sibling fence) → installed-provider boundary result minted
+  claims + introduced qualifications → authored customer witness →
+  CALLBACK-PRIVATE-MATERIALIZATION's native entry → the acceptance
+  program.
+
 - **FOREIGN-RETAINED-ARGUMENT-BACKING.** Execute outbound arguments that a
   foreign callee retains after return, beyond callbacks, under
   [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody), with
