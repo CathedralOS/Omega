@@ -23,9 +23,13 @@ pub(super) struct FragmentPublicationBinding {
     /// rejoin the unresolved import field and declared import symbol the
     /// object route would have proven through relocation records.
     relocation_free_object: Arc<object_file::RelocationFreeObjectPlan>,
-    /// The selected plan the custody replayed. Its roster rows carry the
-    /// call-site custody — scalar arguments, result-home requirement,
-    /// evaluated binding — the projected rows deliberately keep empty.
+    /// The placed text section the projected custody rows' byte intervals
+    /// name; retaining it lets physical derivation rejoin each scalar-argument
+    /// span to the placed instruction evidence it was derived from.
+    text_section: Arc<machine_code::RelocationFreeTextSectionPlacement>,
+    /// The selected plan the custody replayed. Its roster rows still carry
+    /// the call-site custody the projected rows deliberately leave in roster
+    /// form — the scalar result-home requirement and the evaluated binding.
     selected: Arc<selected_instructions::SelectedInstructionPlan>,
     identity: [u8; 32],
 }
@@ -52,6 +56,10 @@ impl FragmentPublicationBinding {
         &self.relocation_free_object
     }
 
+    pub(super) fn text_section(&self) -> &machine_code::RelocationFreeTextSectionPlacement {
+        &self.text_section
+    }
+
     pub(super) fn selected_plan(&self) -> &selected_instructions::SelectedInstructionPlan {
         &self.selected
     }
@@ -75,6 +83,10 @@ pub(crate) fn derive_scope(
     let relocation_free_object = source.shared_object();
     if relocation_free_object.identity != source.custody().object() {
         return Err("fragment publication retained a detached relocation-free object");
+    }
+    let text_section = source.source().shared_text_section();
+    if text_section.recomputed_identity() != source.source().custody().text_section() {
+        return Err("fragment publication retained a detached placed text section");
     }
     let selected = Arc::clone(
         &source
@@ -115,6 +127,7 @@ pub(crate) fn derive_scope(
         object: Arc::new(object.clone()),
         foreign_call_custody,
         relocation_free_object,
+        text_section,
         selected,
         identity: digest.finalize().into(),
     };

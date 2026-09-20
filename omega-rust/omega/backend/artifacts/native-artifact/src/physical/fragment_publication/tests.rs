@@ -72,6 +72,31 @@ fn admitted_object_binding_rejects_a_different_valid_object() {
                     object_file::RelocationFreeObjectRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
             },
         ),
+        text_section: Arc::new(machine_code::RelocationFreeTextSectionPlacement {
+            identity: optimization_core::TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(
+                b"text",
+            ),
+            source_fragments: optimization_core::FunctionFragmentEmissionIdentity::from_canonical_bytes(
+                b"fragments",
+            ),
+            psi: terminal(),
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            selected: selected_instructions::SelectedInstructionPlanIdentity::from_canonical_bytes(
+                b"selected",
+            ),
+            target: NativeTarget::linux_x64(),
+            semantic_entry: machine,
+            semantic_entry_offset: 0,
+            policy: machine_code::TextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
+            section_alignment: 1,
+            byte_count: 1,
+            bytes: vec![0xc3],
+            functions: Vec::new(),
+            resolved_internal_machine_calls: Vec::new(),
+            unresolved_normalized_foreign_calls: Vec::new(),
+            relocation_requirements:
+                machine_code::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+        }),
         selected: Arc::new(selected_instructions::SelectedInstructionPlan {
             psi: terminal(),
             fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
