@@ -218,6 +218,21 @@ pub(crate) fn validate_const_definition(
             ))
             .with_source_span(definition.name.source_span())
         })?;
+    } else {
+        // An aggregate literal initializer under a domain-carrying member
+        // carrier owes each leaf the same declaration-site discharge an
+        // evaluated initializer performs; pure literals never canonicalize
+        // through the evaluated path on their own.
+        crate::preparation::generic_data::prove_const_literal_leaf_domain_constraints(
+            syntax, definition, selection,
+        )
+        .map_err(|reason| {
+            Diagnostic::error(format!(
+                "constant `{}` is invalid: {reason}",
+                semantic_const_name(definition)
+            ))
+            .with_source_span(definition.name.source_span())
+        })?;
     }
     validate_scalar_initializer(syntax, definition).map_err(|reason| {
         Diagnostic::error(format!(

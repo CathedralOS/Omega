@@ -1,0 +1,17 @@
+// CONST-LEAF-EXACT-CARRIER: a record field declared `in <domain>` accepts a
+// const initializer leaf whose literal value discharges the domain fact.
+
+domain u64::Even
+requires
+    self % 2 == 0;
+
+data Key [copy] {
+    value: u64 in Even;
+}
+
+const K: Key = Key { value: 4 };
+
+data Main {}
+
+machine Main::main(&mut self) {
+}

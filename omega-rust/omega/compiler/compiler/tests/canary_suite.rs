@@ -596,6 +596,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "domains/domain_operator_unproven_keeps_builtin_meaning",
     "domains/domain_operator_inactive_same_carrier_coexists",
     "domains/domain_operator_requires_discharged",
+    // A record const's field declared `in <domain>` discharges the fact on
+    // each literal leaf; a satisfying leaf publishes the constant.
+    "domains/const_aggregate_leaf_domain_discharge",
     "float/named_float_to_integer_no_context_compile",
     "capabilities/boundary_trait_multiple_effects",
     "effects/exported_wrapper_service_reach",
@@ -1395,6 +1398,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "domains/domain_when_clause_retired",
     "domains/domain_non_boolean_fact",
     "domains/domain_carrier_mismatch",
+    // A record const's field declared `in <domain>` rejects a literal leaf
+    // whose value refutes the fact at declaration site.
+    "domains/const_aggregate_leaf_domain_unproven",
     "domains/type_constraint_unknown_domain",
     "domains/domain_pattern_payload_binding_rejected",
     "domains/signature_free_requirement_route_overloaded",

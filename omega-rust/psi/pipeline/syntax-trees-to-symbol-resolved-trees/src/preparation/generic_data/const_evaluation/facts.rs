@@ -1273,6 +1273,252 @@ pub(crate) fn prove_declared_const_domain_constraints(
     Ok(())
 }
 
+/// Discharge the `Domain` constraints a `Constrained` leaf carrier declares —
+/// the same declaration-site proof `prove_declared_const_domain_constraints`
+/// owes a whole declaration, applied to each leaf a constrained field or
+/// element type names as an initializer canonicalizes through
+/// `canonicalize_const_expression`. Aggregate leaves bind `self` through their
+/// scalar-decodable members exactly as the declaration path does; a leaf
+/// without a bindable payload, an unselected owner, or an undecided fact stays
+/// fenced rather than publishing a guessed identity. Constraints of other
+/// kinds keep their own validation sites.
+pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
+    syntax: &SyntaxTrees,
+    constraints: &[TypeConstraintNode],
+    value: &super::values::CanonicalConstNode,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+) -> Result<(), String> {
+    use super::values::CanonicalConstNode;
+    if !constraints
+        .iter()
+        .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
+    {
+        return Ok(());
+    }
+    fn node_self_leaf(value: &CanonicalConstNode) -> Option<ConstScalarValue> {
+        match value {
+            CanonicalConstNode::Integer { type_name, value } => {
+                ConstIntegerType::from_name(type_name).map(|integer_type| {
+                    ConstScalarValue::DeclaredInteger {
+                        value: *value,
+                        integer_type,
+                    }
+                })
+            }
+            CanonicalConstNode::Boolean(value) => Some(ConstScalarValue::Boolean(*value)),
+            _ => None,
+        }
+    }
+    let record_fields: Vec<(String, ConstScalarValue)>;
+    let array_elements: Vec<Option<ConstScalarValue>>;
+    let variant_fields: Vec<(String, ConstScalarValue)>;
+    let (carrier, self_binding) = match value {
+        CanonicalConstNode::Integer { type_name, value } => {
+            let Some(integer_type) = ConstIntegerType::from_name(type_name) else {
+                return Err(CONSTRAINED_CONST_FENCE.to_owned());
+            };
+            (
+                type_name.clone(),
+                ConstSelfBinding::Scalar(ConstScalarValue::DeclaredInteger {
+                    value: *value,
+                    integer_type,
+                }),
+            )
+        }
+        CanonicalConstNode::Boolean(value) => (
+            "bool".to_owned(),
+            ConstSelfBinding::Scalar(ConstScalarValue::Boolean(*value)),
+        ),
+        CanonicalConstNode::Record { type_name, fields } => {
+            record_fields = fields
+                .iter()
+                .filter_map(|(name, field)| {
+                    node_self_leaf(field).map(|value| (name.clone(), value))
+                })
+                .collect();
+            (type_name.clone(), ConstSelfBinding::Record(&record_fields))
+        }
+        CanonicalConstNode::Array { type_name, values } => {
+            array_elements = values.iter().map(node_self_leaf).collect();
+            (
+                type_name.clone(),
+                ConstSelfBinding::Elements(&array_elements),
+            )
+        }
+        CanonicalConstNode::Variant {
+            type_name, fields, ..
+        } => {
+            variant_fields = fields
+                .iter()
+                .filter_map(|(name, field)| {
+                    node_self_leaf(field).map(|value| (name.clone(), value))
+                })
+                .collect();
+            (
+                type_name.clone(),
+                ConstSelfBinding::Variant(&variant_fields),
+            )
+        }
+        _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
+    };
+    let const_values =
+        crate::preparation::generic_data::module_constants::lexical_integer_const_values(syntax);
+    let mut warnings = Vec::new();
+    for constraint in constraints {
+        let TypeConstraintNode::Domain(domain) = constraint else {
+            continue;
+        };
+        let holds = if domain.arguments.is_empty() {
+            evaluate_named_const_domain(
+                syntax,
+                domain.name.as_str(),
+                &carrier,
+                self_binding,
+                &const_values,
+                &mut Vec::new(),
+                domain.name.source_span(),
+                selection,
+                &mut warnings,
+            )?
+        } else {
+            evaluate_indexed_const_domain(
+                syntax,
+                domain.name.as_str(),
+                domain.arguments,
+                &carrier,
+                self_binding,
+                &const_values,
+                &HashMap::new(),
+                &[],
+                &mut Vec::new(),
+                domain.name.source_span(),
+                selection,
+                &mut warnings,
+            )?
+        };
+        match holds {
+            Some(DomainFactProof::Holds) => {}
+            Some(DomainFactProof::Refuted {
+                domain: failed_domain,
+            }) => {
+                return Err(format!(
+                    "domain constraint `{}` for the const leaf value is false; \
+                     failed domain `{failed_domain}`",
+                    domain.name.as_str(),
+                ));
+            }
+            None => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
+        }
+    }
+    Ok(())
+}
+
+/// Whether a declared const type's member tree reaches a `Domain`-carrying
+/// `Constrained` leaf — the probe deciding whether a pure-literal initializer
+/// owes leaf discharge through canonicalization. Data names match by declared
+/// spelling only (canonicalization performs exact owner selection), and
+/// recursive or unresolved members decline rather than forcing the gate.
+fn const_type_mentions_domain_leaf(
+    syntax: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<source::SourceSpan>,
+) -> bool {
+    use syntax_trees::item::DataMember;
+    fn named_data(
+        syntax: &SyntaxTrees,
+        name: &str,
+        visiting: &mut Vec<source::SourceSpan>,
+    ) -> bool {
+        let Some(data) = syntax.root_items().find_map(|item| match item {
+            Item::Data(data) if data.name.as_str() == name => Some(data),
+            _ => None,
+        }) else {
+            return false;
+        };
+        if visiting.contains(&data.name.source_span()) {
+            return false;
+        }
+        visiting.push(data.name.source_span());
+        syntax
+            .tables
+            .items
+            .data_members(data.members)
+            .iter()
+            .any(|member| match member {
+                DataMember::Field(field) => {
+                    const_type_mentions_domain_leaf(syntax, field.type_reference, visiting)
+                }
+                DataMember::Variant(variant) => syntax
+                    .tables
+                    .items
+                    .data_payload_fields(variant.payload)
+                    .iter()
+                    .any(|field| {
+                        const_type_mentions_domain_leaf(syntax, field.type_reference, visiting)
+                    }),
+                _ => false,
+            })
+    }
+    match syntax.tables.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            syntax
+                .type_references
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)))
+                || const_type_mentions_domain_leaf(syntax, *base_type, visiting)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            const_type_mentions_domain_leaf(syntax, *element_type, visiting)
+        }
+        TypeReferenceNode::Named(name) => named_data(syntax, name.as_str(), visiting),
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => {
+            syntax
+                .type_references
+                .type_reference_handles(*arguments)
+                .iter()
+                .any(|argument| const_type_mentions_domain_leaf(syntax, *argument, visiting))
+                || named_data(syntax, base_name.as_str(), visiting)
+        }
+        _ => false,
+    }
+}
+
+/// The literal-path gate for leaf domain carriers. A pure-literal const
+/// initializer never reaches `canonicalize_const_expression` through the
+/// evaluated-initializer path, so when its declared carrier's member tree
+/// names a `Domain` constraint, canonicalization runs here to discharge each
+/// `in <domain>` leaf exactly as an evaluated initializer would. Consts whose
+/// carriers name no domain keep their existing literal-only checks.
+pub(crate) fn prove_const_literal_leaf_domain_constraints(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&crate::preparation::generic_data::constant_selection::ConstantSelection>,
+) -> Result<(), String> {
+    if crate::constant::requires_const_initializer_evaluation(syntax, definition) {
+        return Ok(());
+    }
+    if !const_type_mentions_domain_leaf(syntax, definition.type_reference, &mut Vec::new()) {
+        return Ok(());
+    }
+    super::canonicalize_const_expression(
+        syntax,
+        definition.type_reference,
+        definition.value,
+        selection,
+        &crate::preparation::generic_data::constant_selection::GenericApplicationSubstitution::new(
+        ),
+    )
+    .map(|_| ())
+}
+
 /// Evaluate one fact expression inside a selected domain declaration with
 /// `self` bound to the checked value only for a fixed carrier. A generic
 /// carrier leaves it unavailable rather than assuming an instance's algebra.
