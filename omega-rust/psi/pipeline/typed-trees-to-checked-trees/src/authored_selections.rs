@@ -131,7 +131,8 @@ pub(crate) fn exact_owner_member_declaration(
         member,
     )? {
         contexts::OwnerMemberTarget::Declaration(symbol) => Some(symbol),
-        contexts::OwnerMemberTarget::CollectionLength => None,
+        contexts::OwnerMemberTarget::CollectionLength
+        | contexts::OwnerMemberTarget::CollectionCapacity => None,
     }
 }
 
@@ -168,6 +169,11 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                     contexts::OwnerMemberTarget::CollectionLength => {
                         CheckedResolutionTarget::Intrinsic(
                             AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                        )
+                    }
+                    contexts::OwnerMemberTarget::CollectionCapacity => {
+                        CheckedResolutionTarget::Intrinsic(
+                            AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
                         )
                     }
                 }),

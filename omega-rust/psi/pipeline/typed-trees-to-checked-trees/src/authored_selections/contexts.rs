@@ -9,6 +9,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 pub(crate) enum OwnerMemberTarget {
     Declaration(SymbolHandle),
     CollectionLength,
+    CollectionCapacity,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -896,6 +897,11 @@ fn member_target_in_environment(
         .or_else(|| {
             (member.member.as_str() == "len" && inferred_type_is_collection(program, receiver_type))
                 .then_some(OwnerMemberTarget::CollectionLength)
+        })
+        .or_else(|| {
+            (member.member.as_str() == "capacity"
+                && inferred_type_is_collection(program, receiver_type))
+            .then_some(OwnerMemberTarget::CollectionCapacity)
         })
 }
 

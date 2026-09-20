@@ -904,6 +904,53 @@ fn successful_checking_finalizes_inferred_field_members_and_primitive_operators(
 }
 
 #[test]
+fn data_where_collection_measures_finalize_as_intrinsics() {
+    let source = r#"
+        data Buffer
+        where
+            used == storage.capacity,
+        {
+            used: u64;
+            storage: [u8; 8];
+        }
+        data Packet
+        where
+            length == payload.len,
+        {
+            length: u64;
+            payload: &[u8];
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let selections = checked.authored_declaration_selections();
+
+    for (member_name, intrinsic) in [
+        (
+            "capacity",
+            AuthoredDeclarationSelectionIntrinsic::CollectionCapacity,
+        ),
+        (
+            "len",
+            AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+        ),
+    ] {
+        assert!(
+            selections.iter().any(|selection| {
+                selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess
+                    && selection.target()
+                        == AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic)
+            }),
+            "member `{member_name}` selections={selections:#?}"
+        );
+    }
+    assert!(selections.all_finalized(), "selections={selections:#?}");
+}
+
+#[test]
 fn successful_checking_finalizes_operator_occurrence_retained_on_folded_float_literal() {
     let source = r#"
         data Main { value: f64; }
