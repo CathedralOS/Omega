@@ -607,6 +607,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "capabilities/invariant_parameterized_slice",
     "capabilities/string_domain_boundary_requirement",
     "capabilities/transitive_effect_inference",
+    "operators/division_value_entry_selection",
     "operators/parenthesized_precedence_value",
     "operators/unary_logical_not",
     "capabilities/uses_caller_folder",
