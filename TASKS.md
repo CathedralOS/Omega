@@ -3863,7 +3863,15 @@ Owners include
   `accepted_lock` shows an accepted project emits an artifact carrying no
   receiver-admission claim with no supplied policy — the replay rejects it —
   and binds the supplied policy's exact identity when given one, admitting
-  only under that identity and rejecting under any other.
+  only under that identity and rejecting under any other. The
+  `receiving_admission` leg drives the same join through one demanded leaf:
+  an accepted customer whose demanded closure is a package-owned
+  `Console::exit_process` compiler intrinsic emits with no receiving policy
+  and binds no permission-policy identity, the same program rejects under
+  the explicit empty policy and under a row whose disposition substitutes a
+  narrower permission, and it admits under the policy rejoining every
+  demanded leaf's exercised classes, replaying that recorded admission
+  exactly.
 
   The toolchain-settled filesystem cohort is now wired at the single provider
   admission join: `validate_source_evaluated_import_coverage` mints the exact
