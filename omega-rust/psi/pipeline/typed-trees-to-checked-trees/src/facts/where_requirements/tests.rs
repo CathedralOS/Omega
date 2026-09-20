@@ -73,7 +73,7 @@ fn field_bound(path: &[&str], bound: i64) -> CheckedBooleanExpression {
 fn entry_receiver_standing_bound_is_a_runtime_requirement() {
     let checked = checked(
         "boundary trait Console { machine exit_process(code: i32) reaches Console; }
-         data Main
+         data Main<'s>
          where
              value <= 60,
          {
@@ -119,7 +119,7 @@ fn nested_standing_bound_reaches_the_receiver_path() {
 fn gated_definition_facts_are_withheld() {
     let checked = checked(
         "boundary trait Console { machine exit_process(code: i32) reaches Console; }
-         data Main
+         data Main<'s>
          where
              health >= 1,
          {
@@ -142,7 +142,7 @@ fn gated_definition_facts_are_withheld() {
 fn field_to_field_facts_lower_both_sides() {
     let checked = checked(
         "boundary trait Console { machine exit_process(code: i32) reaches Console; }
-         data Main
+         data Main<'s>
          where
              count <= len,
          {
@@ -179,7 +179,7 @@ fn field_to_field_facts_lower_both_sides() {
 fn erased_field_facts_are_withheld() {
     let checked = checked(
         "boundary trait Console { machine exit_process(code: i32) reaches Console; }
-         data Main
+         data Main<'s>
          where
              witness <= 60,
              value <= 60,

@@ -7,8 +7,7 @@ mod finite_family;
 mod structural_field_stores_and_descriptor_transfers;
 
 use crate::tests::{
-    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees,
-    resolve,
+    Lexer, ResolutionRequest, lower_symbol_resolved_trees, lower_typed_trees, resolve,
 };
 use source::{SourceMap, SourceOrigin};
 use std::path::PathBuf;
