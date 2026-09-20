@@ -7208,7 +7208,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-X64.** Mined candidate — resolved as an alias
+  of RC-NATIVE-MATRIX-LINUX-X86-64: `x64` and `x86_64` name the same
+  host leg, and that row is already recorded at
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision e76d715c8e,
+  linux-x86_64): 22 pass / 16 fail across 38 legs — the Service<R>
+  carrier-spelling family closed at ff93300f44d; the residual is the
+  sysv aggregate-entry exact-arithmetic obligation family owned by
+  ENTRY-CONTENT-ROOTS. Sibling stubs naming the same recorded surface:
+  RC-NATIVE-MATRIX, -CLOSURE, -GATE, -HOST-EXECUTION, -HOST-LEGS,
+  -HOST-RUNS, -HOSTS.
 - **RC-NATIVE-MATRIX-LINUX-X86-64** — recorded at
   `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision 8ae40607a3,
   linux-x86_64): 15 pass / 23 fail across 38 legs; all failures are the
