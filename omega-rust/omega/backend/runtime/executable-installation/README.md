@@ -21,6 +21,10 @@ Follow the subordinate protocols as needed:
   superseded custody.
 - [Replacement quarantine](src/executable_installation/replacement_quarantine.rs)
   retains incompletely drained installed realizations.
+- [Owned-image provider](src/executable_installation/owned_image_provider.rs)
+  performs the contracted install and patch operations over resident image
+  buffers it owns — real byte writes, ordering fence, read-back, and a custody
+  write-suspension flag honestly reported as `ConventionOnly` enforcement.
 
 Keep exact bytes, relocation/proof payload, placement lineage, final-byte
 snapshot, footprint, audience, and provider receipts behind report identities.
