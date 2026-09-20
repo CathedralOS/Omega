@@ -497,6 +497,20 @@ impl BuildMachineFilesystemScope {
                 self.source_root.display()
             ))]);
         }
+        // Named-input snapshot backings derive as `<backing>.input-N`
+        // siblings of the captured source backing, so the backing's own
+        // bind-time fence cannot see them: a write root spelled exactly a
+        // derived path, or nested inside it, would grant writes over that
+        // input's read-only root.
+        for input in &self.named_inputs {
+            if roots_overlap(&input.snapshot_dir, &self.build_dir) {
+                return Err(vec![Diagnostic::error(format!(
+                    "build write root `{}` must not overlap the named input snapshot directory `{}`",
+                    self.build_dir.display(),
+                    input.snapshot_dir.display()
+                ))]);
+            }
+        }
         if let Some(sponsor) = &self.sponsor {
             let path = sponsor
                 .bind_path(&self.build_dir)
@@ -1178,6 +1192,63 @@ mod tests {
         )
         .ensure_write_roots()
         .expect("a write root nested inside the source root stays admitted");
+
+        fs::remove_dir_all(&fixture).expect("remove fixture");
+    }
+
+    #[test]
+    fn build_write_root_rejects_spelling_aliasing_a_named_input_root() {
+        let fixture = temporary_staging_root("input-alias");
+        let source = fixture.join("source");
+        let staging = fixture.join("staging");
+        let backing = staging.join("captured");
+        fs::create_dir_all(&source).expect("create source dir");
+        fs::create_dir(&staging).expect("create staging dir");
+        let metadata = captured_input().canonical_source_metadata().clone();
+
+        // Named-input snapshot backings derive as `<backing>.input-N`
+        // siblings of the captured source backing, so a `--build-dir`
+        // spelled exactly that way aliases the input's read root without
+        // overlapping the backing the bind-time fence already checks.
+        for build_dir in [
+            backing.with_extension("input-0"),
+            backing.with_extension("input-0").join("output"),
+        ] {
+            let diagnostics = BuildMachineFilesystemScope::for_package_root(
+                source.clone(),
+                build_dir.clone(),
+                None,
+                Some(metadata.clone()),
+            )
+            .with_captured_source_input(captured_input(), backing.clone())
+            .expect("the derived-input spelling does not collide with the backing")
+            .with_named_inputs(&std::collections::BTreeMap::from([(
+                b"template".to_vec(),
+                captured_input(),
+            )]))
+            .ensure_write_roots()
+            .expect_err("a write root aliasing a named input read root collides with it");
+            assert!(
+                diagnostics[0].to_string().contains("input"),
+                "unexpected diagnostic: {diagnostics:?}"
+            );
+        }
+
+        // A write root outside every snapshot backing stays admitted.
+        BuildMachineFilesystemScope::for_package_root(
+            source.clone(),
+            fixture.join("build"),
+            None,
+            Some(metadata),
+        )
+        .with_captured_source_input(captured_input(), backing)
+        .expect("bind captured source")
+        .with_named_inputs(&std::collections::BTreeMap::from([(
+            b"template".to_vec(),
+            captured_input(),
+        )]))
+        .ensure_write_roots()
+        .expect("a write root clear of every read root stays admitted");
 
         fs::remove_dir_all(&fixture).expect("remove fixture");
     }
