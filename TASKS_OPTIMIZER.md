@@ -465,8 +465,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     connecting copies inside a pressure region with no pinned sites, then
     accepting homes only over fresh liveness, ranges and legality.
   - Lift the limits in `src/analyses/fixed_precolored_split_requirements/`.
-    Tied registers, early-clobber domains, and ranges whose fragments join,
-    cycle or lack a source connector reject as `UnsupportedTiedRegister`,
+    The cross-block topology now admits a disjoint union of source-rooted
+    fragment trees: a fragment with no incoming connector opens a fresh
+    component — edge parameter bindings leave the target parameter's fragment
+    live-in without one — and a connector ending at a fragment-less block is
+    a tolerated transport exit, so a join binding each arm's argument to the
+    parameter partitions and homes cleanly. Tied registers, early-clobber
+    domains, joins of two connectors into one fragment target, and cycles
+    still reject as `UnsupportedTiedRegister`,
     `UnsupportedEarlyClobberDomain` and `UnsupportedCrossBlockRange`
     (`compute/partition.rs`, `compute/topology.rs`).
   - Place splitting in the recovery order.

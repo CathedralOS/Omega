@@ -50,51 +50,51 @@ pub(super) fn register(
     let topology = topology::reconstruct(function, range, legality)?;
     let mut cuts = CutRows::collect(fixed, &legality.entry_transitions);
     let mut id = 0u32;
-    let entry = &topology[0];
-    let initial = candidates(function, register, entry.points.first())?;
-    let (first, source_exit) = replay_fragment(
-        function,
-        register,
-        entry,
-        initial,
-        FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1,
-        &mut cuts,
-        &mut id,
-        work,
-    )?;
-    let mut fragments = vec![first];
+    let mut fragments = Vec::with_capacity(topology.len());
     // The connector source names the fragment whose closing domain feeds the
     // incoming point domain: keep every processed fragment's exit domain keyed
-    // by its block so deeper trees replay the producer's intersections exactly.
-    let mut closing_by_block = BTreeMap::from([(entry.source.block, source_exit)]);
-    for input in topology.iter().skip(1) {
-        let edge = input.incoming.expect("replayed topology has incoming edge");
-        let parent = closing_by_block
-            .get(&edge.source)
-            .expect("replayed topology admitted the connector source fragment");
+    // by its block so deeper trees replay the producer's intersections
+    // exactly. A fragment with no incoming connector opens a fresh component
+    // on its own first point's domain and still publishes its closing domain.
+    let mut closing_by_block = BTreeMap::<_, BTreeSet<RegisterViewId>>::new();
+    for input in &topology {
         let at_entry = candidates(function, register, input.points.first())?;
-        let shared = parent
-            .intersection(&at_entry)
-            .copied()
-            .collect::<BTreeSet<_>>();
-        let (domain, opening) = if shared.is_empty() {
-            let first_point = input.points.first().expect("candidate point exists");
-            let (site, destination_view) = cuts.boundary(function, register, first_point)?;
-            cuts.require_transition(function, register, parent, site, destination_view)?;
-            work.incompatible_boundary()?;
-            (
+        let (domain, opening) = match input.incoming {
+            None => (
                 at_entry,
-                FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
-                    incoming: Some(edge),
-                    site,
-                    destination_view,
-                },
-            )
-        } else {
-            (
-                shared,
-                FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector: edge },
-            )
+                FixedPrecoloredSourceSegmentOpening::SourceRangeStartV1,
+            ),
+            Some(edge) => {
+                let parent = closing_by_block
+                    .get(&edge.source)
+                    .expect("replayed topology admitted the connector source fragment");
+                let shared = parent
+                    .intersection(&at_entry)
+                    .copied()
+                    .collect::<BTreeSet<_>>();
+                if shared.is_empty() {
+                    let first_point = input.points.first().expect("candidate point exists");
+                    let (site, destination_view) =
+                        cuts.boundary(function, register, first_point)?;
+                    cuts.require_transition(function, register, parent, site, destination_view)?;
+                    work.incompatible_boundary()?;
+                    (
+                        at_entry,
+                        FixedPrecoloredSourceSegmentOpening::IncompatibleFixedUseDomainBoundaryV1 {
+                            incoming: Some(edge),
+                            site,
+                            destination_view,
+                        },
+                    )
+                } else {
+                    (
+                        shared,
+                        FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 {
+                            connector: edge,
+                        },
+                    )
+                }
+            }
         };
         let (fragment, exit) = replay_fragment(
             function, register, input, domain, opening, &mut cuts, &mut id, work,

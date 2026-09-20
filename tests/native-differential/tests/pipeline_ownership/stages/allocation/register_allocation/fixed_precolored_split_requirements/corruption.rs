@@ -1,4 +1,4 @@
-use super::fixture::{analyze, chain, generous_budget, source, validate};
+use super::fixture::{analyze, chain, generous_budget, joined, source, validate};
 use crate::tests::{LiveRangePoint, MachineId, NativeTarget, VirtualRegisterId};
 
 #[test]
@@ -118,6 +118,31 @@ fn independent_replay_rejects_a_reparented_chain_opening() {
     connector.source = leaf;
     plan.functions[0].registers[1].fragments[1].segments[0].opening =
         register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector };
+    assert_eq!(
+        validate(&fixture, plan),
+        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+    );
+}
+
+#[test]
+fn independent_replay_rejects_a_fabricated_component_connector() {
+    let fixture = joined(NativeTarget::linux_x64());
+    let canonical = analyze(&fixture, generous_budget()).unwrap();
+
+    // A connector lie: the join parameter's fragment is a component root —
+    // every edge substitutes it — but the corrupted plan claims it opens
+    // across an incoming edge. Replay finds no such connector and disagrees.
+    let mut plan = canonical.plan().clone();
+    plan.functions[0].registers[2].fragments[0].segments[0].opening =
+        register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 {
+            connector: selected_instructions::LiveRangeEdgeConnector {
+                source: selected_instructions::SelectedBlockId(0),
+                terminator: selected_instructions::SelectedInstructionId(0),
+                polarity_ordinal: 0,
+                psi_edge: semantic_vocabulary::EdgeId::new(99_001).unwrap(),
+                target: selected_instructions::SelectedBlockId(3),
+            },
+        };
     assert_eq!(
         validate(&fixture, plan),
         Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)

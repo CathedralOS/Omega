@@ -13,12 +13,15 @@ pub(super) struct FragmentInput<'a> {
     pub(super) incoming: Option<LiveRangeEdgeConnector>,
 }
 
-/// Admit a one-block range or a source-rooted fragment tree: every non-first
-/// fragment takes exactly one incoming edge connector whose source is an
-/// *earlier* fragment's block. The source-block fanout is the shallow case;
-/// deeper chains and trees qualify the same way because partition order keeps
-/// every parent fragment's closing domain available before its children.
-/// Joined, cyclic, or sourceless connectors stay unsupported.
+/// Admit a disjoint union of source-rooted fragment trees. A fragment whose
+/// block carries no incoming connector opens a fresh component: edge
+/// parameter bindings hand the value to a different register at the boundary,
+/// so a block parameter's fragment is live-in with no connector even when it
+/// is not the range's first fragment. The mirrored case is a connector that
+/// ends at a block holding no fragment — the argument register's range simply
+/// terminates at that edge — and is tolerated once every fragment is placed.
+/// Joins (two connectors into one target), cycles, and connectors arriving
+/// from a not-yet-admitted fragment still fail closed.
 pub(super) fn tree<'a>(
     function: usize,
     range: &'a VirtualLiveRange,
@@ -41,18 +44,11 @@ pub(super) fn tree<'a>(
             );
         }
     }
-    if (range.fragments.len() == 1 && !connectors.is_empty())
-        || (range.fragments.len() > 1 && connectors.len() != range.fragments.len() - 1)
-    {
-        return Err(
-            FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange { function, register },
-        );
-    }
 
     let mut point_offset = 0usize;
     let mut admitted = BTreeSet::new();
     let mut inputs = Vec::with_capacity(range.fragments.len());
-    for (fragment_offset, fragment) in range.fragments.iter().enumerate() {
+    for fragment in &range.fragments {
         let width =
             fragment.end.0.checked_sub(fragment.start.0).ok_or(
                 FixedPrecoloredSplitRequirementError::IntervalOverflow { function, register },
@@ -71,14 +67,25 @@ pub(super) fn tree<'a>(
             },
         )?;
         point_offset = end;
-        let incoming = if fragment_offset == 0 {
-            None
-        } else {
-            connectors.remove(&fragment.block)
-        };
-        match incoming {
-            Some(connector) if admitted.contains(&connector.source) => {}
-            None if fragment_offset == 0 => {}
+        // The connector dedup above keys by target, and every fragment's block
+        // is probed exactly once, so anything left in `connectors` after this
+        // loop necessarily targets a block with no fragment — a transport
+        // exit — and is dropped.
+        match connectors.remove(&fragment.block) {
+            Some(connector) if admitted.contains(&connector.source) => {
+                inputs.push(FragmentInput {
+                    fragment,
+                    points,
+                    incoming: Some(connector),
+                });
+            }
+            None => {
+                inputs.push(FragmentInput {
+                    fragment,
+                    points,
+                    incoming: None,
+                });
+            }
             _ => {
                 return Err(
                     FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange {
@@ -89,13 +96,8 @@ pub(super) fn tree<'a>(
             }
         }
         admitted.insert(fragment.block);
-        inputs.push(FragmentInput {
-            fragment,
-            points,
-            incoming,
-        });
     }
-    if point_offset != legality.points.len() || !connectors.is_empty() {
+    if point_offset != legality.points.len() {
         return Err(
             FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange { function, register },
         );
