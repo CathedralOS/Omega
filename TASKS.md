@@ -9142,7 +9142,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   clone-free-scratch fences
   `review/evidence/src/capture/calling/application/signature` until
   2026-09-21T02:04Z; claim returned exit 2 (same item). Coordinate on the
-  owner's branch; no in-fence work attempted.
+  owner's branch; no in-fence work attempted. Re-verified at
+  `9e3edc7be9` (z137): the z36 fence has expired, but the implementing
+  surface stays covered — `review/evidence/src/capture` by
+  PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION (04:50Z) and the whole
+  `omega-rust/omega/packages/review/evidence` tree by
+  PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION (01:23Z). The slice
+  remains owned and unfenced-work-free; coordinate after those leases.
 - **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
 - **REWRITE-CATALOG-ADMISSION** — mined candidate; verify scope then implement.
 - **REWRITE-VALIDATOR-INDEPENDENCE.** Mined candidate — resolved at
