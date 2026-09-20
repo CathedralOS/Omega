@@ -6408,7 +6408,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   coverage row. Sibling re-mine name: PRIME-COUNTER-BENCHMARK-ROW.
 - **BENCHMARK-PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
-- **BENCHMARK-PROOF-SUBJECT-SELECTION** — mined candidate; verify scope then implement.
+- **BENCHMARK-PROOF-SUBJECT-SELECTION.** Mined candidate; scope verified at
+  `1a772e4ae1`, owned — re-mines the proof-subject leg of the benchmarks
+  frontier (wiki/drafts/benchmarks.md 'no measurable subject'): the only
+  `depend()`-free subjects are `samples/cli/proofs/{math_proofs,
+  structural_proofs}`, proof-only machines that emit no runtime code (no
+  selected `ProgramEntry`), and `math_proofs` fails earlier at checked-call
+  selection. Selecting a proof subject for a row therefore means either an
+  authored `build.omg` + `ProgramEntry` on a proof sample (both subjects are
+  already pinned in `tests/samples_compile.rs`'s roster at
+  `cli__proofs__*`) or a landing of the checked-call-selection fix. Both
+  candidate surfaces are under live claims: this item's own claim (Devin /
+  zergling-148, `samples/cli/proofs/structural_proofs` +
+  `tests/samples_compile.rs`, ~22:34Z) and PROOF-SAMPLES-CHECKED-CALL-
+  SELECTION (Jarod / swarm-w9, `samples/cli/proofs/math_proofs`, ~22:41Z);
+  `tools/benchmark` itself is held by BENCHMARK-COMPARISON-OCCURRENCE-GATE
+  (~22:09Z). Sibling stubs on the same sentence: BENCHMARK-PROOF-SUBJECT-
+  CALL-SELECTION, BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-SELECTION,
+  BENCHMARK-MEASURABLE-SUBJECT-CORPUS, BENCHMARK-DEPEND-FREE-RUNNABLE-
+  SUBJECT.
 - **BENCHMARK-REJECTED-ROW-RECORDING** — mined candidate; verify scope then implement.
 - **BENCHMARK-ROW-RESUMPTION** — mined candidate; verify scope then implement.
 - **BENCHMARK-SELECTION-CONTRAST-ROWS** — mined candidate; verify scope then implement.
