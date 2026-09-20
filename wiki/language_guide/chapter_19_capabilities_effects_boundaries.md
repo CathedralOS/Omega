@@ -617,7 +617,11 @@ their own entry-reference and descriptor contracts. See
 ### Build policy and privileged reach
 
 A hosted profile can reject privileged reach; a kernel profile may grant a
-small admitted provider set. Approval still supplies neither a resource value
+small admitted provider set. The authored grants are exact per class:
+`b.privileged_services.port_io = true` admits port-I/O instruction contracts
+and `b.privileged_services.interrupt_table = true` admits interrupt-table
+publication, while machine-owner authority has no granular grant and stays
+`b.freestanding = true`. Approval still supplies neither a resource value
 nor its operation-specific qualification. An interrupt-table value does not
 authorize installation, and installation authority does not construct the table.
 Checked wrappers and hardware roots remain visible to policy.
