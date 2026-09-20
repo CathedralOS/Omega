@@ -99,9 +99,11 @@ codes 1–12: `malformed_request`, the eight lexical refusals projected from
 the scanner's retained diagnostic, `duplicate_name` at the later
 declaration's name, `missing_entry` with no coordinate, and
 `integer_literal_out_of_range` at the refused literal's first byte. The
-still-unassigned syntax and checking `Reject` inventory and the coverage
-provisions cannot publish a frame, and the encoder refuses tuples carrying
-codes it does not assign. The
+contract now assigns the syntax `Reject` inventory (codes 13–89), the scalar
+checking `Reject` codes (90–97), and the `Incomplete` coverage provisions
+(resource codes 15–24), but producers still record the unassigned marker for
+those refusals, so the encoder keeps refusing their tuples until the
+projections are wired. The
 [outcome gate](../../tests/bootstrap/omega-outcome/README.md) exercises the
 embedded tables, exact and refused frame encodings, bounded arithmetic, and
 the recorded tuples through the selected evaluator.
@@ -118,9 +120,11 @@ commitment checks — remain unimplemented. The assigned OCOUT header,
 outcome-code, coordinate-space, phase, and scalar-resource tables are embedded
 there as projections with the canonical failure-frame encoder. The contract's
 lexical `Reject` codes 2–9 and the named declaration, entry, and literal
-refusals 10–12 are assigned and implemented in D; the syntax and remaining
-checking `Reject` inventory and the `Incomplete` coverage provisions remain
-unfinished under OMEGA-D/OMEGA-C in [the board](../../TASKS_BOOTSTRAP.md).
+refusals 10–12 are assigned and implemented in D; the syntax `Reject`
+inventory, the remaining checking codes, and the `Incomplete` coverage
+provisions are assigned in the contract and still need producer wiring and
+the semantic phases over the decoded fields under OMEGA-D/OMEGA-C in
+[the board](../../TASKS_BOOTSTRAP.md).
 A raw-single-file stdin convention cannot replace the sealed request.
 [Build execution](../../wiki/spec/build/execution.md) owns the admitted checkpoint,
 one-way generated-source continuation, and dependency-bundle no-rerun contract.
