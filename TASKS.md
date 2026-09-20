@@ -6725,17 +6725,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   d-composition/refinement acceptance gates live under `tests/epsilon`
   (claimed by DELTA-COMPILER until 21:48Z). Per FEATURE_LEDGER's decision
   method, extension also needs a concrete `D`-side use to cite.
-- **EXACT-PROGRAM-ENTRY-MULTIPLICITY.** Verified on `main`: entry
-  multiplicity is already enforced end to end — `admission/selection.rs`
-  requires exactly one binding per required catalog slot, exactly one
-  ProgramEntry-schema root (a defensive arm while every profile catalog is a
-  singleton), a non-generic machine with at most one provisioned `&mut self`,
-  and `root_bindings.rs` rejects a re-bound slot or ambiguous implementation;
-  integration coverage lives in `build_target_activation`. Landed unit pins
-  for the previously unexercised edges: empty root bindings keep the
-  migration fallback, an unqualified slot spelling rejects, malformed or
-  unknown-profile foreign rows still reject beside a valid selection, and the
-  binding walk collects every malformed row's diagnostic in order.
 - **EXECUTABLE-PUBLICATION** — mined candidate; verify scope then implement.
 - **EXECUTABLE-PUBLICATION-JOIN.** Mined candidate; scope verified, resolved —
   same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on
