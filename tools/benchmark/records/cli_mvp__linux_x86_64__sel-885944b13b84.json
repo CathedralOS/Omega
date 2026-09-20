@@ -1,0 +1,91 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-20T22:37:20Z",
+  "subject": {
+    "name": "cli_mvp",
+    "root": "samples/cli/basics/cli_mvp/main.omg",
+    "source_revision": "96b4afed92e556ee7917875eb010ee49ccdda805"
+  },
+  "key": {
+    "target": "linux_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": [
+        "CopyPropagation"
+      ]
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "linux",
+    "machine": "x86_64",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8559C",
+    "logical_cpus": 8,
+    "python": "3.10.12",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "target/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        1223491.5724359998,
+        1234129.3617660012,
+        1229394.2155789991
+      ],
+      "median_ms": 1229394.2155789991,
+      "min_ms": 1223491.5724359998,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 50.718,
+        "compile: sources -> requested product": 1228564.513,
+        "publish: retained product -> published product": 763.401,
+        "total elapsed": 1229379.107
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 248938496,
+      "run_max_rss": 12025856
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192,
+        8192,
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        1.7959770011657383,
+        1.363143001071876,
+        1.5490400000999216,
+        1.301946998864878,
+        1.2965459973202087
+      ],
+      "median_ms": 1.363143001071876,
+      "min_ms": 1.2965459973202087,
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "exit_code_expected": 0,
+      "stdin": "devnull",
+      "exit_code_match": true
+    }
+  },
+  "notes": [
+    "resumed after comparison-occurrence gate 76dc49a99e"
+  ]
+}
