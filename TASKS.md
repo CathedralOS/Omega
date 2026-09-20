@@ -6037,7 +6037,20 @@ Platform/cross-host (structurally gated — document host limits):
 
 Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
-- **SQUALR-CLI-COMMANDS.** Squalr CLI commands.
+- **SQUALR-CLI-COMMANDS.** Scope verified 2026-09-20: submodule item
+  `CLI-COMMANDS` (`samples/apps/squalr/TASKS.md`) — port the request/response
+  model through squalr-engine-session, squalr-engine and squalr-cli.
+  Dependency-blocked, not implementable this wave: the submodule's list is
+  ordered execution and this row sits after **SUPPLIED-BYTES-SCAN**, which
+  owns the production scan engine this item's acceptance exercises
+  ("creates a scan, filters it again and pages exact results through the
+  production engine"). Today squalr-engine, squalr-engine-session and
+  squalr-cli contain only `build.omg` stubs — there is no engine or session
+  surface to route commands through, and the submodule's AGENTS.md forbids
+  success stubs or fixed-capacity substitutes. The Squalr integration
+  umbrella is also under live claim (SQUALR-HEADLESS, Codex). Real start
+  condition: SUPPLIED-BYTES-SCAN lands its engine-api/scanning port, then
+  this row ports the command model on top.
 - **SQUALR-ALIGNMENT-STRING-PARSING.** Alignment string parsing.
 - **SQUALR-CLONE-SERIALIZATION-PARITY.** Clone serialization parity.
 - **SQUALR-GEOMETRY-PARITY.** Geometry parity gaps + debug assertions.
