@@ -10234,6 +10234,55 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   tests pass with zero loan-origin diagnostics; detail in
   `wiki/drafts/cross_package_dynamic_loan_origin.md`. No independent slice
   remains.
+||||||| parent of 9881ae4c71a4 (board: CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN — resolved re-mine)
+- **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN** — mined candidate; verify scope then implement.
+- **CTTL-FAILURE-ATTRIBUTION** — mined candidate; scope verified, resolved.
+  Names the attribution pass over the `typed-trees-to-checked-trees` section
+  of `wiki/drafts/known_baseline_failures.md` (last recorded reading:
+  `660f5af762` macOS arm64, 4159 run / 6 failed — the long-standing trio
+  plus the rank_ranges field-endpoint set). Re-verified green on linux
+  x86-64 at `d32183a35c`:
+  `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast`
+  → 5014 run, 5014 passed, 0 failed — every recorded member closed
+  (`indexed_operand_access_preserves_shared_collection_and_owned_index`,
+  `consuming_call_that_returns_an_obligation_transfers_its_origin`,
+  `scalar_caller_retains_call_produced_record_local_before_getter`, and
+  the three rank_ranges field-endpoint cases all pass), so the residual
+  tail is empty and there is nothing left to attribute. The ledger
+  section's stale draft rows belong to the live claims already fencing
+  `wiki/drafts/known_baseline_failures.md` (LOWERED-UNIT-FAILURE-
+  ATTRIBUTION until ~01:17Z, BASELINE-PACKAGE-COMPILATION-INPUTS until
+  ~20:19Z); this lane claims no file paths.
+- **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN.** Mined candidate; scope verified —
+  resolved re-mine of the cross-package dynamic loan-origin cluster already
+  closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`), per
+  resolved siblings CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN (:6124) and
+  PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN (:8366): the recorded failure
+  `cross_package_visibility::public_dynamic_return_may_carry_private_
+  producer_selected_evidence` ("requires an exact retained loan origin for
+  its shared receiver") passes after the retained-lineage/borrow-evidence
+  family landed — all 21 `cross_package_visibility` tests green at
+  `dcfb595098` with zero loan-origin diagnostics (re-verified on the
+  sibling rows; the surface is unchanged at `27deadf4122`). No independent
+  slice exists; residual umbrella ownership stays on
+  CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.
+- **CTTL-FAILURE-ATTRIBUTION** — mined candidate; scope verified, resolved.
+  Names the attribution pass over the `typed-trees-to-checked-trees` section
+  of `wiki/drafts/known_baseline_failures.md` (last recorded reading:
+  `660f5af762` macOS arm64, 4159 run / 6 failed — the long-standing trio
+  plus the rank_ranges field-endpoint set). Re-verified green on linux
+  x86-64 at `d32183a35c`:
+  `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast`
+  → 5014 run, 5014 passed, 0 failed — every recorded member closed
+  (`indexed_operand_access_preserves_shared_collection_and_owned_index`,
+  `consuming_call_that_returns_an_obligation_transfers_its_origin`,
+  `scalar_caller_retains_call_produced_record_local_before_getter`, and
+  the three rank_ranges field-endpoint cases all pass), so the residual
+  tail is empty and there is nothing left to attribute. The ledger
+  section's stale draft rows belong to the live claims already fencing
+  `wiki/drafts/known_baseline_failures.md` (LOWERED-UNIT-FAILURE-
+  ATTRIBUTION until ~01:17Z, BASELINE-PACKAGE-COMPILATION-INPUTS until
+  ~20:19Z); this lane claims no file paths.
 - **CUSTODY-MATRIX-HARNESS-MIGRATION.** Mined candidate (split-of:CUSTODY-MUTATION-COVERAGE):
   convert the legacy handwritten one-field substitution matrices to the shared
   `custody_field_inventory!`/`run_one_field_substitution_matrix` harness in
