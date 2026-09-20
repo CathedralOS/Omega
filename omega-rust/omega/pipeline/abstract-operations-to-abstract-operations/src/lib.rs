@@ -14,6 +14,7 @@ mod analyses;
 mod pass_manager;
 mod publication;
 mod ranked_rewrites;
+mod representation_specialization;
 mod rules;
 mod state_specialization;
 pub mod validation;
@@ -52,6 +53,12 @@ pub(crate) use analyses::{
 };
 pub use pass_manager::*;
 pub use ranked_rewrites::*;
+pub use representation_specialization::{
+    AppliedCaseMembershipSpecialization, CaseMembershipSpecializationCandidate,
+    CaseMembershipSpecializationError, ResolvedCaseMembership,
+    ValidatedCaseMembershipSpecialization, apply_case_membership_specialization,
+    propose_case_membership_specializations, validate_case_membership_specialization,
+};
 pub use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError, RuleScheduleKey,
