@@ -14,6 +14,7 @@ use crate::checker::dependent_bounds::{
     guard_proves_sibling_len_upper, sibling_len_from_constraints, state_preserves_field,
     symbolic_max_from_constraints,
 };
+use crate::checker::derivation_cache::DerivationConsultation;
 use crate::checker::diagnostics::{
     cannot_prove_bounded_assignment_float, cannot_prove_bounded_assignment_integer,
     cannot_prove_bounded_call_float, cannot_prove_bounded_call_integer,
@@ -55,6 +56,7 @@ pub(crate) fn check_bounded_assignment(
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
     measurements: &mut ProofPlanMeasurements,
+    derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     // Chapter 11 invariant windows: an intermediate store need not itself
     // satisfy the place's constraints when a later store repairs the EXACT
@@ -81,6 +83,7 @@ pub(crate) fn check_bounded_assignment(
             seed,
             false,
             measurements,
+            derivations,
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -249,6 +252,7 @@ pub(crate) fn check_bounded_initializer(
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
     measurements: &mut ProofPlanMeasurements,
+    derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_initializer_named_constraints(proof_plan, obligation, diagnostics);
 
@@ -266,6 +270,7 @@ pub(crate) fn check_bounded_initializer(
             seed,
             false,
             measurements,
+            derivations,
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -328,6 +333,7 @@ pub(crate) fn check_bounded_state_return(
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
     measurements: &mut ProofPlanMeasurements,
+    derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_return_named_constraints(proof_plan, obligation, diagnostics);
 
@@ -343,6 +349,7 @@ pub(crate) fn check_bounded_state_return(
             &target_range,
             seed,
             measurements,
+            derivations,
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -405,6 +412,7 @@ pub(crate) fn check_bounded_call_argument(
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
     measurements: &mut ProofPlanMeasurements,
+    derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_call_named_constraints(proof_plan, obligation, diagnostics);
 
@@ -422,6 +430,7 @@ pub(crate) fn check_bounded_call_argument(
             seed,
             true,
             measurements,
+            derivations,
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -547,6 +556,7 @@ pub(crate) fn check_bounded_transition_argument(
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
     measurements: &mut ProofPlanMeasurements,
+    mut derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
     check_transition_named_constraints(proof_plan, obligation, diagnostics);
 
@@ -566,6 +576,7 @@ pub(crate) fn check_bounded_transition_argument(
             seed,
             true,
             measurements,
+            derivations.as_deref_mut(),
         ) {
             CertificateVerdict::Certified => {}
             CertificateVerdict::Rejected => {
@@ -585,6 +596,7 @@ pub(crate) fn check_bounded_transition_argument(
                     &target_range,
                     seed,
                     measurements,
+                    derivations,
                 ) {
                     CertificateVerdict::Certified => {}
                     CertificateVerdict::Rejected => {

@@ -7156,7 +7156,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOF-QUANTIFIER-AUTOMATION** — mined candidate; verify scope then implement.
 - **PROOF-SAMPLES-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **PROOF-SEARCH-COST-MEASUREMENT** — mined candidate; verify scope then implement.
-- **PROOF-SEARCH-DERIVATION-CACHE** — mined candidate; verify scope then implement.
+- **PROOF-SEARCH-DERIVATION-CACHE.** Resolved — the derivation recheck
+  consultation is wired into `check_proof_plan`: a caller-supplied
+  `ProofDerivationCache` (`checker::derivation_cache`, entered via
+  `check_proof_plan_with_derivation_cache`) is consulted by each bounded
+  certificate route before the producer re-derives the leg. Candidates
+  retained under the obligation's canonical `ProofObligationKey` are
+  re-decided through the admission kernel — an accepted candidate discharges
+  the leg, a rejected one is counted and passed over — and kernel-accepted
+  certificates are retained for later rechecks. Capacity refusal is an
+  explicit `DerivationStoreFull` outcome, never silent eviction; the leg's
+  verdict is unaffected either way. `DerivationCacheReport` tallies
+  consultations/reused/rejected/retained/refused for the draft's hit-rate
+  axis. This is also the `DERIVATION-RECHECK-CACHE` wiring slice (the board
+  row assigns it there); caller adoption of a long-lived cache stays with
+  the reuse-policy decision in `wiki/drafts/proof_search_cache.md`.
+  Verified: `cargo nextest run -p proof` 81/81 green on linux x86-64,
+  including four new consultation tests in `checker/certificate/tests.rs`;
+  `cargo check -p typed-trees-to-checked-trees` clean; `cargo clippy -p
+  proof --all-targets` clean.
 - **PROOF-SUBJECT-CALL-SELECTION** — mined candidate; verify scope then implement.
 - **PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION** — mined candidate; scope verified, owned surface. Re-mines the call-preconditions leg of OPERATOR-MACHINE-SUPPLY: a checked/specification call cited as a proof subject must attribute the callee's selected precondition to the call's exact subject, not to an unrelated prior fact. Implemented on origin/main 1fc01bb690: `validation/src/proof_contracts/contract_entailment/specification_calls.rs` checks selected concrete calls before fact intake; the caller-terms attribution diagnostic is `typed-trees-to-checked-trees/src/checks/operators/requires.rs` ("cannot prove requires contract for specification call `X` in machine `Y` ... contract: establish its selected precondition in an independently formed prior requires fact"). Verified live: `proofs/case_call_wrong_subject` rejects `empty_only(other)` when only `known in Tree::Empty` is established (different subject not attributed), `case_citation_wrong_result` pins the result side, and pass twin `proofs/case_call_premises` compiles with same-subject premises discharged. Remaining owners are the item's own list (abstract signatures, domain predicates, postcondition transport of case membership, induction) — not an independent slice. Sibling stubs on the same surface: PROOF-SUBJECT-CALL-SELECTION, PROOF-SUBJECT-CHECKED-CALL-SELECTION, PROOFS-SUBJECT-CHECKED-CALL-SELECTION, CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS, PROOF-SAMPLES-CHECKED-CALL-SELECTION.
 - **PROOF-SUBJECT-CHECKED-CALL-SELECTION** — mined candidate; verify scope then implement.

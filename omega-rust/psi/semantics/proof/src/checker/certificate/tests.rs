@@ -499,3 +499,190 @@ fn plan_measurement_records_the_kernel_receipt() {
         u64::from(receipt.arena_slots)
     );
 }
+
+// Derivation-recheck consultation: retained certificates are re-decided by
+// the admission kernel on every consult — a hit discharges the leg, a
+// kernel-rejected candidate is passed over, a miss and a capacity refusal
+// are explicit outcomes. The key scaffold mirrors `derivation_store::tests`:
+// a minimal TypedTrees with one machine and two data symbols so
+// `proof_obligation_key` produces canonical obligation identities.
+
+use crate::checker::derivation_cache::{DerivationConsultation, ProofDerivationCache};
+use crate::obligations::{
+    BoundedValueObligation, ProofObligation, ProofObligationOwner, ProofPlan,
+};
+use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+use typed_trees::TypedTrees;
+use typed_trees::name::Identifier;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+struct ConsultationProgram {
+    typed_trees: TypedTrees,
+    machine: SymbolHandle,
+    data: [SymbolHandle; 2],
+    int_type: SymbolHandle,
+}
+
+fn consultation_program() -> ConsultationProgram {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let machine = SymbolTableBuilder::child_handles(
+        builder.insert_children(root, [(SymbolKind::Machine, SymbolNameRef::Static("Main"))]),
+    )
+    .next()
+    .expect("machine");
+    let members = SymbolTableBuilder::child_handles(builder.insert_children(
+        machine,
+        [
+            (SymbolKind::Data, SymbolNameRef::Static("count")),
+            (SymbolKind::Data, SymbolNameRef::Static("total")),
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("Int")),
+        ],
+    ))
+    .collect::<Vec<_>>();
+    ConsultationProgram {
+        typed_trees: TypedTrees {
+            symbols: builder.finish(),
+            ..TypedTrees::default()
+        },
+        machine,
+        data: [members[0], members[1]],
+        int_type: members[2],
+    }
+}
+
+impl ConsultationProgram {
+    fn int_reference(&mut self) -> TypeReferenceHandle {
+        self.typed_trees
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: self.int_type,
+                name: Identifier::generated("Int"),
+            })
+    }
+}
+
+fn key_obligation(
+    machine: SymbolHandle,
+    machine_name: &str,
+    data_symbol: SymbolHandle,
+    data_name: &str,
+    base: TypeReferenceHandle,
+) -> ProofObligation {
+    ProofObligation::BoundedValue(BoundedValueObligation {
+        owner: ProofObligationOwner::MachineOwnedData {
+            machine_symbol: machine,
+            machine: Identifier::generated(machine_name),
+            data_symbol,
+            data: Identifier::generated(data_name),
+        },
+        base_type: base,
+        constraints: arena::HandleSpan::empty(),
+    })
+}
+
+#[test]
+fn retained_certificate_re_decides_for_a_semantically_identical_obligation() {
+    let mut program = consultation_program();
+    let base = program.int_reference();
+    let plan = ProofPlan::new(&program.typed_trees);
+    let mut cache = ProofDerivationCache::new();
+
+    let certificate =
+        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 61)
+            .expect("certificate");
+    let proposition = certificate.obligation.proposition.clone();
+    let obligation = key_obligation(program.machine, "Main", program.data[0], "count", base);
+    DerivationConsultation::new(&plan, &obligation, &mut cache).retain(certificate);
+    assert_eq!(cache.report().retained, 1);
+    assert_eq!(cache.len(), 1);
+
+    // A display rename beside the same resolved symbols is the same
+    // semantic obligation: the retained package is re-decided by the kernel
+    // and the leg discharges without the producer running again.
+    let renamed = key_obligation(program.machine, "Renamed", program.data[0], "renamed", base);
+    let fact = DerivationConsultation::new(&plan, &renamed, &mut cache)
+        .recheck()
+        .expect("retained candidate re-decides");
+    assert_eq!(fact.proposition, proposition);
+    let report = cache.report();
+    assert_eq!(report.consultations, 1);
+    assert_eq!(report.reused, 1);
+    assert_eq!(report.rejected_candidates, 0);
+}
+
+#[test]
+fn recheck_misses_an_obligation_with_no_retained_candidates() {
+    let mut program = consultation_program();
+    let base = program.int_reference();
+    let plan = ProofPlan::new(&program.typed_trees);
+    let mut cache = ProofDerivationCache::new();
+
+    let certificate =
+        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 62)
+            .expect("certificate");
+    let stored = key_obligation(program.machine, "Main", program.data[0], "count", base);
+    DerivationConsultation::new(&plan, &stored, &mut cache).retain(certificate);
+
+    // A different resolved owner is a different obligation: a miss, not a
+    // collision.
+    let other = key_obligation(program.machine, "Main", program.data[1], "count", base);
+    assert!(
+        DerivationConsultation::new(&plan, &other, &mut cache)
+            .recheck()
+            .is_none()
+    );
+    let report = cache.report();
+    assert_eq!(report.consultations, 1);
+    assert_eq!(report.reused, 0);
+}
+
+#[test]
+fn kernel_rejected_candidates_are_passed_over_not_accepted() {
+    let mut program = consultation_program();
+    let base = program.int_reference();
+    let plan = ProofPlan::new(&program.typed_trees);
+    let mut cache = ProofDerivationCache::new();
+    let obligation = key_obligation(program.machine, "Main", program.data[0], "count", base);
+
+    // A stale or hostile entry under the right key gets the same treatment
+    // as an honest one: the kernel re-decides it. This package's own claim
+    // (`300 <= 5`) is false, so it can never discharge a leg.
+    let forged = closed_bounds_certificate(literal_term(300), math_literal(0), math_literal(5), 63)
+        .expect("certificate builds; the kernel rejects it");
+    DerivationConsultation::new(&plan, &obligation, &mut cache).retain(forged);
+    let sound = closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 64)
+        .expect("certificate");
+    DerivationConsultation::new(&plan, &obligation, &mut cache).retain(sound);
+
+    let fact = DerivationConsultation::new(&plan, &obligation, &mut cache)
+        .recheck()
+        .expect("the sound candidate still discharges the leg");
+    assert!(matches!(
+        fact.route,
+        AcceptedFactRoute::CertificateDerived { .. }
+    ));
+    let report = cache.report();
+    assert_eq!(report.consultations, 1);
+    assert_eq!(report.rejected_candidates, 1);
+    assert_eq!(report.reused, 1);
+}
+
+#[test]
+fn capacity_refusal_is_explicit_and_keeps_the_verdict_path() {
+    let mut program = consultation_program();
+    let base = program.int_reference();
+    let plan = ProofPlan::new(&program.typed_trees);
+    let mut cache = ProofDerivationCache::with_capacity(0);
+    let obligation = key_obligation(program.machine, "Main", program.data[0], "count", base);
+
+    let certificate =
+        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 65)
+            .expect("certificate");
+    DerivationConsultation::new(&plan, &obligation, &mut cache).retain(certificate);
+
+    // The refusal is counted, nothing is silently evicted, and the leg that
+    // produced the certificate was already discharged by the kernel.
+    assert!(cache.is_empty());
+    assert_eq!(cache.report().capacity_refusals, 1);
+}

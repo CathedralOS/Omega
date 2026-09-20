@@ -21,9 +21,11 @@
 //! symbols, constraints, operand payloads — so dependency changes produce a
 //! different key and `invalidate` drops the stale row's storage.
 //!
-//! Out of scope here: persistence format, cross-compilation reuse policy,
-//! and consultation inside the checking loop — `DERIVATION-RECHECK-CACHE`
-//! owns wiring this index into `check_proof_plan`. The store also does not
+//! Out of scope here: persistence format and cross-compilation reuse
+//! policy. The checking-loop consultation landed in
+//! `checker::derivation_cache` (`check_proof_plan_with_derivation_cache`):
+//! the bounded certificate routes ask this index before re-deriving a leg
+//! and retain the certificates the kernel accepts. The store also does not
 //! deduplicate derivations by content: identical derivations stored twice
 //! are distinct candidates the recheck decides independently.
 
