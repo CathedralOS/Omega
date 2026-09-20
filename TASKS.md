@@ -6297,7 +6297,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CHAIN-MANIFEST-GATE-PREFIX-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-MANIFEST-OCREQ-BINDING** — mined candidate; verify scope then implement.
 - **CHAIN-OCREQ-ENTRY-BINDING** — mined candidate; verify scope then implement.
-- **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS** — mined candidate; verify scope then implement.
+- **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.** Resolved — re-mine of the
+  PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION surface, implemented at `1fc01bb690`:
+  `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
+  walks selected concrete calls before fact intake so a specification call's
+  selected precondition attributes to the call's exact subject; the rejection
+  diagnostic lives in `typed-trees-to-checked-trees/src/checks/operators/requires.rs`.
+  Verified on `4dbdaa9bc3`: `proofs/case_call_wrong_subject` and
+  `proofs/case_citation_wrong_result` reject with `cannot prove requires
+  contract for specification call` while `proofs/case_call_premises` compiles.
+  No independent slice remains — the surface's residual legs (abstract
+  signatures, domain predicates, postcondition transport of case membership,
+  induction) belong to PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's own owner
+  list, which names this row a sibling stub.
 - **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET** — mined candidate; verify scope then implement.
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
