@@ -1140,6 +1140,7 @@ fn borrowed_flat_record_arguments_preserve_source_custody_and_plan_positions() {
             &mut shape_cache,
             &mut active,
             None,
+            &[],
         )
         .expect("two borrowed flat-record arguments");
         assert_eq!(lowered.len(), 2);
@@ -1262,6 +1263,7 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
             None,
+            &[],
         )
         .expect("owned aggregate argument lowers");
         let [argument] = lowered.as_slice() else {
@@ -1336,10 +1338,168 @@ fn normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_tran
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 None,
+                &[],
             )
             .is_err()
         );
     }
+}
+
+#[test]
+fn owned_aggregate_argument_from_call_result_admits_affine_home() {
+    let boundary = BoundaryMachineId::new(281).unwrap();
+    let machine = MachineId::new(282).unwrap();
+    let result_place = PlaceId::new(283).unwrap();
+    let producer = OperationId::new(284).unwrap();
+    let (point, _main, catalog) = flat_record_catalog();
+    let structural_types = StructuralTypeLookup::new(&catalog);
+    let parameters_by_place = BTreeMap::new();
+    let mut declaration = declaration(boundary, Vec::new());
+    declaration.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+    let mut formal = structural_formal(0, point, terminal_psi::StructuralAccess::Owned);
+    formal.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+    declaration.structural_parameters = vec![formal];
+    let arguments = vec![terminal_psi::StructuralArgument {
+        place: result_place,
+        path: Vec::new(),
+        access: terminal_psi::StructuralAccess::Owned,
+    }];
+    let result_shape = ValueShape::integer(8, 4);
+    let record_result = terminal_psi::StructuralOperationResult {
+        place: result_place,
+        structural_type: point,
+        multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    let result_placement = ValuePlacement {
+        shape: result_shape,
+        locations: vec![ValueLocation::Register {
+            register: MachineRegister::X86Rax,
+            value_byte_offset: 0,
+            byte_size: 8,
+        }],
+    };
+    let operations = vec![target_operations::TargetUnitOperation::Call {
+        origin: target_operations::NativeCallOrigin::Authored,
+        psi_operation: producer,
+        callee: MachineId::new(285).unwrap(),
+        call_plan: calling_conventions::CallPlan {
+            policy: CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+            parameters: Vec::new(),
+            result: Some(result_placement),
+            callback_materializations: Vec::new(),
+            ordinary_clobbers: calling_conventions::RegisterSet::default(),
+            stack_alignment: 16,
+            shadow_bytes: 0,
+            entry_control: calling_conventions::EntryControl::CallReturn,
+        },
+        result: target_operations::TargetCallResult::Structural {
+            result: record_result.clone(),
+            callee_result: terminal_psi::StructuralResultDeclaration {
+                place: result_place,
+                structural_type: point,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            },
+            result_home: Some(target_operations::TargetStructuralHomeRequirement {
+                origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                    operation: producer,
+                    result: record_result,
+                },
+                layout: target_operations::TargetStructuralHomeLayout::Aggregate(result_shape),
+            }),
+            reference_results: Vec::new(),
+            returned_claim_transfers: Vec::new(),
+        },
+        scalar_arguments: Vec::new(),
+        arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    }];
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![result_shape],
+                result: None,
+            },
+        )
+        .expect("owned aggregate entry plan")
+        .plan()
+        .clone();
+        let lowered = lower_normalized_foreign_structural_arguments(
+            boundary,
+            machine,
+            target,
+            &declaration,
+            &arguments,
+            &plan,
+            &structural_types,
+            &parameters_by_place,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+            None,
+            &operations,
+        )
+        .expect("call-result aggregate argument lowers");
+        let [argument] = lowered.as_slice() else {
+            panic!("expected exactly one structural argument")
+        };
+        assert_eq!(argument.place, result_place);
+        assert_eq!(argument.access, terminal_psi::StructuralAccess::Owned);
+        assert!(argument.path.is_empty());
+        assert_eq!(argument.root_structural_type, point);
+        assert_eq!(argument.structural_type, point);
+        assert_eq!(argument.shape, result_shape);
+        assert_eq!(argument.source_byte_offset, 0);
+        assert_eq!(
+            argument.source,
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            }
+        );
+        assert_eq!(argument.destination, plan.call.parameters[0]);
+    }
+
+    // The same place must still fail closed when the formal keeps the
+    // unrestricted contract a re-readable caller parameter carries: the
+    // consumed-once result home cannot satisfy it.
+    let mut unrestricted = declaration.clone();
+    unrestricted.structural_parameters[0].multiplicity =
+        terminal_psi::StructuralMultiplicity::Unrestricted;
+    let unrestricted_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+        &CallSignature {
+            parameters: vec![result_shape],
+            result: None,
+        },
+    )
+    .expect("unrestricted owned aggregate entry plan")
+    .plan()
+    .clone();
+    assert!(
+        lower_normalized_foreign_structural_arguments(
+            boundary,
+            machine,
+            NativeTarget::linux_x64(),
+            &unrestricted,
+            &arguments,
+            &unrestricted_plan,
+            &structural_types,
+            &parameters_by_place,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+            None,
+            &operations,
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -1471,6 +1631,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 None,
+                &[],
             )
             .expect("borrowed-view descriptor argument lowers");
             let [argument] = lowered.as_slice() else {
@@ -1574,6 +1735,7 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 None,
+                &[],
             )
             .is_err()
         );
@@ -1625,6 +1787,7 @@ fn normalized_foreign_structural_mutations_fail_closed() {
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 callback,
+                &[],
             )
         };
 
