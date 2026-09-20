@@ -307,7 +307,7 @@ pub(crate) fn evaluate_const_membership_fact(
 }
 
 /// The `self` operand one selected domain replay binds for its carrier: a
-/// scalar payload for whole-value operands, a record carrier's
+/// scalar payload for whole-value operands, a record or variant carrier's
 /// scalar-decodable field ledger for `self.<name>` projection, or an array
 /// carrier's scalar-decodable element ledger for `self[<index>]` projection.
 /// Aggregate carriers never bind a whole-`self` scalar — whole-aggregate
@@ -318,6 +318,9 @@ enum ConstSelfBinding<'a> {
     Scalar(ConstScalarValue),
     Record(&'a [(String, ConstScalarValue)]),
     Elements(&'a [Option<ConstScalarValue>]),
+    /// The scalar-decodable payload field ledger of a variant carrier's
+    /// statically selected case.
+    Variant(&'a [(String, ConstScalarValue)]),
 }
 
 /// Decode one canonical leaf to the scalar a `self.<name>` or `self[<index>]`
@@ -588,7 +591,9 @@ fn evaluate_selected_domain_facts(
         }
         match self_binding {
             ConstSelfBinding::Scalar(value) => (Some(value), None, None),
-            ConstSelfBinding::Record(fields) => (None, Some(fields), None),
+            ConstSelfBinding::Record(fields) | ConstSelfBinding::Variant(fields) => {
+                (None, Some(fields), None)
+            }
             ConstSelfBinding::Elements(elements) => (None, None, Some(elements)),
         }
     };
@@ -1105,7 +1110,8 @@ const CONSTRAINED_CONST_FENCE: &str = "constrained const declarations require de
 /// closed index application additionally binds the family's index binders to
 /// its evaluated arguments before that replay. Integer and Boolean canonical
 /// values bind `self` directly; a record binds `self` through its
-/// scalar-decodable fields for `self.<name>` reads. Non-domain constraints,
+/// scalar-decodable fields and a variant through its selected case's
+/// scalar-decodable payload fields, each for `self.<name>` reads. Non-domain constraints,
 /// other aggregate values, contested or unreachable owners, open arguments,
 /// and unprovable facts keep the declaration fenced rather than publishing
 /// identity against a guessed or absent owner.
@@ -1124,6 +1130,7 @@ pub(crate) fn prove_declared_const_domain_constraints(
 ) -> Result<(), String> {
     let record_fields: Vec<(String, ConstScalarValue)>;
     let array_elements: Vec<Option<ConstScalarValue>>;
+    let variant_fields: Vec<(String, ConstScalarValue)>;
     let (carrier, self_binding) = match value.decode_encoding() {
         Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer {
             type_name,
@@ -1172,6 +1179,23 @@ pub(crate) fn prove_declared_const_domain_constraints(
         }) => {
             array_elements = values.iter().map(scalar_self_leaf).collect();
             (type_name, ConstSelfBinding::Elements(&array_elements))
+        }
+        // A variant carrier binds `self` through the selected case's
+        // scalar-decodable payload fields: `self.<name>` reads project
+        // canonical leaves while whole-aggregate operands, a different case's
+        // fields, and payload fields without a scalar leaf stay unbound.
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Variant {
+            type_name,
+            fields,
+            ..
+        }) => {
+            variant_fields = fields
+                .iter()
+                .filter_map(|(name, field)| {
+                    scalar_self_leaf(field).map(|value| (name.clone(), value))
+                })
+                .collect();
+            (type_name, ConstSelfBinding::Variant(&variant_fields))
         }
         _ => return Err(CONSTRAINED_CONST_FENCE.to_owned()),
     };

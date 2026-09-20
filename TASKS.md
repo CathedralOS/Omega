@@ -3580,7 +3580,13 @@ Owners include
     comparison facts discharge the same way
     (`module_namespace_residuals::constrained_array_const_discharges_element_domain_facts`
     holds the discharge, refutation, out-of-bounds-index and
-    non-scalar-element controls). Constrained constants
+    non-scalar-element controls). Variant-carried constrained
+    constants bind `self` through the selected case's scalar-decodable
+    payload fields, so closed `self.<field>` predicates discharge against
+    the literal's case
+    (`module_namespace_residuals::constrained_variant_const_discharges_case_payload_domain_facts`
+    holds the discharge, refutation, unselected-case and
+    non-scalar-payload controls). Constrained constants
     still fence whole-aggregate `self` operands, fields and elements
     without a scalar leaf, open applications, non-domain
     constraints and unprovable facts. Carrier-polymorphic scalar constants
