@@ -6914,7 +6914,31 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-D-REAL-ENTRY-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-ADMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-AND-ENTRY-ROUTE** — mined candidate; verify scope then implement.
-- **OMEGA-D-REQUEST-AND-SCALAR-COMPILATION** — mined candidate; verify scope then implement.
+- **OMEGA-D-REQUEST-AND-SCALAR-COMPILATION.** Scope verified: the request side
+  of the OMEGA-D clause already ships — OCREQ v1 framing, the bounded subject
+  re-walk, and the admissions table (empty by spec — no admission kind is
+  assigned yet) are implemented in `bootstrap/5_omega/request_and_utf8.epsilon`
+  and gated by `tests/bootstrap/omega-executable/main_ocreq.epsilon`. Landed
+  the scalar leg: `scalar_compilation.epsilon` now folds the `~`
+  bitwise-complement prefix on the `u8` carrier (`~x` → `x ^ 255`), the first
+  parsed-but-unsupported unary form admitted through the existing Alpha
+  emitter — LogicalNot (`!`, produces Boolean) and Negate (`-`, not total on
+  an unsigned carrier under Exact) stay bounded refusals, fenced by new
+  controls (`~213` → 42, `(~40) + 2` → 217 acceptance pins; `!1` Incomplete
+  pin beside the existing `-1` pin). The Epsilon source digest cascade was
+  re-bound end to end: member manifest, `compiler_env.sh`, four `gate.py`
+  pins, all 13 `omega-identity.sh` packed-customer tuples, gate README
+  records, and evaluator prose. Witnesses on 725798149e+delta, Linux x86-64:
+  `sh tests/bootstrap/omega-identity.sh` green (bound closure materializes
+  exactly; corrupted manifest/member/customer entries refused), `sh
+  tests/bootstrap/source-closure.sh` 4/4, `sh
+  tools/bootstrap/check-chain-hygiene.sh` green; seed-execution legs stay
+  host-gated to macOS arm64 / Windows x64. Remaining legs: request semantic
+  phases 3–5/7–8 (package keys, ordering, graph, snapshot admissions,
+  commitment binding — the `coverage_request_semantics` provision, code 25)
+  plus the rest of the scalar coverage families (codes 15–24: comparisons,
+  paths, `!`/`-`, locals, assignments, remaining transition forms)
+  — tracked under the OMEGA-D-REQUEST-* / OMEGA-D-SCALAR-* sibling rows.
 - **OMEGA-D-REQUEST-OUTCOME-TABLES** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-ROUTE-ENTRY** — mined candidate; verify scope then implement.
 - **OMEGA-D-REQUEST-TABLE-COMPLETION** — mined candidate; verify scope then implement.

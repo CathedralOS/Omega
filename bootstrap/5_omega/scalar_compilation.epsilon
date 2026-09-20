@@ -309,6 +309,28 @@ machine OmegaScalarCompiler::fold_expression(
         transition self.parser.expressions[expression].kind {
             OmegaExpressionKind::Integer -> integer(expression)
             OmegaExpressionKind::Binary -> fold_binary(expression)
+            OmegaExpressionKind::Unary -> fold_unary(expression)
+            _ -> mark_unsupported(expression)
+        }
+    }
+
+    // Bitwise complement is total at the carrier width like the binary
+    // bitwise family: `~x` folds to `x ^ 255`. LogicalNot produces a
+    // Boolean and Negate is not total on the unsigned carrier under Exact,
+    // so those operators stay unsupported.
+    state fold_unary(expression: i32) {
+        let row: OmegaUnaryExpressionSyntax = self.parser.unary_expressions[
+            self.parser.expressions[expression].payload0];
+        transition self.operand_values[row.operand] >= 0 {
+            true -> fold_unary_operator(expression, row)
+            _ -> mark_unsupported(expression)
+        }
+    }
+
+    state fold_unary_operator(expression: i32, row: OmegaUnaryExpressionSyntax) {
+        transition row.operator {
+            OmegaUnaryOperatorKind::BitwiseNot -> store_folded(expression,
+                self.operand_values[row.operand] ^ 255)
             _ -> mark_unsupported(expression)
         }
     }

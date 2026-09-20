@@ -56,10 +56,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 16,156 lines / 558,161 bytes with SHA-256
-`8f0321344c893c3c64bb631bfde10e3ecbde4384e130dca9f7e2c21818a9eca3`.
+manifest materializes 16,178 lines / 559,153 bytes with SHA-256
+`5278fc30911f636836f552527ee0e9542b4ade49d409d4539b48f373ffec8378`.
 The manifest itself is 1,338 bytes, SHA-256
-`07e0205f88ae4cb4b9ec799cf8f524eaacb50fe2cae0e97ce5eb31e0d8fb50cb`;
+`018eaa60bc1b109f1a5e8e9d3b7f82a6357bace390a1d935089d092cc41cb80e`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
@@ -79,10 +79,11 @@ all admitted
 machine bodies, resolves an explicitly supplied entry, and refuses unsupported
 forms rather than treating them as opaque executable code. Its first result type
 is `u8` over literal operands joined by the arithmetic, bitwise, and shift
-binary operators, folded under the default Exact policy — every node must stay
-representable in the carrier, so overflow, underflow, a zero divisor, or a
-shift count at or above the width refuses the source while comparison, logical,
-unary, path, and other non-`u8`-producing forms remain implementation work.
+binary operators and the `~` bitwise-complement prefix, folded under the
+default Exact policy — every node must stay representable in the carrier, so
+overflow, underflow, a zero divisor, or a shift count at or above the width
+refuses the source while comparison, logical `!`, arithmetic-negation `-`,
+path, and other non-`u8`-producing forms remain implementation work.
 Within that scalar slice the same checking pass now covers bounded control
 flow: a state body is a sequence of nullary calls to free machines followed
 by one terminal — a folded `u8` expression, a grouped nullary call whose
