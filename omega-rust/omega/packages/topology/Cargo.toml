@@ -15,4 +15,5 @@ terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 
 [dev-dependencies]
 component-description = { path = "../../backend/artifacts/component-description", features = ["test-support"] }
+libc = "0.2.186"
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
