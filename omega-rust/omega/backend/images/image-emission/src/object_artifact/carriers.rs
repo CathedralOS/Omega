@@ -75,6 +75,21 @@ impl ObjectArtifact {
         &mut self.text_bytes
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn object_mut_for_test(&mut self) -> &mut ObjectPlan {
+        &mut self.object
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn relocations_mut_for_test(&mut self) -> &mut RelocationPlan {
+        &mut self.relocations
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn foreign_calls_mut_for_test(&mut self) -> &mut Vec<ObjectForeignCall> {
+        &mut self.foreign_calls
+    }
+
     pub const fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }

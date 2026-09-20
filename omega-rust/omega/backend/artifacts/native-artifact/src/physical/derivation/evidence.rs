@@ -133,10 +133,8 @@ pub(crate) fn derive_physical_evidence(
         return Err("native physical evidence found a stale boundary settlement");
     }
 
-    // Fragment publication seals the object's own foreign-call roster empty
-    // and carries the projected custody rows on the validated scope; both
-    // rosters merge here so a boundary occurrence can always rejoin its call
-    // custody regardless of which route retained it.
+    // Fragment publication independently reconstructs the object's foreign
+    // calls. This is evidence for the same roster, not additional calls.
     let fragment_publication = match scope {
         NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
             optimized.fragment_publication()
@@ -150,7 +148,10 @@ pub(crate) fn derive_physical_evidence(
         _ => &[],
     };
     let mut foreign_calls = BTreeMap::new();
-    for foreign in object.foreign_calls().iter().chain(retained_custody.iter()) {
+    if fragment_publication.is_some() && retained_custody != object.foreign_calls() {
+        return Err("native physical evidence foreign calls differ from fragment projection");
+    }
+    for foreign in object.foreign_calls() {
         let CallSiteOwner::Operation(operation) = foreign.owner else {
             return Ok(blocked(
                 NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner {

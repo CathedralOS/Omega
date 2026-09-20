@@ -2,6 +2,7 @@
 //! No assigned body, legacy machine plan, or fabricated scalar result home is used.
 
 mod attribution;
+mod imports;
 mod mixed_scalar_abi;
 mod production;
 pub(crate) mod replay;

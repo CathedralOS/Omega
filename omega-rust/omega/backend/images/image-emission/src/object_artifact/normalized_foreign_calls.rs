@@ -1,9 +1,8 @@
 //! Foreign-call custody projected from the independently replayed fragment
 //! publication source.
 //!
-//! The fragment route keeps `ObjectArtifact::foreign_calls` inside the sealed
-//! replay surface, so an emitted image receives its normalized foreign-call
-//! roster as separate custody: [`derive_normalized_foreign_call_custody`]
+//! The fragment route publishes `ObjectArtifact::foreign_calls` before stack
+//! sizing and image emission. [`derive_normalized_foreign_call_custody`]
 //! projects every section-level unresolved normalized foreign call back
 //! through the retained selected-plan roster and frame layout into one exact
 //! [`ObjectForeignCall`] row per call site.
@@ -811,46 +810,11 @@ fn scalar_call_result_producer(
 
 /// Image-side custody join for [`super::image_output::validate_executable_image`].
 ///
-/// An image's foreign-call roster is the object's own emitted roster followed
-/// by fragment-publication custody rows. Every appended row must rejoin object
-/// custody: its caller is an object function, its owner is a semantic
-/// operation attributed inside that function, and its `text_offset` — the
-/// mutable import field — lies inside one attributed interval for that
-/// operation. Owners stay unique across the whole roster.
+/// Both publication routes retain their complete roster in the object before
+/// emission. Images cannot append late calls or weaken their retained evidence.
 pub(crate) fn image_foreign_calls_match_object(
     artifact: &ObjectArtifact,
     image_rows: &[ObjectForeignCall],
 ) -> bool {
-    let Some(custody) = image_rows.strip_prefix(artifact.foreign_calls()) else {
-        return false;
-    };
-    let mut seen = Vec::new();
-    for row in image_rows {
-        if seen.contains(&(row.machine, row.owner)) {
-            return false;
-        }
-        seen.push((row.machine, row.owner));
-    }
-    custody.iter().all(|row| {
-        let Some(operation) = row.owner.operation() else {
-            return false;
-        };
-        artifact
-            .functions()
-            .iter()
-            .any(|function| function.machine == row.machine)
-            && artifact
-                .semantic_code_attribution()
-                .iter()
-                .any(|row_attribution| {
-                    row_attribution.machine == row.machine
-                        && row_attribution.attribution.site
-                            == machine_code::SemanticCodeSite::Operation(operation)
-                        && row.text_offset >= row_attribution.text_offset
-                        && row.text_offset
-                            < row_attribution
-                                .text_offset
-                                .saturating_add(row_attribution.attribution.byte_count)
-                })
-    })
+    image_rows == artifact.foreign_calls()
 }

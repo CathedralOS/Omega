@@ -30,7 +30,6 @@ pub fn validate_function_fragment_object_artifact(
         || artifact.object.target != text.target
         || artifact.text_bytes != text.bytes
         || artifact.relocations.target != text.target
-        || !artifact.relocations.record_set.records.is_empty()
         || artifact.x86_feature_profile.is_some()
         || artifact.x86_scalar_fma_provider.is_some()
         || !artifact.data_bytes.is_empty()
@@ -39,11 +38,9 @@ pub fn validate_function_fragment_object_artifact(
         || !artifact.forwarded_dynamic_descriptor_tables.is_empty()
         || !artifact.private_functions.is_empty()
         || !artifact.port_effects.is_empty()
-        || !artifact.foreign_calls.is_empty()
-        || !layout.normalized_imports.is_empty()
         || !layout.function_symbols.is_empty()
         || layout.sections.len() != 1
-        || layout.symbols.len() != text.functions.len()
+        || layout.symbols.len() != text.functions.len() + layout.normalized_imports.len()
         || artifact.functions.len() != text.functions.len()
     {
         return Err(Error::Mismatch(
@@ -172,6 +169,7 @@ pub fn validate_function_fragment_object_artifact(
         ));
     }
     super::structural::validate_settlements(source, &artifact.boundary_settlements)?;
+    super::imports::validate(source, artifact)?;
     if let Some(binding) = artifact.hosted_receiver_binding() {
         crate::hosted_receiver::validate_binding(artifact, binding)
             .map_err(|_| Error::Mismatch("hosted receiver binding differs from replayed object"))?;
