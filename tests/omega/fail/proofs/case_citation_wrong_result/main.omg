@@ -1,0 +1,31 @@
+data Tree {
+    marked: bool;
+    case Empty;
+    case Node(child: Tree);
+}
+
+machine make_empty() -> Tree
+ensures result in Tree::Empty;
+terminates;
+{ transition { _ -> Tree::Empty { marked: true } } }
+
+machine make_node(child: Tree) -> Tree
+ensures result in Tree::Node;
+terminates;
+{ transition { _ -> Tree::Node { child: child } } }
+
+machine empty_only(value: Tree) -> Tree
+requires value in Tree::Empty;
+terminates;
+{ value }
+
+machine wrong_result() -> Tree
+terminates;
+{
+    let empty: Tree = make_empty();
+    let node: Tree = make_node(empty);
+    transition { _ -> next(empty, node) }
+    state next(known: Tree, other: Tree) -> Tree {
+        transition { _ -> (empty_only(other)) }
+    }
+}

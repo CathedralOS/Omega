@@ -235,7 +235,9 @@ fn structurally_substitutable_fact(program: &TypedTrees, expression: ExpressionH
 /// callable identity; do not replace unknown with successful normalization.
 fn term_has_complete_substitution(program: &TypedTrees, term: &StructuralTerm) -> bool {
     match term {
-        StructuralTerm::Opaque(_)
+        StructuralTerm::BoundValue(_)
+        | StructuralTerm::BoundProjection { .. }
+        | StructuralTerm::Opaque(_)
         | StructuralTerm::Application { .. }
         | StructuralTerm::CallProjection { .. } => false,
         StructuralTerm::Variable(_) | StructuralTerm::Integer(_) => true,

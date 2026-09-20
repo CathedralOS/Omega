@@ -372,7 +372,7 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
     // folding into an environment over the lemma's own params, then exactly
     // one Always value arm. Params map to themselves (they are the fact's
     // vocabulary); locals map to their initializer terms.
-    let sole_arm_result: Option<StructuralTerm> = (|| {
+    let sole_arm_value = |judge: &StructuralJudge| -> Option<StructuralTerm> {
         let [root] = program.machine_states(machine) else {
             return None;
         };
@@ -398,8 +398,11 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 StatementNode::Call(call)
                     if is_citation_statement(program, &proof_only, machine, call) => {}
                 StatementNode::LocalData(local_data) => {
-                    let term = structural.callee_term(local_data.initial_value, &environment, 0)?;
+                    let term = judge.callee_term(local_data.initial_value, &environment, 0)?;
                     environment.push((local_data.name.as_str().to_owned(), term));
+                }
+                StatementNode::Expression(value) => {
+                    result = Some(judge.callee_term(*value, &environment, 0)?);
                 }
                 StatementNode::Transition(transition) => {
                     if !matches!(transition.guard, TransitionGuardNode::Always)
@@ -412,13 +415,19 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     else {
                         return None;
                     };
-                    result = Some(structural.callee_term(*value, &environment, 0)?);
+                    result = Some(judge.callee_term(*value, &environment, 0)?);
                 }
                 _ => return None,
             }
         }
         result
-    })();
+    };
+    let sole_arm_result = sole_arm_value(&structural);
+    // Result-to-parameter tag forwarding needs the actual returned subject,
+    // before legacy unfolding can erase its origin. Reuse the same extraction
+    // with the restricted subject resolver; a tag remains no field equation.
+    let case_structural = StructuralJudge::from_case_requires(program, machine, &requires);
+    let sole_arm_case_result = sole_arm_value(&case_structural);
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
         eprintln!(
             "STRUCT machine={} sole_arm={:?}",
@@ -459,7 +468,41 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
         recognize_structural_case_arms(program, machine, &structural, &proof_only, diagnostics)
             .or_else(|| recognize_guarded_structural_value_arms(program, machine, &structural))
     };
+    // This legacy term vocabulary is name-based. An authored entry parameter
+    // takes precedence over the reserved result spelling in every conjunct,
+    // so no returned-value alias may replace that parameter's hypotheses.
+    let result_is_parameter = program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| {
+            program
+                .state_parameters(entry)
+                .iter()
+                .any(|parameter| parameter.name.as_str() == RESULT_BINDER)
+        });
     let judge_structural = |fact: ExpressionHandle| -> StructuralJudgment {
+        if structural_terms::is_case_observation(program, fact)
+            && let Some(term) = &sole_arm_case_result
+            && let ExpressionNode::Binary(comparison) = program.expression_table.expression(fact)
+        {
+            // A parameter named `result` is not the reserved returned value.
+            // Rejoin the authored occurrence before installing a textual alias,
+            // including before the legacy value-normalizer fallback below.
+            if !crate::reserved_result_place(program, comparison.left)
+                .is_some_and(|place| place.machine_symbol == machine.symbol)
+            {
+                return structural.judge(program, fact);
+            }
+            let mut bound = case_structural.clone();
+            bound.intake_case_equation(
+                StructuralTerm::Variable(RESULT_BINDER.to_owned()),
+                term.clone(),
+                0,
+            );
+            if matches!(bound.judge(program, fact), StructuralJudgment::Proven) {
+                return StructuralJudgment::Proven;
+            }
+        }
         if let Some(proven) = quotient_equality_from_requires(
             program,
             machine,
@@ -475,9 +518,11 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
         }
         if let Some(term) = &sole_arm_result {
             let mut bound = structural.clone();
-            bound
-                .substitutions
-                .insert(0, (RESULT_BINDER.to_owned(), term.clone()));
+            if !result_is_parameter {
+                bound
+                    .substitutions
+                    .insert(0, (RESULT_BINDER.to_owned(), term.clone()));
+            }
             return bound.judge(program, fact);
         }
         let Some(arms) = &case_arms else {
@@ -549,9 +594,20 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     .zip(arguments.iter().cloned())
                     .collect();
                 if machine_has_requires
-                    && !requires
-                        .iter()
-                        .all(|fact| instantiated_fact_established(program, &bound, *fact, &map))
+                    && !requires.iter().all(|fact| {
+                        program
+                            .machine_states(machine)
+                            .first()
+                            .is_some_and(|entry| {
+                                instantiated_fact_established(
+                                    program,
+                                    &bound,
+                                    program.state_parameters(entry),
+                                    *fact,
+                                    &map,
+                                )
+                            })
+                    })
                 {
                     continue;
                 }
@@ -567,9 +623,11 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     );
                 }
             }
-            bound
-                .substitutions
-                .insert(0, (RESULT_BINDER.to_owned(), arm.value.clone()));
+            if !result_is_parameter {
+                bound
+                    .substitutions
+                    .insert(0, (RESULT_BINDER.to_owned(), arm.value.clone()));
+            }
             match bound.judge(program, fact) {
                 StructuralJudgment::Proven => {}
                 StructuralJudgment::Refuted => return StructuralJudgment::Refuted,

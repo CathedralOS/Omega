@@ -23,6 +23,9 @@ pub(crate) fn intake_available_self_induction_hypotheses(
     value: &StructuralTerm,
     judge: &mut StructuralJudge<'_>,
 ) {
+    let Some(entry) = program.machine_states(machine).first() else {
+        return;
+    };
     let mut requires = Vec::new();
     let mut requires_out_of_language = false;
     let mut ensures = Vec::new();
@@ -60,9 +63,15 @@ pub(crate) fn intake_available_self_induction_hypotheses(
             .cloned()
             .zip(arguments.iter().cloned())
             .collect();
-        let requirements_established = requires
-            .iter()
-            .all(|fact| instantiated_fact_established(program, judge, *fact, &map));
+        let requirements_established = requires.iter().all(|fact| {
+            instantiated_fact_established(
+                program,
+                judge,
+                program.state_parameters(entry),
+                *fact,
+                &map,
+            )
+        });
         if !requirements_established {
             continue;
         }

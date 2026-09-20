@@ -7,7 +7,9 @@
 //! The checked caller separately establishes that these proof values cannot be
 //! mutated; this judgment does not replace the separate recursion validator.
 
-use super::citations::{instantiate_citation, machine_requires_facts};
+use super::citations::{
+    CitationFacts, CitationTarget, instantiate_citation, machine_requires_facts,
+};
 use super::refuted_requires::instantiated_fact_judgment;
 use super::self_induction::intake_available_self_induction_hypotheses;
 use super::structural_case_arms::{
@@ -100,16 +102,14 @@ impl CallRequirement<'_> {
         environment: &[(String, StructuralTerm)],
         hypotheses: &[(String, StructuralTerm)],
         equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &[(StructuralTerm, StructuralTerm)],
+        guarantees: &CitationFacts,
     ) {
         self.seen = true;
         let mut site_judge = structural_arm_judge(program, machine, judge, hypotheses, equations);
         if site_judge.hypotheses_contradictory {
             return;
         }
-        for (left, right) in guarantees {
-            site_judge.intake_equation(left.clone(), right.clone(), 0);
-        }
+        guarantees.intake(&mut site_judge);
         if let Some(state) = program
             .machine_states(machine)
             .iter()
@@ -170,14 +170,12 @@ pub(super) fn establish_citation(
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     hypotheses: &[(String, StructuralTerm)],
     equations: &[(StructuralTerm, StructuralTerm)],
-    guarantees: &mut Vec<(StructuralTerm, StructuralTerm)>,
-    target: &typed_trees::name::Identifier,
+    guarantees: &mut CitationFacts,
+    target: &CitationTarget,
     arguments: &[StructuralTerm],
 ) {
     let mut site_judge = structural_arm_judge(program, machine, judge, hypotheses, equations);
-    for (left, right) in guarantees.iter() {
-        site_judge.intake_equation(left.clone(), right.clone(), 0);
-    }
+    guarantees.intake(&mut site_judge);
     intake_state_induction(
         program,
         machine,
@@ -187,15 +185,13 @@ pub(super) fn establish_citation(
         &mut site_judge,
     );
     let mut diagnostics = Vec::new();
-    let mut established = Vec::new();
-    instantiate_citation(
+    let established = instantiate_citation(
         program,
         classification,
         machine,
         target,
         arguments,
         &mut diagnostics,
-        &mut established,
         Some(&site_judge),
         true,
     );

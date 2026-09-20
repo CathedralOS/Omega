@@ -1,5 +1,12 @@
 //! Citation statements, missing-citation suggestions and citation
 //! instantiation along edges.
+//!
+//! A citation selects an exact declaration, proves its entry premises, then
+//! transports only unconditional guarantees. Completed-result tag facts use
+//! the caller's local binding identity and remain separate from value equations:
+//! classifying a result never invents its fields or unfolds the selected body.
+//! Static callable contracts need their own substitution; a private selected
+//! implementation cannot supply those public guarantees implicitly.
 
 use crate::proof_contracts::contract_entailment::RESULT_BINDER;
 use crate::proof_contracts::contract_entailment::law_conformance::{
@@ -7,16 +14,60 @@ use crate::proof_contracts::contract_entailment::law_conformance::{
 };
 use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_conjuncts;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
-    StructuralJudge, StructuralJudgment, StructuralTerm,
+    CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm,
 };
 use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::statement::StatementNode;
+
+#[derive(Clone)]
+pub(super) struct CitationTarget {
+    symbol: SymbolHandle,
+    result_binding: SymbolHandle,
+    has_static_selection: bool,
+}
+
+#[derive(Clone, Default)]
+pub(super) struct CitationFacts {
+    pub(super) equations: Vec<(StructuralTerm, StructuralTerm)>,
+    cases: Vec<CaseGuarantee>,
+}
+
+impl CitationFacts {
+    pub(super) fn intake(&self, judge: &mut StructuralJudge<'_>) {
+        for (left, right) in &self.equations {
+            judge.intake_equation(left.clone(), right.clone(), 0);
+        }
+        for guarantee in &self.cases {
+            judge.intake_case_guarantee(guarantee);
+        }
+    }
+
+    pub(super) fn extend(&mut self, other: Self) {
+        self.equations.extend(other.equations);
+        self.cases.extend(other.cases);
+    }
+}
+
+fn selected_citation_machine(program: &TypedTrees, symbol: SymbolHandle) -> Option<&Machine> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    program.machines().iter().find(|machine| {
+        machine.attached_data.is_none()
+            && (machine.symbol == symbol
+                || program
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == symbol))
+    })
+}
 
 /// Whether a statement is a CITATION: a free (receiver-less) call whose
 /// callee resolves to a free PROOF MACHINE other than the enclosing one
@@ -30,15 +81,9 @@ pub(crate) fn is_citation_statement(
     if !call.receiver.is_empty() {
         return false;
     }
-    program
-        .machines()
-        .iter()
-        .find(|candidate| {
-            candidate.attached_data.is_none() && candidate.name.as_str() == call.target.as_str()
-        })
-        .is_some_and(|callee| {
-            !std::ptr::eq(callee, machine) && classification.is_proof_machine(program, callee)
-        })
+    selected_citation_machine(program, call.target_symbol).is_some_and(|callee| {
+        !std::ptr::eq(callee, machine) && classification.is_proof_machine(program, callee)
+    })
 }
 
 /// Statement-call CITATIONS (ch10 "Citing Proofs"; the settled proof-citation
@@ -54,10 +99,8 @@ pub(crate) fn is_citation_statement(
 /// machine CALL cycles -- banned by the call-graph rule, so mutual
 /// false-certification is structurally impossible.
 ///
-/// v1 boundary: a REQUIRES-bearing lemma cannot be cited yet (a theorem
-/// applies only at operands satisfying its requires; site discharge is the
-/// recorded next rung) -- citing one errors loudly rather than silently
-/// injecting a conditional fact.
+/// A requires-bearing lemma contributes facts only after its premises are
+/// established at this statement, independently of its own conclusions.
 pub(crate) fn collect_citation_equations(
     program: &TypedTrees,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
@@ -116,23 +159,20 @@ pub(crate) fn collect_citation_equations(
         if !arguments_termify {
             continue;
         }
-        let before = equations.len();
-        instantiate_citation(
+        let established = instantiate_citation(
             program,
             classification,
             machine,
-            target,
+            &target,
             &argument_terms,
             diagnostics,
-            &mut equations,
             site_judge.as_ref(),
             false,
         );
         if let Some(judge) = &mut site_judge {
-            for (left, right) in &equations[before..] {
-                judge.intake_equation(left.clone(), right.clone(), 0);
-            }
+            established.intake(judge);
         }
+        equations.extend(established.equations);
     }
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
         eprintln!("CITE machine={} equations={equations:?}", machine.name);
@@ -196,8 +236,8 @@ pub(crate) fn suggest_missing_citation(
                 | SignatureContractKind::Crashes { .. } => {}
             }
         }
-        // A requires-bearing lemma cannot be cited yet; suggesting it would
-        // walk the author into the v1 refusal.
+        // Suggestions do not establish a candidate's premises. Keep them
+        // requires-free rather than propose an inapplicable citation.
         if has_requires {
             continue;
         }
@@ -295,7 +335,7 @@ fn suggest_conjunct_match(
     None
 }
 
-/// Extract a potential citation call from a statement: the target name and
+/// Extract a potential citation call from a statement: the exact target and
 /// argument expression handles, for either spelling -- the bare statement
 /// call (ch10's canonical form) or the let-bound call (a legal spelling in
 /// its own right, and what the trailing-return auto-hoist lowers the bare
@@ -307,13 +347,17 @@ fn suggest_conjunct_match(
 pub(crate) fn citation_call_in_statement<'program>(
     program: &'program TypedTrees,
     statement: &'program StatementNode,
-) -> Option<(
-    &'program typed_trees::name::Identifier,
-    Vec<ExpressionHandle>,
-)> {
+) -> Option<(CitationTarget, Vec<ExpressionHandle>)> {
     match statement {
         StatementNode::Call(call) if call.receiver.is_empty() => Some((
-            &call.target,
+            CitationTarget {
+                symbol: call.target_symbol,
+                result_binding: SymbolHandle::invalid(),
+                has_static_selection: !call.machine_arguments.is_empty()
+                    || call.static_machine_parameter.is_valid()
+                    || !call.evidence_arguments.is_empty()
+                    || call.static_requirement_dispatch.is_some(),
+            },
             program
                 .statement_table
                 .expression_handles(call.arguments)
@@ -330,7 +374,14 @@ pub(crate) fn citation_call_in_statement<'program>(
                 return None;
             }
             Some((
-                &call.target,
+                CitationTarget {
+                    symbol: call.target_symbol,
+                    result_binding: local_data.symbol,
+                    has_static_selection: !call.machine_arguments.is_empty()
+                        || call.static_machine_parameter.is_valid()
+                        || !call.evidence_arguments.is_empty()
+                        || call.static_requirement_dispatch.is_some(),
+                },
                 program
                     .expression_table
                     .expression_handles(call.arguments)
@@ -600,17 +651,15 @@ pub(crate) fn instantiate_citation(
     program: &TypedTrees,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     machine: &Machine,
-    target: &typed_trees::name::Identifier,
+    target: &CitationTarget,
     argument_terms: &[StructuralTerm],
     diagnostics: &mut Vec<Diagnostic>,
-    equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
     judge: Option<&StructuralJudge>,
     allow_self_induction: bool,
-) {
-    let Some(callee) = program.machines().iter().find(|candidate| {
-        candidate.attached_data.is_none() && candidate.name.as_str() == target.as_str()
-    }) else {
-        return;
+) -> CitationFacts {
+    let mut established = CitationFacts::default();
+    let Some(callee) = selected_citation_machine(program, target.symbol) else {
+        return established;
     };
     let self_citation = std::ptr::eq(callee, machine);
     let resultless_entry = program
@@ -626,7 +675,7 @@ pub(crate) fn instantiate_citation(
     if (self_citation && (!allow_self_induction || !resultless_entry))
         || !classification.is_proof_machine(program, callee)
     {
-        return;
+        return established;
     }
     let mut requires_facts: Vec<ExpressionHandle> = Vec::new();
     let mut requires_out_of_language = false;
@@ -660,11 +709,11 @@ pub(crate) fn instantiate_citation(
     // lemma's own sub-proofs (add_comm's per-arm states) and do not affect
     // what a citation delivers.
     let Some(entry) = program.machine_states(callee).first() else {
-        return;
+        return established;
     };
     let parameters = program.state_parameters(entry);
     if parameters.len() != argument_terms.len() {
-        return;
+        return established;
     }
     let mut map: Vec<(String, StructuralTerm)> = Vec::with_capacity(parameters.len() + 1);
     for (parameter, term) in parameters.iter().zip(argument_terms) {
@@ -678,16 +727,16 @@ pub(crate) fn instantiate_citation(
     // blanket refusal.
     if requires_out_of_language || (!requires_facts.is_empty() && judge.is_none()) {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` cites `{}`, whose requires contract is not \
-             discharged at citation sites yet -- cite a requires-free \
-             lemma, or wait for the site-discharge rung (math roster N3)",
+            "machine `{}` cites `{}`, whose requires contract cannot be \
+             established by this citation judgment -- its required evidence \
+             must be available before importing the callee's guarantees",
             machine.name, callee.name,
         )));
-        return;
+        return established;
     }
     if let Some(judge) = judge {
         for fact in &requires_facts {
-            if !instantiated_fact_established(program, judge, *fact, &map) {
+            if !instantiated_fact_established(program, judge, parameters, *fact, &map) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` cites `{}`, but the callee's requires fact \
                      `{}` is not established at this citation site under the \
@@ -697,7 +746,7 @@ pub(crate) fn instantiate_citation(
                     callee.name,
                     program.expression_table.display_name(*fact),
                 )));
-                return;
+                return established;
             }
         }
     }
@@ -710,31 +759,53 @@ pub(crate) fn instantiate_citation(
             arguments: argument_terms.to_vec(),
         },
     ));
-    for fact in ensures_facts {
-        collect_instantiated_conjuncts(program, fact, &map, equations);
+    for fact in &ensures_facts {
+        collect_instantiated_conjuncts(program, *fact, &map, &mut established.equations);
     }
+    // A completed local result is identified by its binding, not by a
+    // name-backed application term. No static selection is guessed here.
+    if !target.has_static_selection
+        && let Some(judge) = judge
+    {
+        if target.result_binding.is_valid() {
+            map.pop();
+            map.push((
+                RESULT_BINDER.to_owned(),
+                StructuralTerm::BoundValue(target.result_binding),
+            ));
+        }
+        for fact in ensures_facts {
+            judge.instantiated_case_guarantees(callee, fact, &map, &mut established.cases);
+        }
+    }
+    established
 }
 
 /// Does the callee's requires fact, instantiated at the citation's argument
 /// map, judge PROVEN under the citing machine's hypotheses? `&&` recurses;
-/// only `==` conjuncts are in the judge's language (anything else is
-/// conservatively NOT established).
+/// equality conjuncts and exact case predicates are supported. Unsupported
+/// predicates are not established; absence of a refutation is not evidence.
 pub(crate) fn instantiated_fact_established(
     program: &TypedTrees,
     judge: &StructuralJudge,
+    parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
 ) -> bool {
     if super::structural_terms::is_case_observation(program, fact) {
-        return false;
+        return judge.has_exact_case_subjects()
+            && matches!(
+                judge.instantiated_case_judgment(parameters, fact, map),
+                StructuralJudgment::Proven
+            );
     }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(fact) else {
         return false;
     };
     match binary.operator {
         BinaryOperator::And => {
-            instantiated_fact_established(program, judge, binary.left, map)
-                && instantiated_fact_established(program, judge, binary.right, map)
+            instantiated_fact_established(program, judge, parameters, binary.left, map)
+                && instantiated_fact_established(program, judge, parameters, binary.right, map)
         }
         BinaryOperator::Equal => {
             let (Some(left), Some(right)) = (
@@ -751,5 +822,67 @@ pub(crate) fn instantiated_fact_established(
             )
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ExpressionNode, StatementNode, citation_call_in_statement};
+
+    #[test]
+    fn specialized_machine_binder_keeps_its_contract_boundary() {
+        let source = "data Tree { case Empty; case Node(child: Tree); }
+            machine make() -> Tree { transition { _ -> Tree::Empty } }
+            machine caller() { make(); let known: Tree = make(); }";
+        let tokens = source_files_to_tokens::Lexer::new(source)
+            .tokenize()
+            .expect("tokens");
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+        )
+        .expect("symbols");
+        let mut program =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("types");
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .expect("caller");
+        let binder = caller.symbol;
+        let statements = program
+            .statement_table
+            .statements(program.machine_states(caller)[0].statement_nodes)
+            .to_vec();
+        let mut observed = 0;
+        for mut statement in statements {
+            let Some((ordinary, _)) = citation_call_in_statement(&program, &statement) else {
+                continue;
+            };
+            assert!(!ordinary.has_static_selection);
+            // Specialization preserves this binder even when the selected
+            // target is concrete and its explicit selection arrays are empty.
+            match &mut statement {
+                StatementNode::Call(call) => call.static_machine_parameter = binder,
+                StatementNode::LocalData(local) => {
+                    let ExpressionNode::Call(call) =
+                        program.expression_table.expression_mut(local.initial_value)
+                    else {
+                        panic!("call initializer");
+                    };
+                    call.static_machine_parameter = binder;
+                }
+                _ => panic!("citation statement"),
+            }
+            let (specialized, _) =
+                citation_call_in_statement(&program, &statement).expect("specialized call");
+            assert!(
+                specialized.has_static_selection,
+                "private implementation guarantees must not cross the binder contract"
+            );
+            observed += 1;
+        }
+        assert_eq!(observed, 2, "exercise bare and let-bound calls");
     }
 }

@@ -17,6 +17,210 @@ const CASE_RESTRICTED: &str = r#"
 "#;
 
 #[test]
+fn completed_call_tag_guarantee_establishes_a_later_premise() {
+    let source = format!(
+        "{CASE_RESTRICTED}\n\
+         machine make(marked: bool) -> Tree ensures result in Tree::Empty; terminates; {{\n\
+             transition {{ _ -> Tree::Empty {{ marked: marked }} }} }}\n\
+         machine caller() -> Tree terminates; {{\n\
+             let known: Tree = make(true);\n\
+             transition {{ _ -> (selected(known, known)) }} }}"
+    );
+    crate::lower_typed_trees(parse_typed_trees(&source)).expect(
+        "a completed call contributes its checked tag guarantee without unfolding its body",
+    );
+}
+
+#[test]
+fn completed_result_can_be_matched_before_a_later_call() {
+    let source = format!(
+        "{CASE_RESTRICTED}\n\
+         machine make(marked: bool) -> Tree ensures result in Tree::Empty; terminates; {{\n\
+             transition {{ _ -> Tree::Empty {{ marked: marked }} }} }}\n\
+         machine caller() -> Tree terminates; {{\n\
+             let known: Tree = make(true);\n\
+             transition known {{\n\
+                 Tree::Empty -> (selected(known, known))\n\
+                 Tree::Node {{ child }} -> child\n\
+             }} }}"
+    );
+    crate::lower_typed_trees(parse_typed_trees(&source))
+        .expect("matching a completed value refines the selected branch");
+}
+
+#[test]
+fn case_citation_keeps_result_identity_through_named_states() {
+    for (arguments, accepted) in [("other, known", true), ("known, other", false)] {
+        let source = format!(
+            "{CASE_RESTRICTED}\n\
+             machine empty(marked: bool) -> Tree ensures result in Tree::Empty; terminates; {{\n\
+                 transition {{ _ -> Tree::Empty {{ marked: marked }} }} }}\n\
+             machine node(child: Tree) -> Tree ensures result in Tree::Node; terminates; {{\n\
+                 transition {{ _ -> Tree::Node {{ child: child }} }} }}\n\
+             machine caller() -> Tree terminates; {{\n\
+                 let known: Tree = empty(true);\n\
+                 let other: Tree = node(known);\n\
+                 transition {{ _ -> next({arguments}) }}\n\
+                 state next(left: Tree, right: Tree) -> Tree {{ transition {{ _ -> (selected(left, right)) }} }} }}"
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{arguments}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn returned_case_cannot_replace_a_parameter_named_result() {
+    let source = format!(
+        "{CASE_RESTRICTED}\n\
+        machine bad(result: Tree, value: Tree) -> Tree\n\
+        requires value in Tree::Empty; ensures result in Tree::Empty;\n\
+        terminates; {{ value }}"
+    );
+    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
+        .map(|_| ())
+        .expect_err("the result parameter is unrelated to the returned value");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("ensures")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn returned_value_cannot_rebind_result_inside_compound_postconditions() {
+    for fact in [
+        "(result in Tree::Empty) && (true == true)",
+        "result == Tree::Empty",
+    ] {
+        for body in [
+            "Tree::Empty",
+            "transition { _ -> Tree::Empty }",
+            "transition choice { Tree::Empty -> Tree::Empty Tree::Node { child } -> Tree::Empty }",
+        ] {
+            let source = format!(
+                "{CASE_RESTRICTED}\n\
+                machine bad(result: Tree, choice: Tree) -> Tree ensures {fact}; terminates; {{ {body} }}"
+            );
+            let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
+                .map(|_| ())
+                .expect_err("compound postconditions retain the input result binder");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("ensures")),
+                "{diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn result_parameter_keeps_its_own_hypothesis_when_returned_value_differs() {
+    for body in [
+        "Tree::Node { child: result }",
+        "transition choice { Tree::Empty -> Tree::Node { child: result } Tree::Node { child } -> Tree::Node { child: child } }",
+    ] {
+        let source = format!(
+            "{CASE_RESTRICTED}\n\
+        machine independent(result: Tree, choice: Tree) -> Tree\n\
+        requires result in Tree::Empty; ensures (result in Tree::Empty) && (true == true);\n\
+        terminates; {{ {body} }}"
+        );
+        crate::lower_typed_trees(parse_typed_trees(&source))
+            .expect("the guarantee constrains the parameter, not the returned Node");
+    }
+}
+
+#[test]
+fn case_citation_requires_preexisting_evidence() {
+    for (premise, accepted) in [("requires value in Tree::Empty;", true), ("", false)] {
+        let source = format!(
+            "{CASE_RESTRICTED}\n\
+             machine forward(value: Tree) -> Tree\n\
+             requires value in Tree::Empty; ensures result in Tree::Empty; terminates; {{ value }}\n\
+             machine caller(value: Tree) -> Tree {premise} terminates; {{\n\
+                 let known: Tree = forward(value);\n\
+                 transition {{ _ -> (selected(known, known)) }} }}"
+        );
+        let result = crate::lower_typed_trees(parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{premise}: {:?}", result.err());
+    }
+}
+
+#[test]
+fn case_citation_does_not_imply_zero_common_fields() {
+    let source = r#"
+        data Tree { marked: bool; case Empty; case Node(child: Tree); }
+        machine empty() -> Tree ensures result in Tree::Empty; terminates;
+        { transition { _ -> Tree::Empty { marked: true } } }
+        machine zero_only(value: Tree) -> Tree requires value == Tree::Empty; terminates; { value }
+        machine caller() -> Tree terminates; {
+            let known: Tree = empty();
+            transition { _ -> (zero_only(known)) }
+        }
+    "#;
+    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
+        .map(|_| ())
+        .expect_err("a case guarantee supplies no common-field equation");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn case_citation_does_not_make_conditional_guarantees_unconditional() {
+    let source = format!(
+        "{CASE_RESTRICTED}\n\
+         machine make() -> Tree\n\
+         ensures Tree::Empty -> {{ result in Tree::Empty; }}\n\
+         terminates; {{ transition {{ _ -> Tree::Node {{ child: Tree::Empty }} }} }}\n\
+         machine caller() -> Tree terminates; {{\n\
+             let known: Tree = make();\n\
+             transition {{ _ -> (selected(known, known)) }} }}"
+    );
+    let diagnostics = crate::lower_typed_trees(parse_typed_trees(&source))
+        .map(|_| ())
+        .expect_err("a conditional Empty guarantee cannot establish Empty after a Node return");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn case_citation_cannot_borrow_an_unrelated_same_spelled_field() {
+    let source = r#"
+        data Tree { marked: bool; case Empty; case Node(child: Tree); }
+        machine empty() -> Tree ensures result in Tree::Empty; terminates;
+        { transition { _ -> Tree::Empty { marked: false } } }
+        machine gate(value: Tree) -> Tree
+        requires (value in Tree::Empty) && value.marked == true;
+        terminates; { value }
+        machine caller(value: Tree) -> Tree
+        requires value.marked == true;
+        terminates; {
+            let known: Tree = empty();
+            transition { _ -> (gate(known)) }
+        }
+    "#;
+    let diagnostics = crate::lower_typed_trees(parse_typed_trees(source))
+        .map(|_| ())
+        .expect_err("the caller's field premise is not a fact about the completed result");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("requires")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn case_premise_ignores_common_field_values() {
     for (argument, accepted) in [
         ("(Tree::Empty { marked: true })", true),
