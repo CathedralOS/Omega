@@ -8684,7 +8684,34 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   rung: OMEGA-C, OMEGA-C-SELF-HOST-EDGE (both already annotated), OMEGA-D*,
   OCREQ-REQUEST-{BINDING,ENTRY-BINDING}.
 - **OMEGA-D** — mined candidate; verify scope then implement.
-- **OMEGA-D-COMPILER-REQUEST-TABLES** — mined candidate; verify scope then implement.
+- **OMEGA-D-COMPILER-REQUEST-TABLES.** Scope verified, fenced at
+  `a0b906db93` — the stub re-mines the OMEGA-D OCREQ V1 request-table
+  clause, whose named surface is already landed: per
+  OMEGA-D-REQUEST-TABLE-COMPLETION's verified row,
+  `bootstrap/5_omega/request_and_utf8.epsilon` (827 lines) parses the
+  complete OCREQ V1 subject/invocation surface per
+  `wiki/spec/build/compiler_request.md` — envelope identity, declared
+  extents, package rows (name/lineage/revision/tree/content/member/role
+  + snapshot rows), ordered edge rows, root row and role, invocation
+  product/target/admissions, first-missing-byte refusal coordinates —
+  exercised end to end by `tests/bootstrap/omega-request` through the
+  Gamma→Delta→Epsilon→D chain. The separable residual legs (request
+  semantic phases 3-5/7-8: package keys, ordering, graph, snapshot
+  admissions, commitment binding, code 25) are the
+  OMEGA-D-REQUEST-{ADMISSION,OUTCOME-TABLES} family's, and every
+  implementing surface is live-fenced at ~21:37Z Sep 20:
+  `bootstrap/5_omega` (incl. `request_and_utf8.epsilon`) under OMEGA-D
+  (Zergling-112, exp ~22:27Z) and the whole `bootstrap` tree under
+  CHAIN-MANIFEST (Zergling-112, ~23:08Z), `scalar_compilation.epsilon`
+  under D-SCALAR-OPERATION-CLOSURE (~01:46Z), `outcome.epsilon` +
+  `tests/bootstrap/omega-outcome` under OMEGA-D-REQUEST-V1-TABLES
+  (Devin/z54, ~04:17Z), `tests/bootstrap/omega-request` +
+  `tools/bootstrap/omega` under OCREQ-REQUEST-ENTRY-BINDING (Devin/z25,
+  ~03:30Z) and `tests/bootstrap/omega-executable` under
+  D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT (~05:25Z), `tests/epsilon`
+  under DELTA-COMPILER (~03:36Z). No unfenced slice remains; sibling
+  re-mines of the same clause are rostered on OMEGA-D-REQUEST-V1-TABLES'
+  verified row.
 - **OMEGA-D-ENTRY-ADAPTER.** Scope verified at `cec5934277` (assigned as the
   OMEGA-D-ENTRY-ADAPTER-ROUTE fusion; this row is the clause's canonical
   stub). The entry adapter route is already implemented and exercised in the
