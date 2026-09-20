@@ -1812,6 +1812,55 @@ fn a_substituted_mapping_refuses_at_the_gate_before_any_entry() {
 
 #[cfg(unix)]
 #[test]
+fn a_late_activation_failure_quiesces_the_started_roster() {
+    let (mut supervisor, artifact) = local_payment_supervisor();
+    // billing dies between its install echo and the gate — a later
+    // activation failure after api and authorization already entered.
+    supervisor.configure_member(|prepared, instance| {
+        if instance.name.as_str() == "billing" {
+            prepared.env(MEMBER_DIE_BEFORE_GATE_ENV, "1");
+        }
+    });
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle_mut()
+        .authorize(local_payment_request(&request_bytes, 1, artifact))
+        .expect("owner authorization");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        StdPipeAdapter,
+        payment_operation_schemas(),
+    )
+    .expect("preparation admits");
+    let failure = match prepared.activate(&mut supervisor) {
+        Err(failure) => failure,
+        Ok(_) => panic!("billing's gate death must refuse activation"),
+    };
+    assert_eq!(failure.instance, 2);
+    match &failure.cause {
+        ActivationCause::Supervisor(LocalSupervisorError::Protocol { member, .. }) => {
+            assert_eq!(member.as_str(), "billing");
+        }
+        other => panic!("the gate loss is the member's custody channel: {other:?}"),
+    }
+    // No receipt exists for the partially started roster, supervision
+    // reports nothing retained (both entered members reaped — the empty
+    // list is the cleanup-success answer, not a missing report), and every
+    // installer-held end drained.
+    assert!(
+        failure.retained.is_empty(),
+        "started members must quiesce under supervision"
+    );
+    assert!(
+        failure.leaked.is_empty(),
+        "no end may leak: {:?}",
+        failure.leaked
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn unadmitted_and_swapped_images_refuse_at_executable_admission() {
     // An artifact identity the supervisor never admitted: member
     // preparation refuses before spawn.
