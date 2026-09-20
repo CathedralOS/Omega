@@ -1,4 +1,5 @@
 use super::{AsmAuthorityAdmission, validate_asm_discharge};
+use language_core::inline_assembly::AsmAuthorityRequirement;
 use typed_trees::TypedTrees;
 
 fn typed(source: &str) -> TypedTrees {
@@ -95,4 +96,96 @@ fn admission_is_derived_from_the_freestanding_selection() {
         AsmAuthorityAdmission::from_freestanding(false),
         AsmAuthorityAdmission::HOSTED
     );
+}
+
+#[test]
+fn port_io_grant_admits_port_io_without_machine_owner_authority() {
+    let port_io_only = AsmAuthorityAdmission::HOSTED.with_grants(true, false);
+    validate_asm_discharge(
+        &typed(
+            "data P { port: u16; byte: u8; } machine P::m(&mut self) { asm where clobbers r10, r11, r15, rax, rdx { out self.port, self.byte; in self.byte, self.port } }",
+        ),
+        port_io_only,
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!("port-io grant rejected port I/O: {diagnostics:?}")
+    });
+
+    for (source, fragment) in [
+        (
+            "machine m() { asm where clobbers none { cli } }",
+            "requires machine-owner authority",
+        ),
+        (
+            "data P { saved: u64; } machine P::m(&mut self) { asm where clobbers r10, r15 { popfq self.saved } }",
+            "requires machine-owner authority",
+        ),
+    ] {
+        let messages = rejection_messages(source, port_io_only);
+        assert!(
+            messages.iter().any(|message| message.contains(fragment)),
+            "port-io grant must not admit machine-owner authority for {source}: {messages:?}"
+        );
+    }
+}
+
+#[test]
+fn interrupt_table_grant_leaves_port_io_and_machine_owner_closed() {
+    let interrupt_table_only = AsmAuthorityAdmission::HOSTED.with_grants(false, true);
+    assert!(interrupt_table_only.admits(AsmAuthorityRequirement::IdtControl));
+    assert!(!interrupt_table_only.admits(AsmAuthorityRequirement::PortIo));
+    assert!(!interrupt_table_only.admits(AsmAuthorityRequirement::MachineOwner));
+
+    let messages = rejection_messages(
+        "data P { port: u16; byte: u8; } machine P::m(&self) { asm where clobbers r10, r11, r15, rax, rdx { out self.port, self.byte } }",
+        interrupt_table_only,
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("requires port-I/O authority")),
+        "interrupt-table grant must not admit port I/O: {messages:?}"
+    );
+}
+
+#[test]
+fn refusals_name_the_exact_granular_grant_that_would_admit() {
+    let messages = rejection_messages(
+        "data P { port: u16; byte: u8; } machine P::m(&self) { asm where clobbers r10, r11, r15, rax, rdx { out self.port, self.byte } }",
+        AsmAuthorityAdmission::HOSTED,
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("b.privileged_services.port_io = true")),
+        "port-I/O refusal must name its granular grant: {messages:?}"
+    );
+    // Machine-owner refusals keep freestanding as the only supply.
+    let messages = rejection_messages(
+        "machine m() { asm where clobbers none { cli } }",
+        AsmAuthorityAdmission::HOSTED,
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("b.freestanding = true")
+                && !message.contains("privileged_services")),
+        "machine-owner refusal must not offer a granular grant: {messages:?}"
+    );
+}
+
+#[test]
+fn grants_compose_on_top_of_machine_owner_admission() {
+    assert_eq!(
+        AsmAuthorityAdmission::MACHINE_OWNER.with_grants(false, false),
+        AsmAuthorityAdmission::MACHINE_OWNER
+    );
+    assert_eq!(
+        AsmAuthorityAdmission::MACHINE_OWNER.with_grants(true, true),
+        AsmAuthorityAdmission::MACHINE_OWNER
+    );
+    let both = AsmAuthorityAdmission::HOSTED.with_grants(true, true);
+    assert!(both.admits(AsmAuthorityRequirement::PortIo));
+    assert!(both.admits(AsmAuthorityRequirement::IdtControl));
+    assert!(!both.admits(AsmAuthorityRequirement::MachineOwner));
 }

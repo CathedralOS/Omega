@@ -71,6 +71,11 @@ pub(crate) struct TypedToCheckedSettlementInput<'a> {
     /// input carries it so the gate joins this transition's program-validation
     /// pass on the exact graph about to be checked.
     pub(crate) freestanding: bool,
+    /// The evaluated `Build.privileged_services` grants: each flag admits its
+    /// mediated class in the asm authority discharge without claiming
+    /// machine-owner authority, which stays `freestanding`-only.
+    pub(crate) privileged_port_io: bool,
+    pub(crate) privileged_interrupt_table: bool,
     pub(crate) boundary_calling_plan_realizations:
         &'a mut [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub(crate) opaque_representation_selections:
@@ -178,6 +183,10 @@ pub(crate) fn typed_trees_to_checked_trees(
             &typed,
             typed_trees_to_checked_trees::AsmAuthorityAdmission::from_freestanding(
                 settlement.freestanding,
+            )
+            .with_grants(
+                settlement.privileged_port_io,
+                settlement.privileged_interrupt_table,
             ),
         )?;
         let mut program = if settlement.package_inputs.is_some() {
