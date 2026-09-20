@@ -7630,7 +7630,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PRIVILEGED-PORT-EFFECT-SETTLEMENTS** — mined candidate; verify scope then implement.
 - **PRIVILEGED-SERVICE-ASM-ADMISSION** — mined candidate; verify scope then implement.
-- **PROCESS-EXIT-PORTABLE-OBSERVATION** — mined candidate; verify scope then implement.
+- **PROCESS-EXIT-PORTABLE-OBSERVATION.** Mined candidate; scope verified at
+  `b28abc01fe`: names the portable-observation leg of the
+  [Process-exit contract](TASKS.md:~840) parent — "Terminal observations
+  compare the exact semantic `i32` status" and preserve ordered preceding
+  events (observations.md#process-exit-observations). The residual
+  primitives are open as recorded: `terminal-psi/terminal_module/
+  control_flow/termination.rs` has no external-completion terminator and the
+  trace codec admits only an empty terminal-external group. Currently
+  unworkable — every touch point sits under live claims:
+  `psi/representations/terminal-psi/src` (plus `terminal-interpreter/src`,
+  `lowered-psi-to-terminal-psi/src`, `terminal-psi-to-abstract-operations/
+  src`, `native-realization/providers`, `checked-trees/src`,
+  `target-operations/src`, `backend/layout/src`, `access-plans/src`,
+  `compiler/tests/access_plans`) is dir-fenced by Devin's
+  PLACED-ACCESS-NATIVE-OPS (expires ~2026-09-21T00:56Z), and
+  `source/library/std/process_exit.omg` by MACOS-X64-HOST-PROFILE/
+  package-wiring (~00:50Z). Coordinate with the parent item's owner lane
+  before working it.
 - **PRODUCER-CHECKER-BOUNDARY-AUDIT** — mined candidate; verify scope then implement.
 - **PRODUCER-CHECKER-DECISION-SEPARATION** — mined candidate; verify scope then implement.
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; bounded audit at `8734480a01`, no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
