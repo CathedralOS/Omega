@@ -13,6 +13,9 @@ component-description = { path = "../../backend/artifacts/component-description"
 sha2 = "0.10.9"
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 
+[target.'cfg(unix)'.dependencies]
+bounded-process = { path = "../../tooling/bounded-process" }
+
 [dev-dependencies]
 component-description = { path = "../../backend/artifacts/component-description", features = ["test-support"] }
 libc = "0.2.186"

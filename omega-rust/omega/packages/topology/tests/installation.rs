@@ -31,21 +31,9 @@ impl fmt::Display for SimError {
 
 impl std::error::Error for SimError {}
 
-/// The physical token a supervisor reads off a handle — how it attests what
-/// it actually installed rather than what it was told to install.
-trait PhysicalToken {
-    fn token(&self) -> u64;
-}
-
 /// A simulated pipe end: its whole physical identity is its token.
 #[derive(Debug)]
 struct SimEndpoint(u64);
-
-impl PhysicalToken for SimEndpoint {
-    fn token(&self) -> u64 {
-        self.0
-    }
-}
 
 struct SimAdapter {
     next_token: u64,
@@ -100,8 +88,8 @@ impl PipeAdapter for SimAdapter {
         Ok(pair)
     }
 
-    fn endpoint_token(&self, endpoint: &SimEndpoint) -> u64 {
-        endpoint.0
+    fn endpoint_token(&self, endpoint: &SimEndpoint) -> Result<u64, SimError> {
+        Ok(endpoint.0)
     }
 
     fn close_endpoint(&mut self, endpoint: SimEndpoint) -> Result<(), SimError> {
@@ -156,7 +144,7 @@ impl<E> SimMember<E> {
     }
 }
 
-struct SimSupervisor<E: PhysicalToken> {
+struct SimSupervisor<E> {
     lifecycle: InstallationLifecycle,
     log: Vec<String>,
     /// Instance index whose preparation fails.
@@ -171,7 +159,7 @@ struct SimSupervisor<E: PhysicalToken> {
     _marker: std::marker::PhantomData<E>,
 }
 
-impl<E: PhysicalToken> SimSupervisor<E> {
+impl<E> SimSupervisor<E> {
     fn new() -> Self {
         Self {
             lifecycle: InstallationLifecycle::default(),
@@ -185,7 +173,7 @@ impl<E: PhysicalToken> SimSupervisor<E> {
     }
 }
 
-impl<E: PhysicalToken> ProcessSupervisor for SimSupervisor<E> {
+impl<E> ProcessSupervisor for SimSupervisor<E> {
     type Endpoint = E;
     type Member = SimMember<E>;
     type Error = SimError;
@@ -210,7 +198,7 @@ impl<E: PhysicalToken> ProcessSupervisor for SimSupervisor<E> {
         let mut ends = Vec::new();
         let mut installed = Vec::new();
         for assignment in endpoints {
-            let token = assignment.handle.token();
+            let token = assignment.token;
             let reported = match self.substitute {
                 Some((victim, foreign)) if victim == index && ends.is_empty() => foreign,
                 _ => token,
@@ -258,7 +246,7 @@ impl<E: PhysicalToken> ProcessSupervisor for SimSupervisor<E> {
     }
 }
 
-impl<E: PhysicalToken> SimSupervisor<E> {
+impl<E> SimSupervisor<E> {
     /// Resolve an instance name to its canonical index; the supervisor keys
     /// its behavior on the roster position it is handed.
     fn log_position(&self, instance: &PlanInstance) -> Option<u32> {
@@ -305,10 +293,15 @@ fn installation_authorization_cannot_activate_twice() {
         .lifecycle
         .authorize(request)
         .expect("first authorization");
-    let installed = prepare_installation(checked, authorization, SimAdapter::new())
-        .expect("first preparation")
-        .activate(&mut supervisor)
-        .expect("first activation");
+    let installed = prepare_installation(
+        checked,
+        authorization,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("first preparation")
+    .activate(&mut supervisor)
+    .expect("first activation");
     assert!(matches!(
         supervisor.lifecycle.authorize(duplicate),
         Err(InstallationRejection::ReplayedOccurrence {
@@ -344,10 +337,15 @@ fn installation_authorization_cannot_activate_twice() {
         .lifecycle
         .authorize(payment_installation_request(&request_bytes, 8))
         .expect("fresh owner intent issues a distinct generation");
-    let installed = prepare_installation(checked, fresh, SimAdapter::new())
-        .expect("new preparation")
-        .activate(&mut supervisor)
-        .expect("new activation");
+    let installed = prepare_installation(
+        checked,
+        fresh,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("new preparation")
+    .activate(&mut supervisor)
+    .expect("new activation");
     assert_eq!(installed.receipt().occurrence, 8);
     installed.quiesce(&mut supervisor).expect("new retirement");
 }
@@ -360,7 +358,13 @@ fn foreign_lifecycle_cannot_reconstruct_supervisor_authority() {
     let forged = foreign
         .authorize(payment_installation_request(&request_bytes, 7))
         .expect("another lifecycle can only issue its own authority");
-    let prepared = prepare_installation(checked, forged, SimAdapter::new()).expect("plan agrees");
+    let prepared = prepare_installation(
+        checked,
+        forged,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("plan agrees");
     let failure = prepared
         .activate(&mut supervisor)
         .expect_err("foreign authority rejects");
@@ -388,7 +392,8 @@ fn superseded_authorization_rejects_and_reports_unclean_endpoint_custody() {
     let mut adapter = SimAdapter::new();
     adapter.fail_close.insert(101);
     let prepared =
-        prepare_installation(checked, authorization, adapter).expect("pending placement");
+        prepare_installation(checked, authorization, adapter, payment_operation_schemas())
+            .expect("pending placement");
     let _new = supervisor
         .lifecycle
         .authorize(payment_installation_request(&request_bytes, 2))
@@ -419,7 +424,7 @@ fn disarm_and_failed_preparation_do_not_reissue_consumed_authority() {
         if occurrence == 2 {
             adapter.fail_at_pair = Some(1);
         }
-        match prepare_installation(checked, authorization, adapter) {
+        match prepare_installation(checked, authorization, adapter, payment_operation_schemas()) {
             Ok(prepared) => prepared.disarm().expect("pending custody released"),
             Err(PrepareError::Adapter { leaked, .. }) => assert!(leaked.is_empty()),
             other => panic!("unexpected preparation: {other:?}"),
@@ -434,10 +439,15 @@ fn disarm_and_failed_preparation_do_not_reissue_consumed_authority() {
         .lifecycle
         .authorize(payment_installation_request(&request_bytes, 3))
         .expect("fresh intent after cleanup");
-    let installed = prepare_installation(checked, authorization, SimAdapter::new())
-        .expect("prepares")
-        .activate(&mut supervisor)
-        .expect("activates after earlier cleanup");
+    let installed = prepare_installation(
+        checked,
+        authorization,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("prepares")
+    .activate(&mut supervisor)
+    .expect("activates after earlier cleanup");
     installed.quiesce(&mut supervisor).expect("retired");
 }
 
@@ -465,8 +475,13 @@ fn activation_failure_keeps_issuance_spent_through_retained_cleanup() {
         .lifecycle
         .authorize(request.clone())
         .expect("initial intent");
-    let prepared =
-        prepare_installation(checked, authorization, SimAdapter::new()).expect("prepares");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("prepares");
     supervisor.fail_gate = Some(1);
     supervisor.quiesce_fail.insert(0);
     let failure = prepared
@@ -494,10 +509,15 @@ fn activation_failure_keeps_issuance_spent_through_retained_cleanup() {
         .lifecycle
         .authorize(payment_installation_request(&request_bytes, 2))
         .expect("fresh intent after cleanup");
-    let installed = prepare_installation(checked, authorization, SimAdapter::new())
-        .expect("fresh preparation")
-        .activate(&mut supervisor)
-        .expect("fresh activation");
+    let installed = prepare_installation(
+        checked,
+        authorization,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("fresh preparation")
+    .activate(&mut supervisor)
+    .expect("fresh activation");
     assert_eq!(installed.receipt().occurrence, 2);
     installed.quiesce(&mut supervisor).expect("retirement");
 }
@@ -514,6 +534,7 @@ fn golden_payment_installation_activates_and_receipts() {
             .authorize(payment_installation_request(&request_bytes, 7))
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     )
     .expect("preparation admits the payment plan");
     let installed = prepared
@@ -588,6 +609,7 @@ fn a_stale_authorization_rejects_before_any_endpoint() {
             .authorize(authorization)
             .expect("owner authorization"),
         adapter,
+        payment_operation_schemas(),
     ) {
         Err(PrepareError::Rejected {
             rejection: InstallationRejection::UnauthorizedRequest { .. },
@@ -611,6 +633,7 @@ fn artifact_mismatches_reject_before_any_endpoint() {
             .authorize(authorization)
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     ) {
         Err(PrepareError::Rejected {
             rejection: InstallationRejection::ArtifactCount { .. },
@@ -630,6 +653,7 @@ fn artifact_mismatches_reject_before_any_endpoint() {
             .authorize(authorization)
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     ) {
         Err(PrepareError::Rejected {
             rejection: InstallationRejection::ArtifactMismatch { instance },
@@ -654,6 +678,7 @@ fn adapter_failure_mid_preparation_cleans_custody() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         adapter,
+        payment_operation_schemas(),
     ) {
         Err(PrepareError::Adapter {
             binding,
@@ -682,6 +707,7 @@ fn uncleanable_close_reports_leaked_custody() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         adapter,
+        payment_operation_schemas(),
     ) {
         Err(PrepareError::Adapter { leaked, .. }) => {
             assert_eq!(leaked, vec![EndpointId(2)]);
@@ -703,6 +729,7 @@ fn a_colliding_endpoint_token_rejects_as_substitution() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         adapter,
+        payment_operation_schemas(),
     ) {
         Err(PrepareError::Rejected {
             rejection: InstallationRejection::EndpointTokenCollision { binding },
@@ -727,6 +754,7 @@ fn disarm_releases_every_assigned_end() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         adapter,
+        payment_operation_schemas(),
     )
     .expect("preparation admits");
     prepared.disarm().expect("all ends released");
@@ -745,6 +773,7 @@ fn member_failure_quiesces_prepared_roster_without_receipt() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     )
     .expect("preparation admits");
     supervisor.fail_prepare = Some(1);
@@ -779,6 +808,7 @@ fn entry_gate_failure_rolls_back_the_whole_roster() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     )
     .expect("preparation admits");
     supervisor.fail_gate = Some(2);
@@ -818,6 +848,7 @@ fn quiesce_failure_retains_supervision_without_receipt() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     )
     .expect("preparation admits");
     supervisor.fail_gate = Some(1);
@@ -844,6 +875,7 @@ fn a_substituted_mapping_refuses_at_the_gate() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     )
     .expect("preparation admits");
     // authorization installs a foreign physical end and honestly says so.
@@ -877,6 +909,7 @@ fn installed_payment() -> (
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     )
     .expect("preparation admits");
     let installed = prepared
@@ -888,23 +921,29 @@ fn installed_payment() -> (
 #[test]
 fn a_request_response_round_trip_uses_dedicated_channels() {
     let (mut installed, _) = installed_payment();
-    let api_request = installed.members()[0].end(0, ChannelEnd::RequestWrite).id;
+    let (api_request_id, api_request_token) = {
+        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
     let grant = installed
-        .authorize_send(api_request, 0)
+        .authorize_send(api_request_id, api_request_token)
         .expect("api's import invocation is granted");
     assert_eq!(grant.binding, 0);
     assert_eq!(grant.deliver_to, 1);
 
-    let auth_response = installed.members()[1].end(0, ChannelEnd::ResponseWrite).id;
+    let (auth_response_id, auth_response_token) = {
+        let end = installed.members()[1].end(0, ChannelEnd::ResponseWrite);
+        (end.id, end.token)
+    };
     let reply = installed
-        .authorize_respond(auth_response, 1)
+        .authorize_respond(auth_response_id, auth_response_token)
         .expect("the reply stays on the response channel");
     assert_eq!(reply.binding, 0);
     assert_eq!(reply.deliver_to, 0);
 
     // One outstanding request per binding: the channel is free again.
     installed
-        .authorize_send(api_request, 0)
+        .authorize_send(api_request_id, api_request_token)
         .expect("a fresh request is granted");
 }
 
@@ -919,11 +958,14 @@ fn an_ungranted_invocation_is_refused() {
         })
     );
     // A request on the response-write end is not a request channel.
-    let response_write = installed.members()[1].end(0, ChannelEnd::ResponseWrite).id;
+    let (response_write_id, response_write_token) = {
+        let end = installed.members()[1].end(0, ChannelEnd::ResponseWrite);
+        (end.id, end.token)
+    };
     assert_eq!(
-        installed.authorize_send(response_write, 1),
+        installed.authorize_send(response_write_id, response_write_token),
         Err(InvocationRefusal::WrongDirection {
-            endpoint: response_write,
+            endpoint: response_write_id,
             role: ChannelEnd::ResponseWrite,
         })
     );
@@ -932,15 +974,22 @@ fn an_ungranted_invocation_is_refused() {
 #[test]
 fn a_substituted_mapping_is_refused_at_delivery() {
     let (mut installed, _) = installed_payment();
-    // authorization's request-write end of binding 1 is attested in api's
-    // hands — the route table refuses it no matter what the frame claims.
-    let auth_request = installed.members()[1].end(1, ChannelEnd::RequestWrite).id;
+    // api's request-write end presented for authorization's request-write
+    // endpoint — a physical token that is not the recorded assignment
+    // refuses no matter what the frame claims.
+    let (auth_request_id, auth_request_token) = {
+        let end = installed.members()[1].end(1, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
+    let api_request_token = installed.members()[0]
+        .end(0, ChannelEnd::RequestWrite)
+        .token;
     assert_eq!(
-        installed.authorize_send(auth_request, 0),
+        installed.authorize_send(auth_request_id, api_request_token),
         Err(InvocationRefusal::SubstitutedMapping {
-            endpoint: auth_request,
-            expected: 1,
-            actual: 0,
+            endpoint: auth_request_id,
+            expected: auth_request_token,
+            presented: api_request_token,
         })
     );
 }
@@ -948,27 +997,40 @@ fn a_substituted_mapping_is_refused_at_delivery() {
 #[test]
 fn outstanding_request_and_closed_binding_rules_hold() {
     let (mut installed, _) = installed_payment();
-    let api_request = installed.members()[0].end(0, ChannelEnd::RequestWrite).id;
-    let auth_response = installed.members()[1].end(0, ChannelEnd::ResponseWrite).id;
+    let (api_request_id, api_request_token) = {
+        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
+    let (auth_response_id, auth_response_token) = {
+        let end = installed.members()[1].end(0, ChannelEnd::ResponseWrite);
+        (end.id, end.token)
+    };
 
-    installed.authorize_send(api_request, 0).unwrap();
+    installed
+        .authorize_send(api_request_id, api_request_token)
+        .unwrap();
     // A second request while one is outstanding refuses.
     assert_eq!(
-        installed.authorize_send(api_request, 0),
+        installed.authorize_send(api_request_id, api_request_token),
         Err(InvocationRefusal::RequestInFlight { binding: 0 })
     );
     // A response on the other binding has nothing outstanding.
-    let auth_response_b1 = installed.members()[2].end(1, ChannelEnd::ResponseWrite).id;
+    let (auth_response_b1_id, auth_response_b1_token) = {
+        let end = installed.members()[2].end(1, ChannelEnd::ResponseWrite);
+        (end.id, end.token)
+    };
     assert_eq!(
-        installed.authorize_respond(auth_response_b1, 2),
+        installed.authorize_respond(auth_response_b1_id, auth_response_b1_token),
         Err(InvocationRefusal::NoOutstandingRequest { binding: 1 })
     );
 
     // A protocol/peer failure closes the binding; nothing flows after.
-    installed.authorize_respond(auth_response, 1).unwrap();
+    installed
+        .authorize_respond(auth_response_id, auth_response_token)
+        .unwrap();
     installed.close_binding(0);
     assert_eq!(
-        installed.authorize_send(api_request, 0),
+        installed.authorize_send(api_request_id, api_request_token),
         Err(InvocationRefusal::BindingClosed { binding: 0 })
     );
 }
@@ -983,8 +1045,13 @@ fn superseded_replacement_returns_old_and_pending_custody_before_stopping() {
         .lifecycle
         .authorize(payment_installation_request(&request_bytes, 2))
         .expect("replacement intent");
-    let prepared = prepare_installation(checked, authorization, SimAdapter::new())
-        .expect("replacement prepares");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("replacement prepares");
     let _newer = supervisor
         .lifecycle
         .authorize(payment_installation_request(&request_bytes, 3))
@@ -1017,6 +1084,7 @@ fn replacement_quiesces_the_old_generation_first() {
             .authorize(payment_installation_request(&request_bytes, 2))
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     )
     .expect("new generation prepares");
     let installed = replace_installation(old, prepared, &mut supervisor)
@@ -1049,6 +1117,7 @@ fn replacement_keeps_the_old_generation_when_it_cannot_release() {
             .authorize(payment_installation_request(&request_bytes, 2))
             .expect("owner authorization"),
         SimAdapter::new(),
+        payment_operation_schemas(),
     )
     .expect("new generation prepares");
     match replace_installation(old, prepared, &mut supervisor) {
@@ -1074,27 +1143,16 @@ fn replacement_keeps_the_old_generation_when_it_cannot_release() {
 
 // ---- the host adapter ----------------------------------------------------
 
-#[cfg(unix)]
-impl PhysicalToken for StdPipeEnd {
-    fn token(&self) -> u64 {
-        use std::os::fd::AsRawFd;
-        match self {
-            StdPipeEnd::Read(end) => end.as_raw_fd() as u64,
-            StdPipeEnd::Write(end) => end.as_raw_fd() as u64,
-        }
-    }
-}
-
 #[test]
 fn host_pipe_pairs_are_private_and_directed() {
     use std::io::{Read, Write};
     let mut adapter = StdPipeAdapter;
     let mut pair = adapter.create_binding_pair().unwrap();
     let tokens = [
-        adapter.endpoint_token(&pair.request_write),
-        adapter.endpoint_token(&pair.request_read),
-        adapter.endpoint_token(&pair.response_write),
-        adapter.endpoint_token(&pair.response_read),
+        adapter.endpoint_token(&pair.request_write).unwrap(),
+        adapter.endpoint_token(&pair.request_read).unwrap(),
+        adapter.endpoint_token(&pair.response_write).unwrap(),
+        adapter.endpoint_token(&pair.response_read).unwrap(),
     ];
     assert_eq!(BTreeSet::from(tokens).len(), 4, "four distinct ends");
 
@@ -1131,6 +1189,7 @@ fn a_full_installation_flows_over_real_private_pipes() {
             .authorize(payment_installation_request(&request_bytes, 1))
             .expect("owner authorization"),
         StdPipeAdapter,
+        payment_operation_schemas(),
     )
     .expect("preparation admits real pipes");
     let mut installed = prepared
@@ -1139,9 +1198,12 @@ fn a_full_installation_flows_over_real_private_pipes() {
 
     // api invokes on its granted request channel; the kernel delivers the
     // bytes to authorization's request-read end and nowhere else.
-    let api_request = installed.members()[0].end(0, ChannelEnd::RequestWrite).id;
+    let (api_request_id, api_request_token) = {
+        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
     let grant = installed
-        .authorize_send(api_request, 0)
+        .authorize_send(api_request_id, api_request_token)
         .expect("invocation granted");
     assert_eq!(grant.deliver_to, 1);
 
@@ -1167,4 +1229,559 @@ fn a_full_installation_flows_over_real_private_pipes() {
         assert_eq!(buffer, frame);
     }
     assert_eq!(decode_frame(&frame).unwrap().payload, b"authorize");
+}
+
+// ---- operation-schema delivery --------------------------------------------
+
+#[test]
+fn a_binding_without_a_registered_schema_is_refused_at_admission() {
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle
+        .authorize(payment_installation_request(&request_bytes, 1))
+        .expect("owner authorization");
+
+    // Leave binding 0's export contract unregistered: the channel the
+    // codec cannot check refuses before any endpoint exists.
+    let key = checked.plan.bindings[0].export;
+    let missing = checked.plan.instances[key.instance as usize]
+        .endpoints
+        .iter()
+        .find(|endpoint| {
+            endpoint.slot == key.slot && endpoint.direction == EndpointDirection::Export
+        })
+        .expect("the plan binds a declared endpoint")
+        .contract;
+    let mut contracts: Vec<Identity> = checked
+        .plan
+        .instances
+        .iter()
+        .flat_map(|instance| instance.endpoints.iter().map(|e| e.contract))
+        .collect();
+    contracts.sort();
+    contracts.dedup();
+    let mut schemas = OperationSchemas::new();
+    for contract in contracts {
+        if contract != missing {
+            schemas
+                .register(contract, payment_operation_schema())
+                .expect("distinct contracts register");
+        }
+    }
+
+    match prepare_installation(checked, authorization, SimAdapter::new(), schemas) {
+        Err(PrepareError::Rejected {
+            rejection: InstallationRejection::MissingOperationSchema { endpoint, contract },
+            leaked,
+        }) => {
+            assert_eq!(endpoint, key);
+            assert_eq!(contract, missing);
+            assert!(leaked.is_empty(), "rejection precedes endpoint custody");
+        }
+        other => panic!("an unchecked channel must reject: {other:?}"),
+    }
+}
+
+#[test]
+fn a_schema_violating_frame_closes_the_binding() {
+    let (mut installed, _) = installed_payment();
+    let (request_id, request_token) = {
+        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
+    let grant = installed
+        .authorize_send(request_id, request_token)
+        .expect("the send is granted");
+
+    // Operation 77 is not in the bound contract's table — the frame is a
+    // protocol violation, and the binding closes rather than deliver it.
+    let frame = Frame {
+        operation: 77,
+        payload: Vec::new(),
+    };
+    assert_eq!(
+        installed.deliver_send(grant, Ok(&frame)),
+        Err(DeliveryRefusal::Protocol {
+            binding: 0,
+            violation: SchemaViolation::UnlistedOperation { operation: 77 },
+        })
+    );
+    assert_eq!(
+        installed.authorize_send(request_id, request_token),
+        Err(InvocationRefusal::BindingClosed { binding: 0 })
+    );
+}
+
+#[test]
+fn an_out_of_law_payload_and_undecodable_bytes_close_the_binding() {
+    let (mut installed, _) = installed_payment();
+    let (request_id, request_token) = {
+        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
+
+    // Operation 1 demands at most 256 payload bytes; 512 violates the law.
+    let grant = installed
+        .authorize_send(request_id, request_token)
+        .expect("granted");
+    let oversized = Frame {
+        operation: 1,
+        payload: vec![0u8; 512],
+    };
+    assert_eq!(
+        installed.deliver_send(grant, Ok(&oversized)),
+        Err(DeliveryRefusal::Protocol {
+            binding: 0,
+            violation: SchemaViolation::Payload {
+                operation: 1,
+                expected: PayloadSchema::Bounded { bytes: 256 },
+                found: 512,
+            },
+        })
+    );
+    assert_eq!(
+        installed.authorize_send(request_id, request_token),
+        Err(InvocationRefusal::BindingClosed { binding: 0 })
+    );
+
+    // Bytes that never decode to a frame are a transport failure; the
+    // other binding closes the same way.
+    let (request_b1_id, request_b1_token) = {
+        let end = installed.members()[1].end(1, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
+    let grant_b1 = installed
+        .authorize_send(request_b1_id, request_b1_token)
+        .expect("granted");
+    assert!(matches!(
+        installed.deliver_send(
+            grant_b1,
+            Err(FrameError::Truncated {
+                expected: 8,
+                found: 3,
+            }),
+        ),
+        Err(DeliveryRefusal::Transport {
+            binding: 1,
+            error: FrameError::Truncated { .. },
+        })
+    ));
+    assert_eq!(
+        installed.authorize_send(request_b1_id, request_b1_token),
+        Err(InvocationRefusal::BindingClosed { binding: 1 })
+    );
+}
+
+#[test]
+fn a_well_formed_delivery_round_trip_obeys_the_schema() {
+    let (mut installed, _) = installed_payment();
+    let (request_id, request_token) = {
+        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
+    let (response_id, response_token) = {
+        let end = installed.members()[1].end(0, ChannelEnd::ResponseWrite);
+        (end.id, end.token)
+    };
+
+    let request = Frame {
+        operation: 1,
+        payload: b"authorize".to_vec(),
+    };
+    let grant = installed
+        .authorize_send(request_id, request_token)
+        .expect("granted");
+    installed
+        .deliver_send(grant, Ok(&request))
+        .expect("the schema admits the request");
+
+    let reply = Frame {
+        operation: 3,
+        payload: vec![0xAB; 8],
+    };
+    let reply_grant = installed
+        .authorize_respond(response_id, response_token)
+        .expect("the response is outstanding");
+    installed
+        .deliver_respond(reply_grant, Ok(&reply))
+        .expect("the demanded contract admits the reply");
+}
+
+// ---- the real three-process leg (unix) ------------------------------------
+//
+// `LocalProcessSupervisor` spawns copies of this test binary as the roster
+// members — the image digests `current_exe`, and the exact libtest filter
+// below is its entry. Without the supervisor's environment this entry is a
+// vacuous pass so an ordinary suite run never runs the member protocol.
+
+/// Re-exec'd member image: spawned by `LocalProcessSupervisor` as
+/// `installation-<hash> --exact topology_member_process_entry --nocapture`
+/// with the `OMEGA_TOPOLOGY_*` assignment environment. In-process it is a
+/// no-op — the protocol only runs in a spawned child.
+#[cfg(unix)]
+#[test]
+fn topology_member_process_entry() {
+    if std::env::var_os(MEMBER_REPORTS_ENV).is_none() {
+        return;
+    }
+    let status = member_process_entry();
+    assert_eq!(status, 0, "the member protocol exited {status}");
+}
+
+#[cfg(unix)]
+fn local_payment_supervisor() -> (LocalProcessSupervisor, Identity) {
+    let mut supervisor = LocalProcessSupervisor::new();
+    let image = std::env::current_exe().expect("the test binary is the member image");
+    let artifact = supervisor
+        .admit_executable(image)
+        .expect("the member image digests");
+    supervisor
+        .launch(&artifact)
+        .expect("the admitted artifact")
+        .arguments = vec![
+        "--exact".into(),
+        "topology_member_process_entry".into(),
+        "--nocapture".into(),
+    ];
+    (supervisor, artifact)
+}
+
+#[cfg(unix)]
+fn local_payment_request(
+    request_bytes: &[u8],
+    occurrence: u64,
+    artifact: Identity,
+) -> InstallationRequest {
+    InstallationRequest {
+        expected_request: request_commitment(request_bytes),
+        occurrence,
+        artifacts: payment_components()
+            .iter()
+            .map(|admission| AdmittedArtifact {
+                artifact,
+                component_subject: subject_of(admission),
+            })
+            .collect(),
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_three_process_installation_mediated_over_real_private_channels() {
+    let (mut supervisor, artifact) = local_payment_supervisor();
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle_mut()
+        .authorize(local_payment_request(&request_bytes, 1, artifact))
+        .expect("owner authorization");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        StdPipeAdapter,
+        payment_operation_schemas(),
+    )
+    .expect("preparation admits real pipes");
+    let mut installed = prepared
+        .activate(&mut supervisor)
+        .expect("three checked members entered");
+
+    // Three checked processes hold exactly their assigned endpoints — the
+    // activation gate already compared each member's kernel-attested token
+    // echo against the recorded assignment.
+    assert_eq!(installed.members().len(), 3);
+    // Binding endpoint order: request-write, request-read, response-write,
+    // response-read.
+    let (b0_request_write, b0_request_read, b0_response_write, b0_response_read) = {
+        let endpoints = installed.receipt().bindings[0].endpoints;
+        (
+            endpoints[0].0,
+            endpoints[1].0,
+            endpoints[2].0,
+            endpoints[3].0,
+        )
+    };
+    let (b1_request_write, _, b1_response_write, _) = {
+        let endpoints = installed.receipt().bindings[1].endpoints;
+        (
+            endpoints[0].0,
+            endpoints[1].0,
+            endpoints[2].0,
+            endpoints[3].0,
+        )
+    };
+
+    // Confinement: each member's live descriptor table is exactly its
+    // retained set — general inheritance was disabled before entry opened.
+    for index in 0..3 {
+        assert_eq!(
+            supervisor
+                .inspect_descriptors(&mut installed.members_mut()[index])
+                .unwrap(),
+            "FDS-OK",
+            "member {index} holds only its assigned descriptors"
+        );
+    }
+
+    // One granted request/response pair over real kernel channels. The
+    // sender presents no instance number — the kernel token of the end it
+    // writes through is the identity the route table checks.
+    let api_request_token = supervisor
+        .attested_token(&installed.members()[0], b0_request_write)
+        .expect("api's assigned token was echoed");
+    let grant = installed
+        .authorize_send(b0_request_write, api_request_token)
+        .expect("the physical holder is granted");
+    assert_eq!(grant.deliver_to, 1);
+
+    let request = Frame {
+        operation: 1,
+        payload: b"authorize".to_vec(),
+    };
+    let request_bytes_frame = encode_frame(&request).unwrap();
+    assert_eq!(
+        supervisor
+            .write_endpoint(
+                &mut installed.members_mut()[0],
+                b0_request_write,
+                &request_bytes_frame
+            )
+            .unwrap(),
+        WriteVerdict::Written
+    );
+    let delivered = match supervisor
+        .read_endpoint(
+            &mut installed.members_mut()[1],
+            b0_request_read,
+            MAX_FRAME_BYTES,
+        )
+        .unwrap()
+    {
+        ReadVerdict::Bytes(bytes) => bytes,
+        other => panic!("the request must arrive on the assigned channel: {other:?}"),
+    };
+    assert_eq!(delivered, request_bytes_frame);
+    let decoded = decode_frame(&delivered).unwrap();
+    installed
+        .deliver_send(grant, Ok(&decoded))
+        .expect("the contract schema admits the request");
+
+    let auth_response_token = supervisor
+        .attested_token(&installed.members()[1], b0_response_write)
+        .expect("authorization's assigned token");
+    let reply_grant = installed
+        .authorize_respond(b0_response_write, auth_response_token)
+        .expect("the response is outstanding");
+    let reply = Frame {
+        operation: 3,
+        payload: vec![0xAB; 8],
+    };
+    let reply_bytes = encode_frame(&reply).unwrap();
+    assert_eq!(
+        supervisor
+            .write_endpoint(
+                &mut installed.members_mut()[1],
+                b0_response_write,
+                &reply_bytes
+            )
+            .unwrap(),
+        WriteVerdict::Written
+    );
+    let delivered = match supervisor
+        .read_endpoint(
+            &mut installed.members_mut()[0],
+            b0_response_read,
+            MAX_FRAME_BYTES,
+        )
+        .unwrap()
+    {
+        ReadVerdict::Bytes(bytes) => bytes,
+        other => panic!("the reply must arrive on the response channel: {other:?}"),
+    };
+    assert_eq!(delivered, reply_bytes);
+    installed
+        .deliver_respond(reply_grant, Ok(&decode_frame(&delivered).unwrap()))
+        .expect("the demanded contract admits the reply");
+
+    // An ungranted invocation: no such issued endpoint.
+    assert_eq!(
+        installed.authorize_send(EndpointId(9999), api_request_token),
+        Err(InvocationRefusal::UngrantedEndpoint {
+            endpoint: EndpointId(9999)
+        })
+    );
+
+    // A substituted mapping: api's real kernel token presented on
+    // authorization's binding-1 endpoint refuses.
+    let auth_b1_token = supervisor
+        .attested_token(&installed.members()[1], b1_request_write)
+        .expect("authorization's binding-1 token");
+    assert_eq!(
+        installed.authorize_send(b1_request_write, api_request_token),
+        Err(InvocationRefusal::SubstitutedMapping {
+            endpoint: b1_request_write,
+            expected: auth_b1_token,
+            presented: api_request_token,
+        })
+    );
+
+    // A descriptor the member never received is refused by the kernel
+    // itself — the confinement is physical, not a route-table fiction.
+    assert_eq!(
+        supervisor
+            .write_descriptor(&mut installed.members_mut()[0], 9999, b"x")
+            .unwrap(),
+        WriteVerdict::Refused(9) // EBADF
+    );
+
+    // One outstanding request per binding, then a schema violation closes
+    // it — the dead channel refuses its remaining ends.
+    let grant_b1 = installed
+        .authorize_send(b1_request_write, auth_b1_token)
+        .expect("binding 1 grants its write end");
+    assert_eq!(
+        installed.authorize_send(b1_request_write, auth_b1_token),
+        Err(InvocationRefusal::RequestInFlight { binding: 1 })
+    );
+    let out_of_law = Frame {
+        operation: 77,
+        payload: Vec::new(),
+    };
+    assert_eq!(
+        installed.deliver_send(grant_b1, Ok(&out_of_law)),
+        Err(DeliveryRefusal::Protocol {
+            binding: 1,
+            violation: SchemaViolation::UnlistedOperation { operation: 77 },
+        })
+    );
+    let b1_response_token = supervisor
+        .attested_token(&installed.members()[2], b1_response_write)
+        .expect("billing's response token");
+    assert_eq!(
+        installed.authorize_respond(b1_response_write, b1_response_token),
+        Err(InvocationRefusal::BindingClosed { binding: 1 })
+    );
+
+    // Peer failure on binding 0's response channel: kill authorization's
+    // process group and the importer's read end reports EOF — the binding
+    // closes rather than retry another peer.
+    supervisor
+        .force_down(&mut installed.members_mut()[1])
+        .expect("the member's group is terminated");
+    assert_eq!(
+        supervisor
+            .read_endpoint(
+                &mut installed.members_mut()[0],
+                b0_response_read,
+                MAX_FRAME_BYTES
+            )
+            .unwrap(),
+        ReadVerdict::EndOfFile
+    );
+    installed.close_binding(0);
+    assert_eq!(
+        installed.authorize_send(b0_request_write, api_request_token),
+        Err(InvocationRefusal::BindingClosed { binding: 0 })
+    );
+
+    // Quiescence reaps every member — including the force-killed one.
+    installed
+        .quiesce(&mut supervisor)
+        .expect("retirement releases the whole roster");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_substituted_mapping_refuses_at_the_gate_before_any_entry() {
+    let (mut supervisor, artifact) = local_payment_supervisor();
+    // authorization's image honestly reports the descriptors it holds, but
+    // under the shift knob every echoed token is a foreign physical end —
+    // a substituted mapping.
+    supervisor.configure_member(|prepared, instance| {
+        if instance.name.as_str() == "authorization" {
+            prepared.env(MEMBER_SHIFT_TOKENS_ENV, "4096");
+        }
+    });
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle_mut()
+        .authorize(local_payment_request(&request_bytes, 1, artifact))
+        .expect("owner authorization");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        StdPipeAdapter,
+        payment_operation_schemas(),
+    )
+    .expect("preparation admits");
+    match prepared.activate(&mut supervisor) {
+        Err(ActivationFailure {
+            instance: 1,
+            cause: ActivationCause::EndpointSubstitution { .. },
+            ..
+        }) => {}
+        other => panic!("a substituted mapping refuses at the gate: {other:?}"),
+    }
+    // api's member was still prepared and is quiesced by the rollback —
+    // dropping the supervisor confirms no unowned child survives.
+}
+
+#[cfg(unix)]
+#[test]
+fn unadmitted_and_swapped_images_refuse_at_executable_admission() {
+    // An artifact identity the supervisor never admitted: member
+    // preparation refuses before spawn.
+    let mut supervisor = LocalProcessSupervisor::new();
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle_mut()
+        .authorize(local_payment_request(&request_bytes, 1, identity(0xFE)))
+        .expect("owner authorization");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        StdPipeAdapter,
+        payment_operation_schemas(),
+    )
+    .expect("preparation admits");
+    match prepared.activate(&mut supervisor) {
+        Err(ActivationFailure {
+            instance: 0,
+            cause: ActivationCause::Supervisor(LocalSupervisorError::UnadmittedExecutable { .. }),
+            ..
+        }) => {}
+        other => panic!("an unadmitted image refuses: {other:?}"),
+    }
+
+    // An image swapped after admission — the file's bytes no longer match
+    // the artifact's digest — refuses identically.
+    let mut supervisor = LocalProcessSupervisor::new();
+    let image = std::env::temp_dir().join(format!("omega-topology-member-{}", std::process::id()));
+    std::fs::write(&image, b"original member image").expect("image writes");
+    let artifact = supervisor
+        .admit_executable(&image)
+        .expect("the original image digests");
+    std::fs::write(&image, b"swapped member image").expect("image swaps");
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let authorization = supervisor
+        .lifecycle_mut()
+        .authorize(local_payment_request(&request_bytes, 1, artifact))
+        .expect("owner authorization");
+    let prepared = prepare_installation(
+        checked,
+        authorization,
+        StdPipeAdapter,
+        payment_operation_schemas(),
+    )
+    .expect("preparation admits");
+    let outcome = prepared.activate(&mut supervisor);
+    let _ = std::fs::remove_file(&image);
+    match outcome {
+        Err(ActivationFailure {
+            instance: 0,
+            cause: ActivationCause::Supervisor(LocalSupervisorError::ExecutableImageMismatch { .. }),
+            ..
+        }) => {}
+        other => panic!("a swapped image refuses: {other:?}"),
+    }
 }

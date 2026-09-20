@@ -2412,6 +2412,7 @@ dependencies = [
 name = "topology-plan"
 version = "0.1.0"
 dependencies = [
+ "bounded-process",
  "component-description",
  "libc",
  "semantic-vocabulary",

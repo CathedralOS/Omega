@@ -27,30 +27,51 @@
 //!   released — a partial roster never produces a receipt.
 //! - The retained route table mediates every frame:
 //!   [`InstalledTopology::authorize_send`] grants only a request-write end
-//!   whose kernel-attested holder is its assigned instance, on an open
-//!   binding with no outstanding request; the reply travels only on the
-//!   binding's response channel. Unknown endpoints, wrong-direction sends,
-//!   frames from a non-holder, a second in-flight request, responses with
-//!   nothing outstanding, and sends on a closed binding are each explicit
-//!   refusals — an actual ungranted invocation and a substituted mapping
-//!   are refused, not merely unlisted.
+//!   whose physically attested token — the kernel identity of the end
+//!   itself, not a caller-supplied instance number — equals the recorded
+//!   assignment, on an open binding with no outstanding request; the reply
+//!   travels only on the binding's response channel. Unknown endpoints,
+//!   wrong-direction sends, a foreign physical end, a second in-flight
+//!   request, responses with nothing outstanding, and sends on a closed
+//!   binding are each explicit refusals — an actual ungranted invocation
+//!   and a substituted mapping are refused, not merely unlisted. Granted
+//!   frames then pass the destination contract's exact operation schema
+//!   before delivery ([`InstalledTopology::deliver_send`]); an invalid
+//!   length, operation, or payload is a protocol/transport failure that
+//!   closes the binding.
 //!
-//! What stays outside: executable admission and process custody (the
-//! supervisor owns both), contract-level operation-schema checking (the
-//! binding's selected codec), and the OS guarantees named in
+//! What stays outside: executable admission policy and process custody
+//! (the [`ProcessSupervisor`] owns both — `local_supervisor` is the unix
+//! leg built on this crate's neutral process boundary), the schema
+//! *contents* (each contract owns its own operation table; the mediator
+//! enforces it, it does not derive it), and the OS guarantees named in
 //! [`PipeAdapter::assumptions`] — those remain disclosed provider
 //! assumptions, not properties this crate proves.
 
 mod mediation;
+mod operation_schema;
 mod pipe_adapter;
 
-pub use mediation::{InvocationRefusal, ResponseGrant, SendGrant};
+#[cfg(unix)]
+mod local_supervisor;
+
+#[cfg(unix)]
+pub use local_supervisor::{
+    ExecutableLaunch, LocalMember, LocalProcessSupervisor, LocalSupervisorError, ReadVerdict,
+    WriteVerdict,
+};
+pub use mediation::{DeliveryRefusal, InvocationRefusal, ResponseGrant, SendGrant};
 mod frame;
 
 pub use frame::{Frame, FrameError, MAX_FRAME_BYTES, decode_frame, encode_frame};
+pub use operation_schema::{
+    OperationSchema, OperationSchemas, PayloadSchema, SchemaRegistrationError, SchemaViolation,
+};
 pub use pipe_adapter::{PipeAdapter, PipePair, StdPipeAdapter, StdPipeEnd};
 
-use crate::deployment_plan::{EndpointKey, Identity, InstanceName, PlanInstance};
+use crate::deployment_plan::{
+    EndpointDirection, EndpointKey, Identity, InstanceName, PlanInstance,
+};
 use crate::plan_verification::CheckedPlan;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -70,6 +91,7 @@ pub fn prepare_installation<A: PipeAdapter>(
     checked: CheckedPlan,
     authorization: InstallationAuthorization,
     mut adapter: A,
+    schemas: OperationSchemas,
 ) -> Result<PreparedInstallation<A>, PrepareError<A>> {
     let request = &authorization.request;
     if checked.plan.request_commitment != request.expected_request {
@@ -108,6 +130,27 @@ pub fn prepare_installation<A: PipeAdapter>(
                 },
                 leaked: Vec::new(),
             });
+        }
+    }
+
+    // Every bound endpoint's contract must have a registered operation
+    // schema before any end exists — a channel the selected codec cannot
+    // check is refused at admission rather than discovered mid-wire.
+    for binding in &checked.plan.bindings {
+        for (endpoint_key, direction) in [
+            (binding.import, EndpointDirection::Import),
+            (binding.export, EndpointDirection::Export),
+        ] {
+            let contract = endpoint_contract(instances, endpoint_key, direction);
+            if schemas.for_contract(&contract).is_none() {
+                return Err(PrepareError::Rejected {
+                    rejection: InstallationRejection::MissingOperationSchema {
+                        endpoint: endpoint_key,
+                        contract,
+                    },
+                    leaked: Vec::new(),
+                });
+            }
         }
     }
 
@@ -157,20 +200,59 @@ pub fn prepare_installation<A: PipeAdapter>(
                 pair.response_read,
             ),
         ];
+        // Read every end's physical token before assigning it anywhere. An
+        // adapter that cannot name an end fails the pair in place — the
+        // unassigned handles are closed first so custody accounting never
+        // loses them silently.
+        let mut tokens = [0u64; 4];
         let mut collision = false;
-        for (endpoint, role, holder, handle) in ends {
-            let token = adapter.endpoint_token(&handle);
+        let mut token_failure = None;
+        for (index, (_, _, _, handle)) in ends.iter().enumerate() {
+            match adapter.endpoint_token(handle) {
+                Ok(token) => {
+                    tokens[index] = token;
+                    if !seen_tokens.insert(token) {
+                        collision = true;
+                    }
+                }
+                Err(error) => {
+                    token_failure = Some(error);
+                    break;
+                }
+            }
+        }
+        if collision || token_failure.is_some() {
+            let mut leaked = Vec::new();
+            for (index, (_, _, _, handle)) in ends.into_iter().enumerate() {
+                if adapter.close_endpoint(handle).is_err() {
+                    leaked.push(EndpointId(next_id + index as u32));
+                }
+            }
+            leaked.extend(drain_assigned(&mut adapter, &mut assigned));
+            return Err(match token_failure {
+                Some(error) => PrepareError::Adapter {
+                    binding: binding_index as u32,
+                    error,
+                    leaked,
+                },
+                None => PrepareError::Rejected {
+                    rejection: InstallationRejection::EndpointTokenCollision {
+                        binding: binding_index as u32,
+                    },
+                    leaked,
+                },
+            });
+        }
+        for ((endpoint, role, holder, handle), token) in ends.into_iter().zip(tokens) {
             let id = EndpointId(next_id);
             next_id += 1;
-            if !seen_tokens.insert(token) {
-                collision = true;
-            }
             routes.push(RouteRecord {
                 id,
                 binding: binding_index as u32,
                 endpoint,
                 role,
                 holder,
+                contract: endpoint_contract(instances, endpoint, role_direction(role)),
                 token,
             });
             assigned[holder as usize].push(EndpointAssignment {
@@ -182,24 +264,41 @@ pub fn prepare_installation<A: PipeAdapter>(
                 handle,
             });
         }
-        if collision {
-            let leaked = drain_assigned(&mut adapter, &mut assigned);
-            return Err(PrepareError::Rejected {
-                rejection: InstallationRejection::EndpointTokenCollision {
-                    binding: binding_index as u32,
-                },
-                leaked,
-            });
-        }
     }
 
     Ok(PreparedInstallation {
         checked,
         authorization,
+        schemas,
         assigned,
         routes,
         adapter,
     })
+}
+
+/// The contract one checked-plan endpoint declares: the roster record is
+/// the only honest source.
+fn endpoint_contract(
+    instances: &[PlanInstance],
+    key: EndpointKey,
+    direction: EndpointDirection,
+) -> Identity {
+    instances[key.instance as usize]
+        .endpoints
+        .iter()
+        .find(|endpoint| endpoint.slot == key.slot && endpoint.direction == direction)
+        .expect("a checked plan binds only endpoints the roster declares")
+        .contract
+}
+
+/// The direction of the plan endpoint a channel role serves: request-write
+/// and response-read are the importer's ends; request-read and
+/// response-write are the exporter's.
+fn role_direction(role: ChannelEnd) -> EndpointDirection {
+    match role {
+        ChannelEnd::RequestWrite | ChannelEnd::ResponseRead => EndpointDirection::Import,
+        ChannelEnd::RequestRead | ChannelEnd::ResponseWrite => EndpointDirection::Export,
+    }
 }
 
 impl<A: PipeAdapter> PreparedInstallation<A> {
@@ -291,6 +390,7 @@ impl<A: PipeAdapter> PreparedInstallation<A> {
         Ok(InstalledTopology {
             receipt,
             routes: self.routes,
+            schemas: self.schemas,
             in_flight: BTreeSet::new(),
             closed_bindings: BTreeSet::new(),
             members,
@@ -648,6 +748,13 @@ pub enum InstallationRejection {
     /// The adapter reported one physical token for two distinct ends — a
     /// substituted mapping at creation is still a substitution.
     EndpointTokenCollision { binding: u32 },
+    /// A bound endpoint's contract has no registered operation schema —
+    /// the selected codec cannot check its frames, so the binding never
+    /// becomes a live channel.
+    MissingOperationSchema {
+        endpoint: EndpointKey,
+        contract: Identity,
+    },
 }
 
 impl fmt::Display for InstallationRejection {
@@ -683,6 +790,11 @@ impl fmt::Display for InstallationRejection {
             Self::EndpointTokenCollision { binding } => write!(
                 formatter,
                 "binding {binding} produced two ends with one physical token"
+            ),
+            Self::MissingOperationSchema { endpoint, .. } => write!(
+                formatter,
+                "endpoint ({},{})'s contract has no registered operation schema",
+                endpoint.instance, endpoint.slot
             ),
         }
     }
@@ -756,13 +868,18 @@ pub struct EndpointAssignment<Endpoint> {
 }
 
 /// The route record the mediator consults: which binding, plan endpoint,
-/// channel role, and instance each issued end belongs to.
+/// channel role, and instance each issued end belongs to, the contract
+/// whose operation schema checks its inbound frames, and the physical
+/// token a send must attest.
 struct RouteRecord {
     id: EndpointId,
     binding: u32,
     endpoint: EndpointKey,
     role: ChannelEnd,
     holder: u32,
+    /// The contract identity of the plan endpoint this end serves — the
+    /// destination-side schema key for delivered frames.
+    contract: Identity,
     token: u64,
 }
 
@@ -776,6 +893,8 @@ struct RouteRecord {
 pub struct PreparedInstallation<A: PipeAdapter> {
     checked: CheckedPlan,
     authorization: InstallationAuthorization,
+    /// The per-contract operation schemas this installation enforces.
+    schemas: OperationSchemas,
     /// Per-instance assigned ends, canonical instance order.
     assigned: Vec<Vec<EndpointAssignment<A::Endpoint>>>,
     /// Every issued end, in `EndpointId` order.
@@ -995,6 +1114,9 @@ pub struct InstallationReceipt {
 pub struct InstalledTopology<A: PipeAdapter, Member> {
     receipt: InstallationReceipt,
     routes: Vec<RouteRecord>,
+    /// Per-contract operation schemas frames are checked against before
+    /// delivery.
+    schemas: OperationSchemas,
     /// Bindings with one outstanding request.
     in_flight: BTreeSet<u32>,
     /// Bindings closed by protocol or peer failure.

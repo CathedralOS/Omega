@@ -46,6 +46,33 @@ pub(crate) fn mark_ambient_close_on_exec(command: &mut Command) -> io::Result<()
     Ok(())
 }
 
+/// Keep the listed parent descriptors open across exec while every other
+/// ambient descriptor closes. Register after `mark_ambient_close_on_exec`:
+/// `pre_exec` closures run in registration order inside the child, so this
+/// clears close-on-exec on exactly the retained set. A descriptor keeps its
+/// parent-assigned number — no relocation or renumbering happens in the
+/// child, which is what lets a supervisor agree fixed descriptor identities
+/// with the new image ahead of time.
+pub(crate) fn retain_descriptors(
+    command: &mut Command,
+    retained: Vec<std::os::fd::RawFd>,
+) -> io::Result<()> {
+    if retained.is_empty() {
+        return Ok(());
+    }
+    unsafe {
+        command.pre_exec(move || {
+            for descriptor in &retained {
+                if libc::fcntl(*descriptor, libc::F_SETFD, 0) == -1 {
+                    return Err(io::Error::last_os_error());
+                }
+            }
+            Ok(())
+        });
+    }
+    Ok(())
+}
+
 #[cfg(not(target_os = "linux"))]
 fn ambient_descriptors() -> io::Result<Vec<i32>> {
     let mut descriptors = Vec::new();
