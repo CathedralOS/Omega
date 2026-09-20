@@ -373,6 +373,15 @@ fn selected_named_statement_callable_symbol(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
+    if !call.target_symbol.is_valid() && call.receiver.is_empty() {
+        return named_machine_overload_family_symbol(
+            program,
+            call.target.as_str(),
+            source_span,
+            expected_result,
+            diagnostics,
+        );
+    }
     if provisional_target_is_named_non_operator_callable(
         program,
         machine_overloads,
@@ -479,6 +488,15 @@ fn selected_named_expression_callable_symbol(
     expected_result: Option<TypeReferenceHandle>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<SymbolHandle> {
+    if !call.target_symbol.is_valid() && !call.receiver.is_valid() {
+        return named_machine_overload_family_symbol(
+            program,
+            call.target.as_str(),
+            source_span,
+            expected_result,
+            diagnostics,
+        );
+    }
     if provisional_target_is_named_non_operator_callable(
         program,
         machine_overloads,
@@ -720,6 +738,55 @@ fn select_overload_symbol(
         // immediately after this mutable rebinding pass. Do not relocate that
         // error to whichever call happened to be visited first.
         _ => None,
+    }
+}
+
+/// The callable symbol for a receiverless call whose authored name spells a
+/// result-overload family. Every member owns the declared path, so upstream
+/// name binding leaves no provisional symbol to disambiguate from; this pass
+/// selects the member by the destination's result dispatch set instead. As in
+/// the free-machine entry rule, a member's state named exactly like the call
+/// is preferred over its first state.
+fn named_machine_overload_family_symbol(
+    program: &TypedTrees,
+    target_name: &str,
+    source_span: SourceSpan,
+    expected_result: Option<TypeReferenceHandle>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<SymbolHandle> {
+    let overloads = program
+        .machines()
+        .iter()
+        .filter_map(|machine| {
+            let identity = program.normalized_machine_overload_identity(machine)?;
+            if identity.path() != target_name {
+                return None;
+            }
+            let states = program.machine_states(machine);
+            let callable = states
+                .iter()
+                .find(|state| state.name.as_str() == target_name)
+                .or_else(|| states.first())?;
+            program
+                .symbols
+                .source_reference_can_see_symbol(source_span, callable.symbol)
+                .then_some((callable.symbol, identity))
+        })
+        .collect::<Vec<_>>();
+    match overloads.as_slice() {
+        [] => None,
+        [(symbol, _)] => Some(*symbol),
+        _ => {
+            let provisional_identity = overloads[0].1.clone();
+            select_overload_symbol(
+                program,
+                &provisional_identity,
+                &overloads,
+                expected_result,
+                diagnostics,
+                "machine",
+            )
+        }
     }
 }
 
