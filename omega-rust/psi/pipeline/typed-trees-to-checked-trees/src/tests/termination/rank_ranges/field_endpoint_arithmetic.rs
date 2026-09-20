@@ -16,6 +16,73 @@ const SYMBOLIC_QUOTIENT: &str = include_str!(concat!(
 ));
 
 #[test]
+fn symbolic_remainder_preserves_both_inputs_and_each_operation() {
+    let source = SYMBOLIC_QUOTIENT.replace("cap / divisor", "cap % divisor");
+    accepts_named(&source);
+    for changed in [
+        source.replace("iterate(width, limit - 0", "iterate(1, limit - 0"),
+        source.replace("iterate(width, limit - 0", "iterate(width, 0"),
+        source.replace("pending - 1", "pending"),
+        source.replace("[1..=5]", "[0..=5]"),
+        source.replace("% divisor", "% (divisor - divisor)"),
+        source.replace("u64 [1..=5]", "u8 [1..=5]"),
+        format!("operator % u64::chosen(left: u64, right: u64) -> u64; {source}"),
+    ] {
+        rejects_named(&changed);
+    }
+    let nested = source.replace("cap % divisor", "(cap % divisor) % divisor");
+    accepts_named(&nested);
+    rejects_named(&nested.replace("iterate(width, limit - 0", "iterate(1, limit - 0"));
+    let canceled = source.replace("cap % divisor + 6", "cap % divisor - cap % divisor + 6");
+    rejects_named(&canceled.replace("[1..=5]", "[0..=5]"));
+    let zero_from_bounds = source.replace("u64 [1..=5]", "u64").replace(
+        "terminates by",
+        "requires divisor >= 0 && divisor < 1; terminates by",
+    );
+    rejects_named(&zero_from_bounds);
+    let overflowing = source
+        .replace("[0..=20]", "[0..=18446744073709551615]")
+        .replace("cap % divisor", "(cap + 1) % divisor");
+    rejects_named(&overflowing);
+}
+
+#[test]
+fn symbolic_remainder_keeps_signed_quotient_formation() {
+    let source = SYMBOLIC_QUOTIENT
+        .replace("cap: u64 [0..=20]", "cap: i8 [-7..=-5]")
+        .replace("limit: u64 [0..=20]", "limit: i8 [-7..=-5]")
+        .replace("u64 [1..=5]", "i8 [-3..=-2]")
+        .replace("cap / divisor + 6", "cap % divisor + 8");
+    accepts_named(&source);
+    accepts_named(&source.replace("[-3..=-2]", "[2..=3]"));
+    rejects_named(&source.replace("+ 8", "+ 7"));
+    let canceled = source
+        .replace("cap % divisor + 8", "cap % divisor - cap % divisor + 6")
+        .replace("[-7..=-5]", "[-128..=-128]");
+    accepts_named(&canceled);
+    rejects_named(&canceled.replace("[-3..=-2]", "[-3..=-1]"));
+    accepts_named(
+        &canceled
+            .replace("[-3..=-2]", "[-3..=-1]")
+            .replace("[-128..=-128]", "[-127..=-127]"),
+    );
+}
+
+#[test]
+fn remainder_length_coordinates_keep_constant_modulus_support() {
+    accepts_named(
+        "machine walk(remaining: u64 [0..=5], values: &[u8])
+        terminates by remaining in 0..(values.len % 5 + 6);
+        -> u64 {
+            transition remaining > 0 {
+                true -> walk(remaining - 1, values)
+                false -> remaining
+            }
+        }",
+    );
+}
+
+#[test]
 fn symbolic_quotient_endpoint_preserves_both_operands_at_named_arrivals() {
     accepts_named(SYMBOLIC_QUOTIENT);
     rejects_named(&SYMBOLIC_QUOTIENT.replace("iterate(width, limit - 0", "iterate(1, limit - 0"));
@@ -91,7 +158,7 @@ fn symbolic_quotient_endpoint_tracks_projected_denominators() {
 }
 
 #[test]
-fn symbolic_quotient_endpoint_rechecks_formation_after_arrival() {
+fn symbolic_division_endpoint_rechecks_formation_after_arrival() {
     let source = r#"
         machine walk(remaining: u64 [0..=5], cap: u64 [0..=20], divisor: u64)
         requires divisor > 0;
@@ -106,9 +173,12 @@ fn symbolic_quotient_endpoint_rechecks_formation_after_arrival() {
     // The rank-only invariant can justify descent, but no zero-divisor
     // arrival. Reject in the rank judgment itself, independently of ordinary
     // call-contract replay also rejecting the lost `requires` premise.
-    rejects_named(source);
-    rejects_named(&source.replace("&& divisor > 0", "&& divisor == 1"));
-    accepts_named(&source.replace("divisor - divisor", "divisor - 0"));
+    for operator in ["/", "%"] {
+        let source = source.replace(" / ", &format!(" {operator} "));
+        rejects_named(&source);
+        rejects_named(&source.replace("&& divisor > 0", "&& divisor == 1"));
+        accepts_named(&source.replace("divisor - divisor", "divisor - 0"));
+    }
 }
 
 fn rejects_named(source: &str) {

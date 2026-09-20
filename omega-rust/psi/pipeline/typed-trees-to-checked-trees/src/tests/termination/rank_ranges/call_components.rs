@@ -172,7 +172,7 @@ terminates by pending in lower..=upper;
 "#;
 
 #[test]
-fn symbolic_quotient_endpoints_cross_recursive_components() {
+fn symbolic_division_endpoints_cross_recursive_components() {
     let source = QUOTIENT_PAIR
         .replace(
             "cap: u64 [0..=20])",
@@ -192,22 +192,25 @@ fn symbolic_quotient_endpoints_cross_recursive_components() {
             "self.first(pending - 1, limit)",
             "self.first(pending - 1, limit, width)",
         );
-    for omitted in [
-        "",
-        " in 0..(cap / divisor + 6)",
-        " in 0..(limit / width + 6)",
-    ] {
-        let source = if omitted.is_empty() {
-            source.clone()
-        } else {
-            source.replace(omitted, "")
-        };
-        prove(&source);
-        reject(&source.replace("remaining, divisor)", "remaining, 1)"));
-        reject(&source.replace("limit, width)", "limit, 1)"));
-        reject(&source.replace("pending - 1", "pending"));
+    for operator in ["/", "%"] {
+        let source = source.replace(" / ", &format!(" {operator} "));
+        for omitted in [
+            "",
+            " in 0..(cap / divisor + 6)",
+            " in 0..(limit / width + 6)",
+        ] {
+            let source = if omitted.is_empty() {
+                source.clone()
+            } else {
+                source.replace(&omitted.replace(" / ", &format!(" {operator} ")), "")
+            };
+            prove(&source);
+            reject(&source.replace("remaining, divisor)", "remaining, 1)"));
+            reject(&source.replace("limit, width)", "limit, 1)"));
+            reject(&source.replace("pending - 1", "pending"));
+        }
+        reject(&source.replace("[1..=5]", "[0..=5]"));
     }
-    reject(&source.replace("[1..=5]", "[0..=5]"));
 }
 
 fn prove(source: &str) {

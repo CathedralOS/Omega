@@ -170,13 +170,13 @@ pub(super) fn builtin(
     }
 }
 
-/// Bind only the exact integer divisions admitted by this ranking query. The
-/// general strict arithmetic engine deliberately does not infer executable
-/// division from a token. Anonymous rational subtrees still fold as rationals;
-/// each landed quotient retains both operands for simultaneous state transport.
+/// Bind only Exact integer division terms admitted by this ranking query.
+/// The general strict arithmetic engine does not infer executable division
+/// from a token. Anonymous rational subtrees still fold as rationals; each
+/// landed quotient or remainder retains both operands for state transport.
 /// This is meaning, not formation: the range owner still checks every operation
 /// before using the endpoint, including an overflowing intermediate quotient.
-pub(super) fn install_integer_quotients(
+pub(super) fn install_integer_division_terms(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
@@ -192,16 +192,39 @@ pub(super) fn install_integer_quotients(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            install_integer_quotients(program, machine, state, engine, atomic.value, depth + 1)?;
+            install_integer_division_terms(
+                program,
+                machine,
+                state,
+                engine,
+                atomic.value,
+                depth + 1,
+            )?;
         }
         ExpressionNode::Binary(binary) => {
             for operand in [binary.left, binary.right] {
-                install_integer_quotients(program, machine, state, engine, operand, depth + 1)?;
+                install_integer_division_terms(
+                    program,
+                    machine,
+                    state,
+                    engine,
+                    operand,
+                    depth + 1,
+                )?;
             }
-            if binary.operator == BinaryOperator::Divide {
-                let carrier = builtin(program, machine, state, expression, 0)??;
-                super::exact_integer_parameter(program, carrier)?;
-                engine.bind_strict_integer_quotient(expression)?;
+            if matches!(
+                binary.operator,
+                BinaryOperator::Divide | BinaryOperator::Modulo
+            ) {
+                if let Some(carrier) = builtin(program, machine, state, expression, 0)? {
+                    super::exact_integer_parameter(program, carrier)?;
+                    engine.bind_strict_integer_division(expression)?;
+                } else if binary.operator == BinaryOperator::Divide {
+                    return None;
+                }
+                // Natural coordinates such as a slice length have no machine
+                // carrier here. Their constant-modulus normalization remains
+                // with the existing arithmetic engine, not a fabricated width.
             }
         }
         _ => {}

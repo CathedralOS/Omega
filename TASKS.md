@@ -359,18 +359,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
 
   Remaining work:
 
-  - Extend non-polynomial endpoint formation and conservation to
-    variable-divisor remainders and non-polynomial actual-argument
-    substitutions. Named-state and recursive-call relational routes handle
-    Exact integer quotients with constant or sign-proven runtime divisors,
-    including nested terms and exact record fields. Both operands retain their
-    identities; each arrival independently rechecks constituent operations so
-    cancellation cannot hide a zero divisor or intermediate overflow.
-    Mixed ranged/unranged participants conserve the endpoint's exact inputs;
-    `termination/named_computed_rank_endpoints` and
-    `termination/quotient_endpoint_call_component`, together with
-    `termination/symbolic_quotient_endpoints` and their changed-endpoint false
-    twins, exercise those boundaries. Divisor bounds spanning both signs still
+  - Extend non-polynomial actual-argument substitutions beyond the existing
+    quotient/remainder endpoint transport. Preserve both operands' exact
+    identity and independently recheck every constituent operation at each
+    arrival; cancellation cannot hide a zero divisor or intermediate overflow.
+    Reuse `rank_ranges/field_endpoint_arithmetic.rs` and
+    `rank_ranges/call_components.rs`, including their changed-input and
+    mixed ranged/unranged controls. Divisor bounds spanning both signs still
     require stronger evidence than an unoriented disequality. The independent
     interval-only fallback still requires one state; do not remove its guard
     without proving every exact arrival. Reuse the relational field-coordinate
@@ -396,6 +391,16 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
     copies must remain rejected unless the checked correspondence identifies
     the ranked value. A shared nominal type or a convenient decreasing copy
     is not proof of that identity.
+    The unchanged named-state customer in
+    `compiler/tests/rank_remainder_endpoints.rs` checks and runs in the
+    checked interpreter, but native publication still needs exact rank-role
+    correspondence and a loop header distinct from the entry state.
+    On `e850106f7a1` plus the remainder endpoint repair, publishing `walk`
+    through `TerminalProductionRequest` rejects its terminal signature.
+    The downstream checked scalar `ranking.rs` and lowerer
+    `scalar_graph/scalar_graph_lowering/cycles.rs` also require a one-state
+    graph. Resume with the same named-state source and publish/run it natively;
+    the separate single-state native regression is not this acceptance.
   - Use STATE-LOCAL-VALUE-FRONTIER's checked computation route to retire
     generated operand-call states. Do not add termination-only provenance for
     artificial source edges. This dependency does not block independent
