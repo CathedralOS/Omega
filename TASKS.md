@@ -8629,7 +8629,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-SOURCE-SEMANTICS** — mined candidate; verify scope then implement.
 - **RC-SOURCE-SEMANTICS-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-SOURCE-SEMANTICS-GATE** — mined candidate; verify scope then implement.
-- **RC-WINDOWS-X64-NATIVE-ROW** — mined candidate; verify scope then implement.
+- **RC-WINDOWS-X64-NATIVE-ROW** — residual leg needs a Windows x86-64 host: execute the emitted PE (hosted_receiver_windows cfg-gated run) on its matching runner; compile-side lanes verified green 2026-09-20.
 - **RECAST-SOURCE-POSITIONS** — mined candidate; scope verified, resolved — landed at `92db61544e3` ("recast diagnostics carry the offending cast's source position"): every recast-path diagnostic attaches the authored span of the offending `as` expression via `with_source_span(program.expression_table.source_span(handle))` in `value_custody/recasts.rs` — the stray cast for the positional sweep (pinned by `fail/recast/recast_position_fenced`), the let's initializer for the unspelled reference pun, and the cast for every scalar/slice/byte-region judgment; recorded in `validation/recasts.md`. The distinct remaining leg — admitting recasts in non-`let` positions (guard operands, call arguments, nested expressions) — is the deliberately fenced deeper byte-view rung (L4/L5) in the module header, an authorizing-brief item rather than this stub's bounded scope.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; verify scope then implement.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP.** Resolved — sibling re-mine of the
