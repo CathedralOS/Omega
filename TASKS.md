@@ -7166,7 +7166,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
 - **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET** — mined candidate; verify scope then implement.
-- **NATIVE-DIFF-FRONTEND-DROP-ORDER** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-FRONTEND-DROP-ORDER.** Resolved — re-mines the
+  "frontend-drop custody ordering (2)" baseline family in
+  `wiki/drafts/known_baseline_failures.md` (native-differential
+  `terminal_psi_source` lane): the two tests expecting the older `scalar
+  source custody has no authored state` refusal were retargeted to the
+  earlier attached-Unit parameter gate (`Unsupported("direct Unit parameter
+  plan has no exact typed machine")`) by 27f345e527 ("tests: follow the
+  direct Unit parameter custody gate in terminal_psi_source"), one line in
+  each of `contracts_and_frontend_drop.rs` and
+  `locals_calls_and_short_circuit.rs`. Re-verified on ac4e4eee9b:
+  `cargo nextest run -p omega-native-differential-test --test
+  terminal_psi_source` filtered to
+  `terminal_production_requires_typed_custody_but_not_debug_presentation`
+  and `checked_source_scalar_locals_become_terminal_block_values` — 2/2
+  PASS. The stale family bullet in known_baseline_failures.md belongs to the
+  lane owner's doc leg (BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE).
 - **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION.** Done on linux x86-64: the three `source_evaluated_native_realization/*hosted_receiver*` fixtures already run the post-migration package-inputs harness (accepted semantic bindings + checked entry); what remained was the same stale source spelling family as the canary_suite siblings — `console: Service<Console> in Bound` (closed carrier) and unqualified `select_provider<Console, ConsoleNativeProvider>` (product-scope operands). Respelled linux + linux_arm64 fixtures to `Service<Console>` and `omega_language_std::{Console, ConsoleNativeProvider}`; windows fixture needed none (storage-only, no service field). All 5 hosted_receiver legs in the module pass: linux x86-64 emits and executes real ELF to exit 37/0, arm64 cross-emits with validated binding, windows storage leg cross-emits its PE. Remaining: windows/arm64 runtime execution is host-gated.
 - **NATIVE-DIFFERENTIAL-MATRIX** — mined candidate; verify scope then implement.
