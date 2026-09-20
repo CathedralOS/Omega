@@ -15,7 +15,7 @@ use compiler::compile_to_checked;
 use package_compilation::{
     BuildDependencyOccurrence, BuildSourceCaptureObligation, BuildSourceCaptureRequest,
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
-    capture_scoped_source_input,
+    capture_package_source_input, capture_scoped_source_input,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
@@ -1349,6 +1349,137 @@ fn snapshot_symlink_members_stay_inert_and_deny_escape() {
         bytes, b"dddHELL",
         "captured link members must stay inert: no traversal, no escape, no substitution"
     );
+}
+
+#[test]
+fn captured_input_commits_directory_membership_between_captures() {
+    let project = Project::new("capture-membership");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-capture-membership");
+}
+"#,
+    );
+    set_canonical_source_tree_permissions(&project.root, true);
+    let first =
+        capture_package_source_input(&project.root).expect("capture the sealed source root");
+    set_canonical_source_tree_permissions(&project.root, false);
+    project.write("added.omg", "data Added { value: u8; }\n");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let second = capture_package_source_input(&project.root)
+        .expect("recapture the sealed source root after a membership change");
+
+    // A member appearing between captures commits different metadata and
+    // retained rows: the earlier inventory is a strict subset of the grown
+    // tree, and the two can never be interchanged.
+    assert_ne!(
+        first.canonical_source_metadata(),
+        second.canonical_source_metadata(),
+        "a membership change spanning captures must commit a different index"
+    );
+    assert!(
+        first.is_subset_of(&second) && !second.is_subset_of(&first),
+        "the earlier capture must be a strict subset of the grown tree"
+    );
+    assert_eq!(second.entry_count(), first.entry_count() + 1);
+}
+
+#[test]
+fn captured_input_commits_content_not_host_observation_identity() {
+    let project = Project::new("capture-restore");
+    let main_source = "data Main { value: u8; }\n";
+    project.write("main.omg", main_source);
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-capture-restore");
+}
+"#,
+    );
+    set_canonical_source_tree_permissions(&project.root, true);
+    let first =
+        capture_package_source_input(&project.root).expect("capture the sealed source root");
+    set_canonical_source_tree_permissions(&project.root, false);
+    // Rewrite identical bytes: host observation identity (mtime, ctime, and
+    // where the filesystem reallocates one, inode) moves, but every compared
+    // observation the inventory commits — kind, length, content — restores.
+    project.write("main.omg", main_source);
+    set_canonical_source_tree_permissions(&project.root, true);
+    let restored = capture_package_source_input(&project.root)
+        .expect("recapture after an edit that restores compared observations");
+    assert_eq!(
+        first, restored,
+        "an edit restoring compared observations must commit the same inventory"
+    );
+
+    set_canonical_source_tree_permissions(&project.root, false);
+    // Same length, different bytes: the commitment must still move.
+    project.write("main.omg", "data Main { value: i8; }\n");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let changed = capture_package_source_input(&project.root)
+        .expect("recapture after a same-length content change");
+    assert_ne!(
+        first.canonical_source_metadata(),
+        changed.canonical_source_metadata(),
+        "same-length edits must commit a different index"
+    );
+    assert!(
+        !first.is_subset_of(&changed) && !changed.is_subset_of(&first),
+        "same-length edits must not alias either inventory into the other"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn captured_input_commits_inert_link_spelling_between_captures() {
+    use std::os::unix::fs::symlink;
+
+    let project = Project::new("capture-link-spelling");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-capture-link");
+}
+"#,
+    );
+    std::fs::create_dir(project.root.join("targets")).expect("create link target directory");
+    project.write("targets/a.omg", "data A { value: u8; }\n");
+    project.write("targets/b.omg", "data B { value: u8; }\n");
+    symlink("targets/a.omg", project.root.join("pinned.link"))
+        .expect("create the inert link member");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let first =
+        capture_package_source_input(&project.root).expect("capture the sealed source root");
+    set_canonical_source_tree_permissions(&project.root, false);
+    // Retarget the member to a different spelling of equal length: the
+    // committed difference is the inert spelling itself, not kind or extent.
+    std::fs::remove_file(project.root.join("pinned.link")).expect("remove the link member");
+    symlink("targets/b.omg", project.root.join("pinned.link"))
+        .expect("retarget the inert link member");
+    set_canonical_source_tree_permissions(&project.root, true);
+    let second =
+        capture_package_source_input(&project.root).expect("recapture after a link retarget");
+
+    assert_ne!(
+        first.canonical_source_metadata(),
+        second.canonical_source_metadata(),
+        "a link retarget spanning captures must commit a different index"
+    );
+    assert!(
+        !first.is_subset_of(&second) && !second.is_subset_of(&first),
+        "a retargeted link must not alias either inventory into the other"
+    );
+    let relinked = second
+        .entries()
+        .find(|entry| entry.relative_path() == b"pinned.link")
+        .expect("the retargeted link remains a captured member");
+    let build_output::CapturedSourceEntryKind::Symlink { target } = relinked.kind() else {
+        panic!("the pinned member stays an inert link")
+    };
+    assert_eq!(target, b"targets/b.omg");
 }
 
 #[test]
