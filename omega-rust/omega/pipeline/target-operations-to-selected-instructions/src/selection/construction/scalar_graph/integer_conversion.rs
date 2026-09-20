@@ -1,6 +1,6 @@
 //! Select proof-bearing exact casts and infallible widening with explicit raw-width normalization.
 use super::{
-    Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType,
     SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
@@ -41,8 +41,8 @@ pub(super) fn emit(
                         && (source_type.bits() != 64 || integer.bits() != 64))
                     && !(source_type.bits() == 16 && integer.bits() > 16)
             } else {
-                source_type.sign() == IntegerSign::Unsigned && source_type.bits() == 8
-                    && matches!(integer.bits(), 16 | 32 | 64) && source_type.can_widen_to(integer)
+                matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                    && source_type.can_widen_to(integer)
             })
     {
         return Err(invalid());
@@ -55,7 +55,11 @@ pub(super) fn emit(
         ) {
             crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
         } else {
-            SelectedInstructionKind::CopyI64
+            // Widening preserves the source value: extend its sign/zero bits,
+            // not the destination width's potentially uninitialized high bits.
+            crate::selection::scalar_call_abi::integer_carrier_normalization(ScalarType::Integer(
+                *source_type,
+            ))
         },
         constraints.keys.copy_i64,
         &[input, output],

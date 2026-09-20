@@ -328,8 +328,8 @@ pub(in crate::selection) fn validate_with_environment(
                                             && (source_type.bits() != 64 || integer.bits() != 64))
                                         && !(source_type.bits() == 16 && integer.bits() > 16)
                                 } else {
-                                    source_type.sign() == IntegerSign::Unsigned && source_type.bits() == 8
-                                        && matches!(integer.bits(), 16 | 32 | 64) && source_type.can_widen_to(integer)
+                                    matches!(source_type.bits(), 8 | 16 | 32 | 64)
+                                        && source_type.can_widen_to(integer)
                                 })
                         {
                             return Err(invalid());
@@ -348,7 +348,9 @@ pub(in crate::selection) fn validate_with_environment(
                                     scalar_type,
                                 )
                             } else {
-                                SelectedInstructionKind::CopyI64
+                                crate::selection::scalar_call_abi::integer_carrier_normalization(
+                                    ScalarType::Integer(*source_type),
+                                )
                             },
                             constraints.keys.copy_i64,
                             &[input, output],

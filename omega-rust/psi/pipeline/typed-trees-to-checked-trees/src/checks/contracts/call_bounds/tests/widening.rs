@@ -12,13 +12,6 @@ fn widened_actuals_preserve_live_integer_bounds_and_nonzero_premises() {
         ("u8 in Wrapping", "u64", "input as u64"),
     ] {
         for requirement in ["input != 0", "input >= 2 && input <= 4"] {
-            // The bound engine needs a direction for signed disequality; that
-            // independent limitation is not a cast-meaning decision.
-            let requirement = if source_type == "i8" && requirement == "input != 0" {
-                "input <= -1"
-            } else {
-                requirement
-            };
             let source = format!(
                 "machine demand(value: {target_type}) requires {} {{}}
                  machine caller(input: {source_type}) requires {requirement} {{ demand({argument}); }}",
@@ -27,6 +20,31 @@ fn widened_actuals_preserve_live_integer_bounds_and_nonzero_premises() {
             checked(&source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
         }
     }
+}
+
+#[test]
+fn signed_nonzero_transport_requires_the_exact_live_value() {
+    for source in [
+        "machine demand(value: i64) requires value != 0 {} machine caller(input: i8, other: i8) requires input != 0 { demand(other as i64); }",
+        "machine demand(value: i64) requires value != 0 {} machine caller(input: i8) requires input != 0 { demand((input as i64) + 1); }",
+        "machine demand(value: i64) requires value > 0 {} machine caller(input: i8) requires input != 0 { demand(input as i64); }",
+        "machine demand(value: i64) requires value != 0 {} machine caller(mut input: i8) requires input != 0 { input = 0; demand(input as i64); }",
+        "machine demand(value: i64) requires value != 0 {} machine caller(input: i8 in Wrapping) requires input != 0 { demand((input + 1) as i64); }",
+    ] {
+        assert_call_requirement_rejected(source);
+    }
+}
+
+#[test]
+fn signed_disequality_does_not_license_legacy_float_polynomials() {
+    assert!(
+        checked(
+            "machine invalid(input: f64, other: f64)
+         requires input != 0 ensures input + other != other {}"
+        )
+        .is_err(),
+        "a nonzero finite input can disappear when added to infinity"
+    );
 }
 
 #[test]
