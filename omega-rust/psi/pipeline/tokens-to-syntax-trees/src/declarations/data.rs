@@ -32,7 +32,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     // the same parameter/contract pair as generic machines. The selected
     // symbol is metadata only; no field stores a callable value.
     let (generic_parameters, next) =
-        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::StaticBinders)?;
+        parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::DataDeclaration)?;
     input = next;
     let type_parameters = generic_parameters.type_parameters;
     let lifetime_parameters = generic_parameters.lifetime_parameters;
