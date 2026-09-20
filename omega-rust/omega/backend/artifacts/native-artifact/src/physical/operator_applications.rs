@@ -41,11 +41,19 @@ pub(super) fn derive_operator_physical_span(
                 derive_checked_call_span(occurrence, operation, target, object, image)
             }
         }
-        BoundaryApplicationRealization::ExactCompilerIntrinsic { .. } => {
+        BoundaryApplicationRealization::ExactCompilerIntrinsic { execution } => {
             if fragment_publication
                 && matches!(operation.kind, OperationKind::IeeeFloatCompare { .. })
             {
                 return fragment_comparison::derive(occurrence, object, image);
+            }
+            if matches!(
+                operation.kind,
+                OperationKind::IntegerEqual { .. }
+                    | OperationKind::IntegerLessThan { .. }
+                    | OperationKind::IntegerLessOrEqual { .. }
+            ) {
+                return derive_integer_comparison_span(occurrence, execution, object, image);
             }
             derive_fma_span(occurrence, operation, object, image)
         }
@@ -250,6 +258,69 @@ fn derive_fma_span(
         function,
         fragment.code_offset,
         fragment.byte_count,
+        object,
+        image,
+        PhysicalRelocationDisposition::DirectInstructionBytes,
+        None,
+    )
+    .map(Some)
+}
+
+/// Selected integer comparisons emit instruction-only operations with no
+/// dedicated roster; the exact span is the provenance-attributed byte
+/// interval for the surviving Terminal operation.
+fn derive_integer_comparison_span(
+    occurrence: &OptimizedOperatorOccurrence,
+    execution: &effects::CompilerIntrinsicExecutionIdentity,
+    object: &image_emission::ObjectArtifact,
+    image: &image::EmittedImageOutput,
+) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
+    if !matches!(
+        execution,
+        effects::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. }
+    ) {
+        return Err("D29 integer comparison rejoined a mismatched intrinsic realization");
+    }
+    let function = object
+        .functions()
+        .iter()
+        .find(|function| function.machine == occurrence.machine())
+        .ok_or("D29 integer comparison names an absent object function")?;
+    let mut attributed = object.semantic_code_attribution().iter().filter(|row| {
+        row.machine == function.machine
+            && row.attribution.site
+                == machine_code::SemanticCodeSite::Operation(occurrence.operation())
+            && row.attribution.operation_ordinal == occurrence.operation_ordinal()
+            && function
+                .text_offset
+                .checked_add(row.attribution.code_offset)
+                == Some(row.text_offset)
+    });
+    let Some(row) = attributed.next() else {
+        return Ok(None);
+    };
+    if attributed.next().is_some() || row.attribution.byte_count == 0 {
+        return Err("D29 integer comparison rejoins ambiguous or empty attribution");
+    }
+    let object_offset = row.text_offset;
+    let object_end = object_offset
+        .checked_add(row.attribution.byte_count)
+        .ok_or("D29 integer comparison object end overflow")?;
+    if object.relocations().records().any(|(_, relocation)| {
+        relocation.section == SectionKind::Text
+            && ranges_overlap(
+                object_offset,
+                object_end,
+                relocation.offset,
+                relocation.offset.saturating_add(relocation.byte_width),
+            )
+    }) {
+        return Err("D29 integer comparison overlaps a relocation");
+    }
+    derive_span(
+        function,
+        row.attribution.code_offset,
+        row.attribution.byte_count,
         object,
         image,
         PhysicalRelocationDisposition::DirectInstructionBytes,
