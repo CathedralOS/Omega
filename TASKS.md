@@ -7280,7 +7280,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-WRITTEN-PRODUCT-COMPILER** — mined candidate; verify scope then implement.
 - **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; verify scope then implement.
 - **OPTIMIZATION-CATALOG-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
-- **OPTIMIZATION-WORKLOAD-CORPUS** — mined candidate; verify scope then implement.
+- **OPTIMIZATION-WORKLOAD-CORPUS.** Mined candidate; scope verified at
+  7a5a87d5a1, authorization gate recorded — same verdict as both scoped
+  siblings on this surface (WORKLOAD-CORPUS, GRAPH-COST-EVIDENCE-CORPUS).
+  Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg: the versioned
+  workload corpus that GRAPH-COST-MODEL-STUDY's `predicted_cost_delta`
+  comparison is missing. Source doc
+  `wiki/drafts/learned_optimization_policy.md` authorizes no
+  implementation — the corpus is a far-future extension gated on the
+  Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a
+  concrete justification — and `wiki/spec/build/optimizations.md` forbids
+  trainer-side machinery in the Rust reference compiler. The versioned
+  workload surface that exists today is BENCHMARKS' `tools/benchmark`
+  records; the comparison protocol is scoped in
+  `wiki/drafts/graph_cost_model_study.md`. Coordinate on
+  WORKLOAD-CORPUS-AND-MULTIVERSIONING; this is the last unscoped stub on
+  the surface and can fold there.
 - **OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION** — mined candidate; verify scope then implement.
 - **OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP.** Resolved — re-mine of the
   `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
