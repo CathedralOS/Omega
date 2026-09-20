@@ -10,8 +10,8 @@ use selected_instructions::{
 };
 
 use crate::{
-    enabled_pair_rules, LiteralFoldError, LiteralFoldPolicy, PairOperandShape,
-    PairResultDisposition, SelectedInstructionPairRule,
+    LiteralFoldError, LiteralFoldPolicy, PairOperandShape, PairResultDisposition,
+    SelectedInstructionPairRule, enabled_pair_rules,
 };
 
 /// One policy-enabled catalog row bound to its constraint-catalog row and to

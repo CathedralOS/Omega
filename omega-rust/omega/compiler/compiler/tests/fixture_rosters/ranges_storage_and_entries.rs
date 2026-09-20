@@ -200,8 +200,7 @@ pub(crate) const RUNTIME_WIRE_UTF8_EDGE_VERDICTS_EXIT: &str =
     "wire/runtime_wire_utf8_edge_verdicts_exit";
 pub(crate) const RUNTIME_WIRE_UTF8_INVALID_REFUSED_EXIT: &str =
     "wire/runtime_wire_utf8_invalid_refused_exit";
-pub(crate) const WIRE_PRESERVING_DECODE_RELAY_EXIT: &str =
-    "wire/wire_preserving_decode_relay_exit";
+pub(crate) const WIRE_PRESERVING_DECODE_RELAY_EXIT: &str = "wire/wire_preserving_decode_relay_exit";
 pub(crate) const RUNTIME_WIRE_SCHEMA_AS_VALUE_TYPE_EXIT: &str =
     "wire/runtime_wire_schema_as_value_type_exit";
 pub(crate) const RUNTIME_WIRE_DECODE_LET_COMPARE_EXIT: &str =

@@ -9,11 +9,11 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ObligationId, 
 use target::NativeTarget;
 
 use super::{
-    enabled_pair_rules, resolve_selected_lowering_rules, LiteralFoldPolicy, PairImmediateBound,
-    PairMachineEffects, PairOperandShape, PairResultDisposition, PairUnitEffects,
-    SelectedInstructionPairRule, ORDERED_SELECTED_LOWERING_RULES, SELECTED_LOWERING_RULE_CATALOG,
+    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairImmediateBound, PairMachineEffects,
+    PairOperandShape, PairResultDisposition, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
+    SelectedInstructionPairRule, enabled_pair_rules, resolve_selected_lowering_rules,
 };
-use crate::{validated_machine_effect_catalog, RegisterAllocationRuleTargetApplicability};
+use crate::{RegisterAllocationRuleTargetApplicability, validated_machine_effect_catalog};
 
 #[test]
 fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
@@ -76,8 +76,31 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
 
 #[test]
 fn catalog_rows_declare_symbolic_instruction_pairs() {
-    let [add, subtract, compare, _extension, indexed, copy, address_offset, divide, remainder, and_zero, xor_zero, wrapping_add_zero, and_ones, remainder_zero, divide_zero, saturating_add_zero, saturating_subtract_zero, saturating_divide_one, saturating_divide_zero, saturating_subtract_zero_minuend, saturating_add_upper_bound, remainder_minus_one, saturating_subtract_upper_bound] =
-        SELECTED_LOWERING_RULE_CATALOG;
+    let [
+        add,
+        subtract,
+        compare,
+        _extension,
+        indexed,
+        copy,
+        address_offset,
+        divide,
+        remainder,
+        and_zero,
+        xor_zero,
+        wrapping_add_zero,
+        and_ones,
+        remainder_zero,
+        divide_zero,
+        saturating_add_zero,
+        saturating_subtract_zero,
+        saturating_divide_one,
+        saturating_divide_zero,
+        saturating_subtract_zero_minuend,
+        saturating_add_upper_bound,
+        remainder_minus_one,
+        saturating_subtract_upper_bound,
+    ] = SELECTED_LOWERING_RULE_CATALOG;
     let obligation = ObligationId::new(7).unwrap();
     let accepted_fact = AcceptedObligationFactIdentity::from_bytes([9; 32]);
     let &[subtract_pair] = subtract.payload().pairs() else {
@@ -2249,10 +2272,11 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
                 .constraint(rule.immediate_constraint_key(&keys).unwrap())
                 .unwrap();
             assert!(rule.unit_effects().admits_row_units(row));
-            assert!(row
-                .operands
-                .iter()
-                .all(|operand| rule.unit_effects().admits_operand(operand)));
+            assert!(
+                row.operands
+                    .iter()
+                    .all(|operand| rule.unit_effects().admits_operand(operand))
+            );
 
             // Unit traffic beyond the declared result channel fails the
             // declared contract: implicit uses, clobbers, and operand unit
