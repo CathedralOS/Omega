@@ -364,9 +364,12 @@ checked equality transport for the subtraction result and exact carrier endpoint
 Lower bounds transport the left endpoint of the order; upper bounds transport
 the right. Both reuse the same fixed laws.
 The retained equality evidence is oriented by its denoted identity, because
-normalizing a source equality can reverse its endpoints. Cases requiring a
-closed numeral-to-operation bridge retain their explicit instance assumption;
-no arithmetic law becomes definitional conversion. Other open operations
+normalizing a source equality can reverse its endpoints. An open sum whose
+correlated difference has collapsed to its numeral `n` cannot match the
+applicative `add (sub e r) r` cancellation, so the chain substitutes the
+checked numeral-operation equation `add n r = e` — an exact interned
+assumption, once per evaluated operand triple — in its place. No
+arithmetic law becomes definitional conversion. Other open operations
 remain opaque. These fixed laws are assumptions, not an arithmetic consistency
 result. Recursive evaluator preflights may revisit prefixes;
 shallow term storage does not establish linear checking cost.

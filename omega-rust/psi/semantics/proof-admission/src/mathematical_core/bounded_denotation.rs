@@ -103,9 +103,11 @@
 //! endpoint transport. A conclusion whose endpoints both evaluate denotes
 //! `IntLe` between canonical constants: the binary numeral laws decide a
 //! strict relation, `refl` an equal one, and empty elimination discharges a
-//! false relation under a checked false premise. Open sums over a closed
-//! difference still retain the instance fallback rather than assuming
-//! numeral-operation conversion.
+//! false relation under a checked false premise. An open sum over a
+//! closed difference replaces the applicative cancellation step with the
+//! checked numeral-operation equation `add n r = e`, interned once per
+//! evaluated operand triple — an exact interned assumption in place of
+//! the whole-rule implication.
 //! Other witness-bearing bound rules, multiple-equation
 //! or nested transports and denotation-conversion instances outside the
 //! supported `Int` vocabulary denote a *rule-instance decision*: an assumption constant whose type

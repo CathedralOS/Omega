@@ -527,7 +527,7 @@ fn correlated_add_closed_addend_keeps_open_sum_on_the_law_chain() {
 }
 
 #[test]
-fn open_sum_over_closed_difference_keeps_the_instance_fallback() {
+fn open_sum_over_closed_difference_uses_the_numeral_equation() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar = ScalarType::Integer(integer);
     let left = ScalarTerm::value(ValueId::new(1).unwrap(), scalar);
@@ -573,8 +573,142 @@ fn open_sum_over_closed_difference_keeps_the_instance_fallback() {
     let mut elaboration =
         Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
     elaboration.node(&proof).unwrap();
-    // `add 248 7 = 255` needs a numeral-operation equation, which the fixed
-    // laws do not state; the checked implication stays an explicit axiom.
-    assert_eq!(elaboration.denotation.rule_axioms.len(), 1);
-    assert!(elaboration.denotation.addition.laws.is_empty());
+    // The closed difference denotes to its numeral `248`, so the
+    // cancellation step uses the interned numeral-operation equation
+    // `add 248 7 = 255`; monotonicity and endpoint substitution re-decide
+    // the rest — no instance axiom.
+    assert!(elaboration.denotation.rule_axioms.is_empty());
+    assert_eq!(elaboration.denotation.addition.laws.len(), 1);
+    assert!(
+        elaboration
+            .denotation
+            .addition
+            .laws
+            .contains_key(&super::Law::Monotone)
+    );
+    assert_eq!(elaboration.denotation.addition.numeral_sums.len(), 1);
+    assert_eq!(
+        elaboration
+            .denotation
+            .addition
+            .numeral_sums
+            .keys()
+            .next()
+            .unwrap(),
+        &(
+            IntegerValue::Unsigned(248),
+            IntegerValue::Unsigned(7),
+            IntegerValue::Unsigned(255)
+        )
+    );
+    // A tampered premise or conclusion rejects at the shared relation
+    // before denotation — the equation can only be `add 248 7 = 255`.
+    let mut wrong_premise = proof.clone();
+    let ProofRule::IntegerAffineBound { root_bound, .. } = &mut wrong_premise.rule else {
+        unreachable!()
+    };
+    root_bound.conclusion = Proposition::LessOrEqual(
+        ScalarTerm::value(ValueId::new(1).unwrap(), scalar),
+        literal(249),
+    );
+    assert!(
+        verify_bounded_certificate(
+            &context,
+            &goal,
+            &assumptions,
+            &[],
+            &wrong_premise,
+            &mut Budget::default()
+        )
+        .is_err()
+    );
+    let mut wrong_goal = proof.clone();
+    wrong_goal.conclusion = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(
+            Box::new(mathematical(&ScalarTerm::value(
+                ValueId::new(1).unwrap(),
+                scalar,
+            ))),
+            Box::new(mathematical(&literal(7))),
+        ),
+        mathematical(&literal(254)),
+    );
+    assert!(
+        verify_bounded_certificate(
+            &context,
+            &goal,
+            &assumptions,
+            &[],
+            &wrong_goal,
+            &mut Budget::default()
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn open_sum_over_signed_closed_difference_uses_the_numeral_equation() {
+    // The lower-bound direction substitutes the left endpoint of the
+    // order, and the signed numerals exercise the `negate` prefix:
+    // `add (-121) (-7) = (-128)` bridges `min ≤ x + (-7)` after
+    // monotonicity on `-121 ≤ x`.
+    let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let left = ScalarTerm::value(ValueId::new(1).unwrap(), scalar);
+    let context =
+        PropositionContext::from_value_types([(ValueId::new(1).unwrap(), scalar)]).unwrap();
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).unwrap();
+    let right = literal(-7);
+    let root = ScalarTerm::exact_integer_subtract(integer, literal(-128), right.clone()).unwrap();
+    let premise = Proposition::LessOrEqual(root.clone(), left.clone());
+    let goal = Proposition::IntegerMathLessOrEqual(
+        mathematical(&literal(-128)),
+        IntegerMathTerm::Add(
+            Box::new(mathematical(&left)),
+            Box::new(mathematical(&right)),
+        ),
+    );
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            witness: IntegerAffineWitness {
+                root,
+                target: ScalarTerm::exact_integer_add(integer, left, right).unwrap(),
+                definition_axioms: Vec::new(),
+                literal_axioms: Vec::new(),
+            },
+        },
+    };
+    let assumptions = [premise];
+    verify_bounded_certificate(
+        &context,
+        &goal,
+        &assumptions,
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .unwrap();
+    let parameters = BTreeSet::new();
+    let mut elaboration =
+        Elaboration::new(&context, &goal, &assumptions, &[], &parameters).unwrap();
+    elaboration.node(&proof).unwrap();
+    assert!(elaboration.denotation.rule_axioms.is_empty());
+    assert_eq!(
+        elaboration
+            .denotation
+            .addition
+            .numeral_sums
+            .keys()
+            .collect::<Vec<_>>(),
+        [&(
+            IntegerValue::Signed(-121),
+            IntegerValue::Signed(-7),
+            IntegerValue::Signed(-128)
+        )]
+    );
 }
