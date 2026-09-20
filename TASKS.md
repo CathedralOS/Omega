@@ -11119,6 +11119,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Cosmetic residual, not a code leg: the edge gate's skip/refusal message
   at :165 still reads "requires macOS arm64 or Windows x64" without
   naming Linux. No independent slice remains.
+  Re-verified at `3533f7d0e8` (w180, linux x86-64): `sh
+  tests/beta/compiler/word-prefix.sh` again passes 736/736 natively and
+  the edge-gate wiring + unlabeled refusal message are unchanged.
 - **SIGNATURE-FREE-TRAIT-CANDIDATE-SCOPE** — mined candidate; verify scope then implement.
 - **SINGLE-PROGRAM-ENTRY-SELECTION** — mined candidate; scope verified, covered.
   Re-mines the resolved PROGRAM-ENTRY-SELECTION-DIVISION row's exactly-one axis
