@@ -20,7 +20,8 @@ cover overlaps, call-argument composition, subject-once execution and skipped ca
 The [dispatch contract](../../../wiki/spec/language/patterns.md) is broader than
 the current implementation. Wildcards and complete Boolean value alternatives
 close coverage. Runtime scalar lowering currently supports Boolean/integer
-subjects and Boolean/integer/float results; an anonymous-only numeric subject has no invented default width.
+subjects and Boolean/integer/float results, plus f32/f64 subjects through the
+retained floating comparison described below; an anonymous-only numeric subject has no invented default width.
 Structural/domain/payload patterns remain explicit limitations. Conditional joins
 can select whole immutable plain-affine locals alongside fresh scalar-case or
 record constructors. Fresh record children can contain their own dispatch without
@@ -144,9 +145,15 @@ exercises f32 result selection inside ordinary calls. Match carries f32/f64
 results through the same typed continuation as other scalar values, preserving
 format and payload without arithmetic, conversion, or comparison of the result.
 Boolean/integer subjects and exact anonymous selection are supported here;
-floating-point subjects still need their independently retained comparison
-meaning and lowering. A floating result does not authorize integer equality on
-a floating subject.
+floating subjects share the retained `IeeeFloatCompare` operation — the subject
+is evaluated once, each reached pattern once, and NaN and signed-zero behavior
+is preserved through Terminal, interpreter, and native replay. The
+[match_float_interpretation](../../../tests/omega/pass/expressions/match_float_interpretation/main.omg)
+and [match_float_subjects](../../../tests/omega/pass/expressions/match_float_subjects/main.omg)
+fixtures pin named, call, indexed, projected, and computed subject shapes in
+both formats. A floating result does not authorize integer equality on
+a floating subject, and a domain-carried floating subject still needs a
+pattern vocabulary for its constraint surface.
 
 [Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
 preserving source identity and byte spans. Numeric metadata and decoded literal

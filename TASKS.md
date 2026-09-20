@@ -6160,7 +6160,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **FILESYSTEM-SNAPSHOT-ISOLATION** — mined candidate; verify scope then implement.
 - **FINITE-GENERIC-METHOD-FAMILIES** — mined candidate; verify scope then implement.
 - **FIXED-ARRAY-ZERO-EXTENT-FENCE** — mined candidate; verify scope then implement.
-- **FLOATING-MATCH-SUBJECTS** — mined candidate; verify scope then implement.
+- **FLOATING-MATCH-SUBJECTS.** Resolved — the mined row re-covered a stale
+  limitation note, not missing work. Floating Match subjects are implemented
+  end-to-end: `IeeeFloatCompare` (six explicit relations) is retained through
+  Terminal, the checked interpreter, and native publication, with NaN and
+  signed-zero behavior pinned by `expressions/match_float_interpretation`
+  (named/indexed subjects, literal and parameter patterns) and
+  `expressions/match_float_patterns` (call subjects and call patterns). This
+  leg extended the pin to projected record-field and computed-expression
+  subjects via the new `expressions/match_float_subjects` canary and corrected
+  the two stale "Boolean/integer subjects" sentences in
+  `omega-rust/psi/pipeline/README.md`. Witnessed residual (not float-specific):
+  a domain-carried subject (`f32 in Temps`) against plain scalar patterns
+  rejects "match pattern is incompatible with its subject" — identical for
+  `i64 in Ranks`, so it belongs to the general subject/pattern compatibility
+  frontier under MATCH-SELECTIVE-LOWERING, not to this row. Still open on the
+  floating match surface (tracked in
+  `omega-rust/omega/compiler/compiler/float_realization.md`): crash-qualified
+  equality and checked-adapter Match execution.
 - **FMA-PROVIDER-PIPELINE-TRANSPORT** — mined candidate; verify scope then implement.
 - **FMA-PROVIDER-TRANSPORT** — mined candidate; verify scope then implement.
 - **FRONTEND-DROP-CUSTODY-ORDER-REPIN** — mined candidate; verify scope then implement.

@@ -336,6 +336,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "dependent/valuation_order_cycle",
     "expressions/match_float_patterns",
     "expressions/match_float_interpretation",
+    // Projected-field and computed-expression floating subjects on the same
+    // retained IeeeFloatCompare meaning as the two fixtures above.
+    "expressions/match_float_subjects",
     "modules/closed_sum_constructors",
     "modules/computed_constant_initializers",
     "expressions/declared_operator_match_result",
