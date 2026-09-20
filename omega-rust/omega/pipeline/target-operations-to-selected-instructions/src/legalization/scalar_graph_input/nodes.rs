@@ -207,6 +207,41 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
             Ok((*psi_operation, *result))
         }
+        AbstractOperation::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            ..
+        } if scalar_shape(ScalarType::Integer(*value_type)).is_some()
+            && scalar_shape(ScalarType::Integer(*count_type)).is_some() =>
+        {
+            // Both carriers must be fixed native widths: the value is the
+            // shifted carrier and the count rides in its own register for
+            // the hardware modulo reduction.
+            Ok((*psi_operation, *result))
+        }
         AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             result,
@@ -741,6 +776,43 @@ pub(super) fn validate(
                     return Err(invalid);
                 }
                 ScalarType::Integer(*scalar_type)
+            }
+            AbstractOperation::WrappingIntegerShiftLeft {
+                value_type: shift_value_type,
+                count_type,
+                value,
+                count,
+                ..
+            }
+            | AbstractOperation::WrappingIntegerShiftRight {
+                value_type: shift_value_type,
+                count_type,
+                value,
+                count,
+                ..
+            }
+            | AbstractOperation::ExactIntegerShiftLeft {
+                value_type: shift_value_type,
+                count_type,
+                value,
+                count,
+                ..
+            }
+            | AbstractOperation::ExactIntegerShiftRight {
+                value_type: shift_value_type,
+                count_type,
+                value,
+                count,
+                ..
+            } => {
+                if scalar_shape(ScalarType::Integer(*shift_value_type)).is_none()
+                    || scalar_shape(ScalarType::Integer(*count_type)).is_none()
+                    || value_type(optimized, *value) != Some(ScalarType::Integer(*shift_value_type))
+                    || value_type(optimized, *count) != Some(ScalarType::Integer(*count_type))
+                {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(*shift_value_type)
             }
             AbstractOperation::ExactIntegerAdd { scalar_type, .. }
             | AbstractOperation::ExactIntegerSubtract { scalar_type, .. }

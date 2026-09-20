@@ -120,6 +120,24 @@ pub(super) fn folded_literal<'a>(
                 | LegalizedScalarInstructionKind::WrappingDivide { left, right, .. }
                 | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                 | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
+                | LegalizedScalarInstructionKind::WrappingShiftLeft {
+                    value: left,
+                    count: right,
+                }
+                | LegalizedScalarInstructionKind::WrappingShiftRight {
+                    value: left,
+                    count: right,
+                }
+                | LegalizedScalarInstructionKind::ExactShiftLeft {
+                    value: left,
+                    count: right,
+                    ..
+                }
+                | LegalizedScalarInstructionKind::ExactShiftRight {
+                    value: left,
+                    count: right,
+                    ..
+                }
                 | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
                 | LegalizedScalarInstructionKind::BitwiseOr { left, right }
                 | LegalizedScalarInstructionKind::BitwiseXor { left, right }

@@ -157,6 +157,7 @@ fn terminal_selected_keys(
         saturating_add_clamped: keys.saturating_add_clamped,
         saturating_subtract_clamped: keys.saturating_subtract_clamped,
         saturating_divide_signed: keys.saturating_divide_signed,
+        shift_i64: keys.shift_i64,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
@@ -355,6 +356,20 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         SelectedInstructionKind::WrappingSubtractI64 => MachineSemanticKind::WrappingSubtractI64,
         SelectedInstructionKind::WrappingMultiplyI64 => MachineSemanticKind::WrappingMultiplyI64,
         SelectedInstructionKind::WrappingDivideI64 { .. } => MachineSemanticKind::WrappingDivideI64,
+        SelectedInstructionKind::WrappingShiftLeftI64 => MachineSemanticKind::WrappingShiftLeftI64,
+        SelectedInstructionKind::WrappingShiftRightI64 => {
+            MachineSemanticKind::WrappingShiftRightI64
+        }
+        SelectedInstructionKind::WrappingShiftRightU64 => {
+            MachineSemanticKind::WrappingShiftRightU64
+        }
+        SelectedInstructionKind::ExactShiftLeftI64 { .. } => MachineSemanticKind::ExactShiftLeftI64,
+        SelectedInstructionKind::ExactShiftRightI64 { .. } => {
+            MachineSemanticKind::ExactShiftRightI64
+        }
+        SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+            MachineSemanticKind::ExactShiftRightU64
+        }
         SelectedInstructionKind::BitwiseOrI64 => MachineSemanticKind::BitwiseOrI64,
         SelectedInstructionKind::BitwiseNotI64 => MachineSemanticKind::BitwiseNotI64,
         SelectedInstructionKind::ConditionalBranchNonZero => {

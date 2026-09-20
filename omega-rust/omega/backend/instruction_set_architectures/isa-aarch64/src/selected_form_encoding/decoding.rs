@@ -40,6 +40,24 @@ pub(crate) enum DecodedWord {
         divisor: u8,
         destination: u8,
     },
+    /// `lslv destination, value, count`: the 0x9ac0_2000 register-form shift.
+    ShiftLeftVariable {
+        value: u8,
+        count: u8,
+        destination: u8,
+    },
+    /// `lsrv destination, value, count`: the 0x9ac0_2400 logical shift.
+    ShiftRightLogicalVariable {
+        value: u8,
+        count: u8,
+        destination: u8,
+    },
+    /// `asrv destination, value, count`: the 0x9ac0_2800 arithmetic shift.
+    ShiftRightArithmeticVariable {
+        value: u8,
+        count: u8,
+        destination: u8,
+    },
     AddWithFlags {
         left: u8,
         right: u8,
@@ -243,6 +261,27 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
         return Ok(DecodedWord::UnsignedDivide {
             dividend: ((word >> 5) & 31) as u8,
             divisor: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9ac0_2000 {
+        return Ok(DecodedWord::ShiftLeftVariable {
+            value: ((word >> 5) & 31) as u8,
+            count: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9ac0_2400 {
+        return Ok(DecodedWord::ShiftRightLogicalVariable {
+            value: ((word >> 5) & 31) as u8,
+            count: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9ac0_2800 {
+        return Ok(DecodedWord::ShiftRightArithmeticVariable {
+            value: ((word >> 5) & 31) as u8,
+            count: ((word >> 16) & 31) as u8,
             destination: (word & 31) as u8,
         });
     }
@@ -720,6 +759,37 @@ pub(crate) fn validate_decoded(
                     destination: registers[2],
                 }]
         }
+        SelectedInstructionKind::WrappingShiftLeftI64
+        | SelectedInstructionKind::WrappingShiftRightI64
+        | SelectedInstructionKind::WrappingShiftRightU64
+        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+            let shift = match kind {
+                SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. } => {
+                    DecodedWord::ShiftLeftVariable {
+                        value: registers[0],
+                        count: registers[1],
+                        destination: registers[2],
+                    }
+                }
+                SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+                    DecodedWord::ShiftRightLogicalVariable {
+                        value: registers[0],
+                        count: registers[1],
+                        destination: registers[2],
+                    }
+                }
+                _ => DecodedWord::ShiftRightArithmeticVariable {
+                    value: registers[0],
+                    count: registers[1],
+                    destination: registers[2],
+                },
+            };
+            decoded == [shift]
+        }
         SelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
             decoded
                 == [DecodedWord::SubtractImmediate {
@@ -906,6 +976,12 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::WrappingSubtractI64
         | SelectedInstructionKind::WrappingMultiplyI64
+        | SelectedInstructionKind::WrappingShiftLeftI64
+        | SelectedInstructionKind::WrappingShiftRightI64
+        | SelectedInstructionKind::WrappingShiftRightU64
+        | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightI64 { .. }
+        | SelectedInstructionKind::ExactShiftRightU64 { .. }
         | SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactMultiplyI64 { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. } => {
@@ -1012,15 +1088,27 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 SelectedInstructionKind::CompareI64
                 | SelectedInstructionKind::ExactDivideU64 { .. }
+                | SelectedInstructionKind::ExactRemainderU64 { .. }
                 | SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::WrappingDivideI64 { .. }
                 | SelectedInstructionKind::SaturatingAdd { .. }
                 | SelectedInstructionKind::SaturatingSubtract { .. }
                 | SelectedInstructionKind::SaturatingDivide { .. }
                 | SelectedInstructionKind::SaturatingRemainder { .. } => vec![0, 1],
+                SelectedInstructionKind::BitwiseNotI64 => vec![0],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::BitwiseOrI64
                 | SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::WrappingAddI64
+                | SelectedInstructionKind::WrappingSubtractI64
+                | SelectedInstructionKind::WrappingMultiplyI64
+                | SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::WrappingShiftRightI64
+                | SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
@@ -1042,17 +1130,29 @@ pub(crate) fn footprint(
                 | SelectedInstructionKind::ZeroExtendU32
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
+                SelectedInstructionKind::BitwiseNotI64 => vec![1],
                 SelectedInstructionKind::ByteViewAddress
                 | SelectedInstructionKind::BitwiseAndI64
+                | SelectedInstructionKind::BitwiseOrI64
                 | SelectedInstructionKind::BitwiseXorI64
                 | SelectedInstructionKind::WrappingAddI64
+                | SelectedInstructionKind::WrappingSubtractI64
+                | SelectedInstructionKind::WrappingMultiplyI64
+                | SelectedInstructionKind::WrappingShiftLeftI64
+                | SelectedInstructionKind::WrappingShiftRightI64
+                | SelectedInstructionKind::WrappingShiftRightU64
+                | SelectedInstructionKind::ExactShiftLeftI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightI64 { .. }
+                | SelectedInstructionKind::ExactShiftRightU64 { .. }
                 | SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactMultiplyI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
                 SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
                 SelectedInstructionKind::ExactDivideU64 { .. }
-                | SelectedInstructionKind::WrappingRemainderI64 { .. } => vec![2],
+                | SelectedInstructionKind::ExactRemainderU64 { .. }
+                | SelectedInstructionKind::WrappingRemainderI64 { .. }
+                | SelectedInstructionKind::WrappingDivideI64 { .. } => vec![2],
                 SelectedInstructionKind::SaturatingAdd { .. }
                 | SelectedInstructionKind::SaturatingSubtract { .. }
                 | SelectedInstructionKind::SaturatingDivide { .. }

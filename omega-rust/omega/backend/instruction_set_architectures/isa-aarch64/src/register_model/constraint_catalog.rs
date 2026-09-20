@@ -18,13 +18,13 @@ use crate::register_model::{
     AARCH64_MATERIALIZE_I64, AARCH64_MULTIPLY_I64, AARCH64_REMAINDER_I64, AARCH64_REMAINDER_U64,
     AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SATURATING_ADD_CLAMPED,
     AARCH64_SATURATING_ADD_U64, AARCH64_SATURATING_DIVIDE_SIGNED,
-    AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED, AARCH64_STORE,
-    AARCH64_STORE_PACKED, AARCH64_STORE64, AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
-    aarch64_aapcs64_normalized_foreign_call_keys, aarch64_aapcs64_register_call_keys,
-    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_normalized_foreign_call_keys,
-    aarch64_darwin_register_call_keys, aarch64_darwin_register_unit_call_keys,
-    aarch64_physical_register_model, aarch64_register_aggregate_call_keys,
-    aarch64_register_aggregate_return_keys,
+    AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED, AARCH64_SHIFT_I64,
+    AARCH64_STORE, AARCH64_STORE_PACKED, AARCH64_STORE64, AARCH64_SUBTRACT_I64,
+    AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_normalized_foreign_call_keys,
+    aarch64_aapcs64_register_call_keys, aarch64_aapcs64_register_unit_call_keys,
+    aarch64_darwin_normalized_foreign_call_keys, aarch64_darwin_register_call_keys,
+    aarch64_darwin_register_unit_call_keys, aarch64_physical_register_model,
+    aarch64_register_aggregate_call_keys, aarch64_register_aggregate_return_keys,
 };
 use crate::register_model::{float_scalar_calls, indirect_results, mixed_calls};
 use crate::{
@@ -785,6 +785,21 @@ pub fn aarch64_register_constraint_catalog(
     constraints.push(RegisterInstructionConstraint {
         id: RegisterConstraintId(0),
         key: AARCH64_MULTIPLY_I64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            allocatable(2, RegisterOperandAccess::Def, GPR64),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    });
+    // LSLV/LSRV/ASRV are ordinary three-address register forms: the count
+    // operand supplies its own low-six-bit reduction, so no operand is
+    // pinned or early-clobbered and no flags are touched.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_SHIFT_I64,
         operands: vec![
             allocatable(0, RegisterOperandAccess::Use, GPR64),
             allocatable(1, RegisterOperandAccess::Use, GPR64),

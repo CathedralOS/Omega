@@ -177,6 +177,36 @@ pub enum SelectedInstructionKind {
     /// Bitwise complement of one normalized integer carrier. Narrow unsigned
     /// results require a subsequent normalization.
     BitwiseNotI64,
+    /// Left shift of a normalized integer carrier by a count already reduced
+    /// modulo the value width upstream. The count lives in the second source
+    /// register (x86-64 realizes it in CL); narrow semantic results require a
+    /// subsequent normalization.
+    WrappingShiftLeftI64,
+    /// Arithmetic (sign-filling) right shift of a normalized signed carrier by
+    /// a reduced count.
+    WrappingShiftRightI64,
+    /// Logical (zero-filling) right shift of a normalized unsigned carrier by
+    /// a reduced count.
+    WrappingShiftRightU64,
+    /// Left shift by an independently typed count proven inside `[0, width)`.
+    /// The representable-result obligation stays attached; the realization is
+    /// the same shift form with the proven count used directly.
+    ExactShiftLeftI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
+    /// Arithmetic (sign-filling) right shift by a proven in-range count; the
+    /// in-range obligation stays attached.
+    ExactShiftRightI64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
+    /// Logical (zero-filling) right shift by a proven in-range count; the
+    /// in-range obligation stays attached.
+    ExactShiftRightU64 {
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
     /// Preserve the IEEE binary32 payload while moving from an FP ABI home to GPR storage.
     Float32ToBits,
     /// Preserve the IEEE binary64 payload while moving from an FP ABI home to GPR storage.

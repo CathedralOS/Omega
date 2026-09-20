@@ -160,6 +160,12 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::BitwiseNotI64 => 94,
         SelectedInstructionKind::SaveFloatingControl { .. } => 103,
         SelectedInstructionKind::RestoreFloatingControl { .. } => 104,
+        SelectedInstructionKind::WrappingShiftLeftI64 => 105,
+        SelectedInstructionKind::WrappingShiftRightI64 => 106,
+        SelectedInstructionKind::WrappingShiftRightU64 => 107,
+        SelectedInstructionKind::ExactShiftLeftI64 { .. } => 108,
+        SelectedInstructionKind::ExactShiftRightI64 { .. } => 109,
+        SelectedInstructionKind::ExactShiftRightU64 { .. } => 110,
     };
     bytes.push(tag);
     match kind {
@@ -253,6 +259,18 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             accepted_fact,
         }
         | SelectedInstructionKind::ExactMultiplyI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftLeftI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftRightI64 {
+            obligation,
+            accepted_fact,
+        }
+        | SelectedInstructionKind::ExactShiftRightU64 {
             obligation,
             accepted_fact,
         } => {
@@ -504,6 +522,28 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         },
         93 => SelectedInstructionKind::BitwiseOrI64,
         94 => SelectedInstructionKind::BitwiseNotI64,
+        105 => SelectedInstructionKind::WrappingShiftLeftI64,
+        106 => SelectedInstructionKind::WrappingShiftRightI64,
+        107 => SelectedInstructionKind::WrappingShiftRightU64,
+        tag @ (108..=110) => {
+            let obligation = decode_id(cursor, ObligationId::new)?;
+            let accepted_fact =
+                optimization_core::AcceptedObligationFactIdentity::from_bytes(cursor.array()?);
+            match tag {
+                108 => SelectedInstructionKind::ExactShiftLeftI64 {
+                    obligation,
+                    accepted_fact,
+                },
+                109 => SelectedInstructionKind::ExactShiftRightI64 {
+                    obligation,
+                    accepted_fact,
+                },
+                _ => SelectedInstructionKind::ExactShiftRightU64 {
+                    obligation,
+                    accepted_fact,
+                },
+            }
+        }
         26 => SelectedInstructionKind::Float32ToBits,
         27 => SelectedInstructionKind::Float64ToBits,
         28 => SelectedInstructionKind::BitsToFloat32,

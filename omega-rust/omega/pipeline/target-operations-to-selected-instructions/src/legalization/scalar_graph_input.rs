@@ -285,6 +285,16 @@ pub(super) fn match_input(
             obligation,
             ..
         }
+        | AbstractOperation::ExactIntegerShiftLeft {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftRight {
+            psi_operation,
+            obligation,
+            ..
+        }
         | AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             obligation,

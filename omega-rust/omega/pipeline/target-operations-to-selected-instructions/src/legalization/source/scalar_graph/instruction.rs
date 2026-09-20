@@ -288,6 +288,12 @@ pub(super) fn project(
                 right: *right,
             }
         }
+        AbstractOperation::WrappingIntegerShiftLeft { .. }
+        | AbstractOperation::WrappingIntegerShiftRight { .. }
+        | AbstractOperation::ExactIntegerShiftLeft { .. }
+        | AbstractOperation::ExactIntegerShiftRight { .. } => {
+            scalar_instructions::project_shift(node, optimized, unit)?
+        }
         AbstractOperation::WrappingIntegerRemainder { .. } => {
             scalar_instructions::project_wrapping_integer_remainder(node, optimized, unit)?
         }

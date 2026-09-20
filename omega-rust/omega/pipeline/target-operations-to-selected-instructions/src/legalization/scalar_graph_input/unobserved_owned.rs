@@ -86,6 +86,10 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                 | AbstractOperation::WrappingIntegerSubtract { .. }
                 | AbstractOperation::WrappingIntegerMultiply { .. }
                 | AbstractOperation::WrappingIntegerDivide { .. }
+                | AbstractOperation::WrappingIntegerShiftLeft { .. }
+                | AbstractOperation::WrappingIntegerShiftRight { .. }
+                | AbstractOperation::ExactIntegerShiftLeft { .. }
+                | AbstractOperation::ExactIntegerShiftRight { .. }
                 | AbstractOperation::IntegerBitwiseOr { .. }
                 | AbstractOperation::IntegerBitwiseNot { .. }
                 | AbstractOperation::Call { .. }

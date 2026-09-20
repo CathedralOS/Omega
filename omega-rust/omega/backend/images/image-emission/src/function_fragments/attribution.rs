@@ -43,6 +43,10 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::WrappingIntegerMultiply { psi_operation, .. }
                 | AbstractOperation::WrappingIntegerDivide { psi_operation, .. }
                 | AbstractOperation::WrappingIntegerRemainder { psi_operation, .. }
+                | AbstractOperation::WrappingIntegerShiftLeft { psi_operation, .. }
+                | AbstractOperation::WrappingIntegerShiftRight { psi_operation, .. }
+                | AbstractOperation::ExactIntegerShiftLeft { psi_operation, .. }
+                | AbstractOperation::ExactIntegerShiftRight { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerSubtract { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
                 | AbstractOperation::SaturatingIntegerDivide { psi_operation, .. }

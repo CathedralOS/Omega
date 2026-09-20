@@ -30,7 +30,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state shr_i16(&mut self) {
-        let n: i16 in Wrapping = (0 as i16 in Wrapping) - 32768;
+        let n: i16 in Wrapping = ((0 as i16 in Wrapping) - 32767) - 1;
         let c3: i16 in Wrapping = (25 as i16 in Wrapping);
         let t: i16 in Wrapping = n >> c3;
         transition t == (0 as i16 in Wrapping) - 64 {

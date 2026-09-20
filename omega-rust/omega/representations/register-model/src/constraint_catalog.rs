@@ -93,6 +93,10 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub remainder_u64: RegisterConstraintKey,
     pub remainder_i64: RegisterConstraintKey,
     pub divide_i64: RegisterConstraintKey,
+    /// Two-source variable-count shift row. The owning target decides how the
+    /// count source is constrained (x86-64 pins it to `rcx`; AArch64 leaves
+    /// all operands allocatable).
+    pub shift_i64: RegisterConstraintKey,
     pub saturating_add_clamped: RegisterConstraintKey,
     pub saturating_subtract_clamped: RegisterConstraintKey,
     pub saturating_divide_signed: RegisterConstraintKey,

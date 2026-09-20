@@ -153,6 +153,27 @@ fn family_and_operand_count(
         SelectedInstructionKind::WrappingMultiplyI64 => {
             (MachineAlternativeFamily::WrappingMultiplyI64, 3, 0..=3)
         }
+        // The pinned-CL realization has a single register form: the
+        // early-clobber result is always copied from the value before the
+        // variable-count shift executes.
+        SelectedInstructionKind::WrappingShiftLeftI64 => {
+            (MachineAlternativeFamily::WrappingShiftLeftI64, 3, 0..=0)
+        }
+        SelectedInstructionKind::WrappingShiftRightI64 => {
+            (MachineAlternativeFamily::WrappingShiftRightI64, 3, 0..=0)
+        }
+        SelectedInstructionKind::WrappingShiftRightU64 => {
+            (MachineAlternativeFamily::WrappingShiftRightU64, 3, 0..=0)
+        }
+        SelectedInstructionKind::ExactShiftLeftI64 { .. } => {
+            (MachineAlternativeFamily::ExactShiftLeftI64, 3, 0..=0)
+        }
+        SelectedInstructionKind::ExactShiftRightI64 { .. } => {
+            (MachineAlternativeFamily::ExactShiftRightI64, 3, 0..=0)
+        }
+        SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+            (MachineAlternativeFamily::ExactShiftRightU64, 3, 0..=0)
+        }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (MachineAlternativeFamily::ExactAddI64Immediate, 2, 0..=0)
         }

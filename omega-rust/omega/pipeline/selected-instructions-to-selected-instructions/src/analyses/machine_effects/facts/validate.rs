@@ -279,6 +279,7 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         saturating_add_clamped: keys.saturating_add_clamped,
         saturating_subtract_clamped: keys.saturating_subtract_clamped,
         saturating_divide_signed: keys.saturating_divide_signed,
+        shift_i64: keys.shift_i64,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,

@@ -57,6 +57,7 @@ impl SelectedConstraintKeys {
             self.remainder_u64,
             self.remainder_i64,
             self.divide_i64,
+            self.shift_i64,
             self.saturating_add_clamped,
             self.saturating_subtract_clamped,
             self.saturating_divide_signed,
@@ -128,6 +129,15 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ExactRemainderU64 => self.remainder_u64,
             MachineSemanticKind::WrappingRemainderI64 => self.remainder_i64,
             MachineSemanticKind::WrappingDivideI64 => self.divide_i64,
+            // Every shift reads its value and count sources and defines the
+            // result through the same two-source row; x86-64 pins the count
+            // to `rcx` while AArch64 leaves all three allocatable.
+            MachineSemanticKind::WrappingShiftLeftI64
+            | MachineSemanticKind::WrappingShiftRightI64
+            | MachineSemanticKind::WrappingShiftRightU64
+            | MachineSemanticKind::ExactShiftLeftI64
+            | MachineSemanticKind::ExactShiftRightI64
+            | MachineSemanticKind::ExactShiftRightU64 => self.shift_i64,
             // Operand shape, not carrier, selects the constraint row: the u64
             // add and every unsigned subtract are three-operand forms, unsigned
             // division shares the exact unsigned divide row, and everything

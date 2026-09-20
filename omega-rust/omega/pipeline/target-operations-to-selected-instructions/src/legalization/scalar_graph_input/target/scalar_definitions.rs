@@ -344,6 +344,60 @@ pub(super) fn observation(
             }
             (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
+        AbstractOperation::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | AbstractOperation::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        }
+        | AbstractOperation::ExactIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+            ..
+        } => {
+            // The count is independently typed: each operand must resolve
+            // through an available source carrying its own declared type.
+            if scalar_shape(ScalarType::Integer(*value_type)).is_none()
+                || scalar_shape(ScalarType::Integer(*count_type)).is_none()
+                || checker.available.is_none_or(|sources| {
+                    !sources.iter().any(|(identity, source)| {
+                        identity == value
+                            && source.scalar_type() == ScalarType::Integer(*value_type)
+                    }) || !sources.iter().any(|(identity, source)| {
+                        identity == count
+                            && source.scalar_type() == ScalarType::Integer(*count_type)
+                    })
+                })
+            {
+                return Err(invalid);
+            }
+            (*psi_operation, *result, ScalarType::Integer(*value_type))
+        }
         AbstractOperation::ByteSequenceLength {
             psi_operation,
             result,

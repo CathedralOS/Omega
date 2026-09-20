@@ -93,6 +93,10 @@ pub(crate) fn accepts(function: &LegalizedScalarFunction) -> bool {
                 | Instruction::BooleanNot { .. }
                 | Instruction::IntegerWiden { .. }
                 | Instruction::ExactBinary { .. }
+                | Instruction::WrappingShiftLeft { .. }
+                | Instruction::WrappingShiftRight { .. }
+                | Instruction::ExactShiftLeft { .. }
+                | Instruction::ExactShiftRight { .. }
                 | Instruction::Compare { .. } => true,
                 Instruction::EstablishPrimitiveLocal { result, .. } => {
                     crate::selection::primitive_local_input::local(function, result.place).is_some()
