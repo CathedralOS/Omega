@@ -25,6 +25,19 @@ pub(crate) struct Lineage {
     pub(crate) path: Vec<SplitBranch>,
 }
 
+/// Whether this extent's backing stays exclusive to one custody lineage or
+/// the provider admitted peer aliases the checker cannot see.
+///
+/// Exclusive claims over the same stable backing descend from one custody
+/// root; a writable peer cannot be wished into an exclusive borrow, so a
+/// `PeerShared` extent refuses [`Extent::loan_mut`]. Shared reads of hostile
+/// backing remain the consumer's copy-and-validate responsibility.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtentSharingMode {
+    Exclusive,
+    PeerShared,
+}
+
 /// Opaque authority over one concrete address-space range.
 ///
 /// This Rust carrier is deliberately non-`Clone`; Omega's `[linear]` checker
@@ -40,6 +53,7 @@ pub struct Extent {
     pub(crate) era: MappingEraId,
     pub(crate) origin: ExtentRootOrigin,
     pub(crate) lineage: Lineage,
+    pub(crate) sharing: ExtentSharingMode,
 }
 
 impl Extent {
@@ -87,6 +101,12 @@ impl Extent {
         self.lineage.root
     }
 
+    /// Whether the backing may have writable peer aliases outside the
+    /// checker's ledger.
+    pub const fn sharing(&self) -> ExtentSharingMode {
+        self.sharing
+    }
+
     /// Whether this value is the exact unsplit root of its passive lineage.
     /// This is report/retirement structure only; it never establishes origin.
     pub fn is_lineage_root(&self) -> bool {
@@ -128,6 +148,7 @@ impl Extent {
                 root: self.lineage.root,
                 path: lower_path,
             },
+            sharing: self.sharing,
         };
         let upper = Self {
             base: upper_base,
@@ -141,6 +162,7 @@ impl Extent {
                 root: self.lineage.root,
                 path: upper_path,
             },
+            sharing: self.sharing,
         };
         (lower, upper)
     }
@@ -241,6 +263,7 @@ impl Extent {
                 root: lower.lineage.root,
                 path: parent_path,
             },
+            sharing: lower.sharing,
         })
     }
 
@@ -253,6 +276,11 @@ impl Extent {
         offset: u64,
         length: u64,
     ) -> Result<ExtentLoan<'_>, ExtentDiagnostic> {
+        if self.sharing == ExtentSharingMode::PeerShared {
+            return Err(ExtentDiagnostic(
+                "a writable peer cannot mint an exclusive borrow".into(),
+            ));
+        }
         ExtentLoan::exclusive(self, offset, length)
     }
 }
@@ -307,9 +335,10 @@ fn validate_merge(first: &Extent, second: &Extent) -> Result<(), ExtentDiagnosti
         || first.rights != second.rights
         || first.provenance != second.provenance
         || first.era != second.era
+        || first.sharing != second.sharing
     {
         return Err(ExtentDiagnostic(
-            "merge requires identical space, rights, provenance, and era".into(),
+            "merge requires identical space, rights, provenance, era, and sharing".into(),
         ));
     }
     if first.lineage.root != second.lineage.root {
