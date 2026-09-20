@@ -3893,9 +3893,8 @@ Owners include
     transitive-exposure controls for each.
   - Complete declaration evaluation, including unused initializers:
     specialized provider applications, target-dependent declarations, and
-    selected floating operations/NaN identities,
-    which need determined bits through ordinary typed floating provider
-    applications. Record-carried constrained
+    authored NaN identity bits, which need explicit representation through
+    ordinary typed floating provider applications. Record-carried constrained
     constants bind `self` through their scalar-decodable fields, so closed
     `self.<field>` predicates discharge at declaration site
     (`module_namespace_residuals::constrained_record_const_discharges_field_domain_facts`
@@ -6024,7 +6023,7 @@ rejection, native-route `InvalidStructuralArrayLength` pin) green at
   PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN (resolved),
   PACKAGE-DYNAMIC-RETURN-LOAN-ORIGIN.
 
-- **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics.
+- **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics. Landed: already-landed `f32`/`f64` constants now compose in constant expressions through the `FloatSemantics` provider — `Add`/`Subtract`/`Multiply`/`Divide` and all six comparisons produce determined bits at the landed format, an anonymous operand lands at its peer's format before the operation, NaN results reject without explicit representation bits, and substituted-declaration literal roots (`const Q: f32 = A`) replay dependency/operator custody through the existing probe path (`landed_float_leaves_compose_at_their_own_format`, `float_literal_alias_roots_keep_witnessed_declaration_custody`, `public_float_constants_carry_landed_identity_through_composition`). Remaining: authored NaN literal bits and non-arithmetic float operators in const position.
 - **STRUCTURAL-UNIT-LOWERING.** Scope verified on `a4ffd1aff8` — structural-unit
   lowering in checked-trees-to-lowered-psi is landed for the bounded subset
   (`unit/structural_unit_control.rs`: multi-state claim-free affine structural

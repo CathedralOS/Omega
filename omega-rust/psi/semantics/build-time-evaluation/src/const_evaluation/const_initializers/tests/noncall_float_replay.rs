@@ -405,9 +405,7 @@ fn anonymous_float_replay_rejects_forged_results_and_erased_custody() {
                 "operator-custody" => "operator custody drifted",
                 "format" => "materialized format drifted",
                 "declared-carrier" => "exact declared format",
-                "forged-literal-computation" => {
-                    "literal root retains computation or declaration custody"
-                }
+                "forged-literal-computation" => "operator custody drifted",
                 _ => "materialized bits, or result encoding drifted",
             };
             assert!(
@@ -435,4 +433,46 @@ fn anonymous_float_replay_does_not_repair_a_zero_divisor_with_forged_bits() {
     *typed.expression_table.expression_mut(divisor) =
         ExpressionNode::Integer(numerics::literals::IntegerLiteral::from_value(0));
     assert!(super::validate(&typed, None).is_err());
+}
+
+#[test]
+fn float_literal_alias_roots_keep_witnessed_declaration_custody() {
+    // A float constant used as an initializer substitutes the selected
+    // declaration's materialized literal, retaining its selection occurrence.
+    // Replay admits that declaration custody only when the selected
+    // declaration's own canonical result reproduces the literal's bits.
+    for text in [
+        "const A: f32 = 2.0; const Q: f32 = A;",
+        "const A: f64 = 0.5f64 + 1.0f64; const Q: f64 = A;",
+        "const A: f32 = 1.5 * 2; const Q: f32 = A; const R: f32 = Q + 0.0f32;",
+    ] {
+        let typed = source_fixture(text);
+        super::validate(&typed, None).expect("literal alias replay admits declaration custody");
+    }
+
+    // A selected declaration whose canonical result no longer reproduces the
+    // substituted literal's bits is not custody of that literal.
+    let mut typed = source_fixture("const A: f32 = 2.0; const Q: f32 = A;");
+    super::validate(&typed, None).expect("baseline alias replay");
+    let index = typed
+        .const_declarations()
+        .iter()
+        .position(|constant| typed.symbols.name(constant.symbol) == "A")
+        .expect("source declaration");
+    let span = typed.roots.const_declarations;
+    let a = typed.tables.const_declarations.span_mut_or_empty(span)[index].clone();
+    for root in [a.authored_initializer, a.materialized_initializer] {
+        *typed.expression_table.expression_mut(root) =
+            ExpressionNode::Float(FloatLiteral::parse("3.0").unwrap());
+    }
+    typed.tables.const_declarations.span_mut_or_empty(span)[index].canonical_value_encoding =
+        Some("float:f32:40400000".to_owned());
+    let diagnostics = super::validate(&typed, None)
+        .expect_err("a stale selection does not prove custody of drifted bits");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("dependency or its substituted use drifted")),
+        "{diagnostics:?}"
+    );
 }
