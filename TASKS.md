@@ -8819,7 +8819,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   external-roots `ProgramLocalRootInstallationLedger`, image-emission
   hosted_receiver). Sibling re-mine names on this surface:
   PHYSICAL-ENTRY-BRIDGES, PHYSICAL-ACCESS-PROFILES.
-- **PIN-CONNECTED-PIPELINE-ROUTE** — mined candidate; verify scope then implement.
+- **PIN-CONNECTED-PIPELINE-ROUTE.** Resolved — landed alias of
+  PIPELINE-ROUTE-CONFORMANCE-AUDIT: `tests/architecture/representation_
+  ownership/route_conformance.rs` (`1ccc88fb51`) pins the connected route
+  — `route_rows_chain_each_output_into_the_next_input` asserts every
+  `X-to-Y` row's owner ends where the next row begins, plus
+  `every_declared_route_owner_resolves_inside_its_named_crate`, link
+  resolution, and X-to-Y shape conformance; sibling leg
+  `stage_crate_ownership.rs` (`36ffc8af87`) pins the documented stage
+  table against on-disk pipeline crates. PIPELINE-CRATE-SWEEP (adjacent
+  row) records the same audit family green at `797e99ead7`. No
+  independent slice exists.
 - **PIPELINE-CRATE-SWEEP.** Resolved — a pipeline-crate sweep is the union of the landed audit family on this section: `tests/architecture/stage_crate_ownership.rs` pins unique transform names, real entrypoints, no orphan inputs/outputs, every stage crate documented in pipeline.md, and stage entrances connected to external callers (`36ffc8af87`); `route_conformance.rs` pins route chaining, documented owners, X-to-Y crate/package shape, and transforms confined to pipeline directories (`1ccc88fb51`); the rewrite-bearing trees are audited in `wiki/drafts/pipeline_rewrites_ownership_audit.md` (`0a3b9344ac2`, zero orphans). Re-verified green at `797e99ead7`: `cargo nextest run -p omega-architecture-test --test stage_crate_ownership` — 5/5 pass on linux x86-64. No independent slice exists — the sweep self-audits on every architecture run.
 - **PIPELINE-DOC-LINK-DRIFT.** Resolved — the drift audit is landed and
   extended: `route_conformance.rs` (added for PIPELINE-ROUTE-CONFORMANCE-
