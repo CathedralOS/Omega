@@ -457,3 +457,45 @@ fn affine_refold_gap_stays_uncovered() {
         .is_none()
     );
 }
+
+#[test]
+fn plan_measurement_records_the_kernel_receipt() {
+    use crate::checker::measurement::ProofPlanMeasurements;
+    use proof_admission::MathematicalCoreDecision;
+
+    let certificate =
+        closed_bounds_certificate(literal_term(5), math_literal(0), math_literal(10), 55)
+            .expect("certificate");
+    let fact = certificate.verify().expect("kernel accepts");
+
+    let mut measurements = ProofPlanMeasurements::default();
+    measurements.record_certificate_verdict(super::CertificateVerdict::Certified);
+    measurements.record_accepted_fact(&fact);
+
+    let AcceptedFactRoute::CertificateDerived { acceptance, .. } = fact.route else {
+        panic!("certificate-derived route");
+    };
+    let MathematicalCoreDecision::Judged(receipt) = acceptance.mathematical_core else {
+        panic!("a closed literal certificate judges in the mathematical core");
+    };
+    assert_eq!(measurements.certificate_certified, 1);
+    assert_eq!(measurements.certificate_attempts(), 1);
+    assert_eq!(measurements.kernel_judgments, 1);
+    assert_eq!(measurements.kernel_refusals, 0);
+    assert_eq!(
+        measurements.kernel_declarations,
+        u64::from(receipt.declarations)
+    );
+    assert_eq!(
+        measurements.kernel_assumption_closure,
+        u64::from(receipt.assumption_closure)
+    );
+    assert_eq!(
+        measurements.kernel_context_depth,
+        u64::from(receipt.context_depth)
+    );
+    assert_eq!(
+        measurements.kernel_arena_slots,
+        u64::from(receipt.arena_slots)
+    );
+}

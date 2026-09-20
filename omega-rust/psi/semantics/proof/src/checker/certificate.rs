@@ -62,6 +62,7 @@ use crate::checker::guards::{expressions_equivalent_for_proof, unwrap_true_guard
 use crate::checker::integer_ranges::{
     integer_literal_handle, integer_range_from_constraints, type_constraints,
 };
+use crate::checker::measurement::ProofPlanMeasurements;
 use crate::obligations::{
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
     ProofConstraint, ProofPlan,
@@ -119,6 +120,7 @@ pub(crate) fn bounded_integer_value_verdict(
     target: &IntegerRange,
     seed: u64,
     anonymous: bool,
+    measurements: &mut ProofPlanMeasurements,
 ) -> CertificateVerdict {
     let Some(certificate) = bounded_integer_value(
         proof_plan,
@@ -129,12 +131,18 @@ pub(crate) fn bounded_integer_value_verdict(
         seed,
         anonymous,
     ) else {
+        measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
-    match certificate.verify() {
-        Ok(_) => CertificateVerdict::Certified,
+    let verdict = match certificate.verify() {
+        Ok(fact) => {
+            measurements.record_accepted_fact(&fact);
+            CertificateVerdict::Certified
+        }
         Err(_) => CertificateVerdict::Rejected,
-    }
+    };
+    measurements.record_certificate_verdict(verdict);
+    verdict
 }
 
 /// Certificate route for a bounded state return. The arrival machinery owns
@@ -148,14 +156,21 @@ pub(crate) fn state_return_integer_verdict(
     obligation: &BoundedStateReturnObligation,
     target: &IntegerRange,
     seed: u64,
+    measurements: &mut ProofPlanMeasurements,
 ) -> CertificateVerdict {
     let Some(certificate) = state_return_certificate(proof_plan, obligation, target, seed) else {
+        measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
-    match certificate.verify() {
-        Ok(_) => CertificateVerdict::Certified,
+    let verdict = match certificate.verify() {
+        Ok(fact) => {
+            measurements.record_accepted_fact(&fact);
+            CertificateVerdict::Certified
+        }
         Err(_) => CertificateVerdict::Rejected,
-    }
+    };
+    measurements.record_certificate_verdict(verdict);
+    verdict
 }
 
 fn state_return_certificate(
@@ -237,14 +252,39 @@ pub fn guarded_transition_integer_verdict(
     target: &IntegerRange,
     seed: u64,
 ) -> CertificateVerdict {
+    let mut measurements = ProofPlanMeasurements::default();
+    guarded_transition_integer_verdict_measured(
+        proof_plan,
+        obligation,
+        target,
+        seed,
+        &mut measurements,
+    )
+}
+
+/// `guarded_transition_integer_verdict` with the run's measurements recorded
+/// into the caller's recorder.
+pub(crate) fn guarded_transition_integer_verdict_measured(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedTransitionArgumentObligation,
+    target: &IntegerRange,
+    seed: u64,
+    measurements: &mut ProofPlanMeasurements,
+) -> CertificateVerdict {
     let Some(certificate) = guarded_transition_certificate(proof_plan, obligation, target, seed)
     else {
+        measurements.record_certificate_verdict(CertificateVerdict::Uncovered);
         return CertificateVerdict::Uncovered;
     };
-    match certificate.verify() {
-        Ok(_) => CertificateVerdict::Certified,
+    let verdict = match certificate.verify() {
+        Ok(fact) => {
+            measurements.record_accepted_fact(&fact);
+            CertificateVerdict::Certified
+        }
         Err(_) => CertificateVerdict::Rejected,
-    }
+    };
+    measurements.record_certificate_verdict(verdict);
+    verdict
 }
 
 /// The kernel-facing package for a guarded transition argument, in the order
