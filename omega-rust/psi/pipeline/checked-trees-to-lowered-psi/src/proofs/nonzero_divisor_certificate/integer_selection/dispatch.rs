@@ -102,13 +102,18 @@ fn prove_math_relation(
     }
     let scalar_goal = scalar_relation_for_math_goal(goal)?;
     let scalar_proof = match &scalar_goal {
-        Proposition::LessOrEqual(_, _) => bound::prove(
+        // The lowered scalar shadow keeps the whole atomic dispatch: the
+        // non-strict bound producers run first and the strict-order leg still
+        // applies through its checked weakening, exactly as for a directly
+        // stated `LessOrEqual` obligation.
+        Proposition::LessOrEqual(_, _) => prove_atomic(
             context,
             &scalar_goal,
             assumptions,
             semantic_axioms,
             definitions,
-        )?,
+        )
+        .flatten()?,
         _ => return None,
     };
     if lift_fixed_integer_relation(&scalar_goal).as_ref() != Some(goal) {

@@ -20,7 +20,7 @@ pub(super) fn prove(
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
     prove_without_subtract(goal, assumptions, semantic_axioms)
-        .or_else(|| subtract::prove(goal, assumptions, semantic_axioms))
+        .or_else(|| subtract::prove(context, goal, assumptions, semantic_axioms, definitions))
         // Strict endpoints traverse checked wrapping-update chains that the
         // non-strict affine selection cannot cite.
         .or_else(|| wrapping::prove(context, goal, assumptions, semantic_axioms, definitions))
