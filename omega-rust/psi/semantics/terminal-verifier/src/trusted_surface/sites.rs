@@ -60,6 +60,26 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         module: "carrier_bounds",
     },
     TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/addition/tests.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/addition.rs",
+        module: "tests",
+    },
+    TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/binary_numerals/tests.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/binary_numerals.rs",
+        module: "tests",
+    },
+    TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction/bound_tests.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction.rs",
+        module: "bound_tests",
+    },
+    TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction/tests.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction.rs",
+        module: "tests",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/tests.rs",
         parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core.rs",
         module: "tests",
@@ -249,17 +269,17 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine/bound_mapping.rs",
-        sha256: Some("63a9c0fb4aa3775932cb62280fcd192417b94b4e9a871252b3803332ba078f73"),
+        sha256: Some("958320506f868a0d211fcd16d0f585a02549d9979d2361de12d1166ef65f4056"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine/truth_bounds.rs",
-        sha256: Some("af5a8073e8df73ebf30b74f41813def41f20c2463f5cb04a1914f2733d8ea4ba"),
+        sha256: Some("e3d31496dffc65790ff7399950b28d90352a5878fe203953843c2c46b07bd8db"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/integer_rules/integer_affine/witness_checking.rs",
-        sha256: Some("e88edd836ac01ccce449ecf88ebbf1c6ee03bf17074474ed00bd4bea11cebf9f"),
+        sha256: Some("1b3655122e18f10e6cf773321c94bbdefc1d2084f5cef72978250d01ee95ff6f"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -294,7 +314,22 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation.rs",
-        sha256: Some("cd419175acaa3fc28fc66d2e989c72140104f22c2fe466b9e788626561a1a111"),
+        sha256: Some("24932da2d7baf6a99f4845fdcd155fd4ad8f9601a93ee19d7b4e35602ed63a45"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/addition.rs",
+        sha256: Some("d20e88832182500a4c6eba4dc657591cad03917c87a3a40b9dcf125df06a9b8c"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/binary_numerals.rs",
+        sha256: Some("2086cd2677ebaddae90d2ce4d06b1a350e505af5cd7829bef0d23a8e85a1aa37"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction.rs",
+        sha256: Some("b568944172472f142ac2207926fece8cb46414dee00941c8124338a20f1f54f4"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -674,7 +709,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow/unranked_cycles.rs",
-        sha256: Some("f621483df3c133723fa1e91d5bc052125df93b4d2bec2897367d54d302836101"),
+        sha256: Some("9fcae22308fecfac759a8f463bcb4dca0ad08423f48c45451abb53e23fa4cfc3"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -769,7 +804,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/float_meaning.rs",
-        sha256: Some("da9b96af91602e5f0fb05648788d6fd19c09e4b258b8bcb6656710cc53fb8990"),
+        sha256: Some("73fb60a64f1d2d17e71e739476c2e24af53d12a44c7c07dd529b0661af5acb75"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -859,7 +894,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/machine/custody_operations.rs",
-        sha256: Some("08463a2bd9f3c1e555cda04616e611ae62ed9510f201f61c039d4d8e4c06e982"),
+        sha256: Some("8f0fb4a93bde606bb44adc1f8db05cc2fa9f5143ab8972bac038d718313a809c"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -989,7 +1024,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/boundary_requirements.rs",
-        sha256: Some("0b17ca77f69a1c9c7f8bd186b4cf12a47ef52dc37d1813cfab097d5370b667e9"),
+        sha256: Some("7a6653b8d8ccd66a3375d2510ee7a7b7212bf3098e8328678f9d7b10193fb736"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1024,12 +1059,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/primitive_calls.rs",
-        sha256: Some("b533950faa4e04abb2402c349f7cc057d2722921ebf7d5d4876ec2eef6262e78"),
+        sha256: Some("131b60399048efbd2344500ce6272a43bd51a8c2f8d0e60da2f89d08399b855d"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/structural_arguments.rs",
-        sha256: Some("de8725e77cd57a9f8c66ca5111307356536ed992f0beb8f0e798ce97e0ca809d"),
+        sha256: Some("e63b82db2a1c2793e9d82a495ca3b9593087aef25546d78bfc7a080024eb67ca"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1069,7 +1104,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/unit_operation/unit_calls.rs",
-        sha256: Some("e7074ca1703c3aa9ba584baa6b4f7c7f5ce5d804fd7468d0089f0af5b9df1f04"),
+        sha256: Some("ebbd64bc980ae6fb74d763be04744c0e36581b1179f6ccb031b091473dd6b804"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1114,7 +1149,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/float_meaning_projection.rs",
-        sha256: Some("13f43d3d1ca5e05cd99891bb7395f9261f492b469817c31f4e7e3e5162452ccf"),
+        sha256: Some("05c237efc57c308b60f3f9feb2fb32ac43008d159547e05dfb0950d9b97318cb"),
         inventory_machinery: false,
     },
     ImplementationSite {

@@ -120,9 +120,9 @@ pub fn map_integer_affine_bound(
                                 .checked_sub(magnitude)
                                 .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
                         }
-                    } else if current_is_lower {
-                        0
-                    } else if form.integer_type().sign() == IntegerSign::Signed && mapped <= 0 {
+                    } else if current_is_lower
+                        || (form.integer_type().sign() == IntegerSign::Signed && mapped <= 0)
+                    {
                         0
                     } else {
                         magnitude
