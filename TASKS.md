@@ -4184,7 +4184,9 @@ Owners include
   names the leaf's writes exactly, leaf spellings demanded as call operands
   through exclusive bindings replayed from the binding's own provenance, `&`
   bindings declared from literal-indexed carrier leaves resolved through the
-  binding's own provenance replay, helper-returned
+  binding's own provenance replay, `&` bindings declared from constructed
+  literal leaves — a record-literal member selection or a literal-indexed
+  array element — replayed through the same provenance walk, helper-returned
   reference leaves resolved through caller slot stores including callee-local
   binding transfers and nested helper calls, and nested call-result
   arguments; partition replay follows reference and generic-application leaves
@@ -4196,9 +4198,11 @@ Owners include
     projections directly rather than through a binding's provenance.
   - Mutable demanded paths, helper bodies that may write the demanded
     projection, write-tainted nested calls, generic or dispatched callees,
-    ambiguous or dynamic projections, opaque or overlapping write frames,
-    unresolved exclusive aliases and unresolved result routes keep no checked
-    guarantee. Admit one only from exact provenance.
+    ambiguous or dynamic projections — including a member selection whose
+    field symbol never resolved on an indexed temporary — opaque or
+    overlapping write frames, unresolved exclusive aliases and unresolved
+    result routes keep no checked guarantee. Admit one only from exact
+    provenance.
   - A mutated aggregate cannot use root correspondence as evidence for its
     previous field values; a may-write frame cannot identify a replacement
     value. Retain opaque prefixes where declared-field provenance is absent.
