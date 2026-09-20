@@ -4087,7 +4087,11 @@ Owners include
   bound from a checked reference result carries the callee's finite candidate
   origins (`flow/reference_places/result_candidates.rs`; sub-state routes,
   runtime indexes and unresolved callee locals stay conservative). A view
-  element write retires only that element's facts.
+  element write retires only that element's facts. Domain-declared
+  membership subjects project the carrier itself: `self.num.pos in
+  NonZero` and `self[0] in Utf8` resolve to the declared field or element
+  type instead of emitting `no resolved subject type`
+  (`validation/src/value_custody/expression_types/result_type.rs`).
 
   `flow/state_values/fields.rs` joins each channel from per-edge
   `EdgeDelivery` records instead of discarding provenance: literals must agree
