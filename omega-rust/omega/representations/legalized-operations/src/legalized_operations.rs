@@ -48,7 +48,7 @@ pub use control_flow::*;
 pub mod identity;
 mod validation;
 pub use identity::*;
-pub use validation::LegalizedScalarCallShapeError;
+pub use validation::{LegalizedDynamicParameterCallShapeError, LegalizedScalarCallShapeError};
 
 #[cfg(test)]
 mod tests;

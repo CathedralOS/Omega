@@ -157,3 +157,93 @@ pub(super) fn validate_call_call(
     }
     Ok(())
 }
+
+/// The legalized descriptor-parameter call retains the dispatch join and the
+/// whole recomputed contract; replay re-derives it from the roster and the
+/// target ABI and rejects a substituted parameter, requirement, plan, slot
+/// offset, or result home.
+pub(super) fn validate_dynamic_parameter_call(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    native: &TargetOperationPlan,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let LegalizedScalarInstructionKind::DynamicParameterCall(call) = &actual.kind else {
+        unreachable!("dispatched validate_dynamic_parameter_call")
+    };
+    let invalid = || Error::NonCanonicalLegalizedPlan;
+    let (dynamic_dispatch, expected_result, obligations, crashes) = match &node.operation {
+        AbstractOperation::CallDynamicParameterScalar {
+            result,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } => (
+            dynamic_dispatch,
+            Some(result.scalar_type),
+            requirement_obligations,
+            crash_continuations,
+        ),
+        AbstractOperation::CallDynamicParameterUnit {
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+            ..
+        } => (
+            dynamic_dispatch,
+            None,
+            requirement_obligations,
+            crash_continuations,
+        ),
+        _ => return Err(invalid()),
+    };
+    if call.dynamic_dispatch != *dynamic_dispatch
+        || call.requirement_obligations != *obligations
+        || call.crash_continuations != *crashes
+    {
+        return Err(invalid());
+    }
+    call.validate_shape().map_err(|_| invalid())?;
+    let function = native
+        .functions
+        .iter()
+        .find(|function| function.machine == optimized.machine)
+        .ok_or_else(invalid)?;
+    let contract = scalar_graph_input::indirect_calls::parameter_call_contract(
+        &function.graph.dynamic_parameters,
+        optimized.machine,
+        operation,
+        dynamic_dispatch,
+        expected_result,
+        native.target,
+    )?;
+    if call.parameter_abi != contract.parameter_abi
+        || call.requirement != contract.requirement
+        || call.dispatch_call_plan != contract.dispatch_call_plan
+        || call.table_slot_byte_offset != contract.table_slot_byte_offset
+    {
+        return Err(invalid());
+    }
+    let expected_home = match &node.operation {
+        AbstractOperation::CallDynamicParameterScalar { result, .. } => {
+            Some(target_operations::TargetUnitScalarHomeRequirement {
+                defining_operation: operation,
+                source_value: result.value,
+                scalar_type: result.scalar_type,
+                shape: contract
+                    .dispatch_call_plan
+                    .result
+                    .as_ref()
+                    .ok_or_else(invalid)?
+                    .shape,
+            })
+        }
+        _ => None,
+    };
+    if call.result_home != expected_home {
+        return Err(invalid());
+    }
+    Ok(())
+}
