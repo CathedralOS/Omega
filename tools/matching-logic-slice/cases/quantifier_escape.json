@@ -1,0 +1,31 @@
+{
+  "schema": "omega-matching-logic-slice-case/1",
+  "subject": "negative: existential elimination lets its eigenvariable escape",
+  "symbols": {"s0": 0, "s1": 0},
+  "refinements": {"Nat": ["pred", "is_nat", [["var", "x"]]]},
+  "axioms": {
+    "any_reach": ["exists", "s",
+      ["pred", "step", [["var", "s"], ["var", "s"]]]],
+    "escape_elim": ["forall", "s",
+      ["implies",
+        ["pred", "step", [["var", "s"], ["var", "s"]]],
+        ["pred", "reached", [["var", "s"]]]]]
+  },
+  "obligation": {
+    "kind": "refinement_after_transition",
+    "pre_state": "s0",
+    "transition": "step",
+    "post_variable": "s'",
+    "refinement": ["in", ["var", "s'"], "Nat"]
+  },
+  "expect": "reject",
+  "certificate": {
+    "schema": "omega-matching-logic-certificate/1",
+    "derivation": {
+      "rule": "exists_elim",
+      "premise": {"rule": "axiom", "name": "any_reach"},
+      "elimination": {"rule": "axiom", "name": "escape_elim"},
+      "conclusion": ["pred", "reached", [["var", "s"]]]
+    }
+  }
+}
