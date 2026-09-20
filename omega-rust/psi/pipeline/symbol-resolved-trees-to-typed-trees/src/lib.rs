@@ -45,8 +45,8 @@ mod expressions;
 mod lowerer;
 mod type_reference;
 
+pub use lowerer::lower_symbol_resolved_trees;
 pub use lowerer::seeded_continuation::{
     SeededContinuationError, SeededTypingBase, lower_seeded_extension,
     lower_symbol_resolved_trees_to_seeded_base, retained_typed_base_is_exact_prefix,
 };
-pub use lowerer::{lower_symbol_resolved_trees, lower_symbol_resolved_trees_owned};
