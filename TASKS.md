@@ -9819,7 +9819,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   host-seed↔reference agreement, so no unclaimed slice remains on this
   surface. Sibling stub on the same settled surface:
   SEED-PARITY-ASSERTIONS.
-- **SEED-PARITY-ASSERTIONS** — mined candidate; verify scope then implement.
+- **SEED-PARITY-ASSERTIONS** — mined candidate; scope verified, already landed — same settled surface as sibling SEED-PARITY-ALIGNMENT (adjacent row): the name re-mines the seed↔reference assertion surface closed by `9e18f9cc11b`, where `tests/alpha/parity.sh` joins the per-opcode conformance battery with the diamond edge corpus and asserts exact exit-code + stdout agreement between the audited `alpha_x64_linux` container and `alpha_ref.py` under `require_bound_identity`. Re-verified green on linux x86-64 at `5b3caaf337c`: `sh tests/alpha/parity.sh` → 33 ok / 0 failed (the three "Illegal instruction" lines are the expected native trap cases). The other audited seeds execute on their own hosts (macOS arm64 / Windows x64 `diamond-py.sh` legs) — no unclaimed linux_x86_64 slice remains.
 - **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES** — mined candidate; verify scope then implement.
 - **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION** — mined candidate; verify scope then implement.
 - **SELECTED-OPTIMIZATION-CATALOG-ROUTE.** Mined candidate; scope verified
