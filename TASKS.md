@@ -6275,7 +6275,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BASELINE-SERVICE-CARRIER-FAILURES** — mined candidate; verify scope then implement.
 - **BASELINE-T2C-BOUNDARY-BYTE-BUFFER-REPAIR** — mined candidate; verify scope then implement.
 - **BASELINE-T2C-PROVIDER-ATTACHMENT-AND-RESULTS** — mined candidate; verify scope then implement.
-- **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
+- **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — names the
+  baseline row's verifier cleanup-order surface
+  (wiki/drafts/known_baseline_failures.md terminal-verifier section),
+  settled on `origin/main`: phase one consumes each owned source before the
+  residual and trivial cleanup rosters run for the same edge, then
+  parameters establish last (`validation/frontier/block_parameters.rs`,
+  per-terminator close order documented in `validation/frontier/
+  terminators.rs`); a still-live transferred place in a discard roster
+  reports `EdgeAffineDiscardsInvalid` as malformed evidence rather than a
+  bad argument (repin `d96a0fda39`, pass witness `bbfda8bc2e`). Fresh
+  witness at `1a772e4ae1` on linux x86-64: 11/11 ordering pins pass,
+  including `owned_successors_reject_same_arity_aliases_and_transfer_
+  after_disposal`, the `affine_local_frontier` reorder/double/missing
+  rejections, `unranked_frontiers`, and
+  `ranked_preservation_compares_every_frontier_axis_in_diagnostic_order`.
+  Sibling aliases: EDGE-CLEANUP-DIAGNOSTIC-ORDER, EDGE-CLEANUP-ERROR-
+  PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER (resolved separately).
 - **BENCHMARK-COMPARISON-OCCURRENCE-GATE** — mined candidate; verify scope then implement.
 - **BENCHMARK-COMPILE-ONLY-ROWS.** Mined candidate. Upstream:
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md) — produce committed
