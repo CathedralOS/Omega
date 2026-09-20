@@ -8462,7 +8462,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   hosted_receiver). Sibling re-mine names on this surface:
   PHYSICAL-ENTRY-BRIDGES, PHYSICAL-ACCESS-PROFILES.
 - **PIN-CONNECTED-PIPELINE-ROUTE** — mined candidate; verify scope then implement.
-- **PIPELINE-CRATE-SWEEP** — mined candidate; verify scope then implement.
+- **PIPELINE-CRATE-SWEEP.** Resolved — a pipeline-crate sweep is the union of the landed audit family on this section: `tests/architecture/stage_crate_ownership.rs` pins unique transform names, real entrypoints, no orphan inputs/outputs, every stage crate documented in pipeline.md, and stage entrances connected to external callers (`36ffc8af87`); `route_conformance.rs` pins route chaining, documented owners, X-to-Y crate/package shape, and transforms confined to pipeline directories (`1ccc88fb51`); the rewrite-bearing trees are audited in `wiki/drafts/pipeline_rewrites_ownership_audit.md` (`0a3b9344ac2`, zero orphans). Re-verified green at `797e99ead7`: `cargo nextest run -p omega-architecture-test --test stage_crate_ownership` — 5/5 pass on linux x86-64. No independent slice exists — the sweep self-audits on every architecture run.
 - **PIPELINE-DOC-LINK-DRIFT.** Resolved — the drift audit is landed and
   extended: `route_conformance.rs` (added for PIPELINE-ROUTE-CONFORMANCE-
   AUDIT at `1ccc88fb51`) already pins that every pipeline.md link target
