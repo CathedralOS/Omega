@@ -9703,8 +9703,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SEMANTIC-WRAPPER-COORDINATOR-RESIDUE, OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP,
   OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION, OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION,
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION, PIPELINE-WRAPPER-OBJECT-ORPHAN.
-- **WRITE-ONLY-BORROW-RESIDUE** — mined candidate; verify scope then implement.
-  Verified scope: re-mines **WRITE-ONLY-BORROW**'s enumerated remaining work
+- **WRITE-ONLY-BORROW-RESIDUE.** Verified scope: re-mines
+  **WRITE-ONLY-BORROW**'s enumerated remaining work
   (TASKS.md:2323): aggregate/[copy]-sum replacement, domain-qualified
   byte-field stores, runtime indexes (`WriteOnlyIndexedPrimitiveStore` has a
   Terminal representation and interpreter but no Psi producer and Omega
@@ -9712,12 +9712,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   and computed IEEE stores (the 135-file draft for that leg was parked on an
   unpublished `write-only-borrow` branch, not on `origin` — confirm with the
   coordinator before re-implementing). The implementation surfaces are under
-  live claims: WRITE-ONLY-BORROW/integer-entry-ranges (checked-trees +
-  state_graph + scalar_graph, expires 20:07Z), STRUCTURAL-BORROW-IDENTITY
-  (receiver_calls + structural call arguments, 21:38Z),
-  RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY (scalar_graph_input
-  indirect-call legalization, 22:05Z), and FINITE-GENERIC-DISPATCH
-  (dynamic_scalar_calls, 21:39Z). The maintained integration target is
+  live claims: the parent WRITE-ONLY-BORROW row itself is live-claimed by
+  `dev-l3-wobstore` (exp ~01:30Z) and STRUCTURAL-BORROW-IDENTITY is
+  live-claimed (expired 21:38Z; recheck before treating any receiver_calls
+  leg as free). The maintained integration target is
   `terminal_psi_indexed_receivers`, not a store-specific emitter; the
   shared place/loan sequencer extension is STATE-LOCAL-VALUE-FRONTIER's. No
   independent slice exists here.
