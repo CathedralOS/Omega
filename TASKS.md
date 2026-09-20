@@ -5736,7 +5736,6 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
 Build/packages:
 
 - **BUILD-PACKAGES-GATE.** RC build-and-packages gate closure work.
-- **C2L-BASELINE-FAILURE-ATTRIBUTION.** checked-trees-to-lowered-psi baseline-failure attribution set (boundary byte buffers, scalar return custody, operation proof-machine calls, unit failure attribution).
 - **DELTA-EXHAUSTION-ATTRIBUTION.** Delta compiler exhaustion attribution.
 - **BETA-ENCODER-DEFINITION-PACKAGE.** Beta encoder definition package.
 - **BETA-RECONSTRUCTION-REFUSAL.** Beta reconstruction refusal. Landed: every
