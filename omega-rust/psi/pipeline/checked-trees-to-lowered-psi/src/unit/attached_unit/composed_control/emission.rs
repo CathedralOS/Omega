@@ -579,24 +579,46 @@ pub(super) fn emit_call_operations(
                     operations,
                 )?
             }
-            CheckedUnitEffectOperationPlan::ScalarCall { .. } => emit_scalar_call_operation(
-                checked,
-                state,
-                operation,
-                parameters,
-                &catalogs.type_ids,
-                &catalogs.domain_ids,
-                claim_bindings,
-                &catalogs.structural_types,
-                arguments.as_deref(),
-                erased_parameters,
-                &mut catalogs.scalar_calls,
-                &byte_argument_places,
-                &catalogs.result_places,
-                values,
-                next_value,
-                operations,
-            )?,
+            CheckedUnitEffectOperationPlan::ScalarCall {
+                coordinate, result, ..
+            } => {
+                let position = values.len();
+                emit_scalar_call_operation(
+                    checked,
+                    state,
+                    operation,
+                    parameters,
+                    &catalogs.type_ids,
+                    &catalogs.domain_ids,
+                    claim_bindings,
+                    &catalogs.structural_types,
+                    arguments.as_deref(),
+                    erased_parameters,
+                    &mut catalogs.scalar_calls,
+                    &byte_argument_places,
+                    &catalogs.result_places,
+                    values,
+                    next_value,
+                    operations,
+                )?;
+                // A retained call result is the next dense value, so it also
+                // enters the source binding namespace at its checked ordinal,
+                // exactly like an established scalar local. A discarded result
+                // occupies no source position; call leaves without a prepared
+                // namespace resolve ordinals through the dense identity map.
+                if !crate::emission::call_source_custody::initializers::discards_result(
+                    checked,
+                    state.state,
+                    *coordinate,
+                )? && let Some(bindings) = evaluation.scalar_bindings.as_mut()
+                {
+                    bindings.append(
+                        checked_trees::CheckedScalarBindingDestination::Immutable,
+                        terminal_scalar_type(result.primitive_type)?,
+                        position,
+                    )?;
+                }
+            }
             _ => return unsupported("composed Unit operation escaped exact call custody"),
         }
         if let CheckedUnitEffectOperationPlan::StructuralCall {

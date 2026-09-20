@@ -472,7 +472,7 @@ fn ordered_scalar_targets_retain_exact_signatures_across_candidate_order() {
 
 #[test]
 fn borrowed_receiver_scalar_call_admits_ambient_self_target() {
-    let checked = checked(
+    let mut checked = checked(
         "data Receiver { value: u64; }
          machine Receiver::inc(&mut self, x: u64) -> u64
              requires x < 99
@@ -520,16 +520,32 @@ fn borrowed_receiver_scalar_call_admits_ambient_self_target() {
         caller,
         operation
     ));
-    // Removing the real callee still closes the call fail-closed.
-    let candidates = candidates
+    // The callee also owns a registered scalar graph: pruning only its
+    // ordinary body leaves the graph-served call available.
+    let pruned = candidates
         .iter()
         .filter(|plan| plan.machine != inc)
         .cloned()
         .collect::<Vec<_>>();
+    assert!(is_available(
+        &checked.typed,
+        &checked.facts,
+        &pruned,
+        caller,
+        operation
+    ));
+    // Removing the real callee's remaining registered body — its scalar
+    // graph — still closes the call fail-closed.
+    checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .machines
+        .retain(|graph| graph.machine != inc);
     assert!(!is_available(
         &checked.typed,
         &checked.facts,
-        &candidates,
+        &pruned,
         caller,
         operation
     ));

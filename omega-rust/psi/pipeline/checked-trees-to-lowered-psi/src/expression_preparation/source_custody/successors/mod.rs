@@ -54,11 +54,19 @@ pub(super) fn validate(
     let (target_machine, target_state) = authored_state(checked, successor.target)?;
     let actuals = checked.statement_table.expression_handles(*arguments);
     let formals = checked.state_parameters(target_state);
+    // Authored actuals omit an implicit `self`; the ambient borrowed receiver
+    // owns no graph entry. Pairing keeps each actual at its authored formal
+    // position, so an explicit `self` actual still refuses the edge.
+    let retained_formals = formals
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| !parameter.is_self)
+        .collect::<Vec<_>>();
     if normalize_machine_state_target(checked, machine, path.symbol)? != successor.target
         || target_machine.symbol != machine.symbol
         || usize::try_from(arguments.count()).ok() != Some(actuals.len())
         || actuals.len() != successor.argument_count as usize
-        || actuals.len() != formals.len()
+        || actuals.len() != retained_formals.len()
     {
         return unsupported("scalar successor target disagrees with its authored state transfer");
     }
@@ -105,7 +113,9 @@ pub(super) fn validate(
     let mut scalar_position = 0;
     let mut structural_position = 0;
     let mut affine_sources = Vec::new();
-    for (argument_position, (actual, formal)) in actuals.iter().zip(formals).enumerate() {
+    for (actual, (argument_position, formal)) in
+        actuals.iter().zip(retained_formals.iter().copied())
+    {
         if !checked.expression_table.expression_is_valid(*actual) {
             return unsupported("scalar successor has no live authored argument");
         }
