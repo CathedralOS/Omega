@@ -114,6 +114,63 @@ impl MachineEmission<'_> {
         Ok(Some(kind))
     }
 
+    pub(super) fn write_only_indexed_primitive_store(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+        step: &StepInputs,
+    ) -> Result<Option<OperationKind>, LoweringError> {
+        let checked = self.checked;
+        let plan = self.plan;
+        let CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+            statement_index,
+            destination,
+            path,
+            index,
+            value,
+        } = operation
+        else {
+            unreachable!("dispatched write_only_indexed_primitive_store")
+        };
+        // Runtime-indexed stores only ever select a borrowed parameter's
+        // fixed array; the producer rejects local destinations on the
+        // projected lane.
+        let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
+            destination
+        else {
+            return unsupported("indexed primitive store has a local destination");
+        };
+        let parameter =
+            self.parameters
+                .get(*parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "indexed primitive store parameter is absent",
+                ))?;
+        let destination = crate::emission::primitive_store::indexed_parameter_destination(
+            parameter,
+            path,
+            self.structural_types,
+        )?;
+        let kind = crate::emission::primitive_store::emit_indexed_assignment(
+            checked,
+            plan.machine,
+            plan.state,
+            *statement_index,
+            destination,
+            index,
+            value,
+            &mut self.evaluation,
+            step.source_value_count,
+            &mut self.scalar_result_values,
+            &mut self.next_value_identity,
+            &mut self.next_block,
+            &mut self.next_edge,
+            &mut self.operations,
+            &mut self.scalar_calls,
+        )?;
+        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
+        Ok(Some(kind))
+    }
+
     pub(super) fn structural_byte_sequence_field_store(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,

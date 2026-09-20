@@ -654,10 +654,8 @@ pub(super) struct ArmWindowPlan {
     arm_of_expression: std::collections::BTreeMap<(u32, u32), ArmHandle>,
     /// Resolved storage places each arm's borrowed moves open, keyed by the
     /// arm's handle identity.
-    arm_debts: std::collections::BTreeMap<
-        (u32, u32),
-        Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>,
-    >,
+    arm_debts:
+        std::collections::BTreeMap<(u32, u32), Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>>,
     /// frame index → every arm on its enclosing chain is reachable.
     live: Vec<bool>,
     /// frame index → its reachable arms agreed on identical debts.
@@ -724,9 +722,9 @@ impl ArmWindowPlan {
                 roots.push(assignment.value);
                 roots.push(assignment.target);
             }
-            StatementNode::Call(call) => roots.extend_from_slice(
-                program.statement_table.expression_handles(call.arguments),
-            ),
+            StatementNode::Call(call) => {
+                roots.extend_from_slice(program.statement_table.expression_handles(call.arguments))
+            }
             StatementNode::RootBinding(binding) => {
                 roots.push(binding.receiver);
                 if binding.implementation_operand.is_valid() {
@@ -822,8 +820,8 @@ impl ArmWindowPlan {
             if !self.live[index] {
                 continue;
             }
-            let mut arm_sets: Vec<Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>> = self
-                .frames[index]
+            let mut arm_sets: Vec<Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>)>> = self.frames
+                [index]
                 .reachable
                 .iter()
                 .map(|arm| {
@@ -860,9 +858,7 @@ impl ArmWindowPlan {
             }
             if !rejected {
                 let first = arm_sets.first().map(Vec::as_slice).unwrap_or(&[]);
-                rejected = arm_sets
-                    .iter()
-                    .any(|debts| !same_place_set(debts, first));
+                rejected = arm_sets.iter().any(|debts| !same_place_set(debts, first));
                 if !rejected {
                     agreed_debts[index] = first.to_vec();
                 }
@@ -887,8 +883,8 @@ impl ArmWindowPlan {
                 .then(|| self.frame_by_arm.get(&arm_key(enclosing_arm)))
                 .flatten()
                 .copied();
-            self.rooted_agreed[index] = self.agreed[index]
-                && parent.is_none_or(|parent| self.rooted_agreed[parent]);
+            self.rooted_agreed[index] =
+                self.agreed[index] && parent.is_none_or(|parent| self.rooted_agreed[parent]);
             self.rooted_conditional[index] = self.frames[index].conditional
                 || parent.is_some_and(|parent| self.rooted_conditional[parent]);
         }
@@ -948,15 +944,19 @@ impl ArmWindowPlan {
         );
         self.edge_absent.push((arm, resolved.0, resolved.1.clone()));
         let root = self.root_frame(frame_index);
-        if self.opened.contains(&(frame_index, resolved.0, resolved.1.clone()))
+        if self
+            .opened
+            .contains(&(frame_index, resolved.0, resolved.1.clone()))
             || self.pending.iter().any(|(pending_root, _, proot, ppath)| {
                 *pending_root == root && *proot == resolved.0 && *ppath == resolved.1
             })
         {
             return Some(ArmWindowVerdict::SiblingRoute);
         }
-        self.opened.push((frame_index, resolved.0, resolved.1.clone()));
-        self.pending.push((root, event_index, resolved.0, resolved.1));
+        self.opened
+            .push((frame_index, resolved.0, resolved.1.clone()));
+        self.pending
+            .push((root, event_index, resolved.0, resolved.1));
         Some(ArmWindowVerdict::Open)
     }
 
@@ -983,18 +983,19 @@ impl ArmWindowPlan {
     /// root's pending list, so one join commits the whole lifted set.
     pub(super) fn commit_pending(&mut self, expression: ExpressionHandle) -> Vec<usize> {
         let key = expression_key(expression);
-        let Some(root) = self
-            .frames
-            .iter()
-            .position(|frame| !frame.enclosing_arm.is_valid() && expression_key(frame.expression) == key)
-        else {
+        let Some(root) = self.frames.iter().position(|frame| {
+            !frame.enclosing_arm.is_valid() && expression_key(frame.expression) == key
+        }) else {
             return Vec::new();
         };
         let (committed, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut self.pending)
             .into_iter()
             .partition(|(root_frame, _, _, _)| *root_frame == root);
         self.pending = kept;
-        committed.into_iter().map(|(_, event, _, _)| event).collect()
+        committed
+            .into_iter()
+            .map(|(_, event, _, _)| event)
+            .collect()
     }
 
     /// Whether a hole recorded on `recorded_arm`'s edge is also present on
@@ -1061,7 +1062,8 @@ impl ArmWindowPlan {
                 continue;
             }
             let spelling = place_spelling(program, machine, state, root, &storage_path);
-            let absent_spelling = place_spelling(program, machine, state, *absent_root, absent_path);
+            let absent_spelling =
+                place_spelling(program, machine, state, *absent_root, absent_path);
             diagnostics.push(Diagnostic::error(format!(
                 "cannot use `{spelling}` while `{absent_spelling}` is absent from borrowed \
                  storage: the value moved out at statement {statement_index} must be restored first",
@@ -1110,8 +1112,7 @@ impl ArmWindowPlan {
                     || call.blocking.transitive_may_block)
         }) {
             for (_, absent_root, absent_path) in &absent_edges {
-                let spelling =
-                    place_spelling(program, machine, state, *absent_root, absent_path);
+                let spelling = place_spelling(program, machine, state, *absent_root, absent_path);
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot suspend or block at statement {statement_index} while `{spelling}` is \
                      absent: restore the value moved out of borrowed storage first",
@@ -1139,8 +1140,7 @@ impl ArmWindowPlan {
             Some(expression),
         ) {
             for (_, absent_root, absent_path) in &absent_edges {
-                let spelling =
-                    place_spelling(program, machine, state, *absent_root, absent_path);
+                let spelling = place_spelling(program, machine, state, *absent_root, absent_path);
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot make a boundary or service call at statement {statement_index} while \
                      `{spelling}` is absent: restore the value moved out of borrowed storage first",
@@ -1451,10 +1451,7 @@ impl ArmWindowPlan {
                 );
             }
             ExpressionNode::StructLiteral(literal) => {
-                for field in program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                {
+                for field in program.expression_table.struct_fields(literal.fields) {
                     self.collect_frames(
                         program,
                         field.value,
@@ -1719,7 +1716,10 @@ pub(super) enum WindowStep {
         place: CanonicalPlace,
         expression: ExpressionHandle,
     },
-    Move { event: usize, conditional: bool },
+    Move {
+        event: usize,
+        conditional: bool,
+    },
     Invoke(ExpressionHandle),
 }
 
@@ -1868,10 +1868,7 @@ impl WindowOrder<'_> {
                     self.statement_index,
                     expression,
                 ) {
-                    self.steps.push(WindowStep::Observe {
-                        place,
-                        expression,
-                    });
+                    self.steps.push(WindowStep::Observe { place, expression });
                 }
             }
             ExpressionNode::Call(call) => {

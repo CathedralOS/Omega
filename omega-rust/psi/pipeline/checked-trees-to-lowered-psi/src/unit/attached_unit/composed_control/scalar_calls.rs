@@ -127,7 +127,10 @@ fn selected_roots(
                 }
                 continue;
             }
-            if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } = operation
+            if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+                value, ..
+            } = operation
             {
                 if let CheckedCallScalarArgument::Computation(handle) = value {
                     pending.push(*handle);

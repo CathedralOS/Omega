@@ -1016,6 +1016,7 @@ fn build_checked_machine_with_trace(
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
@@ -1328,6 +1329,11 @@ fn operation_observes_primitive_carrier(
         CheckedUnitEffectOperationPlan::EstablishScalarLocal { value, .. }
         | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. } => {
             scalar_argument(value)
+        }
+        // The runtime index is a scalar operand too: a store selecting through
+        // a carrier read observes that storage exactly like its value does.
+        CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
+            scalar_argument(value) || scalar_expression_reads_carrier(index, symbols)
         }
         CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { value, .. } => {
             scalar_expression_reads_carrier(value, symbols)

@@ -85,13 +85,78 @@ pub(super) fn lower(
                 value: AbstractResult { value, scalar_type },
             }
         }
-        // Verified runtime-indexed stores remain fenced here rather than
-        // silently dropped: the abstract operation inventory has no carrier
-        // for a runtime index and its reconstructed bounds obligation yet.
-        OperationKind::WriteOnlyIndexedPrimitiveStore { .. } => {
-            return Err(LoweringError::UnsupportedIndexedPrimitiveStore(
-                operation.id,
-            ));
+        // A verified runtime-indexed store carries the same destination
+        // custody as a static store; its path tip is the fixed array itself
+        // and the u64 index plus bounds obligation ride as operands.
+        OperationKind::WriteOnlyIndexedPrimitiveStore {
+            destination,
+            path,
+            index,
+            value,
+            obligation,
+        } => {
+            let Some(destination) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == destination)
+                .cloned()
+            else {
+                return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
+            };
+            let u64 = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is a valid scalar type"),
+            );
+            let Some(index_type) = value_types.get(&index).copied() else {
+                return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
+            };
+            let Some(scalar_type) = value_types.get(&value).copied() else {
+                return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
+            };
+            let valid_destination = index_type == u64
+                && matches!(
+                    destination.access,
+                    terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                )
+                && (destination.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    || (!path.is_empty()
+                        && destination.multiplicity
+                            == terminal_psi::StructuralMultiplicity::Affine))
+                && destination.qualifications.is_empty()
+                && destination.projected_qualifications.is_empty()
+                && machine
+                    .entry_claims
+                    .iter()
+                    .all(|claim| claim.input != destination.place)
+                && machine
+                    .content_entry_claims
+                    .iter()
+                    .all(|claim| claim.input.root != destination.place)
+                && terminal_semantics::fixed_array_place_shape(
+                    structural_types.iter(),
+                    destination.structural_type,
+                    &path,
+                )
+                .map(|(element, _extent)| element)
+                    == Some(scalar_type);
+            if !valid_destination {
+                return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
+            }
+            AbstractOperation::WriteOnlyIndexedPrimitiveStore {
+                psi_operation: operation.id,
+                destination,
+                path,
+                index: AbstractResult {
+                    value: index,
+                    scalar_type: index_type,
+                },
+                value: AbstractResult { value, scalar_type },
+                obligation,
+            }
         }
         _ => unreachable!("effect router is exhaustive"),
     })

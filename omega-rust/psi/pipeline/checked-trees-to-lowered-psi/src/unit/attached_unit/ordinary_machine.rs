@@ -1149,6 +1149,9 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. } => {
                 self.write_only_primitive_store(operation, &step)?
             }
+            CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. } => {
+                self.write_only_indexed_primitive_store(operation, &step)?
+            }
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore { .. } => {
                 self.structural_byte_sequence_field_store(operation)?
             }

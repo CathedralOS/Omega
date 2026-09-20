@@ -252,6 +252,92 @@ fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_va
 }
 
 #[test]
+fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
+    let source = r#"
+        machine forward(values: &mut [u16; 4], index: u64 [0..=3]) {
+            values[index] = 17;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "forward")
+        .expect("declared-range runtime index store lowers to verified Terminal Psi");
+    assert!(
+        terminal
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| machine.blocks.iter())
+            .flat_map(|block| block.operations.iter())
+            .any(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
+            )),
+        "Terminal Psi retains the runtime-indexed store"
+    );
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .and_then(|admitted| admitted.try_into_plan())
+    .expect("verified runtime-indexed store reaches target-neutral Omega");
+
+    let [function] = plan.functions.as_slice() else {
+        panic!("one store function")
+    };
+    let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let u16_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
+    let [index_parameter] = function.parameters.as_slice() else {
+        panic!("one runtime scalar index")
+    };
+    assert_eq!(index_parameter.scalar_type, u64_type);
+    let store = function
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::WriteOnlyIndexedPrimitiveStore {
+                destination,
+                index,
+                value,
+                obligation,
+                ..
+            } => Some((destination, index, value, obligation)),
+            _ => None,
+        })
+        .expect("one runtime-indexed primitive store");
+    assert_eq!(store.0, &function.structural_parameters[0]);
+    assert_eq!(store.0.access, StructuralAccess::MutableBorrow);
+    assert_eq!(store.0.multiplicity, StructuralMultiplicity::Unrestricted);
+    assert_eq!(store.1.value, index_parameter.value);
+    assert_eq!(store.1.scalar_type, u64_type);
+    assert_eq!(store.2.scalar_type, u16_type);
+    assert!(
+        function.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::IntegerConstant {
+                    result,
+                    scalar_type,
+                    value: IntegerValue::Unsigned(17),
+                    ..
+                } if *result == store.2.value && *scalar_type == u16_type
+            )
+        }),
+        "the stored scalar rejoins its exact preceding definition"
+    );
+}
+
+#[test]
 fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
     let source = r#"
         data Sink {}

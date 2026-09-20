@@ -86,6 +86,98 @@ pub(crate) fn emit_assignment(
     })
 }
 
+/// The resolved array-carrier endpoint for a runtime-indexed store: the
+/// retained path stops at the fixed array itself, so its element type is the
+/// store's scalar carrier and the runtime index is a separate operand.
+pub(crate) struct IndexedDestination {
+    pub(crate) place: PlaceId,
+    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    pub(crate) scalar_type: ScalarType,
+}
+
+/// A runtime-indexed store is always a projected write into exclusive
+/// borrowed storage; it never stores the parameter whole.
+pub(crate) fn indexed_parameter_destination(
+    parameter: &StructuralParameterDeclaration,
+    path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<IndexedDestination, LoweringError> {
+    if !matches!(
+        parameter.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) || parameter.multiplicity == StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+    {
+        return unsupported("indexed primitive store parameter lost its exclusive custody");
+    }
+    let (path, scalar_type) = lower_indexed_path(parameter.structural_type, path, types)?;
+    Ok(IndexedDestination {
+        place: parameter.place,
+        path,
+        scalar_type,
+    })
+}
+
+/// Emit a runtime-indexed primitive store: the retained index lowers to the
+/// `u64` coordinate (with the ordinary exact-cast obligation when the carrier
+/// needs conversion), the RHS shares `emit_assignment`'s source evaluation,
+/// and the bounds obligation certifies the checked `index < extent` proof.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_indexed_assignment(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+    destination: IndexedDestination,
+    index: &CheckedScalarExpression,
+    value: &checked_trees::CheckedCallScalarArgument,
+    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
+    source_value_count: usize,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+    calls: &mut CallEmissionContext<'_>,
+) -> Result<OperationKind, LoweringError> {
+    let index = lower_checked_scalar_expression(index)?;
+    if direct_expression_contains_short_circuit(&index) {
+        return unsupported("indexed primitive store index has unexpanded control");
+    }
+    let index = super::emit_byte_index(
+        &index,
+        values,
+        next_value,
+        &mut calls.next_obligation_identity,
+        operations,
+    )?;
+    let value = evaluation.source_value(
+        checked,
+        machine,
+        state,
+        statement_index,
+        CheckedScalarExpressionRole::AssignmentValue,
+        value,
+        source_value_count,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+        calls,
+    )?;
+    if value.scalar_type != destination.scalar_type || !value.qualifications.is_empty() {
+        return unsupported("primitive store RHS differs from its destination carrier");
+    }
+    Ok(OperationKind::WriteOnlyIndexedPrimitiveStore {
+        destination: destination.place,
+        path: destination.path,
+        index,
+        value: value.id,
+        obligation: calls.allocate_requirement()?,
+    })
+}
+
 pub(crate) fn validate_assignment(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
@@ -120,7 +212,7 @@ pub(crate) fn validate_symbol_assignment(
     path: &[CheckedUnitStructuralPathSegment],
     value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
-    use checked_trees::{expression::ExpressionNode, statement::StatementNode};
+    use checked_trees::statement::StatementNode;
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let Some(StatementNode::Assignment(assignment)) = checked
@@ -140,6 +232,112 @@ pub(crate) fn validate_symbol_assignment(
     if !destination.is_valid() || target.root != destination || target.path != path {
         return unsupported("primitive store destination differs from its authored parameter");
     }
+    validate_assignment_value(checked, state_symbol, statement_index, assignment, value)
+}
+
+/// Source custody for a runtime-indexed primitive store. The authored target
+/// is one `Indexed` whose collection resolves to the destination parameter's
+/// retained static path; the retained `AssignmentIndex` binding must carry
+/// exactly the plan's scalar operand, and the RHS shares the ordinary
+/// assignment-value checks.
+pub(crate) fn validate_indexed_assignment(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+    destination: &CheckedUnitStructuralParameterPlan,
+    path: &[CheckedUnitStructuralPathSegment],
+    index: &CheckedScalarExpression,
+    value: &checked_trees::CheckedCallScalarArgument,
+) -> Result<(), LoweringError> {
+    use checked_trees::{expression::ExpressionNode, statement::StatementNode};
+    let (owner, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let Some(StatementNode::Assignment(assignment)) = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index as usize)
+    else {
+        return unsupported("indexed primitive store has no authored assignment");
+    };
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(assignment.target)
+    else {
+        return unsupported("indexed primitive store lost its authored indexed target");
+    };
+    if owner.symbol != machine
+        || matches!(
+            checked.expression_table.expression(indexed.index),
+            ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+        )
+        || !validation::place_has_builtin_coordinates(
+            &checked.typed,
+            owner,
+            Some(state),
+            assignment.target,
+        )
+    {
+        return unsupported("indexed primitive store requires exact builtin indexed custody");
+    }
+    let source = crate::emission::call_source_custody::projected_receivers::store_destination(
+        checked,
+        machine,
+        state_symbol,
+        Some(statement_index as usize),
+        indexed.collection,
+    )?;
+    let parameter = checked
+        .state_parameters(state)
+        .get(destination.position as usize)
+        .ok_or(LoweringError::Unsupported(
+            "indexed primitive store lost its authored destination",
+        ))?;
+    if source.root != parameter.symbol || source.path != path {
+        return unsupported(
+            "indexed primitive store destination differs from its authored parameter",
+        );
+    }
+    let (index_binding, retained_index) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(
+            state_symbol,
+            statement_index,
+            CheckedScalarExpressionRole::AssignmentIndex,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "indexed primitive store lost a scalar source binding",
+        ))?;
+    if index_binding.expression != indexed.index || retained_index != index {
+        return unsupported("indexed primitive store substituted its evaluated index operand");
+    }
+    crate::expression_preparation::source_custody::validate_pure(
+        checked,
+        index_binding,
+        terminal_scalar_type(
+            crate::expression_preparation::source_custody::locate(
+                checked,
+                state_symbol,
+                statement_index,
+                CheckedScalarExpressionRole::AssignmentIndex,
+            )?
+            .primitive_type,
+        )?,
+    )?;
+    validate_assignment_value(checked, state_symbol, statement_index, assignment, value)
+}
+
+/// The authored-RHS custody shared by static and runtime-indexed stores.
+fn validate_assignment_value(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+    assignment: &checked_trees::statement::TableAssignment,
+    value: &checked_trees::CheckedCallScalarArgument,
+) -> Result<(), LoweringError> {
+    use checked_trees::expression::ExpressionNode;
+    let (machine, _state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
     let binding_destination = match checked.expression_table.expression(assignment.target) {
         ExpressionNode::Name(name) => name.symbol,
         _ => symbols::SymbolHandle::invalid(),
@@ -376,13 +574,63 @@ pub(crate) fn emit_value(
 /// Unlike a scalar-field operation this endpoint is the primitive itself, so
 /// an array element needs no synthetic field identity.
 pub(crate) fn lower_path(
-    mut structural_type: StructuralTypeId,
+    structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<
     (
         Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         ScalarType,
+    ),
+    LoweringError,
+> {
+    let (result, structural_type) = walk_path(structural_type, path, types)?;
+    let StructuralTypeShape::PrimitiveScalar(scalar_type) =
+        unique_type(types, structural_type)?.shape
+    else {
+        return unsupported("primitive projection does not end at a primitive scalar");
+    };
+    Ok((result, scalar_type))
+}
+
+/// The static prefix of a runtime-indexed store ends at the fixed array
+/// itself; the runtime index is an operand, never a path segment. The
+/// element must be a primitive scalar — a record or nested-array element
+/// keeps its own store owners.
+fn lower_indexed_path(
+    structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<
+    (
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        ScalarType,
+    ),
+    LoweringError,
+> {
+    let (result, structural_type) = walk_path(structural_type, path, types)?;
+    let StructuralTypeShape::FixedArray { element, .. } =
+        unique_type(types, structural_type)?.shape
+    else {
+        return unsupported("indexed primitive projection does not end at a fixed array");
+    };
+    let StructuralTypeShape::PrimitiveScalar(scalar_type) = unique_type(types, element)?.shape
+    else {
+        return unsupported("indexed primitive projection's element is not a primitive scalar");
+    };
+    Ok((result, scalar_type))
+}
+
+/// Walk literal field/index segments from the destination root, returning the
+/// canonical path and the structural type it selects.
+fn walk_path(
+    mut structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<
+    (
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        StructuralTypeId,
     ),
     LoweringError,
 > {
@@ -434,12 +682,7 @@ pub(crate) fn lower_path(
             }
         };
     }
-    let StructuralTypeShape::PrimitiveScalar(scalar_type) =
-        unique_type(types, structural_type)?.shape
-    else {
-        return unsupported("primitive projection does not end at a primitive scalar");
-    };
-    Ok((result, scalar_type))
+    Ok((result, structural_type))
 }
 
 fn unique_type(

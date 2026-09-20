@@ -6,9 +6,9 @@ use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan}
 mod arithmetic_policies;
 mod borrowed_arrays;
 mod borrowed_records;
+mod byte_view_writes;
 mod call_results;
 mod closed_generic_records;
-mod byte_view_writes;
 mod computations;
 mod record_literal_fields;
 
