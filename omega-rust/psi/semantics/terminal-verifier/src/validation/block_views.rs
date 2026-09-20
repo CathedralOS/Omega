@@ -1,7 +1,7 @@
 //! Exact block-local parameter declarations and simultaneous edge bindings.
 
 use super::{
-    BTreeMap, BTreeSet, BlockId, EdgeId, ModuleError, PlaceId, StructuralAccess,
+    BTreeMap, BTreeSet, BlockId, EdgeId, ModuleError, OperationKind, PlaceId, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
     Terminator,
@@ -248,6 +248,9 @@ pub(super) fn validate_successor(
             // Whole plain records and sums use the same owned parameter move.
             // The constructor establishes its own exact type; a successor may
             // not substitute the selected result's type for an untouched owner.
+            // A trivial affine local is that constructor for its declared
+            // empty-record place: it binds no result row, so the declaration
+            // carries the exact type and the establishment carries custody.
             (super::scalar_case::plain_return_source(module, machine, argument.place)
                 || super::record::plain_return_source(module, machine, argument.place))
                 && machine.blocks.iter().any(|block| {
@@ -263,6 +266,29 @@ pub(super) fn validate_successor(
                             })
                         })
                 })
+                || expected.multiplicity == StructuralMultiplicity::Affine
+                    && expected.qualifications.is_empty()
+                    && expected.projected_qualifications.is_empty()
+                    && machine.structural_places.iter().any(|declaration| {
+                        declaration.id == argument.place
+                            && matches!(
+                                declaration.kind,
+                                StructuralPlaceKind::TrivialAffineLocal {
+                                    structural_type,
+                                    ..
+                                } if structural_type == expected.structural_type
+                            )
+                    })
+                    && machine.blocks.iter().any(|block| {
+                        dominators.dominates(block.id, source_block)
+                            && block.operations.iter().any(|operation| {
+                                matches!(
+                                    operation.kind,
+                                    OperationKind::EstablishTrivialAffineLocal { destination }
+                                        if destination == argument.place
+                                )
+                            })
+                    })
         } else {
             // Shared-borrow parameters were handled by their own lane above.
             false
