@@ -469,3 +469,68 @@ fn ordered_scalar_targets_retain_exact_signatures_across_candidate_order() {
         );
     }
 }
+
+#[test]
+fn borrowed_receiver_scalar_call_admits_ambient_self_target() {
+    let checked = checked(
+        "data Receiver { value: u64; }
+         machine Receiver::inc(&mut self, x: u64) -> u64
+             requires x < 99
+         {
+             (x + 1) + 1
+         }
+         machine Receiver::main(&mut self) {
+             let result: u64 = self.inc(40);
+         }",
+    );
+    let inc = machine_symbol(&checked, "Receiver::inc");
+    let main = machine_symbol(&checked, "Receiver::main");
+    // The callee keeps a complete ordinary body; its borrowed `self` stays
+    // ambient on the attachment carrier instead of owning a plan entry.
+    let callee = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(inc)
+        .expect("scalar callee retains its body plan");
+    assert!(callee.scalar_result.is_some());
+    assert!(callee.structural_parameters.is_empty());
+    assert_eq!(callee.scalar_parameters.len(), 1);
+    // The caller survives pruning only when its scalar target is available.
+    let caller = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(main)
+        .expect("caller survives pruning with its ambient-self scalar callee");
+    let operation = caller
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(operation,
+                CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. }
+                    if *target_machine == inc)
+        })
+        .expect("scalar call to the ambient-self callee");
+    let candidates = checked.facts.flow.terminal_unit_effects.machines.clone();
+    assert!(is_available(
+        &checked.typed,
+        &checked.facts,
+        &candidates,
+        caller,
+        operation
+    ));
+    // Removing the real callee still closes the call fail-closed.
+    let candidates = candidates
+        .iter()
+        .filter(|plan| plan.machine != inc)
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(!is_available(
+        &checked.typed,
+        &checked.facts,
+        &candidates,
+        caller,
+        operation
+    ));
+}

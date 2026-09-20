@@ -7,7 +7,7 @@ use super::{
     CarryPolicy, CheckFacts, CheckedStructuralScalarReturnMachinePlan,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, MachineSupplyMode,
     PermissionEventKind, PrimitiveType, SignatureContractKind, SymbolHandle, TypeReferenceNode,
-    TypedTrees, returns,
+    TypedTrees, is_reference, returns,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::ShapeCollector;
@@ -507,9 +507,23 @@ pub(super) fn available_target(
     }
     // Authored positions partition into dense scalar and structural namespaces;
     // no receiver or claim may disappear while selecting the real callee body.
+    // Two authored positions legitimately own no plan entry here: an erased
+    // binding, and a borrowed `self` the callee leaves ambient on the
+    // attachment carrier instead of retaining as a structural parameter.
+    let receiver_retained = structural.iter().any(|parameter| parameter.is_self);
+    let planned_positions = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            !parameter.relevance.is_erased()
+                && !(parameter.is_self
+                    && !receiver_retained
+                    && is_reference(program, parameter.type_reference))
+        })
+        .count();
     (machine.supply_mode == MachineSupplyMode::CheckedBody
         && state.symbol == *target_state
-        && program.state_parameters(state).len() == scalar.len() + structural.len()
+        && planned_positions == scalar.len() + structural.len()
         && scalar_arguments.len() == scalar.len()
         && scalar_arguments
             .iter()
