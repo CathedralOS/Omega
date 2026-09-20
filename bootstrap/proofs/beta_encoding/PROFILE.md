@@ -8,13 +8,13 @@ the accepted whole-source artifact.
 
 ## Emitter
 
-The marked test entry plus the exact thirty-two-member source closure is 3,434
-lines, 131,270 bytes, SHA-256
-`9e7a7f019c048cf0f00900a26f7ad561af5a4e65a136688ed03222a992a60f3c`.
-Its only admitted input is empty; framing occupies 131,274 bytes. Nonempty input
+The marked test entry plus the exact thirty-two-member source closure is 3,415
+lines, 130,574 bytes, SHA-256
+`94468627ee0b6154f1b95a0dc8b1ad7aa95818332566e11880b13aefd8c49b56`.
+Its only admitted input is empty; framing occupies 130,578 bytes. Nonempty input
 returns status 1 without publishing output. The fixed emitted section is
-116,992 bytes, SHA-256
-`b2ab717f574b39e7ef6986b2ec3a43036a2ca4f5e7512c1dcbe3435b564ebb4b`.
+116,900 bytes, SHA-256
+`6bbdd15abac8060a9c5718f58944f758c5c647c1aae827d92f61231b01c3987c`.
 The test-owned pins bind these exact bytes; they are diagnostic custody checks,
 not arithmetic operations, checker rules, or artifact authority.
 
@@ -41,8 +41,8 @@ closure or entry requires a fresh audit.
 
 The generic checker diagnostic is 63,504 bytes under
 the [existing checking profile](../checker/CHECKING.md).
-The emitted theory has `S=18, C=361, A=40, F=108, W=29247`; its formation work
-estimate is 163,613. Every supplied clause and proof row is checked, including
+The emitted theory has `S=18, C=361, A=40, F=107, W=29224`; its formation work
+estimate is 163,160. Every supplied clause and proof row is checked, including
 ones not used by the final root.
 
 | Positive batch | Proof rows | Required cumulative checking work |
@@ -58,7 +58,7 @@ ones not used by the final root.
 | Twelve separate byte comparisons | 19 | 204..1,284 |
 | Thirty separate word comparisons | 177 | 2,004..10,644 |
 | Encoder lexical predicates | 47 | 913 |
-| Encoder choosers | 19 | 194 |
+| Encoder choosers | 17 | 175 |
 | Encoder state/fragment accessors | 84 | 1,696 |
 | Encoder list operations | 48 | 643 |
 | Source admission | 129 | 2,551 |
@@ -79,7 +79,7 @@ formed-theory stepper that replays ground applications through their stated
 clauses and emits the ordinary certificate rows. Their equations are declared
 in [encoder.py](../../../tests/gamma/beta-encoding-theory/encoder.py); every
 batch is checked by the unchanged generic checker. The largest encoder request
-is 418,248 bytes (the valid end-to-end encode).
+is 418,156 bytes (the valid end-to-end encode).
 
 The [gate's work derivations](../../../tests/gamma/beta-encoding-theory/README.md)
 count clause selection, indexing, every visit/resumption, ground comparisons,
@@ -87,9 +87,9 @@ explicit rules, and final-root checks independently of observed output. A Word
 unfolding includes seventeen template visits, seventeen resumptions, and sixteen
 ground-comparison transitions; none of its eight fields is an unchecked byte copy.
 
-The largest request is 188,980 bytes and the largest ground table has 1,552
+The largest request is 188,888 bytes and the largest ground table has 1,552
 rows, both in the round-trip batch. Including checker source and framing gives
-252,488 bytes. Across these finite families, the generic cumulative pair bound
+252,396 bytes. Across these finite families, the generic cumulative pair bound
 is at most `63752 + 137781 * 48 + 128 = 6677368`, below the selected arena's
 3,422,453,760 pairs. Each vector is a separate evaluator invocation; these figures
 do not claim that unrelated certificates can reset accounting mid-request.
@@ -149,18 +149,24 @@ reproduces the production on any host with python3 — no evaluator seed is
 materialized — pinning the theory reconstruction, both subject identities,
 and every emitted figure so the run fails loudly on drift. Under its
 documented floor-half midpoint partition the owner table measures 22,253
-terms / 532,144 bytes and the complete request 135,485,120 bytes
+terms / 532,144 bytes and the complete request 135,485,028 bytes
 (3,182,974 rows: 1,018,733 unfold / 1,157,751 transitivity / 936,662
 congruence / 69,828 reflexivity / 0 symmetry, maximum premise depth 204,
 ~30 seconds and ~2.3 GiB on Linux x86-64), a ~0.03% table-size difference
 from the first production above, whose ad-hoc partition detail was not
 retained; the same equation derives under both, and both fit the selected
 provisions. The mode also emits the retained-role census the audit needs:
-every proof rule appears except symmetry, 107 of 108 theory functions unfold
-(function 62 never does), 359 of 361 constructors appear in terms (S_EMPTY
-and A_EXHAUSTED do not — this subject has no empty spans and its admission
-never exhausts), and 1,911 of the 2,813 declared clauses appear as unfolding
-premises.
+every proof rule appears except symmetry, all 107 theory functions unfold,
+359 of 361 constructors appear in terms (S_EMPTY and A_EXHAUSTED do not —
+this subject has no empty spans and its admission never exhausts), and
+1,911 of the 2,811 declared clauses appear as unfolding premises. The
+retained-role audit is resolved: symmetry stays as one of the five
+owner-fixed rules; the single never-unfolded member — the TokenClass
+chooser, function 62 — had no clause-body caller and was removed; S_EMPTY
+and A_EXHAUSTED stay as the Source base case and the contract-required
+distinct exhaustion admission; and the unexercised clauses remain because
+function totality over malformed input is part of the complete-theory
+contract.
 The same gap blocks production through the selected chain: the certificate
 exceeded the evaluator's former 16,777,212-byte buffered-output provision;
 the AlphaBootstrapV5 provision is 135,266,304 bytes.

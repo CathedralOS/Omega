@@ -1,4 +1,4 @@
-"""Authored encoder equations over functions 58..108.
+"""Authored encoder equations over functions 58..107.
 
 Every equation is produced by stepping the parsed emitted theory, not by
 reading checker output or a Beta assembler.  The stated right side is a
@@ -109,133 +109,131 @@ def _predicates(v):
 def _choosers(v):
     s = v.s
     t_dw, t_word = C(s, T_DW), C(s, T_WORD, s.word(0))
-    v.equation(F(s, 62, C(s, TRUE), t_dw, t_word), t_dw)
-    v.equation(F(s, 62, C(s, FALSE), t_dw, t_word), t_word)
-    v.equation(F(s, 63, C(s, TRUE), C(s, D_R1), C(s, D_BAD)), C(s, D_R1))
-    v.equation(F(s, 93, C(s, FALSE), C(s, TRUE), C(s, FALSE)),
+    v.equation(F(s, 62, C(s, TRUE), C(s, D_R1), C(s, D_BAD)), C(s, D_R1))
+    v.equation(F(s, 92, C(s, FALSE), C(s, TRUE), C(s, FALSE)),
                C(s, FALSE))
-    v.equation(F(s, 96, C(s, TRUE), C(s, R_INVALID), C(s, R_EXHAUSTED)),
+    v.equation(F(s, 95, C(s, TRUE), C(s, R_INVALID), C(s, R_EXHAUSTED)),
                C(s, R_INVALID))
-    v.equation(F(s, 97, C(s, ST_OK), C(s, R_INVALID), C(s, R_EXHAUSTED),
+    v.equation(F(s, 96, C(s, ST_OK), C(s, R_INVALID), C(s, R_EXHAUSTED),
                  C(s, R_SUCCESS, s.intern(1, NIL))), C(s, R_INVALID))
-    v.equation(F(s, 97, C(s, ST_INVALID), C(s, R_INVALID),
+    v.equation(F(s, 96, C(s, ST_INVALID), C(s, R_INVALID),
                  C(s, R_EXHAUSTED), C(s, R_SUCCESS, s.intern(1, NIL))),
                C(s, R_EXHAUSTED))
-    v.equation(F(s, 97, C(s, ST_EXHAUSTED), C(s, R_INVALID),
+    v.equation(F(s, 96, C(s, ST_EXHAUSTED), C(s, R_INVALID),
                  C(s, R_EXHAUSTED), C(s, R_SUCCESS, s.intern(1, NIL))),
                C(s, R_SUCCESS, s.intern(1, NIL)))
     a, b = sr(s, state(s), C(s, F_EMPTY)), sr(s, state(s, comment=True),
                                             C(s, F_EMPTY))
-    v.equation(F(s, 64, C(s, TRUE), a, b), a)
-    v.equation(F(s, 64, C(s, FALSE), a, b), b)
-    v.equation(F(s, 65, C(s, EQUAL), a, b), a)
-    v.equation(F(s, 65, C(s, LESS), a, b), b)
-    v.equation(F(s, 66, C(s, GREATER), a, b), a)
-    v.equation(F(s, 66, C(s, EQUAL), a, b), b)
-    v.equation(F(s, 67, C(s, GREATER), C(s, R_EXHAUSTED),
+    v.equation(F(s, 63, C(s, TRUE), a, b), a)
+    v.equation(F(s, 63, C(s, FALSE), a, b), b)
+    v.equation(F(s, 64, C(s, EQUAL), a, b), a)
+    v.equation(F(s, 64, C(s, LESS), a, b), b)
+    v.equation(F(s, 65, C(s, GREATER), a, b), a)
+    v.equation(F(s, 65, C(s, EQUAL), a, b), b)
+    v.equation(F(s, 66, C(s, GREATER), C(s, R_EXHAUSTED),
                  C(s, R_SUCCESS, s.intern(1, NIL))), C(s, R_EXHAUSTED))
-    v.equation(F(s, 67, C(s, LESS), C(s, R_EXHAUSTED),
+    v.equation(F(s, 66, C(s, LESS), C(s, R_EXHAUSTED),
                  C(s, R_SUCCESS, s.intern(1, NIL))),
                C(s, R_SUCCESS, s.intern(1, NIL)))
     admitted, refused = C(s, A_ADMITTED, s.word(7)), C(s, A_REJECTED)
-    v.equation(F(s, 68, C(s, TRUE), admitted, refused), admitted)
-    v.equation(F(s, 68, C(s, FALSE), admitted, refused), refused)
+    v.equation(F(s, 67, C(s, TRUE), admitted, refused), admitted)
+    v.equation(F(s, 67, C(s, FALSE), admitted, refused), refused)
     six = [sr(s, state(s, expect=e), C(s, F_EMPTY))
            for e in (E_READY, E_R, E_X, E_RR, E_RX, E_RRX)]
-    v.equation(F(s, 100, s.intern(1, E_RX), *six), six[4])
+    v.equation(F(s, 99, s.intern(1, E_RX), *six), six[4])
 
 
 def _accessors(v):
     s = v.s
     v.equation(F(s, 61, s.intern(1, NIL)), C(s, TRUE))
     v.equation(F(s, 61, s.byte_list([5])), C(s, FALSE))
-    v.equation(F(s, 69, C(s, WORDVALUE, s.word(9))),
+    v.equation(F(s, 68, C(s, WORDVALUE, s.word(9))),
                C(s, A_ADMITTED, s.word(9)))
-    v.equation(F(s, 69, C(s, OVERFLOW)), C(s, A_EXHAUSTED))
+    v.equation(F(s, 68, C(s, OVERFLOW)), C(s, A_EXHAUSTED))
     st = state(s, comment=True, expect=E_RRX, count=5, status=ST_INVALID,
                limit=99)
-    v.equation(F(s, 86, st), state(s, comment=True, expect=E_RRX, count=5,
+    v.equation(F(s, 85, st), state(s, comment=True, expect=E_RRX, count=5,
                                   status=ST_INVALID, limit=99))
     st2 = state(s, expect=E_X, count=2, limit=8)
-    v.equation(F(s, 86, st2), state(s, comment=True, expect=E_X, count=2,
+    v.equation(F(s, 85, st2), state(s, comment=True, expect=E_X, count=2,
                                    limit=8))
-    v.equation(F(s, 87, sr(s, st2, C(s, F_CHUNK, s.byte_list([1])))),
+    v.equation(F(s, 86, sr(s, st2, C(s, F_CHUNK, s.byte_list([1])))),
                sr(s, state(s, comment=True, expect=E_X, count=2, limit=8),
                   C(s, F_CHUNK, s.byte_list([1]))))
-    v.equation(F(s, 88, C(s, WORDVALUE, s.word(1))),
+    v.equation(F(s, 87, C(s, WORDVALUE, s.word(1))),
                C(s, WORDVALUE, s.word(2)))
-    v.equation(F(s, 88, C(s, OVERFLOW)), C(s, OVERFLOW))
-    v.equation(F(s, 94, C(s, ST_OK)), C(s, TRUE))
-    v.equation(F(s, 94, C(s, ST_INVALID)), C(s, FALSE))
-    v.equation(F(s, 94, C(s, ST_EXHAUSTED)), C(s, FALSE))
-    v.equation(F(s, 95, s.intern(1, E_READY)), C(s, TRUE))
-    v.equation(F(s, 95, s.intern(1, E_RX)), C(s, FALSE))
+    v.equation(F(s, 87, C(s, OVERFLOW)), C(s, OVERFLOW))
+    v.equation(F(s, 93, C(s, ST_OK)), C(s, TRUE))
+    v.equation(F(s, 93, C(s, ST_INVALID)), C(s, FALSE))
+    v.equation(F(s, 93, C(s, ST_EXHAUSTED)), C(s, FALSE))
+    v.equation(F(s, 94, s.intern(1, E_READY)), C(s, TRUE))
+    v.equation(F(s, 94, s.intern(1, E_RX)), C(s, FALSE))
     pair = sr(s, st, C(s, F_CHUNK, s.byte_list([7])))
-    v.equation(F(s, 98, pair), st)
-    v.equation(F(s, 99, pair), C(s, F_CHUNK, s.byte_list([7])))
+    v.equation(F(s, 97, pair), st)
+    v.equation(F(s, 98, pair), C(s, F_CHUNK, s.byte_list([7])))
 
 
 def _lists(v):
     s = v.s
-    v.equation(F(s, 70, s.intern(1, NIL), s.byte_list([1, 2, 3])),
+    v.equation(F(s, 69, s.intern(1, NIL), s.byte_list([1, 2, 3])),
                s.byte_list([3, 2, 1]))
-    v.equation(F(s, 70, s.byte_list([9]), s.byte_list([1])),
+    v.equation(F(s, 69, s.byte_list([9]), s.byte_list([1])),
                s.byte_list([1, 9]))
-    v.equation(F(s, 70, s.intern(1, NIL), s.intern(1, NIL)),
+    v.equation(F(s, 69, s.intern(1, NIL), s.intern(1, NIL)),
                s.intern(1, NIL))
-    v.equation(F(s, 71, s.byte_list([1, 2]), s.byte_list([9])),
+    v.equation(F(s, 70, s.byte_list([1, 2]), s.byte_list([9])),
                s.byte_list([1, 2, 9]))
-    v.equation(F(s, 71, s.intern(1, NIL), s.byte_list([7])),
+    v.equation(F(s, 70, s.intern(1, NIL), s.byte_list([7])),
                s.byte_list([7]))
     frag = C(s, F_JOIN, C(s, F_CHUNK, s.byte_list([1])),
              C(s, F_CHUNK, s.byte_list([2])))
-    v.equation(F(s, 72, frag, s.intern(1, NIL)), s.byte_list([1, 2]))
-    v.equation(F(s, 72, C(s, F_EMPTY), s.byte_list([9])), s.byte_list([9]))
-    v.equation(F(s, 72, C(s, F_CHUNK, s.byte_list([1, 2])),
+    v.equation(F(s, 71, frag, s.intern(1, NIL)), s.byte_list([1, 2]))
+    v.equation(F(s, 71, C(s, F_EMPTY), s.byte_list([9])), s.byte_list([9]))
+    v.equation(F(s, 71, C(s, F_CHUNK, s.byte_list([1, 2])),
                  s.byte_list([3])), s.byte_list([1, 2, 3]))
 
 
 def _admission(v):
     s = v.s
     admitted = C(s, A_ADMITTED, s.word(0))
-    v.equation(F(s, 73, s.byte(32), admitted), C(s, A_ADMITTED, s.word(1)))
-    v.equation(F(s, 73, s.byte(0), admitted), C(s, A_REJECTED))
-    v.equation(F(s, 73, s.byte(32), C(s, A_REJECTED)), C(s, A_REJECTED))
-    v.equation(F(s, 73, s.byte(32), C(s, A_EXHAUSTED)), C(s, A_EXHAUSTED))
-    v.equation(F(s, 73, s.byte(127), admitted), C(s, A_REJECTED))
-    v.equation(F(s, 74, admitted, s.intern(1, S_EMPTY)), admitted)
+    v.equation(F(s, 72, s.byte(32), admitted), C(s, A_ADMITTED, s.word(1)))
+    v.equation(F(s, 72, s.byte(0), admitted), C(s, A_REJECTED))
+    v.equation(F(s, 72, s.byte(32), C(s, A_REJECTED)), C(s, A_REJECTED))
+    v.equation(F(s, 72, s.byte(32), C(s, A_EXHAUSTED)), C(s, A_EXHAUSTED))
+    v.equation(F(s, 72, s.byte(127), admitted), C(s, A_REJECTED))
+    v.equation(F(s, 73, admitted, s.intern(1, S_EMPTY)), admitted)
     pair = s.source(b" !")
-    v.equation(F(s, 74, admitted, pair), C(s, A_ADMITTED, s.word(2)))
-    v.equation(F(s, 74, admitted, s.source(bytes([0]))),
+    v.equation(F(s, 73, admitted, pair), C(s, A_ADMITTED, s.word(2)))
+    v.equation(F(s, 73, admitted, s.source(bytes([0]))),
                C(s, A_REJECTED))
 
 
 def _hexadecimal(v):
     s = v.s
-    v.equation(F(s, 75, s.word(0), nib(s, 5)), s.word(5))
-    v.equation(F(s, 75, s.word(0x0123456789ABCDEF), nib(s, 0)),
+    v.equation(F(s, 74, s.word(0), nib(s, 5)), s.word(5))
+    v.equation(F(s, 74, s.word(0x0123456789ABCDEF), nib(s, 0)),
                s.word(0x123456789ABCDEF0))
-    v.equation(F(s, 75, s.word(0xF123456789ABCDEF), nib(s, 5)),
+    v.equation(F(s, 74, s.word(0xF123456789ABCDEF), nib(s, 5)),
                s.word(0x123456789ABCDEF5))
-    v.equation(F(s, 76, C(s, HEX, nib(s, 3))), C(s, D_RD1, nib(s, 3)))
-    v.equation(F(s, 76, C(s, NO_HEX)), C(s, D_BAD))
-    v.equation(F(s, 77, C(s, HEX, nib(s, 9))),
+    v.equation(F(s, 75, C(s, HEX, nib(s, 3))), C(s, D_RD1, nib(s, 3)))
+    v.equation(F(s, 75, C(s, NO_HEX)), C(s, D_BAD))
+    v.equation(F(s, 76, C(s, HEX, nib(s, 9))),
                C(s, D_REG2, nib(s, 0xE), nib(s, 9)))
-    v.equation(F(s, 77, C(s, NO_HEX)), C(s, D_BAD))
-    v.equation(F(s, 78, C(s, HEX, nib(s, 5)), nib(s, 1)),
+    v.equation(F(s, 76, C(s, NO_HEX)), C(s, D_BAD))
+    v.equation(F(s, 77, C(s, HEX, nib(s, 5)), nib(s, 1)),
                C(s, D_REG2, nib(s, 1), nib(s, 5)))
-    v.equation(F(s, 78, C(s, NO_HEX), nib(s, 1)), C(s, D_BAD))
-    v.equation(F(s, 79, C(s, HEX, nib(s, 0))),
+    v.equation(F(s, 77, C(s, NO_HEX), nib(s, 1)), C(s, D_BAD))
+    v.equation(F(s, 78, C(s, HEX, nib(s, 0))),
                C(s, D_ZGO, s.word(0), s.byte(1)))
-    v.equation(F(s, 79, C(s, NO_HEX)), C(s, D_BAD))
-    v.equation(F(s, 80, C(s, HEX, nib(s, 2)), s.byte(ord('2')),
+    v.equation(F(s, 78, C(s, NO_HEX)), C(s, D_BAD))
+    v.equation(F(s, 79, C(s, HEX, nib(s, 2)), s.byte(ord('2')),
                  s.word(1), s.byte(1)),
                C(s, D_ZGO, s.word(0x12), s.byte(2)))
-    v.equation(F(s, 80, C(s, HEX, nib(s, 2)), s.byte(ord('2')),
+    v.equation(F(s, 79, C(s, HEX, nib(s, 2)), s.byte(ord('2')),
                  s.word(1), s.byte(16)), C(s, D_BAD))
-    v.equation(F(s, 80, C(s, NO_HEX), s.byte(ord(':')), s.word(7),
+    v.equation(F(s, 79, C(s, NO_HEX), s.byte(ord(':')), s.word(7),
                  s.byte(3)), C(s, D_ZDONE, s.word(7)))
-    v.equation(F(s, 80, C(s, NO_HEX), s.byte(ord('z')), s.word(7),
+    v.equation(F(s, 79, C(s, NO_HEX), s.byte(ord('z')), s.word(7),
                  s.byte(3)), C(s, D_BAD))
 
 
@@ -268,30 +266,30 @@ def _dfa_step(v):
         (D_W4, 'e', C(s, D_DONE, mnemonic(s, 0x12, E_R))),
     )
     for state_ctor, char, expected in cases:
-        v.equation(F(s, 81, s.intern(1, state_ctor), s.byte(ord(char))),
+        v.equation(F(s, 80, s.intern(1, state_ctor), s.byte(ord(char))),
                    expected)
-    v.equation(F(s, 81, C(s, D_DONE, C(s, T_DW)), s.byte(ord('a'))),
+    v.equation(F(s, 80, C(s, D_DONE, C(s, T_DW)), s.byte(ord('a'))),
                C(s, D_BAD))
-    v.equation(F(s, 81, C(s, D_RD1, nib(s, 7)), s.byte(ord('a'))),
+    v.equation(F(s, 80, C(s, D_RD1, nib(s, 7)), s.byte(ord('a'))),
                C(s, D_REG2, nib(s, 7), nib(s, 0xA)))
-    v.equation(F(s, 81, C(s, D_RD1, nib(s, 7)), s.byte(ord('z'))),
+    v.equation(F(s, 80, C(s, D_RD1, nib(s, 7)), s.byte(ord('z'))),
                C(s, D_BAD))
-    v.equation(F(s, 81, C(s, D_ZGO, s.word(0xF), s.byte(1)),
+    v.equation(F(s, 80, C(s, D_ZGO, s.word(0xF), s.byte(1)),
                  s.byte(ord('5'))),
                C(s, D_ZGO, s.word(0xF5), s.byte(2)))
-    v.equation(F(s, 81, C(s, D_ZGO, s.word(0xF), s.byte(1)),
+    v.equation(F(s, 80, C(s, D_ZGO, s.word(0xF), s.byte(1)),
                  s.byte(ord(':'))), C(s, D_ZDONE, s.word(0xF)))
 
 
 def _dfa_fold_end(v):
     s = v.s
-    v.equation(F(s, 82, s.intern(1, D_I1), s.byte_list(b'mm')),
+    v.equation(F(s, 81, s.intern(1, D_I1), s.byte_list(b'mm')),
                C(s, D_DONE, mnemonic(s, 0x01, E_RX)))
-    v.equation(F(s, 82, s.intern(1, D_R1), s.byte_list(b'et')),
+    v.equation(F(s, 81, s.intern(1, D_R1), s.byte_list(b'et')),
                C(s, D_DONE, mnemonic(s, 0x14, E_READY)))
-    v.equation(F(s, 82, s.intern(1, D_LOD), s.byte_list(b'b')),
+    v.equation(F(s, 81, s.intern(1, D_LOD), s.byte_list(b'b')),
                C(s, D_LODB))
-    v.equation(F(s, 82, C(s, D_ZGO, s.word(9), s.byte(1)),
+    v.equation(F(s, 81, C(s, D_ZGO, s.word(9), s.byte(1)),
                  s.intern(1, NIL)), C(s, D_ZGO, s.word(9), s.byte(1)))
     for state_ctor, expected in (
         (D_DONE, None),
@@ -325,7 +323,7 @@ def _dfa_fold_end(v):
             expected = C(s, T_ASSERT, s.word(0x40))
         else:
             arg = s.intern(1, state_ctor)
-        v.equation(F(s, 83, arg), expected)
+        v.equation(F(s, 82, arg), expected)
 
 
 def _classify(v):
@@ -334,8 +332,8 @@ def _classify(v):
                            (ord('a'), D_A1), (ord('z'), D_BAD),
                            (ord(';'), D_BAD), (ord(' '), D_BAD),
                            (ord('w'), D_W1), (ord('j'), D_J1)):
-        v.equation(F(s, 84, s.byte(char)), s.intern(1, expected))
-    v.equation(F(s, 85, s.intern(1, NIL)), C(s, T_EMPTY))
+        v.equation(F(s, 83, s.byte(char)), s.intern(1, expected))
+    v.equation(F(s, 84, s.intern(1, NIL)), C(s, T_EMPTY))
     tokens = (
         (b'r5', C(s, T_REGISTER, s.byte(5))),
         (b'rff', C(s, T_REGISTER, s.byte(0xFF))),
@@ -356,7 +354,7 @@ def _classify(v):
         (b'read', mnemonic(s, 0x11, E_R)),
     )
     for spelling, expected in tokens:
-        v.equation(F(s, 85, s.byte_list(spelling)), expected)
+        v.equation(F(s, 84, s.byte_list(spelling)), expected)
 
 
 def _emitting(v):
@@ -366,40 +364,40 @@ def _emitting(v):
     #                 limit, fragment)
     kept = sr(s, state(s, expect=E_R, count=1, limit=8),
               C(s, F_JOIN, frag, C(s, F_CHUNK, s.byte_list([7]))))
-    v.equation(F(s, 89, C(s, WORDVALUE, s.word(1)), s.byte(7),
+    v.equation(F(s, 88, C(s, WORDVALUE, s.word(1)), s.byte(7),
                  s.intern(1, E_R), s.intern(1, FALSE),
                  s.intern(1, E_READY), s.word(0), s.intern(1, ST_OK),
                  s.word(8), frag), kept)
     over_limit = sr(s, state(s, count=0, status=ST_EXHAUSTED,
                            limit=0), frag)
-    v.equation(F(s, 89, C(s, WORDVALUE, s.word(1)), s.byte(7),
+    v.equation(F(s, 88, C(s, WORDVALUE, s.word(1)), s.byte(7),
                  s.intern(1, E_R), s.intern(1, FALSE),
                  s.intern(1, E_READY), s.word(0), s.intern(1, ST_OK),
                  s.word(0), frag), over_limit)
     stuck = sr(s, state(s, expect=E_READY, count=0, status=ST_EXHAUSTED,
                         limit=8), frag)
-    v.equation(F(s, 89, C(s, OVERFLOW), s.byte(7), s.intern(1, E_R),
+    v.equation(F(s, 88, C(s, OVERFLOW), s.byte(7), s.intern(1, E_R),
                  s.intern(1, FALSE), s.intern(1, E_READY), s.word(0),
                  s.intern(1, ST_EXHAUSTED), s.word(8), frag), stuck)
     # emit_byte(7, E_R, state, fragment) delegates to emit_byte_count.
     st = state(s, expect=E_X, count=0, limit=8)
-    v.equation(F(s, 90, s.byte(7), s.intern(1, E_R), st, frag), kept)
+    v.equation(F(s, 89, s.byte(7), s.intern(1, E_R), st, frag), kept)
     # emit_word_count and emit_word emit the eight little-endian bytes.
     word_frag = C(s, F_JOIN, frag,
                   C(s, F_CHUNK,
                     s.byte_list([0x22, 0x11, 0, 0, 0, 0, 0, 0])))
-    v.equation(F(s, 91, C(s, WORDVALUE, s.word(8)), s.word(0x1122),
+    v.equation(F(s, 90, C(s, WORDVALUE, s.word(8)), s.word(0x1122),
                  s.intern(1, E_READY), s.intern(1, FALSE),
                  s.intern(1, E_X), s.word(0), s.intern(1, ST_OK),
                  s.word(8), frag),
                sr(s, state(s, count=8, limit=8), word_frag))
-    v.equation(F(s, 91, C(s, WORDVALUE, s.word(9)), s.word(0x1122),
+    v.equation(F(s, 90, C(s, WORDVALUE, s.word(9)), s.word(0x1122),
                  s.intern(1, E_READY), s.intern(1, FALSE),
                  s.intern(1, E_X), s.word(0), s.intern(1, ST_OK),
                  s.word(8), frag),
                sr(s, state(s, expect=E_X, count=0, status=ST_EXHAUSTED,
                            limit=8), frag))
-    v.equation(F(s, 92, s.word(0x1122), s.intern(1, E_READY), st, frag),
+    v.equation(F(s, 91, s.word(0x1122), s.intern(1, E_READY), st, frag),
                sr(s, state(s, count=8, limit=8), word_frag))
 
 
@@ -407,7 +405,7 @@ def _dispatch(v):
     s = v.s
     # dispatch(comment, expect, count, status, limit, TokenClass)
     def disp(expect, count, token, status=ST_OK, limit=8):
-        return F(s, 101, s.intern(1, FALSE), s.intern(1, expect),
+        return F(s, 100, s.intern(1, FALSE), s.intern(1, expect),
                  s.word(count), s.intern(1, status), s.word(limit), token)
     cleared = lambda **kw: state(s, limit=8, **kw)
     # dw only at Ready; it awaits a word and emits nothing itself.
@@ -457,37 +455,37 @@ def _flush_scan(v):
     s = v.s
     # flush on an empty pending token returns the state with no fragment.
     st = state(s, count=3, limit=8)
-    v.equation(F(s, 102, st), sr(s, st, C(s, F_EMPTY)))
+    v.equation(F(s, 101, st), sr(s, st, C(s, F_EMPTY)))
     # flush of a pending 'ret' in Ready emits its opcode byte.
     pending = s.byte_list(b'ter')  # stored reversed
     st2 = state(s, pending=pending, count=0, limit=8)
-    v.equation(F(s, 102, st2),
+    v.equation(F(s, 101, st2),
                sr(s, state(s, count=1, limit=8),
                   C(s, F_JOIN, C(s, F_EMPTY),
                     C(s, F_CHUNK, s.byte_list([0x14])))))
     # scan_byte: separator flushes; comment swallows; others push.
-    v.equation(F(s, 103, st, s.byte(ord(' '))), sr(s, st, C(s, F_EMPTY)))
+    v.equation(F(s, 102, st, s.byte(ord(' '))), sr(s, st, C(s, F_EMPTY)))
     st_tok = state(s, pending=s.byte_list(b'r'), count=3, limit=8)
-    v.equation(F(s, 103, st_tok, s.byte(ord('5'))),
+    v.equation(F(s, 102, st_tok, s.byte(ord('5'))),
                sr(s, state(s, pending=s.byte_list(b'5r'), count=3,
                            limit=8), C(s, F_EMPTY)))
     st_ret = state(s, pending=s.byte_list(b'ter'), count=3, limit=8)
-    v.equation(F(s, 103, st_ret, s.byte(ord(';'))),
+    v.equation(F(s, 102, st_ret, s.byte(ord(';'))),
                sr(s, state(s, comment=True, count=4, limit=8),
                   C(s, F_JOIN, C(s, F_EMPTY),
                     C(s, F_CHUNK, s.byte_list([0x14])))))
     st_c = state(s, comment=True, count=4, limit=8)
-    v.equation(F(s, 103, st_c, s.byte(ord('x'))),
+    v.equation(F(s, 102, st_c, s.byte(ord('x'))),
                sr(s, st_c, C(s, F_EMPTY)))
-    v.equation(F(s, 103, st_c, s.byte(10)),
+    v.equation(F(s, 102, st_c, s.byte(10)),
                sr(s, state(s, count=4, limit=8), C(s, F_EMPTY)))
     st_bad = state(s, status=ST_INVALID, count=4, limit=8)
-    v.equation(F(s, 103, st_bad, s.byte(ord(' '))),
+    v.equation(F(s, 102, st_bad, s.byte(ord(' '))),
                sr(s, st_bad, C(s, F_EMPTY)))
     # scan threads one state across a Join in source order.
     two = C(s, S_JOIN, C(s, S_LEAF, s.byte(ord('r'))),
             C(s, S_LEAF, s.byte(ord('5'))))
-    v.equation(F(s, 104, state(s, limit=8), two),
+    v.equation(F(s, 103, state(s, limit=8), two),
                sr(s, state(s, pending=s.byte_list(b'5r'), limit=8),
                   C(s, F_JOIN, C(s, F_EMPTY), C(s, F_EMPTY))))
 
@@ -495,34 +493,34 @@ def _flush_scan(v):
 def _finish(v):
     s = v.s
     empty = C(s, F_EMPTY)
-    v.equation(F(s, 105, state(s, count=1, limit=8),
+    v.equation(F(s, 104, state(s, count=1, limit=8),
                  C(s, F_CHUNK, s.byte_list([0x14]))),
                C(s, R_SUCCESS, s.byte_list([0x14])))
-    v.equation(F(s, 105, state(s, expect=E_RX, count=1, limit=8),
+    v.equation(F(s, 104, state(s, expect=E_RX, count=1, limit=8),
                  C(s, F_CHUNK, s.byte_list([0x14]))), C(s, R_INVALID))
-    v.equation(F(s, 105, state(s, count=1, status=ST_INVALID, limit=8),
+    v.equation(F(s, 104, state(s, count=1, status=ST_INVALID, limit=8),
                  empty), C(s, R_INVALID))
-    v.equation(F(s, 105, state(s, count=1, status=ST_EXHAUSTED, limit=8),
+    v.equation(F(s, 104, state(s, count=1, status=ST_EXHAUSTED, limit=8),
                  empty), C(s, R_EXHAUSTED))
     scanned = sr(s, state(s, pending=s.byte_list(b'ter'), limit=8),
                  C(s, F_EMPTY))
-    v.equation(F(s, 106, scanned),
+    v.equation(F(s, 105, scanned),
                C(s, R_SUCCESS, s.byte_list([0x14])))
     admitted0 = C(s, A_ADMITTED, s.word(0))
-    v.equation(F(s, 107, C(s, A_REJECTED), s.intern(1, S_EMPTY),
+    v.equation(F(s, 106, C(s, A_REJECTED), s.intern(1, S_EMPTY),
                  s.word(0), s.word(0)), C(s, R_INVALID))
-    v.equation(F(s, 107, C(s, A_EXHAUSTED), s.intern(1, S_EMPTY),
+    v.equation(F(s, 106, C(s, A_EXHAUSTED), s.intern(1, S_EMPTY),
                  s.word(0), s.word(0)), C(s, R_EXHAUSTED))
-    v.equation(F(s, 107, admitted0, s.intern(1, S_EMPTY), s.word(0),
+    v.equation(F(s, 106, admitted0, s.intern(1, S_EMPTY), s.word(0),
                  s.word(0)), C(s, R_SUCCESS, s.intern(1, NIL)))
-    v.equation(F(s, 107, C(s, A_ADMITTED, s.word(1)),
+    v.equation(F(s, 106, C(s, A_ADMITTED, s.word(1)),
                  s.intern(1, S_EMPTY), s.word(0), s.word(0)),
                C(s, R_EXHAUSTED))
 
 
 def _encode_positive(v):
     s = v.s
-    encode = lambda src, sl, ol: F(s, 108, s.source(src), s.word(sl),
+    encode = lambda src, sl, ol: F(s, 107, s.source(src), s.word(sl),
                                    s.word(ol))
     success = lambda data: C(s, R_SUCCESS, s.byte_list(data))
     v.equation(encode(b'', 0, 0), C(s, R_SUCCESS, s.intern(1, NIL)))
@@ -540,7 +538,7 @@ def _encode_positive(v):
 
 def _encode_negative(v):
     s = v.s
-    encode = lambda src, sl, ol: F(s, 108, s.source(src), s.word(sl),
+    encode = lambda src, sl, ol: F(s, 107, s.source(src), s.word(sl),
                                    s.word(ol))
     v.equation(encode(bytes([0]), 1, 0), C(s, R_INVALID))
     v.equation(encode(b'zz', 2, 0), C(s, R_INVALID))
@@ -572,10 +570,12 @@ GROUPS = (
 )
 
 
-# Exact checker work observations, pinned by running each request once.
+# Exact checker work observations, pinned by running each request once;
+# `python3 worksim.py` re-derives each figure from the checker source's
+# charging model and fails on any divergence.
 WORK = {
     "encoder_predicates": 913,
-    "encoder_choosers": 194,
+    "encoder_choosers": 175,
     "encoder_accessors": 1696,
     "encoder_lists": 643,
     "encoder_admission": 2551,

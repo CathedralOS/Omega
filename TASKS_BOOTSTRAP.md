@@ -165,13 +165,16 @@ prerequisite to every lower-rung milestone.
   - Check the full certificate, and the full-subject mutations the acceptance
     document lists, under the exact profile.
   - Show that each retained checker rule and encoding helper has a role in
-    that certificate, and remove the rest. The gate's census supplies the
-    certificate-level evidence: every rule except symmetry appears, 107 of
-    108 theory functions unfold (function 62 never does), 359 of 361
-    constructors appear in terms (S_EMPTY and A_EXHAUSTED do not), and 1,911
-    of the 2,813 declared clauses appear as unfolding premises; which of the
-    unexercised members are retained for generality versus removed is the
-    open decision.
+    that certificate, and remove the rest. The audit is resolved: every
+    rule except symmetry appears (symmetry stays as one of the five
+    owner-fixed rules), all 107 theory functions unfold after removing the
+    TokenClass chooser — the only member with no caller in any clause body,
+    so no subject can ever unfold it — with functions 63..108 renumbered
+    down, 359 of 361 constructors appear in terms (S_EMPTY and A_EXHAUSTED
+    stay as the Source base case and the contract-required distinct
+    exhaustion admission), and 1,911 of the 2,811 declared clauses appear
+    as unfolding premises with the unexercised remainder retained for
+    function totality on malformed input.
 
   Acceptance: the full certificate checks under the exact
   [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with

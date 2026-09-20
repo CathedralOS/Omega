@@ -248,8 +248,8 @@ sizes and elapsed times are printed per vector; none establishes full-certificat
 size or runtime. This gate proves only these finite equations under the complete
 emitted theory; generic formation checks every encoder clause on every request.
 
-The [encoder fixtures](encoder.py) now also exercise encoder functions 58..108
-directly: 200 equations across fifteen batches covering the lexical predicates,
+The [encoder fixtures](encoder.py) now also exercise encoder functions 58..107
+directly: 198 equations across fifteen batches covering the lexical predicates,
 choosers, state/fragment accessors, list operations, admission, hexadecimal
 parsing, the token automaton's steps and folds, classification, emission,
 dispatch, scan flush and finalization, and two tiny end-to-end `encode` calls

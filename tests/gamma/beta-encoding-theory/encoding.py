@@ -290,7 +290,7 @@ def _letter_chain(r, byte_row, steps):
         else:
             target_row = r.const(target)
         cond = r.fapp(60, byte_row, r.byte(letter))
-        node = r.fapp(63, cond, target_row, node)
+        node = r.fapp(62, cond, target_row, node)
     return node
 
 
@@ -315,7 +315,7 @@ def _emit_count_body(r, chunk_fn):
     kept = r.capp(STATE_C, comment, pending, nxt, new_count, status, limit)
     grown = r.capp(F_JOIN, fragment, chunk_fn(r, emitted_value))
     kept_result = r.capp(SR_C, kept, grown)
-    return r.fapp(66, compared, exhausted_result, kept_result)
+    return r.fapp(65, compared, exhausted_result, kept_result)
 
 
 def _emit_count_overflow(r):
@@ -331,7 +331,7 @@ def _emit_count_overflow(r):
 
 
 def new_functions():
-    """Function declarations 58..108 in exact identity order."""
+    """Function declarations 58..107 in exact identity order."""
     out = {}
 
     # 58 ordering_is_equal, 59 ordering_is_less: Ordering -> Bool.
@@ -349,89 +349,88 @@ def new_functions():
     out[61] = _fn(BOOL, (BYTELIST,),
                   (_const_clause(NIL, TRUE_), _const_clause(CONS, FALSE_)))
 
-    # 62..68 result selection helpers: the condition is never evaluated.
-    out[62] = _choose_bool(TOKENCLASS)                              # tokclass
-    out[63] = _choose_bool(DSTATE)                                  # dstate
-    out[64] = _choose_bool(SCANRESULT)                              # scan result
-    out[65] = _choose_order(SCANRESULT, {LESS: 2, EQUAL: 1, GREATER: 2})
-    out[66] = _choose_order(SCANRESULT, {LESS: 2, EQUAL: 2, GREATER: 1})
-    out[67] = _choose_order(ENCODERESULT, {LESS: 2, EQUAL: 2, GREATER: 1})
-    out[68] = _choose_bool(ADMISSION)                               # admission
+    # 62..67 result selection helpers: the condition is never evaluated.
+    out[62] = _choose_bool(DSTATE)                                  # dstate
+    out[63] = _choose_bool(SCANRESULT)                              # scan result
+    out[64] = _choose_order(SCANRESULT, {LESS: 2, EQUAL: 1, GREATER: 2})
+    out[65] = _choose_order(SCANRESULT, {LESS: 2, EQUAL: 2, GREATER: 1})
+    out[66] = _choose_order(ENCODERESULT, {LESS: 2, EQUAL: 2, GREATER: 1})
+    out[67] = _choose_bool(ADMISSION)                               # admission
 
-    # 69 adm_of_word(WordResult) -> Admission: successor overflow exhausts.
+    # 68 adm_of_word(WordResult) -> Admission: successor overflow exhausts.
     r = Rows()
     value = r.var(1)
     body = r.capp(A_ADMITTED, value)
-    out[69] = _fn(ADMISSION, (WORDRESULT,),
+    out[68] = _fn(ADMISSION, (WORDRESULT,),
                   (_const_clause(OVERFLOW, A_EXHAUSTED),
                    (WORDVALUE, tuple(r.rows), body)))
 
-    # 70 rev_onto(accumulator, list): reverse the list onto the accumulator.
+    # 69 rev_onto(accumulator, list): reverse the list onto the accumulator.
     r = Rows()
     acc = r.var(0)
     head, tail = r.var(2), r.var(3)
     pushed = r.capp(CONS, head, acc)
-    body = r.fapp(70, pushed, tail)
-    out[70] = _fn(BYTELIST, (BYTELIST, BYTELIST),
+    body = r.fapp(69, pushed, tail)
+    out[69] = _fn(BYTELIST, (BYTELIST, BYTELIST),
                   ((NIL, ((0, 0),), 1), (CONS, tuple(r.rows), body)),
                   selected=1)
 
-    # 71 append(list, tail): copy the list ahead of the tail.
+    # 70 append(list, tail): copy the list ahead of the tail.
     r = Rows()
     tail = r.var(1)
     head, rest = r.var(2), r.var(3)
-    appended = r.fapp(71, rest, tail)
+    appended = r.fapp(70, rest, tail)
     body = r.capp(CONS, head, appended)
-    out[71] = _fn(BYTELIST, (BYTELIST, BYTELIST),
+    out[70] = _fn(BYTELIST, (BYTELIST, BYTELIST),
                   ((NIL, ((0, 1),), 1), (CONS, tuple(r.rows), body)))
 
-    # 72 flatten(fragment, tail): right-first descent keeps source order.
+    # 71 flatten(fragment, tail): right-first descent keeps source order.
     r = Rows()
     tail = r.var(1)
     chunk = r.var(2)
-    body = r.fapp(71, chunk, tail)
+    body = r.fapp(70, chunk, tail)
     r2 = Rows()
     tail2 = r2.var(1)
     left, right = r2.var(2), r2.var(3)
-    inner = r2.fapp(72, right, tail2)
-    joined = r2.fapp(72, left, inner)
-    out[72] = _fn(BYTELIST, (FRAGMENT, BYTELIST),
+    inner = r2.fapp(71, right, tail2)
+    joined = r2.fapp(71, left, inner)
+    out[71] = _fn(BYTELIST, (FRAGMENT, BYTELIST),
                   ((F_EMPTY, ((0, 1),), 1),
                    (F_CHUNK, tuple(r.rows), body),
                    (F_JOIN, tuple(r2.rows), joined)))
 
-    # 73 admit_leaf(Byte, Admission): envelope byte plus checked count.
+    # 72 admit_leaf(Byte, Admission): envelope byte plus checked count.
     r = Rows()
     byte = r.var(0)
     count = r.var(2)
     admitted_byte = r.fapp(F_SOURCE_BYTE, byte)
     successor = r.fapp(F_WORD_SUCCESSOR, count)
-    counted = r.fapp(69, successor)
+    counted = r.fapp(68, successor)
     rejected = r.const(A_REJECTED)
-    body = r.fapp(68, admitted_byte, counted, rejected)
-    out[73] = _fn(ADMISSION, (BYTE, ADMISSION),
+    body = r.fapp(67, admitted_byte, counted, rejected)
+    out[72] = _fn(ADMISSION, (BYTE, ADMISSION),
                   ((A_REJECTED, ((1, A_REJECTED),), 1),
                    (A_EXHAUSTED, ((1, A_EXHAUSTED),), 1),
                    (A_ADMITTED, tuple(r.rows), body)),
                   selected=1)
 
-    # 74 admit(Admission, Source): ordered fold over the raw-byte tree.
+    # 73 admit(Admission, Source): ordered fold over the raw-byte tree.
     r = Rows()
     acc = r.var(0)
     leaf_byte = r.var(2)
-    leaf = r.fapp(73, leaf_byte, acc)
+    leaf = r.fapp(72, leaf_byte, acc)
     r2 = Rows()
     acc2 = r2.var(0)
     l_left, l_right = r2.var(2), r2.var(3)
-    first = r2.fapp(74, acc2, l_left)
-    joined = r2.fapp(74, first, l_right)
-    out[74] = _fn(ADMISSION, (ADMISSION, SOURCE),
+    first = r2.fapp(73, acc2, l_left)
+    joined = r2.fapp(73, first, l_right)
+    out[73] = _fn(ADMISSION, (ADMISSION, SOURCE),
                   ((S_EMPTY, ((0, 0),), 1),
                    (S_LEAF, tuple(r.rows), leaf),
                    (S_JOIN, tuple(r2.rows), joined)),
                   selected=1)
 
-    # 75 shift_in(Word, Nibble): value*16 + nibble, dropping bit 64+.
+    # 74 shift_in(Word, Nibble): value*16 + nibble, dropping bit 64+.
     r = Rows()
     digits = [r.var(slot) for slot in range(2, 10)]
     nibble = r.var(1)
@@ -441,52 +440,52 @@ def new_functions():
     joins += [r.fapp(F_JOIN_NIBBLES, lows[i], highs[i - 1])
               for i in range(1, 8)]
     body = r.capp(WORD_C, *joins)
-    out[75] = _fn(WORD, (WORD, NIBBLE), ((WORD_C, tuple(r.rows), body),))
+    out[74] = _fn(WORD, (WORD, NIBBLE), ((WORD_C, tuple(r.rows), body),))
 
-    # 76 dr1_hex: 'r' then digit n -> DRd1(n).
+    # 75 dr1_hex: 'r' then digit n -> DRd1(n).
     r = Rows()
     body = r.capp(D_RD1, r.var(1))
-    out[76] = _fn(DSTATE, (HEXRESULT,),
+    out[75] = _fn(DSTATE, (HEXRESULT,),
                   (_const_clause(NO_HEX, D_BAD), (HEX_, tuple(r.rows), body)))
-    # 77 dre_hex: 're' then digit n -> DReg2(0xe, n).
+    # 76 dre_hex: 're' then digit n -> DReg2(0xe, n).
     r = Rows()
     first = r.const(259 + 14)
     body = r.capp(D_REG2, first, r.var(1))
-    out[77] = _fn(DSTATE, (HEXRESULT,),
+    out[76] = _fn(DSTATE, (HEXRESULT,),
                   (_const_clause(NO_HEX, D_BAD), (HEX_, tuple(r.rows), body)))
-    # 78 drd1_hex(HexResult, Nibble): digit n2 -> DReg2(n1, n2).
+    # 77 drd1_hex(HexResult, Nibble): digit n2 -> DReg2(n1, n2).
     r = Rows()
     first = r.var(1)
     body = r.capp(D_REG2, first, r.var(2))
-    out[78] = _fn(DSTATE, (HEXRESULT, NIBBLE),
+    out[77] = _fn(DSTATE, (HEXRESULT, NIBBLE),
                   (_const_clause(NO_HEX, D_BAD), (HEX_, tuple(r.rows), body)))
-    # 79 dzx_hex: first digit after '0x' opens DZgo(0 shifted in, count 1).
+    # 78 dzx_hex: first digit after '0x' opens DZgo(0 shifted in, count 1).
     r = Rows()
-    shifted = r.fapp(75, _zero_word(r), r.var(1))
+    shifted = r.fapp(74, _zero_word(r), r.var(1))
     body = r.capp(D_ZGO, shifted, r.byte(1))
-    out[79] = _fn(DSTATE, (HEXRESULT,),
+    out[78] = _fn(DSTATE, (HEXRESULT,),
                   (_const_clause(NO_HEX, D_BAD), (HEX_, tuple(r.rows), body)))
-    # 80 dzgo_hex(HexResult, scanned Byte, Word, Byte count): a digit while
+    # 79 dzgo_hex(HexResult, scanned Byte, Word, Byte count): a digit while
     # count < 16 shifts in; ':' closes for the assertion state; else Bad.
     r = Rows()
     scanned, word, count = r.var(1), r.var(2), r.var(3)
     colon = r.fapp(60, scanned, r.byte(58))
     done = r.capp(D_ZDONE, word)
     bad = r.const(D_BAD)
-    no_hex = r.fapp(63, colon, done, bad)
+    no_hex = r.fapp(62, colon, done, bad)
     r2 = Rows()
     word2, count2, nib2 = r2.var(2), r2.var(3), r2.var(4)
     below = r2.fapp(F_BYTE_COMPARE, count2, r2.byte(16))
     is_less = r2.fapp(59, below)
-    shifted2 = r2.fapp(75, word2, nib2)
+    shifted2 = r2.fapp(74, word2, nib2)
     bumped = r2.fapp(F_BYTE_INCREMENT, count2)
     again = r2.capp(D_ZGO, shifted2, bumped)
-    hex_ = r2.fapp(63, is_less, again, r2.const(D_BAD))
-    out[80] = _fn(DSTATE, (HEXRESULT, BYTE, WORD, BYTE),
+    hex_ = r2.fapp(62, is_less, again, r2.const(D_BAD))
+    out[79] = _fn(DSTATE, (HEXRESULT, BYTE, WORD, BYTE),
                   ((NO_HEX, tuple(r.rows), no_hex),
                    (HEX_, tuple(r2.rows), hex_)))
 
-    # 81 dfa_step(DState, Byte): one token-automaton transition.
+    # 80 dfa_step(DState, Byte): one token-automaton transition.
     dfa_clauses = []
     for state in DSTATE_CTORS:
         r = Rows()
@@ -496,56 +495,56 @@ def new_functions():
         elif state == D_R1:
             re_state = r.const(D_RE)
             digits = r.fapp(F_HEX_DIGIT, byte)
-            register = r.fapp(76, digits)
+            register = r.fapp(75, digits)
             is_e = r.fapp(60, byte, r.byte(ord("e")))
-            body = r.fapp(63, is_e, re_state, register)
+            body = r.fapp(62, is_e, re_state, register)
         elif state == D_RE:
             rea = r.const(D_REA)
             ret = r.capp(D_DONE, _mnemonic(r, b"ret"))
             digits = r.fapp(F_HEX_DIGIT, byte)
-            register = r.fapp(77, digits)
+            register = r.fapp(76, digits)
             is_t = r.fapp(60, byte, r.byte(ord("t")))
-            inner = r.fapp(63, is_t, ret, register)
+            inner = r.fapp(62, is_t, ret, register)
             is_a = r.fapp(60, byte, r.byte(ord("a")))
-            body = r.fapp(63, is_a, rea, inner)
+            body = r.fapp(62, is_a, rea, inner)
         elif state == D_REA:
             read = r.capp(D_DONE, _mnemonic(r, b"read"))
             is_d = r.fapp(60, byte, r.byte(ord("d")))
             bad = r.const(D_BAD)
-            body = r.fapp(63, is_d, read, bad)
+            body = r.fapp(62, is_d, read, bad)
         elif state == D_RD1:
             first = r.var(2)
             digits = r.fapp(F_HEX_DIGIT, byte)
-            body = r.fapp(78, digits, first)
+            body = r.fapp(77, digits, first)
         elif state == D_Z1:
             zx = r.const(D_ZX)
             is_x = r.fapp(60, byte, r.byte(ord("x")))
             bad = r.const(D_BAD)
-            body = r.fapp(63, is_x, zx, bad)
+            body = r.fapp(62, is_x, zx, bad)
         elif state == D_ZX:
             digits = r.fapp(F_HEX_DIGIT, byte)
-            body = r.fapp(79, digits)
+            body = r.fapp(78, digits)
         elif state == D_ZGO:
             word = r.var(2)
             count = r.var(3)
             digits = r.fapp(F_HEX_DIGIT, byte)
-            body = r.fapp(80, digits, byte, word, count)
+            body = r.fapp(79, digits, byte, word, count)
         else:
             body = _letter_chain(r, byte, LETTER_STEPS[state])
         dfa_clauses.append((state, tuple(r.rows), body))
-    out[81] = _fn(DSTATE, (DSTATE, BYTE), dfa_clauses)
+    out[80] = _fn(DSTATE, (DSTATE, BYTE), dfa_clauses)
 
-    # 82 dfa_fold(DState, ByteList): run the automaton over the token tail.
+    # 81 dfa_fold(DState, ByteList): run the automaton over the token tail.
     r = Rows()
     state = r.var(0)
     head, tail = r.var(2), r.var(3)
-    stepped = r.fapp(81, state, head)
-    body = r.fapp(82, stepped, tail)
-    out[82] = _fn(DSTATE, (DSTATE, BYTELIST),
+    stepped = r.fapp(80, state, head)
+    body = r.fapp(81, stepped, tail)
+    out[81] = _fn(DSTATE, (DSTATE, BYTELIST),
                   ((NIL, ((0, 0),), 1), (CONS, tuple(r.rows), body)),
                   selected=1)
 
-    # 83 dfa_end(DState): project the completed-token class.
+    # 82 dfa_end(DState): project the completed-token class.
     end_clauses = []
     for state in DSTATE_CTORS:
         r = Rows()
@@ -570,49 +569,49 @@ def new_functions():
         else:
             body = r.const(T_INVALID)
         end_clauses.append((state, tuple(r.rows), body))
-    out[83] = _fn(TOKENCLASS, (DSTATE,), end_clauses)
+    out[82] = _fn(TOKENCLASS, (DSTATE,), end_clauses)
 
-    # 84 classify_first(Byte): the first token byte selects the state.
+    # 83 classify_first(Byte): the first token byte selects the state.
     r = Rows()
     byte = r.var(0)
     body = r.const(D_BAD)
     for letter, state in reversed(FIRST_STATES):
         target = r.const(state)
         cond = r.fapp(60, byte, r.byte(letter))
-        body = r.fapp(63, cond, target, body)
-    out[84] = _mode0(DSTATE, (BYTE,), r.rows, body)
+        body = r.fapp(62, cond, target, body)
+    out[83] = _mode0(DSTATE, (BYTE,), r.rows, body)
 
-    # 85 classify(ByteList): Nil is Empty; Cons runs the automaton.
+    # 84 classify(ByteList): Nil is Empty; Cons runs the automaton.
     r = Rows()
     head, tail = r.var(1), r.var(2)
-    started = r.fapp(84, head)
-    folded = r.fapp(82, started, tail)
-    body = r.fapp(83, folded)
-    out[85] = _fn(TOKENCLASS, (BYTELIST,),
+    started = r.fapp(83, head)
+    folded = r.fapp(81, started, tail)
+    body = r.fapp(82, folded)
+    out[84] = _fn(TOKENCLASS, (BYTELIST,),
                   (_const_clause(NIL, T_EMPTY), (CONS, tuple(r.rows), body)))
 
-    # 86 state_comment_true(State): mark comment mode, keep other fields.
+    # 85 state_comment_true(State): mark comment mode, keep other fields.
     r = Rows()
     fields = [r.var(slot) for slot in range(1, 7)]
     body = r.capp(STATE_C, r.const(TRUE_), fields[1], fields[2], fields[3],
                   fields[4], fields[5])
-    out[86] = _fn(STATE, (STATE,), ((STATE_C, tuple(r.rows), body),))
+    out[85] = _fn(STATE, (STATE,), ((STATE_C, tuple(r.rows), body),))
 
-    # 87 sr_comment_true(ScanResult): mark comment mode on the state half.
+    # 86 sr_comment_true(ScanResult): mark comment mode on the state half.
     r = Rows()
     state, fragment = r.var(1), r.var(2)
-    commented = r.fapp(86, state)
+    commented = r.fapp(85, state)
     body = r.capp(SR_C, commented, fragment)
-    out[87] = _fn(SCANRESULT, (SCANRESULT,), ((SR_C, tuple(r.rows), body),))
+    out[86] = _fn(SCANRESULT, (SCANRESULT,), ((SR_C, tuple(r.rows), body),))
 
-    # 88 wr_succ(WordResult): chained checked successor.
+    # 87 wr_succ(WordResult): chained checked successor.
     r = Rows()
     body = r.fapp(F_WORD_SUCCESSOR, r.var(1))
-    out[88] = _fn(WORDRESULT, (WORDRESULT,),
+    out[87] = _fn(WORDRESULT, (WORDRESULT,),
                   (_const_clause(OVERFLOW, OVERFLOW),
                    (WORDVALUE, tuple(r.rows), body)))
 
-    # 89 emit_byte_count(WordResult succ, Byte, Expect next, Bool comment,
+    # 88 emit_byte_count(WordResult succ, Byte, Expect next, Bool comment,
     # Expect old, Word count, Status, Word limit, Fragment).
     r = Rows()
     over = _emit_count_overflow(r)
@@ -620,94 +619,94 @@ def new_functions():
     kept = _emit_count_body(
         r2, lambda rr, value: rr.capp(
             F_CHUNK, rr.capp(CONS, value, rr.const(NIL))))
-    out[89] = _fn(SCANRESULT,
+    out[88] = _fn(SCANRESULT,
                   (WORDRESULT, BYTE, EXPECT, BOOL, EXPECT, WORD, STATUS,
                    WORD, FRAGMENT),
                   ((OVERFLOW, tuple(r.rows), over),
                    (WORDVALUE, tuple(r2.rows), kept)))
 
-    # 90 emit_byte(Byte, Expect next, State, Fragment).
+    # 89 emit_byte(Byte, Expect next, State, Fragment).
     r = Rows()
     byte, nxt, fragment = r.var(0), r.var(1), r.var(3)
     fields = [r.var(slot) for slot in range(4, 10)]
     successor = r.fapp(F_WORD_SUCCESSOR, fields[3])
-    body = r.fapp(89, successor, byte, nxt, fields[0], fields[2], fields[3],
+    body = r.fapp(88, successor, byte, nxt, fields[0], fields[2], fields[3],
                   fields[4], fields[5], fragment)
-    out[90] = _fn(SCANRESULT, (BYTE, EXPECT, STATE, FRAGMENT),
+    out[89] = _fn(SCANRESULT, (BYTE, EXPECT, STATE, FRAGMENT),
                   ((STATE_C, tuple(r.rows), body),), selected=2)
 
-    # 91 emit_word_count: same shape, emitting word_bytes(w).
+    # 90 emit_word_count: same shape, emitting word_bytes(w).
     r = Rows()
     over = _emit_count_overflow(r)
     r2 = Rows()
     kept = _emit_count_body(
         r2, lambda rr, value: rr.capp(F_CHUNK, rr.fapp(F_WORD_BYTES, value)))
-    out[91] = _fn(SCANRESULT,
+    out[90] = _fn(SCANRESULT,
                   (WORDRESULT, WORD, EXPECT, BOOL, EXPECT, WORD, STATUS,
                    WORD, FRAGMENT),
                   ((OVERFLOW, tuple(r.rows), over),
                    (WORDVALUE, tuple(r2.rows), kept)))
 
-    # 92 emit_word(Word, Expect next, State, Fragment): eight checked
+    # 91 emit_word(Word, Expect next, State, Fragment): eight checked
     # successors ahead of the single capacity comparison.
     r = Rows()
     word, nxt, fragment = r.var(0), r.var(1), r.var(3)
     fields = [r.var(slot) for slot in range(4, 10)]
     chain = r.fapp(F_WORD_SUCCESSOR, fields[3])
     for _ in range(7):
-        chain = r.fapp(88, chain)
-    body = r.fapp(91, chain, word, nxt, fields[0], fields[2], fields[3],
+        chain = r.fapp(87, chain)
+    body = r.fapp(90, chain, word, nxt, fields[0], fields[2], fields[3],
                   fields[4], fields[5], fragment)
-    out[92] = _fn(SCANRESULT, (WORD, EXPECT, STATE, FRAGMENT),
+    out[91] = _fn(SCANRESULT, (WORD, EXPECT, STATE, FRAGMENT),
                   ((STATE_C, tuple(r.rows), body),), selected=2)
 
-    # 93 bool_choose(Bool, on_true, on_false) -> Bool.
-    out[93] = _choose_bool(BOOL)
-    # 94 status_ok(Status) -> Bool.
-    out[94] = _fn(BOOL, (STATUS,),
+    # 92 bool_choose(Bool, on_true, on_false) -> Bool.
+    out[92] = _choose_bool(BOOL)
+    # 93 status_ok(Status) -> Bool.
+    out[93] = _fn(BOOL, (STATUS,),
                   (_const_clause(ST_OK, TRUE_),
                    _const_clause(ST_INVALID, FALSE_),
                    _const_clause(ST_EXHAUSTED, FALSE_)))
-    # 95 expect_ready(Expect) -> Bool.
-    out[95] = _fn(BOOL, (EXPECT,),
+    # 94 expect_ready(Expect) -> Bool.
+    out[94] = _fn(BOOL, (EXPECT,),
                   tuple(_const_clause(ctor, 257 + int(ctor == E_READY))
                         for ctor in EXPECT_CTORS))
-    # 96 enc_choose(Bool, EncodeResult, EncodeResult) -> EncodeResult.
-    out[96] = _choose_bool(ENCODERESULT)
-    # 97 enc_choose_status(Status, ok, invalid, exhausted) -> EncodeResult.
-    out[97] = _fn(ENCODERESULT,
+    # 95 enc_choose(Bool, EncodeResult, EncodeResult) -> EncodeResult.
+    out[95] = _choose_bool(ENCODERESULT)
+    # 96 enc_choose_status(Status, ok, invalid, exhausted) -> EncodeResult.
+    out[96] = _fn(ENCODERESULT,
                   (STATUS, ENCODERESULT, ENCODERESULT, ENCODERESULT),
                   ((ST_OK, ((0, 1),), 1), (ST_INVALID, ((0, 2),), 1),
                     (ST_EXHAUSTED, ((0, 3),), 1)))
 
-    # 98 sr_state, 99 sr_fragment: ScanResult accessors.
-    out[98] = _fn(STATE, (SCANRESULT,), ((SR_C, ((0, 1),), 1),))
-    out[99] = _fn(FRAGMENT, (SCANRESULT,), ((SR_C, ((0, 2),), 1),))
+    # 97 sr_state, 99 sr_fragment: ScanResult accessors.
+    out[97] = _fn(STATE, (SCANRESULT,), ((SR_C, ((0, 1),), 1),))
+    out[98] = _fn(FRAGMENT, (SCANRESULT,), ((SR_C, ((0, 2),), 1),))
 
-    # 100 sr_choose_expect(Expect, SR x6): dispatch's expectation dispatch.
-    out[100] = _choose_expect(SCANRESULT)
+    # 99 sr_choose_expect(Expect, SR x6): dispatch's expectation dispatch.
+    out[99] = _choose_expect(SCANRESULT)
 
-    # 101 dispatch(comment, expect, count, status, limit, TokenClass):
+    # 100 dispatch(comment, expect, count, status, limit, TokenClass):
     # emit or reject the classified token. Declared before flush/scan_byte so
     # every function dependency points backward.
-    out[101] = _dispatch()
+    out[100] = _dispatch()
 
-    # 102 flush(State): emit a completed pending token, or nothing.
+    # 101 flush(State): emit a completed pending token, or nothing.
     r = Rows()
     comment, pending, expect = r.var(1), r.var(2), r.var(3)
     count, status, limit = r.var(4), r.var(5), r.var(6)
     empty = r.const(F_EMPTY)
     same = r.capp(STATE_C, comment, pending, expect, count, status, limit)
     nothing = r.capp(SR_C, same, empty)
-    reversed_ = r.fapp(70, r.const(NIL), pending)
-    classified = r.fapp(85, reversed_)
-    dispatched = r.fapp(101, comment, expect, count, status, limit,
+    reversed_ = r.fapp(69, r.const(NIL), pending)
+    classified = r.fapp(84, reversed_)
+    dispatched = r.fapp(100, comment, expect, count, status, limit,
                       classified)
     is_empty = r.fapp(61, pending)
-    body = r.fapp(64, is_empty, nothing, dispatched)
-    out[102] = _fn(SCANRESULT, (STATE,), ((STATE_C, tuple(r.rows), body),))
+    body = r.fapp(63, is_empty, nothing, dispatched)
+    out[101] = _fn(SCANRESULT, (STATE,), ((STATE_C, tuple(r.rows), body),))
 
-    # 103 scan_byte(State, Byte): one scanning transition.
+    # 102 scan_byte(State, Byte): one scanning transition.
     r = Rows()
     byte = r.var(1)
     comment, pending, expect = r.var(2), r.var(3), r.var(4)
@@ -715,9 +714,9 @@ def new_functions():
     same = r.capp(STATE_C, comment, pending, expect, count, status, limit)
     empty = r.const(F_EMPTY)
     sticky = r.capp(SR_C, same, empty)
-    ok = r.fapp(94, status)
+    ok = r.fapp(93, status)
     ended = r.fapp(F_COMMENT_END, byte)
-    stays = r.fapp(93, ended, r.const(FALSE_), r.const(TRUE_))
+    stays = r.fapp(92, ended, r.const(FALSE_), r.const(TRUE_))
     commented = r.capp(STATE_C, stays, pending, expect, count, status, limit)
     in_comment = r.capp(SR_C, commented, empty)
     pushed = r.capp(CONS, byte, pending)
@@ -725,17 +724,17 @@ def new_functions():
                       status, limit)
     pushing = r.capp(SR_C, advanced, empty)
     separated = r.fapp(F_SEPARATOR, byte)
-    flushed = r.fapp(102, same)
-    flushed_or_pushed = r.fapp(64, separated, flushed, pushing)
+    flushed = r.fapp(101, same)
+    flushed_or_pushed = r.fapp(63, separated, flushed, pushing)
     semicolon = r.fapp(60, byte, r.byte(ord(";")))
-    flushed_commented = r.fapp(87, flushed)
-    in_token = r.fapp(64, semicolon, flushed_commented, flushed_or_pushed)
-    proceed = r.fapp(64, comment, in_comment, in_token)
-    body = r.fapp(64, ok, proceed, sticky)
-    out[103] = _fn(SCANRESULT, (STATE, BYTE),
+    flushed_commented = r.fapp(86, flushed)
+    in_token = r.fapp(63, semicolon, flushed_commented, flushed_or_pushed)
+    proceed = r.fapp(63, comment, in_comment, in_token)
+    body = r.fapp(63, ok, proceed, sticky)
+    out[102] = _fn(SCANRESULT, (STATE, BYTE),
                    ((STATE_C, tuple(r.rows), body),))
 
-    # 104 scan(State, Source): byte-order traversal threading one state and
+    # 103 scan(State, Source): byte-order traversal threading one state and
     # building ordered fragments.
     r = Rows()
     state0 = r.var(0)
@@ -744,50 +743,50 @@ def new_functions():
     r2 = Rows()
     state = r2.var(0)
     leaf_byte = r2.var(2)
-    leaf = r2.fapp(103, state, leaf_byte)
+    leaf = r2.fapp(102, state, leaf_byte)
     r3 = Rows()
     state3 = r3.var(0)
     l_left, l_right = r3.var(2), r3.var(3)
-    first = r3.fapp(104, state3, l_left)
-    first_state = r3.fapp(98, first)
-    first_fragment = r3.fapp(99, first)
-    second = r3.fapp(104, first_state, l_right)
-    second_state = r3.fapp(98, second)
-    second_fragment = r3.fapp(99, second)
+    first = r3.fapp(103, state3, l_left)
+    first_state = r3.fapp(97, first)
+    first_fragment = r3.fapp(98, first)
+    second = r3.fapp(103, first_state, l_right)
+    second_state = r3.fapp(97, second)
+    second_fragment = r3.fapp(98, second)
     combined = r3.capp(F_JOIN, first_fragment, second_fragment)
     joined = r3.capp(SR_C, second_state, combined)
-    out[104] = _fn(SCANRESULT, (STATE, SOURCE),
+    out[103] = _fn(SCANRESULT, (STATE, SOURCE),
                    ((S_EMPTY, tuple(r.rows), nothing),
                     (S_LEAF, tuple(r2.rows), leaf),
                     (S_JOIN, tuple(r3.rows), joined)),
                    selected=1)
 
-    # 105 finish_state(State, Fragment): Ready plus Ok publishes the
+    # 104 finish_state(State, Fragment): Ready plus Ok publishes the
     # flattened output; Invalid and Exhausted keep their results.
     r = Rows()
     fragment = r.var(1)
     expect, status = r.var(4), r.var(6)
-    ready = r.fapp(95, expect)
-    flattened = r.fapp(72, fragment, r.const(NIL))
+    ready = r.fapp(94, expect)
+    flattened = r.fapp(71, fragment, r.const(NIL))
     success = r.capp(R_SUCCESS, flattened)
     rejected = r.const(R_INVALID)
     exhausted = r.const(R_EXHAUSTED)
-    decided = r.fapp(96, ready, success, rejected)
-    body = r.fapp(97, status, decided, rejected, exhausted)
-    out[105] = _fn(ENCODERESULT, (STATE, FRAGMENT),
+    decided = r.fapp(95, ready, success, rejected)
+    body = r.fapp(96, status, decided, rejected, exhausted)
+    out[104] = _fn(ENCODERESULT, (STATE, FRAGMENT),
                    ((STATE_C, tuple(r.rows), body),))
 
-    # 106 finish(ScanResult): one EOF flush, then the final projection.
+    # 105 finish(ScanResult): one EOF flush, then the final projection.
     r = Rows()
     state, fragment = r.var(1), r.var(2)
-    flushed = r.fapp(102, state)
-    flushed_state = r.fapp(98, flushed)
-    flushed_fragment = r.fapp(99, flushed)
+    flushed = r.fapp(101, state)
+    flushed_state = r.fapp(97, flushed)
+    flushed_fragment = r.fapp(98, flushed)
     combined = r.capp(F_JOIN, fragment, flushed_fragment)
-    body = r.fapp(105, flushed_state, combined)
-    out[106] = _fn(ENCODERESULT, (SCANRESULT,), ((SR_C, tuple(r.rows), body),))
+    body = r.fapp(104, flushed_state, combined)
+    out[105] = _fn(ENCODERESULT, (SCANRESULT,), ((SR_C, tuple(r.rows), body),))
 
-    # 107 encode_admitted(Admission, Source, source limit, output limit).
+    # 106 encode_admitted(Admission, Source, source limit, output limit).
     r2 = Rows()
     source = r2.var(1)
     source_limit, output_limit = r2.var(2), r2.var(3)
@@ -797,23 +796,23 @@ def new_functions():
     initial = r2.capp(STATE_C, r2.const(FALSE_), r2.const(NIL),
                     r2.const(E_READY), _zero_word(r2), r2.const(ST_OK),
                     output_limit)
-    scanned = r2.fapp(104, initial, source)
-    finished = r2.fapp(106, scanned)
-    body = r2.fapp(67, compared, over, finished)
-    out[107] = _fn(ENCODERESULT, (ADMISSION, SOURCE, WORD, WORD),
+    scanned = r2.fapp(103, initial, source)
+    finished = r2.fapp(105, scanned)
+    body = r2.fapp(66, compared, over, finished)
+    out[106] = _fn(ENCODERESULT, (ADMISSION, SOURCE, WORD, WORD),
                    ((A_REJECTED, ((1, R_INVALID),), 1),
                     (A_EXHAUSTED, ((1, R_EXHAUSTED),), 1),
                     (A_ADMITTED, tuple(r2.rows), body)))
 
-    # 108 encode(Source, source limit, output limit): whole-source envelope
+    # 107 encode(Source, source limit, output limit): whole-source envelope
     # admission, then scanning and EOF projection.
     r = Rows()
     source, source_limit, output_limit = r.var(0), r.var(1), r.var(2)
-    admitted = r.fapp(74, r.capp(A_ADMITTED, _zero_word(r)), source)
-    body = r.fapp(107, admitted, source, source_limit, output_limit)
-    out[108] = _mode0(ENCODERESULT, (SOURCE, WORD, WORD), r.rows, body)
+    admitted = r.fapp(73, r.capp(A_ADMITTED, _zero_word(r)), source)
+    body = r.fapp(106, admitted, source, source_limit, output_limit)
+    out[107] = _mode0(ENCODERESULT, (SOURCE, WORD, WORD), r.rows, body)
 
-    return [out[identity] for identity in range(58, 109)]
+    return [out[identity] for identity in range(58, 108)]
 
 
 def _dispatch():
@@ -845,7 +844,7 @@ def _dispatch():
     awaiting = r.capp(STATE_C, comment, r.const(NIL), r.const(E_X), count,
                       status, limit)
     dw_ok = r.capp(SR_C, awaiting, empty)
-    body = r.fapp(100, expect, dw_ok, invalid, invalid, invalid, invalid,
+    body = r.fapp(99, expect, dw_ok, invalid, invalid, invalid, invalid,
                   invalid)
     clauses.append((T_DW, tuple(r.rows), body))
 
@@ -853,11 +852,11 @@ def _dispatch():
     r = Rows()
     comment, expect, count, status, limit, empty, cleared, invalid = common(r)
     reg = r.var(6)
-    reg_ready = r.fapp(90, reg, r.const(E_READY), cleared, empty)
-    reg_r = r.fapp(90, reg, r.const(E_R), cleared, empty)
-    reg_x = r.fapp(90, reg, r.const(E_X), cleared, empty)
-    reg_rx = r.fapp(90, reg, r.const(E_RX), cleared, empty)
-    body = r.fapp(100, expect, invalid, reg_ready, invalid, reg_r, reg_x,
+    reg_ready = r.fapp(89, reg, r.const(E_READY), cleared, empty)
+    reg_r = r.fapp(89, reg, r.const(E_R), cleared, empty)
+    reg_x = r.fapp(89, reg, r.const(E_X), cleared, empty)
+    reg_rx = r.fapp(89, reg, r.const(E_RX), cleared, empty)
+    body = r.fapp(99, expect, invalid, reg_ready, invalid, reg_r, reg_x,
                   reg_rx)
     clauses.append((T_REGISTER, tuple(r.rows), body))
 
@@ -865,8 +864,8 @@ def _dispatch():
     r = Rows()
     comment, expect, count, status, limit, empty, cleared, invalid = common(r)
     word = r.var(6)
-    word_ok = r.fapp(92, word, r.const(E_READY), cleared, empty)
-    body = r.fapp(100, expect, invalid, invalid, word_ok, invalid, invalid,
+    word_ok = r.fapp(91, word, r.const(E_READY), cleared, empty)
+    body = r.fapp(99, expect, invalid, invalid, word_ok, invalid, invalid,
                   invalid)
     clauses.append((T_WORD, tuple(r.rows), body))
 
@@ -876,8 +875,8 @@ def _dispatch():
     address = r.var(6)
     kept = r.capp(SR_C, cleared, empty)
     matched = r.fapp(F_WORD_COMPARE, address, count)
-    checked = r.fapp(65, matched, kept, invalid)
-    body = r.fapp(100, expect, checked, invalid, invalid, invalid, invalid,
+    checked = r.fapp(64, matched, kept, invalid)
+    body = r.fapp(99, expect, checked, invalid, invalid, invalid, invalid,
                   invalid)
     clauses.append((T_ASSERT, tuple(r.rows), body))
 
@@ -885,8 +884,8 @@ def _dispatch():
     r = Rows()
     comment, expect, count, status, limit, empty, cleared, invalid = common(r)
     opcode, following = r.var(6), r.var(7)
-    emitted = r.fapp(90, opcode, following, cleared, empty)
-    body = r.fapp(100, expect, emitted, invalid, invalid, invalid, invalid,
+    emitted = r.fapp(89, opcode, following, cleared, empty)
+    body = r.fapp(99, expect, emitted, invalid, invalid, invalid, invalid,
                   invalid)
     clauses.append((T_MNEMONIC, tuple(r.rows), body))
 

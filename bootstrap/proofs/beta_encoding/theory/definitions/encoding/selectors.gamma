@@ -76,12 +76,12 @@
       (b61_2 Int (beta_theory_word 1))
       ) 0))
 
-; Function 62: choose(Bool, TokenClass, TokenClass)
+; Function 62: choose(Bool, DState, DState)
 (def beta_encoding_fn62 () Int
   (let (
       (len62 Int (beta_theory_word 22))
-      (w62_0 Int (beta_theory_fields3 17 3 2))
-      (w62_1 Int (beta_theory_fields3 17 17 1))
+      (w62_0 Int (beta_theory_fields3 16 3 2))
+      (w62_1 Int (beta_theory_fields3 16 16 1))
       (w62_2 Int (beta_theory_word 0))
       (w62_3 Int (beta_theory_word 2))
       (c62_1 Int (beta_theory_fields3 6 257 1))
@@ -94,12 +94,12 @@
       (b62_2 Int (beta_theory_word 1))
       ) 0))
 
-; Function 63: choose(Bool, DState, DState)
+; Function 63: choose(Bool, ScanResult, ScanResult)
 (def beta_encoding_fn63 () Int
   (let (
       (len63 Int (beta_theory_word 22))
-      (w63_0 Int (beta_theory_fields3 16 3 2))
-      (w63_1 Int (beta_theory_fields3 16 16 1))
+      (w63_0 Int (beta_theory_fields3 14 3 2))
+      (w63_1 Int (beta_theory_fields3 14 14 1))
       (w63_2 Int (beta_theory_word 0))
       (w63_3 Int (beta_theory_word 2))
       (c63_1 Int (beta_theory_fields3 6 257 1))
@@ -112,25 +112,29 @@
       (b63_2 Int (beta_theory_word 1))
       ) 0))
 
-; Function 64: choose(Bool, ScanResult, ScanResult)
+; Function 64: choose(Ordering, on_equal, on_other) -> ScanResult
 (def beta_encoding_fn64 () Int
   (let (
-      (len64 Int (beta_theory_word 22))
-      (w64_0 Int (beta_theory_fields3 14 3 2))
+      (len64 Int (beta_theory_word 29))
+      (w64_0 Int (beta_theory_fields3 14 3 8))
       (w64_1 Int (beta_theory_fields3 14 14 1))
       (w64_2 Int (beta_theory_word 0))
-      (w64_3 Int (beta_theory_word 2))
-      (c64_1 Int (beta_theory_fields3 6 257 1))
+      (w64_3 Int (beta_theory_word 3))
+      (c64_1 Int (beta_theory_fields3 6 282 1))
       ; r1: v2
       (r64_1_1 Int (beta_variable_template 2))
       (b64_1 Int (beta_theory_word 1))
-      (c64_2 Int (beta_theory_fields3 6 258 1))
+      (c64_2 Int (beta_theory_fields3 6 283 1))
       ; r1: v1
       (r64_2_1 Int (beta_variable_template 1))
       (b64_2 Int (beta_theory_word 1))
+      (c64_3 Int (beta_theory_fields3 6 284 1))
+      ; r1: v2
+      (r64_3_1 Int (beta_variable_template 2))
+      (b64_3 Int (beta_theory_word 1))
       ) 0))
 
-; Function 65: choose(Ordering, on_equal, on_other) -> ScanResult
+; Function 65: choose(Ordering, on_greater, on_other) -> ScanResult
 (def beta_encoding_fn65 () Int
   (let (
       (len65 Int (beta_theory_word 29))
@@ -143,21 +147,21 @@
       (r65_1_1 Int (beta_variable_template 2))
       (b65_1 Int (beta_theory_word 1))
       (c65_2 Int (beta_theory_fields3 6 283 1))
-      ; r1: v1
-      (r65_2_1 Int (beta_variable_template 1))
+      ; r1: v2
+      (r65_2_1 Int (beta_variable_template 2))
       (b65_2 Int (beta_theory_word 1))
       (c65_3 Int (beta_theory_fields3 6 284 1))
-      ; r1: v2
-      (r65_3_1 Int (beta_variable_template 2))
+      ; r1: v1
+      (r65_3_1 Int (beta_variable_template 1))
       (b65_3 Int (beta_theory_word 1))
       ) 0))
 
-; Function 66: choose(Ordering, on_greater, on_other) -> ScanResult
+; Function 66: choose(Ordering, on_greater, on_other) -> EncodeResult
 (def beta_encoding_fn66 () Int
   (let (
       (len66 Int (beta_theory_word 29))
-      (w66_0 Int (beta_theory_fields3 14 3 8))
-      (w66_1 Int (beta_theory_fields3 14 14 1))
+      (w66_0 Int (beta_theory_fields3 18 3 8))
+      (w66_1 Int (beta_theory_fields3 18 18 1))
       (w66_2 Int (beta_theory_word 0))
       (w66_3 Int (beta_theory_word 3))
       (c66_1 Int (beta_theory_fields3 6 282 1))
@@ -174,60 +178,38 @@
       (b66_3 Int (beta_theory_word 1))
       ) 0))
 
-; Function 67: choose(Ordering, on_greater, on_other) -> EncodeResult
+; Function 67: choose(Bool, Admission, Admission)
 (def beta_encoding_fn67 () Int
   (let (
-      (len67 Int (beta_theory_word 29))
-      (w67_0 Int (beta_theory_fields3 18 3 8))
-      (w67_1 Int (beta_theory_fields3 18 18 1))
+      (len67 Int (beta_theory_word 22))
+      (w67_0 Int (beta_theory_fields3 15 3 2))
+      (w67_1 Int (beta_theory_fields3 15 15 1))
       (w67_2 Int (beta_theory_word 0))
-      (w67_3 Int (beta_theory_word 3))
-      (c67_1 Int (beta_theory_fields3 6 282 1))
+      (w67_3 Int (beta_theory_word 2))
+      (c67_1 Int (beta_theory_fields3 6 257 1))
       ; r1: v2
       (r67_1_1 Int (beta_variable_template 2))
       (b67_1 Int (beta_theory_word 1))
-      (c67_2 Int (beta_theory_fields3 6 283 1))
-      ; r1: v2
-      (r67_2_1 Int (beta_variable_template 2))
-      (b67_2 Int (beta_theory_word 1))
-      (c67_3 Int (beta_theory_fields3 6 284 1))
+      (c67_2 Int (beta_theory_fields3 6 258 1))
       ; r1: v1
-      (r67_3_1 Int (beta_variable_template 1))
-      (b67_3 Int (beta_theory_word 1))
+      (r67_2_1 Int (beta_variable_template 1))
+      (b67_2 Int (beta_theory_word 1))
       ) 0))
 
-; Function 68: choose(Bool, Admission, Admission)
+; Function 68: adm_of_word(WordResult): WordValue admits, Overflow exhausts
 (def beta_encoding_fn68 () Int
   (let (
-      (len68 Int (beta_theory_word 22))
-      (w68_0 Int (beta_theory_fields3 15 3 2))
-      (w68_1 Int (beta_theory_fields3 15 15 1))
-      (w68_2 Int (beta_theory_word 0))
-      (w68_3 Int (beta_theory_word 2))
-      (c68_1 Int (beta_theory_fields3 6 257 1))
-      ; r1: v2
-      (r68_1_1 Int (beta_variable_template 2))
+      (len68 Int (beta_theory_word 26))
+      (w68_0 Int (beta_theory_fields3 15 1 7))
+      (w68_1 Int (beta_theory_fields3 1 0 2))
+      (c68_1 Int (beta_theory_fields3 7 280 1))
+      ; r1: c303
+      (r68_1_1 Int (beta_constant_template 303))
       (b68_1 Int (beta_theory_word 1))
-      (c68_2 Int (beta_theory_fields3 6 258 1))
+      (c68_2 Int (beta_theory_fields3 11 281 2))
       ; r1: v1
       (r68_2_1 Int (beta_variable_template 1))
-      (b68_2 Int (beta_theory_word 1))
-      ) 0))
-
-; Function 69: adm_of_word(WordResult): WordValue admits, Overflow exhausts
-(def beta_encoding_fn69 () Int
-  (let (
-      (len69 Int (beta_theory_word 26))
-      (w69_0 Int (beta_theory_fields3 15 1 7))
-      (w69_1 Int (beta_theory_fields3 1 0 2))
-      (c69_1 Int (beta_theory_fields3 7 280 1))
-      ; r1: c303
-      (r69_1_1 Int (beta_constant_template 303))
-      (b69_1 Int (beta_theory_word 1))
-      (c69_2 Int (beta_theory_fields3 11 281 2))
-      ; r1: v1
-      (r69_2_1 Int (beta_variable_template 1))
       ; r2: c304(1)
-      (r69_2_2 Int (beta_unary_template 1 304 1))
-      (b69_2 Int (beta_theory_word 2))
+      (r68_2_2 Int (beta_unary_template 1 304 1))
+      (b68_2 Int (beta_theory_word 2))
       ) 0))
