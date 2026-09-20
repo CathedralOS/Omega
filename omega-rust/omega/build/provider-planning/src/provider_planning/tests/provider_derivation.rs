@@ -540,6 +540,114 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
 }
 
 #[test]
+fn selected_target_compiler_leaf_requires_nonhosted_origin_custody() {
+    let source = r#"
+        boundary trait UefiOsHandoffTermination {
+            machine transfer();
+            machine firmware_return();
+        }
+
+        data UefiOsHandoffNativeProvider {}
+        boundary machine UefiOsHandoffNativeProvider::transfer()
+            satisfies UefiOsHandoffTermination::transfer;
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize selected-target compiler leaf");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("parse selected-target compiler leaf");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve selected-target compiler leaf");
+    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type selected-target compiler leaf");
+
+    assert!(
+        derive_satisfies_plans(
+            &typed,
+            ProviderPlanDerivation::unevaluated(Some("uefi_x86_64"))
+        )
+        .is_empty(),
+        "an unscoped target package boundary machine is not compiler authority",
+    );
+    let realization = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "UefiOsHandoffNativeProvider::transfer")
+        .expect("typed transfer realization");
+    let evaluated = crate::evaluated_via_bindings::evaluate_via_bindings(
+        &typed,
+        Some(target::TargetProfile::UefiX64),
+        None,
+    )
+    .expect("claim-free fixture has an empty evaluated-via table");
+    let origin = SelectedTargetMachineOrigin {
+        machine: realization.symbol,
+        target: "uefi_x86_64".to_owned(),
+    };
+    let derived = ProviderPlanDerivation::evaluated(
+        &typed,
+        Some("uefi_x86_64"),
+        &evaluated,
+        std::slice::from_ref(&origin),
+    )
+    .map(|derivation| derive_satisfies_plans(&typed, derivation))
+    .expect("exact selected target-machine origin derives");
+    let [derived] = derived.as_slice() else {
+        panic!("one exact inferred UefiOsHandoffTermination plan")
+    };
+    assert_eq!(derived.plan.target, "uefi_x86_64");
+    let [row] = derived.plan.rows.as_slice() else {
+        panic!("only the transfer leaf may be inferred")
+    };
+    assert_eq!(row.method, "transfer");
+    assert!(matches!(
+        row.binding,
+        ProviderBinding::CompilerIntrinsic { .. }
+    ));
+    assert_eq!(
+        derived.provenance.row_target_machine_origins,
+        [Some(origin.clone())],
+    );
+
+    let wrong_origin = SelectedTargetMachineOrigin {
+        machine: realization.symbol,
+        target: "linux_x86_64".to_owned(),
+    };
+    assert!(
+        ProviderPlanDerivation::evaluated(&typed, Some("uefi_x86_64"), &evaluated, &[wrong_origin])
+            .map(|derivation| derive_satisfies_plans(&typed, derivation))
+            .expect("wrong origin is a closed candidate set")
+            .is_empty(),
+        "hosted-target provenance must not infer the UEFI row",
+    );
+
+    let hosted = SelectedTargetMachineOrigin {
+        machine: realization.symbol,
+        target: "linux_x86_64".to_owned(),
+    };
+    let hosted_evaluated = crate::evaluated_via_bindings::evaluate_via_bindings(
+        &typed,
+        Some(target::TargetProfile::LinuxX64),
+        None,
+    )
+    .expect("claim-free fixture has an empty hosted evaluated-via table");
+    assert!(
+        ProviderPlanDerivation::evaluated(
+            &typed,
+            Some("linux_x86_64"),
+            &hosted_evaluated,
+            &[hosted]
+        )
+        .map(|derivation| derive_satisfies_plans(&typed, derivation))
+        .expect("hosted selection is a closed candidate set")
+        .is_empty(),
+        "non-catalog leaves never derive through hosted-target selection",
+    );
+}
+
+#[test]
 fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
     let source = r#"
         boundary trait Process {

@@ -7,8 +7,7 @@ use crate::provider_planning::provenance_replay::adapter_conformance::{
     exact_top_level_external_realization, has_exact_top_level_ordinary_realization,
 };
 use crate::provider_planning::provenance_replay::requirement_identities::{
-    external_provider_binding, inferred_hosted_console_compiler_intrinsic,
-    provider_boundary_arguments,
+    external_provider_binding, inferred_compiler_leaf_binding, provider_boundary_arguments,
 };
 use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
@@ -487,7 +486,7 @@ fn replay_provider_row_binding(
                             plan.name, row.requirement_identity,
                         )));
                     };
-                    let (binding, replayed_origin) = inferred_hosted_console_compiler_intrinsic(
+                    let (binding, replayed_origin) = inferred_compiler_leaf_binding(
                         typed,
                         realization,
                         conformance,

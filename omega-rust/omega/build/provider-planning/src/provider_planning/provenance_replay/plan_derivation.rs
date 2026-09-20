@@ -11,8 +11,8 @@ use crate::provider_planning::operator_provider_evidence::{
 };
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_installed_external_binding_identity, exact_satisfied_requirement_identity,
-    external_provider_binding, inferred_hosted_console_compiler_intrinsic,
-    provider_boundary_arguments, realization_machine_identity,
+    external_provider_binding, inferred_compiler_leaf_binding, provider_boundary_arguments,
+    realization_machine_identity,
 };
 use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
@@ -66,7 +66,7 @@ pub(crate) fn derive_provider_plans(
                             && !clause.via_expression.is_valid()
                             && clause.external_binding_source_span.is_none() =>
                     {
-                        let Some((binding, origin)) = inferred_hosted_console_compiler_intrinsic(
+                        let Some((binding, origin)) = inferred_compiler_leaf_binding(
                             typed,
                             machine,
                             clause,
