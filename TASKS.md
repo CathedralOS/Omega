@@ -7110,7 +7110,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **LOOKUP-MAP-MEASUREMENT-AUDIT** — mined candidate; verify scope then implement.
 - **LOWERED-BOUNDARY-BYTE-BUFFER-FAILURES** — mined candidate; scope verified, family repaired. `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff records the boundary-byte-buffer group of checked-trees-to-lowered-psi as green now (with crash-member byte entries and the ordered-boolean row); this stub mines a failure family that no longer fails. The live residual families in that crate are already owned: the bare boundary-trait fixture spelling by ENTRY-CONTENT-ROOTS, and the remaining scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION. No independent slice remains on this row.
 - **LOWERED-CRASH-MEMBER-BYTE-ENTRIES** — mined candidate; scope verified, family repaired. The stub names the crash-member byte-entry group of checked-trees-to-lowered-psi (`tests/crash_member_source/byte_entries.rs`); `wiki/drafts/known_baseline_failures.md`'s own re-reading at d8d48fe4ff already records crash-member byte entries green alongside boundary byte buffers and the ordered-boolean row, and the whole `crash_member_source` suite re-verifies green at this revision (`cargo nextest run -p checked-trees-to-lowered-psi --test suite crash_member_source`: 48/48, linux x86-64). The live residual families in that crate are already owned: bare boundary-trait fixture spellings by ENTRY-CONTENT-ROOTS, scalar-return custody / provider attachment / attached-unit sets by C2L-BASELINE-FAILURE-ATTRIBUTION and C2L-RESIDUAL-FAILURE-ATTRIBUTION, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
-- **LOWERED-OPERATION-PROOF-MACHINE-CALLS** — mined candidate; scope verified, route already exercised. The stub names operation proofs on lowered machine-call operations and proof-output call custody in checked-trees-to-lowered-psi. Both are implemented and green at e76d715c8e: `proofs/operation_proofs.rs::finalize_operation_proofs` discharges call obligations (the previously red `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees` machine_calls row now passes — the group reads 28/28 green), `proofs/evidence_lowering/proof_output_calls.rs::lower_proof_output_calls` keeps runtime-value bindings on their ordinary scalar Call operation, `terminal-verifier/validation/evidence/proof_output_calls.rs` cross-checks `runtime_call.operation` against the caller's operations, and `proof_recursion.rs::proof_machine_dependency_closure` covers proof machine call reachability (6/6 green). Pins: `evidence_identity_source` suite 22/22 green (cargo nextest, linux x86-64) including `runtime_value_proof_output_links_one_scalar_call_and_executes_once`. The live residuals in this crate are already owned: bare `Service<R>` fixture spellings by ENTRY-CONTENT-ROOTS, transitive machine plans by GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, site_guard crash namespace and scalar-return custody by WRITE-ONLY-BORROW integer-entry-ranges, `established by` qualification by BOUNDARY-ISSUANCE, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
+- **LOWERED-OPERATION-PROOF-MACHINE-CALLS** — mined candidate; scope verified, route already exercised. The stub names operation proofs on lowered machine-call operations and proof-output call custody in checked-trees-to-lowered-psi. Both are implemented and green at e76d715c8e (verified base 6ef64f6dd6): `proofs/operation_proofs.rs::finalize_operation_proofs` discharges call obligations (the previously red `unit_scalar_result_source::boundary_wrappers::ordered_boolean_guarantees::ordered_boolean_call_computations_preserve_normal_guarantees` machine_calls row now passes — the group reads 28/28 green), `proofs/evidence_lowering/proof_output_calls.rs::lower_proof_output_calls` keeps runtime-value bindings on their ordinary scalar Call operation, `terminal-verifier/validation/evidence/proof_output_calls.rs` cross-checks `runtime_call.operation` against the caller's operations, and `proof_recursion.rs::proof_machine_dependency_closure` covers proof machine call reachability (6/6 green). Pins: `evidence_identity_source` suite 22/22 green (cargo nextest, linux x86-64) including `runtime_value_proof_output_links_one_scalar_call_and_executes_once`. The live residuals in this crate are already owned: bare `Service<R>` fixture spellings by ENTRY-CONTENT-ROOTS, transitive machine plans by GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF, site_guard crash namespace and scalar-return custody by WRITE-ONLY-BORROW integer-entry-ranges, `established by` qualification by BOUNDARY-ISSUANCE, and the proof-search blowup by PROOF-SEARCH-MEASUREMENT. No independent slice remains on this row.
 - **LOWERED-PSI-BASELINE-TAIL** — mined candidate; verify scope then implement.
 - **LOWERED-SCALAR-RESULT-SOURCE-CUSTODY** — mined candidate; verify scope then implement.
 - **LOWERED-UNIT-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
@@ -7430,7 +7430,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; verify scope then implement.
 - **PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN.** Mined candidate — resolved:
   the name re-covers the cross-package-visibility loan-origin cluster
-  already closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at e76d715c8e —
+  already closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at e76d715c8e (verified base 6ef64f6dd6) —
   `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence`
   stopped emitting "requires an exact retained loan origin" after the
   retained-lineage/borrow-evidence family landed). Re-verified on this
@@ -7645,7 +7645,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PROOF-DERIVED-LOAN-COMPATIBILITY** — mined candidate; verify scope then implement.
 - **PROOF-INTERCHANGE-EXTERNAL-ARITHMETIC** — mined candidate; scope
   verified: merged alias of PROOF-INTERCHANGE-IMPORT's "arithmetic import"
-  clause (the third of its 3 mined aliases, adjudicated at e76d715c8e).
+  clause (the third of its 3 mined aliases, adjudicated at e76d715c8e (verified base 6ef64f6dd6)).
   Re-verified on this host at b972133cad: `proof-admission/src/admission/`
   contains only `evidence.rs`, `normalization.rs` and `recursion.rs` — no
   external import route exists — `integer_rules/` owns the internal checked
@@ -7763,7 +7763,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-MATRIX-RUNNER** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-GATE** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-GATE.** Mined candidate — scope verified, covered.
+  The gate leg of the RC-NATIVE-MATRIX release row is landed in the
+  record substrate: `tools/release/release_record.py` encodes
+  `RC-NATIVE-MATRIX` as a per-host gate running `mbx nextest run -p
+  omega-native-differential-test --all-targets --no-fail-fast`
+  (capability text verbatim from rust_compiler_completion.md's matrix
+  rule). What remains open is per-host evidence, not gate machinery:
+  linux_x86_64 witnessed 22/38 pass at e76d715c8e (verified base 6ef64f6dd6) (residual =
+  ENTRY-CONTENT-ROOTS sysv aggregate-entry family), windows_x86_64 and
+  macOS ARM64 rows are host-gated and sibling-claimed. No independent
+  slice exists. Sibling stubs: RC-NATIVE-MATRIX, -CLOSURE,
+  -HOST-EXECUTION, -HOST-LEGS, -HOST-RUNS, -HOSTS,
+  -LINUX-ARM64, -MACOS-ARM64, -WINDOWS-X64.
 - **RC-NATIVE-MATRIX-HOST-EXECUTION** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-LEGS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-HOST-RUNS** — mined candidate; verify scope then implement.
