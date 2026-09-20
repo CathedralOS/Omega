@@ -7139,7 +7139,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BUILD-DEPEND-PURPOSE-AWARE-LOCKS** — mined candidate; verify scope then implement.
 - **BUILD-DIR-ALIAS-RACE-DETECTION** — mined candidate; verify scope then implement.
   Verified scope: re-mines the race-window residual the landed
-  **BUILD-DIR-HOST-ALIAS-COLLISIONS** row already assigns to
+  BUILD-DIR-HOST-ALIAS-COLLISIONS work (commits `f0f902d6ef`,
+  `164abfbbdb`; the row itself was swept-resolved at `091f5ba75c`)
+  already assigns to
   **BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION** — an alias created
   between admission's `overlap_key` check and the first write (e.g. a
   symlink planted inside the window) is invisible to the spelling-level
