@@ -6524,7 +6524,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-NATIVE-MATRIX-HOSTS** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-LINUX-X64** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-LINUX-X86-64** — mined candidate; verify scope then implement.
+- **RC-NATIVE-MATRIX-LINUX-X86-64** — recorded at
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision 8ae40607a3,
+  linux-x86_64): 15 pass / 23 fail across 38 legs; all failures are the
+  Service<R>-carrier spelling and entry-binding/ownership fixture-migration
+  residuals owned by ENTRY-CONTENT-ROOTS. Re-run the row when those families
+  close.
 - **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
