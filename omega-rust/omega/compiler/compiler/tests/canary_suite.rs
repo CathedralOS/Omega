@@ -1000,6 +1000,15 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "filesystem/native_metadata_times",
     "filesystem/native_set_times",
     "filesystem/native_stat",
+    // The ninth carrier of the same idiom, respelled with it: the raw
+    // `SetFileTime` canary decodes windows `_stat64` st_mtime @40 in a `u64`
+    // and lands it through `narrow_u64_to_i64_wrapping`. Its `_canary_runs`
+    // twin is `#[cfg(windows)]` and the raw seam has no other-target
+    // lowering, so checked semantics is the route that exercises the decode
+    // on every host; the rooted `windows_x86_64` backend route is gated on
+    // the same entry-side FilesystemHost fused-provider selection that keeps
+    // the `native_*` family off native realization.
+    "filesystem/windows_set_file_time_exit",
     // FUZZ-HOST-SCALAR-FIELD-STORE pin: a scalar host-call result stored
     // straight into a field target is the intended allowance (the composite
     // ByteRead field target is what refuses); checked semantics admits it.
