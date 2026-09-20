@@ -9269,7 +9269,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the trio). No independent slice exists; refreshing the stale draft row
   belongs to its live CTTL-FAILURE-ATTRIBUTION claim or the
   KNOWN-BASELINE-FAILURES-REFRESH items.
-- **TERMINATION-RANK-RANGE-FIELDS** — mined candidate; verify scope then implement.
+- **TERMINATION-RANK-RANGE-FIELDS.** Resolved — alias of the landed
+  T2C-RANK-RANGE-FIELD-ENDPOINTS surface, which already names this stub as
+  covering the same work: rank-range endpoints expressed as field chains.
+  `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
+  resolves `ExpressionNode::Member` chains root-to-leaf through declared
+  field types (`EndpointInput`), reads the leaf's store-enforced field
+  bounds, and re-checks preservation on every self edge. Re-verified green
+  on linux x86-64 at `a4ffd1aff8`:
+  `cargo nextest run -p typed-trees-to-checked-trees --lib -E
+  'test(/field_endpoint/)'` — 49/49 pass across field_coordinates,
+  field_endpoint_arithmetic, field_endpoint_pins, field_arrivals and
+  computed_field_limits. No independent slice remains.
 - **TEST-CYCLE-SELECTION-REMEASUREMENT.** Mined candidate; scope verified at
   `5b839c31ab`: refresh or retire the temporary
   [test-cycle measurement draft](wiki/drafts/test_cycle_measurements.md) —
