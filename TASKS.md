@@ -7626,7 +7626,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PRIME-COUNTER-BENCHMARK-ROW** — mined candidate; verify scope then implement.
 - **PRIME-COUNTER-I32-REMAINDER** — mined candidate; verify scope then implement.
 - **PRIME-COUNTER-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
-- **PRIVATE-PIPE-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
+- **PRIVATE-PIPE-RUNTIME-ENFORCEMENT** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PRIVILEGED-PORT-EFFECT-SETTLEMENTS** — mined candidate; verify scope then implement.
 - **PRIVILEGED-SERVICE-ASM-ADMISSION** — mined candidate; verify scope then implement.
