@@ -6522,7 +6522,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ASM-CATALOG-MEMORY-AND-CONTROL** — mined candidate; verify scope then implement.
 - **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
-- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
+- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; scope
+  verified at `a51cb805cc`, resolved — no unfenced slice this wave.
+  Re-mines the memory/authority-bearing family clause of the asm
+  catalog frontier: the row above (ASM family Residual) records
+  "memory/authority-bearing families blocked on UnmodeledMemoryAccess
+  and service admission", and resolved sibling
+  INLINE-ASSEMBLY-CATALOG-EXPANSION attributes the same clause —
+  those families stay blocked on UnmodeledMemoryAccess plus service
+  admission per ASM-CATALOG-FAMILY-EXPANSION's Remaining, while the
+  byte-level emission assertions wait on native-artifact production
+  accepting asm-only entries (currently unreachable at entry
+  selection). A memory-and-transfer contract family is exactly that
+  blocked leg: load/store/transfer instructions carry memory effects
+  `AsmInstructionContract` cannot model until UnmodeledMemoryAccess
+  is resolved, and privileged service admission is
+  ASM-PRIVILEGED-SERVICE-ADMISSION's separate stub. The implementing
+  surfaces are live-fenced: `language-core/src/inline_assembly` +
+  `inline_assembly.md` + the builtin intrinsic table + the parser arm
+  by ASM-INSTRUCTION-CATALOG-EXPANSION (Zergling-160, 06:00Z), and
+  `inline_assembly/mod.rs` + `inline_assembly.md` by
+  ASM-CATALOG-MEMORY-AND-CONTROL (z139, 05:55Z). No independent slice
+  exists; sibling stubs ASM-CATALOG-MEMORY-AND-CONTROL and
+  ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS mine the same clause.
 - **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
 - **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
 - **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; scope verified at
