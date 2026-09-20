@@ -244,6 +244,61 @@ mod semantic_identity_tests {
             diagnostic.message == "domain declaration is missing its checked source owner"
         }));
     }
+
+    #[test]
+    fn contract_membership_prefers_the_occurrence_package_over_foreign_leaves() {
+        let mut sources = SourceMap::default();
+        add_domain_source(
+            &mut sources,
+            "application",
+            "main.omg",
+            "domain [u8; 8]::Utf8\nrequires\n    valid_utf8(self);\n\ndomain [u8; 16]::Utf8\nrequires\n    valid_utf8(self);\n\nmachine fill(line: &mut [u8; 8])\nensures\n    line in Utf8\n{\n}\n",
+            1,
+            DependencyScope::Product,
+        );
+        // A dependency publishes the same leaf under its own package identity;
+        // root-scoped declarations still reach the application's authored
+        // spelling, so the occurrence's own package must outrank them.
+        add_domain_source(
+            &mut sources,
+            "library",
+            "calling.omg",
+            "domain [u8; 256]::Utf8\nrequires\n    valid_utf8(self);\n",
+            2,
+            DependencyScope::Product,
+        );
+        let program = resolve_domain_sources(sources);
+        assert_eq!(program.domain_definitions.len(), 3);
+        let own = program
+            .domain_definitions
+            .iter()
+            .filter(|domain| {
+                program
+                    .symbols
+                    .same_symbol_source_package(program.domain_definitions[0].symbol, domain.symbol)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(own.len(), 2, "the application owns both authored domains");
+
+        let machine = program.machines.first().expect("fill machine");
+        let contract = program
+            .machine_contracts(machine)
+            .iter()
+            .find(|contract| {
+                contract.kind == symbol_resolved_trees::signature::SignatureContractKind::Ensures
+            })
+            .expect("fill should retain its ensures contract");
+        let [symbol_resolved_trees::domain::ProofFact::Membership(membership)] =
+            program.proof_facts(contract.facts)
+        else {
+            panic!("ensures should contain one domain membership")
+        };
+        assert!(membership.domain_symbol.is_valid());
+        assert_eq!(
+            membership.domain_symbol, program.domain_definitions[0].symbol,
+            "the leaf spelling selects the application's own declaration, not the foreign one"
+        );
+    }
 }
 
 #[test]

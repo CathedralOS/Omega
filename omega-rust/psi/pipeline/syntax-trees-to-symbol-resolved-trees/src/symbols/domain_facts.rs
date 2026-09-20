@@ -775,7 +775,31 @@ fn resolve_domain_symbol(
             reference_module.is_valid() && symbols.symbol_module(*symbol) == reference_module
         })
         .collect::<Vec<_>>();
-    let pool = if local.is_empty() { matches } else { local };
+    // Tiered ownership law, mirroring type-position selection: the
+    // occurrence's own module outranks every other declaration, then its own
+    // package outranks foreign packages. A foreign-only pool stays contested
+    // — distinct owners sharing a leaf still fail closed below rather than
+    // silently selecting a declaration the occurrence never owned.
+    let pool = if !local.is_empty() {
+        local
+    } else if reference.span.start != reference.span.end {
+        let own_package = matches
+            .iter()
+            .copied()
+            .filter(|(_, symbol, _)| {
+                symbols
+                    .symbol_provenance_source_span(*symbol)
+                    .is_some_and(|declaration| symbols.same_source_package(reference, declaration))
+            })
+            .collect::<Vec<_>>();
+        if own_package.is_empty() {
+            matches
+        } else {
+            own_package
+        }
+    } else {
+        matches
+    };
     if let Some((first_name, symbol, first_semantic_id)) = pool.first() {
         // Capacity-specialized carriers normalize their domain owner to the
         // same published name (`[u8; N]::Utf8`). Multiple declarations with
