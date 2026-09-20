@@ -232,7 +232,10 @@ fn scalar_cycle_returns_replay_arithmetic_calls_and_result_abi() {
             graph.blocks[2].operations.as_slice(),
             [
                 TargetUnitOperation::ScalarDefinition { .. },
-                TargetUnitOperation::ScalarCall { .. },
+                TargetUnitOperation::Call {
+                    result_home: Some(_),
+                    ..
+                },
                 TargetUnitOperation::ScalarDefinition { .. }
             ]
         ));
@@ -479,9 +482,9 @@ fn scalar_cycle_rejects_changed_arithmetic_and_call_rows() {
                 _ => result_home.source_value = value(8),
             }
         } else {
-            let TargetUnitOperation::ScalarCall {
-                arguments,
-                result_home,
+            let TargetUnitOperation::Call {
+                scalar_arguments: arguments,
+                result_home: Some(result_home),
                 call_plan,
                 ..
             } = &mut graph.blocks[2].operations[1]

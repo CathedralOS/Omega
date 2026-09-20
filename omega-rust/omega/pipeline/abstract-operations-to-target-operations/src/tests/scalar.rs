@@ -136,12 +136,12 @@ fn scalar_graph_call_keeps_callee_abi_and_effect_custody() {
             lower_to_target_operations(&source, TargetLoweringRequest::new(target)).unwrap();
         let graph = &lowered.functions[0].graph;
         let [
-            TargetUnitOperation::ScalarCall {
-                arguments,
+            TargetUnitOperation::Call {
+                scalar_arguments: arguments,
                 call_plan,
                 requirement_obligations,
                 crash_continuations,
-                result_home,
+                result_home: Some(result_home),
                 ..
             },
         ] = graph.blocks[0].operations.as_slice()

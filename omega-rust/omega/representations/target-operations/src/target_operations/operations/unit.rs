@@ -211,41 +211,18 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         source: PlaceId,
     },
-    /// One direct Unit-result call. Scalar arguments occupy the prefix of the
-    /// complete ABI plan; structural arguments retain the remaining placements.
+    /// One direct call, independent of its scalar/structural argument mix.
+    /// Scalar arguments occupy the prefix of the complete ABI plan;
+    /// structural arguments retain the remaining placements. A scalar result
+    /// always has a home identity, even when unused; `None` means Unit, never
+    /// a discarded scalar. Receiving checks reconstruct this identity and the
+    /// full plan from the source declaration, not from this transport record.
     Call {
         origin: NativeCallOrigin,
         psi_operation: OperationId,
         callee: MachineId,
         call_plan: CallPlan,
-        scalar_arguments: Vec<TargetUnitScalarCallArgument>,
-        arguments: Vec<TargetStructuralArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One service-free, in-module fixed-width integer call inside an attached
-    /// Unit body. The complete ABI plan identifies the transient result and
-    /// argument placements; `result_home` separately requires downstream
-    /// assignment to preserve the result for later Unit operations.
-    ScalarCall {
-        psi_operation: OperationId,
-        callee: MachineId,
-        call_plan: CallPlan,
-        result_home: TargetUnitScalarHomeRequirement,
-        arguments: Vec<TargetUnitScalarCallArgument>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One structural call with its exact scalar result and complete ABI plan.
-    /// Ordinary graphs retain the result for subsequent uses; Unit bodies may
-    /// discard it without changing the callee's result contract.
-    StructuralScalarCall {
-        origin: NativeCallOrigin,
-        psi_operation: OperationId,
-        result: AbstractResult,
-        callee: MachineId,
-        call_plan: CallPlan,
+        result_home: Option<TargetUnitScalarHomeRequirement>,
         scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,

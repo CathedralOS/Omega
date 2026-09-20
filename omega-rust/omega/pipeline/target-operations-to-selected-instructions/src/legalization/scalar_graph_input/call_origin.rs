@@ -47,12 +47,6 @@ pub(in crate::legalization) fn installed_operation(
                 callee,
                 ..
             }
-            | TargetUnitOperation::StructuralScalarCall {
-                psi_operation: identity,
-                origin,
-                callee,
-                ..
-            }
             | TargetUnitOperation::StructuralResultCall {
                 psi_operation: identity,
                 origin,
@@ -194,8 +188,14 @@ pub(in crate::legalization) fn installed_operation(
             abstract_operations::AbstractBoundaryResult::Scalar(result),
             terminal_psi::BoundaryMachineResult::Scalar(boundary_scalar),
             AbstractFunctionResult::Scalar(candidate_result),
-            TargetUnitOperation::StructuralScalarCall { result: actual, .. },
-        ) if actual == result
+            TargetUnitOperation::Call {
+                result_home: Some(actual),
+                ..
+            },
+        ) if actual.source_value == result.value
+            && actual.scalar_type == result.scalar_type
+            && actual.defining_operation == *psi_operation
+            && Some(actual.shape) == super::scalar_shape(result.scalar_type)
             && result.scalar_type == *boundary_scalar
             && candidate_result.scalar_type == *boundary_scalar =>
         {
@@ -214,7 +214,9 @@ pub(in crate::legalization) fn installed_operation(
             abstract_operations::AbstractBoundaryResult::Unit,
             terminal_psi::BoundaryMachineResult::Unit,
             AbstractFunctionResult::Unit,
-            TargetUnitOperation::Call { .. },
+            TargetUnitOperation::Call {
+                result_home: None, ..
+            },
         ) => AbstractOperation::CallUnit {
             psi_operation: *psi_operation,
             callee,

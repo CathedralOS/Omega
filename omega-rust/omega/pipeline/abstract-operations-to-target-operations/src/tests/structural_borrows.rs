@@ -52,6 +52,96 @@ fn borrowed_scalar_call_preserves_verified_requirement_obligations() {
     borrowed_call_requirement_custody(true);
 }
 
+#[test]
+fn ordinary_calls_reject_missing_substituted_and_forged_scalar_homes() {
+    let source = source_plan(
+        r#"
+            data Main { value: u64; }
+            machine Main::put(&mut self, value: u64) { self.value = value; }
+            machine Main::get(&self) -> u64 { self.value }
+            machine Main::run(&mut self) {
+                self.put(3);
+                let observed: u64 = self.get();
+            }
+        "#,
+    );
+    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("borrowed Unit and scalar calls lower");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let scalar_home = target
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call {
+                    result_home: Some(home),
+                    ..
+                } => Some(*home),
+                _ => None,
+            })
+            .expect("scalar result retained even when unused");
+        for mutation in 0..5 {
+            let changed = mutate_call_row(
+                &target,
+                |operation| {
+                    matches!(
+                        operation,
+                        TargetUnitOperation::Call {
+                            result_home: Some(_),
+                            ..
+                        }
+                    )
+                },
+                |operation| {
+                    let TargetUnitOperation::Call { result_home, .. } = operation else {
+                        unreachable!()
+                    };
+                    if mutation == 0 {
+                        *result_home = None;
+                        return;
+                    }
+                    let home = result_home.as_mut().unwrap();
+                    match mutation {
+                        1 => home.defining_operation = OperationId::new(99_001).unwrap(),
+                        2 => home.source_value = ValueId::new(99_002).unwrap(),
+                        3 => home.scalar_type = ScalarType::Boolean,
+                        _ => home.shape = calling_conventions::ValueShape::integer(1, 1),
+                    }
+                },
+            );
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "{native:?}, scalar home mutation {mutation}"
+            );
+        }
+        let changed = mutate_call_row(
+            &target,
+            |operation| {
+                matches!(
+                    operation,
+                    TargetUnitOperation::Call {
+                        result_home: None,
+                        ..
+                    }
+                )
+            },
+            |operation| {
+                let TargetUnitOperation::Call { result_home, .. } = operation else {
+                    unreachable!()
+                };
+                *result_home = Some(scalar_home);
+            },
+        );
+        assert!(
+            crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+            "{native:?}, forged scalar result on Unit call"
+        );
+    }
+}
+
 fn borrowed_call_requirement_custody(scalar_result: bool) {
     let source = source_plan(
         r#"
@@ -93,12 +183,7 @@ fn borrowed_call_requirement_custody(scalar_result: bool) {
     assert!(obligations.len() >= 2, "both authored requirements survive");
     assert_ne!(obligations[0], obligations[1]);
     let select = |candidate: &TargetUnitOperation| match candidate {
-        TargetUnitOperation::Call { psi_operation, .. } if !scalar_result => {
-            *psi_operation == operation
-        }
-        TargetUnitOperation::StructuralScalarCall { psi_operation, .. } if scalar_result => {
-            *psi_operation == operation
-        }
+        TargetUnitOperation::Call { psi_operation, .. } => *psi_operation == operation,
         _ => false,
     };
     for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
@@ -108,14 +193,10 @@ fn borrowed_call_requirement_custody(scalar_result: bool) {
         crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
         for mutation in 0..3 {
             let changed = mutate_call_row(&target, select, |call| {
-                let (TargetUnitOperation::Call {
+                let TargetUnitOperation::Call {
                     requirement_obligations,
                     ..
-                }
-                | TargetUnitOperation::StructuralScalarCall {
-                    requirement_obligations,
-                    ..
-                }) = call
+                } = call
                 else {
                     unreachable!("selected borrowed call")
                 };
@@ -212,22 +293,14 @@ fn structural_calls_preserve_verified_crash_continuations() {
                         matches!(
                             candidate,
                             TargetUnitOperation::Call { psi_operation, .. }
-                                | TargetUnitOperation::StructuralScalarCall {
-                                    psi_operation,
-                                    ..
-                                }
                             if *psi_operation == *operation
                         )
                     },
                     |call| {
-                        let (TargetUnitOperation::Call {
+                        let TargetUnitOperation::Call {
                             crash_continuations,
                             ..
-                        }
-                        | TargetUnitOperation::StructuralScalarCall {
-                            crash_continuations,
-                            ..
-                        }) = call
+                        } = call
                         else {
                             unreachable!("selected crash-bearing call")
                         };
@@ -1080,7 +1153,6 @@ fn mutate_call_plan(
             for operation in &mut block.operations {
                 let call_plan = match operation {
                     TargetUnitOperation::Call { call_plan, .. }
-                    | TargetUnitOperation::StructuralScalarCall { call_plan, .. }
                     | TargetUnitOperation::StructuralResultCall { call_plan, .. } => call_plan,
                     _ => continue,
                 };
@@ -1101,9 +1173,6 @@ fn mutate_scalar_arguments(
             for operation in &mut block.operations {
                 let arguments = match operation {
                     TargetUnitOperation::Call {
-                        scalar_arguments, ..
-                    }
-                    | TargetUnitOperation::StructuralScalarCall {
                         scalar_arguments, ..
                     }
                     | TargetUnitOperation::StructuralResultCall {
@@ -1128,7 +1197,6 @@ fn mutate_call_arguments(
             for operation in &mut block.operations {
                 let arguments = match operation {
                     TargetUnitOperation::Call { arguments, .. }
-                    | TargetUnitOperation::StructuralScalarCall { arguments, .. }
                     | TargetUnitOperation::StructuralResultCall { arguments, .. } => arguments,
                     _ => continue,
                 };
@@ -2032,9 +2100,8 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
             machine: MachineId::new(1).unwrap(),
             operation: OperationId::new(11).unwrap(),
         };
-    let is_scalar_call = |operation: &TargetUnitOperation| {
-        matches!(operation, TargetUnitOperation::ScalarCall { .. })
-    };
+    let is_scalar_call =
+        |operation: &TargetUnitOperation| matches!(operation, TargetUnitOperation::Call { .. });
     for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target =
             crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
@@ -2045,36 +2112,48 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
             .iter()
             .flat_map(|function| &function.graph.blocks)
             .flat_map(|block| &block.operations)
-            .filter(|operation| matches!(operation, TargetUnitOperation::ScalarCall { .. }))
+            .filter(|operation| matches!(operation, TargetUnitOperation::Call { .. }))
             .count();
         assert_eq!(calls, 2);
         for mutation in [
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { callee, .. } = operation else {
+                let TargetUnitOperation::Call { callee, .. } = operation else {
                     unreachable!()
                 };
                 *callee = MachineId::new(77).unwrap();
             }) as Box<dyn FnOnce(&mut TargetUnitOperation)>,
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { call_plan, .. } = operation else {
+                let TargetUnitOperation::Call { call_plan, .. } = operation else {
                     unreachable!()
                 };
                 call_plan.stack_alignment = call_plan.stack_alignment.wrapping_add(8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { arguments, .. } = operation else {
+                let TargetUnitOperation::Call {
+                    scalar_arguments: arguments,
+                    ..
+                } = operation
+                else {
                     unreachable!()
                 };
                 arguments[0].parameter_index = 9;
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { arguments, .. } = operation else {
+                let TargetUnitOperation::Call {
+                    scalar_arguments: arguments,
+                    ..
+                } = operation
+                else {
                     unreachable!()
                 };
                 arguments[0].placement.locations.clear();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { arguments, .. } = operation else {
+                let TargetUnitOperation::Call {
+                    scalar_arguments: arguments,
+                    ..
+                } = operation
+                else {
                     unreachable!()
                 };
                 let scalar_type = arguments[0].source.scalar_type();
@@ -2086,31 +2165,47 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
                     };
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { result_home, .. } = operation else {
+                let TargetUnitOperation::Call {
+                    result_home: Some(result_home),
+                    ..
+                } = operation
+                else {
                     unreachable!()
                 };
                 result_home.source_value = ValueId::new(99).unwrap();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { result_home, .. } = operation else {
+                let TargetUnitOperation::Call {
+                    result_home: Some(result_home),
+                    ..
+                } = operation
+                else {
                     unreachable!()
                 };
                 result_home.defining_operation = OperationId::new(10).unwrap();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { result_home, .. } = operation else {
+                let TargetUnitOperation::Call {
+                    result_home: Some(result_home),
+                    ..
+                } = operation
+                else {
                     unreachable!()
                 };
                 result_home.scalar_type = ScalarType::Boolean;
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall { result_home, .. } = operation else {
+                let TargetUnitOperation::Call {
+                    result_home: Some(result_home),
+                    ..
+                } = operation
+                else {
                     unreachable!()
                 };
                 result_home.shape = calling_conventions::ValueShape::integer(8, 8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall {
+                let TargetUnitOperation::Call {
                     requirement_obligations,
                     ..
                 } = operation
@@ -2119,32 +2214,24 @@ fn embedded_scalar_calls_replay_declared_signature_rows() {
                 };
                 requirement_obligations.push(semantic_vocabulary::ObligationId::new(7).unwrap());
             }),
-            // A structural call row under a scalar call's key is the wrong role
-            // even when its embedded plan is identical.
+            // Removing the scalar result cannot turn the source call into Unit.
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::ScalarCall {
-                    psi_operation,
-                    callee,
-                    call_plan,
-                    arguments,
-                    requirement_obligations,
-                    crash_continuations,
-                    ..
-                } = operation.clone()
+                let TargetUnitOperation::Call { result_home, .. } = operation else {
+                    unreachable!()
+                };
+                *result_home = None;
+            }),
+            Box::new(|operation: &mut TargetUnitOperation| {
+                let TargetUnitOperation::Call {
+                    claim_transfers, ..
+                } = operation
                 else {
                     unreachable!()
                 };
-                *operation = TargetUnitOperation::Call {
-                    origin: target_operations::NativeCallOrigin::Authored,
-                    psi_operation,
-                    callee,
-                    call_plan,
-                    scalar_arguments: arguments,
-                    arguments: Vec::new(),
-                    claim_transfers: Vec::new(),
-                    requirement_obligations,
-                    crash_continuations,
-                };
+                claim_transfers.push(terminal_psi::ClaimTransfer {
+                    claim: semantic_vocabulary::ClaimId::new(99).unwrap(),
+                    argument_index: 0,
+                });
             }),
         ] {
             let mutated = mutate_call_row(&target, is_scalar_call, mutation);
@@ -2183,14 +2270,14 @@ fn embedded_calls_reject_unbound_and_duplicate_forged_rows() {
             .flat_map(|function| &function.graph.blocks)
             .flat_map(|block| &block.operations)
             .find_map(|operation| match operation {
-                TargetUnitOperation::ScalarCall { .. } => Some(operation.clone()),
+                TargetUnitOperation::Call { .. } => Some(operation.clone()),
                 _ => None,
             })
             .unwrap();
-        let TargetUnitOperation::ScalarCall {
+        let TargetUnitOperation::Call {
             callee,
             call_plan,
-            arguments,
+            scalar_arguments: arguments,
             requirement_obligations,
             crash_continuations,
             ..
@@ -2199,6 +2286,7 @@ fn embedded_calls_reject_unbound_and_duplicate_forged_rows() {
             unreachable!()
         };
         let forged = |psi_operation| TargetUnitOperation::Call {
+            result_home: None,
             origin: target_operations::NativeCallOrigin::Authored,
             psi_operation,
             callee,

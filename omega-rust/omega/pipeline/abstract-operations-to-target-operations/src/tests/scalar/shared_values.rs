@@ -134,7 +134,7 @@ fn scalar_graph_retains_repeated_value_definitions_once() {
                 .iter()
                 .filter(|operation| matches!(
                     operation,
-                    target_operations::TargetUnitOperation::ScalarCall { .. }
+                    target_operations::TargetUnitOperation::Call { .. }
                 ))
                 .count(),
             usize::from(with_call)

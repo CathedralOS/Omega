@@ -101,12 +101,6 @@ pub(super) fn retain_origin(
             origin: actual,
             ..
         }
-        | TargetUnitOperation::StructuralScalarCall {
-            psi_operation,
-            callee,
-            origin: actual,
-            ..
-        }
         | TargetUnitOperation::StructuralResultCall {
             psi_operation,
             callee,
