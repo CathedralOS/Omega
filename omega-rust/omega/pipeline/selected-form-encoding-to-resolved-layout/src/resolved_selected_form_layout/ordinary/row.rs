@@ -29,6 +29,7 @@ pub(super) fn resolve(
     machine: &PostAllocationMachineInstruction,
     pre: &SelectedFormEncodingRow,
     physical: &ValidatedPhysicalRegisterModel,
+    widened: bool,
 ) -> Result<
     (
         Vec<u8>,
@@ -86,6 +87,7 @@ pub(super) fn resolve(
             block_offsets,
             machine,
             physical,
+            widened,
         )
         .map(|(bytes, branch)| (bytes, branch, None, None)),
         _ => unexpected(instruction.id),

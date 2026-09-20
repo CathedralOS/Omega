@@ -175,6 +175,186 @@ pub fn validate_aarch64_selected_i64_less_than_branch_form(
     })
 }
 
+/// Encode the widened layout-resolved realization of `ConditionalBranchNonZero`
+/// for taken edges beyond the `B.cond` imm19 range: `B.EQ +8` falls through to
+/// an unconditional `B` that carries the signed imm26 displacement measured
+/// from the second word's own address.
+pub fn encode_aarch64_selected_nonzero_widened_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    encode_widened_branch(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchNonZero,
+        SelectedInstructionKind::ConditionalBranchNonZero,
+        0x0,
+        byte_displacement_from_instruction,
+    )
+}
+
+/// Independently decode the widened `B.EQ +8; B target` pair.
+pub fn validate_aarch64_selected_nonzero_widened_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_widened_branch(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchNonZero,
+        SelectedInstructionKind::ConditionalBranchNonZero,
+        0x0,
+        byte_displacement_from_instruction,
+        bytes,
+    )
+}
+
+/// Encode the widened unsigned-lower conditional branch: `B.HS +8` (the inverse
+/// of `B.LO`, condition code `0b0010`) skips to the unconditional `B`.
+pub fn encode_aarch64_selected_u64_less_than_widened_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    encode_widened_branch(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchU64LessThan,
+        SelectedInstructionKind::ConditionalBranchU64LessThan,
+        0x2,
+        byte_displacement_from_instruction,
+    )
+}
+
+/// Independently decode the widened `B.HS +8; B target` pair.
+pub fn validate_aarch64_selected_u64_less_than_widened_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_widened_branch(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchU64LessThan,
+        SelectedInstructionKind::ConditionalBranchU64LessThan,
+        0x2,
+        byte_displacement_from_instruction,
+        bytes,
+    )
+}
+
+/// Encode the widened signed-less-than conditional branch: `B.GE +8` (the
+/// inverse of `B.LT`, condition code `0b1010`) skips to the unconditional `B`.
+pub fn encode_aarch64_selected_i64_less_than_widened_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    encode_widened_branch(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchI64LessThan,
+        SelectedInstructionKind::ConditionalBranchI64LessThan,
+        0xa,
+        byte_displacement_from_instruction,
+    )
+}
+
+/// Independently decode the widened `B.GE +8; B target` pair.
+pub fn validate_aarch64_selected_i64_less_than_widened_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_widened_branch(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchI64LessThan,
+        SelectedInstructionKind::ConditionalBranchI64LessThan,
+        0xa,
+        byte_displacement_from_instruction,
+        bytes,
+    )
+}
+
+fn encode_widened_branch(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    family: MachineAlternativeFamily,
+    kind: SelectedInstructionKind,
+    inverted_condition: u32,
+    byte_displacement_from_instruction: i64,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_branch_request(physical, alternative, family)?;
+    let word_displacement = widened_branch_word_displacement(byte_displacement_from_instruction)?;
+    let skip = 0x5400_0000 | (2 << 5) | inverted_condition;
+    let target = 0x1400_0000 | ((word_displacement as u32) & 0x03ff_ffff);
+    let mut bytes = Vec::with_capacity(8);
+    bytes.extend_from_slice(&skip.to_le_bytes());
+    bytes.extend_from_slice(&target.to_le_bytes());
+    validate_widened_branch(
+        physical,
+        alternative,
+        family,
+        kind,
+        inverted_condition,
+        byte_displacement_from_instruction,
+        &bytes,
+    )
+}
+
+fn validate_widened_branch(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    family: MachineAlternativeFamily,
+    kind: SelectedInstructionKind,
+    inverted_condition: u32,
+    byte_displacement_from_instruction: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_branch_request(physical, alternative, family)?;
+    widened_branch_word_displacement(byte_displacement_from_instruction)?;
+    let bytes: [u8; 8] = bytes
+        .try_into()
+        .map_err(|_| Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+    let first = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
+    if first != (0x5400_0000 | (2 << 5) | inverted_condition) {
+        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
+    }
+    let second = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
+    if second & 0xfc00_0000 != 0x1400_0000 {
+        return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
+    }
+    let decoded = i64::from(((second & 0x03ff_ffff) << 6) as i32 >> 6) * 4;
+    if decoded != byte_displacement_from_instruction - 4 {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedAarch64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: footprint(kind, &[]),
+    })
+}
+
+fn widened_branch_word_displacement(
+    byte_displacement: i64,
+) -> Result<i32, Aarch64SelectedFormEncodingError> {
+    if byte_displacement % 4 != 0 {
+        return Err(Aarch64SelectedFormEncodingError::BranchDisplacementMisaligned);
+    }
+    // The unconditional `B` sits one word into the row, so its own displacement
+    // is the row displacement minus one word.
+    let words = byte_displacement / 4 - 1;
+    if !(-(1_i64 << 25)..(1_i64 << 25)).contains(&words) {
+        return Err(Aarch64SelectedFormEncodingError::BranchDisplacementOutsideImm26);
+    }
+    Ok(words as i32)
+}
+
 fn validate_branch_request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
