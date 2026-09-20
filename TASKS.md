@@ -6727,12 +6727,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **C2L-FAILURE-TRIAGE.** Resolved — the triage is already discharged by
   `wiki/drafts/known_baseline_failures.md`'s checked-trees-to-lowered-psi
   section, and it still holds on current main. Re-verified at
-  `fcfb576fe9` (linux x86-64): `cargo nextest run -p
-  checked-trees-to-lowered-psi --no-fail-fast` → 2152 run, 2096 passed
-  (6 slow), 56 failed, plus the recorded nonterminating
+  `867443a8fd` (linux x86-64): same command → 2159 run, 59 FAIL plus the
+  recorded nonterminating
   `mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
-  member excluded from this run and still owned by PROOF-SEARCH-MEASUREMENT.
-  Every one of the 56 failures maps onto the ledger's owned families with
+  member (killed >900s — the PROOF-SEARCH-MEASUREMENT blowup persists).
+  The 59 decompose as the ledger's owned families: 33 bare `Service<R>`
+  fixture spellings (30 `tests::*` + 3 `unit_plan_omissions`,
+  ENTRY-CONTENT-ROOTS), 16 missing checked transitive machine plans
+  (6 `provider_attachment_source` + 9 `unit_state_graph::
+  provider_attachments` + 1 `guarded_scalar_returns_source`,
+  GENERAL-CYCLIC-EXECUTION/UEFI-OS-HANDOFF fences), 3 site_guard
+  crash-namespace rejections (now spread across `mixed_shift_source`,
+  `exact_shift_left_certificate_source`, `exact_affine_sibling_source`;
+  WRITE-ONLY-BORROW), 4 `owned_record_return_source` scalar-return
+  custody, and the two ledger-recorded newer members (2 ranked
+  safe-point segment bounds + 1 closed-projection replay admission,
+  both attributed in the `6ef64f6dd6` residual reading). Unattributed
+  tail remains empty. Prior reading at `fcfb576fe9` (linux x86-64):
+  2152 run, 2096 passed (6 slow), 56 failed; every failure mapped onto
+  the ledger's owned families with
   the same group membership: 30 library `tests::*` + 3 `unit_plan_omissions`
   bare `Service<R>` fixture spellings (ENTRY-CONTENT-ROOTS), 6
   `provider_attachment_source` + 9 `unit_state_graph::provider_attachments`
