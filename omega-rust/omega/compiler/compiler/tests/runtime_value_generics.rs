@@ -97,6 +97,38 @@ machine build(builder: &mut Build) {
     }
 }
 
+/// Compile `source` at `Check` level and return the joined diagnostics when
+/// the pipeline rejects it.
+fn check_source(name: &str, source: &str) -> Result<(), String> {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let fixture = Fixture(std::env::temp_dir().join(format!(
+        "omega-runtime-value-generics-check-{name}-{}-{stamp}",
+        std::process::id(),
+    )));
+    fs::create_dir(&fixture.0).unwrap();
+    let main = fixture.0.join("main.omg");
+    fs::write(&main, source).unwrap();
+    let request = CompileRequest::new(CompileOptions {
+        root_path: main,
+        build_dir: Some(fixture.0.join("build")),
+        target_name: Some("linux_x86_64".to_owned()),
+    })
+    .with_requested_product(RequestedCompileProduct::Check);
+    compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .map(|_| ())
+        .map_err(|diagnostics| {
+            diagnostics
+                .iter()
+                .map(|diagnostic| diagnostic.message.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+}
+
 /// Collect every in-module direct call operation across all of a machine's
 /// blocks as `(callee, scalar arguments, obligation count)` rows in authored
 /// order. `CallUnit`/`CallStructuralScalar` carry the receiver and claims on
@@ -216,6 +248,100 @@ machine Main::main(&mut self) reaches Trace {
         &[3, 4, 4],
         "each body returns its exact captured subject",
         &[],
+    );
+}
+
+#[test]
+fn runtime_bound_domain_index_forwards_through_generic_calls() {
+    // Every index-binding kind discharges a callee's `Coordinate<I>`
+    // qualification once the call binds `I`: forwarded runtime `Value`
+    // binders, forwarded `const` binders, and closed literals alike. Check
+    // level is the pin: embedded scalar qualifications do not lower.
+    for (name, source) in [
+        (
+            "value-binder",
+            r#"
+domain<T, const I: u32> T::Coordinate<I>;
+
+machine relay<Count: u32>(value: u64 in Coordinate<Count>) -> u64 in Coordinate<Count> {
+    value
+}
+
+machine outer<Count: u32>(value: u64 in Coordinate<Count>) -> u64 in Coordinate<Count> {
+    relay<Count>(value)
+}
+"#,
+        ),
+        (
+            "const-binder",
+            r#"
+domain<T, const I: u32> T::Coordinate<I>;
+
+machine relay<const Count: u32>(value: u64 in Coordinate<Count>) -> u64 in Coordinate<Count> {
+    value
+}
+
+machine outer<const Count: u32>(value: u64 in Coordinate<Count>) -> u64 in Coordinate<Count> {
+    relay<Count>(value)
+}
+"#,
+        ),
+        (
+            "literal",
+            r#"
+domain<T, const I: u32> T::Coordinate<I>;
+
+machine relay<Count: u32>(value: u64 in Coordinate<Count>) -> u64 in Coordinate<Count> {
+    value
+}
+
+machine outer<T>(value: u64 in Coordinate<9>) -> u64 in Coordinate<9> {
+    relay<9>(value)
+}
+"#,
+        ),
+        (
+            "const-into-value",
+            r#"
+domain<T, const I: u32> T::Coordinate<I>;
+
+machine relay<Count: u32>(value: u64 in Coordinate<Count>) -> u64 in Coordinate<Count> {
+    value
+}
+
+machine outer<const Slot: u32>(value: u64 in Coordinate<Slot>) -> u64 in Coordinate<Slot> {
+    relay<Slot>(value)
+}
+"#,
+        ),
+    ] {
+        check_source(name, source).unwrap_or_else(|diagnostics| {
+            panic!(
+                "call-bound index forwarding must check ({name}):
+{diagnostics}"
+            )
+        });
+    }
+
+    let diagnostics = check_source(
+        "mismatched-binder",
+        r#"
+domain<T, const I: u32> T::Coordinate<I>;
+
+machine relay<Count: u32>(value: u64 in Coordinate<Count>) -> u64 in Coordinate<Count> {
+    value
+}
+
+machine outer<Count: u32, Other: u32>(value: u64 in Coordinate<Count>) -> u64 in Coordinate<Count> {
+    relay<Other>(value)
+}
+"#,
+    )
+    .expect_err("forwarding a different index binder must reject");
+    assert!(
+        diagnostics.contains("index"),
+        "mismatched domain index rejected without an index diagnostic:
+{diagnostics}"
     );
 }
 

@@ -3385,7 +3385,14 @@ Owners include
     (array extents, `const` positions) still reject;
     `fail/generics/value_generic_runtime_static_bound` is retired and
     `pass/generics/value_generic_runtime_result_bound` is the acceptance
-    fixture. Remaining: domain-index qualifications, and bound subjects that
+    fixture. Domain-index qualifications forward through call-bound index
+    substitution: a call's const-position binder instantiation (`literal`,
+    `const` binder, or runtime `Value` binder) rewrites the callee's declared
+    `Coordinate<I>` membership to the caller's bound index in both index
+    compatibility and requires-fact instantiation, so
+    `machine outer<N: u32>(v: i64 in Coordinate<N>) { relay<N>(v) }` now
+    checks while `relay<M>(v)` still rejects.
+    Remaining: bound subjects that
     exist only under a dominating guard rather than a declared type.
   - Parse and check value binders on data declarations:
     `data Index<Limit: u32> { value: u32 [0..Limit]; }` owes the range at
