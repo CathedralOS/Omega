@@ -331,7 +331,17 @@ prerequisite to every lower-rung milestone.
 
   Remaining work:
 
-  - D's OCREQ request entry, still framed per gate rather than bound.
+  - ~~D's OCREQ request entry, still framed per gate rather than bound.~~
+    Bound in `tools/bootstrap/omega/compiler_env.sh` at 4,115 bytes
+    (`OMEGA_REQUEST_ENTRY_*` pins) alongside its canonical sealed request
+    fixture (`OMEGA_REQUEST_FIXTURE_*`, 132 bytes), both recorded in
+    `tests/bootstrap/omega-request/README.md` and refused by
+    `tests/bootstrap/omega-identity.sh`; the `tests/bootstrap/omega-request`
+    gate serves it through the selected chain on macOS arm64/Windows x64.
+    New request-level provisions 25 (`coverage_request_semantics`) and 26
+    (`request_staging_bytes`) were added to the outcome tables in
+    `bootstrap/5_omega/outcome.epsilon` and
+    `wiki/spec/build/compiler_request.md`, rebinding the D closure records.
   - The gate-local prefixes packed on top of bound member bytes: every
     gate-local driver except the shared Epsilon slice driver. D's gate-local
     customer entries bind in `tools/bootstrap/omega/compiler_env.sh`, recorded
