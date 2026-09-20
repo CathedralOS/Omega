@@ -58,12 +58,15 @@
 //
 // - `Granted` cannot be minted from geometry, and a checked callable may
 //   retain content-bearing custody only from a consumed owned input. The
-//   split therefore consumes the whole tail; a `&mut` carve was rejected
-//   because its result custody would come from a borrowed parameter.
-//   Partitioning is a boundary requirement: the package authors the exact
-//   `separate` law, and the selected provider is what establishes the two
-//   qualified sub-ranges. No ordinary machine here constructs `Extent`
-//   geometry.
+//   split therefore consumes the whole tail; a `&mut` carve stays rejected —
+//   retried through the borrowed-storage restoration window, the field
+//   move-out is tracked but no boundary call may run while `strategy.tail`
+//   is absent, and the surviving result still derives its custody from a
+//   borrowed parameter (`fail/memory/bump_allocator_borrowed_strategy_carve`
+//   pins both refusals). Partitioning is a boundary requirement: the package
+//   authors the exact `separate` law, and the selected provider is what
+//   establishes the two qualified sub-ranges. No ordinary machine here
+//   constructs `Extent` geometry.
 // - Recomposition takes one `Split` record rather than two `Extent`
 //   parameters: a boundary returning `Granted` custody from two consumed
 //   qualified inputs is rejected as ambiguous, and the checker's exact
