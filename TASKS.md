@@ -8070,7 +8070,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   landed commit.
 - **SCHEDULING-RELOCATION-ADMISSION** — mined candidate; verify scope then implement.
 - **SCHEDULING-RELOCATION-UNIFICATION** — mined candidate; verify scope then implement.
-- **SCOPED-LOOKUP-MAP-AUDIT** — mined candidate; verify scope then implement.
+- **SCOPED-LOOKUP-MAP-AUDIT** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build.
 - **SEALED-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
 - **SEED-HOST-CHAIN-LEGS.** Mined candidate. The bootstrap chain has two
   audited seed hosts — macOS arm64 (`alpha_arm64_macos`) and Windows x64
