@@ -1,18 +1,89 @@
 use diagnostics::Diagnostic;
+use language_core::inline_assembly::AsmAuthorityRequirement;
 use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
-/// Current coarse target-class gate for authority-bearing assembly intrinsics.
-/// Hosted compilation rejects them; freestanding selection passes this gate.
-/// That implementation restriction is not proof of a concrete machine-control
-/// capability. The required authority contract is in
-/// wiki/spec/build/permissions.md#privileged-services. Instructions with no
-/// authority requirement do not need this gate's freestanding condition.
+/// The privileged-service authority classes an evaluated build supplies to the
+/// asm authority discharge. Each catalog contract carries its own
+/// `AsmAuthorityRequirement` and this admission independently answers for the
+/// exact class, per
+/// wiki/spec/build/permissions.md#privileged-services: a machine's `reaches`
+/// row names the service it may reach; this evidence states which privileged
+/// classes the produced image may exercise at all.
+///
+/// `Build.freestanding` is the only authored evidence today: the freestanding
+/// selection is the boot-root machine owner, and the machine owner can
+/// self-grant the mediated classes (port permission maps, interrupt-table
+/// publication) alongside machine control itself. A hosted build admits no
+/// class: privileged instructions would fault at ring 3. Consumer-defined
+/// publication authority stays receiver-side per the permissions spec and
+/// never enters this input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AsmAuthorityAdmission {
+    machine_owner: bool,
+    port_io: bool,
+    idt_control: bool,
+}
+
+impl AsmAuthorityAdmission {
+    /// A hosted image supplies no privileged-service authority.
+    pub const HOSTED: Self = Self {
+        machine_owner: false,
+        port_io: false,
+        idt_control: false,
+    };
+
+    /// The freestanding machine-owner selection admits every authority class
+    /// the catalog defines: owning the machine includes its mediated
+    /// capabilities.
+    pub const MACHINE_OWNER: Self = Self {
+        machine_owner: true,
+        port_io: true,
+        idt_control: true,
+    };
+
+    /// The admission evidence an evaluated `Build.freestanding` selection
+    /// supplies: full machine-owner admission or none.
+    pub const fn from_freestanding(freestanding: bool) -> Self {
+        if freestanding {
+            Self::MACHINE_OWNER
+        } else {
+            Self::HOSTED
+        }
+    }
+
+    /// Whether this admission supplies the exact authority class one
+    /// instruction contract requires. `None`-authority instructions admit
+    /// unconditionally and never reach the gate's rejection path.
+    pub const fn admits(&self, requirement: AsmAuthorityRequirement) -> bool {
+        match requirement {
+            AsmAuthorityRequirement::None => true,
+            AsmAuthorityRequirement::MachineOwner => self.machine_owner,
+            AsmAuthorityRequirement::PortIo => self.port_io,
+            AsmAuthorityRequirement::IdtControl => self.idt_control,
+        }
+    }
+
+    fn description(requirement: AsmAuthorityRequirement) -> &'static str {
+        match requirement {
+            AsmAuthorityRequirement::None => "no authority",
+            AsmAuthorityRequirement::MachineOwner => "machine-owner authority",
+            AsmAuthorityRequirement::PortIo => "port-I/O authority",
+            AsmAuthorityRequirement::IdtControl => "interrupt-table publication authority",
+        }
+    }
+}
+
+/// Per-capability admission gate for authority-bearing assembly intrinsics.
+/// Each instruction's contract authority class is checked against the build's
+/// supplied admission evidence; instructions with no authority requirement
+/// pass unconditionally. Hosted compilation supplies no class and rejects
+/// each authority-bearing emission with its exact missing class.
 pub fn validate_asm_discharge(
     program: &TypedTrees,
-    freestanding: bool,
+    admission: AsmAuthorityAdmission,
 ) -> Result<(), Vec<Diagnostic>> {
-    if freestanding {
+    if admission == AsmAuthorityAdmission::MACHINE_OWNER {
         return Ok(());
     }
 
@@ -25,17 +96,17 @@ pub fn validate_asm_discharge(
                 else {
                     continue;
                 };
-                if required_authority
-                    == language_core::inline_assembly::AsmAuthorityRequirement::None
-                {
+                if admission.admits(required_authority) {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` uses asm instruction `{}`, which requires a FREESTANDING \
-                     boundary root (v0 discharge: only code that owns the machine may emit \
-                     privileged instructions; a hosted build would fault at ring 3). Set \
-                     `b.freestanding = true` in build.omg, or remove the asm block",
-                    machine.name, instruction
+                     boundary root (the contract requires {}, and this build supplies no \
+                     privileged-service admission). Set `b.freestanding = true` in build.omg, \
+                     or remove the asm block",
+                    machine.name,
+                    instruction,
+                    AsmAuthorityAdmission::description(required_authority)
                 )));
             }
         }
@@ -43,6 +114,9 @@ pub fn validate_asm_discharge(
 
     crate::program_validation::finish_diagnostics(diagnostics)
 }
+
+#[cfg(test)]
+mod tests;
 
 /// Direct assembly emission declares its canonical service at the instruction
 /// owner. Ordinary checked callers propagate that reach through the shared
