@@ -13234,6 +13234,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   wrapper module dirs plus `native_realization.rs`, and
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION holds a live claim (exp
   2026-09-21T06:52Z). Verdict unchanged: no independent slice.
+||||||| parent of 4c692c9fe9ce (board: POC-WRAPPER-OBJECT-PLACEMENT re-verified at 25709a68706)
+  Re-verified at `25709a68706` (Zergling-52): the earlier fences
+  (PIPELINE-WRAPPER-OBJECT-ORPHAN 22:46Z, POC-REWRITE-ORPHANS 22:33Z)
+  expired, but the path re-fenced within minutes — sibling claim
+  OPTIMIZED-WRAPPER-DISPOSITION (zergling-z186) holds
+  `optimized_semantic_wrapper_object` until 06:50Z. The substance is
+  unchanged: the keep/move/delete decision remains
+  PIPELINE-OWNER-CONSOLIDATION's and there is still no independent slice
+  here.
 - **PORTABLE-PROCESS-EXIT-OBSERVATION.** Mined candidate; scope verified at
   9ff8673b31, re-verified at `94e764a6da6b` — re-mines sibling row
   PROCESS-EXIT-PORTABLE-OBSERVATION
