@@ -413,11 +413,15 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     }
 
     /// Maximum charge over walks that commit `end_edge` in a verified
-    /// `Natural`-ranked machine, computed on the condensed graph the ranking
-    /// makes acyclic: an ordinary block composes exactly as the acyclic walk
-    /// charges it, while a component interior contributes its charged
-    /// component bound — the rank carrier's type maximum plus one member
-    /// visits — whether the endpoint commits inside it or after an exit.
+    /// `Natural`-ranked machine. When the endpoint rides the start block's
+    /// own terminator the segment is one traversal of that block and shares
+    /// the acyclic walk's charge — a safe-point catalog row is per-traversal
+    /// evidence, not a license to bill the enclosing cycle. Otherwise the
+    /// bound is computed on the condensed graph the ranking makes acyclic: an
+    /// ordinary block composes exactly as the acyclic walk charges it, while
+    /// a component interior contributes its charged component bound — the
+    /// rank carrier's type maximum plus one member visits — whether the
+    /// endpoint commits inside it or after an exit.
     fn natural_segment_bound(
         &self,
         start_block: BlockId,
@@ -426,6 +430,38 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
         active_machines: &mut BTreeSet<MachineId>,
     ) -> Result<u64, FixedFuelError> {
+        let start = self
+            .blocks
+            .get(&start_block)
+            .copied()
+            .ok_or(FixedFuelError::UnknownBlock(start_block))?;
+        if start.terminator.edges().any(|edge| edge == end_edge) {
+            // An endpoint carried by the start block's own terminator is one
+            // traversal of that block: operations, worst admitted callee
+            // returns, the terminator edge, and the committed edge's ordered
+            // cleanup — exactly the charge the acyclic walk composes. The
+            // component's rank-multiplied bound belongs to whole-entry
+            // composition and to walks that continue past this terminator;
+            // a covered backedge or a loop-exit edge on the start terminator
+            // is an ordinary per-traversal row, not authority to charge every
+            // member visit the cycle could take. Taking the acyclic path here
+            // also keeps the catalog derivable when the rank carrier's type
+            // maximum itself overflows the whole-component bound.
+            let mut walk = SegmentWalk {
+                end_edge,
+                memoized_machines,
+                active_machines,
+                active_blocks: BTreeSet::new(),
+                settled: BTreeMap::new(),
+                first_dead_end: None,
+            };
+            return match self.block_to_edge_bound(start_block, &mut walk)? {
+                Some(units) => Ok(units),
+                None => Err(walk
+                    .first_dead_end
+                    .unwrap_or(FixedFuelError::NoTerminalPath(self.machine.id))),
+            };
+        }
         let geometry = natural_component_geometry(
             self.machine,
             components,
