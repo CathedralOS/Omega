@@ -495,7 +495,7 @@ fn boolean_constructor_equations_agree_at_repeated_nested_positions() {
 
 #[test]
 fn boolean_attached_body_keeps_runtime_local_selection() {
-    drop(boolean_equation_artifact(
+    let artifact = boolean_equation_artifact(
         "data Flag<const Enabled:bool> { value:u64; }
          data Envelope<Backing,const Enabled:bool>
          where Backing == Flag<Enabled> { storage:Backing; }
@@ -506,7 +506,11 @@ fn boolean_attached_body_keeps_runtime_local_selection() {
          machine preserve(value:Envelope<Flag<true>>)->Envelope<Flag<true>,true> { value }",
         false,
         &[],
-    ));
+    );
+    assert_native_boolean(&artifact, false);
+    // Keep this composition's existing Terminal coverage: its unattached
+    // twin also awaits native Boolean graph replay, independently of the
+    // attachment ABI exercised above.
     drop(boolean_equation_artifact(
         "data Flag<const Enabled:bool> { value:u64; }
          data Envelope<Backing,const Enabled:bool>
@@ -936,7 +940,7 @@ where Backing == Cell<Element, Capacity>
 machine Buffer::recovered<const Capacity: u64>() -> u64 { Capacity }
 machine preserve(value: Buffer<Cell<u8, 7> >) -> Buffer<Cell<u8, 7>, u8, 7> { value }
 "#;
-    drop(executes(&[("main.omg", source)]));
+    assert_native_seven(&executes(&[("main.omg", source)]));
     let reverse = source
         .replace(
             "Buffer<Backing, Element, const Capacity: u64>",
@@ -944,7 +948,7 @@ machine preserve(value: Buffer<Cell<u8, 7> >) -> Buffer<Cell<u8, 7>, u8, 7> { va
         )
         .replace("Buffer<Cell<u8, 7> >", "Buffer<u8, 7>")
         .replace("Buffer<Cell<u8, 7>, u8, 7>", "Buffer<u8, 7, Cell<u8, 7> >");
-    drop(executes(&[("main.omg", &reverse)]));
+    assert_native_seven(&executes(&[("main.omg", &reverse)]));
     rejects(
         &[(
             "main.omg",

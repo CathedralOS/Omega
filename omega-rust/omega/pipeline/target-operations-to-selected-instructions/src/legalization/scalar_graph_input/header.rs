@@ -47,9 +47,10 @@ pub(super) fn function_abi(
     }
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
-        AbstractFunctionResult::Scalar(result)
-            if scalar_shape(result.scalar_type).is_some() && target.attachment.is_none() =>
-        {
+        // An attachment names the nominal specialization, not an implicit
+        // receiver argument. Exact attachment equality is checked above;
+        // runtime receiver storage still requires structural parameter custody.
+        AbstractFunctionResult::Scalar(result) if scalar_shape(result.scalar_type).is_some() => {
             scalar_shape(result.scalar_type)
         }
         _ => return Err(invalid),
