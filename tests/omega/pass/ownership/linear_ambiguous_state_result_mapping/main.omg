@@ -21,8 +21,9 @@ machine Main::pack(swap: bool, left: Receipt, right: Receipt) -> Pair {
 machine Main::issue(&mut self) -> Pair {
     let left: Receipt = Receipt { code: 1 };
     let right: Receipt = Receipt { code: 2 };
-    // Each output path names a different input on different terminal arms, so
-    // the checked callee cannot publish one normalized outcome map.
+    // Each output arm maps the same claims to the same result fields up to
+    // normalization, so the checked callee publishes one normalized outcome
+    // map even though the arms name different inputs.
     transition { _ -> Main::pack(false, left, right) }
 }
 

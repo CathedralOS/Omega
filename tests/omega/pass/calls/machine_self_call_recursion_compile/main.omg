@@ -1,12 +1,9 @@
-// UNMEASURED call-spelled self-recursion (measured-recursion ruling
-// 2026-07-18, MR1): a recursive CALL spelling (`true ->
-// self.countdown(remaining - 1)`) on an unmeasured machine used to refuse
-// with `call-spelled self-recursion WITHOUT a measure`. That checked-stage
-// fence was retired upstream: resolution now folds the self-prefixed arm
-// target onto the same bare loop-back edge `-> countdown(..)` spells
-// (constant stack, may legally diverge), so checked semantics admits the
-// machine. The native route still refuses it at the transitive Unit-plan
-// admission wall. The measured twin RUNS:
+// PASS CANARY: unmeasured call-spelled self-recursion (measured-recursion
+// ruling 2026-07-18, MR1). A recursive CALL spelling (`true ->
+// self.countdown(remaining - 1)`) on an unmeasured machine folds the
+// self-prefixed arm target onto the same bare loop-back edge
+// `-> countdown(..)` spells (constant stack, may legally diverge), so it
+// compiles end to end on the native route. The measured twin RUNS:
 // pass/calls/runtime_measured_tail_recursion_exit.
 data Main {
 }
