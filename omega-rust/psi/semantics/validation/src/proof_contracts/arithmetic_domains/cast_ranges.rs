@@ -1,4 +1,5 @@
-//! Cast target predicates are obligations, never source interval premises.
+//! Cast representability and target predicates are obligations, never source
+//! interval premises.
 //! Policy qualification cannot repair failed initial membership. Inspect every
 //! authored range shell; unsupported bounds must not disappear through an
 //! optional interval query that also represents absence of a range.
@@ -93,7 +94,18 @@ pub(crate) fn validate_range_cast_at_use(
             .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }));
         reference = *base_type;
     }
-    if !has_range {
+    // A bare integer target still demands an exact fit. In call arguments the
+    // expression scanner is the validation owner; collecting successful cast
+    // facts afterward cannot diagnose missing evidence. Reuse the same live
+    // arithmetic judgment as ranged casts rather than deferring rejection to
+    // the Unit planner. Address interpretation is a separate conversion rule.
+    let exact_integer_target = cast.domain == numerics::arithmetic::ArithmeticDomain::Exact
+        && program
+            .primitive_type_reference(cast.target_type)
+            .is_some_and(|primitive| {
+                primitive != PrimitiveType::Addr && primitive_range(primitive).is_some()
+            });
+    if !has_range && !exact_integer_target {
         return;
     }
     let owner = format!(
