@@ -31,7 +31,7 @@ pub(super) fn validate_boundary_content_guarantees(
                     BoundaryContentGuarantee::RetainedBorrow(custody) => custody,
                     BoundaryContentGuarantee::Conservation(_) => unreachable!(),
                 };
-                if !validate_retained_borrow_custody(boundary, custody) {
+                if !validate_retained_borrow_custody(module, boundary, custody) {
                     return Err(ModuleError::InvalidBoundaryContentGuarantee(boundary.id));
                 }
                 continue;
@@ -87,6 +87,7 @@ fn validate_retained_projection(projection: &RetainedBorrowContentProjection) ->
 }
 
 fn validate_retained_borrow_custody(
+    module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
     custody: &terminal_psi::RetainedBorrowCustody,
 ) -> bool {
@@ -110,14 +111,23 @@ fn validate_retained_borrow_custody(
             segments,
         } if segments.is_empty()
     );
-    boundary.identity == custody.callable_identity
-        && boundary.attachment.is_none()
-        && boundary.scalar_parameters.is_empty()
+    // A custody row either rides a detached signature-free carrier when the
+    // callable is never invoked in this module, or sits on the invoked
+    // callable's authored signature where each referenced place must resolve.
+    let signature = if boundary.scalar_parameters.is_empty()
         && boundary.structural_parameters.is_empty()
         && boundary.result.is_unit()
         && boundary.requires.is_empty()
         && boundary.program_local_root_introductions.is_empty()
         && boundary.published_service_ceiling.is_empty()
+    {
+        true
+    } else {
+        retained_borrow_signature_matches(module, boundary, custody)
+    };
+    boundary.identity == custody.callable_identity
+        && boundary.attachment.is_none()
+        && signature
         && exact_source
         && exact_result
         && custody.access == StructuralAccess::SharedBorrow
@@ -135,6 +145,63 @@ fn validate_retained_borrow_custody(
             == custody.result_projection.projection.algebra
         && validate_retained_projection(&custody.source_projection)
         && validate_retained_projection(&custody.result_projection)
+}
+
+/// The custody row bound to an authored callable signature: the source formal
+/// position names one non-self structural parameter presented under the
+/// row's own shared-borrow access on the source carrier's nominal type, that
+/// parameter carries the source's semantic domain, and the declared result is
+/// the row's exact linear nominal occurrence qualified by the retained domain.
+fn retained_borrow_signature_matches(
+    module: &TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+    custody: &terminal_psi::RetainedBorrowCustody,
+) -> bool {
+    let terminal_psi::RetainedBorrowPlace {
+        root: RetainedBorrowPlaceRoot::Parameter { position, .. },
+        ..
+    } = &custody.source
+    else {
+        return false;
+    };
+    let Some(lane) = boundary
+        .parameter_positions(terminal_psi::BoundaryParameterKind::Structural)
+        .position(|formal| *position == u32::try_from(formal).unwrap_or(u32::MAX))
+    else {
+        return false;
+    };
+    let Some(parameter) = boundary.structural_parameters.get(lane) else {
+        return false;
+    };
+    if parameter.is_self
+        || parameter.access != custody.access
+        || !module.structural_types.iter().any(|declaration| {
+            declaration.id == parameter.structural_type
+                && declaration.identity == custody.source_projection.carrier_identity
+        })
+        || !parameter.qualifications.iter().any(|domain| {
+            module.structural_domains.iter().any(|declaration| {
+                declaration.id == *domain
+                    && declaration.semantic_domain == custody.source_projection.semantic_domain
+            })
+        })
+    {
+        return false;
+    }
+    let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+        return false;
+    };
+    result.multiplicity == custody.result_multiplicity
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && declaration.identity == custody.result_nominal_identity
+        })
+        && result.qualifications.iter().any(|domain| {
+            module.structural_domains.iter().any(|declaration| {
+                declaration.id == *domain
+                    && declaration.semantic_domain == custody.retained_semantic_domain
+            })
+        })
 }
 
 fn validate_guarantee_places(

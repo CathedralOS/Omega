@@ -2743,11 +2743,33 @@ Owners include
   `RetainedBorrowBoundaryIsNotExecutable`
   (`terminal-verifier/src/validation/structural_operations/unit_operation/boundary_calls.rs`).
 
+  Resume evidence (Zergling-181, wave 2026-09-20): the Terminal leg of the
+  first bullet landed. `retain_foreign_borrow_custodies` now merges the
+  custody row onto the invoked callable's authored boundary declaration
+  instead of synthesizing a detached carrier
+  (`checked-trees-to-lowered-psi/src/retention/retained_borrow_custody.rs`),
+  `validate_retained_borrow_custody` replays the row against the authored
+  signature (non-self shared-borrow parameter at the source's formal position
+  on the exact nominal carrier carrying the source domain; linear result on
+  the exact nominal carrier qualified by the retained domain), and
+  `validate_boundary_call` admits the call as
+  `InvalidRetainedBorrowBoundaryCall`-gated: the source argument must be the
+  whole borrowed place presented `SharedBorrow`, and the result must be the
+  exact retained occurrence carrying the caller's loan claims, which stay live
+  on that result until a redeem call re-homes them (unit tests in
+  `retained_borrow_custody.rs` witness admit + moved-source and
+  unbound-loan rejections). Still open: the source-level invocation leg is
+  blocked by other owners' claims — `typed-trees-to-checked-trees/src/execution/unit`
+  contract gates (`signature_contracts_are_exact_parameter_qualifications`
+  rejects authored `ensures result in Domain`), `checked-trees-to-lowered-psi/src/unit`
+  composed catalogs reject qualified structural boundary results
+  (`catalogs.rs` ~line 263), and the checked-side nominal match in
+  `facts/qualification_evidence.rs` (~line 346) never observed the authored
+  domain spelling. Also `retain_foreign_argument_borrowed` is not yet driven
+  from a lowered unit call site.
+
   Remaining work:
 
-  - Psi/Terminal: admit the invoked retained-borrow call. Keep the caller's
-    loan live for the result's lifetime, bind it to the exact result
-    occurrence, and then delete the verifier rejection.
   - Psi: the snapshot disposition has no source or checked form. It needs the
     contract's explicit permission for independent copying and persistent
     demand counted per live occurrence.
