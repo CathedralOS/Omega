@@ -70,12 +70,13 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   duplicate ARM64 operand-footprint tables. Source ownership and independent
   checking remain intact.
 
-  Publication is pending: GitHub denied the configured `NH21B` account write
+  Application publication is pending: GitHub denied the configured `NH21B` account write
   access to Squalr-Omega (HTTP 403; repository permissions report `push: false`).
-  Both repositories have local checkpoint commits; the app commit must be
-  published before changing this repository's pin. The failed enqueue left no
-  ticket or reservation. Next integration acceptance is publication of the
-  verified app/compiler changes and the parent pin, not another helper test.
+  The app has a local checkpoint commit; it must be published before changing
+  this repository's pin. The compiler repairs can be integrated independently.
+  The failed app enqueue left no ticket or reservation. Next app integration
+  acceptance is publication of the verified app and the parent pin, not
+  another helper test.
   Checkout relocation still requires ordinary local-source update/review.
   Windows execution and the supplied-byte scanner remain open.
 
