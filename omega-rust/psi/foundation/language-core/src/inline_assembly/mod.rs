@@ -830,21 +830,27 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // These spell control edges which cannot be represented by the current
         // source form. Direct state jumps use the checked `jmp state(...)` arm.
         // The list covers the common return/call/branch spellings on both
-        // supported ISAs — x86 far/AT&T forms, the whole conditional-branch
-        // (`j*`) and `loop` families, software interrupts, and the AArch64
-        // branch/compare-and-branch/test-and-branch family (`b.cond` spellings
-        // already refuse at their `b` mnemonic head) — so each refuses for the
-        // semantic reason rather than as arbitrary unknown text. Supervisor
-        // traps (`svc`/`hvc`/`smc`/`brk`) are service-admission candidates, not
-        // hidden exits, and stay unrecognized here.
-        "ret" | "retq" | "retaa" | "retab" | "retf" | "lret" | "call" | "callq" | "jmpq"
-        | "ljmp" | "br" | "blr" | "b" | "bl" | "bx" | "blx" | "cbz" | "cbnz" | "tbz" | "tbnz"
-        | "loop" | "loope" | "loopne" | "loopz" | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int"
-        | "int3" | "into" | "je" | "jne" | "jz" | "jnz" | "ja" | "jae" | "jb" | "jbe" | "jna"
-        | "jnae" | "jnb" | "jnbe" | "jg" | "jge" | "jl" | "jle" | "jng" | "jnge" | "jnl"
-        | "jnle" | "jo" | "jno" | "js" | "jns" | "jp" | "jpe" | "jnp" | "jpo" | "jc" | "jnc" => {
-            Refused(HiddenControlExit)
-        }
+        // supported ISAs — x86 near/far/AT&T and operand-size forms including
+        // the interrupt-return spellings (`iret*` separate from the contracted
+        // `iretq` deriver), the whole conditional-branch (`j*`) and `loop`
+        // families, software interrupts, and the AArch64
+        // branch/compare-and-branch/test-and-branch family including the
+        // branch-consistent `bc.cond` head and the pointer-authenticated
+        // branch/return spellings (`b.cond` spellings already refuse at their
+        // `b` mnemonic head) — so each refuses for the semantic reason rather
+        // than as arbitrary unknown text. Supervisor traps (`svc`/`hvc`/`smc`/
+        // `brk` and the x86 `syscall`/`sysenter`/`sysexit` ring calls) are
+        // service-admission candidates, not hidden exits, and stay
+        // unrecognized here.
+        "ret" | "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret"
+        | "iretd" | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl"
+        | "ljmp" | "ljmpl" | "br" | "blr" | "b" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
+        | "braaz" | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab"
+        | "drps" | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz"
+        | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je"
+        | "jne" | "jz" | "jnz" | "ja" | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe"
+        | "jg" | "jge" | "jl" | "jle" | "jng" | "jnge" | "jnl" | "jnle" | "jo" | "jno" | "js"
+        | "jns" | "jp" | "jpe" | "jnp" | "jpo" | "jc" | "jnc" => Refused(HiddenControlExit),
 
         // The register-only move is the structured decoding of `mov`: both
         // operands are ordinary Omega expressions (a writable destination place
@@ -866,28 +872,62 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
 
         // Recognize common memory-addressing spellings so they refuse for the
         // semantic reason, not as arbitrary unknown text. The list covers the
-        // AArch64 width/signed/unscaled/unprivileged variants, the exclusive,
-        // acquire/release and LSE read-modify-write families, x86 exchange and
-        // compare-exchange forms, the implicit-operand string and port-string
-        // instructions, AT&T stack forms, and frame setup — each always reads
-        // or writes memory, so no spelling here is a register-only contract
-        // candidate. Address-arithmetic (`lea`) and ordering (`dmb`/`dsb`)
-        // spellings do not access memory and stay unrecognized rather than
-        // borrowing this refusal.
-        "ldr" | "str" | "ldp" | "stp" | "push" | "pop" | "pushq" | "popq" | "pusha" | "popa"
-        | "pushal" | "popal" | "enter" | "leave" | "ldrb" | "ldrh" | "ldrsb" | "ldrsh"
-        | "ldrsw" | "strb" | "strh" | "ldur" | "stur" | "ldurb" | "ldurh" | "ldursb" | "ldursh"
-        | "ldursw" | "sturb" | "sturh" | "ldtr" | "ldtrb" | "ldtrh" | "ldtrsb" | "ldtrsh"
-        | "ldtrsw" | "sttr" | "sttrb" | "sttrh" | "ldxr" | "ldxrb" | "ldxrh" | "stxr" | "stxrb"
-        | "stxrh" | "ldaxr" | "ldaxrb" | "ldaxrh" | "stlxr" | "stlxrb" | "stlxrh" | "ldxp"
-        | "stxp" | "ldaxp" | "stlxp" | "ldar" | "ldarb" | "ldarh" | "stlr" | "stlrb" | "stlrh"
-        | "swp" | "swpb" | "swph" | "swpa" | "swpal" | "swpl" | "cas" | "casb" | "cash"
-        | "casa" | "casal" | "casp" | "caspa" | "caspal" | "caspl" | "ldadd" | "ldaddb"
-        | "ldaddh" | "ldclr" | "ldeor" | "ldset" | "ldsmax" | "ldsmin" | "ldumax" | "ldumin"
-        | "xchg" | "xadd" | "cmpxchg" | "cmpxchg8b" | "cmpxchg16b" | "xlat" | "xlatb" | "movsb"
-        | "movsw" | "movsq" | "lodsb" | "lodsw" | "lodsq" | "stosb" | "stosw" | "stosq"
-        | "scasb" | "scasw" | "scasq" | "cmpsb" | "cmpsw" | "cmpsq" | "insb" | "insw" | "outsb"
-        | "outsw" => Refused(UnmodeledMemoryAccess),
+        // AArch64 width/signed/unscaled/unprivileged variants, the non-temporal
+        // pair forms, the RCpc/limited-ordering acquire-release spellings, the
+        // complete exclusive and LSE read-modify-write ordering grids, the
+        // 64-byte accelerator block forms, the NEON structure load/store
+        // spells, x86 exchange and compare-exchange forms, the implicit-operand
+        // string and port-string instructions (bare and width-suffixed — the
+        // `movsd`/`cmpsd` SSE scalar spellings stay unrecognized since those
+        // mnemonics have a register-only form), the AT&T stack and flag-store
+        // forms, the far-pointer loads, the xsave/fxsave state families, the
+        // descriptor-table memory operands, the memory-destination
+        // non-temporal stores, and frame setup — each always reads or writes
+        // memory, so no spelling here is a register-only contract candidate.
+        // Address-arithmetic (`lea`), ordering (`dmb`/`dsb`), cache/TLB
+        // maintenance (`cl*`/`tlbi`/`ic`/`dc`), and SIMD register-only moves
+        // do not access memory or belong to a different contract family, and
+        // stay unrecognized rather than borrowing this refusal.
+        "ldr" | "str" | "ldp" | "stp" | "ldnp" | "stnp" | "push" | "pop" | "pushq" | "popq"
+        | "pushw" | "pushl" | "pushf" | "pushfd" | "pusha" | "pushal" | "pushad" | "popa"
+        | "popal" | "popad" | "popw" | "popl" | "popf" | "popfd" | "enter" | "leave" | "ldrb"
+        | "ldrh" | "ldrsb" | "ldrsh" | "ldrsw" | "strb" | "strh" | "ldur" | "stur" | "ldurb"
+        | "ldurh" | "ldursb" | "ldursh" | "ldursw" | "sturb" | "sturh" | "ldtr" | "ldtrb"
+        | "ldtrh" | "ldtrsb" | "ldtrsh" | "ldtrsw" | "sttr" | "sttrb" | "sttrh" | "ldapr"
+        | "ldaprb" | "ldaprh" | "ldaprsb" | "ldaprsh" | "ldaprsw" | "ldapur" | "ldapurb"
+        | "ldapurh" | "ldapursb" | "ldapursh" | "ldapursw" | "stlur" | "stlurb" | "stlurh"
+        | "ldlar" | "ldlarb" | "ldlarh" | "stllr" | "stllrb" | "stllrh" | "ldxr" | "ldxrb"
+        | "ldxrh" | "stxr" | "stxrb" | "stxrh" | "ldax" | "ldaxr" | "ldaxrb" | "ldaxrh"
+        | "stlxr" | "stlxrb" | "stlxrh" | "ldxp" | "stxp" | "ldaxp" | "stlxp" | "ldar"
+        | "ldarb" | "ldarh" | "stlr" | "stlrb" | "stlrh" | "ld64b" | "st64b" | "st64bv"
+        | "st64bv0" | "ld1" | "st1" | "ld2" | "st2" | "ld3" | "st3" | "ld4" | "st4" | "ld1r"
+        | "ld2r" | "ld3r" | "ld4r" | "swp" | "swpb" | "swph" | "swpa" | "swpal" | "swpl"
+        | "swpab" | "swpah" | "swpalb" | "swpalh" | "swplb" | "swplh" | "cas" | "casb" | "cash"
+        | "casa" | "casal" | "casl" | "casab" | "casah" | "caslb" | "caslh" | "casalb"
+        | "casalh" | "casp" | "caspa" | "caspal" | "caspl" | "ldadd" | "ldaddb" | "ldaddh"
+        | "ldadda" | "ldaddab" | "ldaddah" | "ldaddl" | "ldaddlb" | "ldaddlh" | "ldaddal"
+        | "ldaddalb" | "ldaddalh" | "ldclr" | "ldclrb" | "ldclrh" | "ldclra" | "ldclrab"
+        | "ldclrah" | "ldclrl" | "ldclrlb" | "ldclrlh" | "ldclral" | "ldclralb" | "ldclralh"
+        | "ldeor" | "ldeorb" | "ldeorh" | "ldeora" | "ldeorab" | "ldeorah" | "ldeorl"
+        | "ldeorlb" | "ldeorlh" | "ldeoral" | "ldeoralb" | "ldeoralh" | "ldset" | "ldsetb"
+        | "ldseth" | "ldseta" | "ldsetab" | "ldsetah" | "ldsetl" | "ldsetlb" | "ldsetlh"
+        | "ldsetal" | "ldsetalb" | "ldsetalh" | "ldsmax" | "ldsmaxb" | "ldsmaxh" | "ldsmaxa"
+        | "ldsmaxab" | "ldsmaxah" | "ldsmaxl" | "ldsmaxlb" | "ldsmaxlh" | "ldsmaxal"
+        | "ldsmaxalb" | "ldsmaxalh" | "ldsmin" | "ldsminb" | "ldsminh" | "ldsmina" | "ldsminab"
+        | "ldsminah" | "ldsminl" | "ldsminlb" | "ldsminlh" | "ldsminal" | "ldsminalb"
+        | "ldsminalh" | "ldumax" | "ldumaxb" | "ldumaxh" | "ldumaxa" | "ldumaxab" | "ldumaxah"
+        | "ldumaxl" | "ldumaxlb" | "ldumaxlh" | "ldumaxal" | "ldumaxalb" | "ldumaxalh"
+        | "ldumin" | "lduminb" | "lduminh" | "ldumina" | "lduminab" | "lduminah" | "lduminl"
+        | "lduminlb" | "lduminlh" | "lduminal" | "lduminalb" | "lduminalh" | "xchg" | "xadd"
+        | "cmpxchg" | "cmpxchg8b" | "cmpxchg16b" | "xlat" | "xlatb" | "lds" | "les" | "lss"
+        | "lfs" | "lgs" | "sgdt" | "sidt" | "lgdt" | "movnti" | "movntq" | "movntdq"
+        | "movntdqa" | "bound" | "fxsave" | "fxrstor" | "xsave" | "xsavec" | "xsaves"
+        | "xsaveopt" | "xrstor" | "xrstors" | "movs" | "movsb" | "movsw" | "movsq" | "lods"
+        | "lodsb" | "lodsw" | "lodsq" | "lodsd" | "stos" | "stosb" | "stosw" | "stosq"
+        | "stosd" | "scas" | "scasb" | "scasw" | "scasq" | "scasd" | "cmps" | "cmpsb" | "cmpsw"
+        | "cmpsq" | "ins" | "outs" | "insb" | "insw" | "insd" | "outsb" | "outsw" | "outsd" => {
+            Refused(UnmodeledMemoryAccess)
+        }
         _ => return None,
     };
     Some(entry)

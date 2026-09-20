@@ -25,10 +25,26 @@ every source-to-native consumer realizes it.
 The catalog's operand and clobber constants are authoritative for the current
 realized sequence, including scratch loaders/stores. Do not copy their register
 lists or encoded bytes into a language rule. General return/call/indirect-branch
-spellings currently refuse as hidden exits; recognized unmodeled loads/stores
-refuse for missing memory contracts. Register-only `mov`/`movq` is the decoded
-exception: it carries no memory-addressing operand, so its contract is the
-ordinary assignment's. Unknown mnemonics remain distinct failures.
+spellings refuse as hidden exits — including the x86 near/far/operand-size
+return spellings (`retn`/`retw`/`iret*`), far call/jump forms (`lcall`/`callf`/
+`jmpf`/`ljmpl`), the AArch64 branch-consistent head, and the pointer-authenticated
+branch/return spellings — so each fails for the semantic reason rather than as
+unknown text. Recognized unmodeled loads/stores refuse for missing memory
+contracts, and the coverage spans the width/signed/unscaled/unprivileged grids,
+non-temporal pairs, RCpc/limited-ordering acquire-release forms, the complete
+exclusive/LSE ordering grid, the 64-byte block forms, NEON structure loads and
+stores, x86 string/port-string bare and dword forms, stack and flag-store forms,
+far-pointer loads, `xsave`/`fxsave` state families, descriptor-table memory
+operands, memory-destination non-temporal stores, and `bound`. Spellings with a
+register-only form (`movzx`, `cmpxchg`-free `bt*`, `smsw`, SSE's `movsd`/`cmpsd`
+shadows) are deliberately absent — mnemonics are classified whole, so a partly
+register-only spelling stays unrecognized rather than inheriting the memory
+refusal. Register-only `mov`/`movq` is the decoded exception: it carries no
+memory-addressing operand, so its contract is the ordinary assignment's.
+Unknown mnemonics remain distinct failures, and service-admission candidates
+(`svc`/`hvc`/`smc`/`brk`, `syscall`/`sysenter`/`sysexit`) plus address-arithmetic
+(`lea`), ordering (`dmb`/`dsb`), and cache/TLB maintenance (`cl*`/`tlbi`/`ic`/`dc`)
+families stay unrecognized pending their own contracts.
 Target gates do not silently substitute another ISA's instruction.
 
 [Parsing](../../pipeline/tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs) lowers

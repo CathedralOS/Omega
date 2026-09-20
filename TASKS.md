@@ -6791,7 +6791,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   entries (currently unreachable at entry selection), the catalog doc family
   table row (fenced elsewhere this wave), and memory/authority-bearing
   families blocked on UnmodeledMemoryAccess and service admission.
-- **ASM-CATALOG-MEMORY-AND-CONTROL** — mined candidate; verify scope then implement.
+- **ASM-CATALOG-MEMORY-AND-CONTROL** — mined candidate; verify scope then
+  implement. Landed slice: refusal-coverage completion for the two named
+  families in `language-core/src/inline_assembly/mod.rs` — the hidden-exit
+  list gains the x86 near/far/operand-size return spellings (`retn`/`retw`/
+  `iret`/`iretd`/`iretw`), far call/jump forms (`lcall`/`callf`/`jmpf`/`jmpl`/
+  `ljmpl`), `int1`, the AArch64 branch-consistent `bc` head, and the
+  pointer-authenticated branch/return/debug-return spellings (`braa`/`brab`/
+  `braaz`/`brabz`/`blraa*`/`eretaa`/`eretab`/`drps`); the unmodeled-memory list
+  gains the non-temporal pair forms, RCpc/limited-ordering acquire-release and
+  unprivileged-unscaled variants, the plain exclusive-acquire `ldax`, the
+  complete LSE read-modify-write ordering grid (`swp*`/`cas*`/`ld*` suffix
+  spaces), the 64-byte accelerator block forms, NEON structure load/store
+  (`ld1`-`ld4`/`st1`-`st4` and replicate forms), x86 string/port-string bare and
+  dword forms (`movs`/`lods`/`stos`/`scas`/`cmps`/`ins`/`outs` + `*sd`), stack
+  and flag-store width forms, far-pointer loads (`lds`/`les`/`lss`/`lfs`/`lgs`),
+  `xsave`/`fxsave` families, descriptor-table memory operands
+  (`sgdt`/`sidt`/`lgdt`), memory-destination non-temporal stores, and `bound`.
+  Partly register-only spellings (`movzx`, `bt*`, `smsw`, SSE's `movsd`/`cmpsd`
+  shadows) stay unrecognized — mnemonics classify whole. Remaining: real
+  contracts for these families are blocked on the UnmodeledMemoryAccess
+  operand-provenance model (sibling ASM-MEMORY-AND-TRANSFER-CONTRACTS), the
+  AArch64 `dmb`/`dsb` ordering contracts which need a barrier-option operand
+  form, service admission for `svc`-class traps and `syscall`/`sysenter`, and
+  catalog test-list updates (tests.rs is claimed elsewhere this wave).
 - **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
 - **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
