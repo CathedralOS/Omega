@@ -5989,7 +5989,20 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
 Build/packages:
 
 - **BUILD-PACKAGES-GATE.** RC build-and-packages gate closure work.
-- **DELTA-EXHAUSTION-ATTRIBUTION.** Delta compiler exhaustion attribution.
+- **DELTA-EXHAUSTION-ATTRIBUTION.** Resolved — Delta compiler exhaustion
+  attribution landed at `9c5a839dff` as
+  `tools/bootstrap/delta/exhaustion_triage.py`, encoding the
+  TASKS_BOOTSTRAP.md DELTA-COMPILER discipline: classify a witnessed
+  compile/run observation by its owning contract before deeper tracing —
+  canonical 40-byte DCOUT frames (status 1..3) are compiler-owned outcomes;
+  bare evaluator statuses (132/248..254, empty-stdout 3 census preflight,
+  empty-stdout 1 invalid Gamma source) are evaluator-owned; a host watchdog
+  kill is attributed to the host, not compiler capacity. Verified on this
+  host at current HEAD: `--self-check` reports 17/17 classifications agree
+  (including the witnessed b35db7dc1f status-252 heap-exhaustion case vs
+  canonical frame distinctions). No residual slice: the tool is an
+  investigation entry point, not a semantic stage, and `tests/delta` +
+  `bootstrap/3_delta` surfaces sit under the DELTA-COMPILER claim.
 - **BETA-RECONSTRUCTION-REFUSAL.** Beta reconstruction refusal. Landed: every
   Beta compiler-exec entrypoint refuses (exit 2) on hosts that cannot run the
   audited Alpha container — `tests/beta/compiler/reconstruction.sh`,
