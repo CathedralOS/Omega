@@ -144,15 +144,19 @@ pub(super) fn push_offset_unproven(
     context: &str,
     offset_display: &str,
     region_length: i64,
+    source_span: source::SourceSpan,
 ) {
-    diagnostics.push(Diagnostic::error(format!(
-        "{context}: cannot bound the recast offset `{offset_display}` -- the region holds \
-         {region_length} bytes, but no declared range, dominating incoming guard, or \
-         boundary-ensures witness bounds the offset below the footprint. Bound it: declare \
-         a range on the offset param, guard the transition arm (`transition \
-         {offset_display} <= K {{ true -> ... }}`), or `ensures`-bound the boundary \
-         out-param that feeds it",
-    )));
+    diagnostics.push(
+        Diagnostic::error(format!(
+            "{context}: cannot bound the recast offset `{offset_display}` -- the region holds \
+             {region_length} bytes, but no declared range, dominating incoming guard, or \
+             boundary-ensures witness bounds the offset below the footprint. Bound it: declare \
+             a range on the offset param, guard the transition arm (`transition \
+             {offset_display} <= K {{ true -> ... }}`), or `ensures`-bound the boundary \
+             out-param that feeds it",
+        ))
+        .with_source_span(source_span),
+    );
 }
 
 /// Mutable byte views must preserve every target fact after arbitrary writes.
