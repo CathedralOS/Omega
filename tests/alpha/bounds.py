@@ -117,6 +117,9 @@ def main():
     if args.reference and args.stack_only:
         parser.error('full-profile stack loops run in the native seed only')
     mac = sys.platform == 'darwin' and platform.machine() == 'arm64'
+    windows = sys.platform.startswith(('win32', 'msys', 'cygwin')) and platform.machine().lower() in ('amd64', 'x86_64')
+    if not args.reference and not (mac or windows):
+        parser.error('the audited native seed executes only on macOS arm64 or Windows x64')
     seed_path = ROOT / 'bootstrap/0_alpha' / ('alpha_arm64_macos' if mac else 'alpha_x64_windows.exe')
     offset = 32768 if mac else 5120
     seed = seed_path.read_bytes() if not args.reference else None
