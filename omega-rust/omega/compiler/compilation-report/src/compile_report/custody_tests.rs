@@ -280,6 +280,8 @@ fn report(
     flat: Option<ExecutablePublicationReceipt>,
 ) -> CompileReport {
     CompileReport {
+        build_outputs: None,
+        build_observation: None,
         root_path: "Main/main.omg".into(),
         source_file_count: 1,
         wrote_output,

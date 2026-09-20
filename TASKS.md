@@ -575,14 +575,16 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
     changed inputs require a new proposal and risk-bearing policy still requires
     exact acceptance. Named dependency-input delivery remains;
     do not capture the whole working directory, widen another occurrence's
-    inputs, or substitute the live-host filesystem. Snapshot intent supplies
-    no output sponsorship or committed companion-output set.
-  - Carry sealed completed artifacts through compiler result construction and
-    final publication for artifact-only builds and executable companions.
-    The current `build_snapshot_outputs` and CLI audit tests inspect checked
-    observations/staged custody; they do not establish a committed compiler
-    output set after all requested product checks. Preserve per-target
-    outcomes and expose no partially successful set after later failure.
+    inputs, or substitute the live-host filesystem.
+  - Exercise acquired generators and cross-occurrence/per-target isolation
+    through final completed-file publication. Preserve the ordinary artifact-only
+    and native-companion routes in `omega/tests/completed_build_outputs.rs`,
+    including check-only nonpublication, unchanged lock acceptance, and later
+    build failure. Add a post-build product-check failure control and two
+    occurrences using identical logical output names; neither may publish
+    another occurrence's bytes or a partially successful set. Terminal-only
+    publication also needs consistent post-publication report custody before
+    it can publish completed-file companions.
   - Complete host-backed capture/staging assurance and Windows execution
     coverage. Mutable-root copies in
     `packages/sources/acquisition/src/tree/filesystem.rs` now check the retained
@@ -609,8 +611,8 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   Acceptance: an acquired ordinary generator reads a narrowed template and
   publishes a required file via both artifact-only and companion builds.
   Run `compiler/tests/build_snapshot_outputs.rs` and
-  `omega/tests/package_commands/snapshot_outputs.rs`, then the actual
-  compilation/publication route. Cover negative lookups and metadata,
+  `omega/tests/package_commands/snapshot_outputs.rs`, and
+  `omega/tests/completed_build_outputs.rs`. Cover negative lookups and metadata,
   substitution/link escapes, sealed mutation, cross-occurrence receipts,
   retry, omitted outputs, interruption, final-check failure, and two packages
   or targets using identical logical names. Measure retained state and compare

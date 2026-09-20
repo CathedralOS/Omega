@@ -249,17 +249,17 @@ pub fn compile_project(
                 .record_result(
                     StageMeta::new(
                         "publish",
-                        "native artifact",
-                        "executable",
+                        "retained product",
+                        "published product",
                         TimingCategory::Pipeline,
                     ),
-                    || publication::publish_native_artifact(report, &build_dir),
+                    || publication::publish_compilation(report, &build_dir),
                 )
                 .map_err(CompileProjectError::Publication)?;
             Ok(CompileProjectOutcome {
                 report,
                 timings,
-                executable_path: Some(path),
+                executable_path: path,
             })
         }
     }

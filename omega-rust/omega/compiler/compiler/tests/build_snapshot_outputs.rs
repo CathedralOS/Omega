@@ -247,6 +247,19 @@ fn required_output_completes_as_a_sealed_regular_file() {
         panic!("a required output completes only as a sealed regular file")
     };
     assert_eq!(bytes, b"banner\n");
+    let outputs = compiler::RetainedBuildOutputs::from_observation(observation).unwrap();
+    let unrelated = compiler::CompileReport::checked(
+        project.main(),
+        1,
+        true,
+        compiler::CompileOutputKind::ObjectContainer,
+        None,
+    )
+    .unwrap();
+    assert!(
+        unrelated.with_build_outputs(outputs, None).is_err(),
+        "an output attachment cannot supply its own missing observation binding"
+    );
 }
 
 #[test]
@@ -541,6 +554,177 @@ fn artifact_only_build_publishes_a_completed_required_output() {
     let settlements = observation.required_output_settlements();
     assert_eq!(settlements.len(), 1, "the artifact obligation settles");
     assert_eq!(settlements[0].relative_path(), b"report.txt");
+}
+
+#[test]
+fn artifact_only_build_reaches_an_ordinary_compiler_product() {
+    let project = Project::new("artifact-only-product");
+    let publication = Project::new("artifact-only-publication");
+    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("snapshot-artifact-only");
+    builder.artifact_only();
+    let scratch: BuildPath = builder.output.resolve("scratch.txt");
+    let temporary: i32 = builder.output.create(scratch, 438);
+    let discarded: i64 = builder.output.write(temporary, "not a product");
+    let released: i32 = builder.output.close(temporary);
+    let required: RequiredOutput = builder.output.require("report.txt");
+    let required_path: &[u8] = required.path();
+    let artifact: BuildPath = builder.output.resolve(required_path);
+    let descriptor: i32 = builder.output.create(artifact, 438);
+    let written: i64 = builder.output.write(descriptor, "report\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, artifact);
+}
+"#,
+    );
+    set_canonical_source_tree_permissions(&project.root, true);
+    let result = compiler::compile(
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: project.main(),
+            build_dir: Some(publication.root.join("products")),
+            target_name: Some("linux_x86_64".to_owned()),
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+        .with_package_inputs(package_inputs(&project.root)),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report);
+    set_canonical_source_tree_permissions(&project.root, false);
+    let report = result.unwrap_or_else(|diagnostics| {
+        panic!(
+            "ordinary artifact-only compilation must succeed: {}",
+            diagnostic_messages(&diagnostics)
+        )
+    });
+    assert_eq!(
+        report.output_kind(),
+        compiler::CompileOutputKind::BuildArtifacts
+    );
+    assert!(!report.wrote_output());
+    assert!(report.checked_native_executable_path().is_none());
+    let outputs = report.build_outputs().expect("completed output custody");
+    assert_eq!(outputs.files().entry_count(), 1);
+    assert_eq!(
+        outputs.observation_identity(),
+        report
+            .production_manifest()
+            .unwrap()
+            .subject()
+            .build_observation_identity()
+    );
+    assert!(
+        !publication.root.join("products").exists(),
+        "evaluation never publishes to the requested destination"
+    );
+    let report = report
+        .publish_completed_build_outputs(&publication.root)
+        .unwrap();
+    let directory = report
+        .build_outputs()
+        .unwrap()
+        .published_directory()
+        .unwrap()
+        .to_path_buf();
+    assert_eq!(
+        std::fs::read(directory.join("files/report.txt")).unwrap(),
+        b"report\n"
+    );
+    assert!(!directory.join("files/scratch.txt").exists());
+    assert_eq!(
+        std::fs::read(directory.join("manifest.bin")).unwrap(),
+        report.build_outputs().unwrap().manifest_bytes()
+    );
+    assert!(report.has_consistent_executable_publication_custody());
+    let report = report
+        .publish_completed_build_outputs(&publication.root)
+        .expect("unchanged publication is reusable after checking bytes");
+    std::fs::write(directory.join("files/report.txt"), b"forged\n").unwrap();
+    assert!(
+        report
+            .publish_completed_build_outputs(&publication.root)
+            .is_err(),
+        "a digest-named directory is not custody"
+    );
+}
+
+#[test]
+fn ordinary_native_product_publishes_its_completed_companion() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping native companion execution: unsupported host");
+        return;
+    };
+    let project = Project::new("native-companion-product");
+    let publication = Project::new("native-companion-publication");
+    project.write(
+        "main.omg",
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    );
+    project.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("native-companion");
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    let required: RequiredOutput = builder.output.require("companion.txt");
+    let path: BuildPath = builder.output.resolve("companion.txt");
+    let descriptor: i32 = builder.output.create(path, 438);
+    let written: i64 = builder.output.write(descriptor, "companion\n");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, path);
+}
+"#,
+    );
+    set_canonical_source_tree_permissions(&project.root, true);
+    let result = compiler::compile(
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: project.main(),
+            build_dir: Some(publication.root.clone()),
+            target_name: Some(host.target_name().to_owned()),
+        })
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact)
+        .with_build_snapshot(build_evaluation::BuildSnapshotRequest::scoped(
+            std::iter::empty::<Vec<u8>>(),
+            scoped_capture_request(&[
+                (b"main.omg", BuildSourceCaptureObligation::Required),
+                (b"build.omg", BuildSourceCaptureObligation::Required),
+            ]),
+        )),
+    )
+    .and_then(compiler::CompileOutcomes::into_single_report);
+    set_canonical_source_tree_permissions(&project.root, false);
+    let report =
+        result.unwrap_or_else(|diagnostics| panic!("{}", diagnostic_messages(&diagnostics)));
+    assert!(report.build_outputs().is_some());
+    assert!(
+        report.production_manifest().is_none(),
+        "standalone companions still bind their exact build observation"
+    );
+    let report = report
+        .publish_retained_native_artifact(&publication.root)
+        .unwrap()
+        .publish_completed_build_outputs(&publication.root)
+        .unwrap();
+    let outputs = report.build_outputs().unwrap();
+    assert_eq!(
+        std::fs::read(
+            outputs
+                .published_directory()
+                .unwrap()
+                .join("files/companion.txt")
+        )
+        .unwrap(),
+        b"companion\n"
+    );
+    assert!(
+        std::process::Command::new(report.checked_native_executable_path().unwrap())
+            .status()
+            .unwrap()
+            .success()
+    );
 }
 
 #[test]

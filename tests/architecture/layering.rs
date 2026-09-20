@@ -1403,8 +1403,8 @@ fn production_subject_projection_is_report_owned() {
 
     assert_eq!(
         product_stops.matches(".production_subject()?").count(),
-        2,
-        "Terminal and native product stops must consume the checked-owned projection"
+        3,
+        "Terminal, native, and build-file product stops must consume the checked-owned projection"
     );
     for forbidden in [
         "package_compilation_subject()",

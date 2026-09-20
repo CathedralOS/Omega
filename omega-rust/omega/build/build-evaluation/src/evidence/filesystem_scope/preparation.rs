@@ -14,6 +14,38 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// write root (so the machine cannot reach it through its Output grant).
 static NEXT_CAPTURED_SOURCE_SNAPSHOT: AtomicU64 = AtomicU64::new(0);
 
+/// Private staging is never a successful output directory. Retained bytes
+/// outlive it; failure at any admission/evaluation step releases it as well.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct BuildOutputScratch(std::path::PathBuf);
+
+impl Drop for BuildOutputScratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+impl BuildOutputScratch {
+    fn create() -> Result<Self, Vec<Diagnostic>> {
+        loop {
+            let path = std::env::temp_dir().join(format!(
+                "omega-build-output-{}-{}",
+                std::process::id(),
+                NEXT_CAPTURED_SOURCE_SNAPSHOT.fetch_add(1, Ordering::Relaxed),
+            ));
+            match std::fs::create_dir(&path) {
+                Ok(()) => return Ok(Self(path)),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "could not create private build output staging: {error}"
+                    ))]);
+                }
+            }
+        }
+    }
+}
+
 /// Bind the request's package/root staging scope before build admission.
 /// The execution profile joins the retained activation identity.
 /// `None` records an admitted host no catalogued profile
@@ -70,6 +102,25 @@ pub fn prepare_filesystem_scope(
                 ))]);
             }
             dependency_inputs.insert(occurrence.clone(), slots.clone());
+        }
+        // Review supplies a session sponsor; ordinary compilation does not.
+        // Both must use the same captured-output custody. Provision only a
+        // fresh private write root, never adopt earlier publication contents.
+        if build_machine_filesystem_scope.sponsor.is_none() {
+            let scratch = std::sync::Arc::new(BuildOutputScratch::create()?);
+            let canonical_root = std::fs::canonicalize(&scratch.0).map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "could not bind build output staging: {error}"
+                ))]
+            })?;
+            let sponsor = BuildMachineFilesystemSponsor::new(&canonical_root).map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "could not sponsor build output staging: {error}"
+                ))]
+            })?;
+            build_machine_filesystem_scope.build_dir = canonical_root.join("output");
+            build_machine_filesystem_scope.sponsor = Some(sponsor);
+            build_machine_filesystem_scope.output_scratch = Some(scratch);
         }
         // One capture authority produces the immutable input inventory and
         // its canonical metadata index together; the scope rejects a captured

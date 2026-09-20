@@ -17,7 +17,8 @@ pub use checked_compilation_to_terminal_artifact::validate_lowered_ieee_float_co
 pub use compilation_report::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, FinalRealizationEvidenceError,
     OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
-    ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedNativeArtifact,
+    ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedBuildOutputs,
+    RetainedNativeArtifact,
 };
 pub use compiler::compile;
 pub use compiler::options::CompileOptions;

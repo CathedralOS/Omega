@@ -1,4 +1,4 @@
-//! The compile report: which of the five products a compilation produced,
+//! The compile report: which product a compilation produced,
 //! the payload slots each kind may occupy, and the publication of retained
 //! native artifacts into exact executable bytes with their custody receipts.
 
@@ -24,10 +24,17 @@ pub enum CompileOutputKind {
     RetainedNativeArtifact,
     NativeExecutable,
     ObjectContainer,
+    BuildArtifacts,
 }
 
 #[derive(Debug)]
 pub struct CompileReport {
+    /// Completed files only, bound to the same build observation as the
+    /// primary product. Scratch and generated-source files are not products.
+    build_outputs: Option<crate::RetainedBuildOutputs>,
+    /// Expected build identity retained independently of the file attachment,
+    /// including standalone compilations without a package manifest.
+    build_observation: Option<build_evaluation::BuildObservationIdentity>,
     root_path: PathBuf,
     pub source_file_count: usize,
     wrote_output: bool,
@@ -82,6 +89,86 @@ pub struct CompileReport {
 }
 
 impl CompileReport {
+    pub fn from_build_outputs(
+        root_path: PathBuf,
+        source_file_count: usize,
+        outputs: crate::RetainedBuildOutputs,
+        production_subject: Option<ProductionCompilationSubject>,
+    ) -> Result<Self, &'static str> {
+        let mut report = Self::check_only(root_path, source_file_count)?;
+        report.production_manifest = production_subject
+            .map(|subject| ProductionCompilationManifest::for_build_outputs(subject, &outputs))
+            .transpose()?;
+        report.output_kind = CompileOutputKind::BuildArtifacts;
+        report.build_observation = Some(outputs.observation_identity());
+        report.build_outputs = Some(outputs);
+        if !report.has_consistent_executable_publication_custody() {
+            return Err("compiler report retained inconsistent completed-output custody");
+        }
+        Ok(report)
+    }
+
+    /// Attach companions only after the requested primary product checked.
+    pub fn with_build_outputs(
+        mut self,
+        outputs: Option<crate::RetainedBuildOutputs>,
+        expected_observation: Option<build_evaluation::BuildObservationIdentity>,
+    ) -> Result<Self, &'static str> {
+        if self.output_kind == CompileOutputKind::CheckOnly || self.build_outputs.is_some() {
+            return Err("completed outputs require a product with no previous output set");
+        }
+        self.build_outputs = outputs;
+        self.build_observation = expected_observation;
+        if !self.has_consistent_executable_publication_custody() {
+            return Err("completed build outputs disagree with the product's build observation");
+        }
+        Ok(self)
+    }
+
+    pub fn build_outputs(&self) -> Option<&crate::RetainedBuildOutputs> {
+        self.build_outputs.as_ref()
+    }
+
+    pub const fn build_observation_identity(
+        &self,
+    ) -> Option<build_evaluation::BuildObservationIdentity> {
+        self.build_observation
+    }
+
+    /// Transfer companion custody when consuming a retained primary artifact
+    /// into another product. Artifact-only reports cannot lose their payload.
+    pub fn take_build_outputs(&mut self) -> Option<crate::RetainedBuildOutputs> {
+        if matches!(
+            self.output_kind,
+            CompileOutputKind::TerminalArtifact | CompileOutputKind::RetainedNativeArtifact
+        ) && !self.wrote_output
+        {
+            self.build_outputs.take()
+        } else {
+            None
+        }
+    }
+
+    /// Publish artifact-only files or companions after native publication.
+    /// Artifact-only builds need no executable entry or target code emission.
+    pub fn publish_completed_build_outputs(
+        mut self,
+        build_dir: &std::path::Path,
+    ) -> Result<Self, String> {
+        if !self.has_consistent_executable_publication_custody()
+            || (self.output_kind != CompileOutputKind::BuildArtifacts && !self.wrote_output)
+        {
+            return Err(
+                "completed-output publication requires a checked, published primary product".into(),
+            );
+        }
+        if let Some(outputs) = &mut self.build_outputs {
+            outputs.publish(build_dir)?;
+            self.wrote_output = true;
+        }
+        Ok(self)
+    }
+
     /// A completed check with no retained artifact or executable publication.
     pub fn check_only(root_path: PathBuf, source_file_count: usize) -> Result<Self, &'static str> {
         Self::checked(
@@ -101,6 +188,8 @@ impl CompileReport {
         executable_publication: Option<ExecutablePublicationReceipt>,
     ) -> Result<Self, &'static str> {
         let report = Self {
+            build_outputs: None,
+            build_observation: None,
             root_path,
             source_file_count,
             wrote_output,
@@ -140,6 +229,8 @@ impl CompileReport {
             .map(|subject| ProductionCompilationManifest::for_native(subject, &artifact))
             .transpose()?;
         let report = Self {
+            build_outputs: None,
+            build_observation: None,
             root_path,
             source_file_count,
             wrote_output: false,
@@ -440,6 +531,8 @@ impl CompileReport {
         }
 
         let report = Self {
+            build_outputs: self.build_outputs,
+            build_observation: self.build_observation,
             root_path: self.root_path,
             source_file_count: self.source_file_count,
             wrote_output: true,
@@ -550,6 +643,8 @@ impl CompileReport {
             });
         }
         Ok(Self {
+            build_outputs: self.build_outputs,
+            build_observation: self.build_observation,
             root_path: self.root_path,
             source_file_count: self.source_file_count,
             wrote_output: true,
@@ -731,6 +826,8 @@ impl CompileReport {
             })
             .transpose()?;
         let report = Self {
+            build_outputs: None,
+            build_observation: None,
             root_path,
             source_file_count,
             wrote_output: false,
@@ -853,6 +950,15 @@ impl CompileReport {
     /// executable receipt, and terminal output replays
     /// the retained installation/image/file join.
     pub fn has_consistent_executable_publication_custody(&self) -> bool {
+        if self.build_outputs.as_ref().is_some_and(|outputs| {
+            self.build_observation != Some(outputs.observation_identity())
+                || self.production_manifest.as_ref().is_some_and(|manifest| {
+                    manifest.subject().build_observation_identity()
+                        != outputs.observation_identity()
+                })
+        }) {
+            return false;
+        }
         let rollback_matches_kind = match self.output_kind {
             CompileOutputKind::RetainedNativeArtifact | CompileOutputKind::NativeExecutable => self
                 .optimization_rollback
@@ -877,9 +983,9 @@ impl CompileReport {
                             })
                 })
             }
-            CompileOutputKind::CheckOnly | CompileOutputKind::ObjectContainer => {
-                self.optimization_rollback.is_none()
-            }
+            CompileOutputKind::CheckOnly
+            | CompileOutputKind::ObjectContainer
+            | CompileOutputKind::BuildArtifacts => self.optimization_rollback.is_none(),
         };
         if !rollback_matches_kind {
             return false;
@@ -892,8 +998,21 @@ impl CompileReport {
             return false;
         }
         match self.output_kind {
+            CompileOutputKind::BuildArtifacts => {
+                self.artifact.is_none()
+                    && self.retained_native_artifact.is_none()
+                    && self.executable_publication.is_none()
+                    && self.package_publication.is_none()
+                    && self.build_outputs.as_ref().is_some_and(|outputs| {
+                        self.wrote_output == outputs.published_directory().is_some()
+                            && self.production_manifest.as_ref().is_none_or(|manifest| {
+                                manifest.artifact() == ProductionArtifactIdentity::BuildOutputs(*outputs.identity())
+                            })
+                    })
+            }
             CompileOutputKind::CheckOnly => {
                 !self.wrote_output
+                    && self.build_outputs.is_none()
                     && self.artifact.is_none()
                     && self.retained_native_artifact.is_none()
                     && self.executable_publication.is_none()

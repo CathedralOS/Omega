@@ -473,6 +473,7 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "build-evaluation",
+ "build-output",
  "calling-conventions",
  "effects",
  "function-identity",

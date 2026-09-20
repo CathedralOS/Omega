@@ -33,6 +33,7 @@ impl ProductionCompilationManifestIdentity {
 pub enum ProductionArtifactIdentity {
     Terminal(TerminalArtifactIdentity),
     Native(NativeArtifactIdentity),
+    BuildOutputs([u8; 32]),
 }
 
 /// Fail-closed rejection from the narrow package/native physical-evidence
@@ -297,6 +298,19 @@ pub struct ProductionCompilationManifest {
 }
 
 impl ProductionCompilationManifest {
+    pub fn for_build_outputs(
+        subject: ProductionCompilationSubject,
+        outputs: &crate::RetainedBuildOutputs,
+    ) -> Result<Self, &'static str> {
+        if subject.build_observation_identity() != outputs.observation_identity() {
+            return Err("completed build outputs belong to another production observation");
+        }
+        Ok(Self::new(
+            subject,
+            ProductionArtifactIdentity::BuildOutputs(*outputs.identity()),
+        ))
+    }
+
     pub fn for_terminal(
         subject: ProductionCompilationSubject,
         artifact: &CanonicalTerminalArtifact,
@@ -538,6 +552,10 @@ fn canonical_manifest_bytes(
         ProductionArtifactIdentity::Native(identity) => {
             bytes.push(2);
             bytes.extend_from_slice(identity.as_bytes());
+        }
+        ProductionArtifactIdentity::BuildOutputs(identity) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&identity);
         }
     }
     bytes
