@@ -1426,6 +1426,7 @@ dependencies = [
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "source",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
