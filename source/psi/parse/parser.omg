@@ -25,6 +25,18 @@ pub data Parser {
     data_name_end: u64 in Trapping;
     data_is_public: bool;
     data_multiplicity: DataMultiplicity;
+    data_property_generic: bool;
+    data_first_generic: u64 in Trapping;
+    generic_saw_runtime: bool;
+    generic_param_start: u64 in Trapping;
+    generic_name_start: u64 in Trapping;
+    generic_name_end: u64 in Trapping;
+    generic_decoded_start: u64 in Trapping;
+    generic_decoded_length: u64 in Trapping;
+    generic_pending_kind: GenericParameterKind;
+    generic_bounds: DataMultiplicity;
+    generic_type_index: u64 in Trapping;
+    type_qualifier_generic: bool;
     field_start: u64 in Trapping;
     field_name_start: u64 in Trapping;
     field_name_end: u64 in Trapping;
