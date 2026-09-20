@@ -10402,7 +10402,43 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RC-LINUX-X86-64-GATE-LEDGER** — mined candidate; verify scope then implement.
 - **RC-MATRIX-RUNNER** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX** — mined candidate; verify scope then implement.
-- **RC-NATIVE-MATRIX-CLOSURE** — mined candidate; scope verified, currently open and structurally blocked. This stub re-mines the release-matrix closure rule (`wiki/drafts/rust_compiler_completion.md`): the contract closes only when all eight named gates pass from a clean checkout of the same commit and all four required platform runs are recorded — no partial percentages. Current state witnessed on linux-x86_64 at `f1675418b1`: the gate's named command `cargo nextest run -p omega-native-differential-test --all-targets --no-fail-fast` cannot even compile — `abstract_publication::decision_custody` still expects the 6-entry `PSI_PASS_CATALOG` (`StateSpecialization` joined as the 7th in `9a9d1a8b32`), and `pipeline_ownership` carries 5 drift errors from `83766d57bf`'s custody handle (call sites pass `optimized_target()` where `validate_optimized_selection_custody` now takes `&Arc<...>` — the fix is `optimized_target_owner()`) plus one `LegalizedScalarTerminator::Crash` match arm missing in `fixtures/ordinary_graph_controls.rs`. Both fenced directories are under sibling claims (pipeline_ownership: STRUCTURAL-UNIT-CALL-GRAPH-JOINS; abstract_publication: NATIVE-DIFFERENTIAL-MATRIX), so the repair belongs to their lanes. Until the harness compiles, the row cannot even report red; after that, the recorded linux x86-64 row (15/38, fixture-migration residuals at `wiki/drafts/rc_native_matrix_linux_x86_64.md`) and the other three host rows must all pass before closure. Sibling stubs on this same surface: RC-NATIVE-MATRIX, RC-NATIVE-MATRIX-GATE, RC-NATIVE-MATRIX-HOST-EXECUTION/-HOST-LEGS/-HOST-RUNS/-HOSTS, RC-NATIVE-MATRIX-LINUX-ARM64/-LINUX-X64/-MACOS-ARM64/-WINDOWS-X64.
+- **RC-NATIVE-MATRIX-CLOSURE.** Scope verified at `29983459ec` (linux
+  x86-64), open and structurally blocked — re-mines the release-matrix
+  closure rule (`wiki/drafts/rust_compiler_completion.md`): the contract
+  closes only when all eight named gates pass from a clean checkout of the
+  same commit and all four required platform runs are recorded. Fresh
+  evidence supersedes the `f1675418b1` "cannot even compile" entry: the
+  recorded `abstract_publication`/`pipeline_ownership` drift was repaired
+  upstream, but `c17b63d759` (one member-run relocation admission, landed
+  22:57Z) wrote its `crossed_window` call without the
+  `CrossingDirection` parameter `33951da866` added — the whole
+  `selected-instructions-to-selected-instructions` lib, and therefore the
+  gate's command, failed E0061. This branch repairs that call site with
+  `CrossingDirection::Forward` (the run-to-destination direction the
+  admission's gained/lost traversal audits require; verified: 470/470
+  `test(relocation)` lib tests green, fmt clean). With the fix the gate
+  command `cargo nextest run -p omega-native-differential-test
+  --all-targets --no-fail-fast` executes end to end on this host:
+  **1018 pass / 109 fail / 1 skip in 1728 s**. Residual families, all
+  pre-existing drift on the base, not the repair: ~70 `coverage::*` /
+  `real_fs::*` fixtures still spell boundary traits bare in value
+  position (`Service<R>` migration — owned by BASELINE-SERVICE-CARRIER-
+  FAILURES / SERVICE-CARRIER-FIXTURE-MIGRATION); `recast_views::*` (10)
+  and `gui_headless` (1) reference missing
+  `omega_language_std/console.omg` fixture files (member-source layout
+  migration); `natural_writer::*` (8) assert
+  `FixedFuelError::ControlCycle` the current fixed-fuel charging no
+  longer produces; `pipeline_ownership::structural_units` (2) on
+  `UnsupportedControlFlow`/manifest `UnsupportedVersion(15)`;
+  `terminal_psi_record_returns` (6), `terminal_psi_runnable` (4),
+  `terminal_psi_calls` (1), `scalar_case_results` record legs (2) on
+  TerminalPsi/manifest identity drift. The linux_x86_64 row is thus red
+  but now runnable; the other three host rows are not recordable from
+  this host (no macOS/Windows runners in this lane). Closure still
+  blocked; sibling stubs on this surface: RC-NATIVE-MATRIX,
+  RC-NATIVE-MATRIX-GATE, RC-NATIVE-MATRIX-HOST-EXECUTION/-HOST-LEGS/
+  -HOST-RUNS/-HOSTS, RC-NATIVE-MATRIX-LINUX-ARM64/-LINUX-X64/
+  -MACOS-ARM64/-WINDOWS-X64.
 - **RC-NATIVE-MATRIX-GATE.** Mined candidate — scope verified, covered.
   The gate leg of the RC-NATIVE-MATRIX release row is landed in the
   record substrate: `tools/release/release_record.py` encodes
