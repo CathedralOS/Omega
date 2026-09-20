@@ -253,7 +253,9 @@ fn bare_type_binder_generalizes_a_level() {
 
 #[test]
 fn body_type_mismatch_fails_kernel_checking() {
-    let diagnostics = refuse("let bad(x: u64): u32 = x;");
+    // Fixed integer carriers share `Int`, so `x: u64` inhabits `u32`'s
+    // denotation too — the mismatch needs a genuinely distinct carrier.
+    let diagnostics = refuse("let bad(x: u64): bool = x;");
 
     assert!(
         diagnostics.iter().any(|diagnostic| {
@@ -288,14 +290,378 @@ fn unbound_result_family_refuses() {
     );
 }
 
+/// The spec's canonical machine-valued body: `value > limit` denotes
+/// `Squash (IntLt limit value)` at the `Strict 0` boundary, with the
+/// `i32` telescope sharing the `Int` carrier.
 #[test]
-fn machine_expression_body_refuses() {
-    let diagnostics = refuse("let p(limit: i32, value: i32): core::Strict<0> = value > limit;");
+fn machine_comparison_denotes_squashed_integer_order() {
+    let signature = signature("let gt(limit: i32, value: i32): core::Strict<0> = value > limit;");
+
+    crate::lower_typed_trees(typed_program(
+        "let gt(limit: i32, value: i32): core::Strict<0> = value > limit;",
+    ))
+    .expect("machine comparison body checks");
+
+    assert_eq!(signature.authored(), &[2]);
+    let declarations = signature.signature().declarations();
+    // `Int : Type 0`, `IntLt : Π(_ : Int). Π(_ : Int). Type 0`, `gt`.
+    assert_eq!(declarations.len(), 3);
+    let gt = &declarations[2];
+    // Π(_ : Int). Π(_ : Int). Strict 0
+    let Term::Pi { domain, codomain } = signature.term(gt.ty) else {
+        panic!("expected Pi, got {:?}", signature.term(gt.ty));
+    };
+    assert_eq!(
+        signature.term(domain),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+    let Term::Pi { codomain, .. } = signature.term(codomain) else {
+        panic!("expected inner Pi");
+    };
+    assert_eq!(
+        signature.term(codomain),
+        Term::Sort(Sort::Strict(Level::Constant(0)))
+    );
+    // λ(_ : Int). λ(_ : Int). Squash (IntLt limit value) — `value`
+    // is innermost (index 0), `limit` index 1.
+    let mut body = gt.body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Apply {
+        function: application,
+        argument,
+    } = signature.term(ty)
+    else {
+        panic!("expected IntLt application, got {:?}", signature.term(ty));
+    };
+    assert_eq!(signature.term(argument), Term::Variable(0));
+    let Term::Apply {
+        function: relation,
+        argument: left,
+    } = signature.term(application)
+    else {
+        panic!("expected IntLt head, got {:?}", signature.term(application));
+    };
+    assert_eq!(
+        signature.term(relation),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(signature.term(left), Term::Variable(1));
+}
+
+/// `x == y` denotes `Id Int y x` — endpoints order canonically so both
+/// spellings share one denotation.
+#[test]
+fn machine_equality_denotes_id_over_int() {
+    let signature = signature("let eq(a: u64, b: u64): core::Strict<0> = a == b;");
+    crate::lower_typed_trees(typed_program(
+        "let eq(a: u64, b: u64): core::Strict<0> = a == b;",
+    ))
+    .expect("machine equality body checks");
+
+    let declarations = signature.signature().declarations();
+    // `Int` carrier + `eq`.
+    assert_eq!(declarations.len(), 2);
+    let mut body = declarations[1].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Id { ty, left, right } = signature.term(ty) else {
+        panic!("expected Id, got {:?}", signature.term(ty));
+    };
+    assert_eq!(
+        signature.term(ty),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+    // Canonical order: `a` (index 1) and `b` (index 0) sort to (b, a).
+    assert_eq!(signature.term(left), Term::Variable(0));
+    assert_eq!(signature.term(right), Term::Variable(1));
+}
+
+/// `x <= limit && y <= limit` denotes a right-nested `Σ` of `IntLe`
+/// propositions under `Squash`.
+#[test]
+fn machine_conjunction_denotes_nested_sigma() {
+    let signature = signature(
+        "let within(x: u64, y: u64, limit: u64): core::Strict<0> = x <= limit && y <= limit;",
+    );
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `IntLe`, `within`.
+    assert_eq!(declarations.len(), 3);
+    let mut body = declarations[2].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    // Both conjuncts denote `IntLe _ limit` — canonical term order
+    // places `y <= limit` first (y is the shallower variable: `x`,
+    // `y`, `limit` are indices 2, 1, 0).
+    let Term::Sigma { domain, codomain } = signature.term(ty) else {
+        panic!("expected Sigma, got {:?}", signature.term(ty));
+    };
+    let Term::Apply { function, argument } = signature.term(domain) else {
+        panic!("expected Apply");
+    };
+    assert_eq!(signature.term(argument), Term::Variable(0));
+    let Term::Apply {
+        function: relation,
+        argument: left,
+    } = signature.term(function)
+    else {
+        panic!("expected IntLe head");
+    };
+    assert_eq!(
+        signature.term(relation),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(signature.term(left), Term::Variable(1));
+    // `x <= limit` under one binder: x shifts to index 3, limit to 1.
+    let Term::Apply { function, argument } = signature.term(codomain) else {
+        panic!(
+            "expected Apply codomain, got {:?}",
+            signature.term(codomain)
+        );
+    };
+    assert_eq!(signature.term(argument), Term::Variable(1));
+    let Term::Apply { argument: left, .. } = signature.term(function) else {
+        panic!("expected IntLe head");
+    };
+    assert_eq!(signature.term(left), Term::Variable(3));
+}
+
+/// `a < b || c < d` denotes `Σ(t : Two). caseTwo(M, _, _, t)` under
+/// `Squash` — the bounded vocabulary's tagged sum.
+#[test]
+fn machine_disjunction_denotes_tagged_sum() {
+    let signature =
+        signature("let either(a: i64, b: i64, c: i64, d: i64): core::Strict<0> = a < b || c < d;");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `IntLt`, `either`.
+    assert_eq!(declarations.len(), 3);
+    let mut body = declarations[2].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Sigma { domain, codomain } = signature.term(ty) else {
+        panic!("expected Sigma, got {:?}", signature.term(ty));
+    };
+    assert_eq!(signature.term(domain), Term::Two);
+    let Term::CaseTwo { scrutinee, .. } = signature.term(codomain) else {
+        panic!("expected CaseTwo, got {:?}", signature.term(codomain));
+    };
+    assert_eq!(signature.term(scrutinee), Term::Variable(0));
+}
+
+/// A bare `bool` subject denotes `x = true` — the same proposition
+/// `lower_proposition` forms — interned once at the `bool` carrier.
+#[test]
+fn machine_boolean_subject_denotes_true_identity() {
+    let signature = signature("let ready(flag: bool): core::Strict<0> = flag;");
+
+    let declarations = signature.signature().declarations();
+    // `bool` carrier, `true` literal, `ready`.
+    assert_eq!(declarations.len(), 3);
+    let mut body = declarations[2].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Id { ty, left, right } = signature.term(ty) else {
+        panic!("expected Id, got {:?}", signature.term(ty));
+    };
+    assert_eq!(
+        signature.term(ty),
+        Term::Constant {
+            declaration: 0,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(signature.term(left), Term::Variable(0));
+    assert_eq!(
+        signature.term(right),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+}
+
+/// Closed integer arithmetic evaluates to one literal `Int` constant —
+/// `2 + 3 == 5` denotes `Id Int five five`, which `refl` proves.
+#[test]
+fn closed_machine_arithmetic_denotes_exact_literal() {
+    let signature = signature("let closed(): core::Strict<0> = 2 + 3 == 5;");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, the `5` literal, `closed`.
+    assert_eq!(declarations.len(), 3);
+    let body = declarations[2].body.expect("definition body");
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Id { left, right, .. } = signature.term(ty) else {
+        panic!("expected Id, got {:?}", signature.term(ty));
+    };
+    assert_eq!(
+        signature.term(left),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(signature.term(left), signature.term(right));
+}
+
+/// Open `+` composes through `IntAdd`; `x + 0 == x` denotes
+/// `Squash (Id Int (IntAdd x zero) x)` — not reflexive, a real
+/// proposition.
+#[test]
+fn open_addition_composes_through_the_shared_function() {
+    let signature = signature("let lemma(x: u64): core::Strict<0> = x + 0 == x;");
+    crate::lower_typed_trees(typed_program(
+        "let lemma(x: u64): core::Strict<0> = x + 0 == x;",
+    ))
+    .expect("open addition body checks");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `IntAdd`, the `0` literal, `lemma`.
+    assert_eq!(declarations.len(), 4);
+    let mut body = declarations[3].body.expect("definition body");
+    while let Term::Lambda { body: inner, .. } = signature.term(body) {
+        body = inner;
+    }
+    let Term::Squash { ty } = signature.term(body) else {
+        panic!("expected Squash, got {:?}", signature.term(body));
+    };
+    let Term::Id { left, right, .. } = signature.term(ty) else {
+        panic!("expected Id, got {:?}", signature.term(ty));
+    };
+    // `x` (Variable 0) sorts before the application.
+    assert_eq!(signature.term(left), Term::Variable(0));
+    let Term::Apply { function, argument } = signature.term(right) else {
+        panic!(
+            "expected IntAdd application, got {:?}",
+            signature.term(right)
+        );
+    };
+    assert_eq!(
+        signature.term(argument),
+        Term::Constant {
+            declaration: 2,
+            levels: Vec::new()
+        }
+    );
+    let Term::Apply {
+        function: operation,
+        argument: operand,
+    } = signature.term(function)
+    else {
+        panic!("expected IntAdd head");
+    };
+    assert_eq!(
+        signature.term(operation),
+        Term::Constant {
+            declaration: 1,
+            levels: Vec::new()
+        }
+    );
+    assert_eq!(signature.term(operand), Term::Variable(0));
+}
+
+/// A machine-valued body over an earlier declaration composes: `half(x)`
+/// applies the declaration constant inside the `Int` relation.
+#[test]
+fn machine_call_operand_denotes_application() {
+    let signature = signature(
+        "let double(x: u64): u64 = x + x;\nlet exceeds(x: u64): core::Strict<0> = double(x) > x;",
+    );
+    crate::lower_typed_trees(typed_program(
+        "let double(x: u64): u64 = x + x;\nlet exceeds(x: u64): core::Strict<0> = double(x) > x;",
+    ))
+    .expect("call operand checks");
+
+    let declarations = signature.signature().declarations();
+    // `Int`, `IntAdd`, `double`, `IntLt`, `exceeds`.
+    assert_eq!(declarations.len(), 5);
+    assert_eq!(signature.authored(), &[2, 4]);
+}
+
+#[test]
+fn open_multiplication_refuses() {
+    let diagnostics = refuse("let product(x: u64, y: u64): u64 = x * y;");
 
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.message.contains("has no kernel denotation yet")),
+            .any(|diagnostic| diagnostic.message.contains("no bounded denotation")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn negated_equality_refuses() {
+    let diagnostics = refuse("let different(x: u64, y: u64): core::Strict<0> = x != y;");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("no negation")),
+        "unexpected diagnostics: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn order_over_non_integer_carriers_refuses() {
+    for source in [
+        "let lt(a: bool, b: bool): core::Strict<0> = a < b;",
+        "let lt(a: addr, b: addr): core::Strict<0> = a < b;",
+    ] {
+        let diagnostics = refuse(source);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("non-address integers")),
+            "{source}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn equality_across_distinct_carriers_refuses() {
+    let diagnostics = refuse("let bad(x: u64, b: bool): core::Strict<0> = x == b;");
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("different scalar carrier")),
         "unexpected diagnostics: {diagnostics:?}"
     );
 }

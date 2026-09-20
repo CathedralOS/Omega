@@ -29,12 +29,23 @@
 //!   by `level_arity` (the spec's generalization rule) — it is never
 //!   silently pinned to a fixed level. `core::Strict<v>` elaborates to
 //!   `Sort::Strict` and `core::Squash<A>` to `Squash`.
-//! - Every other resolved non-core symbol in a type position — builtin
-//!   types like `u64`, authored `data` types — is an uninterpreted
-//!   carrier: on first use it interns `Declaration::assumption(0, Type 0)`
-//!   into the shared signature prefix (the `bounded_denotation` pattern),
-//!   so later declarations can reference earlier ones through
-//!   `Term::Constant`.
+//! - Fixed integer carriers (`i8`–`u64` and the `Int`/`UInt` proof
+//!   integers) share the bounded denotation's `Int : Type 0` carrier;
+//!   `bool` and `addr` share one dedicated carrier each, kept distinct
+//!   from `Int` because the bounded vocabulary's order relations are
+//!   fixed non-address integers. Every other resolved non-core symbol —
+//!   authored `data` types, other builtin atoms — interns a per-symbol
+//!   `Declaration::assumption(0, Type 0)` in the shared signature prefix
+//!   (the `bounded_denotation` pattern), so later declarations can
+//!   reference earlier ones through `Term::Constant`.
+//! - Machine-valued body expressions denote into the same bounded
+//!   vocabulary: closed integer arithmetic evaluates to `Int` literal
+//!   constants interned by exact value, open `+`/`-` share the
+//!   `IntAdd`/`IntSub` function assumptions, comparisons and `&&`/`||`
+//!   denote `Type 0` propositions (`IntLt`/`IntLe`, `Id` over the
+//!   operand's scalar carrier, right-nested `Σ`, and the tagged
+//!   `Σ(t : Two). caseTwo` sum), and a `core::Strict` result wraps the
+//!   proposition in `Squash` at the authored boundary.
 //! - Explicit generic applications follow the callee's ordered telescope:
 //!   level binders instantiate `Constant.levels`, while the remaining binders
 //!   form ordinary `Apply` terms before the ordinary argument prefix. A binder
@@ -55,28 +66,36 @@
 //! (a bare reference to a generalized declaration), references to the declaration being elaborated or a later one,
 //! machine/evidence/quotient/private-layout call payloads, borrow /
 //! constrained / dynamic-trait / array / slice / unit type references,
-//! computed level expressions other than literals, and every body
-//! expression form beyond name references and ordinary application
-//! (integer and operator denotation is the bounded-denotation leg).
+//! computed level expressions other than literals, `!=` and unary
+//! operators (the bounded vocabulary holds no negation), order relations
+//! and scalar equality over operands whose carriers differ or cannot be
+//! determined, open machine arithmetic beyond exact `+`/`-` (products,
+//! quotients, shifts and bitwise operations denote only when the whole
+//! expression evaluates closed), and every remaining body expression
+//! form (members, matches, casts, ...).
 
 mod applications;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
+use numerics::bignum::BigInt;
+use numerics::literals::{IntegerLiteral, LandedIntegerType};
 use proof_admission::{
     Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Level, Signature, Sort, Term,
-    TermArena, TermHandle, check_signature, infer_sort,
+    TermArena, TermHandle, check_signature, infer_sort, shift,
 };
 use source::SourceSpan;
-use symbols::SymbolHandle;
+use symbols::{BuiltinTypeAtom, SymbolHandle};
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataProperties, TypeParameter, TypeParameterKind};
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableNamePath,
+};
 use typed_trees::mathematical::{
     MathematicalBody, MathematicalDefinition, MathematicalType, MathematicalTypeHandle,
 };
 use typed_trees::name::Identifier;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 /// A checked kernel signature for a typed program's mathematical
 /// declarations: the shared term arena, the re-decided declaration list
@@ -132,6 +151,31 @@ struct Elaborator<'a> {
     declarations: Vec<Declaration>,
     /// Carrier symbol -> signature position (a `Type 0` assumption).
     carriers: HashMap<SymbolHandle, u32>,
+    /// `Int : Type 0` — the shared mathematical-integer carrier every
+    /// fixed-width integer carrier denotes into: `i8`–`u64`, `Int` and
+    /// `UInt` all name it, exactly as the bounded denotation's scalar
+    /// terms embed.
+    integer: Option<u32>,
+    /// `bool`'s shared carrier — `Boolean` literals and `bool`-carried
+    /// operands denote at it.
+    boolean: Option<u32>,
+    /// `addr`'s carrier — deliberately distinct from `Int`: the bounded
+    /// vocabulary's order relations are fixed non-address integers only.
+    address: Option<u32>,
+    /// `IntLt`/`IntLe : Π(_ : Int). Π(_ : Int). Type 0`, interned on demand.
+    integer_less_than: Option<u32>,
+    integer_less_or_equal: Option<u32>,
+    /// `IntAdd`/`IntSub : Π(_ : Int). Π(_ : Int). Int` — open exact
+    /// addition and subtraction compose; every other open machine
+    /// operation has no bounded denotation and refuses.
+    integer_add: Option<u32>,
+    integer_subtract: Option<u32>,
+    /// Closed scalar literals interned by `(carrier position, exact
+    /// value)` — the denotation is by value, so `2 + 0` and `2` name one
+    /// constant.
+    numeric_literals: BTreeMap<(u32, BigInt), u32>,
+    /// `true`/`false` interned at the `bool` carrier.
+    boolean_literals: [Option<u32>; 2],
     /// Elaborated authored declaration symbol -> signature position.
     authored_positions: HashMap<SymbolHandle, u32>,
     /// Every authored declaration symbol -> authored index, so a reference
@@ -167,6 +211,15 @@ pub(crate) fn check_mathematical_signature(
         arena: TermArena::new(),
         declarations: Vec::new(),
         carriers: HashMap::new(),
+        integer: None,
+        boolean: None,
+        address: None,
+        integer_less_than: None,
+        integer_less_or_equal: None,
+        integer_add: None,
+        integer_subtract: None,
+        numeric_literals: BTreeMap::new(),
+        boolean_literals: [None, None],
         authored_positions: HashMap::new(),
         authored_index: program
             .mathematical_definitions()
@@ -232,7 +285,13 @@ impl<'a> Elaborator<'a> {
             self.push_scope(Some(parameter.symbol), parameter.name.clone(), domain);
         }
 
-        let mut ty = self.elaborate_mathematical_type(definition.result)?;
+        let result = self.elaborate_mathematical_type(definition.result)?;
+        // A `core::Strict` result marks the authored body as a
+        // proposition: the denotation lands at `Type 0` and `Squash`
+        // places it in the strict layer. Nothing else squashes — a
+        // `Type` carrier keeps the same proposition relevant.
+        let strict_result = matches!(self.arena.get(result), Term::Sort(Sort::Strict(_)));
+        let mut ty = result;
         for entry in self.scope.iter().rev() {
             ty = self.arena.insert(Term::Pi {
                 domain: entry.domain,
@@ -242,7 +301,7 @@ impl<'a> Elaborator<'a> {
         let body = match &definition.body {
             MathematicalBody::Assumption => None,
             MathematicalBody::Definition(term) => {
-                let mut body = self.elaborate_expression(*term)?;
+                let mut body = self.elaborate_body(*term, strict_result)?;
                 for entry in self.scope.iter().rev() {
                     body = self.arena.insert(Term::Lambda {
                         domain: entry.domain,
@@ -609,10 +668,24 @@ impl<'a> Elaborator<'a> {
         }
     }
 
+    /// Elaborate a declaration's body: at a `core::Strict` result a
+    /// proposition form lands `Squash` around its `Type 0` denotation;
+    /// every other body elaborates as an ordinary term.
+    fn elaborate_body(
+        &mut self,
+        term: ExpressionHandle,
+        strict_result: bool,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        if strict_result && let Some(proposition) = self.elaborate_proposition(term)? {
+            return Ok(self.arena.insert(Term::Squash { ty: proposition }));
+        }
+        self.elaborate_expression(term)
+    }
+
     /// Elaborate a body or application-argument expression. Name
-    /// references and ordinary calls denote; every other form (literals,
-    /// operators, members, ...) belongs to the bounded-denotation leg and
-    /// refuses.
+    /// references, ordinary calls, literals and machine operators denote
+    /// in the bounded vocabulary; members, matches, casts and the
+    /// remaining forms still refuse.
     fn elaborate_expression(
         &mut self,
         handle: ExpressionHandle,
@@ -677,13 +750,956 @@ impl<'a> Elaborator<'a> {
                 }
                 Ok(function)
             }
-            _ => Err(self.refuse(format!(
-                "expression `{}` has no kernel denotation yet",
+            ExpressionNode::Integer(literal) => {
+                let literal = literal.clone();
+                self.literal_term(&literal)
+            }
+            ExpressionNode::Boolean(value) => Ok(self.boolean_literal(*value)),
+            ExpressionNode::Binary(binary) => {
+                let binary = *binary;
+                match binary.operator {
+                    BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor => self.integer_operation_term(handle, &binary),
+                    _ => match self.elaborate_proposition(handle)? {
+                        Some(proposition) => Ok(proposition),
+                        None => Err(self.unsupported_expression(handle)),
+                    },
+                }
+            }
+            ExpressionNode::ZeroValue(reference) => self.zero_value_term(*reference),
+            _ => Err(self.unsupported_expression(handle)),
+        }
+    }
+
+    /// The shared refusal for body forms that carry no kernel denotation.
+    fn unsupported_expression(&self, handle: ExpressionHandle) -> Vec<diagnostics::Diagnostic> {
+        self.refuse(format!(
+            "expression `{}` has no kernel denotation yet",
+            self.program.render_proof_expression(
+                handle,
+                typed_trees::proposition::ProofSubstitutions::None
+            )
+        ))
+    }
+
+    /// The `Type 0` proposition one machine expression denotes, when it
+    /// is a proposition form at all — `None` names an ordinary term and
+    /// falls back to `elaborate_expression`, while `Err` is a refused
+    /// proposition. Comparisons need a shared scalar carrier: integer
+    /// orders (`<`, `<=`, `>`, `>=`) denote `IntLt`/`IntLe` over the
+    /// shared `Int`, `==` denotes `Id` over the operands' carrier, `&&`
+    /// denotes a right-nested `Σ`, `||` the tagged `Two` sum, `true` and
+    /// `false` the `Two` identities, and a bare `bool` subject `x` means
+    /// `x = true` — the same proposition `lower_proposition` forms.
+    fn elaborate_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+    ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+        match self.program.expression_table.expression(handle) {
+            ExpressionNode::Boolean(value) => Ok(Some(self.boolean_proposition(*value))),
+            ExpressionNode::Name(..) => match self.operand_carrier(handle) {
+                Some(ScalarCarrier::Boolean) => {
+                    let subject = self.scalar_operand_term(handle, ScalarCarrier::Boolean)?;
+                    let ty = self.carrier_term(ScalarCarrier::Boolean);
+                    let truth = self.boolean_literal(true);
+                    Ok(Some(self.arena.insert(Term::Id {
+                        ty,
+                        left: subject,
+                        right: truth,
+                    })))
+                }
+                _ => Ok(None),
+            },
+            ExpressionNode::Binary(binary) => {
+                let binary = *binary;
+                match binary.operator {
+                    BinaryOperator::Equal => self.equality_proposition(handle, binary).map(Some),
+                    BinaryOperator::NotEqual => Err(self.refuse(format!(
+                        "proposition `{}` negates equality; the bounded vocabulary holds no negation",
+                        self.program.render_proof_expression(
+                            handle,
+                            typed_trees::proposition::ProofSubstitutions::None
+                        )
+                    ))),
+                    BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual => {
+                        self.order_proposition(handle, binary).map(Some)
+                    }
+                    BinaryOperator::And | BinaryOperator::Or => self
+                        .connective_proposition(handle, binary.operator)
+                        .map(Some),
+                    _ => Ok(None),
+                }
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// `l = r : Type 0` — `Id` over the operands' shared scalar carrier.
+    /// `Int` serves every fixed-width integer comparison, `bool` and
+    /// `addr` their own carriers, and an interned `data` carrier serves
+    /// structural equality — the generic `Id S` route the bounded
+    /// denotation keeps for non-integer scalars. Anonymous literals adopt
+    /// the other operand's carrier; distinct determined carriers refuse.
+    fn equality_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+        binary: TableBinaryExpression,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let carrier = self
+            .operand_carrier(binary.left)
+            .or_else(|| self.operand_carrier(binary.right))
+            .ok_or_else(|| {
+                self.refuse(format!(
+                    "cannot determine a shared scalar carrier for `{}`",
+                    self.program.render_proof_expression(
+                        handle,
+                        typed_trees::proposition::ProofSubstitutions::None
+                    )
+                ))
+            })?;
+        let mut left = self.scalar_operand_term(binary.left, carrier)?;
+        let mut right = self.scalar_operand_term(binary.right, carrier)?;
+        // `Id` endpoints order canonically — `x == y` and `y == x`
+        // denote one type. The bounded denotation canonicalizes at the
+        // proposition level; signatures carry no proposition stage, so
+        // the kernel terms themselves order here.
+        if self.denotation_key(left) > self.denotation_key(right) {
+            std::mem::swap(&mut left, &mut right);
+        }
+        let ty = self.carrier_term(carrier);
+        Ok(self.arena.insert(Term::Id { ty, left, right }))
+    }
+
+    /// `IntLt l r` or `IntLe l r : Type 0` — the shared order relations,
+    /// reserved for fixed non-address integer operands exactly as the
+    /// bounded denotation's `fixed_scalar_relation` gates them. `>` and
+    /// `>=` denote the flipped form.
+    fn order_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+        binary: TableBinaryExpression,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let carrier = self
+            .operand_carrier(binary.left)
+            .or_else(|| self.operand_carrier(binary.right));
+        if carrier != Some(ScalarCarrier::Integer) {
+            return Err(self.refuse(format!(
+                "order relation `{}` denotes only over fixed non-address integers",
                 self.program.render_proof_expression(
                     handle,
                     typed_trees::proposition::ProofSubstitutions::None
                 )
+            )));
+        }
+        let left = self.integer_operand(binary.left)?;
+        let right = self.integer_operand(binary.right)?;
+        let (strict, left, right) = match binary.operator {
+            BinaryOperator::Less => (true, left, right),
+            BinaryOperator::LessOrEqual => (false, left, right),
+            BinaryOperator::Greater => (true, right, left),
+            _ => (false, right, left),
+        };
+        let position = if strict {
+            self.integer_less_than()
+        } else {
+            self.integer_less_or_equal()
+        };
+        let relation = self.constant(position);
+        let function = self.arena.insert(Term::Apply {
+            function: relation,
+            argument: left,
+        });
+        Ok(self.arena.insert(Term::Apply {
+            function,
+            argument: right,
+        }))
+    }
+
+    /// `a && b` denotes a right-nested `Σ` and `a || b` the tagged
+    /// `Σ(t : Two). caseTwo` sum — the connective denotations of the
+    /// bounded vocabulary. Operand spines flatten and order canonically,
+    /// so `a && b` and `b && a` denote one type.
+    fn connective_proposition(
+        &mut self,
+        handle: ExpressionHandle,
+        operator: BinaryOperator,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let mut operands = Vec::new();
+        self.proposition_spine(handle, operator, &mut operands);
+        let mut terms = Vec::with_capacity(operands.len());
+        for operand in operands {
+            match self.elaborate_proposition(operand)? {
+                Some(term) => terms.push(term),
+                None => {
+                    return Err(self.refuse(format!(
+                        "operand `{}` of a proposition connective is not a proposition",
+                        self.program.render_proof_expression(
+                            operand,
+                            typed_trees::proposition::ProofSubstitutions::None
+                        )
+                    )));
+                }
+            }
+        }
+        terms.sort_by_key(|term| self.denotation_key(*term));
+        Ok(match operator {
+            BinaryOperator::And => self.right_nested_sigma(&terms, 0),
+            _ => self.tagged_sum(&terms, 0),
+        })
+    }
+
+    /// Flatten a left-associative `&&`/`||` spine into authored order.
+    fn proposition_spine(
+        &self,
+        handle: ExpressionHandle,
+        operator: BinaryOperator,
+        operands: &mut Vec<ExpressionHandle>,
+    ) {
+        match self.program.expression_table.expression(handle) {
+            ExpressionNode::Binary(binary) if binary.operator == operator => {
+                self.proposition_spine(binary.left, operator, operands);
+                self.proposition_spine(binary.right, operator, operands);
+            }
+            _ => operands.push(handle),
+        }
+    }
+
+    /// `Σ(P, λ_. Q)` right-nested over `terms`, each denoted in the
+    /// ambient scope: `Σ` binds `Variable 0`, so every later term shifts
+    /// under the binders before it.
+    fn right_nested_sigma(&mut self, terms: &[TermHandle], under: u32) -> TermHandle {
+        let domain = shift(&mut self.arena, terms[0], 0, under);
+        let codomain = if terms.len() == 2 {
+            shift(&mut self.arena, terms[1], 0, under + 1)
+        } else {
+            self.right_nested_sigma(&terms[1..], under + 1)
+        };
+        self.arena.insert(Term::Sigma { domain, codomain })
+    }
+
+    /// `Σ(t : Two). caseTwo(λ(_ : Two). Type 0, zero, rest, t)` — the
+    /// binary coproduct the disjunction denotation nests, matching the
+    /// bounded vocabulary's own `tagged_sum` shape.
+    fn tagged_sum(&mut self, terms: &[TermHandle], under: u32) -> TermHandle {
+        let two = self.arena.insert(Term::Two);
+        let type_zero = self.type_zero();
+        let motive = self.arena.insert(Term::Lambda {
+            domain: two,
+            body: type_zero,
+        });
+        let scrutinee = self.arena.insert(Term::Variable(0));
+        let zero_branch = shift(&mut self.arena, terms[0], 0, under + 1);
+        let one_branch = if terms.len() == 2 {
+            shift(&mut self.arena, terms[1], 0, under + 1)
+        } else {
+            self.tagged_sum(&terms[1..], under + 1)
+        };
+        let family = self.arena.insert(Term::CaseTwo {
+            motive,
+            zero_branch,
+            one_branch,
+            scrutinee,
+        });
+        self.arena.insert(Term::Sigma {
+            domain: two,
+            codomain: family,
+        })
+    }
+
+    /// `true` denotes `Id Two zero zero` and `false` `Id Two zero one` —
+    /// the bounded `Truth`/`Falsehood` denotations.
+    fn boolean_proposition(&mut self, value: bool) -> TermHandle {
+        let ty = self.arena.insert(Term::Two);
+        let zero = self.arena.insert(Term::TwoZero);
+        let right = if value {
+            zero
+        } else {
+            self.arena.insert(Term::TwoOne)
+        };
+        self.arena.insert(Term::Id {
+            ty,
+            left: zero,
+            right,
+        })
+    }
+
+    /// One operand of a relation or connective, denoted at the shared
+    /// `carrier` — literals and zero values take it, while names, calls
+    /// and compound arithmetic must already inhabit it.
+    fn scalar_operand_term(
+        &mut self,
+        handle: ExpressionHandle,
+        carrier: ScalarCarrier,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        match self.program.expression_table.expression(handle) {
+            ExpressionNode::Integer(literal) => {
+                let Some(value) = literal.value_bignum() else {
+                    return Err(self.refuse(format!(
+                        "integer literal `{}` has no exact value",
+                        literal.text()
+                    )));
+                };
+                let position = self.carrier_position(carrier);
+                Ok(self.numeric_literal(position, value))
+            }
+            ExpressionNode::Boolean(value) => {
+                if carrier != ScalarCarrier::Boolean {
+                    return Err(self.refuse(format!(
+                        "boolean literal is not a `{}` operand",
+                        self.carrier_name(carrier)
+                    )));
+                }
+                Ok(self.boolean_literal(*value))
+            }
+            ExpressionNode::ZeroValue(reference) => {
+                let reference = *reference;
+                match self.scalar_carrier_of_type_reference(reference) {
+                    Some(determined) if determined == carrier => self.zero_literal(carrier),
+                    _ => Err(self.refuse(format!(
+                        "zero value of `{}` is not a `{}` operand",
+                        self.program.display_type_reference(reference),
+                        self.carrier_name(carrier)
+                    ))),
+                }
+            }
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::Divide
+                        | BinaryOperator::Modulo
+                        | BinaryOperator::ShiftLeft
+                        | BinaryOperator::ShiftRight
+                        | BinaryOperator::BitwiseAnd
+                        | BinaryOperator::BitwiseOr
+                        | BinaryOperator::BitwiseXor
+                ) =>
+            {
+                if carrier != ScalarCarrier::Integer {
+                    return Err(self.refuse(format!(
+                        "arithmetic expression `{}` is not a `{}` operand",
+                        self.program.render_proof_expression(
+                            handle,
+                            typed_trees::proposition::ProofSubstitutions::None
+                        ),
+                        self.carrier_name(carrier)
+                    )));
+                }
+                let binary = *binary;
+                self.integer_operation_term(handle, &binary)
+            }
+            ExpressionNode::Name(..) | ExpressionNode::Call(..) => {
+                match self.operand_carrier(handle) {
+                    Some(determined) if determined == carrier => self.elaborate_expression(handle),
+                    Some(..) => Err(self.refuse(format!(
+                        "operand `{}` inhabits a different scalar carrier",
+                        self.program.render_proof_expression(
+                            handle,
+                            typed_trees::proposition::ProofSubstitutions::None
+                        )
+                    ))),
+                    None => Err(self.refuse(format!(
+                        "cannot determine the scalar carrier of operand `{}`",
+                        self.program.render_proof_expression(
+                            handle,
+                            typed_trees::proposition::ProofSubstitutions::None
+                        )
+                    ))),
+                }
+            }
+            _ => Err(self.unsupported_expression(handle)),
+        }
+    }
+
+    /// An `Int`-valued operand: a literal, a name or call at an integer
+    /// carrier, or compound integer arithmetic.
+    fn integer_operand(
+        &mut self,
+        handle: ExpressionHandle,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        self.scalar_operand_term(handle, ScalarCarrier::Integer)
+    }
+
+    /// The scalar carrier one operand expression inhabits, when it is
+    /// determinable from literal landings, scope domains, declaration
+    /// codomains and operation heads. `None` means the carrier is not a
+    /// denoted scalar carrier — anonymous literals defer so the other
+    /// operand's carrier supplies theirs, mirroring `infer_scalar_type`.
+    fn operand_carrier(&self, handle: ExpressionHandle) -> Option<ScalarCarrier> {
+        match self.program.expression_table.expression(handle) {
+            ExpressionNode::Integer(literal) => {
+                literal.landing().map(|landing| match landing.landed_type {
+                    LandedIntegerType::Addr => ScalarCarrier::Address,
+                    _ => ScalarCarrier::Integer,
+                })
+            }
+            ExpressionNode::Boolean(_) => Some(ScalarCarrier::Boolean),
+            ExpressionNode::Name(path) => self.name_carrier(path),
+            ExpressionNode::Call(call) => self.declaration_result_carrier(call.target_symbol),
+            ExpressionNode::Binary(binary) => Some(match binary.operator {
+                BinaryOperator::Add
+                | BinaryOperator::Subtract
+                | BinaryOperator::Multiply
+                | BinaryOperator::Divide
+                | BinaryOperator::Modulo
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor => ScalarCarrier::Integer,
+                _ => ScalarCarrier::Boolean,
+            }),
+            ExpressionNode::ZeroValue(reference) => {
+                self.scalar_carrier_of_type_reference(*reference)
+            }
+            _ => None,
+        }
+    }
+
+    /// The carrier a `Name` inhabits: a scope entry's domain when the
+    /// entry names a `Type 0` carrier assumption, or an earlier
+    /// declaration's result carrier. A scope entry bound at a `Sort`,
+    /// `Pi` or `Variable` domain — type binders, arrow parameters —
+    /// carries no scalar carrier.
+    fn name_carrier(&self, path: &TableNamePath) -> Option<ScalarCarrier> {
+        if path.symbol.is_valid() {
+            if let Some(position) = self
+                .scope
+                .iter()
+                .rposition(|entry| entry.symbol == Some(path.symbol))
+            {
+                return self.domain_carrier(position);
+            }
+            return self.declaration_result_carrier(path.symbol);
+        }
+        let members = self
+            .program
+            .expression_table
+            .name_path_members(path.members);
+        let [name] = members else { return None };
+        let position = self.scope.iter().rposition(|entry| entry.name == *name)?;
+        self.domain_carrier(position)
+    }
+
+    /// The carrier class one scope entry's domain names, when it is a
+    /// `Type 0` carrier assumption at all.
+    fn domain_carrier(&self, scope_position: usize) -> Option<ScalarCarrier> {
+        match self.arena.get(self.scope[scope_position].domain) {
+            Term::Constant { declaration, .. } => Some(self.carrier_class_at(declaration)),
+            _ => None,
+        }
+    }
+
+    /// The carrier an earlier authored declaration's result inhabits —
+    /// the innermost codomain of its `Pi` spine.
+    fn declaration_result_carrier(&self, symbol: SymbolHandle) -> Option<ScalarCarrier> {
+        let position = *self.authored_positions.get(&symbol)?;
+        let mut ty = self.declarations[position as usize].ty;
+        while let Term::Pi { codomain, .. } = self.arena.get(ty) {
+            ty = codomain;
+        }
+        match self.arena.get(ty) {
+            Term::Constant { declaration, .. } => Some(self.carrier_class_at(declaration)),
+            _ => None,
+        }
+    }
+
+    /// The scalar carrier a type reference names, when it is one —
+    /// primitives and the `Int`/`UInt` atoms map onto the shared
+    /// carriers without interning; other symbols only name a carrier
+    /// already interned.
+    fn scalar_carrier_of_type_reference(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<ScalarCarrier> {
+        if let Some(primitive) = self.program.primitive_type_reference(reference) {
+            return match primitive {
+                PrimitiveType::Bool => Some(ScalarCarrier::Boolean),
+                PrimitiveType::Addr => Some(ScalarCarrier::Address),
+                PrimitiveType::F32 | PrimitiveType::F64 => None,
+                _ => Some(ScalarCarrier::Integer),
+            };
+        }
+        if let TypeReferenceNode::Named { symbol, .. } =
+            self.program.type_reference_table.type_reference(reference)
+        {
+            return match self.program.symbols.builtin_type_atom(*symbol) {
+                Some(BuiltinTypeAtom::Bool) => Some(ScalarCarrier::Boolean),
+                Some(BuiltinTypeAtom::Address) => Some(ScalarCarrier::Address),
+                Some(
+                    BuiltinTypeAtom::I8
+                    | BuiltinTypeAtom::I16
+                    | BuiltinTypeAtom::I32
+                    | BuiltinTypeAtom::I64
+                    | BuiltinTypeAtom::U8
+                    | BuiltinTypeAtom::U16
+                    | BuiltinTypeAtom::U32
+                    | BuiltinTypeAtom::U64
+                    | BuiltinTypeAtom::Int
+                    | BuiltinTypeAtom::UInt,
+                ) => Some(ScalarCarrier::Integer),
+                _ => self
+                    .carriers
+                    .get(symbol)
+                    .map(|&position| self.carrier_class_at(position)),
+            };
+        }
+        None
+    }
+
+    /// Which scalar carrier a signature position is: the shared `Int`,
+    /// `bool` and `addr` carriers match their classes; every other
+    /// interned carrier names its own position.
+    fn carrier_class_at(&self, position: u32) -> ScalarCarrier {
+        if self.integer == Some(position) {
+            ScalarCarrier::Integer
+        } else if self.boolean == Some(position) {
+            ScalarCarrier::Boolean
+        } else if self.address == Some(position) {
+            ScalarCarrier::Address
+        } else {
+            ScalarCarrier::Carrier(position)
+        }
+    }
+
+    /// A diagnostic-friendly name for the carrier family.
+    fn carrier_name(&self, carrier: ScalarCarrier) -> &'static str {
+        match carrier {
+            ScalarCarrier::Integer => "integer",
+            ScalarCarrier::Boolean => "boolean",
+            ScalarCarrier::Address => "address",
+            ScalarCarrier::Carrier(..) => "scalar",
+        }
+    }
+
+    /// The carrier's signature position, interning it on first use.
+    fn carrier_position(&mut self, carrier: ScalarCarrier) -> u32 {
+        match carrier {
+            ScalarCarrier::Integer => self.integer_carrier(),
+            ScalarCarrier::Boolean => self.boolean_carrier(),
+            ScalarCarrier::Address => self.address_carrier(),
+            ScalarCarrier::Carrier(position) => position,
+        }
+    }
+
+    /// The carrier as a `Constant` term.
+    fn carrier_term(&mut self, carrier: ScalarCarrier) -> TermHandle {
+        let position = self.carrier_position(carrier);
+        self.constant(position)
+    }
+
+    /// `Int : Type 0` — the shared mathematical-integer carrier
+    /// assumption every fixed integer element and relation names.
+    fn integer_carrier(&mut self) -> u32 {
+        if self.integer.is_none() {
+            self.integer = Some(self.push_type_carrier());
+        }
+        self.integer.unwrap()
+    }
+
+    /// `bool : Type 0`.
+    fn boolean_carrier(&mut self) -> u32 {
+        if self.boolean.is_none() {
+            self.boolean = Some(self.push_type_carrier());
+        }
+        self.boolean.unwrap()
+    }
+
+    /// `addr : Type 0` — distinct from `Int`, so address values never
+    /// meet the fixed-integer order relations.
+    fn address_carrier(&mut self) -> u32 {
+        if self.address.is_none() {
+            self.address = Some(self.push_type_carrier());
+        }
+        self.address.unwrap()
+    }
+
+    /// `Π(_ : Int). Π(_ : Int). Type 0` — the shape `IntLt`/`IntLe`
+    /// share.
+    fn integer_relation(&mut self) -> u32 {
+        let int = self.integer_constant();
+        let codomain = self.type_zero();
+        let inner = self.arena.insert(Term::Pi {
+            domain: int,
+            codomain,
+        });
+        let ty = self.arena.insert(Term::Pi {
+            domain: int,
+            codomain: inner,
+        });
+        self.push_assumption(ty)
+    }
+
+    fn integer_less_than(&mut self) -> u32 {
+        if self.integer_less_than.is_none() {
+            self.integer_less_than = Some(self.integer_relation());
+        }
+        self.integer_less_than.unwrap()
+    }
+
+    fn integer_less_or_equal(&mut self) -> u32 {
+        if self.integer_less_or_equal.is_none() {
+            self.integer_less_or_equal = Some(self.integer_relation());
+        }
+        self.integer_less_or_equal.unwrap()
+    }
+
+    /// `Π(_ : Int). Π(_ : Int). Int` — the shape `IntAdd`/`IntSub`
+    /// share.
+    fn integer_operation(&mut self) -> u32 {
+        let int = self.integer_constant();
+        let inner = self.arena.insert(Term::Pi {
+            domain: int,
+            codomain: int,
+        });
+        let ty = self.arena.insert(Term::Pi {
+            domain: int,
+            codomain: inner,
+        });
+        self.push_assumption(ty)
+    }
+
+    fn integer_add(&mut self) -> u32 {
+        if self.integer_add.is_none() {
+            self.integer_add = Some(self.integer_operation());
+        }
+        self.integer_add.unwrap()
+    }
+
+    fn integer_subtract(&mut self) -> u32 {
+        if self.integer_subtract.is_none() {
+            self.integer_subtract = Some(self.integer_operation());
+        }
+        self.integer_subtract.unwrap()
+    }
+
+    /// `Constant` term for a signature position.
+    fn constant(&mut self, position: u32) -> TermHandle {
+        self.arena.insert(Term::Constant {
+            declaration: position,
+            levels: Vec::new(),
+        })
+    }
+
+    /// `Type 0` as a term.
+    fn type_zero(&mut self) -> TermHandle {
+        self.arena
+            .insert(Term::Sort(Sort::Type(Level::Constant(0))))
+    }
+
+    /// Push an assumption declaration and return its position.
+    fn push_assumption(&mut self, ty: TermHandle) -> u32 {
+        let position = self.declarations.len() as u32;
+        self.declarations.push(Declaration::assumption(0, ty));
+        position
+    }
+
+    /// A fresh `Type 0` carrier assumption's position.
+    fn push_type_carrier(&mut self) -> u32 {
+        let ty = self.type_zero();
+        self.push_assumption(ty)
+    }
+
+    /// `Int`-constant the `Int` carrier names — interned once.
+    fn integer_constant(&mut self) -> TermHandle {
+        let position = self.integer_carrier();
+        self.constant(position)
+    }
+
+    /// One closed scalar literal's constant, interned by exact value at
+    /// its carrier — `2 + 0` and `2` name one constant, so evaluated
+    /// equalities stay `refl`-provable without a decision assumption.
+    fn numeric_literal(&mut self, carrier: u32, value: BigInt) -> TermHandle {
+        let key = (carrier, value);
+        let position = match self.numeric_literals.get(&key) {
+            Some(&position) => position,
+            None => {
+                let ty = self.constant(carrier);
+                let position = self.push_assumption(ty);
+                self.numeric_literals.insert(key, position);
+                position
+            }
+        };
+        self.constant(position)
+    }
+
+    /// `true`/`false` interned at the `bool` carrier.
+    fn boolean_literal(&mut self, value: bool) -> TermHandle {
+        if let Some(position) = self.boolean_literals[value as usize] {
+            return self.constant(position);
+        }
+        let carrier = self.boolean_carrier();
+        let ty = self.constant(carrier);
+        let position = self.push_assumption(ty);
+        self.boolean_literals[value as usize] = Some(position);
+        self.constant(position)
+    }
+
+    /// A literal in term position denotes at its landing carrier —
+    /// `addr`-landed literals land at the address carrier, every other
+    /// integer literal at `Int` — interned by exact value.
+    fn literal_term(
+        &mut self,
+        literal: &IntegerLiteral,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let Some(value) = literal.value_bignum() else {
+            return Err(self.refuse(format!(
+                "integer literal `{}` has no exact value",
+                literal.text()
+            )));
+        };
+        let carrier = match literal.landing() {
+            Some(landing) if landing.landed_type == LandedIntegerType::Addr => {
+                self.address_carrier()
+            }
+            _ => self.integer_carrier(),
+        };
+        Ok(self.numeric_literal(carrier, value))
+    }
+
+    /// The zero value of a scalar carrier.
+    fn zero_literal(
+        &mut self,
+        carrier: ScalarCarrier,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        match carrier {
+            ScalarCarrier::Boolean => Ok(self.boolean_literal(false)),
+            ScalarCarrier::Carrier(..) => Err(self.refuse(
+                "the zero value of a non-numeric carrier has no bounded denotation".to_owned(),
+            )),
+            _ => {
+                let position = self.carrier_position(carrier);
+                Ok(self.numeric_literal(position, BigInt::from_u64(0)))
+            }
+        }
+    }
+
+    /// `ZeroValue` denotes the zero literal at its carrier.
+    fn zero_value_term(
+        &mut self,
+        reference: TypeReferenceHandle,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        match self.scalar_carrier_of_type_reference(reference) {
+            Some(carrier) => self.zero_literal(carrier),
+            None => Err(self.refuse(format!(
+                "the zero value of `{}` has no scalar denotation",
+                self.program.display_type_reference(reference)
             ))),
+        }
+    }
+
+    /// Closed integer arithmetic evaluates to the exact literal `Int`
+    /// constant — `2 + 0` and `2` name one denotation. Open `+`/`-`
+    /// share `IntAdd`/`IntSub` applied to their operands; every other
+    /// open machine operation has no bounded denotation (the vocabulary
+    /// holds no function for it) and refuses.
+    fn integer_operation_term(
+        &mut self,
+        handle: ExpressionHandle,
+        binary: &TableBinaryExpression,
+    ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        if let Some(value) = self.program.closed_integer_expression_value(handle) {
+            let carrier = self.integer_carrier();
+            return Ok(self.numeric_literal(carrier, value));
+        }
+        let position = match binary.operator {
+            BinaryOperator::Add => self.integer_add(),
+            BinaryOperator::Subtract => self.integer_subtract(),
+            _ => {
+                return Err(self.refuse(format!(
+                    "open machine operation `{}` has no bounded denotation; only exact `+` and `-` compose",
+                    self.program.render_proof_expression(
+                        handle,
+                        typed_trees::proposition::ProofSubstitutions::None
+                    )
+                )))
+            }
+        };
+        let left = self.integer_operand(binary.left)?;
+        let right = self.integer_operand(binary.right)?;
+        let operation = self.constant(position);
+        let function = self.arena.insert(Term::Apply {
+            function: operation,
+            argument: left,
+        });
+        Ok(self.arena.insert(Term::Apply {
+            function,
+            argument: right,
+        }))
+    }
+
+    /// A structural key ordering denoted terms canonically — `x == y` and
+    /// `y == x` denote one `Id`, and connective spines sort by it. The
+    /// bounded denotation canonicalizes at the proposition level; the
+    /// signature carries no proposition stage, so kernel terms order by
+    /// structure here.
+    fn denotation_key(&self, term: TermHandle) -> Vec<u8> {
+        let mut key = Vec::new();
+        self.write_denotation_key(term, &mut key);
+        key
+    }
+
+    fn write_denotation_key(&self, term: TermHandle, out: &mut Vec<u8>) {
+        match self.arena.get(term) {
+            Term::Dummy => out.push(0),
+            Term::Variable(index) => {
+                out.push(1);
+                out.extend_from_slice(&index.to_le_bytes());
+            }
+            Term::Sort(sort) => {
+                out.push(2);
+                out.push(sort.is_strict() as u8);
+                self.write_level_key(sort.level(), out);
+            }
+            Term::Constant {
+                declaration,
+                levels,
+            } => {
+                out.push(3);
+                out.extend_from_slice(&declaration.to_le_bytes());
+                for level in levels {
+                    self.write_level_key(level, out);
+                }
+            }
+            Term::Pi { domain, codomain } => self.write_pair_key(4, domain, codomain, out),
+            Term::Lambda { domain, body } => self.write_pair_key(5, domain, body, out),
+            Term::Apply { function, argument } => self.write_pair_key(6, function, argument, out),
+            Term::Sigma { domain, codomain } => self.write_pair_key(7, domain, codomain, out),
+            Term::Pair { first, second } => self.write_pair_key(8, first, second, out),
+            Term::Fst { pair } => {
+                out.push(9);
+                self.write_denotation_key(pair, out);
+            }
+            Term::Snd { pair } => {
+                out.push(10);
+                self.write_denotation_key(pair, out);
+            }
+            Term::Two => out.push(11),
+            Term::TwoZero => out.push(12),
+            Term::TwoOne => out.push(13),
+            Term::CaseTwo {
+                motive,
+                zero_branch,
+                one_branch,
+                scrutinee,
+            } => {
+                out.push(14);
+                self.write_denotation_key(motive, out);
+                self.write_denotation_key(zero_branch, out);
+                self.write_denotation_key(one_branch, out);
+                self.write_denotation_key(scrutinee, out);
+            }
+            Term::Id { ty, left, right } => {
+                out.push(15);
+                self.write_denotation_key(ty, out);
+                self.write_denotation_key(left, out);
+                self.write_denotation_key(right, out);
+            }
+            Term::Refl { ty, value } => self.write_pair_key(16, ty, value, out),
+            Term::IdElim {
+                motive,
+                base,
+                endpoint,
+                proof,
+            } => {
+                out.push(17);
+                self.write_denotation_key(motive, out);
+                self.write_denotation_key(base, out);
+                self.write_denotation_key(endpoint, out);
+                self.write_denotation_key(proof, out);
+            }
+            Term::W { carrier, children } => self.write_pair_key(18, carrier, children, out),
+            Term::Sup {
+                carrier,
+                children,
+                label,
+                function,
+            } => {
+                out.push(19);
+                self.write_denotation_key(carrier, out);
+                self.write_denotation_key(children, out);
+                self.write_denotation_key(label, out);
+                self.write_denotation_key(function, out);
+            }
+            Term::IndW { motive, step, tree } => {
+                out.push(20);
+                self.write_denotation_key(motive, out);
+                self.write_denotation_key(step, out);
+                self.write_denotation_key(tree, out);
+            }
+            Term::Empty => out.push(21),
+            Term::EmptyElim { ty, scrutinee } => self.write_pair_key(22, ty, scrutinee, out),
+            Term::Squash { ty } => {
+                out.push(23);
+                self.write_denotation_key(ty, out);
+            }
+            Term::SquashIntro { ty, value } => self.write_pair_key(24, ty, value, out),
+            Term::SquashElim {
+                proposition,
+                function,
+                scrutinee,
+            } => {
+                out.push(25);
+                self.write_denotation_key(proposition, out);
+                self.write_denotation_key(function, out);
+                self.write_denotation_key(scrutinee, out);
+            }
+            Term::Box { ty } => {
+                out.push(26);
+                self.write_denotation_key(ty, out);
+            }
+            Term::BoxIntro { ty, value } => self.write_pair_key(27, ty, value, out),
+            Term::BoxElim {
+                motive,
+                body,
+                scrutinee,
+            } => {
+                out.push(28);
+                self.write_denotation_key(motive, out);
+                self.write_denotation_key(body, out);
+                self.write_denotation_key(scrutinee, out);
+            }
+        }
+    }
+
+    fn write_pair_key(&self, tag: u8, first: TermHandle, second: TermHandle, out: &mut Vec<u8>) {
+        out.push(tag);
+        self.write_denotation_key(first, out);
+        self.write_denotation_key(second, out);
+    }
+
+    fn write_level_key(&self, level: Level, out: &mut Vec<u8>) {
+        match level {
+            Level::Constant(value) => {
+                out.push(0);
+                out.extend_from_slice(&value.to_le_bytes());
+            }
+            Level::Parameter(index) => {
+                out.push(1);
+                out.extend_from_slice(&index.to_le_bytes());
+            }
+            Level::Successor(inner) => {
+                out.push(2);
+                self.write_level_key(*inner, out);
+            }
+            Level::Maximum(left, right) => {
+                out.push(3);
+                self.write_level_key(*left, out);
+                self.write_level_key(*right, out);
+            }
         }
     }
 
@@ -820,29 +1836,38 @@ impl<'a> Elaborator<'a> {
 
     /// Intern a resolved non-core symbol as an uninterpreted carrier
     /// (`assumption(0, Type 0)`), reusing its position on repeat use.
+    /// Fixed-width integer and `Int`/`UInt` atoms share the bounded
+    /// denotation's `Int` carrier; `bool` and `addr` share their own;
+    /// other builtin atoms and authored `data` types intern per-symbol.
     /// Symbols of other kinds decline so the caller can refuse.
     fn carrier_for_symbol(&mut self, symbol: SymbolHandle) -> Option<TermHandle> {
         if let Some(&position) = self.carriers.get(&symbol) {
-            let term = self.arena.insert(Term::Constant {
-                declaration: position,
-                levels: Vec::new(),
-            });
-            return Some(term);
+            return Some(self.constant(position));
         }
-        match self.program.symbols.get(symbol).kind {
-            symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data => {}
+        let position = match self.program.symbols.get(symbol).kind {
+            symbols::SymbolKind::BuiltinType | symbols::SymbolKind::Data => {
+                match self.program.symbols.builtin_type_atom(symbol) {
+                    Some(
+                        BuiltinTypeAtom::I8
+                        | BuiltinTypeAtom::I16
+                        | BuiltinTypeAtom::I32
+                        | BuiltinTypeAtom::I64
+                        | BuiltinTypeAtom::U8
+                        | BuiltinTypeAtom::U16
+                        | BuiltinTypeAtom::U32
+                        | BuiltinTypeAtom::U64
+                        | BuiltinTypeAtom::Int
+                        | BuiltinTypeAtom::UInt,
+                    ) => self.integer_carrier(),
+                    Some(BuiltinTypeAtom::Bool) => self.boolean_carrier(),
+                    Some(BuiltinTypeAtom::Address) => self.address_carrier(),
+                    _ => self.push_type_carrier(),
+                }
+            }
             _ => return None,
-        }
-        let ty = self
-            .arena
-            .insert(Term::Sort(Sort::Type(Level::Constant(0))));
-        let position = self.declarations.len() as u32;
-        self.declarations.push(Declaration::assumption(0, ty));
+        };
         self.carriers.insert(symbol, position);
-        Some(self.arena.insert(Term::Constant {
-            declaration: position,
-            levels: Vec::new(),
-        }))
+        Some(self.constant(position))
     }
 
     /// Re-decide the built signature: check each authored declaration's
@@ -918,6 +1943,19 @@ enum BinderPlan {
     Type(LevelArgument),
     /// A term entry over this carrier type reference.
     Term(TypeReferenceHandle),
+}
+
+/// Which scalar carrier a denoted machine operand inhabits, mirroring
+/// the bounded denotation's carrier split: `Integer` is the shared `Int`
+/// every fixed-width integer denotes into, `Boolean` and `Address` are
+/// the dedicated `bool`/`addr` carriers, and `Carrier` names an interned
+/// per-symbol `Type 0` assumption (`data` types, other builtin atoms).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScalarCarrier {
+    Integer,
+    Boolean,
+    Address,
+    Carrier(u32),
 }
 
 #[cfg(test)]
