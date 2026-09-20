@@ -5,15 +5,23 @@ use symbol_resolved_trees::data::{DataDefinition, DataMember, DataProperties};
 use symbol_resolved_trees::wire::{WireField, WireMember, WireReserved, WireSchema};
 
 /// Derive the current record codec's view from the ordinary declaration.
-/// The current generated record codec cannot establish whole-record domain,
-/// declared-property, or lifetime obligations. Those declarations still lower
-/// normally; only this consumer-specific view is withheld. Generic codec
-/// selection remains a separate consumer requirement.
+///
+/// A codec view exists only for records the generated codec can check against
+/// the public wire requirement end to end. The view is withheld for any
+/// declaration carrying an obligation the codec cannot establish:
+/// whole-record domain (`where` facts, which cover every `zero_gated` and
+/// membership-gated carrier), declared properties, lifetime or type
+/// parameters, variant members, fields without `#n` identities, bodyless
+/// forms (quotient and opaque `boundary data` both lower with no members),
+/// and records whose supply mode is not `CheckedShape`. Those declarations
+/// still lower normally; only this consumer-specific view is withheld.
+/// Generic codec selection remains a separate consumer requirement.
 pub(crate) fn derive_wire_schema(lowerer: &mut Lowerer, definition: &DataDefinition) {
     if !definition.type_parameters.is_empty()
         || !definition.lifetime_parameters.is_empty()
         || definition.properties != DataProperties::default()
         || !definition.where_facts.is_empty()
+        || definition.supply_mode != language_core::DataSupplyMode::CheckedShape
     {
         return;
     }
@@ -103,6 +111,12 @@ mod tests {
             "data Message [copy] { #7 value: u32; }",
             "data Message<'scope> { #7 value: &'scope u32; }",
             "data Message { #7 value: u32; case #9 Ready; }",
+            // A field with no `#n` identity leaves the generated codec no
+            // member numbering to verify against the wire requirement.
+            "data Message { value: u32; }",
+            // Opaque boundary carriers are not checked-shaped records; their
+            // bytes belong to the provider, not to a generated codec view.
+            "boundary data ProviderToken;",
         ] {
             let tokens = Lexer::new(declaration).tokenize().expect("tokens");
             let syntax = parse_syntax_trees(&tokens).expect("syntax");
