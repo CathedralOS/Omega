@@ -310,6 +310,128 @@ fn snapshots_closed_compiler_domain_subject_and_structural_schema() {
 }
 
 #[test]
+fn snapshots_program_level_custody_and_full_state_census() {
+    let mut program = TypedTrees::default();
+    let boundary = symbols::SymbolHandle::from_arena_index(61);
+    let requirement = symbols::SymbolHandle::from_arena_index(62);
+    program.service_reaches.intern(boundary, "Console");
+    program
+        .service_reaches
+        .set_parents(language_semantics::ServiceReachId(1), Vec::new());
+    program
+        .authored_service_reach_rows
+        .push(crate::signature::AuthoredServiceReachRow {
+            owner: boundary,
+            keyword_source_spans: vec![source::SourceSpan::new(
+                source::SourceId(4),
+                source::Span::new(1, 7),
+            )],
+            targets: vec![crate::signature::AuthoredServiceReachTarget {
+                service: boundary,
+                source_span: source::SourceSpan::new(source::SourceId(4), source::Span::new(9, 16)),
+            }],
+            installation_bound: true,
+        });
+    program
+        .fused_service_erasures
+        .push(crate::typed_trees::FusedServiceErasureAuthorization {
+            requirement,
+            provider_plan_digest: [9u8; 32],
+        });
+    program
+        .boundary_calling_plans
+        .push(crate::typed_trees::BoundaryCallingPlanIdentity {
+            boundary_trait: boundary,
+            boundary_arguments: Vec::new(),
+            requirement_machine: requirement,
+            report_fingerprint: 0xdead_beef,
+            commitment: crate::typed_trees::BoundaryCallingPlanCommitment::from_digest([7u8; 32]),
+        });
+    program
+        .machine_specializations
+        .push(crate::typed_trees::MachineSpecialization {
+            template: boundary,
+            instance: requirement,
+            type_arguments: vec!["u8".to_owned()],
+            const_argument_identities: vec!["3".to_owned()],
+            normalized_template_identity: "Main::Clock".to_owned(),
+            template_contract_commitment:
+                crate::typed_trees::MachineTemplateCommitment::from_digest([6u8; 32]),
+            report_fingerprint: 42,
+            commitment: crate::typed_trees::MachineSpecializationCommitment::from_digest([5u8; 32]),
+            ..Default::default()
+        });
+    let subject = program
+        .expression_table
+        .insert(crate::expression::ExpressionNode::Boolean(true));
+    program
+        .ranking_expression_custody
+        .push(crate::ranking::RankingExpressionCustody {
+            machine: boundary,
+            subjects: vec![subject],
+            ..Default::default()
+        });
+
+    let snapshot = TypedTreesSnapshot::from_typed_trees(&program);
+
+    let [reach] = snapshot.service_reaches.as_slice() else {
+        panic!("one service reach")
+    };
+    assert_eq!(reach.id, 1);
+    assert_eq!(reach.symbol, 61);
+    assert_eq!(reach.name, "Console");
+    assert!(reach.parents.is_empty());
+    let [row] = snapshot.authored_service_reach_rows.as_slice() else {
+        panic!("one authored reach row")
+    };
+    assert_eq!(row.owner, 61);
+    assert_eq!(row.keyword_spans[0].source_id, 4);
+    assert_eq!(row.keyword_spans[0].start, 1);
+    assert_eq!(row.targets[0].service, 61);
+    assert_eq!(row.targets[0].span.start, 9);
+    assert_eq!(row.targets[0].span.end, 16);
+    assert!(row.installation_bound);
+    let [plan] = snapshot.boundary_calling_plans.as_slice() else {
+        panic!("one boundary calling plan")
+    };
+    assert_eq!(plan.boundary_trait, 61);
+    assert_eq!(plan.requirement_machine, 62);
+    assert_eq!(plan.report_fingerprint, 0xdead_beef);
+    assert_eq!(plan.commitment.len(), 64);
+    let [erasure] = snapshot.fused_service_erasures.as_slice() else {
+        panic!("one fused service erasure")
+    };
+    assert_eq!(erasure.requirement, 62);
+    assert_eq!(erasure.provider_plan_digest.len(), 64);
+    let [specialization] = snapshot.machine_specializations.as_slice() else {
+        panic!("one machine specialization")
+    };
+    assert_eq!(specialization.template, 61);
+    assert_eq!(specialization.instance, 62);
+    assert_eq!(specialization.type_arguments, ["u8"]);
+    assert_eq!(specialization.const_argument_identities, ["3"]);
+    assert_eq!(specialization.normalized_template_identity, "Main::Clock");
+    assert_eq!(specialization.report_fingerprint, 42);
+    assert_eq!(specialization.commitment.len(), 64);
+    let [custody] = snapshot.ranking_expression_custody.as_slice() else {
+        panic!("one ranking expression custody")
+    };
+    assert_eq!(custody.machine, 61);
+    assert_eq!(custody.subjects, [1]);
+    assert!(custody.view_arguments.is_empty());
+    assert!(custody.rank_range.is_none());
+    assert_eq!(snapshot.tables.service_reach_definition_count, 1);
+    assert_eq!(snapshot.tables.authored_service_reach_row_count, 1);
+    assert_eq!(snapshot.tables.machine_specialization_count, 1);
+    assert_eq!(snapshot.tables.boundary_calling_plan_count, 1);
+    assert_eq!(snapshot.tables.fused_service_erasure_count, 1);
+    assert_eq!(snapshot.tables.ranking_expression_custody_count, 1);
+    assert_eq!(snapshot.tables.expression_count, 1);
+    assert_eq!(snapshot.tables.pending_const_range_endpoint_count, 0);
+    assert!(snapshot.to_json_pretty().is_ok());
+}
+
+#[test]
 fn snapshots_normalized_machine_supply_including_external_binding_identity() {
     let mut program = TypedTrees::default();
     let binding = program
