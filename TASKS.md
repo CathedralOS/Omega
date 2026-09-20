@@ -5833,7 +5833,16 @@ Build/packages:
 
 - **BUILD-PACKAGES-GATE.** RC build-and-packages gate closure work.
 - **DELTA-EXHAUSTION-ATTRIBUTION.** Delta compiler exhaustion attribution.
-- **BETA-ENCODER-DEFINITION-PACKAGE.** Beta encoder definition package.
+-- **BETA-ENCODER-DEFINITION-PACKAGE.** Beta encoder definition package.
+  Resolved at `6e8dd6fa33`: the emitted 116,900-byte package (sha256
+  `6bbdd15a…`) is committed as `bootstrap/proofs/beta_encoding/
+  definition_package.bin`, bound by `require_beta_encoding_definition_package_
+  identity` in `tools/bootstrap/proofs/sources_env.sh`, with
+  `tests/bootstrap/proofs-identity.sh` covering the canonical identity check,
+  a one-byte-corruption refusal, and README record pins — the owner fixes the
+  exact bytes independently of the certificate producer as ACCEPTANCE.md
+  requires. The encoding certificate itself is BETA-ENCODING-CERTIFICATE-
+  PRODUCTION's surface, not this item's.
 - **BETA-RECONSTRUCTION-REFUSAL.** Beta reconstruction refusal. Landed: every
   Beta compiler-exec entrypoint refuses (exit 2) on hosts that cannot run the
   audited Alpha container — `tests/beta/compiler/reconstruction.sh`,
@@ -5915,7 +5924,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ASM-CATALOG-MEMORY-AND-CONTROL** — mined candidate; verify scope then implement.
 - **ASM-HIDDEN-EXIT-AND-MEMORY-CONTRACTS** — mined candidate; verify scope then implement.
 - **ASM-INSTRUCTION-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
-- **ASM-MEMORY-AND-TRANSFER-CONTRACTS** — mined candidate; verify scope then implement.
+- **ASM-MEMORY-AND-TRANSFER-CONTRACTS.** Mined candidate; verify scope then implement.
 - **ASM-PRIVILEGED-SERVICE-ADMISSION** — mined candidate; verify scope then implement.
 - **ATOMICS-ORDERING-EVENT-MODEL** — mined candidate; verify scope then implement.
 - **ATTACHED-UNIT-CLOSURE-PLAN** — mined candidate; verify scope then implement.
@@ -6864,7 +6873,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **TV-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
 - **TV-OPERATOR-APPLICATIONS-REPLAY** — mined candidate; verify scope then implement.
 - **TV-PRIVILEGED-PORT-EFFECTS** — mined candidate; verify scope then implement.
-- **UNSEQUENCED-SPILL-DISPOSITION** — mined candidate; verify scope then implement.
+- **UNSEQUENCED-SPILL-DISPOSITION.** Mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-TRIAGE** — mined candidate; verify scope then implement.
