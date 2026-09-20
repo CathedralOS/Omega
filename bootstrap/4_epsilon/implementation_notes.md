@@ -199,10 +199,15 @@ retains only a place-backed full view, as described above.
 All grammar-level execution forms have staging implementations. This does not
 prove their semantics: contract-derived conformance and independent refinement
 remain required. The evaluator boundary and `main` are now realized by
-[`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) within current construct coverage;
-resource containment beyond the derived lower-chain profile, complete Omega D
-composition, and independent `RunEpsilon` refinement remain implementation
-gaps. New execution work
+[`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) within current construct coverage.
+Complete Omega D composition and independent `RunEpsilon` refinement are now
+exercised gates — [`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md)
+runs the full eight-member D closure through the canonical edge, including
+`OmegaScalarCompiler::compile` emitting the exact Alpha tape, and
+[`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md)
+compares the contract-derived model's observations against this edge
+byte-for-byte on the same members. Resource containment beyond the derived
+lower-chain profile remains an implementation gap. New execution work
 must name a concrete failing program or required conformance/refinement
 obligation, not assume an unspecified syntax form is unimplemented.
 The entry-diagnostic and profile-independent structural type-formation judgments
@@ -210,10 +215,12 @@ are implemented. The [resource contract](LANGUAGE.md#10-resource-classification)
 requires containment of actual evaluator demand, including cumulative immutable
 Gamma allocation, not a separate hypothetical dense-storage admission pass.
 The sparse representation preserves declared bounds but does not establish
-final-profile containment; current diagnostic runs discharge neither that
-obligation nor independent execution refinement.
-The existing source is
-therefore not yet a compiler edge and no validation may describe it as one.
+final-profile containment; the refinement gate now discharges independent
+execution refinement over the exact D closure member sources, while
+final-profile containment remains undischarged by these runs. The canonical
+request/observation edge is realized under `EVALUATOR_ENTRY.md`; the standing
+conformance clause there still governs witnessed defects, so no validation
+may describe the surface as closed.
 
 The [closure-checking contract](LANGUAGE.md#4-names-types-and-closure-checking)
 owns collection namespaces, ordinary locals, transition-arm binders, and exact
@@ -501,8 +508,9 @@ acceptance or runtime realization.
 This is the compact case matrix for the eventual adjacent executable gate. It
 derives from [`LANGUAGE.md`](LANGUAGE.md); the full
 matrix must execute through the Delta-written evaluator, compiled by the
-selected Gamma-authored Delta compiler under `ConformanceBytesV1`. The final
-Epsilon evaluator request and observation profile remains open.
+selected Gamma-authored Delta compiler under `ConformanceBytesV1`. The
+canonical request/observation profile is realized by
+[`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md).
 
 The current implementation requires a receiver on every qualified data
 machine, allows case/receiver-method spelling reuse, normalizes `self` through
@@ -615,21 +623,24 @@ storage, recursion/step, and output bound, exercise the exact admitted boundary
 and its adjacent refusal and prove that exhaustion publishes no Epsilon
 observation.
 
-## Required completion
+## Completion state
 
-- complete the evaluator closure selected by `epsilon_compiler.delta.sources` against
-  [`LANGUAGE.md`](LANGUAGE.md);
-- validate every Epsilon expression, statement, state, trap, and Console
-  execution rule; implemented dispatch paths do not establish refinement;
-- define one exact physical evaluator request and observation profile binding
-  evaluator source, Epsilon source, stdin, resources, and maximal execution
-  ([`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md) derives the composed
-  diagnostic edge's explicit profile and refusal witnesses; the final
-  section-11 envelope remains open);
-- compile the evaluator through the selected Delta and Gamma route;
-- compose it with the exact Epsilon-written Omega D source;
-- reconstruct Epsilon source and evaluator semantics independently; and
-- check direct `RunEpsilon` refinement and negative mutations.
+- the evaluator closure selected by `epsilon_compiler.delta.sources` is
+  complete against [`LANGUAGE.md`](LANGUAGE.md) and compiles through the
+  selected Delta and Gamma route into the canonical receipt;
+- the physical request and observation profile is realized as the section-11
+  EREQ envelope with canonical observations and EEOUT refusal frames
+  ([`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md); the diagnostic edge's derived
+  profile stays in [`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md));
+- composition with the exact Epsilon-written Omega D source is exercised by
+  [`tests/epsilon/d-composition/`](../../tests/epsilon/d-composition/README.md);
+- the independent reconstruction of `CheckEpsilon`/`RunEpsilon` lives under
+  [`tests/epsilon/refinement/`](../../tests/epsilon/refinement/README.md) and
+  checks direct `RunEpsilon` refinement and negative mutations byte-for-byte;
+- validating every Epsilon expression, statement, state, trap, and Console
+  execution rule remains the standing conformance clause — implemented
+  dispatch paths do not establish refinement, and witnessed checking/runtime
+  defects are corrected when a D slice or contract control witnesses one.
 
 Any new validation placed here must reconstruct the Delta-written evaluator's
 execution of Epsilon. Alpha target emission belongs to Omega D and C, not this
