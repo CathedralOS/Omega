@@ -6,7 +6,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-use super::premises::{StatedOrderingPremise, premise_proves};
+use super::premises::{StatedOrderingPremise, premise_chain_proves, premise_proves};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum NormalizedBound {
@@ -228,22 +228,52 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
     /// Consult the formation scope's stated ordering premises for one bound
     /// relation the structural order could not prove. The first premise that
     /// proves the query is recorded (capture) or matched positionally against
-    /// the recorded ledger (replay); a consult the recorded ledger does not
-    /// reproduce marks the session drifted and stays unproven.
+    /// the recorded ledger (replay); when no single premise names both
+    /// bounds, one ordered premise pair may still prove the query through a
+    /// shared middle bound and is recorded as two tokens in consult order.
+    /// A consult the recorded ledger does not reproduce marks the session
+    /// drifted and stays unproven.
     fn prove_ordering(
         &mut self,
         left: NormalizedBound,
         relation: BorrowCompatibilityPremiseRelation,
         right: NormalizedBound,
     ) -> bool {
-        let Some(premise) = self
+        if let Some(index) = self
             .premises
             .iter()
-            .find(|premise| premise_proves(premise, left, relation, right))
-        else {
-            return false;
-        };
-        let token = premise.token();
+            .position(|premise| premise_proves(premise, left, relation, right))
+        {
+            let token = self.premises[index].token();
+            return self.record_premise(token);
+        }
+        // No single premise names both bounds; a two-premise chain through
+        // one shared middle bound may still derive the relation. Tokens are
+        // recorded in consult order so replay reproduces the same derivation.
+        for first_index in 0..self.premises.len() {
+            for second_index in 0..self.premises.len() {
+                if first_index == second_index {
+                    continue;
+                }
+                if !premise_chain_proves(
+                    &self.premises[first_index],
+                    &self.premises[second_index],
+                    left,
+                    relation,
+                    right,
+                ) {
+                    continue;
+                }
+                return self.record_premise(self.premises[first_index].token())
+                    && self.record_premise(self.premises[second_index].token());
+            }
+        }
+        false
+    }
+
+    /// Record one consulted premise token against the frozen replay ledger
+    /// (or append it to the captured ledger on first derivation).
+    fn record_premise(&mut self, token: BorrowCompatibilityPremise) -> bool {
         if let Some(frozen) = self.frozen_premises {
             match frozen.get(self.next_frozen_premise) {
                 Some(recorded) if *recorded == token => {
