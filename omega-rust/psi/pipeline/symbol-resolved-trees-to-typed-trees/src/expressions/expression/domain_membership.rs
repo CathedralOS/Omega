@@ -210,16 +210,15 @@ fn case_symbols_for_domain_fact(
             symbols::SymbolHandle::invalid(),
         );
     };
-    let Some(data) = program
-        .data_definitions
-        .iter()
-        .find(|data| data.name.as_str() == type_name.as_str())
+    let Some(data_index) =
+        crate::expressions::exhaustiveness::data_definition_index(program, type_name)
     else {
         return (
             symbols::SymbolHandle::invalid(),
             symbols::SymbolHandle::invalid(),
         );
     };
+    let data = &program.data_definitions[data_index];
     let case_symbol = program
         .data_members(data.members)
         .iter()

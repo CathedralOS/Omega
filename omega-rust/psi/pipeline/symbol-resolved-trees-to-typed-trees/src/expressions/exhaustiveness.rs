@@ -739,15 +739,7 @@ fn classify_membership_leaf(
         return classify_declared_domain(program, membership.domain_symbol);
     }
 
-    let members = program
-        .tables
-        .bodies
-        .expressions
-        .name_path_members(membership.domain);
-    let [type_name, case_name] = members else {
-        return LeafContribution::NotCase;
-    };
-    match find_case(program, type_name.as_str(), case_name.as_str()) {
+    match find_case(program, membership) {
         Some((data_index, variant)) => LeafContribution::Tags {
             data_index,
             variants: vec![variant],
@@ -772,14 +764,22 @@ fn classify_declared_domain(
         return LeafContribution::NotCase;
     };
 
-    let resolved::types::TypeReference::Named { name, .. } = &domain.target_type else {
+    let resolved::types::TypeReference::Named {
+        symbol: target,
+        name,
+    } = &domain.target_type
+    else {
         return LeafContribution::NotCase;
     };
-    let Some(data_index) = program
-        .data_definitions
-        .iter()
-        .position(|definition| definition.name.as_str() == name.as_str())
-    else {
+    let data_index = if target.is_valid() {
+        program
+            .data_definitions
+            .iter()
+            .position(|definition| definition.symbol == *target)
+    } else {
+        data_definition_index(program, name)
+    };
+    let Some(data_index) = data_index else {
         return LeafContribution::NotCase;
     };
     if case_count(program, &program.data_definitions[data_index]) == 0 {
@@ -810,11 +810,7 @@ fn classify_declared_domain(
         if leaf_membership.domain_symbol.is_valid() {
             return LeafContribution::Predicate { data_index };
         }
-        let members = expressions.name_path_members(leaf_membership.domain);
-        let [type_name, case_name] = members else {
-            return LeafContribution::Predicate { data_index };
-        };
-        match find_case(program, type_name.as_str(), case_name.as_str()) {
+        match find_case(program, leaf_membership) {
             Some((leaf_data, variant)) if leaf_data == data_index => variants.push(variant),
             _ => return LeafContribution::Predicate { data_index },
         }
@@ -833,26 +829,80 @@ fn is_bare_self(program: &SymbolResolvedTrees, expression: ExpressionHandle) -> 
     )
 }
 
-/// Find `Type::Case` among the data definitions; returns the definition index
-/// and the variant's index in declaration order (the tag).
+/// Find a `Type::Case` membership leaf among the data definitions; returns
+/// the definition index and the variant's index in declaration order (the
+/// tag). Selection already pins the exact owner and case symbols onto the
+/// node, so classify by them first: a consumer package may declare the same
+/// spelling without capturing this source's dispatch.
 fn find_case(
     program: &SymbolResolvedTrees,
-    type_name: &str,
-    case_name: &str,
+    membership: &resolved::expression::TableMembershipExpression,
 ) -> Option<(usize, usize)> {
-    let data_index = program
+    if membership.case_type_symbol.is_valid() {
+        let data_index = program
+            .data_definitions
+            .iter()
+            .position(|definition| definition.symbol == membership.case_type_symbol)?;
+        let variant = variant_index(program, &program.data_definitions[data_index], |variant| {
+            variant.symbol == membership.case_symbol
+        })?;
+        return Some((data_index, variant));
+    }
+    let members = program
+        .tables
+        .bodies
+        .expressions
+        .name_path_members(membership.domain);
+    let [type_name, case_name] = members else {
+        return None;
+    };
+    let data_index = data_definition_index(program, type_name)?;
+    let variant = variant_index(program, &program.data_definitions[data_index], |variant| {
+        variant.name.as_str() == case_name.as_str()
+    })?;
+    Some((data_index, variant))
+}
+
+/// Index the data definition a source-backed name denotes within its own
+/// package scope; a same-named data in another package cannot capture it.
+/// Source-free names (generated or hand-built trees) keep the flat
+/// first-match scan.
+pub(crate) fn data_definition_index(
+    program: &SymbolResolvedTrees,
+    type_name: &resolved::name::DiagnosticName,
+) -> Option<usize> {
+    if type_name.is_source_backed() {
+        let symbol = program
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                type_name.as_str(),
+                &[symbols::SymbolKind::Data],
+                type_name.source_span(),
+            )?;
+        return program
+            .data_definitions
+            .iter()
+            .position(|definition| definition.symbol == symbol);
+    }
+    program
         .data_definitions
         .iter()
-        .position(|definition| definition.name.as_str() == type_name)?;
-    let variant = program
-        .data_members(program.data_definitions[data_index].members)
+        .position(|definition| definition.name.as_str() == type_name.as_str())
+}
+
+fn variant_index(
+    program: &SymbolResolvedTrees,
+    definition: &DataDefinition,
+    matches: impl Fn(&resolved::data::DataVariant) -> bool,
+) -> Option<usize> {
+    program
+        .data_members(definition.members)
         .iter()
         .filter_map(|member| match member {
             DataMember::Variant(variant) => Some(variant),
             DataMember::Field(_) => None,
         })
-        .position(|variant| variant.name.as_str() == case_name)?;
-    Some((data_index, variant))
+        .position(matches)
 }
 
 fn case_count(program: &SymbolResolvedTrees, definition: &DataDefinition) -> usize {

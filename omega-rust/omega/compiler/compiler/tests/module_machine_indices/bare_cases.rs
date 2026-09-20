@@ -470,6 +470,46 @@ fn qualified_constant_cannot_share_a_case_carrier_namespace() {
 }
 
 #[test]
+fn consumer_same_named_data_does_not_capture_dependency_case_dispatch() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let leaf = tree.package("leaf");
+    Sources::write(
+        leaf.join("read.omg"),
+        "module read;
+         pub data ByteRead { case Eof; case Byte(value: u32); }
+         pub machine peek(observed: ByteRead) -> u32 {
+             transition observed {
+                 ByteRead::Byte { value } -> got(value)
+                 ByteRead::Eof -> empty()
+             }
+             state got(value: u32) -> u32 { value }
+             state empty() -> u32 { 0 }
+         }",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use leaf::read;
+         data ByteRead {}
+         machine make() -> u32 { read::peek(read::ByteRead::Eof) }",
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "leaf", leaf),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "leaf",
+            identity(2),
+        )],
+    )
+    .unwrap();
+    compile(&root, inputs);
+}
+
+#[test]
 fn bare_case_value_equality_does_not_replace_payload_sum_membership() {
     let tree = Sources::new();
     let root = tree.package("root");
