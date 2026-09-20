@@ -4435,17 +4435,24 @@ Owners include
 
   Remaining work:
 
-  - A foreign call inside a ranked machine stops at legalization's
-    source-custody replay in
-    `target-operations-to-selected-instructions/src/legalization`, pinned by
-    `ranked_machine_foreign_call_stops_at_legalization_source_custody`.
-    Extend the shared lowering so the ranked caller reaches native execution;
-    the physical-evidence path already admits ranked occurrences.
+  - Carry changing ranked values into foreign arguments. In
+    `compiler/tests/efb3_flat_record_probe.rs`, change the native
+    `ranked_foreign_call_executes_every_iteration` fixture's `Trace::record(7)`
+    to `Trace::record(remaining)` and make the C oracle expect `3, 2, 1, 0`.
+    At `f9f10fb9716` on macOS ARM64 this rejects with target lowering's
+    `BoundaryRealizationMismatch`, before legalization. The normalized foreign
+    scalar-argument route in `abstract-operations-to-target-operations`'s
+    `src/lowering/unit/boundary_call/normalized_foreign.rs` rejects parameter and
+    block-parameter sources. Reuse ordinary argument materialization and
+    independent source replay; do not replace the changing value with a literal.
+    Run `cargo nextest run -p compiler --test efb3_flat_record_probe
+    ranked_foreign_call_executes_every_iteration --no-fail-fast --no-tests fail`.
   - Port-bearing artifacts need a `port_effects` production writer connected
     to native physical evidence and independent replay.
 
-  Acceptance: a ranked caller invokes its admitted foreign provider on a
-  matching host, and port-bearing artifacts retain their exact effects.
+  Acceptance: a ranked caller passes its changing value to the admitted foreign
+  provider on a matching host, and port-bearing artifacts retain their exact
+  effects.
   Independent native replay rejects missing, duplicate, substituted or
   role-swapped children. Raw foreign bytes remain locator data, never Omega
   symbol names or ambient lookup authority.
