@@ -2,8 +2,9 @@
 //! `ProgramEntry` receiver.
 
 use super::{
-    CheckedTrees, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, CompositionMode,
-    DataMember, Diagnostic, SelectedProviderReviewProvenance, data_field_identity,
+    CheckedTrees, CheckedUnitPlanOmissionStage, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralTypeShape, CompositionMode, DataMember, Diagnostic,
+    SelectedProviderReviewProvenance, data_field_identity,
 };
 pub fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
@@ -141,10 +142,22 @@ pub fn derive_fused_program_entry_establishments(
     attachment_identities.sort();
     attachment_identities.dedup();
     let [attachment_type_identity] = attachment_identities.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
+        let mut message = format!(
             "selected ProgramEntry establishment rejoins {} Terminal attachment identities; expected one",
             attachment_identities.len(),
-        ))]);
+        );
+        if let Some(omission) = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine.symbol)
+        {
+            message.push_str(&format!(
+                "; the machine's unit plan was omitted at {}",
+                describe_omission_stage(checked, omission.stage),
+            ));
+        }
+        return Err(vec![Diagnostic::error(message)]);
     };
 
     let structural_types = checked
@@ -295,6 +308,48 @@ pub fn derive_fused_program_entry_establishments(
         )]);
     }
     Ok(rows)
+}
+
+/// The unit-effects omission ledger already records where a machine left the
+/// plan roster; surface that stage so an empty establishment rejoin names the
+/// plan admission failure rather than only its count.
+fn describe_omission_stage(checked: &CheckedTrees, stage: CheckedUnitPlanOmissionStage) -> String {
+    match stage {
+        CheckedUnitPlanOmissionStage::LocalConstruction {
+            phase,
+            state_index,
+            statement_index,
+        } => match (state_index, statement_index) {
+            (Some(state_index), Some(statement_index)) => format!(
+                "local construction at `{phase}` (state {state_index}, statement {statement_index})",
+            ),
+            (Some(state_index), None) => {
+                format!("local construction at `{phase}` (state {state_index})")
+            }
+            _ => format!("local construction at `{phase}`"),
+        },
+        CheckedUnitPlanOmissionStage::ReceiverReconciliation => {
+            "receiver reconciliation".to_owned()
+        }
+        CheckedUnitPlanOmissionStage::CompetingCandidates => {
+            "competing-candidate overlap resolution".to_owned()
+        }
+        CheckedUnitPlanOmissionStage::ComposedVocabulary => {
+            "composed vocabulary admission".to_owned()
+        }
+        CheckedUnitPlanOmissionStage::UnavailableCallee { target } => format!(
+            "an unavailable callee (`{}`)",
+            checked.symbols.display_path(target, "::"),
+        ),
+        CheckedUnitPlanOmissionStage::MissingBoundaryTarget { target } => format!(
+            "a missing boundary target (`{}`)",
+            checked.symbols.display_path(target, "::"),
+        ),
+        CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => format!(
+            "an unavailable scalar target (`{}`)",
+            checked.symbols.display_path(target, "::"),
+        ),
+    }
 }
 
 fn unconstrained_type_identity(

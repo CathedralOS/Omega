@@ -10731,7 +10731,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     (basics, fletcher_checksum, caesar_cipher, format_number legs);
   (2) linux_x86_64/linux_arm64/macos_arm64 "selected ProgramEntry
     establishment rejoins 0 Terminal attachment identities; expected one"
-    (fletcher_checksum and likely siblings);
+    — attributed under EXACT-PROGRAM-ENTRY-MULTIPLICITY at
+    `dbfa1b1702f`: the entry machine leaves the unit plan roster at
+    local construction ("call statement shape: call count without a
+    statement sequence") because `has_statement_shape`
+    (statement_sequence.rs) rejects a call-produced `&[T]` view local —
+    `let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();`
+    (boundary `Array::as_slice`). LocalData admission covers only
+    primitive | structural result | erased exclusive-borrow alias;
+    `CheckedUnitStructuralTypeShape` deliberately has no runtime-length
+    slice shape and alias formation covers only `ExpressionNode::Borrow`
+    exclusive (Mutable/WriteOnly) carriers. The `&[T]` view local
+    pattern appears in 12 samples (fletcher_checksum, recursive_sum,
+    dual_accumulator_recursion, slice_accum_probe, slice_maximum,
+    subslice_sum, framed_payload, clamp_sum, dungeon_crawler modules);
+    callee `&[T]` parameters face the same vocabulary gap. The rejoin
+    diagnostic now names the recorded omission stage (this commit);
   (3) `cli/basics/print_number` fails checked trees: "cannot prove
     default-domain field requirement for return from Main::main …
     self.out requires [u8; N]::Utf8". These are current-HEAD breaks in the
