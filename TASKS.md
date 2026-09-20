@@ -4918,20 +4918,26 @@ Owners include
   trees and re-fails on the retired spelling. The depend-and-consume
   consumer shape (`builder.depend` + `use blocking_executor::executor` +
   unqualified `satisfies WorkerProvider::execute` + `select_provider`)
-  checks clean under `omega --check` on a scratch consumer, but the
-  checked-compile fixture harness does not wire `builder.depend` rows into
-  package inputs — a durable consumer fixture waits on that harness leg.
+  checks clean under `omega --check` on a scratch consumer. The harness leg
+  landed at `340e2b5ca4`: `canary_suite/task_runtime.rs` projects authored
+  `builder.depend*` rows (`Source::Path` only) into package inputs, and the
+  durable consumer pin `blockexec/blocking_executor_consumer_depend_compile`
+  is registered in `fixture_rosters/task_runtime.rs`. The hung-worker
+  contract is declared at `8d6f12217c`: `Ticket::request_cancel` mirrors
+  `Task::request_cancel` (retains the linear claim, proves nothing) and
+  `IsolatedWorkerProvider: WorkerProvider` names the process-isolation
+  requirement — termination of a hung worker uses process isolation, never
+  in-address-space teardown — both pinned in the custody fixture.
 
   Remaining legs: queue/executor machine bodies (generic-machine frontier,
   recorded in `source/library/core/fixed_vec.omg`; a concrete ring over
   `[linear]` slots also has no provable slot-empty fact channel),
   call-returned sums carrying more than one linear case payload (the
   multiplicity checker wants "an explicit outcome mapping" — the
-  conserved-claim join machinery), real provider admission for the
-  type-attached `boundary requirement`s joining TR3-TR8's execution route,
-  depend-edge wiring in the checked-compile fixture harness for a durable
-  consumer pin, and the process-isolation boundary for hung-worker
-  recovery.
+  conserved-claim join machinery), and real provider admission for the
+  type-attached `boundary requirement`s joining TR3-TR8's execution route —
+  including a provider implementation actually satisfying the declared
+  `IsolatedWorkerProvider` composition.
 
 - **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
   congruence theorem, and optional precondition transport for quotient-owned
