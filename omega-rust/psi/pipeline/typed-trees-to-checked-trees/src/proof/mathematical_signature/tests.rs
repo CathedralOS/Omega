@@ -848,18 +848,21 @@ fn explicit_mathematical_arguments_do_not_bypass_executable_call_admission() {
 
 #[test]
 fn explicit_generic_argument_arity_and_scope_are_checked() {
-    for arguments in ["v", "v,A,A", "missing,A", "4294967296,A"] {
+    for (arguments, expected) in [
+        ("v", "`v` is not a mathematical term"),
+        ("v,A,A", "generic arguments"),
+        ("missing,A", "core::Level"),
+        ("4294967296,A", "level range"),
+    ] {
         let source = format!(
             "{EXPLICIT_LEVEL_IDENTITY}
             let wrong<v: core::Level, A: core::Type<v>>(x: A): A = identity<{arguments}>(x);"
         );
         let diagnostics = crate::lower_typed_trees(typed_program(&source)).expect_err(arguments);
         assert!(
-            diagnostics.iter().any(
-                |diagnostic| diagnostic.message.contains("generic arguments")
-                    || diagnostic.message.contains("core::Level")
-                    || diagnostic.message.contains("level range")
-            ),
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
             "{arguments}: {diagnostics:?}"
         );
     }
@@ -973,7 +976,7 @@ fn generalized_level_inference_stays_bounded() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("cannot infer the generalized universe argument")),
+            .contains("cannot infer the universe argument")),
         "{diagnostics:?}"
     );
     let diagnostics = crate::lower_typed_trees(typed_program(
@@ -1001,6 +1004,62 @@ fn explicit_application_keeps_term_type_checking() {
         diagnostics
             .iter()
             .any(|diagnostic| diagnostic.message.contains("fails kernel checking")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn inferred_authored_levels_preserve_callee_order_and_generalized_suffix() {
+    for source in [
+        "let pick<u: core::Level, A: core::Type<u>, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
+         let relay<v: core::Level, u: core::Level, A: core::Type<u>, B: core::Type<v>>(x: A, y: B): B = pick<A,B>(x,y);",
+        "let pick<A, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
+         let relay<v: core::Level, u: core::Level, A: core::Type<u>, B: core::Type<v>>(x: A, y: B): A = pick<B,A>(y,x);",
+    ] {
+        crate::lower_typed_trees(typed_program(source)).expect("inferred ordered universes");
+        let checked = signature(source);
+        let mut body = checked.signature().declarations()[checked.authored()[1] as usize]
+            .body
+            .unwrap();
+        loop {
+            match checked.term(body) {
+                Term::Lambda { body: inner, .. } => body = inner,
+                Term::Apply { function, .. } => body = function,
+                term => {
+                    assert_eq!(term, Term::Constant {
+                        declaration: checked.authored()[0],
+                        levels: vec![Level::Parameter(1), Level::Parameter(0)],
+                    });
+                    break;
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn undetermined_authored_levels_require_annotation() {
+    let source = "let identity<u: core::Level, v: core::Level, A: core::Type<u>>(x: A): A = x;
+        let relay<A>(x: A): A = identity<A>(x);";
+    let diagnostics = crate::lower_typed_trees(typed_program(source))
+        .expect_err("unused universe cannot be inferred from the implementation");
+    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+        "cannot infer the universe argument of mathematical binder `v`; supply explicit level arguments"
+    )), "{diagnostics:?}");
+}
+
+#[test]
+fn partial_authored_level_omission_requires_an_unambiguous_roster() {
+    let source = "let pick<u: core::Level, A: core::Type<u>, v: core::Level, B: core::Type<v>>(x: A, y: B): B = y;
+        let relay<u: core::Level, A: core::Type<u>, B: core::Type<u>>(x: A, y: B): B = pick<u,A,B>(x,y);";
+    let diagnostics = crate::lower_typed_trees(typed_program(source))
+        .expect_err("partial universe omission has no argument roster");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "requires 4 explicit generic arguments or 2 with universe arguments omitted, got 3"
+            )),
         "{diagnostics:?}"
     );
 }

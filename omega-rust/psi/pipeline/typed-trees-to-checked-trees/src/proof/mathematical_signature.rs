@@ -51,9 +51,11 @@
 //!   form ordinary `Apply` terms before the ordinary argument prefix. A binder
 //!   that claimed a generalized universe parameter infers it from the supplied
 //!   type argument: the argument's inferred sort is `Type l`, so `l` is the
-//!   instantiation. Authored `core::Level` binders still require their explicit
-//!   argument — omitted ones are underdetermined and refuse — and the kernel
-//!   rechecks every level's scope and the instantiated dependent applications.
+//!   instantiation. Authored `core::Level` arguments may all be omitted when
+//!   supplied type arguments determine each one through its `core::Type<u>`
+//!   carrier. Undetermined levels require explicit arguments. The kernel
+//!   rechecks every level's scope and every dependent application, including
+//!   repeated constraints on one level; inference grants no resizing.
 //! - Inside a declaration, references resolve symbols first (parameters,
 //!   binders, earlier declarations) and fall back to names only for the
 //!   symbol-less nodes the mirror carries — a parameter used as a call
