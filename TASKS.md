@@ -6380,7 +6380,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PIPELINE-SPILL-FAMILY-ORPHANS** — mined candidate; verify scope then implement.
 - **PIPELINE-WRAPPER-OBJECT-ORPHAN** — mined candidate; verify scope then implement.
 - **PKG-INPUTS-FLOAT-IDENTITY-LANDING** — mined candidate; verify scope then implement.
-- **PKG-INPUTS-SHARED-RECEIVER-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **PLACE-ACCESS-GEOMETRY** — mined candidate; verify scope then implement.
 - **PLACE-ALIAS-ANALYSIS-PRODUCER** — mined candidate; verify scope then implement.
 - **PLACE-STORAGE-EXTENT-OWNER** — mined candidate; verify scope then implement.
