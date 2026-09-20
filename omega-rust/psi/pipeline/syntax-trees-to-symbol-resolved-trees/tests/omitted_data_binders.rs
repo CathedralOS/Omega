@@ -308,7 +308,7 @@ fn fixed_array_equation_never_resolves_an_open_element_as_a_global() {
         data Main { value: Buffer<[Box<Element>; 4], u8>; }
         "#,
     );
-    assert!(error.contains("open or unsupported"), "{error}");
+    assert!(error.contains("conflicting element types"), "{error}");
 
     let error = rejection(
         r#"
@@ -319,19 +319,21 @@ fn fixed_array_equation_never_resolves_an_open_element_as_a_global() {
         data Main { value: Buffer<[Family<u8>; 4], u8>; }
     "#,
     );
-    assert!(error.contains("open or unsupported"), "{error}");
+    assert!(error.contains("binder as a nominal constructor"), "{error}");
 
-    let error = rejection(
+    // Reverse construction now supports this application. The bound `u8`
+    // must win over the global `Element` and share the explicit instance.
+    let syntax = normalized(
         r#"
         data Element { value: u8; }
         data Box<T> { value: T; }
         data Buffer<Element, Backing>
         where Backing == [Box<Element>; 4]
         { storage: Backing; }
-        data Main { value: Buffer<u8>; }
+        data Main { value: Buffer<u8>; explicit: Buffer<u8, [Box<u8>; 4]>; }
     "#,
     );
-    assert!(error.contains("open or unsupported"), "{error}");
+    assert_eq!(instances(&syntax).len(), 2, "{:?}", instance_names(&syntax));
 }
 
 #[test]
