@@ -100,13 +100,10 @@ fi
 echo "--- container (both seeds' native structure) ---"
 if sh "$OMEGA_REPO_ROOT/tests/alpha/container.sh"; then :; else rc=1; fi
 
-# Seed-execution legs need a host that can run an audited Alpha container.
-# On any other host they refuse (exit 2 at the leaf gates), and the edge then
-# reports unavailable rather than failed: no seed case ran, so none failed.
-ALPHA_SEED_EXECUTABLE=0
-case "$(uname -s)-$(uname -m)" in
-  Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ALPHA_SEED_EXECUTABLE=1 ;;
-esac
+# Seed-execution legs need a host that can run an audited Alpha container
+# (seed_env.sh's ALPHA_SEED_EXECUTABLE). On any other host they refuse
+# (exit 2 at the leaf gates), and the edge then reports unavailable rather
+# than failed: no seed case ran, so none failed.
 refused=0
 
 echo "--- behavior (conformance) ---"

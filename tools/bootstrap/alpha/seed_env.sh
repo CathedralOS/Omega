@@ -51,6 +51,28 @@ case "$(uname -s)-$(uname -m)" in
     ;;
 esac
 
+# Seed-execution hosts: the OS/arch pairs that can exec an audited Alpha
+# container — the arm64 Mach-O seed on macOS arm64, the PE32+ x64 seed under
+# the Windows build shells. Every seed-executing gate reads this flag rather
+# than repeating the uname match, so admitting a new audited container/host
+# pair is one edit here, not a sweep across every gate.
+ALPHA_SEED_EXECUTABLE=0
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64) ALPHA_SEED_EXECUTABLE=1 ;;
+esac
+
+# require_seed_execution_host LABEL : refuse a seed-executing gate on a host
+# without an audited executable seed, under the gate's own name. Gates call
+# this where a run would otherwise fail per case; on a supported host it
+# returns quietly.
+require_seed_execution_host() {
+  if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
+    return 0
+  fi
+  echo "$1: requires macOS arm64 or Windows x64" >&2
+  exit 2
+}
+
 # bootstrap_sha256 FILE : print the lowercase hex SHA-256 of FILE using the
 # host's standard digest tool (sha256sum on Linux and Git Bash, shasum on
 # macOS, python3 as the last route). Returns 2 when no route exists; identity
