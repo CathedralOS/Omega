@@ -633,9 +633,18 @@ fn checked_static_requirement_dispatch<'program>(
         ));
     };
     if application.trait_definition != dispatch.declaring_trait {
-        return Err(rejected(
-            "inherited parent-trait requirement rows remain unsupported",
-        ));
+        let Some(application_trait) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == application.trait_definition)
+        else {
+            return Err(rejected("its application trait is absent"));
+        };
+        if !trait_requires_transitively(program, application_trait, dispatch.declaring_trait) {
+            return Err(rejected(
+                "its declaring trait is absent from the application trait's requirement closure",
+            ));
+        }
     }
     let rows = application
         .rows
@@ -757,6 +766,38 @@ fn checked_static_requirement_dispatch<'program>(
         },
         requirement,
     )))
+}
+
+/// Whether `required_trait` appears in the transitive `requires` closure of
+/// `trait_definition`. Inherited rows keep the parent's declaring-trait
+/// identity, so a dispatch declared on a parent is admitted through a
+/// conformance to its descendant.
+fn trait_requires_transitively(
+    program: &typed_trees::TypedTrees,
+    trait_definition: &typed_trees::trait_definition::TraitDefinition,
+    required_trait: SymbolHandle,
+) -> bool {
+    let mut pending = vec![trait_definition];
+    let mut visited = Vec::new();
+    while let Some(definition) = pending.pop() {
+        if visited.contains(&definition.symbol) {
+            continue;
+        }
+        visited.push(definition.symbol);
+        for requirement in program.trait_requirements(definition) {
+            if requirement.symbol == required_trait {
+                return true;
+            }
+            if let Some(parent) = program
+                .traits()
+                .iter()
+                .find(|candidate| candidate.symbol == requirement.symbol)
+            {
+                pending.push(parent);
+            }
+        }
+    }
+    false
 }
 
 fn check_public_named_witness_lanes(
