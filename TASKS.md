@@ -6080,7 +6080,34 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **COORDINATOR-OVEROWNERSHIP-AUDIT** — mined candidate; verify scope then implement.
 - **CRATE-ROOT-RESPONSIBILITY-AUDIT** — mined candidate; verify scope then implement.
 - **CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
-- **CROSS-COMPILER-DIFFERENTIAL-LANE** — mined candidate; verify scope then implement.
+- **CROSS-COMPILER-DIFFERENTIAL-LANE.** Mined candidate; scope verified at
+  `36ffc8af87`. The lane is the cross-check between the maintained Rust
+  compiler and the Omega-written product compiler: `omega-rust/README.md`
+  retains the Rust producer "for cross-compiler bug finding" and
+  OMEGA-PRODUCT-COMPILER-SOURCE declares it "the differential
+  implementation". The lane's only present entrypoint is
+  `source/psi/test-parser.sh`: it rebuilds the Omega-written parser gate
+  (`source/psi/gates/parser/main.omg`) through the freshly built Rust CLI
+  (`OMEGA_CLI`/`OMEGA_TARGET`) and hands the minted `omega-program` artifact
+  to `source/psi/parse/test_parser.py` for black-box parser-slice
+  observations. The lane is red upstream of itself: the Rust check of both
+  the parser gate and `source/omega/main.omg` stops at selected-dispatch
+  service custody — "selected ProgramEntry establishment rejoins 0 Terminal
+  attachment identities; expected one"
+  (`omega-rust/omega/build/selected-dispatch/src/service_custody/root.rs`),
+  the recorded OMEGA-PRODUCT-COMPILER-SOURCE frontier — so test-parser.sh
+  cannot mint the artifact it drives. The stop is pinned behavior for
+  unattached Service entries
+  (`compiler/tests/source_evaluated_native_realization/linux_dynamic_realization.rs`);
+  a `--check` attempt at this revision ran past 240 s without reaching a
+  diagnostic, consistent with the ~6,500 s gate-check cost recorded under
+  the owner item. No second compiler implementation can produce artifacts
+  yet, so no deeper lane harness can exist; the omega0↔omega self-compile
+  differential is separately tracked under TASKS_BOOTSTRAP's OMEGA-C.
+  Remaining: none inside this row — it unblocks only when
+  OMEGA-PRODUCT-COMPILER-SOURCE clears the service-custody gate; sibling
+  rows CROSS-COMPILER-DIFFERENTIAL and
+  RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL name the same scope.
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN** — mined candidate; verify scope then implement.
 - **CTTL-FAILURE-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **CUSTODY-MATRIX-HARNESS-MIGRATION** — mined candidate; verify scope then implement.
