@@ -168,8 +168,9 @@ pub enum AbstractOperation {
     /// verify the concurrency contract rather than trusting producer
     /// assertion. `reads_from` retains the edge the event claims in its
     /// place's modification order — `Some` on every observing event,
-    /// `None` on stores and fences — for the independent serial-coherence
-    /// recheck `abstract_operations::serial_atomic_coherence_violation`.
+    /// `None` on stores and fences — for the independent coherence
+    /// recheck `abstract_operations::happens_before_atomic_coherence_violation`
+    /// under the activation's bounded `happens_before` derivation.
     /// Terminal Psi does not yet emit normalized atomic events;
     /// consumers must keep rejecting this operation until its producer and
     /// checked target realization land.

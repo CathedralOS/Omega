@@ -4285,25 +4285,30 @@ Owners include
   Serial instruction tests and bounded exploration do not discharge these
   proof obligations or authorize a weaker acquire without its protocol proof.
 
-  Every `AtomicEvent` operation now retains a `reads_from` edge — the
-  pre-sequence `InitialResidency` or the observed write's operation identity —
-  encoded into operation identity like the retained ordering. Unit validation
-  replays the serial coherence axiom per block through
-  `serial_atomic_coherence_violation`: the claimed write must resolve to the
-  modification-order-latest write to the place sequenced before the observer,
-  and the load/store/RMW/swap/compare-exchange refusal cases are pinned by
-  serial-instruction tests. The admitted-ordering matrix, fence legality,
+  Every `AtomicEvent` operation retains a `reads_from` edge — the
+  pre-activation `InitialResidency` or the observed write's operation
+  identity — encoded into operation identity like the retained ordering.
+  Unit validation replays the coherence axiom function-wide through
+  `happens_before_atomic_coherence_violation`: a bounded happens-before
+  derivation (intra-block position union block dominance) feeds a
+  reaching-writes must-analysis, so a `Write` claim resolves only when the
+  named write is the modification-order-latest write to the place on every
+  execution path. Unit tests pin the refusals: writes on non-dominating,
+  successor, or converging branches fail `ObservedWriteNotHappensBefore`;
+  overwritten claims fail `ObservedWriteOverwritten`; partially-written
+  paths refuse `InitialResidency`; and a fence joins no modification order
+  yet disturbs none. The admitted-ordering matrix, fence legality,
   instruction-observed priors, and single-attempt custody were already
   independently rechecked.
 
   Remaining work:
 
-  - Reads-from edges resolve only within one serial sequence today; cross-block
-    observation needs `synchronizes_with`/`happens_before` reasoning, and the
-    `global_sequential_order` and fence-synchronization axioms remain
-    unchecked.
+  - `synchronizes_with`/`global_sequential_order`/fence-pair synchronization
+    have no checkable content inside one activation — every sw-forming rule
+    pairs events across activations — so they land with TR3-TR8's
+    concurrent-execution route.
   - Terminal Psi still emits no normalized atomic events; the producer and
-    the real concurrent-activation controls wait on TR3-TR8's execution route.
+    the real concurrent-activation controls wait on TR3-TR8's route.
   - Checked target realization does not exist yet; a weaker acquire remains
     unauthorized without its protocol proof.
 

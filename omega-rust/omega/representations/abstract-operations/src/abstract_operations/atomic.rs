@@ -23,18 +23,22 @@
 //! The concurrency contract's `reads_from`/`modification_order` axioms are
 //! retained likewise: every observing event carries an [`AtomicReadsFrom`]
 //! edge naming the write it claims to have read, and
-//! [`serial_atomic_coherence_violation`] independently replays the serial
-//! coherence axiom — the observed write must be the modification-order-latest
-//! write to the place sequenced before the observation — instead of trusting
-//! the producer's claim.
+//! [`happens_before_atomic_coherence_violation`] independently replays the
+//! coherence axiom under the activation's bounded `happens_before`
+//! derivation — the observed write must happen before the observation and
+//! be the modification-order-latest write to the place on every execution
+//! path — instead of trusting the producer's claim. `synchronizes_with`,
+//! `global_sequential_order`, and fence-pair synchronization constrain only
+//! cross-activation observation, and land with the concurrent-execution
+//! route.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use language_core::atomic::{
     AtomicCompareExchangeOnceResultCustody, AtomicExpressionResultCustody, AtomicOrderingPlan,
     MemoryOrdering,
 };
-use semantic_vocabulary::{OperationId, PlaceId, ValueId};
+use semantic_vocabulary::{BlockId, OperationId, PlaceId, ValueId};
 use terminal_psi::StructuralOperationResult;
 
 use crate::{AbstractOperation, AbstractResult};
@@ -67,47 +71,51 @@ pub enum AbstractAtomicFenceOrdering {
 /// write in its place's modification order the event claims to have read.
 ///
 /// The edge names the write by the operation identity under which it stands
-/// in the checked sequence — never by the value it stored. A load's result
-/// is a fresh definition, so value equality cannot witness a read edge, and
-/// the concurrency contract's `reads_from`/`modification_order` relations
-/// exist only through this retained claim.
+/// in the checked activation — never by the value it stored. A load's
+/// result is a fresh definition, so value equality cannot witness a read
+/// edge, and the concurrency contract's `reads_from`/`modification_order`
+/// relations exist only through this retained claim.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AtomicReadsFrom {
     /// The event observes the place's residency as it stood before the
-    /// checked sequence: no earlier write to the place participates in the
-    /// sequence's modification order.
+    /// activation: no earlier write to the place may precede the
+    /// observation on any execution path.
     InitialResidency,
     /// The event observes the atomic event standing under this operation
-    /// identity in the checked sequence.
+    /// identity in the checked activation.
     Write { operation: OperationId },
 }
 
-/// Why a retained [`AtomicReadsFrom`] edge fails the serial coherence axiom
-/// replayed by [`serial_atomic_coherence_violation`].
+/// Why a retained [`AtomicReadsFrom`] edge fails the coherence axiom
+/// replayed by [`happens_before_atomic_coherence_violation`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AtomicReadsFromViolation {
     /// A store or fence carries a reads-from witness although it observes
     /// no resident.
     NonObservingWitness,
-    /// An observing event carries no witness: under the serial axiom every
-    /// observation must name the write — or the pre-sequence residency —
-    /// it reads.
+    /// An observing event carries no witness: under the coherence axiom
+    /// every observation must name the write — or the still-initial
+    /// residency — it reads.
     MissingWitness,
-    /// The event claims the pre-sequence residency although a write to its
-    /// place already stands in the sequence's modification order.
+    /// The event claims the pre-activation residency although a write to
+    /// its place may precede the observation on some execution path.
     InitialResidencyAfterWrite,
-    /// The claimed identity resolves to no single atomic event sequenced
-    /// before the observation: it names nothing in the sequence, names an
-    /// event that follows the observer, or is ambiguous under a shared
+    /// The claimed identity resolves to no single atomic event in the
+    /// activation: it names nothing atomic, or is ambiguous under a shared
     /// operation identity.
     UnresolvedObservedWrite { claimed: OperationId },
     /// The claimed identity resolves to an event outside the observer's
     /// place's modification order — a different place, or a load or fence
     /// that writes nothing.
     WriteOutsideModificationOrder { claimed: OperationId },
-    /// The resolved write is no longer the modification-order-latest write
-    /// to the observer's place: a later write overwrote it before this
-    /// observation.
+    /// The resolved write does not happen before the observation: it stands
+    /// later in the same block or in a block that does not dominate the
+    /// observer's, so an execution path reaches the observation without it.
+    ObservedWriteNotHappensBefore { claimed: OperationId },
+    /// The resolved write happens before the observation but is not the
+    /// modification-order-latest write to the observer's place on every
+    /// execution path: a later write may supersede it, or the residency may
+    /// be initial on a path where the write never ran.
     ObservedWriteOverwritten { claimed: OperationId },
 }
 
@@ -311,87 +319,175 @@ impl AbstractAtomicEvent {
     }
 }
 
-/// Replay the serial coherence axiom over one sequence of abstract
-/// operations: each observing atomic event's retained [`AtomicReadsFrom`]
-/// edge must resolve to the modification-order-latest write to its place
-/// that the sequence sequenced before it, or claim the pre-sequence
-/// residency only when no such write exists.
+/// Replay the coherence axiom over one activation's block graph: each
+/// observing atomic event's retained [`AtomicReadsFrom`] edge must resolve
+/// to a write that happens before the observation and is the
+/// modification-order-latest write to its place on every execution path —
+/// or claim the pre-activation residency only when no write may precede.
 ///
-/// Sequence position is the serial `sequenced_before` and
-/// `modification_order` source of truth here: atomic writes join their
-/// place's modification order in the order the sequence presents them, so
-/// the latest preceding write is exactly what a coherent observation reads.
-/// Edges claiming writes outside the sequence deliberately do not resolve —
-/// reads-from across blocks and activations needs the contract's
-/// `synchronizes_with`/`happens_before` reasoning that lands with the
-/// concurrent-execution route, not serial sequencing.
+/// Inside one activation `happens_before` is execution-path sequencing:
+/// every rule that forms `synchronizes_with` either pairs a publication
+/// with an observation on distinct activations — which a single function
+/// never expresses — or composes sequenced-before edges already inside the
+/// closure. A write therefore happens before an observation exactly when
+/// it precedes it in their shared block or stands in a block dominating
+/// the observer's; `predecessors` and `dominators` are the function's
+/// validated control-flow relations. The reaching-writes fixpoint unions
+/// each predecessor's modification-order tail, so a claim must hold under
+/// every path rather than one replay: an empty reaching set means the
+/// place's residency is still initial on all of them, and a claim naming
+/// a write that reaches the observer on only some paths has no
+/// `happens_before` edge to stand on.
+///
+/// `global_sequential_order` and fence-pair synchronization likewise
+/// constrain only cross-activation observation; they carry no checkable
+/// content inside one activation and land with the concurrent-execution
+/// route.
 ///
 /// Non-atomic operations do not participate: they join no atomic
 /// modification order and cannot be named by a witness. Returns the
-/// offending operation's index in `operations` together with the refusal,
+/// offending event's block and node position together with the refusal,
 /// or `None` when every retained edge is coherent.
-pub fn serial_atomic_coherence_violation<'a>(
-    operations: impl IntoIterator<Item = &'a AbstractOperation>,
-) -> Option<(usize, AtomicReadsFromViolation)> {
-    // Atomic events claimable by a witness, in sequence order, keyed by the
-    // operation identity they stand under. Duplicate identities stay listed
-    // so a witness naming them refuses as ambiguous.
-    let mut events: BTreeMap<OperationId, Vec<(usize, &AbstractAtomicEvent)>> = BTreeMap::new();
-    // The latest position at which each place's modification order gained a
-    // member. A coherent observation reads exactly this member.
-    let mut latest_write: BTreeMap<PlaceId, usize> = BTreeMap::new();
-    for (index, operation) in operations.into_iter().enumerate() {
-        let AbstractOperation::AtomicEvent {
-            psi_operation,
-            event,
-            reads_from,
-        } = operation
-        else {
-            continue;
-        };
-        let violation = match (event.observes_resident(), *reads_from) {
-            (false, Some(_)) => Some(AtomicReadsFromViolation::NonObservingWitness),
-            (true, None) => Some(AtomicReadsFromViolation::MissingWitness),
-            (false, None) => None,
-            (true, Some(witness)) => reads_from_violation(event, witness, &events, &latest_write),
-        };
-        if let Some(violation) = violation {
-            return Some((index, violation));
+pub fn happens_before_atomic_coherence_violation(
+    blocks: &BTreeMap<BlockId, Vec<&AbstractOperation>>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> Option<(BlockId, usize, AtomicReadsFromViolation)> {
+    // Atomic events claimable by a witness, keyed by the operation identity
+    // they stand under across the whole activation. Duplicate identities
+    // stay listed so a witness naming them refuses as ambiguous.
+    let mut events: BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>> =
+        BTreeMap::new();
+    for (block, operations) in blocks {
+        for (index, operation) in operations.iter().enumerate() {
+            if let AbstractOperation::AtomicEvent {
+                psi_operation,
+                event,
+                ..
+            } = *operation
+            {
+                events
+                    .entry(*psi_operation)
+                    .or_default()
+                    .push((*block, index, event));
+            }
         }
-        events
-            .entry(*psi_operation)
-            .or_default()
-            .push((index, event));
-        if event.joins_modification_order()
-            && let Some(place) = event.place()
-        {
-            latest_write.insert(place, index);
+    }
+    // Reaching-writes fixpoint: on entering a block each place's
+    // modification-order tail is the union of its predecessors' exits; a
+    // write inside the block replaces the tail with itself, since every
+    // path through the block runs the whole sequence.
+    let mut entry_latest: BTreeMap<BlockId, BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>>> =
+        BTreeMap::new();
+    let mut exit_latest: BTreeMap<BlockId, BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>>> =
+        BTreeMap::new();
+    loop {
+        let mut changed = false;
+        for (block, operations) in blocks {
+            let mut latest: BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>> = BTreeMap::new();
+            for predecessor in predecessors.get(block).into_iter().flatten() {
+                for (place, writes) in exit_latest.get(predecessor).into_iter().flatten() {
+                    latest
+                        .entry(*place)
+                        .or_default()
+                        .extend(writes.iter().copied());
+                }
+            }
+            if entry_latest.get(block) != Some(&latest) {
+                entry_latest.insert(*block, latest.clone());
+                changed = true;
+            }
+            let mut exit = latest;
+            for (index, operation) in operations.iter().enumerate() {
+                let AbstractOperation::AtomicEvent { event, .. } = *operation else {
+                    continue;
+                };
+                if event.joins_modification_order()
+                    && let Some(place) = event.place()
+                {
+                    exit.insert(place, BTreeSet::from([(*block, index)]));
+                }
+            }
+            if exit_latest.get(block) != Some(&exit) {
+                exit_latest.insert(*block, exit);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (block, operations) in blocks {
+        let mut latest = entry_latest.get(block).cloned().unwrap_or_default();
+        for (index, operation) in operations.iter().enumerate() {
+            let AbstractOperation::AtomicEvent {
+                event, reads_from, ..
+            } = *operation
+            else {
+                continue;
+            };
+            let violation = match (event.observes_resident(), *reads_from) {
+                (false, Some(_)) => Some(AtomicReadsFromViolation::NonObservingWitness),
+                (true, None) => Some(AtomicReadsFromViolation::MissingWitness),
+                (false, None) => None,
+                (true, Some(witness)) => reads_from_violation(
+                    event, witness, *block, index, &events, &latest, dominators,
+                ),
+            };
+            if let Some(violation) = violation {
+                return Some((*block, index, violation));
+            }
+            if event.joins_modification_order()
+                && let Some(place) = event.place()
+            {
+                latest.insert(place, BTreeSet::from([(*block, index)]));
+            }
         }
     }
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn reads_from_violation(
     event: &AbstractAtomicEvent,
     witness: AtomicReadsFrom,
-    events: &BTreeMap<OperationId, Vec<(usize, &AbstractAtomicEvent)>>,
-    latest_write: &BTreeMap<PlaceId, usize>,
+    block: BlockId,
+    index: usize,
+    events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
+    latest: &BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>>,
+    dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Option<AtomicReadsFromViolation> {
     let Some(place) = event.place() else {
         return Some(AtomicReadsFromViolation::MissingWitness);
     };
     match witness {
-        AtomicReadsFrom::InitialResidency => latest_write
-            .contains_key(&place)
+        AtomicReadsFrom::InitialResidency => latest
+            .get(&place)
+            .is_some_and(|writes| !writes.is_empty())
             .then_some(AtomicReadsFromViolation::InitialResidencyAfterWrite),
         AtomicReadsFrom::Write { operation: claimed } => {
-            let Some([(position, resolved)]) = events.get(&claimed).map(Vec::as_slice) else {
+            let Some([(writer, position, resolved)]) = events.get(&claimed).map(Vec::as_slice)
+            else {
                 return Some(AtomicReadsFromViolation::UnresolvedObservedWrite { claimed });
             };
             if resolved.place() != Some(place) || !resolved.joins_modification_order() {
                 return Some(AtomicReadsFromViolation::WriteOutsideModificationOrder { claimed });
             }
-            (latest_write.get(&place) != Some(position))
+            // The claimed write must happen before this observation: a
+            // predecessor position in the same block, or a block that
+            // dominates the observer's. A sibling-branch or successor
+            // write reaches the observation on no `happens_before` edge.
+            let happens_before = if *writer == block {
+                *position < index
+            } else {
+                dominators
+                    .get(&block)
+                    .is_some_and(|dominating| dominating.contains(writer))
+            };
+            if !happens_before {
+                return Some(AtomicReadsFromViolation::ObservedWriteNotHappensBefore { claimed });
+            }
+            (latest.get(&place) != Some(&BTreeSet::from([(*writer, *position)])))
                 .then_some(AtomicReadsFromViolation::ObservedWriteOverwritten { claimed })
         }
     }
@@ -399,16 +495,18 @@ fn reads_from_violation(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
     use super::{
         AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
-        AtomicReadsFrom, AtomicReadsFromViolation, serial_atomic_coherence_violation,
+        AtomicReadsFrom, AtomicReadsFromViolation, happens_before_atomic_coherence_violation,
     };
     use crate::{AbstractOperation, AbstractResult};
     use language_core::atomic::{
         AtomicCompareExchangeOnceResultCustody, AtomicOrderingPlan, MemoryOrdering as O,
     };
     use semantic_vocabulary::{
-        EdgeId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType,
+        BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType,
         StructuralTypeId, ValueId,
     };
     use terminal_psi::{StructuralMultiplicity, StructuralOperationResult};
@@ -481,8 +579,52 @@ mod tests {
         }
     }
 
+    fn block(raw: u64) -> BlockId {
+        BlockId::new(raw).expect("test block identities are nonzero")
+    }
+
+    /// A single-sequence adapter: the sequence stands alone in one block,
+    /// so the bounded derivation reduces to serial sequencing.
     fn coherence(operations: &[AbstractOperation]) -> Option<(usize, V)> {
-        serial_atomic_coherence_violation(operations.iter())
+        let blocks = BTreeMap::from([(block(1), operations.iter().collect())]);
+        let predecessors = BTreeMap::from([(block(1), BTreeSet::new())]);
+        let dominators = BTreeMap::from([(block(1), BTreeSet::from([block(1)]))]);
+        happens_before_atomic_coherence_violation(&blocks, &predecessors, &dominators)
+            .map(|(_, index, violation)| (index, violation))
+    }
+
+    /// An explicit block-graph adapter: each entry names a block's
+    /// operation sequence, inbound control-flow edges, and dominator set
+    /// directly, so a test can pin the derivation without the unit's
+    /// validated-CFG reconstruction.
+    fn graph_coherence(
+        sequences: &[(u64, &[AbstractOperation])],
+        predecessors: &[(u64, &[u64])],
+        dominators: &[(u64, &[u64])],
+    ) -> Option<(BlockId, usize, V)> {
+        let blocks = sequences
+            .iter()
+            .map(|(raw, operations)| (block(*raw), operations.iter().collect::<Vec<_>>()))
+            .collect();
+        let predecessors = predecessors
+            .iter()
+            .map(|(raw, incoming)| {
+                (
+                    block(*raw),
+                    incoming.iter().map(|raw| block(*raw)).collect(),
+                )
+            })
+            .collect();
+        let dominators = dominators
+            .iter()
+            .map(|(raw, dominating)| {
+                (
+                    block(*raw),
+                    dominating.iter().map(|raw| block(*raw)).collect(),
+                )
+            })
+            .collect();
+        happens_before_atomic_coherence_violation(&blocks, &predecessors, &dominators)
     }
 
     #[test]
@@ -696,11 +838,11 @@ mod tests {
             coherence(&[stored.clone(), backwards, later_write]),
             Some((
                 1,
-                V::UnresolvedObservedWrite {
+                V::ObservedWriteNotHappensBefore {
                     claimed: operation(14),
                 }
             )),
-            "a witness cannot name a write sequenced after the observation"
+            "a witness cannot name a write that follows the observation"
         );
         let wrong_place = atomic(
             12,
@@ -941,6 +1083,268 @@ mod tests {
                 success: O::GlobalOrder,
                 failure: O::Receive,
             })
+        );
+    }
+
+    #[test]
+    fn a_witness_resolves_across_blocks_under_happens_before() {
+        let location = place(1);
+        let stored = atomic(10, store(location, 11), None);
+        let observed = atomic(
+            13,
+            load(location, 14),
+            Some(W::Write {
+                operation: operation(10),
+            }),
+        );
+        assert_eq!(
+            graph_coherence(
+                &[
+                    (1, &[stored, return_unit(15)]),
+                    (2, &[observed, return_unit(16)]),
+                ],
+                &[(2, &[1])],
+                &[(1, &[1]), (2, &[1, 2])],
+            ),
+            None,
+            "a dominating block's write happens before the observation"
+        );
+    }
+
+    #[test]
+    fn a_witness_must_happen_before_its_observation() {
+        let location = place(1);
+        let stored = atomic(10, store(location, 11), None);
+        let observed = atomic(
+            14,
+            load(location, 15),
+            Some(W::Write {
+                operation: operation(10),
+            }),
+        );
+        // A write on one branch of a diamond reaches the join's
+        // observation on only some paths.
+        assert_eq!(
+            graph_coherence(
+                &[
+                    (1, &[return_unit(20)]),
+                    (2, &[stored.clone(), return_unit(21)]),
+                    (3, &[return_unit(22)]),
+                    (4, &[observed.clone(), return_unit(23)]),
+                ],
+                &[(2, &[1]), (3, &[1]), (4, &[2, 3])],
+                &[(1, &[1]), (2, &[1, 2]), (3, &[1, 3]), (4, &[1, 4])],
+            ),
+            Some((
+                block(4),
+                0,
+                V::ObservedWriteNotHappensBefore {
+                    claimed: operation(10),
+                }
+            )),
+            "a sibling-branch write happens before no join observation"
+        );
+        // A write in the observer's successor cannot precede it.
+        assert_eq!(
+            graph_coherence(
+                &[
+                    (1, &[observed.clone(), return_unit(24)]),
+                    (2, &[stored.clone(), return_unit(25)]),
+                ],
+                &[(2, &[1])],
+                &[(1, &[1]), (2, &[1, 2])],
+            ),
+            Some((
+                block(1),
+                0,
+                V::ObservedWriteNotHappensBefore {
+                    claimed: operation(10),
+                }
+            )),
+            "a successor write never happens before the observation"
+        );
+        // The same shape refuses a still-initial claim: the write may
+        // precede on the branch that runs it.
+        let initial = atomic(14, load(location, 15), Some(W::InitialResidency));
+        assert_eq!(
+            graph_coherence(
+                &[
+                    (1, &[return_unit(20)]),
+                    (2, &[stored, return_unit(21)]),
+                    (3, &[return_unit(22)]),
+                    (4, &[initial, return_unit(23)]),
+                ],
+                &[(2, &[1]), (3, &[1]), (4, &[2, 3])],
+                &[(1, &[1]), (2, &[1, 2]), (3, &[1, 3]), (4, &[1, 4])],
+            ),
+            Some((block(4), 0, V::InitialResidencyAfterWrite)),
+            "a branch-scoped write displaces initial residency on its path"
+        );
+    }
+
+    #[test]
+    fn only_the_latest_write_on_every_path_may_be_observed() {
+        let location = place(1);
+        let first = atomic(10, store(location, 11), None);
+        let second = atomic(12, store(location, 13), None);
+        let stale = atomic(
+            14,
+            load(location, 15),
+            Some(W::Write {
+                operation: operation(10),
+            }),
+        );
+        let graph = |observed: &[AbstractOperation]| {
+            graph_coherence(
+                &[
+                    (1, &[first.clone(), return_unit(20)]),
+                    (2, &[second.clone(), return_unit(21)]),
+                    (3, &[observed[0].clone(), return_unit(22)]),
+                ],
+                &[(2, &[1]), (3, &[2])],
+                &[(1, &[1]), (2, &[1, 2]), (3, &[1, 2, 3])],
+            )
+        };
+        assert_eq!(
+            graph(&[stale]),
+            Some((
+                block(3),
+                0,
+                V::ObservedWriteOverwritten {
+                    claimed: operation(10),
+                }
+            )),
+            "a predecessor-chain overwrite makes the earlier claim stale"
+        );
+        let coherent = atomic(
+            14,
+            load(location, 15),
+            Some(W::Write {
+                operation: operation(12),
+            }),
+        );
+        assert_eq!(graph(&[coherent]), None);
+    }
+
+    #[test]
+    fn branch_writes_converging_have_no_unique_latest() {
+        let location = place(1);
+        let dominating = atomic(8, store(location, 9), None);
+        let left = atomic(10, store(location, 11), None);
+        let right = atomic(12, store(location, 13), None);
+        let join = |witness: Option<W>| atomic(14, load(location, 15), witness);
+        let graph = |observed: &[AbstractOperation]| {
+            graph_coherence(
+                &[
+                    (1, &[dominating.clone(), return_unit(20)]),
+                    (2, &[left.clone(), return_unit(21)]),
+                    (3, &[right.clone(), return_unit(22)]),
+                    (4, &[observed[0].clone(), return_unit(23)]),
+                ],
+                &[(2, &[1]), (3, &[1]), (4, &[2, 3])],
+                &[(1, &[1]), (2, &[1, 2]), (3, &[1, 3]), (4, &[1, 4])],
+            )
+        };
+        for (claimed, violation) in [
+            (
+                operation(10),
+                V::ObservedWriteNotHappensBefore {
+                    claimed: operation(10),
+                },
+            ),
+            (
+                operation(12),
+                V::ObservedWriteNotHappensBefore {
+                    claimed: operation(12),
+                },
+            ),
+            (
+                operation(8),
+                V::ObservedWriteOverwritten {
+                    claimed: operation(8),
+                },
+            ),
+        ] {
+            assert_eq!(
+                graph(&[join(Some(W::Write { operation: claimed }))]),
+                Some((block(4), 0, violation)),
+                "witness naming {claimed:?} must refuse"
+            );
+        }
+        assert_eq!(
+            graph(&[join(Some(W::InitialResidency))]),
+            Some((block(4), 0, V::InitialResidencyAfterWrite)),
+            "every path wrote the place before the join"
+        );
+    }
+
+    #[test]
+    fn a_fence_neither_writes_nor_disturbs_the_order_across_blocks() {
+        let location = place(1);
+        let stored = atomic(10, store(location, 11), None);
+        let fence = atomic(
+            12,
+            E::Fence {
+                ordering: AbstractAtomicFenceOrdering::Publish,
+            },
+            None,
+        );
+        let observed = atomic(
+            14,
+            load(location, 15),
+            Some(W::Write {
+                operation: operation(10),
+            }),
+        );
+        assert_eq!(
+            graph_coherence(
+                &[
+                    (1, &[stored.clone(), return_unit(20)]),
+                    (2, &[fence, observed, return_unit(21)]),
+                ],
+                &[(2, &[1])],
+                &[(1, &[1]), (2, &[1, 2])],
+            ),
+            None,
+            "a sequenced fence leaves the claimed write latest"
+        );
+        let claims_fence = atomic(
+            14,
+            load(location, 15),
+            Some(W::Write {
+                operation: operation(12),
+            }),
+        );
+        assert_eq!(
+            graph_coherence(
+                &[
+                    (1, &[stored, return_unit(20)]),
+                    (
+                        2,
+                        &[
+                            atomic(
+                                12,
+                                E::Fence {
+                                    ordering: AbstractAtomicFenceOrdering::Receive,
+                                },
+                                None,
+                            ),
+                            claims_fence,
+                            return_unit(21),
+                        ],
+                    ),
+                ],
+                &[(2, &[1])],
+                &[(1, &[1]), (2, &[1, 2])],
+            ),
+            Some((
+                block(2),
+                1,
+                V::WriteOutsideModificationOrder {
+                    claimed: operation(12),
+                }
+            )),
+            "a fence writes nothing and cannot stand in a modification order"
         );
     }
 
