@@ -33,19 +33,16 @@
 //! the descriptor-table register state installed on a published answer;
 //! declined attempts mint no state.
 //!
-//! Descriptor-table materialization follows the same split. The ledger
-//! derives the checked writer program covering every admitted member's sealed
-//! gate-offset fragments; the consumer-declared constant fields — selector,
-//! gate kind, privilege, IST slot, and the reserved-zero bytes — are the
-//! staged table content that writer preserves.
-//! [`InterruptTableLedger::validate_written_descriptor_table`] is the
-//! consumer's semantic-validation edge: it proves the produced image came
-//! from exactly this table's derived writer over the exact installed
-//! realization, decodes the complete current bytes, replays each declared
-//! descriptor's constant fields plus the reserved-zero regions, joins every
-//! member's declared IST slot through the installed TSS to its declared
-//! critical stack class, and only then mints the [`EstablishedInterruptTable`]
-//! naming the exact written destination.
+//! Descriptor-table materialization and its verdict are consumer-owned.
+//! The package's authored table and gate layouts stage the declared constant
+//! fields, the generic post-handoff writer seals each member's entry offset
+//! into the produced image, and the consumer's authored validator — not any
+//! compiler-held model of the encoding — scans the produced slots and mints
+//! the verdict that warrants the [`EstablishedInterruptTable`]. What this
+//! ledger keeps is the custody the verdict cannot carry: member admission
+//! against installed-root records, the publication carrier that binds the
+//! established value to this exact table, and the dispatch edge through the
+//! published member rows.
 //!
 //! A published table is also the dispatch boundary for hardware arrivals:
 //! `begin_published_interrupt_entry` resolves the reported vector through the
@@ -87,24 +84,16 @@ pub use publications::{
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use calling_conventions::{EntryControl, EntryStack, X86_64InstalledTaskStateSegmentRealization};
-use executable_installation::{
-    ArtifactId, InstalledCode, InstalledCodeId, ValidatedWrittenPostHandoffWriterDestination,
-};
-use extents::Extent;
-use layout_plans::{
-    ByteOrder, MaterializationWrite, PlacementConstraints, PlacementPhase, PostHandoffWriterPlan,
-    PostHandoffWriterSource, PostHandoffWriterStep, RelocationTarget,
-};
-use target::Architecture;
+use calling_conventions::{EntryControl, EntryStack};
+use executable_installation::{ArtifactId, InstalledCodeId};
 
 use crate::interrupts::interrupt_entries::{
     InterruptEntryObligations, InterruptEntryReceipt, InterruptEntryStartError,
 };
 use crate::{
     ExternalRootDiagnostic, InstalledExternalRoot, InstalledRootLedger,
-    InterruptTableEstablishmentId, InterruptTablePublicationAuthorityId,
-    InterruptTablePublicationId, InterruptTablePublicationReceiptId,
+    InterruptTablePublicationAuthorityId, InterruptTablePublicationId,
+    InterruptTablePublicationReceiptId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -276,297 +265,6 @@ impl<'code> InterruptTableLedger<'code> {
             .members
             .get(&vector)
             .expect("admitted interrupt-table member remains retained"))
-    }
-
-    /// Byte length of the canonical table image: 16-byte gate slots for
-    /// vectors 0 through the highest declared vector. A `lidt`
-    /// pseudo-descriptor's limit is this length minus one, so undeclared
-    /// vectors above the last member are unreachable rather than carried as
-    /// zero-initialized padding.
-    fn declared_table_bytes(&self) -> usize {
-        usize::from(
-            *self
-                .profile
-                .members
-                .keys()
-                .next_back()
-                .expect("a constructed profile declares at least one member"),
-        ) * X86_64_GATE_DESCRIPTOR_BYTES as usize
-            + X86_64_GATE_DESCRIPTOR_BYTES as usize
-    }
-
-    /// Shared gate for deriving table materialization evidence: the declared
-    /// member set must be fully admitted, the installed realization must be
-    /// this ledger's own, and every member's entry must be an admitted entry
-    /// of that artifact. The descriptor encoding is x86-64 long-mode only.
-    fn require_materializable(
-        &self,
-        installed_code: &InstalledCode,
-    ) -> Result<(), ExternalRootDiagnostic> {
-        if installed_code.identity() != self.installed_code
-            || installed_code.artifact() != self.artifact
-        {
-            return Err(ExternalRootDiagnostic(
-                "descriptor-table materialization names a different installed-code occurrence"
-                    .into(),
-            ));
-        }
-        if installed_code.architecture() != Architecture::X86_64 {
-            return Err(ExternalRootDiagnostic(
-                "the x86-64 gate-descriptor encoding cannot materialize a foreign-architecture table"
-                    .into(),
-            ));
-        }
-        if !self.is_complete() {
-            return Err(ExternalRootDiagnostic(
-                "descriptor-table materialization requires the complete declared member set".into(),
-            ));
-        }
-        for member in self.members.values() {
-            installed_code
-                .selected_entry_target(member.entry)
-                .map_err(|_| {
-                    ExternalRootDiagnostic(format!(
-                        "interrupt-table member at vector {} is not an admitted entry of this installed artifact",
-                        member.vector
-                    ))
-                })?;
-        }
-        Ok(())
-    }
-
-    /// Derive the checked writer program that materializes the declared
-    /// table's sealed gate offsets. Each admitted member contributes three
-    /// fragments writing its resolved entry address into the descriptor's
-    /// low-16, middle-16, and high-32 offset fields; the consumer-declared
-    /// constant fields are staged table content this writer deliberately
-    /// does not produce. The plan names no numeric address: the provider
-    /// resolves each member's sealed entry target once against the exact
-    /// installed realization.
-    ///
-    /// Derivation requires the complete declared member set so the produced
-    /// image is the whole declared table, not a partial one.
-    pub fn descriptor_table_writer_plan(
-        &self,
-        installed_code: &InstalledCode,
-    ) -> Result<PostHandoffWriterPlan, ExternalRootDiagnostic> {
-        self.require_materializable(installed_code)?;
-        let mut steps = Vec::with_capacity(self.members.len() * 3);
-        for member in self.members.values() {
-            let target = RelocationTarget::Entry(member.entry);
-            let base = u64::from(member.vector) * X86_64_GATE_DESCRIPTOR_BYTES;
-            // offset[15:0] occupies a 16-bit container at +0, offset[31:16]
-            // at +6, and offset[63:32] a 32-bit container at +8.
-            for (container_byte_offset, container_width_bits, source_lsb) in [
-                (base, 16_u16, 0_u16),
-                (base + 6, 16, 16),
-                (base + 8, 32, 32),
-            ] {
-                steps.push(PostHandoffWriterStep {
-                    write: MaterializationWrite {
-                        field: format!("interrupt-table.gate[{}].offset", member.vector),
-                        target,
-                        container_byte_offset,
-                        container_width_bits,
-                        destination_lsb: 0,
-                        source_lsb,
-                        width: container_width_bits,
-                        stored_integer_fit: None,
-                    },
-                    source: PostHandoffWriterSource::Resolve(target),
-                });
-            }
-        }
-        Ok(PostHandoffWriterPlan {
-            byte_len: self.declared_table_bytes(),
-            byte_order: ByteOrder::LittleEndian,
-            placement: PlacementConstraints::new(
-                None,
-                X86_64_GATE_DESCRIPTOR_BYTES,
-                PlacementPhase::PostHandoff,
-                None,
-                None,
-            )
-            .map_err(|diagnostic| {
-                ExternalRootDiagnostic(format!(
-                    "descriptor-table placement constraints do not normalize: {}",
-                    diagnostic.0
-                ))
-            })?,
-            steps,
-        })
-    }
-
-    /// The canonical staged image the provider writes into the activated
-    /// destination before the checked writer runs: every declared member's
-    /// constant descriptor fields — selector, IST byte, and the
-    /// present/type/privilege attribute byte — with zeros everywhere else.
-    /// The sealed gate offsets stay zero here; only the derived writer's
-    /// fragments may fill them.
-    pub fn descriptor_table_staged_image(&self) -> Result<Vec<u8>, ExternalRootDiagnostic> {
-        if !self.is_complete() {
-            return Err(ExternalRootDiagnostic(
-                "descriptor-table materialization requires the complete declared member set".into(),
-            ));
-        }
-        let mut image = vec![0u8; self.declared_table_bytes()];
-        for member in self.members.values() {
-            let base = usize::from(member.vector) * X86_64_GATE_DESCRIPTOR_BYTES as usize;
-            image[base + 2..base + 4].copy_from_slice(&member.descriptor.selector.to_le_bytes());
-            image[base + 4] = member.descriptor.ist_byte();
-            image[base + 5] = member.descriptor.attribute_byte();
-        }
-        Ok(image)
-    }
-
-    /// The consumer's semantic-validation edge over the complete produced
-    /// descriptor-table image. `written` must be the still-unpublished
-    /// destination after its exact replay; this edge then proves the image
-    /// came from this table's derived writer over this exact installed
-    /// realization, decodes every descriptor slot, replays each declared
-    /// member's constant fields — selector, gate kind, privilege, present
-    /// bit, IST field, and the reserved-zero bytes — joins every member's
-    /// declared IST slot through `tss` to its declared critical stack class,
-    /// and mints the established value naming `destination` only when the
-    /// complete image is the declared table.
-    ///
-    /// Success borrows `written` rather than consuming it: the produced
-    /// destination stays unpublished under the caller's custody while the
-    /// minted value is what the publication carrier binds.
-    pub fn validate_written_descriptor_table(
-        &self,
-        installed_code: &InstalledCode,
-        written: &ValidatedWrittenPostHandoffWriterDestination<'_, '_>,
-        tss: &X86_64InstalledTaskStateSegmentRealization,
-        establishment: InterruptTableEstablishmentId,
-        destination: Extent,
-    ) -> Result<EstablishedInterruptTable, ExternalRootDiagnostic> {
-        let plan = self.descriptor_table_writer_plan(installed_code)?;
-        let invocation = plan.lower_reusable_fragment().map_err(|diagnostic| {
-            ExternalRootDiagnostic(format!(
-                "descriptor-table writer does not lower its declared fragments: {}",
-                diagnostic.0
-            ))
-        })?;
-        if written.installed_code() != self.installed_code || written.artifact() != self.artifact {
-            return Err(ExternalRootDiagnostic(
-                "written descriptor table was produced for a different installed realization"
-                    .into(),
-            ));
-        }
-        if !written.binds_invocation(&invocation) {
-            return Err(ExternalRootDiagnostic(
-                "written descriptor table does not bind this table's derived writer invocation"
-                    .into(),
-            ));
-        }
-        let table_bytes = self.declared_table_bytes();
-        if written.bytes().len() != table_bytes {
-            return Err(ExternalRootDiagnostic(
-                "written descriptor table is not the exact declared table image".into(),
-            ));
-        }
-        if written.site().base_address != destination.base()
-            || destination.length() != table_bytes as u64
-        {
-            return Err(ExternalRootDiagnostic(
-                "the established destination does not name the exact written table extent".into(),
-            ));
-        }
-
-        // The installed TSS the descriptors join through must be a canonical
-        // map: real IST slots, at most one provisioned stack class each.
-        let mut ist_classes = BTreeMap::new();
-        for stack in &tss.interrupt_stacks {
-            if stack.slot == 0 || stack.slot > X86_64_IST_SLOT_LIMIT {
-                return Err(ExternalRootDiagnostic(
-                    "the installed TSS names an interrupt-stack-table slot outside 1..=7".into(),
-                ));
-            }
-            if ist_classes
-                .insert(stack.slot, stack.dedicated_class)
-                .is_some()
-            {
-                return Err(ExternalRootDiagnostic(
-                    "the installed TSS repeats an interrupt-stack-table slot".into(),
-                ));
-            }
-        }
-
-        let bytes = written.bytes();
-        let last_vector = u8::try_from(table_bytes / X86_64_GATE_DESCRIPTOR_BYTES as usize - 1)
-            .expect("the declared table is bounded by the highest u8 vector");
-        for vector in 0..=last_vector {
-            let base = usize::from(vector) * X86_64_GATE_DESCRIPTOR_BYTES as usize;
-            let slot = &bytes[base..base + X86_64_GATE_DESCRIPTOR_BYTES as usize];
-            let Some(member) = self.members.get(&vector) else {
-                if slot.iter().any(|byte| *byte != 0) {
-                    return Err(ExternalRootDiagnostic(format!(
-                        "undeclared vector {vector} carries a nonzero descriptor in the produced table"
-                    )));
-                }
-                continue;
-            };
-            let descriptor = &member.descriptor;
-            if slot[2..4] != descriptor.selector.to_le_bytes() {
-                return Err(ExternalRootDiagnostic(format!(
-                    "vector {vector}'s produced gate selector does not equal its declared value"
-                )));
-            }
-            if slot[4] != descriptor.ist_byte() {
-                return Err(ExternalRootDiagnostic(format!(
-                    "vector {vector}'s produced IST field does not equal its declared value"
-                )));
-            }
-            if slot[5] != descriptor.attribute_byte() {
-                return Err(ExternalRootDiagnostic(format!(
-                    "vector {vector}'s produced gate kind, privilege, or present bit does not equal its declared value"
-                )));
-            }
-            if slot[12..16] != [0; 4] {
-                return Err(ExternalRootDiagnostic(format!(
-                    "vector {vector}'s produced descriptor carries nonzero reserved bytes"
-                )));
-            }
-            let offset = u64::from(u16::from_le_bytes([slot[0], slot[1]]))
-                | (u64::from(u16::from_le_bytes([slot[6], slot[7]])) << 16)
-                | (u64::from(u32::from_le_bytes([slot[8], slot[9], slot[10], slot[11]])) << 32);
-            if offset == 0 {
-                return Err(ExternalRootDiagnostic(format!(
-                    "vector {vector}'s produced descriptor carries a null entry offset"
-                )));
-            }
-            // The declared dedicated critical stack must be reachable through
-            // the gate's IST slot on this exact installed TSS — an absent IST
-            // field names no dedicated stack at all.
-            let Some(ist_slot) = descriptor.interrupt_stack_table_slot else {
-                return Err(ExternalRootDiagnostic(format!(
-                    "vector {vector}'s declared gate selects no IST slot for its dedicated critical stack"
-                )));
-            };
-            if ist_classes.get(&ist_slot) != Some(&member.dedicated_stack_class) {
-                return Err(ExternalRootDiagnostic(format!(
-                    "vector {vector}'s declared IST slot does not resolve its dedicated critical stack class through the installed TSS"
-                )));
-            }
-        }
-
-        EstablishedInterruptTable::from_consumer(
-            establishment,
-            &self.profile,
-            self.installed_code,
-            self.artifact,
-            self.members.iter().map(|(vector, member)| {
-                (
-                    *vector,
-                    InterruptTableEstablishedMember {
-                        root: member.root.root(),
-                        entry: member.entry,
-                    },
-                )
-            }),
-            destination,
-        )
     }
 
     /// Issue the exact publication carrier the checked-instruction provider

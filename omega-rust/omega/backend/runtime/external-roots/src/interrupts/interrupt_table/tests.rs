@@ -1,35 +1,29 @@
 //! Fixtures shared by the interrupt table tests: declared members, gate
 //! descriptors, established tables, publication authorities and the
-//! materialized descriptor table geometry.
+//! descriptor operand sites the checked publication edge replays.
 
 mod checked_publication_authority;
-mod descriptor_table_materialization;
 mod member_admission_and_publication;
 
 use crate::interrupts::interrupt_table::{
-    ArtifactId, EstablishedInterruptTable, Extent, INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES,
+    ArtifactId, EstablishedInterruptTable, INTERRUPT_TABLE_DESCRIPTOR_OPERAND_BYTES,
     InstalledCodeId, InstalledExternalRoot, InstalledRootLedger, InterruptTableDescriptorOperand,
-    InterruptTableEstablishedMember, InterruptTableEstablishmentId, InterruptTableGateDescriptor,
-    InterruptTableLedger, InterruptTableMemberPlan, InterruptTableObligation,
-    InterruptTableProfile, InterruptTablePublicationAuthority,
-    InterruptTablePublicationAuthorityId, InterruptTablePublicationId,
-    InterruptTablePublicationReceiptId, InterruptTablePublicationScope,
-    X86_64_GATE_DESCRIPTOR_BYTES,
+    InterruptTableEstablishedMember, InterruptTableGateDescriptor, InterruptTableLedger,
+    InterruptTableMemberPlan, InterruptTableObligation, InterruptTableProfile,
+    InterruptTablePublicationAuthority, InterruptTablePublicationAuthorityId,
+    InterruptTablePublicationId, InterruptTablePublicationReceiptId,
+    InterruptTablePublicationScope,
 };
 use crate::{
-    InterruptTableProfileId, RootAdmission, RootAdmissionId, RootSlotAuthority, RootSlotId,
-    RootSlotOwnerId,
+    InterruptTableEstablishmentId, InterruptTableProfileId, RootAdmission, RootAdmissionId,
+    RootSlotAuthority, RootSlotId, RootSlotOwnerId,
 };
-use calling_conventions::{X86_64GateKind, X86_64InstalledInterruptStack};
-use executable_installation::{ArtifactEntry, DestinationPreparationReceipt, InstalledCode};
-use extents::{
-    ExtentRights, MappedExtent, MappingGrant, MappingGrantId, MappingId, MappingSourceMode,
-    TranslationActivationReceipt, TranslationInstallObligations, TranslationReleaseObligations,
-    map_owned,
-};
+use calling_conventions::X86_64GateKind;
+use executable_installation::{ArtifactEntry, InstalledCode};
+use extents::Extent;
 use layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, MachineRegimeId, PlacementAddressRange,
-    PlacementConstraints, PlacementPhase, PlacementSite,
+    PlacementConstraints, PlacementPhase,
 };
 use target::Architecture;
 
@@ -99,7 +93,8 @@ fn timer_member(vector: u8, stack_class: u16, ist: u8) -> InterruptTableMemberPl
 
 /// The declared board-item table: every fatal exception entry on its own
 /// critical stack class plus the minimal timer root on a dedicated class.
-/// Each member's declared IST slot resolves its class in `declared_tss`.
+/// Each member's declared IST slot names the installed-TSS binding the
+/// consumer's authored validator resolves its class through.
 fn table_profile(identity: u64) -> InterruptTableProfile {
     InterruptTableProfile::new(
         profile_id(identity),
@@ -111,21 +106,6 @@ fn table_profile(identity: u64) -> InterruptTableProfile {
         ],
     )
     .expect("interrupt-table profile")
-}
-
-/// The installed TSS the descriptor validation joins through: IST slot i
-/// provisions dedicated critical stack class 10+i for the fixture members.
-fn declared_tss() -> calling_conventions::X86_64InstalledTaskStateSegmentRealization {
-    calling_conventions::X86_64InstalledTaskStateSegmentRealization {
-        privilege_stacks: Vec::new(),
-        interrupt_stacks: [1, 2, 3, 4]
-            .into_iter()
-            .map(|slot| X86_64InstalledInterruptStack {
-                slot,
-                dedicated_class: 10 + u16::from(slot),
-            })
-            .collect(),
-    }
 }
 
 /// One installed member row for `interrupt_table_candidates`.
@@ -405,154 +385,4 @@ fn carrier_authority(
         admitted.ledger.installed_code(),
         admitted.ledger.artifact(),
     )
-}
-
-const TABLE_BASE: u64 = 0x8_0000;
-
-const TABLE_BYTES: u64 = 528; // vectors 0..=0x20 at 16 bytes each
-
-fn member_slot_base(vector: u8) -> usize {
-    usize::from(vector) * X86_64_GATE_DESCRIPTOR_BYTES as usize
-}
-
-/// An activated owned mapping for a descriptor-table destination, mirroring
-/// the executable-installation writer fixture: minted source and
-/// destination extents in the shared fixture space, provider activation
-/// receipt, and mapped rights that the preparation receipt then requires.
-fn activated_table_mapping(seed: u64, base: u64, length: u64) -> MappedExtent<'static> {
-    let rights = |identity: u64| {
-        ExtentRights::from_normalized_identities([crate::tests::extent_id(
-            identity,
-            extents::ExtentRightId::from_normalized_identity,
-        )])
-    };
-    let mint = |seed: u64, extent_base: u64| {
-        extents::ExtentRootGrant::from_admitted_provider(
-            crate::tests::extent_provider_issuance(seed),
-            crate::tests::extent_id(
-                seed + 1000,
-                extents::ExtentLineageId::from_normalized_identity,
-            ),
-            crate::tests::extent_id(50, extents::AddressSpaceId::from_normalized_identity),
-            rights(51),
-            crate::tests::extent_id(
-                seed + 2000,
-                extents::ExtentProvenanceId::from_normalized_identity,
-            ),
-            crate::tests::extent_id(seed + 3000, extents::MappingEraId::from_normalized_identity),
-        )
-        .mint(extent_base, length)
-        .expect("table mapping extent")
-    };
-    let activation = crate::tests::extent_id(
-        seed + 4000,
-        extents::TranslationActivationFactId::from_normalized_identity,
-    );
-    let grant = MappingGrant::from_admitted_provider(
-        crate::tests::extent_id(seed + 5000, MappingGrantId::from_normalized_identity),
-        MappingSourceMode::Owned,
-        crate::tests::extent_id(50, extents::AddressSpaceId::from_normalized_identity),
-        crate::tests::extent_id(50, extents::AddressSpaceId::from_normalized_identity),
-        rights(51),
-        rights(51),
-        rights(51),
-        crate::tests::extent_id(
-            seed + 6000,
-            extents::ExtentProvenanceId::from_normalized_identity,
-        ),
-        crate::tests::extent_id(seed + 7000, extents::MappingEraId::from_normalized_identity),
-        TranslationInstallObligations::from_normalized_facts([activation]),
-        TranslationReleaseObligations::default(),
-    );
-    let pending = map_owned(
-        mint(seed + 8000, 0x20_0000),
-        mint(seed + 9000, base),
-        crate::tests::extent_id(seed + 10_000, MappingId::from_normalized_identity),
-        &grant,
-    )
-    .expect("table pending mapping");
-    let receipt = TranslationActivationReceipt::from_admitted_provider(
-        &pending.receipt_context(),
-        true,
-        [activation],
-    );
-    pending.complete(receipt).expect("activated table mapping")
-}
-
-/// The provider's prepared destination: the activated mapping, its
-/// pinned/writable/unpublished preparation receipt, and the staged image as
-/// the concrete byte view.
-fn prepared_table_destination(
-    seed: u64,
-    base: u64,
-    image: Vec<u8>,
-) -> executable_installation::PreparedPostHandoffWriterDestination<'static, 'static> {
-    let length = u64::try_from(image.len()).expect("image length");
-    let mapping = activated_table_mapping(seed, base, length);
-    let receipt = DestinationPreparationReceipt::from_admitted_provider(
-        executable_installation::DestinationPreparationReceiptId::from_normalized_identity(
-            seed + 11_000,
-        )
-        .expect("normalized destination-preparation receipt identity"),
-        &mapping.receipt_context(),
-        ExtentRights::from_normalized_identities([crate::tests::extent_id(
-            51,
-            extents::ExtentRightId::from_normalized_identity,
-        )]),
-        true,
-        true,
-    );
-    let bytes = Box::leak(image.into_boxed_slice());
-    executable_installation::PreparedPostHandoffWriterDestination::claim(
-        mapping,
-        receipt,
-        PlacementSite {
-            base_address: base,
-            phase: PlacementPhase::PostHandoff,
-            machine_regime: None,
-            installation_scope: None,
-        },
-        bytes,
-    )
-    .expect("activated pinned writable unpublished destination")
-}
-
-/// Drive the whole checked materialization path over `image`: the provider
-/// stages the image, the sealed writer resolves member entry targets once
-/// through its populated context, and the produced destination returns under
-/// exact replay for the consumer edge.
-fn written_table(
-    code: &InstalledCode,
-    plan: &layout_plans::PostHandoffWriterPlan,
-    base: u64,
-    image: Vec<u8>,
-) -> executable_installation::ValidatedWrittenPostHandoffWriterDestination<'static, 'static> {
-    let site = PlacementSite {
-        base_address: base,
-        phase: PlacementPhase::PostHandoff,
-        machine_regime: None,
-        installation_scope: None,
-    };
-    let context = code
-        .populate_post_handoff_entry_writer_context(plan, image.len(), site)
-        .expect("writer context over the exact installed realization");
-    let destination = prepared_table_destination(0x710, base, image)
-        .into_validated_for_writer_preparation()
-        .expect("replayed prepared destination");
-    code.write_prepared_post_handoff_destination(context, plan, destination)
-        .expect("sealed writer executes over the staged image")
-        .into_validated_for_consumer(code)
-        .expect("exact written destination replay")
-}
-
-/// Decode a produced gate descriptor's 64-bit entry offset.
-fn decoded_gate_offset(bytes: &[u8], vector: u8) -> u64 {
-    let base = member_slot_base(vector);
-    u64::from(u16::from_le_bytes([bytes[base], bytes[base + 1]]))
-        | (u64::from(u16::from_le_bytes([bytes[base + 6], bytes[base + 7]])) << 16)
-        | (u64::from(u32::from_le_bytes(
-            bytes[base + 8..base + 12]
-                .try_into()
-                .expect("offset-high field"),
-        )) << 32)
 }
