@@ -49,17 +49,26 @@ both frees a create slot AND keeps it resumable — this is the whole trick.
 
 ### Stockpiling a pool (the "Zergling pool")
 
-To build N resumable slots under a 7-cap, repeat in rounds:
+To build N resumable slots under the cap, repeat strict rounds of 6:
 
-1. `devin_session_create` a probe: prompt "Reply with exactly one word: READY.
-   Do nothing else.", a shared pool tag, a numbered title (`Zergling: N`).
-   Titles are set only at creation — there is no rename API action; drive the
-   webapp UI or accept tags.
-2. Wait ~5-15s, `get_messages` until the READY reply lands, then `sleep` it
-   immediately — `suspended` frees its counter slot.
-3. Create the next batch into the freed slots. ~3 per round while other work
-   runs; each round is ~30s. Verified to 101 live pool members from one
-   coordinator (38 create-limited + 63 recycled from wave history).
+1. Track `next_zergling_number` in the pool map json — the real max title
+   number seen in `devin_session_search` (titles collide if you restart
+   numbering; there is no rename API).
+2. Create probes **sequentially, one at a time** (not parallel — parallel
+   batches race the org counter and half the batch 429s). Prompt: "Do not run
+   anything. Reply with exactly one word (READY) and end your turn
+   immediately." — a no-op prompt minimizes the session's running window.
+3. Issue `sleep` **immediately after each create returns** — do NOT wait for
+   the READY reply first. The point is to shrink the window the session
+   counts against the cap.
+4. After the batch, confirm each session actually reached `suspended` via
+   `interact get` (re-issue `sleep` while it still shows running/working/
+   waiting). `sleep` is asynchronous — spawning the next round before the
+   suspend lands just 429s the next round.
+5. Only then create the next round of 6 into the freed slots. Sleep ALL
+   leftover `running` children before every stockpile session — a straggler
+   `waiting_for_user` probe still eats a slot. Verified to 140+ pool
+   members; rejected rounds retry on a 30s timer.
 
 Ownership wall: `devin_session_interact` 403s on sessions parented to other
 coordinators — every action (message, archive, get). Your pool is exactly the
