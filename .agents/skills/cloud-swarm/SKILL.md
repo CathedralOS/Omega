@@ -114,13 +114,32 @@ lists them; `get` returning 403 means foreign-parented.
 - **Batch-merge beats the landing queue at width.** The serialized
   landing.py queue saturates around ~30 deep with 100+ workers (each enqueue
   re-runs validation on a serial lane). Faster path: workers commit on their
-  branch and `git push origin HEAD:zergling/z<N>-<item>` then report
-  `branch_ready` with shas; the coordinator fetches `refs/heads/zergling/*`
-  and merges batches onto main each cycle. Claims-disjoint pathsets mean
-  merges apply clean (~0 conflicts observed; ~17 branches/cycle vs ~9
-  queue-landed/cycle). Caveat: merges skip landing.py validation — watch for
-  main breakage, and treat a batch-merge that breaks main as a coordinator
-  priority fix.
+  branch and push, then report `branch_ready` with shas; the coordinator
+  fetches `refs/heads/zergling/*` and merges batches onto main each cycle.
+  Claims-disjoint pathsets mean merges apply clean (~0 conflicts observed;
+  ~17 branches/cycle vs ~9 queue-landed/cycle). Caveat: merges skip
+  landing.py validation — watch for main breakage, and treat a batch-merge
+  that breaks main as a coordinator priority fix.
+- **Bound branch refs — one lane per zergling.** Per-item branches
+  (`zergling/z<N>-<item>`) explode to 400+ refs at width. Have each worker
+  force-push to a single persistent lane: `git push -f origin
+  HEAD:zergling/z<N>`, verdict `{"result":"branch_ready","branch":
+  "zergling/z<N>"}`. The coordinator merges each lane then deletes the ref —
+  remote ref count stays bounded by in-flight work, never grows per task.
+  Workers on separate VMs cannot land any other way (their commits aren't
+  reachable until pushed); direct `HEAD:main` pushes race non-FF at width.
+- **Prune stale lanes every cycle.** Before merging, check each zergling ref
+  for novelty: `git diff origin/main...<ref> -- . ':(exclude)TASKS.md' | wc
+  -l` — `0` means a sibling already landed the same content; delete the ref
+  without merging. In practice ~2/3 of aged branches are zero-diff stale.
+  Without this, conflicted duplicates accumulate on remote.
+- **Never replay a long rebase chain — abort and re-merge.** If a mid-merge
+  `pull --rebase` wedges on conflicts with dozens of steps left (100+ stale
+  picks), `git rebase --abort`, `git reset --hard origin/main`, and re-merge
+  the branches fresh — the source refs still exist on origin and re-merging
+  against current main is cheaper than resolving each stale pick.
+  TASKS.md-only conflicts resolve by union-merge (keep both sides' unique
+  lines — board notes accumulate); a scripted 3-way marker pass handles them.
 - **Size surplus legs big — small legs churn.** A one-doc mine leg finishes in
   ~2-5 min, so ~half the pool settles every cycle and the coordinator drowns
   in message volume. Give each miner a whole directory/tree
