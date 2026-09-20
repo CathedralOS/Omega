@@ -380,4 +380,67 @@ mod tests {
             });
         assert!(declared_range(&program, policy_wrapped).is_none());
     }
+
+    #[test]
+    fn compound_symbolic_endpoint_binds_after_the_caller_specializes() {
+        // The endpoint expression `K + 1` cannot close while `K` is a binder:
+        // the occurrence defers, and `forward<6>`'s clone re-infers `6 + 1`
+        // against `0..=N` once its parameter substitutes.
+        let mut program = typed(
+            "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+             machine forward<const K: u64>(v: u64[0..=K + 1]) -> u64 { upper_bound(v) }
+             machine caller(v: u64[0..=7]) -> u64 { forward<6>(v) }",
+        );
+        crate::checking::specialize_static_machine_calls_with_selections(&mut program, true)
+            .expect("compound endpoint forwards through the caller binder");
+        let forward = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "forward")
+            .expect("forward template");
+        let upper_bound = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "upper_bound")
+            .expect("upper_bound template");
+        assert!(
+            program
+                .machine_specializations
+                .iter()
+                .any(|instance| instance.template == forward.symbol),
+            "forward<6> must specialize"
+        );
+        assert!(
+            program
+                .machine_specializations
+                .iter()
+                .any(|instance| instance.template == upper_bound.symbol),
+            "the forwarded upper_bound call must specialize inside forward<6>"
+        );
+    }
+
+    #[test]
+    fn compound_endpoint_never_selects_an_unrelated_closed_value() {
+        // Binding `N` to the expression `K + 1` is the only admitted outcome;
+        // an unresolved occurrence must not land as a placeholder literal.
+        let mut program = typed(
+            "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
+             machine forward<const K: u64>(v: u64[0..=K + 1]) -> u64 { upper_bound(v) }
+             machine caller(v: u64[0..=9]) -> u64 { forward<8>(v) }",
+        );
+        crate::checking::specialize_static_machine_calls_with_selections(&mut program, true)
+            .expect("compound endpoint forwards through the caller binder");
+        let upper_bound = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "upper_bound")
+            .expect("upper_bound template");
+        assert!(
+            program
+                .machine_specializations
+                .iter()
+                .any(|instance| instance.template == upper_bound.symbol),
+            "upper_bound<9> specializes only after the caller's binder substitutes"
+        );
+    }
 }

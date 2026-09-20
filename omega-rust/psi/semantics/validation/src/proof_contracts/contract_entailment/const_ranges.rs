@@ -49,7 +49,66 @@ pub(crate) fn const_range_bound_is_supported(
     expression: ExpressionHandle,
 ) -> bool {
     crate::closed_integer_range_bound(program, expression).is_some()
-        || binder(program, parameters, expression).is_some()
+        || const_bound_expression(program, parameters, expression)
+}
+
+/// A proof-static endpoint expression: the strict engine's term shapes
+/// (integer literals, `Borrow` transparency, `Add`/`Subtract`/`Multiply`
+/// composition) whose name leaves are integer const/Value binders in the
+/// owner's namespace, with at least one such binder leaf. `Divide`/`Modulo`
+/// stay outside: their strict normalization carries authored-selection
+/// preconditions a declared bound cannot supply. The binder-leaf requirement
+/// keeps literal-only arithmetic out of the symbolic class -- an endpoint
+/// with no binder is a closed bound, discharged by the closed route instead.
+/// The endpoint binds as a whole against `0..=N` inference; no operand shape
+/// beyond these forms is const-bound.
+fn const_bound_expression(
+    program: &TypedTrees,
+    parameters: &[TypeParameter],
+    expression: ExpressionHandle,
+) -> bool {
+    fn leaves_are_static(
+        program: &TypedTrees,
+        parameters: &[TypeParameter],
+        expression: ExpressionHandle,
+    ) -> bool {
+        if !expression.is_valid() {
+            return false;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Integer(_) => true,
+            ExpressionNode::Name(_) => binder(program, parameters, expression).is_some(),
+            ExpressionNode::Borrow(inner) => leaves_are_static(program, parameters, inner.target),
+            ExpressionNode::Binary(binary) => {
+                matches!(
+                    binary.operator,
+                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                ) && leaves_are_static(program, parameters, binary.left)
+                    && leaves_are_static(program, parameters, binary.right)
+            }
+            _ => false,
+        }
+    }
+    fn contains_binder(
+        program: &TypedTrees,
+        parameters: &[TypeParameter],
+        expression: ExpressionHandle,
+    ) -> bool {
+        if !expression.is_valid() {
+            return false;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Name(_) => binder(program, parameters, expression).is_some(),
+            ExpressionNode::Borrow(inner) => contains_binder(program, parameters, inner.target),
+            ExpressionNode::Binary(binary) => {
+                contains_binder(program, parameters, binary.left)
+                    || contains_binder(program, parameters, binary.right)
+            }
+            _ => false,
+        }
+    }
+    leaves_are_static(program, parameters, expression)
+        && contains_binder(program, parameters, expression)
 }
 
 fn term(
@@ -115,7 +174,11 @@ pub(crate) fn symbolic_range_contains(
         } = constraint
             && [*minimum, *maximum].into_iter().any(|endpoint| {
                 program.machines().iter().any(|owner| {
-                    binder(program, program.machine_type_parameters(owner), endpoint).is_some()
+                    const_bound_expression(
+                        program,
+                        program.machine_type_parameters(owner),
+                        endpoint,
+                    )
                 }) || scoped_value_bound(program, state, endpoint)
             })
         {
@@ -372,7 +435,7 @@ fn has_const_range(
             program.primitive_type_reference(*base_type).is_some_and(|primitive| primitive.accepts_integer_literal())
                 && (program.type_reference_table.constraints(*constraints).iter().any(|constraint| {
                     matches!(constraint, TypeConstraintNode::Range { minimum, maximum, .. }
-                        if [*minimum, *maximum].into_iter().any(|endpoint| binder(program, parameters, endpoint).is_some()
+                        if [*minimum, *maximum].into_iter().any(|endpoint| const_bound_expression(program, parameters, endpoint)
                             || scoped_value_bound(program, entry, endpoint)))
                 }) || has_const_range(program, parameters, entry, *base_type))
         }
