@@ -18,16 +18,57 @@ fn typed(source: &str) -> TypedTrees {
 }
 
 #[test]
-fn runtime_receivers_and_open_generic_callees_are_not_pending_endpoints() {
-    for source in [
+fn runtime_receivers_are_not_pending_endpoints() {
+    let program = typed(
         "data Limits {} machine Limits::capacity(&self) -> u64 { 256 }
          machine bounded(limits: Limits, value: u64[0..=limits.capacity()]) {}",
-        "data Limits {} machine Limits::capacity<const N: u64>() -> u64 { 256 }
-         machine bounded(value: u64[0..=Limits::capacity()]) {}",
-    ] {
-        let program = typed(source);
-        assert!(pending_endpoints(&program).unwrap().is_empty(), "{source}");
+    );
+    assert!(pending_endpoints(&program).unwrap().is_empty());
+}
+
+#[test]
+fn inferred_endpoint_calls_use_closed_argument_types_and_reject_conflicts() {
+    for argument in ["7u64", "(7u8 as u64)", "identity(7u64)"] {
+        let mut program = typed(&format!(
+            "machine identity<T>(value: T) -> T {{ value }}
+             machine keep(value: u64[0..=identity({argument})]) {{}}"
+        ));
+        evaluate_const_range_endpoints(&mut program, None)
+            .unwrap_or_else(|errors| panic!("{argument}: {errors:?}"));
+        assert_eq!(folded_maximum(&program).as_deref(), Some("7"));
     }
+    for source in [
+        "machine pick<T>(left: T, right: T) -> T { left }
+         machine keep(value: u64[0..=pick(7u64, 7u8)]) {}",
+        "data Limits {} machine Limits::capacity<const N: u64>() -> u64 { 7 }
+         machine keep(value: u64[0..=Limits::capacity()]) {}",
+    ] {
+        let mut program = typed(source);
+        let pending = pending_endpoints(&program).unwrap();
+        assert_eq!(pending.len(), 1);
+        let expression = pending[0].expression;
+        let original = program.expression_table.expression(expression).clone();
+        evaluate_const_range_endpoints(&mut program, None)
+            .expect_err("conflicting or unused open binders cannot reach execution");
+        assert_eq!(program.expression_table.expression(expression), &original);
+    }
+}
+
+#[test]
+fn explicit_endpoint_type_stays_fixed_while_other_arguments_are_inferred() {
+    let mut program = typed(
+        "machine pick<T, Other>(value: T, ignored: Other) -> T { value }
+         machine keep(value: u64[0..=pick<u64[0..=7]>(7u64, true)]) {}",
+    );
+    let expression = pending_endpoints(&program).unwrap()[0].expression;
+    evaluate_const_range_endpoints(&mut program, None)
+        .expect("the explicit range remains fixed while Other is inferred from bool");
+    assert_eq!(
+        validation::closed_integer_range_bound(&program, expression)
+            .unwrap()
+            .to_string(),
+        "7",
+    );
 }
 
 #[test]
@@ -927,11 +968,10 @@ fn endpoint_type_and_const_arguments_share_the_ordinary_complete_tuple() {
 }
 
 #[test]
-fn inference_needing_and_partial_static_applications_stay_rejected() {
-    // An application with no static arguments needs inference and is not an
-    // endpoint call at all; a partially supplied one is pending so the
-    // missing argument is named instead of silently skipped. An instance's
-    // substituted range still rejects an out-of-range concrete argument.
+fn underdetermined_and_partial_static_applications_stay_rejected() {
+    // A literal value does not declare a range from which to infer N, and a
+    // missing unused binder cannot be erased by executing the generic body.
+    // Complete instances retain their ordinary argument range obligations.
     let declarations = "machine identity<const N: u64>() -> u64 { N }
          machine two<const A: u64, const B: u64>() -> u64 { A + B }
          machine bounded<const N: u64>(value: u64[0..=N]) -> u64 { N }";
@@ -939,11 +979,10 @@ fn inference_needing_and_partial_static_applications_stay_rejected() {
         "{declarations}
          machine keep(value: u64[0..=bounded(0)]) {{}}"
     ));
-    assert!(
-        pending_endpoints(&program).unwrap().is_empty(),
-        "an inference-needing application is not pending"
-    );
+    assert_eq!(pending_endpoints(&program).unwrap().len(), 1);
     for (endpoint, fragment) in [
+        ("identity()", "not specialized"),
+        ("bounded(0)", "not specialized"),
         ("two<1>()", "cannot be derived"),
         ("bounded<256>(300)", "outside declared range `0..=256`"),
     ] {
@@ -982,9 +1021,8 @@ fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
 #[test]
 fn generic_record_arguments_still_reject_unclosable_endpoint_calls() {
     // An endpoint call that cannot resolve, and a generic callee whose binder
-    // would need inference from an ordinary argument, must both stay rejected
-    // rather than weakening admission. (A fully supplied static application
-    // is closable and folds through its instance.)
+    // cannot be inferred from its argument's declared type, both reject.
+    // The literal value itself cannot supply a missing declared range.
     for source in [
         "machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
          data RangeValue<T [copy]> [copy] { value: T; }
@@ -1150,6 +1188,31 @@ fn provider_boundary_endpoint_executes_the_selected_body() {
         Some("7"),
         "the provider's `left | right` body must run; builtin `%` would fold 1"
     );
+}
+
+#[test]
+fn inferred_endpoint_still_waits_for_and_executes_its_selected_provider() {
+    let mut program = typed(
+        "data Math {}
+         boundary operator % Math::remainder(left: u64, right: u64) -> u64;
+         data Provider {}
+         machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remainder { left | right }
+         machine limit<T>(ignored: T) -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
+         machine keep(value: u64[0..=limit(7u64)]) {}",
+    );
+    assert!(super::pending_endpoint_calls_need_operator_selection(&program, None).unwrap());
+    let rows = provider_rows(&program);
+    assert_eq!(rows.len(), 1);
+    super::evaluate_selected_range_endpoints(
+        &mut program,
+        None,
+        SelectedBuildTimeOperators {
+            operators: &[],
+            provider_bodies: &rows,
+        },
+    )
+    .unwrap();
+    assert_eq!(folded_maximum(&program).as_deref(), Some("7"));
 }
 
 #[test]

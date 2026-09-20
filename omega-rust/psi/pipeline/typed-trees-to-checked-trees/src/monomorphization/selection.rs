@@ -73,6 +73,13 @@ pub(super) fn collect_call_proposals(
     if explicit_arguments.is_err() {
         return ExplicitArgumentCapacity::Exceeded;
     }
+    // Authored type selections are fixed before argument compatibility. An
+    // argument with a wider declared range must not reselect that type; its
+    // value still owes the selected range at the ordinary call check. Keep
+    // proposals for omitted binders separate so their repeated occurrences
+    // must still agree, rather than treating the first inference as explicit.
+    let explicit_type_count = type_proposals.len();
+    let mut inferred_type_proposals = Vec::new();
 
     // An explicit bound is selected before compatibility. It must not conflict
     // with an ordinary argument's narrower declared endpoint.
@@ -122,7 +129,7 @@ pub(super) fn collect_call_proposals(
             &candidate.template.const_parameters,
             Some(&fixed_range_parameters),
             callee.candidate_index,
-            type_proposals,
+            &mut inferred_type_proposals,
             const_proposals,
         );
     }
@@ -144,7 +151,7 @@ pub(super) fn collect_call_proposals(
             &candidate.template.const_parameters,
             Some(&fixed_range_parameters),
             callee.candidate_index,
-            type_proposals,
+            &mut inferred_type_proposals,
             const_proposals,
         );
     }
@@ -166,9 +173,17 @@ pub(super) fn collect_call_proposals(
             &candidate.template.const_parameters,
             Some(&fixed_result_parameters),
             callee.candidate_index,
-            type_proposals,
+            &mut inferred_type_proposals,
             const_proposals,
         );
+    }
+    for proposal in inferred_type_proposals {
+        if !type_proposals[..explicit_type_count]
+            .iter()
+            .any(|explicit| explicit.0 == proposal.0 && explicit.1 == proposal.1)
+        {
+            type_proposals.push(proposal);
+        }
     }
     ExplicitArgumentCapacity::WithinBounds
 }
@@ -286,7 +301,40 @@ pub(super) fn collect_call_selections(
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut expressions = Vec::new();
+            // Calls in declaration types have the same lexical owner as body
+            // calls. Their landed argument types can infer ordinary binders;
+            // the arena fallback deliberately has no such caller context.
+            let mut visited_types = Vec::new();
+            for reference in std::iter::once(state.return_type)
+                .chain(
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .map(|parameter| parameter.type_reference),
+                )
+                .chain(
+                    program
+                        .machine_owned_data(machine)
+                        .iter()
+                        .map(|owned| owned.type_reference),
+                )
+            {
+                const_arguments::collect_type_expressions(
+                    program,
+                    reference,
+                    &mut visited_types,
+                    &mut expressions,
+                );
+            }
             for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::LocalData(local) = statement {
+                    const_arguments::collect_type_expressions(
+                        program,
+                        local.type_reference,
+                        &mut visited_types,
+                        &mut expressions,
+                    );
+                }
                 if !matches!(statement, StatementNode::AssemblyFact(_)) {
                     collect_statement_expression_trees(program, statement, &mut expressions);
                 }
