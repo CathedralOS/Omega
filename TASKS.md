@@ -6573,7 +6573,36 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **UNSEQUENCED-SPILL-FAMILY-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-DISPOSITION** — mined candidate; verify scope then implement.
 - **UNSEQUENCED-SPILL-STAGE-TRIAGE** — mined candidate; verify scope then implement.
-- **UNSEQUENCED-SPILL-STAGES-DISPOSITION** — mined candidate; verify scope then implement.
+- **UNSEQUENCED-SPILL-STAGES-DISPOSITION.** Mined candidate. Upstream:
+  [TASKS_OPTIMIZER.md](TASKS_OPTIMIZER.md) PIPELINE-OWNER-CONSOLIDATION flag —
+  `selected-instructions-to-register-homes/src/unsequenced_spill_stages/` holds
+  18 spill families (~25,700 non-test lines) that `stage_register_allocation`
+  never calls; SPILL-REALIZATION owns sequencing the ones it needs, the
+  executable `assignment/runtime_spill` route supersedes the rest. Sequence a
+  staged family behind the executable route or delete it; do not extend both.
+
+  Verified scope (origin/main 3dd805679c): every family is publicly re-exported
+  in the stage's `lib.rs` and has external consumers — native-differential
+  `pipeline_ownership` stage tests, `tests/architecture/optimizer_source_organization`
+  entrance/ladder/retired-paths tables, and machine emission's
+  `frame_layout/spill_requirements/`. The families also form a dependency
+  chain (e.g. `synthetic_reload_values` consumes
+  `ValidatedAbstractSpillInsertion` + `ValidatedReloadValueHomes`), so
+  deletions must proceed leaf-consumer-first. Identified duplicate-owner pair:
+  `stack_slot_coloring` (interval coloring) vs. `runtime_spill/slot.rs` (the
+  executable route's slot reuse).
+
+  Note for the coordinator: this stub is one of four mined duplicates for the
+  same directory — UNSEQUENCED-SPILL-STAGE-DISPOSITION,
+  UNSEQUENCED-SPILL-STAGE-TRIAGE and UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE
+  cover the identical ground and should be collapsed into one item.
+
+  Remaining: disposition each of the 18 families — sequence (via
+  SPILL-REALIZATION/POC-SPILL-FAMILY-SEQUENCING) or delete with its lib.rs
+  re-exports, native-differential consumers and architecture tables. Whole
+  territory is currently fenced: `selected-instructions-to-register-homes`
+  wholesale (POC-SPILL-FAMILY-SEQUENCING), `optimizer_source_organization`
+  (ORPHAN-STAGE-OUTPUT-AUDIT), `pipeline_ownership` (STRUCTURAL-UNIT-CALL-GRAPH-JOINS).
 - **UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
 - **VERIFIER-EDGE-CLEANUP-PHASE-ORDER** — mined candidate; verify scope then implement.
 - **WAIT-WAKE-SUBSTRATE** — mined candidate; verify scope then implement.
