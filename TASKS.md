@@ -5847,6 +5847,24 @@ Owners include
     provider owners, not a second topology census.
     **BOUNDED-INSTALLATION-REACH-ROWS** waits on this carrier for its
     component-contract fence.
+    z21 leg: inventory found the installer's `AdmittedArtifact` carrying a
+    bare caller-supplied `component_subject` — a forged subject was
+    representable. The artifact now carries `admission:
+    Arc<AdmittedComponent>`, so admission/replacement derives component
+    subject *and* request profile from the verified description itself;
+    `prepare_installation` re-binds both against the plan's component
+    record and `InstallationRejection::ArtifactMismatch` names the
+    divergent field (`component_subject`/`verification_profile`).
+    `verify_plan`/`compose_plan`/`check_instance_binding` take
+    `&[impl Borrow<AdmittedComponent>]` so owned and shared rosters both
+    feed the same consumer (`topology/src/{topology_installation,
+    verified_components,plan_verification,plan_composition}.rs`; `cargo
+    nextest run -p topology-plan`: 98/100 pass — the 2 codec golden-fixture
+    failures reproduce identically at base `739e4e81e97`, linux-x86_64).
+    Still open here: admission under a replacement profile is a distinct
+    artifact in the request, but no replacement-leg owner pins the
+    live-replacement path yet; the description-side demand/supply gap
+    above is unchanged.
 
   Acceptance: an ordinary two-package `omega` build whose root selects
   `Independent` publishes and consumes the dependency's description with no

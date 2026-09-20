@@ -36,7 +36,11 @@ fn a_record_without_an_admission_rejects() {
     let (request_bytes, plan_bytes, _) = payment_pair();
     // No admissions at all: every Component-role instance is unbound.
     assert!(matches!(
-        verify_plan(&plan_bytes, &request_bytes, &[]),
+        verify_plan(
+            &plan_bytes,
+            &request_bytes,
+            &Vec::<AdmittedComponent>::new()
+        ),
         Err(PlanRejection::ComponentBinding {
             failure: ComponentBindingFailure::MissingVerifiedComponent,
             ..
