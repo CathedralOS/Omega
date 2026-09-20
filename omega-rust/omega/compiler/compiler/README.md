@@ -157,7 +157,9 @@ Compilation collects one ordered outcome per target without fail-fast collection
 a shared preparation failure supplies the same diagnostics to all children.
 A target-specific malformed generated unit fails its child, not an unrelated
 sibling. Success retains the ordinary standalone artifact/manifest identity.
-The collection grants no batch manifest, support, test or audit claim.
+The collection carries an optional batch manifest binding the explicit target
+set and each child's commitment/outcome; it grants no support, test or audit
+claim.
 An absent target in a single configuration stays target-neutral for Check and
 Terminal production; Native resolves that convenience to Host. Multiple
 configurations require explicit exact targets. Configuration replacement does

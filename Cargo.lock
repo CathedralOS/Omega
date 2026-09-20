@@ -476,6 +476,7 @@ dependencies = [
  "build-evaluation",
  "build-output",
  "calling-conventions",
+ "diagnostics",
  "effects",
  "function-identity",
  "image",
