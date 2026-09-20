@@ -6680,6 +6680,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (00:48Z). This row's own deliverable is therefore the Windows validation
   leg (host-gated) plus witnessing that the sibling gaps closed; no
   linux_x86_64-implementable slice exists inside the claimed surfaces.
+  Re-verified at `9f48bb2a59` (z85): the picture is unchanged — every
+  enumerated gap row is still open with a live owner
+  (GEOMETRY-ALIGNMENT-STRING-PARSING 00:04Z, SQUALR-NAMED-TRAIT-OPERATORS
+  00:58Z, REGION-ALIGNMENT-EXPANSION item claim 02:01Z), and
+  `samples/apps/squalr` stays wholesale dir-fenced
+  (SQUALR-TARGETS-AND-THROUGHPUT 05:52Z, GEOMETRY-ALIGNMENT-REGIONS
+  01:18Z, SNAPSHOT-STORAGE ×3 to ~05:2xZ); the lock/std-pin re-entry
+  repair remains an edit inside that fence and Windows validation still
+  has no host.
 - **GEOMETRY-PARITY.** Resolved at `7176821bc6` — this is the submodule
   board's own name (samples/apps/squalr/TASKS.md:6) for the surface the
   main board audits as SQUALR-GEOMETRY-PARITY; re-verified against the
