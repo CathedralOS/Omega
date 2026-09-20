@@ -6,10 +6,12 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use facts::{FactHandle, FactPayload, FactPlan, ProgramPoint};
 use language_semantics::SemanticDomainId;
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::data::{DataMember, TypeParameterKind};
+use typed_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, StaticMachineArgument,
+};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
@@ -341,6 +343,15 @@ fn append_expression_compatibilities(
     // this boundary. Recompute this for recursive literal members as well as
     // top-level stores/returns.
     let contexts = state_calls.contexts_after_value(statement_index, value, contexts);
+    let mut substitutions = enclosing_call_substitutions(program, state, state_calls, point);
+    for substitution in value_call_substitutions(program, state, statement_index, value) {
+        if !substitutions
+            .iter()
+            .any(|(binder, _)| *binder == substitution.0)
+        {
+            substitutions.push(substitution);
+        }
+    }
     let mut actual =
         expression_indexed_instances(program, operators, machine, state, statement_index, value);
     append_call_result_ensured_instances(
@@ -382,6 +393,28 @@ fn append_expression_compatibilities(
                             actual.arguments.iter().chain(&expected.arguments).copied(),
                         ),
                     }
+                }
+            } else if bound_index_arguments_equal(
+                program,
+                &actual.arguments,
+                &expected.arguments,
+                &substitutions,
+            ) {
+                // The two instances differ only in spelling: substituting
+                // the call's bound index arguments makes every position
+                // denote the same subject or literal. No normalization work
+                // is needed -- the bound index IS the compared index.
+                if actual
+                    .arguments
+                    .iter()
+                    .chain(&expected.arguments)
+                    .all(|argument| {
+                        bound_index_argument_is_closed(program, *argument, &substitutions)
+                    })
+                {
+                    IndexCompatibilityDischarge::ClosedEvaluation
+                } else {
+                    IndexCompatibilityDischarge::LicensedNormalization { operation_count: 0 }
                 }
             } else if let Some(facts) = established_index_equalities(
                 program,
@@ -911,6 +944,346 @@ fn index_arguments_structurally_equal(
             },
         ) => left_symbol == right_symbol && left_name.as_str() == right_name.as_str(),
         _ => false,
+    }
+}
+
+/// One index argument a call bound to its callee's declared index binder.
+/// A symbolic call to a generic target compares the callee's declared
+/// `Coordinate<I>` against the caller's instance as the bound index: `I` is
+/// the template's spelling, and this records what this call supplied.
+#[derive(Debug, Clone)]
+pub(crate) enum BoundIndexArgument {
+    /// The caller-side subject symbol the argument denotes: a parameter, a
+    /// `let` declared before the call, a forwarded generic binder, or a named
+    /// const whose symbol is its own canonical identity.
+    Subject(SymbolHandle),
+    /// A closed literal index, kept by canonical spelling.
+    Literal(String),
+}
+
+/// Pair each const-position index binder (`const` or runtime `Value`) of a
+/// call target with the index the call bound it to. Argument dispatch mirrors
+/// `monomorphization::selection`'s proposal walk: explicit structural type
+/// arguments consume type slots, machine/evidence arguments consume their own
+/// slots, and every other shape — forwarded binders, literals, open names, and
+/// runtime subjects — consumes one const slot in authored order. Any argument
+/// shape this does not classify empties the whole map rather than risk a
+/// misaligned substitution.
+pub(crate) fn bound_index_substitutions(
+    program: &TypedTrees,
+    state: &State,
+    scope_limit: usize,
+    target_symbol: SymbolHandle,
+    machine_arguments: &[StaticMachineArgument],
+) -> Vec<(SymbolHandle, BoundIndexArgument)> {
+    let type_parameters =
+        crate::semantic_calls::call_target_type_parameters(program, target_symbol);
+    let const_parameters = type_parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    if const_parameters.is_empty() {
+        return Vec::new();
+    }
+    let mut substitutions = Vec::new();
+    let mut const_index = 0;
+    for argument in machine_arguments {
+        enum Slot {
+            Type,
+            Const,
+            Other,
+        }
+        let slot = if argument.type_reference.is_valid() {
+            Slot::Type
+        } else if argument.application.is_some() || argument.evidence_projection.is_some() {
+            Slot::Other
+        } else if argument.const_literal.is_some() {
+            Slot::Const
+        } else if argument.symbol.is_valid()
+            && program
+                .machines()
+                .iter()
+                .flat_map(|machine| program.machine_type_parameters(machine))
+                .any(|parameter| {
+                    parameter.symbol == argument.symbol
+                        && matches!(
+                            parameter.kind,
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                        )
+                })
+        {
+            // A forwarded `const`/`Value` binder occupies a const slot under
+            // the callee's own parameter ordinal.
+            Slot::Const
+        } else if !argument.symbol.is_valid() {
+            Slot::Const
+        } else {
+            match program.symbols.get(argument.symbol).kind {
+                SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter => {
+                    Slot::Type
+                }
+                SymbolKind::Conformance
+                | SymbolKind::ConformanceParameter
+                | SymbolKind::State
+                | SymbolKind::MachineParameter => Slot::Other,
+                SymbolKind::Local | SymbolKind::Parameter | SymbolKind::Const => Slot::Const,
+                _ => return Vec::new(),
+            }
+        };
+        match slot {
+            Slot::Const => {
+                if let Some(parameter) = const_parameters.get(const_index) {
+                    if let Some(bound) = bound_index_argument(program, state, scope_limit, argument)
+                    {
+                        substitutions.push((parameter.symbol, bound));
+                    }
+                }
+                const_index += 1;
+            }
+            Slot::Type | Slot::Other => {}
+        }
+    }
+    substitutions
+}
+
+/// The caller-side index one static machine argument denotes, resolved
+/// against the enclosing state's scope at the call's statement position —
+/// the same scope rule `resolve_runtime_subject` applies during selection.
+fn bound_index_argument(
+    program: &TypedTrees,
+    state: &State,
+    scope_limit: usize,
+    argument: &StaticMachineArgument,
+) -> Option<BoundIndexArgument> {
+    if let Some(literal) = &argument.const_literal {
+        let spelling = literal
+            .value_i64()
+            .map(i128::from)
+            .or_else(|| literal.value_u64().map(i128::from))
+            .map_or_else(|| literal.text().to_owned(), |value| value.to_string());
+        return Some(BoundIndexArgument::Literal(spelling));
+    }
+    if argument.type_reference.is_valid()
+        || argument.application.is_some()
+        || argument.evidence_projection.is_some()
+    {
+        return None;
+    }
+    resolve_scope_subject(program, state, scope_limit, argument).map(BoundIndexArgument::Subject)
+}
+
+/// Resolve an index argument to the subject symbol it denotes in the
+/// caller's scope. A parameter, a generic binder, or a named const is its own
+/// canonical identity; a bare or local name resolves to a state parameter or
+/// the nearest `let` of the same name declared before the call — the scope
+/// rule `resolve_runtime_subject` applies during selection, so a shadowed
+/// local cannot bind to an earlier same-named binding.
+fn resolve_scope_subject(
+    program: &TypedTrees,
+    state: &State,
+    scope_limit: usize,
+    argument: &StaticMachineArgument,
+) -> Option<SymbolHandle> {
+    if argument.symbol.is_valid() {
+        match program.symbols.get(argument.symbol).kind {
+            SymbolKind::Parameter | SymbolKind::TypeParameter | SymbolKind::Const => {
+                return Some(argument.symbol);
+            }
+            SymbolKind::Local => {}
+            _ => return None,
+        }
+    }
+    let [name] = argument.path.as_ref() else {
+        return None;
+    };
+    let mut resolved = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == name.as_str())
+        .map(|parameter| parameter.symbol);
+    for statement in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(scope_limit)
+    {
+        let StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if local.name.as_str() == name.as_str() {
+            resolved = Some(local.symbol);
+        }
+    }
+    resolved
+}
+
+/// A call's index substitutions: one entry pairing each of the callee's
+/// const-position binders with the caller-side index bound at this site.
+pub(crate) type BoundIndexSubstitutions = Vec<(SymbolHandle, BoundIndexArgument)>;
+
+/// The substitutions implied by the call at `point`, if `point` is a call
+/// boundary — this is what lets an argument in `Coordinate<N>` discharge a
+/// parameter declared `in Coordinate<I>` when the call bound `I` to `N`.
+fn enclosing_call_substitutions(
+    program: &TypedTrees,
+    state: &State,
+    state_calls: &StateCallIndex<'_, '_>,
+    point: ProgramPoint,
+) -> BoundIndexSubstitutions {
+    let ProgramPoint::Call {
+        statement_index,
+        call_ordinal,
+        ..
+    } = point
+    else {
+        return Vec::new();
+    };
+    let Some(resolved) = state_calls.calls.iter().find(|resolved| {
+        resolved.fact.statement_index == statement_index
+            && resolved.fact.call_ordinal == call_ordinal
+    }) else {
+        return Vec::new();
+    };
+    let (target_symbol, machine_arguments) = match &resolved.site {
+        crate::semantic_calls::CallSite::Statement(call) => {
+            (call.target_symbol, call.machine_arguments.as_ref())
+        }
+        crate::semantic_calls::CallSite::Expression { call, .. } => {
+            (call.target_symbol, call.machine_arguments.as_ref())
+        }
+        crate::semantic_calls::CallSite::TransitionNamed { .. } => return Vec::new(),
+    };
+    bound_index_substitutions(
+        program,
+        state,
+        statement_index,
+        target_symbol,
+        machine_arguments,
+    )
+}
+
+/// The substitutions implied by `value` itself when the checked value is a
+/// call whose declared result carries the callee's binders — a call result
+/// `Coordinate<I>` compares as `Coordinate<N>` under the call's own binding.
+fn value_call_substitutions(
+    program: &TypedTrees,
+    state: &State,
+    statement_index: usize,
+    value: ExpressionHandle,
+) -> BoundIndexSubstitutions {
+    let mut node = value;
+    let call = loop {
+        match program.expression_table.expression(node) {
+            ExpressionNode::Borrow(inner) => node = inner.target,
+            ExpressionNode::Atomic(atomic) => node = atomic.result,
+            ExpressionNode::Call(call) => break call,
+            _ => return Vec::new(),
+        }
+    };
+    bound_index_substitutions(
+        program,
+        state,
+        statement_index,
+        call.target_symbol,
+        &call.machine_arguments,
+    )
+}
+
+/// Substitute binder positions on both sides, then compare pairwise. `true`
+/// only when every pair denotes the same bound index — the same subject
+/// symbol or the same literal spelling — after substitution.
+fn bound_index_arguments_equal(
+    program: &TypedTrees,
+    actual: &[TypeReferenceHandle],
+    expected: &[TypeReferenceHandle],
+    substitutions: &BoundIndexSubstitutions,
+) -> bool {
+    !substitutions.is_empty()
+        && !actual.is_empty()
+        && actual.len() == expected.len()
+        && actual
+            .iter()
+            .zip(expected.iter())
+            .all(|(actual, expected)| {
+                bound_index_argument_equal(program, *actual, *expected, substitutions)
+            })
+}
+
+fn bound_index_argument_equal(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+    substitutions: &BoundIndexSubstitutions,
+) -> bool {
+    let bound_actual = substitute_bound_index(program, actual, substitutions);
+    let bound_expected = substitute_bound_index(program, expected, substitutions);
+    match (bound_actual, bound_expected) {
+        (None, None) => index_arguments_structurally_equal(program, actual, expected),
+        (Some(bound), None) => bound_index_argument_matches(program, bound, expected),
+        (None, Some(bound)) => bound_index_argument_matches(program, bound, actual),
+        (Some(left), Some(right)) => match (left, right) {
+            (BoundIndexArgument::Subject(left), BoundIndexArgument::Subject(right)) => {
+                left == right
+            }
+            (BoundIndexArgument::Literal(left), BoundIndexArgument::Literal(right)) => {
+                left == right
+            }
+            _ => false,
+        },
+    }
+}
+
+fn substitute_bound_index<'a>(
+    program: &TypedTrees,
+    argument: TypeReferenceHandle,
+    substitutions: &'a BoundIndexSubstitutions,
+) -> Option<&'a BoundIndexArgument> {
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(argument)
+    else {
+        return None;
+    };
+    substitutions
+        .iter()
+        .find(|(binder, _)| *binder == *symbol)
+        .map(|(_, bound)| bound)
+}
+
+fn bound_index_argument_matches(
+    program: &TypedTrees,
+    bound: &BoundIndexArgument,
+    argument: TypeReferenceHandle,
+) -> bool {
+    match bound {
+        BoundIndexArgument::Subject(subject) => matches!(
+            program.type_reference_table.type_reference(argument),
+            TypeReferenceNode::Named { symbol, .. } if *symbol == *subject
+        ),
+        BoundIndexArgument::Literal(spelling) => {
+            match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::Named { name, .. } => name.as_str() == spelling.as_str(),
+                _ => false,
+            }
+        }
+    }
+}
+
+/// Whether a substituted index argument position is a closed index — literals
+/// close the position; bound subjects keep it open.
+fn bound_index_argument_is_closed(
+    program: &TypedTrees,
+    argument: TypeReferenceHandle,
+    substitutions: &BoundIndexSubstitutions,
+) -> bool {
+    match substitute_bound_index(program, argument, substitutions) {
+        Some(BoundIndexArgument::Literal(_)) => true,
+        Some(BoundIndexArgument::Subject(_)) => false,
+        None => is_closed_index_argument(program, argument),
     }
 }
 

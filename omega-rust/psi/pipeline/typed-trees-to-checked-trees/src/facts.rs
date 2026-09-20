@@ -19,7 +19,7 @@ mod crash_entry_values;
 mod crash_plan_facts;
 mod dynamic_conformance;
 pub(crate) mod field_domain;
-mod index_compatibility;
+pub(crate) mod index_compatibility;
 mod machine_facts;
 pub(crate) mod operator_crashes;
 mod placed_views_and_uses;
