@@ -3,7 +3,7 @@
 use super::super::super::control_flow::scalar_sources::{ScalarSources, resolved_source};
 use super::super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::super::structural_layout::{
-    resolve_structural_field_path, structural_parameter_shape,
+    resolve_structural_field_path, structural_parameter_shape, structural_shape,
 };
 #[cfg(test)]
 use super::KnownUnitInteger;
@@ -11,8 +11,8 @@ use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
     MachineId, NativeTarget, OperationId, PlaceId, StructuralAccess, StructuralPathSegment,
     StructuralTypeId, StructuralTypeLookup, TargetStructuralArgument, TargetStructuralParameter,
-    TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueId, ValueLocation,
-    ValueShape,
+    TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement, ValueClass, ValueId,
+    ValueLocation, ValueShape,
 };
 #[cfg(test)]
 use semantic_vocabulary::BlockId;
@@ -27,12 +27,14 @@ use semantic_vocabulary::BlockId;
 /// from lane-local proof and custody coordinates. Private callback slots are
 /// inserted by the evaluated calling plan, not by the semantic declaration.
 ///
-/// Each admitted argument must resolve to one borrowed flat-record projection:
-/// a nonempty field-only path rooted at a caller structural parameter, the
-/// projected type equal to the declared parameter type, and the evaluated plan
-/// placing the referent pointer as one pointer-width word. By-value aggregate
-/// transport needs an aggregate ABI classification this lane does not own, so
-/// owned arguments fail closed until that contract lands.
+/// Each admitted borrowed argument must resolve to one flat-record
+/// projection: a nonempty field-only path rooted at a caller structural
+/// parameter, the projected type equal to the declared parameter type, and
+/// the evaluated plan placing the referent pointer as one pointer-width word.
+/// An owned argument passes the caller's whole place by value — an empty
+/// path, the root type as the declared parameter type, and the evaluated
+/// plan carrying the aggregate's target ABI classification with the
+/// referent's exact size and alignment.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_normalized_foreign_structural_arguments(
     boundary: BoundaryMachineId,
@@ -78,24 +80,46 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     place: argument.place,
                 },
             )?;
-            if argument.path.is_empty()
-                || argument
-                    .path
-                    .iter()
-                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-                || usize::try_from(parameter.position).ok() != Some(index)
-            {
+            if usize::try_from(parameter.position).ok() != Some(index) {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
             let (projected_type, projected_shape, source_byte_offset) =
-                resolve_structural_field_path(
-                    source.structural_type,
-                    &argument.path,
-                    structural_types,
-                    shape_cache,
-                    active,
-                )
-                .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+                if parameter.access == StructuralAccess::Owned {
+                    // An owned argument hands the callee the caller's whole
+                    // place by value; a field projection remains the
+                    // borrowed-projection form.
+                    if !argument.path.is_empty() {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    (
+                        source.structural_type,
+                        structural_shape(
+                            source.structural_type,
+                            structural_types,
+                            shape_cache,
+                            active,
+                        )
+                        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
+                        0,
+                    )
+                } else {
+                    if argument.path.is_empty()
+                        || argument
+                            .path
+                            .iter()
+                            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    resolve_structural_field_path(
+                        source.structural_type,
+                        &argument.path,
+                        structural_types,
+                        shape_cache,
+                        active,
+                    )
+                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
+                };
             if projected_type != parameter.structural_type
                 || argument.access != parameter.access
                 || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -143,7 +167,19 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     }
                 }
                 StructuralAccess::Owned => {
-                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    // By-value transport carries the aggregate under its
+                    // target ABI classification — SysV eightbyte classes,
+                    // homogeneous-float members, or one integer word — so the
+                    // destination's shape class may differ from the semantic
+                    // referent class; only size, alignment, and a by-value
+                    // class join the two sides.
+                    if destination.locations.is_empty()
+                        || destination.shape.byte_size != projected_shape.byte_size
+                        || destination.shape.alignment != projected_shape.alignment
+                        || destination.shape.class == ValueClass::BorrowedReference
+                    {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
                 }
             }
             Ok(TargetStructuralArgument {
