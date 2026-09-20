@@ -19,6 +19,20 @@ use register_model::{RegisterConstraintKey, RegisterInstructionConstraint};
 use semantic_vocabulary::ScalarType;
 use target_operations::{TargetStructuralArgumentSource, TargetUnitScalarArgumentSource};
 
+/// Scalar rows retain their native ordinals; the remaining ordered slots
+/// belong to the structural lane. Validation below requires a complete,
+/// strictly ordered scalar roster and rejects private callback slots.
+pub(crate) fn structural_parameter_positions(
+    call: &LegalizedNormalizedForeignCall,
+) -> impl Iterator<Item = usize> + '_ {
+    (0..call.binding.boundary_entry_plan.call.parameters.len()).filter(|position| {
+        !call
+            .scalar_arguments
+            .iter()
+            .any(|argument| argument.parameter_index as usize == *position)
+    })
+}
+
 /// The exact operand roster one evaluated plan requires: register-resident
 /// parameter banks in authored order, then the scalar result definition.
 fn plan_operand_views(
@@ -136,12 +150,6 @@ pub(crate) fn validate(
     {
         return Err(invalid());
     }
-    // Scalar and structural argument lanes never mix in the evaluated plan:
-    // the structural lane already transports pointer words for every plan
-    // parameter.
-    if !call.scalar_arguments.is_empty() && !call.structural_arguments.is_empty() {
-        return Err(invalid());
-    }
     if plan.call.parameters.len() != call.scalar_arguments.len() + call.structural_arguments.len() {
         return Err(invalid());
     }
@@ -156,8 +164,11 @@ pub(crate) fn validate(
         };
         if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
             || !matches!(integer.bits(), 8 | 16 | 32 | 64)
-            || argument.parameter_index != index as u32
-            || plan.call.parameters.get(index) != Some(&argument.placement)
+            || index.checked_sub(1).is_some_and(|previous| {
+                call.scalar_arguments[previous].parameter_index >= argument.parameter_index
+            })
+            || plan.call.parameters.get(argument.parameter_index as usize)
+                != Some(&argument.placement)
             || scalar_shape(argument.source.scalar_type()) != Some(argument.placement.shape)
             || match &argument.source {
                 TargetUnitScalarArgumentSource::IntegerImmediate {
@@ -173,7 +184,7 @@ pub(crate) fn validate(
     // and borrowed-view shape from the caller's own structural signature; the
     // source must be the incoming parameter's declared placement, and the
     // destination is the exact pointer word the plan assigned at that index.
-    for (index, argument) in call.structural_arguments.iter().enumerate() {
+    for (index, argument) in structural_parameter_positions(call).zip(&call.structural_arguments) {
         let signature = source.structural.as_ref().ok_or_else(invalid)?;
         let parameter = signature
             .parameters
@@ -277,15 +288,14 @@ pub(crate) fn validate(
     }
     // Re-validate the retained plan against the independently re-derived
     // signature; the canonical evaluation must equal the carried plan exactly.
-    let parameters = if call.structural_arguments.is_empty() {
-        call.scalar_arguments
-            .iter()
-            .map(|argument| scalar_shape(argument.source.scalar_type()))
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(invalid)?
-    } else {
-        vec![ValueShape::integer(pointer_size, pointer_alignment); call.structural_arguments.len()]
-    };
+    let mut parameters =
+        vec![ValueShape::integer(pointer_size, pointer_alignment); plan.call.parameters.len()];
+    for argument in &call.scalar_arguments {
+        *parameters
+            .get_mut(argument.parameter_index as usize)
+            .ok_or_else(invalid)? =
+            scalar_shape(argument.source.scalar_type()).ok_or_else(invalid)?;
+    }
     let signature = CallSignature {
         parameters,
         result: call.result_home.as_ref().map(|home| home.shape),

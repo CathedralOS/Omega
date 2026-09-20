@@ -411,6 +411,140 @@ fn flat_record_lane_projects_source_rooted_borrow_and_replays() {
 }
 
 #[test]
+fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (mut source, execution) = flat_record_fixture();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let values = [ValueId::new(100).unwrap(), ValueId::new(101).unwrap()];
+        let boundary = &mut source.boundary_machines[0];
+        boundary.scalar_parameters = vec![scalar_type; 2];
+        boundary.parameter_order = vec![
+            terminal_psi::BoundaryParameterKind::Scalar,
+            terminal_psi::BoundaryParameterKind::Structural,
+            terminal_psi::BoundaryParameterKind::Scalar,
+        ];
+        let AbstractOperation::BoundaryCall { arguments, .. } =
+            &mut source.functions[0].operations[0]
+        else {
+            panic!("boundary call");
+        };
+        *arguments = values.to_vec();
+        for (scalar_ordinal, value) in values.into_iter().enumerate() {
+            source.functions[0].operations.insert(
+                scalar_ordinal,
+                AbstractOperation::IntegerConstant {
+                    psi_operation: OperationId::new(100 + scalar_ordinal as u64).unwrap(),
+                    result: value,
+                    scalar_type,
+                    value: semantic_vocabulary::IntegerValue::Signed(5 + scalar_ordinal as i128),
+                },
+            );
+        }
+        let scalar_shape = calling_conventions::ValueShape::integer(4, 4);
+        let pointer_shape = calling_conventions::ValueShape::integer(
+            native.pointer_size as u16,
+            native.pointer_alignment as u16,
+        );
+        let binding = binding(
+            native,
+            calling_conventions::CallSignature {
+                parameters: vec![scalar_shape, pointer_shape, scalar_shape],
+                result: Some(scalar_shape),
+            },
+        );
+        let target = lower(&source, native, &execution, binding);
+        let unit = seed(&source);
+        let legal =
+            legalize_target_operations(&target, &source, &unit).expect("mixed call legalizes");
+        let call = normalized_foreign_instruction(legal.plan());
+        assert_eq!(
+            call.scalar_arguments
+                .iter()
+                .map(|argument| argument.parameter_index)
+                .collect::<Vec<_>>(),
+            [0, 2]
+        );
+        assert_eq!(
+            call.structural_arguments[0].destination,
+            call.binding.boundary_entry_plan.call.parameters[1]
+        );
+        validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+        for mutation in 0..4 {
+            let mut changed = legal.plan().clone();
+            let call = normalized_foreign_call_mut(&mut changed);
+            match mutation {
+                0 => call.scalar_arguments[1].parameter_index = 0,
+                1 => call.scalar_arguments[1].parameter_index = 1,
+                2 => call.scalar_arguments.swap(0, 1),
+                _ => {
+                    call.structural_arguments[0].destination =
+                        call.scalar_arguments[0].placement.clone()
+                }
+            }
+            assert!(
+                validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+                "accepted mixed legalized mutation {mutation} on {native:?}"
+            );
+        }
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        for mutation in 0..3 {
+            let mut changed = selected.plan().clone();
+            let function = &mut changed.functions[0];
+            let call = &mut function.normalized_foreign_calls[0];
+            match mutation {
+                0 => call.call.scalar_arguments[1].parameter_index = 1,
+                1 => {
+                    call.call.structural_arguments[0].destination =
+                        call.call.scalar_arguments[0].placement.clone()
+                }
+                _ => {
+                    let instruction = function
+                        .blocks
+                        .iter_mut()
+                        .flat_map(|block| &mut block.instructions)
+                        .find(|instruction| instruction.id == call.instruction)
+                        .unwrap();
+                    instruction.operands.swap(1, 2);
+                }
+            }
+            assert!(
+                crate::validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed
+                )
+                .is_err(),
+                "accepted mixed selected mutation {mutation} on {native:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn replay_rejects_substituted_binding_execution_arguments_and_home() {
     let native = NativeTarget::linux_x64();
     let (source, execution) = scalar_fixture();

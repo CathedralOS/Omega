@@ -205,6 +205,20 @@ impl ProviderExecutionEvidence for ProbeExecution {
 #[test]
 fn flat_record_via_call_native_realization_probe() {
     let probe = Probe::new();
+    let (artifact, execution, same_stack) = realize_probe(&probe, 64);
+    let plan_report_identity = execution.plan_report_identity;
+    let requirement = execution.requirement;
+    assert_flat_record_custody(&artifact, plan_report_identity, &requirement, &same_stack);
+}
+
+fn realize_probe(
+    probe: &Probe,
+    provider_stack_bytes: u64,
+) -> (
+    native_artifact::NativeArtifact,
+    ProbeExecution,
+    task_plans::AdmittedSameStackContribution,
+) {
     let request = CompileRequest::new(CompileOptions {
         root_path: probe.main.clone(),
         build_dir: Some(probe.root.join("build")),
@@ -219,10 +233,6 @@ fn flat_record_via_call_native_realization_probe() {
     let proposal = retained
         .native_realization_proposal()
         .expect("native proposal");
-    eprintln!(
-        "== external binding rows ==\n{:#?}",
-        proposal.external_binding_rows()
-    );
     let matches = proposal
         .selected_provider_plans()
         .plans()
@@ -253,7 +263,7 @@ fn flat_record_via_call_native_realization_probe() {
                 0x464c_4154_0005,
             )
             .unwrap(),
-            bytes: 64,
+            bytes: provider_stack_bytes,
             alignment: 16,
         },
         plan_report_identity,
@@ -332,8 +342,20 @@ fn flat_record_via_call_native_realization_probe() {
         )
     });
     let artifact = product
-        .as_direct()
+        .into_direct()
         .expect("the probe emits a direct image artifact");
+    artifact
+        .validate()
+        .expect("native artifact independently replays");
+    (artifact, execution, same_stack)
+}
+
+fn assert_flat_record_custody(
+    artifact: &native_artifact::NativeArtifact,
+    plan_report_identity: u64,
+    requirement: &str,
+    same_stack: &task_plans::AdmittedSameStackContribution,
+) {
     let module =
         terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode terminal module");
     let boundary_sites = module
@@ -414,7 +436,7 @@ fn flat_record_via_call_native_realization_probe() {
     );
     assert_eq!(
         call.same_stack_contribution.requirement_identity(),
-        requirement.as_str()
+        requirement
     );
     assert_eq!(call.same_stack_contribution.receipt(), same_stack.receipt());
     assert_eq!(call.same_stack_contribution.bytes(), 64);
@@ -459,4 +481,120 @@ fn flat_record_via_call_native_realization_probe() {
     assert_eq!(field.byte_width(), 4);
     assert_eq!(field.addend(), 0);
     assert_eq!(field.kind(), object_file::RelocationKind::Aarch64Branch26);
+}
+
+fn realize_mixed_arguments_probe() -> (Probe, native_artifact::NativeArtifact) {
+    let probe = Probe::new();
+    let install_name = "@executable_path/libshift.dylib";
+    let source = fs::read_to_string(&probe.main)
+        .unwrap()
+        .replace("shift(p: &Point)", "shift(delta: i32, p: &Point, bias: i32)")
+        .replace("Binding<10, 5, 0>", &format!("Binding<{}, 6, 0>", install_name.len()))
+        .replace("libm.dylib", install_name)
+        .replace("symbol: \"shift\"", "symbol: \"_shift\"")
+        .replace(
+            "let rc: i32 = self.m.shift(&self.p);\n    let keep: i32 = rc;",
+            "self.p.x = 11;\n    self.p.y = 22;\n    let result: i32 = self.m.shift(5, &self.p, 7);\n    let reused: i32 = self.m.shift(result, &self.p, 9);",
+        );
+    fs::write(&probe.main, source).unwrap();
+    // The native oracle calls libc to report its observations. Its admitted
+    // stack contribution must include those calls, not only the leaf arithmetic.
+    let (artifact, _, _) = realize_probe(&probe, 64 * 1024);
+    assert_eq!(artifact.image().foreign_calls().len(), 2);
+    for call in artifact.image().foreign_calls() {
+        assert_eq!(call.scalar_arguments.len(), 2);
+        assert_eq!(call.scalar_arguments[0].parameter_index, 0);
+        assert_eq!(call.scalar_arguments[1].parameter_index, 2);
+    }
+    (probe, artifact)
+}
+
+#[test]
+fn mixed_scalar_record_arguments_and_reused_result_replay() {
+    let (_probe, artifact) = realize_mixed_arguments_probe();
+    assert!(matches!(
+        artifact.image().foreign_calls()[1].scalar_arguments[0].source,
+        machine_code::InternalUnitScalarArgumentSourceRecord::Home(_)
+    ));
+}
+
+/// This is the outer customer acceptance, not established by artifact replay.
+/// Function-fragment object publication currently drops the import/relocation
+/// rows before final image emission, leaving ARM64 BL immediates at zero.
+/// EVALUATED-FOREIGN-BINDINGS owns that writer and its independent replay.
+#[test]
+#[ignore = "blocked on EVALUATED-FOREIGN-BINDINGS: fragment object import/relocation publication"]
+fn mixed_scalar_record_arguments_and_reused_result_execute_natively() {
+    let (probe, artifact) = realize_mixed_arguments_probe();
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::{Command, Stdio};
+        let provider = probe.root.join("shift.c");
+        fs::write(
+            &provider,
+            r#"
+#include <stdint.h>
+#include <stdio.h>
+typedef struct { int32_t x; int32_t y; } Point;
+static unsigned calls = 0;
+int32_t shift(int32_t delta, const Point *point, int32_t bias) {
+    calls += 1;
+    if (point && point->x == 11 && point->y == 22) {
+        if (calls == 1 && delta == 5 && bias == 7) return 45;
+        if (calls == 2 && delta == 45 && bias == 9) {
+            puts("mixed foreign arguments: PASS");
+            fflush(stdout);
+            return 87;
+        }
+    }
+    puts("mixed foreign arguments: FAIL");
+    fflush(stdout);
+    return -1;
+}
+"#,
+        )
+        .unwrap();
+        let compile = Command::new("cc")
+            .arg("-dynamiclib")
+            .arg(&provider)
+            .arg("-o")
+            .arg(probe.root.join("libshift.dylib"))
+            .output()
+            .expect("compile native ABI oracle");
+        assert!(
+            compile.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
+        let executable = probe.root.join("mixed-arguments");
+        fs::write(&executable, &artifact.image().output().bytes).unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+        let mut child = Command::new(&executable)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("execute validated foreign-call image");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                child.kill().unwrap();
+                let output = child.wait_with_output().unwrap();
+                panic!("mixed foreign-call image timed out: {output:?}");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let output = child.wait_with_output().unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"mixed foreign arguments: PASS\n");
+        assert!(output.stderr.is_empty(), "{output:?}");
+    }
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+    {
+        let _ = (probe, artifact);
+        eprintln!("SKIP mixed foreign-call execution: requires macOS ARM64 and cc");
+    }
 }

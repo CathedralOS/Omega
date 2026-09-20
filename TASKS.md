@@ -2004,55 +2004,26 @@ Owners include
 
 - **NORMALIZED-ABI-LOWERING.** Finish target-independent signature
   normalization and target-owned calling/layout realization for aggregates,
-  dynamic values, callbacks, and foreign boundaries. `&dyn Trait` boundary
-  parameters normalize to the two-word `{instance, table}` descriptor shape
-  (`provider-planning/src/calling_policy_plans/value_shapes.rs::value_shape_from_type`),
-  and `TargetUnitOperation::NormalizedForeignCall` lowers, replays against the
-  boundary declaration and legalizes with its provider custody. Selection,
-  register homes and machine emission now emit the call (`d5e8ceef51`):
-  per-plan `call_normalized_foreign` constraint rosters on every target,
-  `SelectedNormalizedForeignCall` roster rows,
-  `MachineSemanticKind::NormalizedForeignCall` with the
-  `DirectExternalNormalReturnV1` effect, per-ISA encoding states and fixup
-  kinds, and text placement's `unresolved_normalized_foreign_calls` producing
-  import relocations. Object import plans now carry those rows into the
-  artifact (`96516e2fff`): OMGTRO v2's canonical `normalized_imports` table
-  binds each distinct `{boundary, ordinal}` roster coordinate to a declared
-  `__omega_terminal_normalized_foreign_import_{boundary}_{ordinal}` symbol,
-  `unresolved_normalized_foreign_calls` rows replay each placed resolution
-  verbatim against its symbol, `relocation_record_count` counts them, and
-  `UnresolvedNormalizedForeignImportFieldsV1` flows through manifest
-  publication, custody, and statistics. Image custody has landed: the
-  fragment-publication scope rederives each placed normalized foreign call
-  from the staged source (`derive_normalized_foreign_call_custody`) and
-  `NativeArtifact::from_emitted_parts` binds those rows onto the emitted
-  image, so independent replay rejoins the artifact's admitted provider
-  execution to the exact call site. Physical derivation has landed: the
-  fragment-publication binding retains the relocation-free object plan and
-  selected plan beside the projected custody, `derive_physical_evidence`
-  merges the retained roster into its call map, and the normalized-foreign
-  child replays the `{caller, operation}` unresolved import field, its
-  declared import symbol, and the selected roster row to emit
-  `UnresolvedNormalizedForeignCallImportField` custody keyed to the call's
-  `{caller, operation}` and four-byte branch field. A substituted plan row,
-  placement, or provider binding rejects inside that rejoin.
-  `efb3_flat_record_probe.rs::flat_record_via_call_native_realization_probe`
-  now pins the realized boundary child for the flat-record call.
+  dynamic values, callbacks, and foreign boundaries under the
+  [calling-plan contract](wiki/spec/build/calling_plans.md).
 
   Remaining work:
 
-  - Emit normalized foreign calls: selection, register homes, machine
-    emission, object import plans, image custody, and physical derivation
-    landed at `d5e8ceef51`, `96516e2fff`, and this wave. Scalar-argument
-    custody still fails closed — `derive_normalized_foreign_call_custody`
-    rejects a roster row with nonempty `scalar_arguments`, so the projected
-    row and the physical child keep that lane empty until the widening leg
-    lands. `image-emission/src` stays fenced to the
-    wave claiming it.
-    `compiler/tests/efb3_flat_record_probe.rs` pins the Terminal
-    precondition, the completed image-custody rejoin, and the realized
-    boundary child;
-    **EVALUATED-FOREIGN-BINDINGS** owns locators and import evidence.
+  - Close actual foreign-call execution through the fragment object writer,
+    owned by **EVALUATED-FOREIGN-BINDINGS**. Mixed scalar/borrowed-record
+    arguments and reused scalar results reach native artifact replay, but
+    `image-emission/src/function_fragments/production.rs` publishes empty
+    import/relocation tables; `validation.rs` requires those empty tables.
+    The macOS ARM64 customer in `compiler/tests/efb3_flat_record_probe.rs`
+    times out at an unresolved `BL` with zero displacement, and its Mach-O
+    dylib list omits the requested provider. This is missing implementation,
+    not an owner design question. Preserve the source program and enable
+    `mixed_scalar_record_arguments_and_reused_result_execute_natively` when
+    the writer and independent replay land. Run the currently ignored outer
+    acceptance with `RUST_MIN_STACK=67108864 cargo nextest run -p compiler
+    --test efb3_flat_record_probe mixed_scalar_record_arguments_and_reused_result_execute_natively
+    --run-ignored only --no-fail-fast --no-tests fail` on macOS ARM64 with `cc`.
+    Artifact-custody replay alone does not establish executable import binding.
   - Widen foreign arguments and results. The scalar lane admits fixed-width
     integers only; add floating-point and other admitted scalar shapes. Borrowed
     flat-record projections compose with scalars in retained formal order
@@ -2084,8 +2055,7 @@ Owners include
   `ScalarCall`, `StructuralScalarCall`, `StructuralResultCall`,
   `Structural{Scalar,Unit}CallWithDynamicArguments`, `StoredDynamicScalarCall`,
   `Dynamic{Scalar,Unit}Call`, `DynamicParameter{Scalar,Unit}Call`,
-  `NormalizedForeignCall`), and the foreign call adds separate scalar and
-  structural lanes that cannot mix. That is one producer family per signature
+  `NormalizedForeignCall`). That is one producer family per signature
   permutation, not a normalized signature. The general form is one call
   operation carrying an ordered per-position parameter class, a result class
   and a callee source, realized by the target's calling policy.
