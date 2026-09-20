@@ -241,6 +241,8 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::WrappingDivideI64 => 92,
         Family::BitwiseOrI64 => 93,
         Family::BitwiseNotI64 => 94,
+        Family::SaveFloatingControl => 103,
+        Family::RestoreFloatingControl => 104,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
@@ -298,6 +300,14 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             byte_count,
         } => {
             hasher.update([4]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            hasher.update([10]);
             hasher.update(stack_pointer.0.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
         }

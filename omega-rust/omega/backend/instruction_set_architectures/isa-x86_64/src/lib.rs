@@ -35,6 +35,10 @@ pub use register_model::{
     x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
 };
 mod selected_form_encoding;
+pub use register_model::{X86_64_RESTORE_FLOATING_CONTROL, X86_64_SAVE_FLOATING_CONTROL};
+pub use selected_form_encoding::{
+    encode_x86_64_selected_floating_control_form, validate_x86_64_selected_floating_control_form,
+};
 mod semantic_unit_wrapper_encoding;
 
 pub use fma::{

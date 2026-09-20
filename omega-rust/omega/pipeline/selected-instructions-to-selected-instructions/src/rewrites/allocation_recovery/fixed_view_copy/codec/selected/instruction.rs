@@ -158,6 +158,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::WrappingDivideI64 { .. } => 92,
         SelectedInstructionKind::BitwiseOrI64 => 93,
         SelectedInstructionKind::BitwiseNotI64 => 94,
+        SelectedInstructionKind::SaveFloatingControl { .. } => 103,
+        SelectedInstructionKind::RestoreFloatingControl { .. } => 104,
     };
     bytes.push(tag);
     match kind {
@@ -209,7 +211,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::HostedWriteByteI32 { slot }
-        | SelectedInstructionKind::HostedReadByte { slot } => slot.encode_identity(bytes),
+        | SelectedInstructionKind::HostedReadByte { slot }
+        | SelectedInstructionKind::SaveFloatingControl { slot }
+        | SelectedInstructionKind::RestoreFloatingControl { slot } => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
             encode_integer(bytes, immediate)
@@ -515,6 +519,12 @@ pub(in crate::rewrites::allocation_recovery::fixed_view_copy::codec) fn decode_k
         43 => SelectedInstructionKind::MaterializeBooleanI64LessThan,
         44 => SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
         45 => SelectedInstructionKind::MaterializeBooleanI64LessOrEqual,
+        103 => SelectedInstructionKind::SaveFloatingControl {
+            slot: super::structural::decode_local_slot(cursor)?,
+        },
+        104 => SelectedInstructionKind::RestoreFloatingControl {
+            slot: super::structural::decode_local_slot(cursor)?,
+        },
         32 => SelectedInstructionKind::HostedReadByte {
             slot: super::structural::decode_local_slot(cursor)?,
         },

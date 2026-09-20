@@ -8,7 +8,9 @@ use super::{
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::SelectedNormalizedForeignCall;
+use selected_instructions::{
+    LocalStorageSlotId, SelectedLocalStorageSlot, SelectedNormalizedForeignCall,
+};
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,
@@ -43,6 +45,29 @@ pub(super) fn validate(
         constraint,
         environment,
     )?;
+    let saved_controls = LocalStorageSlotId::Boundary {
+        operation: operation.operation,
+    };
+    replay.transport.local_slots.push(SelectedLocalStorageSlot {
+        id: saved_controls,
+        byte_size: 8,
+        alignment: 8,
+    });
+    replay.check_instruction(
+        SelectedInstructionKind::SaveFloatingControl {
+            slot: saved_controls,
+        },
+        replay
+            .constraints
+            .keys
+            .save_floating_control
+            .ok_or_else(|| replay.invalid())?,
+        &[],
+        &SelectedInstructionProvenance {
+            operations: vec![operation.operation],
+            ..Default::default()
+        },
+    )?;
     let mut operands = Vec::new();
     for argument in &call.scalar_arguments {
         let value = argument.source.source_value();
@@ -63,7 +88,17 @@ pub(super) fn validate(
         {
             return Err(replay.invalid());
         }
-        let output = replay.check_copy(input, value, site, scalar_type)?;
+        let output = replay.result_register(value, site, scalar_type)?;
+        replay.check_instruction(
+            SelectedInstructionKind::CopyI64,
+            replay.constraints.keys.copy_i64,
+            &[input, output],
+            &SelectedInstructionProvenance {
+                operations: vec![operation.operation],
+                values: vec![value],
+                ..Default::default()
+            },
+        )?;
         operands.push((argument.parameter_index, output));
     }
     for (argument_index, argument) in
@@ -202,6 +237,21 @@ pub(super) fn validate(
             ..Default::default()
         },
     )?;
+    replay.check_instruction(
+        SelectedInstructionKind::RestoreFloatingControl {
+            slot: saved_controls,
+        },
+        replay
+            .constraints
+            .keys
+            .restore_floating_control
+            .ok_or_else(|| replay.invalid())?,
+        &[],
+        &SelectedInstructionProvenance {
+            operations: vec![operation.operation],
+            ..Default::default()
+        },
+    )?;
     if let (Some(short_result), Some(result)) = (short_result, operation.result) {
         let output =
             replay.result_register(result.value, result.definition_site, result.scalar_type)?;
@@ -210,6 +260,7 @@ pub(super) fn validate(
             replay.constraints.keys.copy_i64,
             &[short_result, output],
             &SelectedInstructionProvenance {
+                operations: vec![operation.operation],
                 values: vec![result.value],
                 ..Default::default()
             },

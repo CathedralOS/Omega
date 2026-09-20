@@ -278,4 +278,12 @@ pub enum SelectedInstructionKind {
     MaterializeBooleanI64LessThan,
     MaterializeBooleanU64LessOrEqual,
     MaterializeBooleanI64LessOrEqual,
+    /// Preserve ambient floating controls in private caller-frame storage.
+    SaveFloatingControl {
+        slot: crate::LocalStorageSlotId,
+    },
+    /// Restore controls before interpreting a returning foreign result.
+    RestoreFloatingControl {
+        slot: crate::LocalStorageSlotId,
+    },
 }

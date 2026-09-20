@@ -348,9 +348,17 @@ fn incoming_stack_borrow_replay_retains_native_ordinal_pointer_load_and_fuel() {
                 })
                 .unwrap();
             assert_eq!(projected.operands[0].virtual_register, pointer);
-            for row in [&rows[incoming], &rows[incoming + 1], projected] {
+            for row in [&rows[incoming], &rows[incoming + 1]] {
                 assert_eq!(row.provenance, SelectedInstructionProvenance::default());
             }
+            assert_eq!(
+                projected.provenance,
+                SelectedInstructionProvenance {
+                    operations: vec![source.blocks[0].instructions[0].operation],
+                    ..Default::default()
+                },
+                "outgoing pointer preparation belongs to its call, without repeating fuel"
+            );
             assert!(selected.outgoing_arguments.is_empty());
             assert!(
                 selected.local_storage_slots.is_empty(),

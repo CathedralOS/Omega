@@ -144,6 +144,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::HostedReadByte { .. } => 32,
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
+        SelectedInstructionKind::SaveFloatingControl { .. } => 103,
+        SelectedInstructionKind::RestoreFloatingControl { .. } => 104,
         SelectedInstructionKind::Store { .. } => 24,
         SelectedInstructionKind::AddressOffset { .. } => 25,
         SelectedInstructionKind::Load64 { .. } => 16,
@@ -202,7 +204,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             bytes.extend_from_slice(&callee.get().to_le_bytes())
         }
         SelectedInstructionKind::HostedWriteByteI32 { slot }
-        | SelectedInstructionKind::HostedReadByte { slot } => {
+        | SelectedInstructionKind::HostedReadByte { slot }
+        | SelectedInstructionKind::SaveFloatingControl { slot }
+        | SelectedInstructionKind::RestoreFloatingControl { slot } => {
             contracts::frame_slot(
                 bytes,
                 selected_instructions::FrameStorageSlotId::Local(slot),

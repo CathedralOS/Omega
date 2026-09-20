@@ -238,6 +238,8 @@ fn replay_declaration<'a>(
 fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
+        save_floating_control: keys.save_floating_control,
+        restore_floating_control: keys.restore_floating_control,
         hosted_read_byte: keys.hosted_read_byte,
         hosted_exit_process_i32: keys.hosted_exit_process_i32,
         load64: keys.load64,

@@ -26,6 +26,19 @@ pub fn encode_x86_64_selected_memory_form(
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     if matches!(
         kind,
+        SelectedInstructionKind::SaveFloatingControl { .. }
+            | SelectedInstructionKind::RestoreFloatingControl { .. }
+    ) {
+        return super::floating_control::encode_x86_64_selected_floating_control_form(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+        );
+    }
+    if matches!(
+        kind,
         SelectedInstructionKind::LoadPacked { .. } | SelectedInstructionKind::StorePacked { .. }
     ) {
         return packed::encode(physical, kind, alternative, operands, displacement);
@@ -78,6 +91,20 @@ pub fn validate_x86_64_selected_memory_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::SaveFloatingControl { .. }
+            | SelectedInstructionKind::RestoreFloatingControl { .. }
+    ) {
+        return super::floating_control::validate_x86_64_selected_floating_control_form(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+            bytes,
+        );
+    }
     if matches!(
         kind,
         SelectedInstructionKind::LoadPacked { .. } | SelectedInstructionKind::StorePacked { .. }

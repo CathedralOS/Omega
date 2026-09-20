@@ -142,7 +142,10 @@ pub(super) fn place_pointer(
                 .ok_or_else(|| replay.invalid())?
         },
         &[input, output],
-        &SelectedInstructionProvenance::default(),
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            ..Default::default()
+        },
     )?;
     Ok(output)
 }

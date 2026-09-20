@@ -33,6 +33,19 @@ pub fn encode_aarch64_selected_memory_form(
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::SaveFloatingControl { .. }
+            | SelectedInstructionKind::RestoreFloatingControl { .. }
+    ) {
+        return super::floating_control::encode_aarch64_selected_floating_control_form(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+        );
+    }
     // AArch64 frame and pointer addressing is a scaled unsigned immediate;
     // negative (below-SP) displacements are not encodable and are rejected.
     let displacement = u32::try_from(displacement)
@@ -87,6 +100,20 @@ pub fn validate_aarch64_selected_memory_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        SelectedInstructionKind::SaveFloatingControl { .. }
+            | SelectedInstructionKind::RestoreFloatingControl { .. }
+    ) {
+        return super::floating_control::validate_aarch64_selected_floating_control_form(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+            bytes,
+        );
+    }
     let displacement = u32::try_from(displacement)
         .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
     if matches!(

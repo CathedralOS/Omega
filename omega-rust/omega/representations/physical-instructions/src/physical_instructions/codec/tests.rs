@@ -556,6 +556,66 @@ fn physical_codec_binds_symbolic_address_roles_and_outgoing_geometry() {
 }
 
 #[test]
+fn floating_control_codec_binds_direction_and_private_frame_slot() {
+    for restore in [false, true] {
+        let mut source = plan();
+        let slot = selected_instructions::LocalStorageSlotId::Boundary {
+            operation: OperationId::new(137).unwrap(),
+        };
+        source.functions[0].local_storage_slots.push(
+            selected_instructions::SelectedLocalStorageSlot {
+                id: slot,
+                byte_size: 8,
+                alignment: 8,
+            },
+        );
+        let row = &mut source.functions[0].blocks[0].instructions[0];
+        row.address = Some(if restore {
+            PhysicalAddressOperation::RestoreFloatingControl { slot }
+        } else {
+            PhysicalAddressOperation::SaveFloatingControl { slot }
+        });
+        row.alternative.key.family = if restore {
+            selected_instructions::MachineAlternativeFamily::RestoreFloatingControl
+        } else {
+            selected_instructions::MachineAlternativeFamily::SaveFloatingControl
+        };
+        row.alternative.encoded.memory = if restore {
+            selected_instructions::MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+                stack_pointer: register_model::RegisterViewId(7),
+                byte_count: 8,
+            }
+        } else {
+            selected_instructions::MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                stack_pointer: register_model::RegisterViewId(7),
+                byte_count: 8,
+            }
+        };
+        source.identity = post_allocation_machine_identity(&source);
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&source.encode()),
+            Ok(source.clone())
+        );
+        let mut changed = source.clone();
+        changed.functions[0].blocks[0].instructions[0].address = Some(if restore {
+            PhysicalAddressOperation::SaveFloatingControl { slot }
+        } else {
+            PhysicalAddressOperation::RestoreFloatingControl { slot }
+        });
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&changed.encode()),
+            Err(PostAllocationMachineDecodeError::InvalidIdentity)
+        );
+        let mut changed = source;
+        changed.functions[0].local_storage_slots[0].alignment = 4;
+        assert_eq!(
+            PostAllocationMachinePlan::decode(&changed.encode()),
+            Err(PostAllocationMachineDecodeError::InvalidIdentity)
+        );
+    }
+}
+
+#[test]
 fn boundary_scratch_codec_binds_tag_operation_geometry_and_address() {
     let mut source = plan();
     let slot = selected_instructions::LocalStorageSlotId::Boundary {

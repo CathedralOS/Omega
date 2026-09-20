@@ -398,6 +398,8 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                 } else if matches!(
                     row.semantic,
                     MachineSemanticKind::HostedReadByte
+                        | MachineSemanticKind::SaveFloatingControl
+                        | MachineSemanticKind::RestoreFloatingControl
                         | MachineSemanticKind::HostedWriteByteI32
                         | MachineSemanticKind::HostedExitProcessI32
                 ) {

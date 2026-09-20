@@ -752,6 +752,8 @@ pub(crate) fn validate_decoded(
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::HostedReadByte { .. }
+        | SelectedInstructionKind::SaveFloatingControl { .. }
+        | SelectedInstructionKind::RestoreFloatingControl { .. }
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }
@@ -937,6 +939,8 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::HostedExitProcessI32
         | SelectedInstructionKind::HostedReadByte { .. }
+        | SelectedInstructionKind::SaveFloatingControl { .. }
+        | SelectedInstructionKind::RestoreFloatingControl { .. }
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::FrameAddress { .. }
         | SelectedInstructionKind::CallUnit { .. }

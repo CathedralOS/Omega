@@ -29,6 +29,8 @@ pub(super) enum AddressOperationFamily {
     HostedWriteByteI32,
     Store64,
     FrameAddress,
+    SaveFloatingControl,
+    RestoreFloatingControl,
 }
 
 impl AddressOperationFamily {
@@ -52,6 +54,14 @@ impl AddressOperationFamily {
                 | (
                     Self::HostedWriteByteI32,
                     Operation::HostedWriteByteI32 { .. }
+                )
+                | (
+                    Self::SaveFloatingControl,
+                    Operation::SaveFloatingControl { .. }
+                )
+                | (
+                    Self::RestoreFloatingControl,
+                    Operation::RestoreFloatingControl { .. }
                 )
                 | (Self::Store64, Operation::Store64 { .. })
                 | (Self::FrameAddress, Operation::FrameAddress { .. })
@@ -112,6 +122,10 @@ pub(super) fn route_of(kind: SelectedInstructionKind) -> RowRoute {
         Kind::Load16 { .. } => addressed(AddressOperationFamily::Load16),
         Kind::Load32 { .. } => addressed(AddressOperationFamily::Load32),
         Kind::Load8Indexed => addressed(AddressOperationFamily::Load8Indexed),
+        Kind::SaveFloatingControl { .. } => addressed(AddressOperationFamily::SaveFloatingControl),
+        Kind::RestoreFloatingControl { .. } => {
+            addressed(AddressOperationFamily::RestoreFloatingControl)
+        }
         Kind::Store64 { .. } => addressed(AddressOperationFamily::Store64),
         Kind::FrameAddress { .. } => addressed(AddressOperationFamily::FrameAddress),
         Kind::HostedReadByte { .. } => RowRoute::ResolvedAddress {

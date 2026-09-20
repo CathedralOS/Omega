@@ -28,6 +28,7 @@ pub(super) fn decode_instruction(
         5 => MachineMemoryEffect::HostedReadByteV1,
         3 => MachineMemoryEffect::HostedWriteByteV1,
         2 => MachineMemoryEffect::WriteFrameStorageV1,
+        7 => MachineMemoryEffect::ReadFrameStorageV1,
         6 => MachineMemoryEffect::CopyBytesV1,
         4 => MachineMemoryEffect::WritePointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
@@ -219,6 +220,12 @@ fn decode_kind(
         },
         93 => SelectedInstructionKind::BitwiseOrI64,
         94 => SelectedInstructionKind::BitwiseNotI64,
+        103 => SelectedInstructionKind::SaveFloatingControl {
+            slot: decode_local_storage_slot(cursor)?,
+        },
+        104 => SelectedInstructionKind::RestoreFloatingControl {
+            slot: decode_local_storage_slot(cursor)?,
+        },
         tag if saturating_kind(tag).is_some() => {
             let (operation, carrier) = saturating_kind(tag).unwrap();
             match operation {
@@ -461,6 +468,8 @@ fn decode_alternative_for_version(
         92 => MachineAlternativeFamily::WrappingDivideI64,
         93 => MachineAlternativeFamily::BitwiseOrI64,
         94 => MachineAlternativeFamily::BitwiseNotI64,
+        103 => MachineAlternativeFamily::SaveFloatingControl,
+        104 => MachineAlternativeFamily::RestoreFloatingControl,
         tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
             (SaturatingOperation::Add, carrier) => MachineAlternativeFamily::SaturatingAdd(carrier),
             (SaturatingOperation::Subtract, carrier) => {
@@ -586,6 +595,10 @@ fn decode_encoded_effects(
             byte_count: cursor.u16()?,
         },
         4 => MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+            stack_pointer: register_model::RegisterViewId(cursor.u16()?),
+            byte_count: cursor.u16()?,
+        },
+        10 => MachineEncodedMemoryEffect::ReadFrameStorageV1 {
             stack_pointer: register_model::RegisterViewId(cursor.u16()?),
             byte_count: cursor.u16()?,
         },

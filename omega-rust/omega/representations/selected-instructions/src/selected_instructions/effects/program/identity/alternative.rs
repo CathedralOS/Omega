@@ -87,6 +87,8 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::WrappingDivideI64 => 92,
         MachineAlternativeFamily::BitwiseOrI64 => 93,
         MachineAlternativeFamily::BitwiseNotI64 => 94,
+        MachineAlternativeFamily::SaveFloatingControl => 103,
+        MachineAlternativeFamily::RestoreFloatingControl => 104,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     encode_applicability(bytes, alternative.applicability);
@@ -224,6 +226,14 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
         MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
             bytes.push(7);
             bytes.extend_from_slice(&pointer_operand.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(10);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
         MachineEncodedMemoryEffect::ReadActivationStackV1 {
             stack_pointer,

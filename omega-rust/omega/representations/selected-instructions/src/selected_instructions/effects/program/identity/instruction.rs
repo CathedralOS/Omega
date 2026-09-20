@@ -29,6 +29,7 @@ pub(super) fn encode_ordinary_instruction(
         MachineMemoryEffect::HostedReadByteV1 => 5,
         MachineMemoryEffect::HostedWriteByteV1 => 3,
         MachineMemoryEffect::WriteFrameStorageV1 => 2,
+        MachineMemoryEffect::ReadFrameStorageV1 => 7,
         MachineMemoryEffect::WritePointerV1 => 4,
     });
     encode_effect_tail(bytes, instruction);
@@ -155,6 +156,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::WrappingDivideI64 { .. } => 92,
         SelectedInstructionKind::BitwiseOrI64 => 93,
         SelectedInstructionKind::BitwiseNotI64 => 94,
+        SelectedInstructionKind::SaveFloatingControl { .. } => 103,
+        SelectedInstructionKind::RestoreFloatingControl { .. } => 104,
         SelectedInstructionKind::Jump => 14,
         SelectedInstructionKind::Load64 { .. } => 16,
         SelectedInstructionKind::LoadPacked { .. } => 46,
@@ -220,7 +223,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
         }
         SelectedInstructionKind::HostedReadByte { slot }
-        | SelectedInstructionKind::HostedWriteByteI32 { slot } => slot.encode_identity(bytes),
+        | SelectedInstructionKind::HostedWriteByteI32 { slot }
+        | SelectedInstructionKind::SaveFloatingControl { slot }
+        | SelectedInstructionKind::RestoreFloatingControl { slot } => slot.encode_identity(bytes),
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::WrappingRemainderI64 {
             obligation,

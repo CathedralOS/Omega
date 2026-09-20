@@ -24,6 +24,8 @@ const fn instruction(variant: u32) -> RegisterConstraintKey {
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         copy_bytes: Some(instruction(40)),
+        save_floating_control: Some(instruction(44)),
+        restore_floating_control: Some(instruction(45)),
         call_aggregate: vec![RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant: 1000,

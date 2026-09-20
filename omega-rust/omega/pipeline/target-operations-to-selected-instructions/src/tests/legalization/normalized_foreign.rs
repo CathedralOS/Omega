@@ -509,7 +509,41 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
             selected.plan().clone(),
         )
         .unwrap();
-        for mutation in 0..3 {
+        let function = &selected.plan().functions[0];
+        let call = &function.normalized_foreign_calls[0];
+        let slot = selected_instructions::LocalStorageSlotId::Boundary {
+            operation: call.operation,
+        };
+        let instructions = &function.blocks[0].instructions;
+        let call_position = instructions
+            .iter()
+            .position(|instruction| instruction.id == call.instruction)
+            .unwrap();
+        let save_position = instructions
+            .iter()
+            .position(|instruction| {
+                instruction.kind
+                    == selected_instructions::SelectedInstructionKind::SaveFloatingControl { slot }
+            })
+            .expect("save before argument staging");
+        assert!(save_position < call_position);
+        assert_eq!(
+            instructions[call_position + 1].kind,
+            selected_instructions::SelectedInstructionKind::RestoreFloatingControl { slot }
+        );
+        assert!(
+            instructions[save_position..=call_position + 2]
+                .iter()
+                .all(|instruction| { instruction.provenance.operations.contains(&call.operation) }),
+            "argument staging and result normalization belong to the complete call interval"
+        );
+        assert!(
+            function
+                .local_storage_slots
+                .iter()
+                .any(|home| { home.id == slot && home.byte_size == 8 && home.alignment == 8 })
+        );
+        for mutation in 0..7 {
             let mut changed = selected.plan().clone();
             let function = &mut changed.functions[0];
             let call = &mut function.normalized_foreign_calls[0];
@@ -519,7 +553,7 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
                     call.call.structural_arguments[0].destination =
                         call.call.scalar_arguments[0].placement.clone()
                 }
-                _ => {
+                2 => {
                     let instruction = function
                         .blocks
                         .iter_mut()
@@ -527,6 +561,24 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
                         .find(|instruction| instruction.id == call.instruction)
                         .unwrap();
                     instruction.operands.swap(1, 2);
+                }
+                3 => function.blocks[0]
+                    .instructions
+                    .swap(call_position, call_position + 1),
+                4 => {
+                    function.blocks[0].instructions[call_position + 1].kind =
+                        selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
+                            slot: selected_instructions::LocalStorageSlotId::Boundary {
+                                operation: OperationId::new(999).unwrap(),
+                            },
+                        };
+                }
+                5 => function.blocks[0].instructions[save_position + 1]
+                    .provenance
+                    .operations
+                    .clear(),
+                _ => {
+                    function.blocks[0].instructions.remove(save_position);
                 }
             }
             assert!(

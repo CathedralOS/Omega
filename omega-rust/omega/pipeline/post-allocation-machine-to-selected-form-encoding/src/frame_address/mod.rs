@@ -246,6 +246,32 @@ pub(super) fn resolve(
                 .ok_or(Error::ArtifactMismatch)?;
             i64::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?
         }
+        Address::SaveFloatingControl { slot } | Address::RestoreFloatingControl { slot } => {
+            if !matches!(
+                slot,
+                selected_instructions::LocalStorageSlotId::Boundary { .. }
+            ) {
+                return Err(Error::ArtifactMismatch);
+            }
+            let geometry = function_geometry(function, frame)?;
+            let (start, size, limit, _) =
+                slot_region(function, geometry, FrameStorageSlotId::Local(slot))?;
+            let source = function
+                .local_storage_slots
+                .iter()
+                .find(|entry| entry.id == slot)
+                .ok_or(Error::ArtifactMismatch)?;
+            let displacement = frame_displacement(geometry, start)?;
+            if size != 8
+                || source.alignment != 8
+                || !start.is_multiple_of(8)
+                || start.checked_add(8).is_none_or(|end| end > limit)
+                || !(0..=i64::from(i32::MAX)).contains(&displacement)
+            {
+                return Err(Error::ArtifactMismatch);
+            }
+            displacement
+        }
         Address::HostedWriteByteI32 { slot } => {
             if !matches!(
                 slot,
@@ -398,6 +424,32 @@ pub(super) fn validate_address(
             .map_err(|_| Error::ArtifactMismatch)?;
             let incoming_offset = candidate.displacement.checked_sub(base);
             if incoming_offset != Some(i64::from(abi_stack_byte_offset))
+                || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
+            {
+                return Err(Error::ArtifactMismatch);
+            }
+            Ok(())
+        }
+        Address::SaveFloatingControl { slot } | Address::RestoreFloatingControl { slot } => {
+            if !matches!(
+                slot,
+                selected_instructions::LocalStorageSlotId::Boundary { .. }
+            ) {
+                return Err(Error::ArtifactMismatch);
+            }
+            let geometry = function_geometry(function, frame)?;
+            let (start, size, limit, _) =
+                slot_region(function, geometry, FrameStorageSlotId::Local(slot))?;
+            let source = function
+                .local_storage_slots
+                .iter()
+                .find(|entry| entry.id == slot)
+                .ok_or(Error::ArtifactMismatch)?;
+            if candidate.displacement != frame_displacement(geometry, start)?
+                || size != 8
+                || source.alignment != 8
+                || !start.is_multiple_of(8)
+                || start.checked_add(8).is_none_or(|end| end > limit)
                 || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
             {
                 return Err(Error::ArtifactMismatch);

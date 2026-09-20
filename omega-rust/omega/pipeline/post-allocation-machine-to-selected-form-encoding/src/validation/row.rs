@@ -43,6 +43,8 @@ pub(crate) fn validate(
         | SelectedInstructionKind::HostedWriteByteI32 { .. }
         | SelectedInstructionKind::HostedReadByte { .. }
         | SelectedInstructionKind::Load8Indexed
+        | SelectedInstructionKind::SaveFloatingControl { .. }
+        | SelectedInstructionKind::RestoreFloatingControl { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
             let address = row
@@ -191,6 +193,14 @@ fn admits_address_operation(
             | (
                 Kind::HostedWriteByteI32 { .. },
                 Operation::HostedWriteByteI32 { .. }
+            )
+            | (
+                Kind::SaveFloatingControl { .. },
+                Operation::SaveFloatingControl { .. }
+            )
+            | (
+                Kind::RestoreFloatingControl { .. },
+                Operation::RestoreFloatingControl { .. }
             )
             | (Kind::Store64 { .. }, Operation::Store64 { .. })
             | (Kind::FrameAddress { .. }, Operation::FrameAddress { .. })

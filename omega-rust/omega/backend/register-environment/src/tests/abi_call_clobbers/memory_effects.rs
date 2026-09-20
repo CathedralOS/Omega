@@ -49,6 +49,107 @@ fn selected_memory_rules(
     .collect()
 }
 
+/// Control-state envelopes access private frame storage too, but are ordering
+/// barriers with implicit architectural registers rather than ordinary loads.
+fn floating_control_rules(
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> [(RegisterConstraintKey, MachineSemanticKind); 2] {
+    let keys = environment.selected_keys();
+    [
+        (
+            keys.save_floating_control.unwrap(),
+            MachineSemanticKind::SaveFloatingControl,
+        ),
+        (
+            keys.restore_floating_control.unwrap(),
+            MachineSemanticKind::RestoreFloatingControl,
+        ),
+    ]
+}
+
+#[test]
+fn floating_control_storage_binds_exact_architectural_state_on_every_target() {
+    for case in scalar_abi_cases() {
+        let environment = baseline_target_register_environment(case.target).unwrap();
+        let catalog = validated_effects(case, environment.constraints());
+        let model = environment.physical().model();
+        let (stack_name, controls_name, byte_count) = match case.target.architecture {
+            Architecture::X86_64 => ("rsp", "mxcsr", 4),
+            Architecture::Aarch64 => ("sp", "fpcr", 8),
+        };
+        let stack = model.view_named(stack_name).unwrap();
+        let controls = model.view_named(controls_name).unwrap();
+        for (key, semantic) in floating_control_rules(&environment) {
+            let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
+            let row = environment.constraint(key).unwrap();
+            let declaration = catalog
+                .catalog()
+                .declarations
+                .iter()
+                .find(|entry| entry.constraint == key && entry.semantic == semantic)
+                .unwrap();
+            let mut uses = stack.units.clone();
+            if !restore {
+                uses.extend(&controls.units);
+            }
+            uses.sort_unstable();
+            let definitions = if restore {
+                controls.units.clone()
+            } else {
+                Vec::new()
+            };
+            let clobbers = if case.target.architecture == Architecture::Aarch64 {
+                model.view_named("x9").unwrap().units.clone()
+            } else {
+                Vec::new()
+            };
+            assert!(row.operands.is_empty());
+            assert_eq!(row.implicit_uses, uses);
+            assert_eq!(row.implicit_defs, definitions);
+            assert_eq!(row.clobbers, clobbers);
+            assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
+            assert_eq!(declaration.call, MachineCallEffect::NoneV1);
+            assert_eq!(
+                declaration.memory,
+                if restore {
+                    MachineMemoryEffect::ReadFrameStorageV1
+                } else {
+                    MachineMemoryEffect::WriteFrameStorageV1
+                }
+            );
+            let [alternative] = declaration.alternatives.as_slice() else {
+                panic!("one control form");
+            };
+            let encoded = &alternative.encoded;
+            assert!(encoded.external_operand_reads.is_empty());
+            assert!(encoded.external_operand_writes.is_empty());
+            assert_eq!(encoded.implicit_unit_uses, uses);
+            assert_eq!(encoded.implicit_unit_defs, definitions);
+            assert_eq!(encoded.implicit_unit_clobbers, clobbers);
+            assert_eq!(
+                encoded.memory,
+                if restore {
+                    MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+                        stack_pointer: stack.id,
+                        byte_count,
+                    }
+                } else {
+                    MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                        stack_pointer: stack.id,
+                        byte_count,
+                    }
+                }
+            );
+            assert_eq!(encoded.stack, MachineEncodedStackEffect::UnchangedV1);
+            assert_eq!(encoded.control, MachineEncodedControlEffect::FallThroughV1);
+            assert_eq!(
+                encoded.trap,
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            );
+        }
+    }
+}
+
 /// The declared memory contract one selected memory semantic must carry on
 /// every target/ABI pair: the constraint row's operand access pattern, its
 /// early-clobber scratch positions, the encoded external custody, the
@@ -295,10 +396,9 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
             case.convention
         );
 
-        // Ordinary-memory authority is declared for exactly the selected
-        // memory rules that touch memory: hosted operations carry their own
-        // hosted memory shapes, and no other declaration may claim a plain
-        // footprint.
+        // Plain storage footprints belong exactly to ordinary memory rules
+        // and the separately checked control envelopes above. Hosted I/O has
+        // its own memory shapes; no other declaration may claim this storage.
         let declared_memory = catalog
             .catalog()
             .declarations
@@ -310,6 +410,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                         | MachineMemoryEffect::ReadPointerV1
                         | MachineMemoryEffect::WritePointerV1
                         | MachineMemoryEffect::WriteFrameStorageV1
+                        | MachineMemoryEffect::ReadFrameStorageV1
                 )
             })
             .map(|declaration| (declaration.constraint, declaration.semantic))
@@ -322,6 +423,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 .filter(|(_, semantic)| {
                     memory_contract(*semantic).memory != MachineMemoryEffect::NoneV1
                 })
+                .chain(floating_control_rules(&environment))
                 .collect::<BTreeSet<_>>(),
             "{}",
             case.convention

@@ -57,6 +57,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub frame_address: Option<RegisterConstraintKey>,
     pub hosted_read_byte: Option<RegisterConstraintKey>,
     pub hosted_write_byte_i32: Option<RegisterConstraintKey>,
+    pub save_floating_control: Option<RegisterConstraintKey>,
+    pub restore_floating_control: Option<RegisterConstraintKey>,
     pub hosted_exit_process_i32: Option<RegisterConstraintKey>,
     /// Target-owned resultless call keys indexed by argument count, including zero.
     /// Empty means this environment supplies no Unit register-call form.

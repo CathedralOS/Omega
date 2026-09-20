@@ -16,6 +16,10 @@ mod byte_view_address_tests;
 mod copy_bytes;
 mod decoding;
 mod float_bits;
+pub(crate) mod floating_control;
+pub use floating_control::{
+    encode_x86_64_selected_floating_control_form, validate_x86_64_selected_floating_control_form,
+};
 pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
 pub(crate) mod hosted_write_byte;

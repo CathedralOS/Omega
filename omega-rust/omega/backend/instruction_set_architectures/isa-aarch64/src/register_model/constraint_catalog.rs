@@ -840,6 +840,28 @@ pub fn aarch64_register_constraint_catalog(
     mixed_calls::append_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);
+    for (key, restore) in [
+        (crate::AARCH64_SAVE_FLOATING_CONTROL, false),
+        (crate::AARCH64_RESTORE_FLOATING_CONTROL, true),
+    ] {
+        let mut implicit_uses = view("sp").units.clone();
+        if !restore {
+            implicit_uses.extend(view("fpcr").units.iter().copied());
+        }
+        implicit_uses.sort_unstable();
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: Vec::new(),
+            implicit_uses,
+            implicit_defs: if restore {
+                view("fpcr").units.clone()
+            } else {
+                Vec::new()
+            },
+            clobbers: view("x9").units.clone(),
+        });
+    }
     constraints.sort_by_key(|constraint| constraint.key);
     for (id, constraint) in constraints.iter_mut().enumerate() {
         constraint.id =

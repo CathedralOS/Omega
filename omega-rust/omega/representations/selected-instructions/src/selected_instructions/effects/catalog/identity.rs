@@ -13,7 +13,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v27\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v28\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -35,6 +35,8 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.float64_to_bits,
         catalog.selected_keys.bits_to_float32,
         catalog.selected_keys.bits_to_float64,
+        catalog.selected_keys.save_floating_control,
+        catalog.selected_keys.restore_floating_control,
     ] {
         bytes.push(u8::from(key.is_some()));
     }
@@ -65,6 +67,7 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::HostedReadByteV1 => 5,
             crate::MachineMemoryEffect::HostedWriteByteV1 => 3,
             crate::MachineMemoryEffect::WriteFrameStorageV1 => 2,
+            crate::MachineMemoryEffect::ReadFrameStorageV1 => 7,
             crate::MachineMemoryEffect::WritePointerV1 => 4,
         });
         bytes.push(match declaration.trap {
@@ -232,6 +235,14 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             byte_count,
         } => {
             bytes.push(4);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+        MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(10);
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
@@ -421,6 +432,8 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::WrappingDivideI64 => 92,
         MachineSemanticKind::BitwiseOrI64 => 93,
         MachineSemanticKind::BitwiseNotI64 => 94,
+        MachineSemanticKind::SaveFloatingControl => 103,
+        MachineSemanticKind::RestoreFloatingControl => 104,
     }
 }
 
@@ -504,6 +517,8 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::WrappingDivideI64 => 92,
         MachineAlternativeFamily::BitwiseOrI64 => 93,
         MachineAlternativeFamily::BitwiseNotI64 => 94,
+        MachineAlternativeFamily::SaveFloatingControl => 103,
+        MachineAlternativeFamily::RestoreFloatingControl => 104,
     }
 }
 
