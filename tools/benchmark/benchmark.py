@@ -274,6 +274,50 @@ def unavailable(unit, reason):
     return {"status": "unavailable", "unit": unit, "reason": reason}
 
 
+# One entry per catalogued deployment profile, in TargetProfile catalog
+# order (omega-rust/omega/representations/target/src/lib.rs). Each entry
+# is the host leg the profile's runtime leg needs; committed records
+# supply measured rows, and these declarations keep legs no matching
+# host has run yet explicit in the matrix rather than absent. `blocked`
+# marks every metric unavailable with one reason; `expect` overrides
+# single legs where a host that can participate still cannot report a
+# metric (Windows has no os.wait4, UEFI artifacts need QEMU or hardware
+# to run). tools/tests/test_benchmark.py rejects drift from
+# TargetProfile::target_name().
+HOST_LEGS = (
+    {"target": "linux_arm64", "host": "Linux ARM64 host"},
+    {"target": "linux_x86_64", "host": "Linux x86-64 host"},
+    {"target": "macos_arm64", "host": "macOS ARM64 host"},
+    {
+        "target": "macos_x86_64",
+        "host": "macOS x86-64 host",
+        "blocked": "native realization pending; see MACOS-X64-HOST-PROFILE",
+    },
+    {
+        "target": "windows_x86_64",
+        "host": "Windows x86-64 host",
+        "expect": {
+            "peak_memory_bytes": "unavailable (os.wait4 absent on Windows)",
+        },
+    },
+    {
+        "target": "uefi_x86_64",
+        "host": "QEMU or UEFI hardware",
+        "expect": {
+            "peak_memory_bytes": "pending (run leg needs a UEFI runtime)",
+            "runtime_ms": "unavailable (needs QEMU or UEFI hardware)",
+        },
+    },
+    {"target": "cross_platform_cli", "host": "build host"},
+    {"target": "local_unchecked", "host": "build host"},
+    {
+        "target": "alpha_bootstrap",
+        "host": "bootstrap chain",
+        "blocked": "realized by the bootstrap chain's own compilers, not this compiler",
+    },
+)
+
+
 def measure(args):
     root = Path(args.root)
     if not root.is_file():
@@ -539,6 +583,101 @@ def write_record(record, records_dir):
     return path
 
 
+def load_records(records_dir):
+    """Committed records under ``records_dir``; unreadable files skip."""
+    records = []
+    for path in sorted(Path(records_dir).glob("*.json")):
+        try:
+            record = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(record, dict) and record.get("schema") == SCHEMA:
+            records.append(record)
+    return records
+
+
+def measured_cell(name, metric):
+    """One matrix cell's text for a committed record's metric leg."""
+    status = metric.get("status")
+    if status == "measured":
+        if name == "peak_memory_bytes":
+            return f"measured {metric['compile_max_rss']} B compile"
+        if name == "code_size_bytes":
+            return f"measured {metric['value']} B"
+        median = metric.get("median_ms")
+        if median is not None:
+            return f"measured {median:.6g} ms"
+        return "measured"
+    reason = metric.get("reason")
+    if reason:
+        return f"{status} ({reason})"
+    return str(status)
+
+
+def projected_cell(leg, name):
+    """Expected status text for a leg no committed record covers.
+
+    Compile legs run on whichever build host invokes ``measure``;
+    ``runtime_ms`` (and the run side of ``peak_memory_bytes``) needs the
+    leg's named runtime environment. `measurable`/`pending` describe
+    leg availability, never a guessed number.
+    """
+    if "blocked" in leg:
+        return f"unavailable ({leg['blocked']})"
+    expect = leg.get("expect", {})
+    if name in expect:
+        return expect[name]
+    if name == "runtime_ms":
+        return f"pending {leg['host']}"
+    return "measurable"
+
+
+def matrix_rows(records):
+    """Host-row matrix: one row per committed record plus one explicit
+    row per host leg no record covers yet."""
+    by_target = {}
+    for record in records:
+        by_target.setdefault(record["key"]["target"], []).append(record)
+    rows = []
+
+    def measured_row(record):
+        host = record["host"]
+        cells = [measured_cell(name, record["metrics"][name])
+                 for name in METRIC_NAMES]
+        return [record["key"]["target"],
+                f"{host['os']} {host['machine']}",
+                record["subject"]["name"],
+                selection_label(record["key"]["selection"])] + cells
+
+    for leg in HOST_LEGS:
+        covered = sorted(
+            by_target.pop(leg["target"], []),
+            key=lambda record: (record["subject"]["name"],
+                                selection_label(record["key"]["selection"])),
+        )
+        rows.extend(measured_row(record) for record in covered)
+        if not covered:
+            cells = [projected_cell(leg, name) for name in METRIC_NAMES]
+            rows.append([leg["target"], leg["host"], "—", "—"] + cells)
+    for target in sorted(by_target):
+        for record in sorted(
+                by_target[target],
+                key=lambda record: (record["subject"]["name"],
+                                    selection_label(record["key"]["selection"]))):
+            rows.append(measured_row(record))
+    return rows
+
+
+def matrix_markdown(records):
+    header = ["Target", "Host leg", "Subject", "Selection",
+              "compile_time_ms", "peak_memory_bytes",
+              "code_size_bytes", "runtime_ms"]
+    lines = ["| " + " | ".join(header) + " |",
+             "| " + " | ".join("---" for _ in header) + " |"]
+    lines += ["| " + " | ".join(row) + " |" for row in matrix_rows(records)]
+    return "\n".join(lines)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -584,6 +723,10 @@ def main():
                                 help="path to the omega binary")
     validate_parser = commands.add_parser("validate", help="check record files")
     validate_parser.add_argument("records", nargs="+")
+    matrix_parser = commands.add_parser(
+        "matrix", help="render the host-row coverage matrix as markdown")
+    matrix_parser.add_argument("--records-dir",
+                               default="tools/benchmark/records")
     args = parser.parse_args()
 
     if args.command == "prepare":
@@ -606,6 +749,9 @@ def main():
             return 0
         path = write_record(record, Path(args.records_dir))
         print(f"wrote {path}")
+        return 0
+    if args.command == "matrix":
+        print(matrix_markdown(load_records(Path(args.records_dir))))
         return 0
     problems = []
     for name in args.records:
