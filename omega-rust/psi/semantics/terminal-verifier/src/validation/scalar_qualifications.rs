@@ -11,7 +11,8 @@ use semantic_vocabulary::{
     Proposition, ScalarDomainId, ScalarQualificationSetId, ScalarTerm, ScalarType,
 };
 use terminal_psi::{
-    ScalarFloatRange, ScalarIntegerRange, ScalarQualificationCoercion, ValueDeclaration,
+    ScalarDomainEstablishmentRoute, ScalarFloatRange, ScalarIntegerRange,
+    ScalarQualificationCoercion, ValueDeclaration,
 };
 
 fn invalid(reason: &'static str) -> ModuleError {
@@ -232,6 +233,99 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
             return Err(invalid("qualified scalar provider boundary is unsupported"));
         }
     }
+    // Retained issuer routes resolve against the module's own issuer rows in
+    // the same normalized identity vocabularies the producer emits: boundary
+    // requirement routes join the boundary declarations and the provider
+    // conformance rows that name those requirements; checked requirement
+    // routes join the provider rows and the closed conformance and dynamic
+    // dispatch identities; exact-machine routes join the callable identities
+    // provider candidates, conformance realizations, dispatch rows, proof
+    // output calls, and proof recursion members carry. A route that names no
+    // retained issuer fails closed — it cannot borrow authority a private
+    // issuer never published into this artifact.
+    let mut boundary_issuers = BTreeSet::new();
+    let mut requirement_issuers = BTreeSet::new();
+    let mut machine_issuers = BTreeSet::new();
+    for declaration in &module.boundary_machines {
+        boundary_issuers.insert(declaration.identity.as_str());
+    }
+    for provider in &module.provider_candidates {
+        boundary_issuers.insert(provider.requirement_identity.as_str());
+        requirement_issuers.insert(provider.requirement_identity.as_str());
+        machine_issuers.insert(provider.candidate_identity.as_str());
+    }
+    for application in &module.closed_conformance_applications {
+        for callable in &application.realization_callables {
+            machine_issuers.insert(callable.source_callable_identity.as_str());
+        }
+        for row in &application.rows {
+            requirement_issuers.insert(row.public_requirement_identity.as_str());
+            requirement_issuers.insert(row.requirement_identity.as_str());
+            machine_issuers.insert(row.realization_identity.as_str());
+            if let Some(callable) = &row.realization_callable_identity {
+                machine_issuers.insert(callable.as_str());
+            }
+        }
+    }
+    for parameter in &module.dynamic_dispatch.parameters {
+        for requirement in &parameter.requirements {
+            requirement_issuers.insert(requirement.public_requirement_identity.as_str());
+        }
+    }
+    for dispatch in module
+        .dynamic_dispatch
+        .direct_dispatches
+        .iter()
+        .map(|dispatch| {
+            (
+                dispatch.public_requirement_identity.as_str(),
+                dispatch.requirement_identity.as_str(),
+                dispatch.realization_identity.as_str(),
+                dispatch.realization_callable_identity.as_str(),
+            )
+        })
+        .chain(
+            module
+                .dynamic_dispatch
+                .indirect_dispatches
+                .iter()
+                .map(|dispatch| {
+                    (
+                        dispatch.public_requirement_identity.as_str(),
+                        dispatch.requirement_identity.as_str(),
+                        dispatch.realization_identity.as_str(),
+                        dispatch.realization_callable_identity.as_str(),
+                    )
+                }),
+        )
+        .chain(
+            module
+                .dynamic_dispatch
+                .stored_dispatches
+                .iter()
+                .map(|dispatch| {
+                    (
+                        dispatch.public_requirement_identity.as_str(),
+                        dispatch.requirement_identity.as_str(),
+                        dispatch.realization_identity.as_str(),
+                        dispatch.realization_callable_identity.as_str(),
+                    )
+                }),
+        )
+    {
+        requirement_issuers.insert(dispatch.0);
+        requirement_issuers.insert(dispatch.1);
+        machine_issuers.insert(dispatch.2);
+        machine_issuers.insert(dispatch.3);
+    }
+    for call in &module.proof_output_calls {
+        machine_issuers.insert(call.target_machine_identity.as_str());
+    }
+    for component in &module.proof_recursive_components {
+        for member in &component.members {
+            machine_issuers.insert(member.machine_identity.as_str());
+        }
+    }
     let mut domains = BTreeMap::new();
     let mut semantics = BTreeSet::new();
     let mut identities = BTreeSet::new();
@@ -249,6 +343,31 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), ModuleError> {
             return Err(invalid(
                 "noncanonical or conflicting scalar domain definition",
             ));
+        }
+        if domain
+            .establishment_routes
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(invalid("noncanonical scalar domain establishment routes"));
+        }
+        for route in &domain.establishment_routes {
+            let resolved = match route {
+                ScalarDomainEstablishmentRoute::CheckedRequirement {
+                    requirement_identity,
+                } => requirement_issuers.contains(requirement_identity.as_str()),
+                ScalarDomainEstablishmentRoute::BoundaryRequirement {
+                    requirement_identity,
+                } => boundary_issuers.contains(requirement_identity.as_str()),
+                ScalarDomainEstablishmentRoute::ExactMachine { machine_identity } => {
+                    machine_issuers.contains(machine_identity.as_str())
+                }
+            };
+            if route.identity().is_empty() || !resolved {
+                return Err(invalid(
+                    "scalar domain establishment route has no retained issuer",
+                ));
+            }
         }
         previous = Some(domain.id);
         domains.insert(domain.id, domain.carrier);
