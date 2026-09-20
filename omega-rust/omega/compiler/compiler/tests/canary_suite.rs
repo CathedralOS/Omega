@@ -779,6 +779,10 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "proofs/proof_bag_view_reflexivity",
     "traits/default_machine_in_trait",
     "traits/dyn_trait_object_dispatch",
+    // A `dyn` requirement whose `where` clause is one explicit finite
+    // disjunction materializes every roster tuple's specialization from the
+    // dynamic selection alone; both member tuples are called here.
+    "traits/dyn_finite_family_dispatch",
     "traits/generic_trait_parameter",
     "traits/trait_composition_satisfies",
     "traits/trait_declaration_bundle",
@@ -1007,6 +1011,9 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     // The `&dyn` descriptor lane carries `self` arity only: a requirement
     // declaring an erased formal rejects the dynamic call at check time.
     "relevance/dynamic_erased_formal_lane",
+    // A finite generic family call spells exactly one declared roster tuple;
+    // a non-member value rejects by naming the roster.
+    "traits/dyn_finite_family_non_member",
     // `mut`/`const` qualify runtime storage or custody; an erased binding owns
     // neither, so the qualifier combination refuses by name.
     "relevance/erased_mutable_parameter",

@@ -1,0 +1,1 @@
+requires exactly one closed roster tuple ((16) or (32)); runtime subjects and non-member values cannot select a family row
