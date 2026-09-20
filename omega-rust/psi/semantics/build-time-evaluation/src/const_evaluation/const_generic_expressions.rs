@@ -655,6 +655,17 @@ pub(crate) fn validate_retained_initializer_call_custody(
     call_custody::validate_retained(program, machine, state, root, materialized)
 }
 
+/// Recheck the source-owned recipe before a private probe specializes it.
+pub(crate) fn validate_authored_initializer_call_custody(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    root: typed_trees::expression::ExpressionHandle,
+    materialized: typed_trees::expression::ExpressionHandle,
+) -> Result<Vec<DependencyValue>, String> {
+    call_custody::validate_authored(program, machine, state, root, materialized)
+}
+
 /// Evaluate a call-free source-owned scalar probe.
 pub(super) fn evaluate_probe(
     typed: &typed_trees::TypedTrees,

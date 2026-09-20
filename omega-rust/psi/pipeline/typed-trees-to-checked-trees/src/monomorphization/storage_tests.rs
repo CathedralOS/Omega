@@ -20,6 +20,185 @@ fn typed(source: &str) -> TypedTrees {
 }
 
 #[test]
+fn detached_const_recipe_keeps_its_tuple_until_executable_probe_specialization() {
+    let mut program = typed(
+        "machine identity<T [copy]>(value: T) -> T { value }
+         machine probe() -> u64 { identity<u64>(7) }",
+    );
+    let probe = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "probe")
+        .expect("executable probe")
+        .clone();
+    let entry = program.machine_states(&probe)[0].clone();
+    let mut expressions = Vec::new();
+    for statement in program.statement_table.statements(entry.statement_nodes) {
+        collect_statement_expression_trees(&program, statement, &mut expressions);
+    }
+    let initializer = expressions
+        .into_iter()
+        .find(|expression| {
+            matches!(program.expression_table.expression(*expression),
+                ExpressionNode::Call(call) if call.target.as_str() == "identity")
+        })
+        .expect("authored generic call");
+    let ExpressionNode::Call(authored) = program.expression_table.expression(initializer).clone()
+    else {
+        panic!("authored call");
+    };
+    assert_eq!(authored.machine_arguments.len(), 1);
+    let materialized = program
+        .expression_table
+        .expression_handles(authored.arguments)[0];
+    let symbol = program.symbols.insert_generated_root_from(
+        probe.symbol,
+        symbols::SymbolKind::Const,
+        "VALUE",
+    );
+    program.push_const_declaration(typed_trees::constant::ConstDeclaration {
+        symbol,
+        is_public: false,
+        declared_type: entry.return_type,
+        initializer_source_span: program.expression_table.source_span(initializer),
+        canonical_value_encoding: Some(
+            language_semantics::const_value::CanonicalConstIdentity::integer("u64", 7).encoding,
+        ),
+        authored_initializer: initializer,
+        materialized_initializer: materialized,
+    });
+    // Retain the parsed call as declaration evidence, with no executable owner.
+    // Activation below restores the very same parsed state in a private clone.
+    let retained_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.symbol != probe.symbol)
+        .cloned()
+        .collect::<Vec<_>>();
+    program.roots.machines = arena::HandleSpan::empty();
+    for machine in retained_machines {
+        program.push_machine(machine);
+    }
+    crate::specialize_static_machine_calls(&mut program).expect("detached recipe preparation");
+    assert_eq!(
+        program.expression_table.expression(initializer),
+        &ExpressionNode::Call(authored.clone())
+    );
+    assert!(program.machine_specializations.is_empty());
+
+    let mut activated = program.clone();
+    activated.push_machine(probe);
+    crate::specialize_static_machine_calls(&mut activated).expect("executable probe preparation");
+    let ExpressionNode::Call(selected) = activated.expression_table.expression(initializer) else {
+        panic!("selected probe call");
+    };
+    assert!(selected.machine_arguments.is_empty());
+    assert_ne!(selected.target_symbol, authored.target_symbol);
+    let [specialization] = activated.machine_specializations.as_slice() else {
+        panic!("one complete specialization");
+    };
+    let instance = activated
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == specialization.instance)
+        .expect("receipt's executable instance");
+    assert_eq!(
+        selected.target_symbol,
+        activated.machine_states(instance)[0].symbol
+    );
+    assert_eq!(
+        program.expression_table.expression(initializer),
+        &ExpressionNode::Call(authored)
+    );
+    assert!(program.machine_specializations.is_empty());
+}
+
+#[test]
+fn explicit_static_argument_overflow_rejects_before_specialization() {
+    for source in [
+        "machine identity<T [copy]>(value: T) -> T { value }
+         machine caller() -> u64 { identity<u64,u8>(7) }",
+        "machine amount<const N: u64>() -> u64 { N }
+         machine caller() -> u64 { amount<7,8>() }",
+        "machine choose<T [copy],const N: u64>(value: T, bytes: [u8; N]) -> T { value }
+         machine caller(value: u64, bytes: [u8; 2]) -> u64 {
+             choose<u64,u8>(value, bytes)
+         }",
+        "machine identity<T [copy]>(value: T) -> T { value }
+         machine caller() -> u64 { identity<u64,7>(7); 0 }",
+    ] {
+        let mut program = typed(source);
+        let diagnostics = crate::specialize_static_machine_calls(&mut program)
+            .expect_err("explicit surplus cannot disappear during speculative preparation");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("excess explicit static arguments")
+                    || diagnostic
+                        .message
+                        .contains("no const parameter for extra argument")
+            }),
+            "{source}: {diagnostics:?}"
+        );
+        assert!(program.machine_specializations.is_empty());
+    }
+}
+
+#[test]
+fn explicit_static_argument_capacity_preserves_partial_inference() {
+    for source in [
+        "machine first<T [copy],U [copy]>(value: T, other: U) -> T { value }
+         machine caller(value: u64, other: u8) -> u64 { first<u64>(value, other) }",
+        "machine choose<T [copy],const N: u64>(value: T, bytes: [u8; N]) -> T { value }
+         machine caller(value: u64, bytes: [u8; 2]) -> u64 {
+             choose<u64>(value, bytes)
+         }",
+        "machine choose<T [copy],const N: u64>(value: T, bytes: [u8; N]) -> T { value }
+         machine caller(value: u64, bytes: [u8; 2]) -> u64 {
+             choose<2>(value, bytes)
+         }",
+    ] {
+        let mut program = typed(source);
+        crate::specialize_static_machine_calls(&mut program)
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+        assert_eq!(program.machine_specializations.len(), 1, "{source}");
+        let caller = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "caller")
+            .expect("caller");
+        let instance = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == program.machine_specializations[0].instance)
+            .expect("complete inferred instance");
+        assert_eq!(
+            call_targets(&program, caller),
+            [program.machine_states(instance)[0].symbol]
+        );
+    }
+}
+
+#[test]
+fn explicit_static_const_argument_retains_its_literal_carrier() {
+    let mut wrong_carrier = typed(
+        "machine amount<const N: u64>() -> u64 { N }
+         machine read() -> u64 { amount<7u8>() }",
+    );
+    assert!(crate::specialize_static_machine_calls(&mut wrong_carrier).is_err());
+    for literal in ["7u64", "7"] {
+        let mut program = typed(&format!(
+            "machine amount<const N: u64>() -> u64 {{ N }}
+             machine read() -> u64 {{ amount<{literal}>() }}"
+        ));
+        crate::specialize_static_machine_calls(&mut program)
+            .unwrap_or_else(|diagnostics| panic!("{literal}: {diagnostics:?}"));
+        assert_eq!(program.machine_specializations.len(), 1);
+    }
+}
+
+#[test]
 fn recursive_instances_keep_each_tuples_own_state_and_template_commitment() {
     let mut program = typed(
         "machine repeat<T [copy]>(value: T) -> T { repeat(value) }
@@ -74,6 +253,7 @@ fn recursive_instances_keep_each_tuples_own_state_and_template_commitment() {
                 machine_bindings: Vec::new(),
                 evidence_bindings: Vec::new(),
                 conflicted: false,
+                explicit_argument_overflow: false,
             }
         })
         .collect::<Vec<_>>();

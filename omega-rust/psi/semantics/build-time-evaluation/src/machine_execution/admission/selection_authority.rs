@@ -469,6 +469,16 @@ fn expression_occurrence_violation(
                     }
                 }
                 typed_trees::AuthoredDeclarationSelectionTarget::Resolved(selected) => {
+                    // Builtin type slots are compiler-owned identities, not
+                    // declarations with a fictional source/package owner.
+                    // Same-spelled or generated symbols do not classify here.
+                    if program
+                        .symbols
+                        .builtin_type_atom(selected.selected_symbol())
+                        .is_some()
+                    {
+                        continue;
+                    }
                     package_for_symbol(program, selected.selected_symbol())
                 }
             };
@@ -878,6 +888,89 @@ mod tests {
     }
 
     struct UnconsultedAuthority;
+
+    fn static_argument_occurrence(
+        program: &mut TypedTrees,
+        symbol: symbols::SymbolHandle,
+    ) -> ExpressionHandle {
+        use typed_trees::{
+            AuthoredDeclarationSelectionExposure as Exposure,
+            AuthoredDeclarationSelectionKind as Kind,
+        };
+        let expression = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let occurrence = program
+            .record_resolved_authored_declaration_selection_once(
+                source::SourceSpan::default(),
+                Exposure::PrivateImplementation,
+                Kind::StaticArgument,
+                symbol,
+            )
+            .expect("valid selected symbol");
+        program
+            .expression_table
+            .attach_authored_selection_occurrences(expression, [occurrence]);
+        expression
+    }
+
+    #[test]
+    fn builtin_static_argument_uses_exact_compiler_type_identity() {
+        let mut typed = typed_from_source("machine probe() -> u64 { 7 }");
+        let builtin = typed
+            .symbols
+            .child_handles(typed.symbols.root())
+            .unwrap()
+            .find(|symbol| {
+                typed.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64)
+            })
+            .expect("compiler u64 slot");
+        assert!(typed.symbols.symbol_source_span(builtin).is_none());
+        let expression = static_argument_occurrence(&mut typed, builtin);
+        assert!(
+            expression_occurrence_violation(&typed, expression, Some(&UnconsultedAuthority))
+                .is_none()
+        );
+
+        // Neither user-derived nor source-free copies of the builtin spelling
+        // gain the installed slot's identity, even with a forged builtin kind.
+        let user = typed.machines()[0].symbol;
+        for (origin, kind) in [
+            (user, symbols::SymbolKind::Data),
+            (builtin, symbols::SymbolKind::BuiltinType),
+        ] {
+            let forged = typed
+                .symbols
+                .insert_generated_root_from(origin, kind, "u64");
+            assert_eq!(typed.symbols.builtin_type_atom(forged), None);
+            let expression = static_argument_occurrence(&mut typed, forged);
+            assert!(
+                expression_occurrence_violation(&typed, expression, Some(&UnconsultedAuthority))
+                    .is_some()
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_static_argument_does_not_admit_missing_symbol_custody() {
+        let mut typed = typed_from_source("machine probe() -> u64 { 7 }");
+        let missing = symbols::SymbolHandle::invalid();
+        assert_eq!(typed.symbols.builtin_type_atom(missing), None);
+        assert!(matches!(
+            super::package_for_symbol(&typed, missing),
+            PackageCustody::Missing
+        ));
+        assert!(
+            typed
+                .record_resolved_authored_declaration_selection_once(
+                    source::SourceSpan::default(),
+                    typed_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                    typed_trees::AuthoredDeclarationSelectionKind::StaticArgument,
+                    missing,
+                )
+                .is_err()
+        );
+    }
 
     impl BuildTimeSelectionAuthority for UnconsultedAuthority {
         fn allows_declaration_selection(

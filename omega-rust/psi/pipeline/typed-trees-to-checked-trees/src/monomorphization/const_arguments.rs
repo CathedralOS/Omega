@@ -4,12 +4,13 @@ use super::{CalleeState, Candidate};
 use crate::monomorphization::selection::resolve_callee;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use numerics::literals::LandedIntegerType;
 use symbols::SymbolKind;
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
 use typed_trees::statement::StatementNode;
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -> Option<String> {
     if argument.type_reference.is_valid()
@@ -316,6 +317,33 @@ fn validate_arguments(
                 argument.display_name(),
                 program.display_type_reference(actual)
             )));
+        }
+        // Decimal specialization keys cannot erase a literal's earlier typed
+        // landing. Only anonymous literals may land in the binder's carrier.
+        if let Some(landing) = argument
+            .const_literal
+            .as_ref()
+            .and_then(|literal| literal.landing())
+        {
+            let actual = match landing.landed_type {
+                LandedIntegerType::I8 => PrimitiveType::I8,
+                LandedIntegerType::I16 => PrimitiveType::I16,
+                LandedIntegerType::I32 => PrimitiveType::I32,
+                LandedIntegerType::I64 => PrimitiveType::I64,
+                LandedIntegerType::U8 => PrimitiveType::U8,
+                LandedIntegerType::U16 => PrimitiveType::U16,
+                LandedIntegerType::U32 => PrimitiveType::U32,
+                LandedIntegerType::U64 => PrimitiveType::U64,
+                LandedIntegerType::Addr => PrimitiveType::Addr,
+            };
+            if program.type_reference_table.primitive_type(*required) != Some(actual) {
+                return Err(Diagnostic::error(format!(
+                    "const parameter `{parameter_name}` of `{}` requires `{}`, but its literal already landed as `{}`",
+                    candidate.template.template_name,
+                    program.display_type_reference(*required),
+                    landing.landed_type.name(),
+                )));
+            }
         }
         // Public declaration identity is broader than proof-static atom identity.
         // Decode through the ordinary specialization reader even for unused

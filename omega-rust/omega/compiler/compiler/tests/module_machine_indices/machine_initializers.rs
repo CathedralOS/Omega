@@ -34,6 +34,23 @@ fn assert_source_free_scalar_result(
 }
 
 #[test]
+fn closed_generic_helper_constants_reach_source_free_execution() {
+    let tree = Sources::new();
+    let root = tree.package("root");
+    Sources::write(
+        root.join("settings.omg"),
+        "module settings;
+         machine identity<T>(value: T) -> T { value }
+         pub const VALUE: u64 = identity<u64>(7);",
+    );
+    Sources::write(
+        root.join("main.omg"),
+        "use settings::VALUE; machine read() -> u64 { VALUE }",
+    );
+    assert_source_free_result(compile(&root, root_inputs(&root)), "read", 7);
+}
+
+#[test]
 fn floating_helper_constants_preserve_their_declared_format_through_terminal() {
     let tree = Sources::new();
     let root = tree.package("root");

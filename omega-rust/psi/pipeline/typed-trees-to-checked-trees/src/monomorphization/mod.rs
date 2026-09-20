@@ -154,11 +154,14 @@ struct CallSelection {
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
     conflicted: bool,
+    /// An authored argument exceeded its binder-kind capacity before inference.
+    explicit_argument_overflow: bool,
 }
 
 impl CallSelection {
     fn is_complete(&self) -> bool {
         !self.conflicted
+            && !self.explicit_argument_overflow
             && !self.unresolved_machine_parameters
             && !self.unresolved_evidence_parameters
             && !self.unresolved_const_parameters
@@ -207,6 +210,15 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
             &callee_states,
             &contract_expressions,
         );
+        if let Some(selection) = selections
+            .iter()
+            .find(|selection| selection.explicit_argument_overflow)
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "generic machine `{}` has excess explicit static arguments for a parameter kind",
+                candidates[selection.candidate_index].template.template_name
+            ))]);
+        }
         // A retained generic body still checks each known application argument,
         // including a discarded call with no inferred destination to refresh.
         // The tuple's bounds do not depend on whether we emit a private instance.
