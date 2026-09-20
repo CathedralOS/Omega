@@ -6162,6 +6162,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **BETA-ENCODING-MUTATION-REJECTION.** Full-subject mutation controls for the Beta encoding certificate per `bootstrap/proofs/beta_encoding/ACCEPTANCE.md`: through the checked-in Stepper, mutate each covered element (source, tape, assertions, theory identity, rule ids/clauses, substitution, premises, sorts, arities, partition joints, endpoints, final-root selection) and require rejection — invalid or exhausted input must not accept after a valid prefix. Harness lives in `tests/gamma/beta-encoding-theory/` as a new run.sh mode using the existing full-subject derivation.
 - **BETA-ENCODING-NATIVE-CONTAINER-ACCEPTANCE** — mined candidate; verify scope then implement.
 - **BETA-ENCODING-SELECTED-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
+  Verified scope: re-mines BETA-ENCODING-CERTIFICATE-PRODUCTION's surface —
+  "production through the selected chain" is ACCEPTANCE.md's phrase for the
+  certificate producer route (no host semantic script). That production is
+  blocked upstream, not implementable in this lane: PROFILE.md records the
+  selected checker cannot admit the request — the ledger selects the
+  coupled provisions (136,314,880-byte request extent, 137,363,456-byte
+  evaluator frame, 67,108,864-unit work counter, 3,387,293,850-pair arena)
+  "pending the Alpha extent-supply leg that realizes them", and owner
+  decision `beta-encoding-certificate-admission` settles admission.
+  The remaining shortfall is structural per bootstrap_cost_review.md.
+  Sibling re-mine names on this surface: BETA-ENCODING-CERTIFICATE-CHECK,
+  -CERTIFICATE-PRODUCTION, -DEFINITION-PACKAGE (BETA-ENCODER-DEFINITION-
+  PACKAGE landed at 6e8dd6fa33), -NATIVE-CONTAINER-ACCEPTANCE;
+  BETA-ENCODING-MUTATION-REJECTION is the active controls row.
 - **BETA-NATIVE-SELF-RECONSTRUCTION** — mined candidate; verify scope then implement.
 - **BETA-PE-SEED-REFUSAL** — mined candidate; verify scope then implement.
 - **BETA-SEED-EXEC-HOST-REFUSAL** — mined candidate; verify scope then implement.
