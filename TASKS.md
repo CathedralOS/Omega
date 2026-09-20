@@ -4797,47 +4797,22 @@ Owners include
 
   Remaining work:
 
-  - Wire [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
-    through package-manager install/update/audit, normalized lock comparison,
-    recoverable review/resume, and build execution.
-    `packages/manager/README.md` still lists this as required. The
-    compiler-derived review leg exists: an admitted build program projects its
-    filesystem-reaching authority into normalized `RestrictedBuildRequest`
-    values — operation, logical grant roots without host paths, sponsor
-    bounds, required outputs, and build/target profiles — and a package's
-    review surfaces them in a `build-request` block beside its dependency
-    path and product-authority `change`/`decision` rows, attributed to the
-    requesting package whether direct or transitive
-    (`omega-rust/omega/build/build-evaluation/src/admitted_build_program.rs`,
-    `omega-rust/omega/packages/manager/tests/package_policy_changes/document.rs`:
-    `build_host_requests_render_distinctly_from_product_authority`). Accepted
-    request meaning now retains in `omega.lock` as a per-request
-    `restricted_build_request` decision row under baseline schema version 5 —
-    normalized operation, logical grant roots, sponsor bounds, required
-    outputs, and profiles, with no host paths, credentials, or invocation
-    grants — so a new or widened request surfaces as an Added/Changed lock row
-    requiring a decision while an unchanged accepted request needs no recurring
-    approval
-    (`omega-rust/omega/packages/review/evidence/src/record/restricted_build.rs`,
-    `document.rs`:
-    `accepted_build_requests_retain_in_lock_and_widened_requests_require_decisions`;
-    verified w9 by `cargo nextest run -p package-evidence` and
-    `cargo nextest run -p package-manager --test suite` on Linux x86-64).
-    Review choices still do not issue or withhold actual invocation grants.
-    The execution-time grant join now gates the operations that consume a
-    fresh compile against an accepted lock — locked-source checking, checked
-    reporting, and native production reject each projected restricted build
-    request whose normalized meaning has no identical retained
-    `restricted_build_request` row for the same package identity and complete
-    checked context, surfacing the ungranted request rather than consuming its
-    generated sources
-    (`omega-rust/omega/packages/manager/src/review/restricted_build_grants.rs`,
-    `manager/tests/locked_source_checking/restricted_build_grants.rs`;
-    verified w9 by `cargo nextest run -p package-manager` on Linux x86-64).
-    New and widened request acceptance through install/update commands, the
-    benign snapshot/staging exemption, recoverable review/resume, audit-only
-    inspection, and a gate at the admitted-program evaluator itself all
-    remain. Do not implement an arbitrary
+  - Finish [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance)
+    at the admitted-program evaluator, before a restricted host effect.
+    Candidate review already projects normalized request meaning and retains
+    explicit decision rows in the lock. The consuming-lock join in
+    `packages/manager/src/review/restricted_build_grants.rs` rejects missing,
+    changed, or wrong-context consent before consuming a checked result, but
+    that is too late to authorize the build action itself. Move the decision
+    and actual invocation-grant check ahead of execution, retaining incomplete
+    audit state and exact candidate scope for install/update review and resume.
+    Audit-only inspection must not issue grants. Exercise newly added, widened,
+    transitive, rejected, and interrupted requests through those commands.
+    Keep captured immutable inputs and compiler-owned bounded private staging
+    outside restricted-action consent; generic sponsors for supplied host
+    directories remain restricted. Controls live in
+    `packages/manager/src/review/candidate/compilation/tests/restricted_build_grants.rs`
+    and `omega/tests/build_input_inventory.rs`. Do not introduce an arbitrary
     recursive build API or a new host protocol as part of this join.
   - Bind restricted-request checkpoints to the existing `PackageCheckedContext`
     and generated handoff. Build/product occurrences already have independent
