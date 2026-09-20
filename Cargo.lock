@@ -635,6 +635,7 @@ name = "component-publication"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "checked-trees-to-lowered-psi",
  "effects",
  "executable-installation",
  "extents",
@@ -643,11 +644,20 @@ dependencies = [
  "image-emission",
  "layout-plans",
  "machine-code",
+ "proof-admission",
  "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
+ "terminal-codec",
+ "terminal-interpreter",
  "terminal-psi",
+ "terminal-verifier",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
 ]
 
 [[package]]
