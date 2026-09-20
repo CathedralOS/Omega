@@ -8108,7 +8108,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   release-matrix row — release closure still needs all eight gates, one
   clean commit, four required hosts.
 - **RC-RELEASE-CLOSURE-RUN** — mined candidate; verify scope then implement.
-- **RC-RELEASE-RECORD** — mined candidate; verify scope then implement.
+- **RC-RELEASE-RECORD** — mined candidate; scope verified at `e12b9e8e06`:
+  re-mines the release-record clause (see RC-RELEASE-RECORD-AND-CLOSURE's
+  verified row). Bounded linux_x86_64 record written at
+  [wiki/drafts/release_record_e12b9e8e06.md](wiki/drafts/release_record_e12b9e8e06.md):
+  RC-PORTABLE-PSI gate green, RC-REPOSITORY red on preexisting fmt drift,
+  RC-DIAGNOSTICS red on drifted canaries + two silent-acceptance regressions;
+  committed `records/` JSON output remains fenced to
+  RC-RELEASE-RECORD-SUBSTRATE. Closure stays open.
 - **RC-RELEASE-RECORD-AND-CLOSURE** — mined candidate.
   Verified scope at `0977a4249e`: the release-record substrate already
   exists — `tools/release/release_record.py` (landed `210ffe3c93`) owns
