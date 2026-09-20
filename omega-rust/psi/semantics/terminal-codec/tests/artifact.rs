@@ -41,6 +41,8 @@ mod recursive_component_custody;
 mod trace_profile_custody;
 #[path = "artifact/transport_round_trips.rs"]
 mod transport_round_trips;
+#[path = "artifact/trust_graph_custody.rs"]
+mod trust_graph_custody;
 
 use proof_admission::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment,
