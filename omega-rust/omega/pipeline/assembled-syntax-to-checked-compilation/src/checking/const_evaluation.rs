@@ -235,9 +235,7 @@ fn selected_provider_body_row(
         )));
     }
     let provider = provider_planning::exact_checked_adapter(typed, plan, row)?;
-    if provider.attached_data.as_ref().map(|owner| owner.as_str())
-        != Some(plan.provider_type.as_str())
-    {
+    if typed.attached_data_path(provider).as_deref() != Some(plan.provider_type.as_str()) {
         return Err(Diagnostic::error(format!(
             "selected build-time provider `{}` does not belong to nominal provider `{}`",
             provider.name, plan.provider_type,

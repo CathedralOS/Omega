@@ -208,12 +208,11 @@ pub(super) fn checked_unit_provider_candidates(
                 boundary: boundary_symbol,
                 candidate: machine.symbol,
                 requirement_identity: requirement_identity.clone(),
-                provider_identity: machine
-                    .attached_data
-                    .as_ref()
-                    .expect("candidate filter requires an attached provider type")
-                    .as_str()
-                    .to_owned(),
+                // Planning and Terminal installation compare the same complete
+                // nominal path. A leaf spelling aliases sibling providers.
+                provider_identity: checked.typed.attached_data_path(machine).ok_or(
+                    LoweringError::Unsupported("provider candidate has no attached data path"),
+                )?,
                 // Provider selection compares semantic overload identities;
                 // diagnostic display paths cannot distinguish those overloads.
                 candidate_identity: checked

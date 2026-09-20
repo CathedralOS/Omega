@@ -97,9 +97,7 @@ pub fn validate_provider_plan_candidates(
                     continue;
                 }
             };
-            if adapter.attached_data.as_ref().map(|owner| owner.as_str())
-                != Some(plan.provider_type.as_str())
-            {
+            if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "checked adapter `{machine_identity}` for `{}::{}` belongs to provider `{}`, not selected provider `{}`",
                     plan.schema.trait_name,
@@ -416,17 +414,18 @@ fn exact_provenance_realization<'typed>(
                 .iter()
                 .filter(|definition| {
                     definition.symbol == provider_symbol
-                        && definition.name.as_str() == plan.provider_type
+                        && typed.data_declaration_path(definition) == plan.provider_type
                         && typed.symbols.symbol_package_identity(definition.symbol)
                             == plan.provider_type_package_identity
                 })
                 .collect::<Vec<_>>();
             if providers.len() != 1
                 || realization.attached_data_symbol != provider_symbol
-                || realization
-                    .attached_data
-                    .as_ref()
-                    .is_none_or(|name| name.as_str() != plan.provider_type)
+                || providers.first().is_none_or(|provider| {
+                    realization.attached_data.as_ref() != Some(&provider.name)
+                })
+                || typed.attached_data_path(realization).as_deref()
+                    != Some(plan.provider_type.as_str())
             {
                 return Err(diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` retained realization {:?} does not rejoin its exact nominal provider provenance",

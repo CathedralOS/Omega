@@ -170,9 +170,11 @@ pub(crate) fn exact_canonical_provider_schema(
                 .conformances()
                 .iter()
                 .filter(|conformance| {
-                    conformance
-                        .carrier_name()
-                        .is_some_and(|carrier| carrier.as_str() == plan.provider_type)
+                    typed.data_definitions().iter().any(|carrier| {
+                        carrier.symbol == conformance.carrier_symbol
+                            && conformance.carrier_name() == Some(&carrier.name)
+                            && typed.data_declaration_path(carrier) == plan.provider_type
+                    })
                         && conformance.trait_symbol == definition.symbol
                         && crate::service_schema::is_product_declaration(typed, conformance.carrier_symbol)
                         && typed.symbols.symbol_package_identity(conformance.carrier_symbol)
@@ -434,10 +436,7 @@ pub(crate) fn exact_top_level_external_realization<'typed>(
         .machines()
         .iter()
         .filter(|machine| {
-            machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|owner| owner.as_str() == plan.provider_type)
+            typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
                 && typed.symbols.symbol_package_identity(machine.symbol)
                     == plan.origin_package_identity
                 && !machine.body_is_present
@@ -511,10 +510,7 @@ pub(crate) fn has_exact_top_level_ordinary_realization(
         .machines()
         .iter()
         .filter(|machine| {
-            machine
-                .attached_data
-                .as_ref()
-                .is_some_and(|owner| owner.as_str() == plan.provider_type)
+            typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
                 && typed.symbols.symbol_package_identity(machine.symbol)
                     == plan.origin_package_identity
                 && !machine.body_is_present

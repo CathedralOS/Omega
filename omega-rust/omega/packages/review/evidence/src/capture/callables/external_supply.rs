@@ -224,10 +224,9 @@ pub(super) fn external_binding_matches_provider_binding(
         .normalized_machine_overload_identity(machine)
         .map(|identity| identity.identity())
         .unwrap_or_default();
-    let expected_table = machine
-        .attached_data
-        .as_ref()
-        .map(|name| name.as_str())
+    let expected_table = compilation
+        .typed
+        .attached_data_path(machine)
         .unwrap_or_default();
     match (binding, selected) {
         (
@@ -298,14 +297,14 @@ pub(super) fn external_binding_matches_provider_binding(
                 table,
                 field: selected_field,
             },
-        ) => table == expected_table && field == selected_field,
+        ) => table == &expected_table && field == selected_field,
         (
             PackageReviewExternalBinding::TableFunction { field },
             effects::provider_plan::ProviderBinding::TableFunction {
                 table,
                 field: selected_field,
             },
-        ) => table == expected_table && field == selected_field,
+        ) => table == &expected_table && field == selected_field,
         _ => false,
     }
 }

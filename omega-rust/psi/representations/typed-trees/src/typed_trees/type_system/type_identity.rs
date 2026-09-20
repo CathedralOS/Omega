@@ -278,6 +278,35 @@ impl TypedTrees {
         matches.next().is_none().then_some(machine)
     }
 
+    /// Export a nominal data declaration's path without losing its module.
+    /// Exact symbol and package custody remain separate from this projection.
+    pub fn data_declaration_path(&self, definition: &crate::data::DataDefinition) -> String {
+        if self.symbols.symbol_module(definition.symbol).is_valid() {
+            self.symbols.display_path(definition.symbol, "::")
+        } else {
+            definition.name.as_str().to_owned()
+        }
+    }
+
+    /// Export the attached owner's path using the same rule as data declarations.
+    /// Source-free semantic trees retain complete paths in their authored names;
+    /// a live module must never fall back to a leaf spelling.
+    pub fn attached_data_path(&self, machine: &crate::machine::Machine) -> Option<String> {
+        let name = machine.attached_data.as_ref()?;
+        Some(
+            if self
+                .symbols
+                .symbol_module(machine.attached_data_symbol)
+                .is_valid()
+            {
+                self.symbols
+                    .display_path(machine.attached_data_symbol, "::")
+            } else {
+                name.as_str().to_owned()
+            },
+        )
+    }
+
     /// Export one trait's declaration path, retaining module ownership.
     /// Module-free and source-free semantic trees carry their complete path
     /// directly in the declaration, as for named machine identities. Package

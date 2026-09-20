@@ -274,9 +274,7 @@ pub(crate) fn resolve_selected_adapter_row(
         )));
     }
     let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
-    if adapter.attached_data.as_ref().map(|owner| owner.as_str())
-        != Some(plan.provider_type.as_str())
-    {
+    if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,
@@ -433,9 +431,7 @@ fn resolve_top_level_requirement_adapter_row(
         )));
     }
     let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
-    if adapter.attached_data.as_ref().map(|owner| owner.as_str())
-        != Some(plan.provider_type.as_str())
-    {
+    if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,
@@ -566,9 +562,7 @@ fn resolve_family_adapter_row(
         )));
     }
     let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
-    if adapter.attached_data.as_ref().map(|owner| owner.as_str())
-        != Some(plan.provider_type.as_str())
-    {
+    if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,
