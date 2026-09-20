@@ -5589,12 +5589,6 @@ New items mined from fuzz legs; each is a confirmed divergence from expected
 corpus polarity on origin/main. Claim the named paths under the parent corpus
 family and pin the documented behavior with a canary plus the fix if scoped.
 
-- **FUZZ-EMPTY-TRANSITION-ARMS.** A `transition` with zero arms produces no
-  diagnostic (transition can never proceed), and an integer literal arm over a
-  bool subject is silently accepted alongside a `_ ->` fallback. Pin
-  fail-canaries for empty-arm transitions and arm-subject type mismatches.
-  Paths: `tests/omega/fail/control_flow/`, control-flow checking in
-  `omega-rust/psi/semantics/`.
 - **FUZZ-HOST-SCALAR-FIELD-STORE.** `self.rc = self.host.close(self.fd)` —
   storing a scalar host-call result directly into a field — passes `--check`;
   the existing canary only documents FIELD-target refusal for composite byte
@@ -5658,7 +5652,6 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 Language/semantic gaps:
 
 - **FUZZ-CLUSTER-ZERO-BYTE-ARRAY.** Canonical item for the zero/empty fixed byte-array admission question (covers all ZERO-*-BYTE-ARRAY-* mining aliases).
-- **EMPTY-TRANSITION-AND-ARM-TYPE-DIAGNOSTICS.** (alias of FUZZ-EMPTY-TRANSITION-ARMS if fenced; else the pair).
 - **DUPLICATE-OVERLOAD-AND-VISIBILITY-ADMISSION.** Duplicate named-machine overloads and recursive-argument name collisions — pin admission rules with fail-canaries. Distinct visible imported declarations must still reject when ambiguous; repeated selection of one exact declaration is legal under [import scope](wiki/spec/language/modules.md#import-scope-and-exposure).
 - **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Dynamic receiver/evidence loan origin across package boundaries.
 - **DYNAMIC-RECEIVER-LOAN-ORIGIN.** Dynamic receiver loan origin tracking.
