@@ -6940,7 +6940,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ORPHAN-STAGE-ENTRANCE-AUDIT** — mined candidate; verify scope then implement.
 - **ORPHAN-STAGE-OUTPUT-AUDIT** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-CHECK-ORDER** — mined candidate; verify scope then implement.
-- **OWNED-SUCCESSOR-DISCARD-ORDER** — mined candidate; verify scope then implement.
+- **OWNED-SUCCESSOR-DISCARD-ORDER.** Resolved — alias of the landed
+  terminal-verifier cleanup-order surface. Owned-successor edges already
+  enforce both orderings the row names: the canonical discard sequence is
+  computed by `expected_trivial_affine_discards` (operation results in
+  reverse producer order, then trivial-affine locals in reverse declaration
+  order, then affine parameters in reverse parameter order) and
+  `apply_edge_trivial_affine_discards` requires the authored roster to match
+  as an in-order subsequence, rejecting reordering with
+  `EdgeAffineDiscardsInvalid`; the edge-level gate order (consume owned
+  successor sources, then residual then trivial discard rosters, then
+  establish target parameters) is pinned by `40ff9ad791`'s doc and
+  `d96a0fda39`'s repin. Verified at `4dbdaa9bc3` on linux x86-64: the
+  discard-order battery is green — 20/20 including
+  `branched_local_cleanup_rejects_missing_reordered_and_double_discard`,
+  `unit_return_requires_exact_reverse_order_affine_discards`,
+  `jump_applies_a_canonical_subset_of_affine_discards`, and
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`.
+  Sibling stubs on the same surface: OWNED-SUCCESSOR-CHECK-ORDER,
+  OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER, OWNED-SUCCESSOR-EDGE-ORDERING;
+  STRUCTURAL-SUCCESSOR-DISCARD-ORDERING separately owns the
+  lowered-psi cleanup-roster emission leg.
 - **OWNED-SUCCESSOR-EDGE-CLEANUP-ORDER** — mined candidate; verify scope then implement.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; verify scope then implement.
