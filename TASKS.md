@@ -9953,7 +9953,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   under COMPOSABLE-PAIR-DESCRIPTORS (23:57Z), and the retirement-pin
   surface `tests/architecture/optimizer_source_organization` under
   ORPHAN-STAGE-OUTPUT-AUDIT (22:30Z). Claim on the catalog surface
-  returned exit 2.
+  returned exit 2. Re-verified at `c431bc8138`: state unchanged —
+  `rewrites/module_catalog.rs` still retains 42 `Orphaned` rows and
+  `optimize_selected_instructions` still only routes through the
+  selected-lowering analysis chain. The catalog surface stays fenced:
+  ORPHAN-REWRITE-MODULES-CATALOG renewed to 04:27Z and sibling stub
+  SELECTED-REWRITE-CATALOG-ROUTE is now also claimed (04:11Z).
 - **SELECTED-STAGE-RULE-CATALOG** — mined candidate; verify scope then implement.
 - **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`,
   re-verified at `12ecbe98f8` (owner files `match_dispatch.rs` +
