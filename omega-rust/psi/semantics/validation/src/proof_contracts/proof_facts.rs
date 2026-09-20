@@ -318,20 +318,25 @@ impl fmt::Display for ProofFactOwner<'_> {
 pub(crate) fn validate_domain_fact_payloads(
     program: &TypedTrees,
     fact_plan: &FactPlan,
-    symbol: SymbolHandle,
+    domain: &typed_trees::domain::DomainDefinition,
     diagnostics: &mut Vec<Diagnostic>,
     owner: ProofFactOwner<'_>,
 ) {
-    for fact in fact_plan.boolean_facts_for_symbol(symbol) {
+    for fact in fact_plan.boolean_facts_for_symbol(domain.symbol) {
         if !is_boolean_fact_expression(program, fact.expression) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} proof fact `{}` is not boolean-shaped",
                 program.expression_table.display_name(fact.expression)
             )));
+        } else if !is_boolean_domain_fact_expression(program, domain, fact.expression) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} proof fact `{}` must have type `bool`",
+                program.expression_table.display_name(fact.expression)
+            )));
         }
     }
 
-    for membership in fact_plan.domain_memberships_for_symbol(symbol) {
+    for membership in fact_plan.domain_memberships_for_symbol(domain.symbol) {
         if membership.domain_symbol.is_valid()
             || is_implicit_case_domain(program, membership.domain)
             || carry_permission(program, membership.domain).is_some()
@@ -782,6 +787,43 @@ fn is_implicit_case_domain(program: &TypedTrees, domain: arena::HandleSpan<Ident
                 )
             })
     })
+}
+
+/// Domain predicates know their carrier, unlike the context-free signature
+/// shape check. Resolve value places through that carrier and check each
+/// logical operand: wrapping an integer field in `!` or `&&` does not turn it
+/// into a proposition. Relations and proof-call formation keep their existing
+/// validators; this does not demand executable Boolean results from logical
+/// proposition applications.
+fn is_boolean_domain_fact_expression(
+    program: &TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            crate::value_custody::expression_types::domain_expression_result_type_reference(
+                program, domain, expression,
+            )
+            .and_then(|reference| program.primitive_type_reference(reference))
+                == Some(typed_trees::types::PrimitiveType::Bool)
+        }
+        ExpressionNode::Atomic(atomic) => {
+            is_boolean_domain_fact_expression(program, domain, atomic.value)
+        }
+        ExpressionNode::Unary(unary) => {
+            unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+                && is_boolean_domain_fact_expression(program, domain, unary.operand)
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+        {
+            is_boolean_domain_fact_expression(program, domain, binary.left)
+                && is_boolean_domain_fact_expression(program, domain, binary.right)
+        }
+        ExpressionNode::Borrow(_) => false,
+        _ => is_boolean_fact_expression(program, expression),
+    }
 }
 
 fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {

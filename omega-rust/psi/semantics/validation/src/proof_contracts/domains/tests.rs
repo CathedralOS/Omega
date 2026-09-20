@@ -64,6 +64,48 @@ fn repeated_capacity_domains(second_fact: &str) -> TypedTrees {
 }
 
 #[test]
+fn domain_predicate_places_use_the_carrier_type_under_logical_operators() {
+    for (carrier, fields, predicate, accepted) in [
+        ("Player", "health: i32;", "self.health", false),
+        ("Player", "health: i32;", "!self.health", false),
+        ("Player", "health: i32;", "self.health && true", false),
+        ("Player", "health: i32;", "false || self.health", false),
+        ("Player", "health: i32;", "self.health > 0", true),
+        (
+            "Player",
+            "health: i32;",
+            "self.health > 0 && self.health < 0",
+            true,
+        ),
+        ("Player", "healthy: bool;", "self.healthy", true),
+        ("Player", "healthy: bool;", "!self.healthy && true", true),
+        ("Player", "flags: [i32; 2];", "self.flags[0]", false),
+        ("Player", "flags: [bool; 2];", "self.flags[0]", true),
+        ("i32", "", "self", false),
+        ("bool", "", "self", true),
+    ] {
+        let program = typed(&[&format!(
+            "data Player {{ {fields} }} domain {carrier}::Selected requires {predicate};"
+        )]);
+        let fact_plan = crate::build_definition_fact_plan(&program);
+        let domain = &program.domain_definitions()[0];
+        let mut diagnostics = Vec::new();
+        super::validate_domain_fact_payloads(
+            &program,
+            &fact_plan,
+            domain,
+            &mut diagnostics,
+            super::ProofFactOwner::Domain(domain.name.as_str()),
+        );
+        assert_eq!(
+            diagnostics.is_empty(),
+            accepted,
+            "{carrier} with {fields}: {predicate}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn repeated_capacity_specializations_keep_equal_normalized_facts() {
     let program = repeated_capacity_domains("true");
     let [first, second] = program.domain_definitions() else {

@@ -1,0 +1,18 @@
+data Player {
+    healthy: bool;
+}
+
+domain Player::Healthy requires self.healthy;
+
+data Box<T> {
+    value: T;
+}
+
+data Holder {
+    slot: Box<bool>;
+}
+
+domain Holder::Selected requires self.slot.value;
+
+data Main {}
+machine Main::main(&mut self) {}

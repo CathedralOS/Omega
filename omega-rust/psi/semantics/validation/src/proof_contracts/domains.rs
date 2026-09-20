@@ -43,7 +43,7 @@ pub(crate) fn validate_domain_definitions(
         validate_domain_fact_payloads(
             program,
             fact_plan,
-            domain.symbol,
+            domain,
             diagnostics,
             ProofFactOwner::Domain(domain.name.as_str()),
         );

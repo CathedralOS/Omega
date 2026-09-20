@@ -226,6 +226,7 @@ fn file_expectation_fail_roster() -> Vec<&'static str> {
     CHECKED_ONLY_FAIL_CANARIES
         .iter()
         .chain(ACTIVE_FAIL_CANARIES)
+        .chain(domains_control_and_structures::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(proof_and_float_suites::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(proof_and_float_suites::RANGE_GATED_ESTABLISHMENT_FILE_FAIL_CANARIES)
         .chain(proof_and_float_suites::DEFAULT_DOMAIN_MEMBERSHIP_FILE_FAIL_CANARIES)
