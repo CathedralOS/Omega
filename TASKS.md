@@ -15246,6 +15246,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `43329a3`).
 - **SCAN-SCALAR-DISPATCH.** — mined candidate; scope verified, already landed. The stub decomposes Squalr-Omega `43329a3` ("squalr: port scalar scan, run-length encoder, and element-scan dispatch"), whose element-scan dispatch leg names `element_scan_dispatcher.omg` + the scalar scanners. SCAN-SCALAR-SCAN's re-opened note (written when the recorded gitlink sat on the republished `5ea4a17f3b` lineage) is stale: the recorded gitlink `251699c4669d` is merge `db64d58`'s join of that lineage back over `43329a3`, which is its ancestor — `git log` confirms `43329a3` and `251699c` ("merge: adopt wire-schema NormalizedRegion…") carry `squalr-engine-scanning`. Present on the recorded pin: `squalr-engine-scanning/src/scanners/element_scan_dispatcher.omg`, `scalar/scanner_scalar_iterative.omg`, `scalar/scanner_scalar_single_element.omg`, `structures/snapshot_region_filter_run_length_encoder.omg`, plus the api-side `scan_function_scalar.omg` / `planned_scan_type_scalar.omg` / `snapshot_filter_element_scan_plan.omg` surfaces. Verified on linux-x86_64 at `9e3edc7be9` (gitlink 251699c4669d): `omega --check` clean — squalr-engine-scanning 29 files, squalr-engine-api 30 files. Siblings SCALAR-SCAN-AND-DISPATCH, SCAN-SCALAR-COMPARISON-DISPATCH, SCAN-SCALAR-SCAN decompose the same commit and share this state.
 - **SCAN-SCALAR-SCAN.** — verified e0927237: landed via the squalr
+||||||| parent of 727f322a4fb3 (board: SCAN-SCALAR-DISPATCH resolved — repin closed the reopened residual)
+    machine.
+- **SCALAR-SCAN-AND-DISPATCH** — mined candidate; verify scope then implement.
+- **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
+- **SCAN-SCALAR-DISPATCH** — mined candidate; verify scope then implement.
+- **SCAN-SCALAR-SCAN** — verified e0927237: landed via the squalr
+    machine.
+- **SCALAR-SCAN-AND-DISPATCH** — mined candidate; verify scope then implement.
+- **SCAN-SCALAR-COMPARISON-DISPATCH** — mined candidate; verify scope then implement.
+- **SCAN-SCALAR-DISPATCH.** Verified at `ea698be6482` — resolved. The row
+  decomposes the same Squalr pin advance as resolved sibling
+  SCAN-SCALAR-SCAN and shares its reopened state: the scalar leg landed on
+  the pre-republish lineage (`43329a3`) and went absent when the gitlink
+  moved to `5ea4a17f3b`. The residual is now closed by the coordinator
+  repin — recorded gitlink `5b0307c352` carries the re-ported scalar
+  dispatch on the published lineage: `squalr-engine-scanning/src/scanners/
+  element_scan_dispatcher.omg` (explicitly documented "Port of
+  ElementScanDispatcher's scanner selection, scalar leg" — Scalar plans
+  select scalar scanners; non-scalar/Invalid select nothing), with
+  `scanner_scalar_iterative.omg`, `scanner_scalar_single_element.omg`,
+  `snapshot_region_filter_run_length_encoder.omg`, and
+  `planned_scan_type_scalar.omg` all present. No independent slice
+  remains; native-run acceptance stays on the squalr lane's own rows.
+- **SCAN-SCALAR-SCAN** — verified e0927237: landed via the squalr
   pin advance `05416dd1a0` → Squalr-Omega `43329a3` ("squalr: port scalar
   scan, run-length encoder, and element-scan dispatch"). The scalar leg was
   present in that pin: `ScalarIterativeScan` pull driver over
