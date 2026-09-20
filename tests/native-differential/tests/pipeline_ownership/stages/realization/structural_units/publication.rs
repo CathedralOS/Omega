@@ -6,11 +6,11 @@ use crate::tests::{
     OptimizationSelections, OptimizedTargetLoweringRequest, PlaceId,
     StagedOptimizedRelocationFreeObjectContainer, StructuralAccess, StructuralMultiplicity,
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, compiler_baseline_request_v1,
-    lower_optimized_to_target_operations, optimize_artifact_sections, reseal_proof,
+    encode_fixture_sections, lower_optimized_to_target_operations, optimize_artifact_sections,
     stage_function_fragment_frame_application, stage_optimized_fixed_frame_text_section,
     stage_optimized_function_fragment_emission, stage_optimized_relocation_free_object_container,
     stage_optimized_verified_physical_pipeline, structural_extent_call_unit_artifact,
-    structural_extent_unit_leaf_artifact,
+    structural_extent_call_unit_parts, structural_extent_unit_leaf_parts,
 };
 #[test]
 fn structural_call_publication_preserves_owned_indirect_arguments() {
@@ -356,8 +356,7 @@ fn assert_installation_rejects(
 }
 
 fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMachineId) {
-    let (semantic, proof) = structural_extent_unit_leaf_artifact();
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = structural_extent_unit_leaf_parts();
     let machine = &mut module.machines[0];
     for parameter in &mut machine.structural_parameters {
         parameter.multiplicity = StructuralMultiplicity::Linear;
@@ -415,11 +414,8 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
             },
         })
         .collect();
-    (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
-        boundary,
-    )
+    let (semantic, proof) = encode_fixture_sections(&module, &proof);
+    (semantic, proof, boundary)
 }
 
 fn provider_artifact() -> (
@@ -431,8 +427,7 @@ fn provider_artifact() -> (
         BoundaryMachineDeclaration, ProviderCandidateConformance, ProviderParameterRefinement,
         ProviderRefinement, ProviderSignature, ProviderSignatureParameter,
     };
-    let (semantic, proof) = structural_extent_call_unit_artifact();
-    let mut module = terminal_codec::decode_module(&semantic).unwrap();
+    let (mut module, proof) = structural_extent_call_unit_parts();
     let boundary = semantic_vocabulary::BoundaryMachineId::new(3_620).unwrap();
     let provider_type = StructuralTypeId::new(3_621).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
@@ -510,9 +505,10 @@ fn provider_artifact() -> (
             .collect(),
         completion_receipts: Vec::new(),
     };
+    let (semantic, proof) = encode_fixture_sections(&module, &proof);
     (
-        terminal_codec::encode_module(&module).unwrap(),
-        reseal_proof(&module, &proof),
+        semantic,
+        proof,
         vec![
             terminal_psi_to_abstract_operations::SelectedProviderAdapter {
                 requirement_identity: "StructuralSink::accept".into(),
