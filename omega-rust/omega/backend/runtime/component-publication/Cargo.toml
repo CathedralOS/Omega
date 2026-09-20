@@ -16,12 +16,22 @@ image-emission = { path = "../../images/image-emission", features = ["installed-
 
 [dev-dependencies]
 calling-conventions = { path = "../../../representations/calling-conventions" }
+checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/checked-trees-to-lowered-psi" }
 extents = { path = "../../../../psi/foundation/extents" }
 function-identity = { path = "../../../representations/function-identity" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 machine-code = { path = "../../../representations/machine-code" }
+proof-admission = { path = "../../../../psi/semantics/proof-admission" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+source-files-to-tokens = { path = "../../../../psi/pipeline/source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 symbols = { path = "../../../../psi/foundation/symbols" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
 target = { path = "../../../representations/target" }
 target-operations = { path = "../../../representations/target-operations" }
+terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
+terminal-interpreter = { path = "../../../../psi/semantics/terminal-interpreter" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
+tokens-to-syntax-trees = { path = "../../../../psi/pipeline/tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/typed-trees-to-checked-trees" }
