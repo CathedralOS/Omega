@@ -203,6 +203,18 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   dependencies under **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
   **STATE-LOCAL-VALUE-FRONTIER**, not language-design blockers or permission to
   inject global provider state.
+
+  Wave fence audit (z105, `163670cf6d`): every leg named above is currently
+  claimed or host-gated — the provider-plan admission surface
+  (`typed-trees-to-checked-trees/src/execution/unit/providers.rs`) is
+  file-fenced by PROVIDER-ATTACHMENT-MACHINE-PLAN (22:37Z); the entry
+  attached-data-shape surfaces (`native-realization/terminal-production`,
+  `image-emission/hosted_receiver.rs`) are fenced by ENTRY-CONTENT-ROOTS
+  (Zergling-193, 01:45Z next day); the sample-side provider wiring belongs
+  to `samples/gui`, dir-fenced by FFIVAL (21:39Z); and the closing bundle
+  execution acceptance needs a macOS arm64 host. No unclaimed
+  linux_x86_64 slice remains this wave — dispatch against this row should
+  wait for the fences above to settle.
   After those dependencies and provider settlement, follow remaining checked
   call, array and cyclic execution failures through their existing owners,
   then finish ordinary package review without automatic admissions. The
