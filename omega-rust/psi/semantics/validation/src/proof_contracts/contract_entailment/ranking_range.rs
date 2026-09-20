@@ -715,7 +715,7 @@ fn prove_edge(
     // exist; declaration/flow formation and every arrival's pinning remain
     // independent obligations below.
     for endpoint in [range.start, range.end] {
-        meanings::install_integer_quotients(program, machine, root, &mut engine, endpoint, 0)?;
+        meanings::install_integer_division_terms(program, machine, root, &mut engine, endpoint, 0)?;
     }
     let floor = engine.normalize(range.start)?;
     let ceiling = engine.normalize(range.end)?;
@@ -951,9 +951,9 @@ fn prove_edge(
             substitutions.insert(identity.clone(), actual);
         }
     }
-    // Remainder/quotient atoms embed their operand's display, so the map
-    // cannot reach them by name: each minted term whose operand substitutes
-    // completely re-mints under the transported operand. An operand leaf the
+    // Remainder/quotient atoms retain both operand polynomials, so the map
+    // cannot reach them by name: each minted term whose operands substitute
+    // completely re-mints under both transported operands. An operand leaf the
     // loop above did not cover keeps its atom unmapped and fails closed here.
     engine.extend_argument_map_over_opaque_terms(&mut substitutions);
     let next_rank = inductive_judgment::apply_argument_map(&rank, &substitutions)?;

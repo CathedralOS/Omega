@@ -182,7 +182,7 @@ pub(crate) fn prove_ranking_range_call_entry(
             _ => rank_coordinate(program, member.machine, &mut engine, measure)?,
         };
         for endpoint in [range.start, range.end] {
-            meanings::install_integer_quotients(
+            meanings::install_integer_division_terms(
                 program,
                 member.machine,
                 state,
@@ -616,7 +616,7 @@ pub(crate) fn prove_ranking_range_call(
         // caller coordinates. Its mathematical quotient retains those inputs;
         // neither callee formals nor callee requirements are available yet.
         for endpoint in [range.start, range.end] {
-            meanings::install_integer_quotients(
+            meanings::install_integer_division_terms(
                 program,
                 caller.machine,
                 entry,
@@ -831,7 +831,7 @@ pub(crate) fn prove_ranking_range_call(
         // now denote the actuals installed by this call. Bind only now: an
         // earlier occurrence binding would freeze the wrong namespace.
         for endpoint in [range.start, range.end] {
-            meanings::install_integer_quotients(
+            meanings::install_integer_division_terms(
                 program,
                 callee.machine,
                 destination,

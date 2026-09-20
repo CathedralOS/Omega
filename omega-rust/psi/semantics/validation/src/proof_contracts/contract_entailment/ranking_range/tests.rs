@@ -621,9 +621,8 @@ mod field_views {
 }
 
 mod remainder_endpoints {
-    //! Opaque remainder atoms embed their operand's display: the edge map
-    //! transports them only through the operand's own simultaneous
-    //! substitution, re-minted under the actual's exact polynomial.
+    //! Remainder identity retains both input polynomials. The edge map must
+    //! transport each input; an equal interval is not the same endpoint.
     use super::super::{
         RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, prove_ranking_range_edge,
         prove_ranking_range_entry,
@@ -725,6 +724,46 @@ mod remainder_endpoints {
         assert!(entry(&moved));
         assert!(edge(&moved, RankingRangePremises::RankInvariant).is_none());
         assert!(edge(&moved, RankingRangePremises::EntryInvariant).is_none());
+    }
+
+    #[test]
+    fn runtime_remainder_transports_dividend_and_divisor_independently() {
+        let source = COMPUTED_COPY
+            .replace("cap: u64)", "cap: u64, modulus: u64 [1..=5])")
+            .replace("cap % 5", "cap % modulus")
+            .replace("cap - 0)", "cap - 0, modulus - 0)");
+        let unguarded = typed(&source);
+        let proof = edge(&unguarded, RankingRangePremises::EntryInvariant)
+            .expect("preserved entry refinements supply divisor formation");
+        assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        assert!(edge(&unguarded, RankingRangePremises::RankInvariant).is_none());
+        // RankInvariant deliberately does not renew entry refinements;
+        // this edge must supply its own divisor-formation premises.
+        let source = source.replace(
+            "remaining > 0",
+            "remaining > 0 && modulus > 0 && modulus <= 5",
+        );
+        let program = typed(&source);
+        assert!(entry(&program));
+        for premises in [
+            RankingRangePremises::RankInvariant,
+            RankingRangePremises::EntryInvariant,
+        ] {
+            let proof = edge(&program, premises).expect("both remainder inputs are conserved");
+            assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        }
+        for changed in [
+            source.replace("modulus - 0", "1"),
+            source.replace("cap - 0", "0"),
+        ] {
+            let program = typed(&changed);
+            assert!(
+                entry(&program),
+                "failure belongs to transport, not initial range formation"
+            );
+            assert!(edge(&program, RankingRangePremises::RankInvariant).is_none());
+            assert!(edge(&program, RankingRangePremises::EntryInvariant).is_none());
+        }
     }
 }
 

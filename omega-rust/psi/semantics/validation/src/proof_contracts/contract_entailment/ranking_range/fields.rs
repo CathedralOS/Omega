@@ -205,16 +205,17 @@ fn operations_land_under(
         }
         // Exact signed remainder shares division's quotient-formation
         // obligation: MIN % -1 is invalid even though its remainder is zero.
-        // The arithmetic engine admits only constant moduli here; every other
-        // nonzero divisor has a representable quotient for a landed dividend.
+        // A variable divisor must independently exclude -1 or the dividend
+        // must exclude MIN; bounding only the remainder would miss overflow.
         if binary.operator == BinaryOperator::Modulo && minimum.is_negative() {
             let Some(divisor) = operation_value(engine, binary.right, arrival) else {
                 return false;
             };
-            let Some(divisor) = engine.substituted(&divisor).constant_value() else {
-                return false;
-            };
-            if divisor == BigInt::from_i64(-1) {
+            let divisor = engine.substituted(&divisor);
+            if !engine.prove_at_least(&divisor, &BigInt::from_i64(1))
+                && !engine
+                    .prove_at_least(&Polynomial::default().sub(&divisor), &BigInt::from_i64(2))
+            {
                 let Some(dividend) = operation_value(engine, binary.left, arrival) else {
                     return false;
                 };

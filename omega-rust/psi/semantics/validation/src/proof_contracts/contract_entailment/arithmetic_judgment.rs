@@ -298,10 +298,11 @@ fn pow(base: &BigInt, power: u32) -> BigInt {
 /// transported operands rather than dropping the term.
 #[derive(Clone)]
 enum OpaqueTerm {
-    /// `(operand) % modulus`, the truncating remainder.
+    /// A truncating remainder keeps both inputs, including a runtime modulus;
+    /// equal result intervals do not establish conserved endpoint identity.
     Remainder {
         operand: Polynomial,
-        modulus: BigInt,
+        modulus: Polynomial,
         /// The mint site's provenance gate for the single-quotient tight
         /// interval; re-mints reuse it rather than re-deriving it.
         tight_interval: bool,
@@ -607,7 +608,7 @@ impl<'program> Engine<'program> {
 
     /// The rank-range owner has checked selected Exact integer meaning; the
     /// bound mathematical term does not excuse its separate formation proof.
-    pub(super) fn bind_strict_integer_quotient(
+    pub(super) fn bind_strict_integer_division(
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<()> {
@@ -615,14 +616,14 @@ impl<'program> Engine<'program> {
         else {
             return None;
         };
-        if binary.operator != BinaryOperator::Divide {
-            return None;
-        }
         let dividend = self.normalize(binary.left)?;
         let divisor = self.normalize(binary.right)?;
-        let quotient = self.integer_quotient(dividend, divisor)?;
-        self.bind_strict_occurrence(expression, quotient)
-            .then_some(())
+        let value = match binary.operator {
+            BinaryOperator::Divide => self.integer_quotient(dividend, divisor)?,
+            BinaryOperator::Modulo => self.integer_remainder(dividend, divisor, true)?,
+            _ => return None,
+        };
+        self.bind_strict_occurrence(expression, value).then_some(())
     }
 
     fn bind_strict_occurrence(&mut self, expression: ExpressionHandle, value: Polynomial) -> bool {
@@ -695,6 +696,49 @@ impl<'program> Engine<'program> {
     /// monotonically when the operand's whole range shares one quotient and
     /// the mint site admitted that reading.
     fn remainder_interval(
+        &self,
+        operand: &Polynomial,
+        modulus: &Polynomial,
+        tight_interval: bool,
+    ) -> Interval {
+        let modulus = self.substituted(modulus);
+        if let Some(constant) = modulus.constant_value() {
+            if constant.is_zero() {
+                return Interval::unbounded();
+            }
+            return self.constant_remainder_interval(operand, &constant, tight_interval);
+        }
+        let operand_interval = self.polynomial_interval(&self.substituted(operand));
+        let divisor_interval = self.polynomial_interval(&modulus);
+        // Truncation keeps the dividend's sign and never increases its
+        // magnitude. A bounded runtime divisor additionally gives |r| < |d|.
+        // Nonzero and machine-width formation remain separate obligations.
+        let magnitude = divisor_interval
+            .low
+            .zip(divisor_interval.high)
+            .map(|(low, high)| {
+                low.abs()
+                    .max(high.abs())
+                    .sub(&BigInt::from_i64(1))
+                    .max(BigInt::zero())
+            });
+        let low = operand_interval.low.map(|value| value.min(BigInt::zero()));
+        let high = operand_interval.high.map(|value| value.max(BigInt::zero()));
+        Interval {
+            low: match (&magnitude, low) {
+                (Some(magnitude), Some(low)) => Some(low.max(magnitude.negate())),
+                (Some(magnitude), None) => Some(magnitude.negate()),
+                (None, low) => low,
+            },
+            high: match (magnitude, high) {
+                (Some(magnitude), Some(high)) => Some(high.min(magnitude)),
+                (Some(magnitude), None) => Some(magnitude),
+                (None, high) => high,
+            },
+        }
+    }
+
+    fn constant_remainder_interval(
         &self,
         operand: &Polynomial,
         modulus: &BigInt,
@@ -803,6 +847,34 @@ impl<'program> Engine<'program> {
         }
     }
 
+    fn integer_remainder(
+        &mut self,
+        operand: Polynomial,
+        modulus: Polynomial,
+        tight_interval: bool,
+    ) -> Option<Polynomial> {
+        if modulus
+            .constant_value()
+            .is_some_and(|value| value.is_zero())
+        {
+            return None;
+        }
+        let interval = self.remainder_interval(&operand, &modulus, tight_interval);
+        // Match quotient identity: normalized operands, not source spelling.
+        // The private prefix cannot collide with an authored parameter name.
+        let atom = format!("\0integer-remainder:{operand:?}%{modulus:?}");
+        self.register_opaque_term(
+            atom.clone(),
+            OpaqueTerm::Remainder {
+                operand,
+                modulus,
+                tight_interval,
+            },
+        );
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
     /// Normalize an independently admitted truncating integer quotient. The
     /// caller owns selected operator meaning and each operand/result's carrier
     /// formation; this mathematical term supplies neither of those judgments.
@@ -880,7 +952,12 @@ impl<'program> Engine<'program> {
                     else {
                         continue;
                     };
-                    let next = format!("({}) % {}", polynomial_display(&operand), modulus);
+                    let Some(modulus) =
+                        super::inductive_judgment::apply_argument_map(&modulus, argument_map)
+                    else {
+                        continue;
+                    };
+                    let next = format!("\0integer-remainder:{operand:?}%{modulus:?}");
                     (
                         next,
                         self.remainder_interval(&operand, &modulus, tight_interval),
@@ -1678,25 +1755,13 @@ impl<'program> Engine<'program> {
                         // separate; the private prefix cannot be an authored name.
                         return self.integer_quotient(dividend, Polynomial::constant(divisor));
                     }
-                    let operand = dividend;
                     let modulus = self.substituted(&divisor).constant_value()?;
                     if modulus.is_zero() {
                         return None;
                     }
                     let tight_interval = builtin_proof_integer
                         && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation);
-                    let display = format!("({}) % {}", polynomial_display(&operand), modulus);
-                    let interval = self.remainder_interval(&operand, &modulus, tight_interval);
-                    self.register_opaque_term(
-                        display.clone(),
-                        OpaqueTerm::Remainder {
-                            operand: operand.clone(),
-                            modulus,
-                            tight_interval,
-                        },
-                    );
-                    self.arithmetic_intervals.insert(display.clone(), interval);
-                    Some(Polynomial::atom(display))
+                    self.integer_remainder(dividend, Polynomial::constant(modulus), tight_interval)
                 }
                 _ => None,
             },
@@ -1885,34 +1950,6 @@ fn nonexact_integer_source(program: &TypedTrees, expression: ExpressionHandle) -
                         != ArithmeticDomain::Exact
                 })
         }
-    }
-}
-
-fn polynomial_display(polynomial: &Polynomial) -> String {
-    let mut parts = Vec::new();
-    for (monomial, coefficient) in &polynomial.terms {
-        let atoms: Vec<String> = monomial
-            .iter()
-            .map(|(atom, power)| {
-                if *power == 1 {
-                    atom.clone()
-                } else {
-                    format!("{atom}^{power}")
-                }
-            })
-            .collect();
-        if atoms.is_empty() {
-            parts.push(coefficient.to_string());
-        } else if *coefficient == BigInt::from_i64(1) {
-            parts.push(atoms.join("*"));
-        } else {
-            parts.push(format!("{}*{}", coefficient, atoms.join("*")));
-        }
-    }
-    if parts.is_empty() {
-        "0".to_owned()
-    } else {
-        parts.join(" + ")
     }
 }
 
