@@ -10139,7 +10139,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   coordinator before re-implementing). The implementation surfaces are under
   live claims: the parent WRITE-ONLY-BORROW row itself is live-claimed by
   `dev-l3-wobstore` (exp ~01:30Z) and STRUCTURAL-BORROW-IDENTITY is
-  live-claimed (expired 21:38Z; recheck before treating any receiver_calls
+  live-claimed (until 21:38Z; recheck before treating any receiver_calls
   leg as free). The maintained integration target is
   `terminal_psi_indexed_receivers`, not a store-specific emitter; the
   shared place/loan sequencer extension is STATE-LOCAL-VALUE-FRONTIER's. No
