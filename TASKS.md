@@ -1204,15 +1204,30 @@ Owners include
   fused `Service` fields erase; and fused-Service custody rejoin now resolves
   owners through every checked machine's attachment identity, covering records
   attached only to boundary-supply machines which never produce unit plans
-  (`attached_data_shape_identity` in `selected-dispatch::service_custody`). First
-  refusing emission stage remains attached-Unit closure — the legs' bodied
-  boundary machines carry no boundary plan for a unit caller, and
-  scalar-returning boundary calls (`BoundaryScalarCall`) have no state-graph
-  custody admission
-  (`native_uefi_os_handoff_invocation_reports_missing_boundary_plan` pins the
-  diagnostic). Next acceptance: lower bodied boundary machines as callees (or
-  admit boundary scalar results to unit edges), then emit the cycle and run the
-  firmware/controlled-provider harness legs below.
+  (`attached_data_shape_identity` in `selected-dispatch::service_custody`).
+
+  Resume evidence (z148, `devin/z148-uefi-handoff`): bodied `boundary machine`s
+  now lower as ordinary Unit callees — the unit-plan candidate roster and the
+  omission ledger admit `Boundary`-supply machines with bodies, call sites
+  classify them as ordinary (`boundary` is the supply mode less the authored
+  body) on both the checked-operation and lowered authored-custody sides, and
+  `mutable_plain_nonlinear_referent` admits `&mut` referents of plain
+  non-Linear carriers as boundary out-parameters — so all four legs produce
+  ordinary plans, both `&mut` Boot Services requirements
+  (`get_memory_map`, `allocate_pages`) produce boundary plans, and every
+  caller survives closure into Terminal emission. The leg callsites pass
+  `&mut self.<field>` projections directly (borrowed locals are not
+  parameter-sourced). First refusing stage is now cyclic-machine custody in
+  the Terminal verifier (`unranked_cycles::eligible`): inside a cyclic
+  machine a `CallUnit` argument must be the bare persistent `&mut self`
+  receiver, so `self.legs.*`/`self.terminal.*`/`self.cycle` projected
+  receivers are refused, and pinned entry claims (`retain`'s granted
+  extents riding block parameters) fall outside the envelope as well
+  (`native_uefi_os_handoff_invocation_reports_cyclic_control_frontier` pins
+  the diagnostic). Next acceptance: widen cyclic-machine custody to admit
+  projected `&mut self.<field>` receivers and claim-carrying state
+  parameters (or restructure the authored cycle so legs live on the entry
+  carrier), then run the firmware/controlled-provider harness legs below.
 
   Acceptance: evolve `build/uefi_os_handoff_invocation` from binding-only coverage
   into authored execution through native emission and a firmware or controlled

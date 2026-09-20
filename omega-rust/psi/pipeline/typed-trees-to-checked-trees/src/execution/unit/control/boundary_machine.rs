@@ -6,9 +6,10 @@ use crate::execution::terminal_unit::{
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralParameterPlan, ShapeCollector, SymbolHandle, TypedTrees,
     boundary_domain_requirements, exact_compiler_intrinsic_boundary_requirement, is_reference,
-    is_unit, machine_binders, parameter_qualifications, projected_parameter_qualifications,
-    shared_plain_affine_referent, signature_contracts_are_exact_parameter_qualifications,
-    state_flow, structural_access_for_type_reference, structural_scalar_signature,
+    is_unit, machine_binders, mutable_plain_nonlinear_referent, parameter_qualifications,
+    projected_parameter_qualifications, shared_plain_affine_referent,
+    signature_contracts_are_exact_parameter_qualifications, state_flow,
+    structural_access_for_type_reference, structural_scalar_signature,
     type_graph_requires_nominal_drop,
 };
 
@@ -217,7 +218,8 @@ pub(crate) fn build_static_boundary_requirements(
                     && byte_sequence_carrier(program, parameter_type, &[])
                         != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
                     && !(qualifications.is_empty()
-                        && shared_plain_affine_referent(program, parameter_type).is_some())
+                        && (shared_plain_affine_referent(program, parameter_type).is_some()
+                            || mutable_plain_nonlinear_referent(program, parameter_type).is_some()))
                 {
                     supported = false;
                     break;

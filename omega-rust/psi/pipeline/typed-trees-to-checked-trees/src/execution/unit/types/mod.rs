@@ -892,6 +892,27 @@ pub(super) fn shared_plain_affine_referent(
     .then_some(*referee)
 }
 
+/// Exclusive references to this existing whole non-linear carrier do not own
+/// or qualify the referent either: the boundary writes back through them as an
+/// out-parameter, and custody of the referent stays with the caller. Linear
+/// referents, nested references, and constrained carriers stay out.
+pub(super) fn mutable_plain_nonlinear_referent(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Mutable,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (program.type_multiplicity(*referee) != Multiplicity::Linear
+        && has_plain_owned_contents(program, *referee))
+    .then_some(*referee)
+}
+
 pub(super) fn byte_sequence_type_identity(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
