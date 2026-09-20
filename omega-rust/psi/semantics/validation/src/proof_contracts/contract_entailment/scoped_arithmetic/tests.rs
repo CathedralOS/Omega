@@ -16,6 +16,7 @@ use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 
 mod domain_self;
+mod embeddings;
 mod projections;
 
 /// `descend(n, previous)`: `requires n <= previous`, the backedge

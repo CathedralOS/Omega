@@ -33,6 +33,41 @@ pub(crate) fn value_origin_at_call(
     )
 }
 
+/// Trace a value captured at the statement boundary through preceding owned
+/// stores. Call results remain opaque value roots with their exact projections;
+/// this query neither re-executes a call nor treats a reference as an owned copy.
+/// Unlike the call query, it does not include any current-statement operand
+/// evaluation. Call consumers must retain the call-prefix preservation check.
+pub(crate) fn value_origin_before_statement(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &FlowStateFact,
+    statement_index: usize,
+    place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<CanonicalPlace> {
+    let mut owned_frames = None;
+    let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
+    let place = flow::local_reference_storage_before_statement(
+        program,
+        frames,
+        machine,
+        state,
+        statement_index,
+        place,
+    )?;
+    trace_value_origin_before_statement(
+        program,
+        machine,
+        state,
+        statement_index,
+        place,
+        frames,
+        |_, _, _, _| None,
+        |_, _, _| None,
+    )
+}
+
 /// The shared backward origin trace with two extra producers a domain may
 /// prove: a decisive store whose captured value is an owned call result — the
 /// resolver receives the result-position call, the store's statement index,
@@ -64,16 +99,38 @@ where
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     place =
         flow::local_reference_storage_at_call(program, frames, machine, flow, state, call, place)?;
+    trace_value_origin_before_statement(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        place,
+        frames,
+        resolve,
+        rebase,
+    )
+}
+
+fn trace_value_origin_before_statement<Resolve, Rebase>(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &FlowStateFact,
+    statement_index: usize,
+    mut place: CanonicalPlace,
+    frames: &validation::CallFrameResolver<'_>,
+    resolve: Resolve,
+    rebase: Rebase,
+) -> Option<CanonicalPlace>
+where
+    Resolve:
+        Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
+    Rebase: Fn(&FlowStateFact, usize, &CanonicalPlace) -> Option<CanonicalPlace>,
+{
     let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);
-    for (index, statement) in statements
-        .get(..call.statement_index)?
-        .iter()
-        .enumerate()
-        .rev()
-    {
+    for (index, statement) in statements.get(..statement_index)?.iter().enumerate().rev() {
         // The demanded place may still name storage through a reference leaf
         // an ordinary arm cannot resolve — `boxed.view.scheduler` where `view`
         // is a `&` slot inside an owned local. Rebase it to the referent the

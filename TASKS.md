@@ -2648,7 +2648,8 @@ Owners include
   `tests/omega/pass/memory/bump_allocator_canary` checks that chain, a
   fallible request returning and consuming both `Attempt` cases, a `BumpVec`
   reservation with one optional retained buffer, fallible growth from the tail,
-  reset through either retained-slot case, and one resident
+  reset through either retained-slot case, full original-capacity reuse after
+  returning both allocations without a runtime guard, and one resident
   place/read/retire; six `fail/memory/bump_allocator_*` controls pin the
   rejections. Its header records the contract edges found so far. This is source
   checking only: the fixture is on the `CHECKED_ONLY_PASS_CANARIES` roster,
@@ -2657,11 +2658,15 @@ Owners include
   Split/merge conservation and resident establishment are asserted boundary
   laws, and nothing lowers or executes.
 
-  Resume evidence: macOS ARM64, 2026-09-19, `6c653e7593` plus the boundary
-  guarantee change: the focused command below accepts the fixture, and
+  Resume evidence: macOS ARM64, 2026-09-19, `a7e13e3530` plus the reset
+  conservation change: the focused command below accepts the fixture, and
   `OMEGA_FAIL_CANARY_FILTER=memory/bump_allocator_` with the
   `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
   selector rejects all six controls. Both use `RUST_MIN_STACK=67108864`.
+  Check the actual fixture with
+  `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
+  cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
+  -E 'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'`.
 
   Remaining work:
 
@@ -2693,35 +2698,6 @@ Owners include
     Terminal/native execution needs portable exit-alternative correspondence;
     demanded joined custody currently rejects explicitly in
     `checked-trees-to-lowered-psi/src/machine_lowering.rs`.
-  - Counted residual. `split` publishes `result.taken.length == length`,
-    consumed by `allocate`'s `check_extent_length` obligation without weakening
-    its borrowed `Granted & Vacant` extent. `allocate` declares and proves
-    `ensures result.strategy.remaining == strategy.remaining - length`;
-    `exercise` and `exercise_fallible` use the first allocation's actual returned
-    residual for the second request. Its `32 <= remaining` requirement follows
-    from the exact decrement and the caller's `48 <= capacity`, without a
-    restated `remaining: 32` floor. `check_remaining` consumes both returned
-    equalities. Next acceptance is allocating the original `capacity` after
-    full reset without a runtime guard. It needs split/merge scalar conservation
-    over `embed` (fixed-width sums can overflow), transport of exact saved
-    scalar values through owned moves and field copies, and exit implication
-    from completed-call guarantees. The attempted full-capacity fixture rejects;
-    the current reset publishes no relation tying its count to original capacity.
-    Check the actual fixture on macOS ARM64 with
-    `OMEGA_PASS_CANARY_FILTER=memory/bump_allocator_canary
-    cargo nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail
-    -E 'test(=entry_and_abi::pass_canary_coverage::pass_canaries_compile)'`.
-    `checks/contracts/prover/call_guarantees.rs` imports exact machine and
-    requirement-signature invocation guarantees; its `callable.rs` retains the
-    real declaration telescope rather than manufacturing a machine.
-    `prover/call_guarantees/arithmetic.rs` consumes them through the
-    scoped arithmetic engine, with structural bindings rather than labels.
-    Computed actuals, state transfers and reference-bearing owned capture ceilings need
-    their exact snapshot/effect evidence, not initializer replay. Exit proving
-    remains in `checks/contracts/exits/scalars/result_fields.rs`. The shared
-    arithmetic engine's `normalize_integer_embedding` must honor exact scoped
-    field bindings before these geometry relations can compose; opaque
-    expression identity is not captured-value equality.
   - Partition theorems. No checked body splits one `Granted` extent into two;
     the fixture delegates that step to a boundary. Returning `Granted` custody
     from two consumed qualified inputs still rejects as ambiguous at a boundary,
@@ -2729,6 +2705,9 @@ Owners include
     retained backing through that boundary; this is not a checked partition
     implementation. Replace the stand-in through
     `CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS`' invoked partition route.
+    The normal-return length laws do not prove that arbitrary requests fit
+    backing: that route must establish the geometric request bound and the
+    strategy's counted-residual-to-tail invariant before calling a real provider.
   - Strategy borrow. The contract has allocation borrow the strategy
     exclusively; the fixture threads `Bump` by value because a `&mut` carve
     rejected. Retry it through `BORROWED-STORAGE-RESTORATION`'s move-out/replace

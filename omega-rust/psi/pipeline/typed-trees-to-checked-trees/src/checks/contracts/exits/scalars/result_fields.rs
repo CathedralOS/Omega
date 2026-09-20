@@ -13,6 +13,109 @@ use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
 impl ExitScalars<'_, '_> {
+    /// Return substitution and call substitution meet in the same scoped solver.
+    /// Only live invocation guarantees are premises; the return contract under
+    /// proof is never imported. Constructor fields retain their exact values,
+    /// and entry operands retain the existing origin/preservation checks.
+    pub(super) fn proves_return_arithmetic(&self, expression: ExpressionHandle) -> bool {
+        self.return_arithmetic(expression) == Some(true)
+    }
+
+    fn return_arithmetic(&self, expression: ExpressionHandle) -> Option<bool> {
+        use super::super::super::prover::call_guarantees::{self, arithmetic, callable::Callable};
+        use validation::ScopedArithmeticValue;
+        let entry = self.program.machine_states(self.machine).first()?;
+        let state = crate::semantic_calls::find_state_in_machine(
+            self.program,
+            self.machine.symbol,
+            self.exit.state_symbol,
+        )?;
+        let (_, caller) = self.facts.flow.control.states.iter().find(|(_, state)| {
+            state.machine_symbol == self.machine.symbol
+                && state.state_symbol == self.exit.state_symbol
+        })?;
+        let goal = arithmetic::proposition(
+            self.program,
+            self.facts,
+            &Callable::Machine {
+                machine: self.machine,
+                state: entry,
+            },
+            expression,
+            |occurrence, primitive| {
+                if let Some((selected, remaining)) = self.result_projection(occurrence) {
+                    if remaining.is_empty() {
+                        let term = arithmetic::scalar_term(
+                            self.program,
+                            self.facts,
+                            &Callable::Machine {
+                                machine: self.machine,
+                                state,
+                            },
+                            selected,
+                            |value, carrier| {
+                                let place = call_guarantees::direct_place(self.program, value)?;
+                                let place = arithmetic::value_origin(
+                                    self.program,
+                                    caller,
+                                    self.exit.statement_index,
+                                    self.call_frames?,
+                                    place,
+                                )?;
+                                Some(arithmetic::atom(place, carrier))
+                            },
+                        )?;
+                        return Some(ScopedArithmeticValue::Term(term));
+                    }
+                    let mut place = call_guarantees::direct_place(self.program, selected)?;
+                    place.extend_segments(&remaining);
+                    let place = arithmetic::value_origin(
+                        self.program,
+                        caller,
+                        self.exit.statement_index,
+                        self.call_frames?,
+                        place,
+                    )?;
+                    return Some(arithmetic::atom(place, primitive));
+                }
+                let mut value = crate::values::lower_unit_scalar_argument(
+                    self.program,
+                    &self.facts.operators,
+                    entry,
+                    0,
+                    occurrence,
+                    primitive,
+                )?;
+                let mut subjects = Vec::new();
+                self.bind_current_scalar(&mut value, entry, true, &mut subjects)?;
+                let CheckedScalarExpression::Parameter { position, .. } = value else {
+                    return None;
+                };
+                // A reference formal denotes current storage, unlike an
+                // owned input's preserved invocation value. Reconstruct this
+                // read at the exit frontier too: a saved pre-write read may
+                // otherwise have the same place spelling as new contents.
+                let place = arithmetic::value_origin(
+                    self.program,
+                    caller,
+                    self.exit.statement_index,
+                    self.call_frames?,
+                    subjects.get(position)?.clone(),
+                )?;
+                Some(arithmetic::atom(place, primitive))
+            },
+        )?;
+        Some(arithmetic::proves_at_exit(
+            self.program,
+            self.facts,
+            caller,
+            self.exit.statement_index,
+            self.contexts,
+            self.call_frames?,
+            &goal,
+        ))
+    }
+
     fn result_projection(
         &self,
         expression: ExpressionHandle,
