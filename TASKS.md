@@ -6846,7 +6846,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   is the upstream extent-supply leg plus the host-gated `--mutations`
   verdict run (macOS arm64 / Windows x64 seed hosts).
 - **BETA-ENCODING-CERTIFICATE-PRODUCTION** — mined candidate; verify scope then implement.
-- **BETA-ENCODING-DEFINITION-PACKAGE** — mined candidate; verify scope then implement.
+- **BETA-ENCODING-DEFINITION-PACKAGE.** Resolved — landed at `6e8dd6fa33`,
+  witnessed green on linux x86-64 at `edc77c2148`. The checker request
+  envelope's owner-fixed definition package exists as the committed
+  artifact `bootstrap/proofs/beta_encoding/definition_package.bin`
+  (116,900 bytes, sha256 `6bbdd15a...`), bound by
+  `require_beta_encoding_definition_package_identity` in
+  `tools/bootstrap/proofs/sources_env.sh` with the sha recorded in the
+  package README. `sh tests/bootstrap/proofs-identity.sh` reproduces the
+  bound manifest/member closures byte-exactly and refuses a one-byte
+  package corruption, a truncated checker or theory manifest, and README
+  record drift. Per the landing note, alternative-package provenance was
+  already rejected — the owner fixes these exact bytes, so no further
+  slice exists here. Sibling stub of the same surface:
+  ENCODER-DEFINITION-PACKAGE; adjacent open legs are the
+  evaluator-seed-host gates under BETA-ENCODING-* certificate production.
 - **BETA-ENCODING-MUTATION-REJECTION.** Landed on main — the full-subject
   mutation controls exist as `tests/gamma/beta-encoding-theory/mutations.py`
   exposed via `run.sh --mutations` / `--mutations-self-test`
