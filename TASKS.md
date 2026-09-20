@@ -2821,15 +2821,18 @@ Owners include
   callables, selected-row resolution
   (`provider-planning/src/provider_planning/installation_reach.rs`) and
   root-closure substitution (`external-roots/src/root_entry/root_validation.rs`)
-  exist. A selected realization that itself retains an unresolved
-  installation-bound requirement rejects there. That rejection is the
-  fail-closed interim, not the end state: the installation closure
-  "substitutes every bounded row and rejects unresolved rows"
-  ([interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime)),
-  and substitution runs "through the complete root closure", so a nested row
-  is in scope rather than excluded. Keep the rejection until that step exists;
-  `RealizedMachineContractEnvelope::concrete_service_reach` already carries
-  resolved rows in the shape it would produce.
+  exist. Closure substitution now substitutes a nested bounded row the same
+  closure selected: the realization's resolved row is
+  `RealizedMachineContractEnvelope::concrete_service_reach` extended by each
+  nested requirement's resolved row, iterated to a fixpoint so substituted
+  rows can themselves satisfy still-pending rows. A nested requirement the
+  closure never selected still rejects with the same unresolved-row
+  diagnostic, so "substitutes every bounded row and rejects unresolved rows"
+  ([interrupt obligations](wiki/spec/build/interrupt_obligations.md#completion-reach-and-lifetime))
+  holds for both sides of the selection boundary. Authored-source pins:
+  `opaque_boundaries.rs::selected_realization_substitutes_a_selected_installation_bound_row`
+  (positive) and `selected_realization_with_an_unresolved_installation_bound_row_rejects`
+  (negative).
 
   Remaining work:
 
