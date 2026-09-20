@@ -7184,7 +7184,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
   alias of CROSS-COMPILER-DIFFERENTIAL-LANE (scope verified at
   `36ffc8af87`), which names this row verbatim. Re-verified on linux
-  x86-64 at `a0cf9e5e82`: the gate is unchanged —
+  x86-64 at `d32183a35c`: the gate is unchanged —
   `selected-dispatch/src/service_custody/root.rs` still emits "selected
   ProgramEntry establishment rejoins {} Terminal attachment identities;
   expected one", the pin at
