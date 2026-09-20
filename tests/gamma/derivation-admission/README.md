@@ -6,8 +6,13 @@ explicitly. Windows execution remains
 unvalidated in this checkpoint.
 
 The gate materializes the complete manifested ordinary-Gamma admission source
-and a separate explicit diagnostic entrance. It frames inputs and compares the
-entire result, status, and empty stderr. No host parser or decoder decides an
+and a separate explicit diagnostic entrance — the bound `main.gamma` prefix,
+1,270 bytes, SHA-256
+`d657d412c92123bdc6dc7c95c38eed50a158c5c986507c5eb3f5ae4420a96e88`, recorded
+in `tools/bootstrap/proofs/sources_env.sh` and checked by
+`require_derivation_admission_entry_identity` before it packs on the bound
+member bytes. It frames inputs and compares the entire result, status, and
+empty stderr. No host parser or decoder decides an
 admission result, and no production function is extracted or replaced.
 
 The vectors cover all short-header extents; every identity/reserved byte;

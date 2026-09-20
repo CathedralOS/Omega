@@ -46,6 +46,8 @@ BETA_ENCODING_DEFINITION_PACKAGE_SHA256=6bbdd15abac8060a9c5718f58944f758c5c647c1
 # is an identity check on the entry source; it is not a proof of the gate's
 # judgment. Changing an entry changes the packed customer and must update
 # every record together.
+DERIVATION_ADMISSION_ENTRY_SIZE=1270
+DERIVATION_ADMISSION_ENTRY_SHA256=d657d412c92123bdc6dc7c95c38eed50a158c5c986507c5eb3f5ae4420a96e88
 DERIVATION_CHECKING_ENTRY_SIZE=1155
 DERIVATION_CHECKING_ENTRY_SHA256=8601e23955e3054eba95a2b5e7e2dd2a92d4ae47c8cb9bf49d9ce77c295a16a2
 DERIVATION_FORMATION_ENTRY_SIZE=1584
@@ -178,6 +180,13 @@ materialize_beta_encoding_theory() {
 # and never part of the manifested members, so consumers that pack it run
 # this before packing; tests may call it directly. It does not run during
 # materialization.
+require_derivation_admission_entry_identity() {
+  require_bound_identity "main.gamma" \
+    "$OMEGA_PATH_DERIVATION_ADMISSION_ENTRY" \
+    "$DERIVATION_ADMISSION_ENTRY_SIZE" "$DERIVATION_ADMISSION_ENTRY_SHA256" \
+    "tests/gamma/derivation-admission/README.md"
+}
+
 require_derivation_checking_entry_identity() {
   require_bound_identity "main.gamma" \
     "$OMEGA_PATH_DERIVATION_CHECKING_ENTRY" \
