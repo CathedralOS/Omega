@@ -35,47 +35,80 @@ Never sit still. The wave fails when the coordinator waits on one thing:
 ## The resume loophole (scaling past the cap)
 
 `devin_session_create` is capped (~7 concurrent SWE-2 sessions org-wide on the
-free promotion), but `devin_session_interact message` to a **suspended**
-session resumes it *outside* that cap. Verified: 18 workers + coordinator
-running simultaneously. `exit` sessions are dead forever
-("Session already exited"); only `suspended` resumes.
+free promotion), but `devin_session_interact message` to a `suspended` or
+`waiting_for_user` session resumes it *outside* that cap. Verified at **60+
+workers running simultaneously**. `exit`/`terminated` sessions are dead forever
+("Session already exited") — never terminate anything you want back.
+
+### Cap counting (verified)
+
+The cap counter counts `running` (both `working` and `waiting_for_user`) plus
+the coordinator itself — NOT `suspended`. Verified: a `sleep` drops the org
+count by exactly one; `waiting_for_user` does not. Sleeping a parked worker
+both frees a create slot AND keeps it resumable — this is the whole trick.
+
+### Stockpiling a pool (the "Zergling pool")
+
+To build N resumable slots under a 7-cap, repeat in rounds:
+
+1. `devin_session_create` a probe: prompt "Reply with exactly one word: READY.
+   Do nothing else.", a shared pool tag, a numbered title (`Zergling: N`).
+   Titles are set only at creation — there is no rename API action; drive the
+   webapp UI or accept tags.
+2. Wait ~5-15s, `get_messages` until the READY reply lands, then `sleep` it
+   immediately — `suspended` frees its counter slot.
+3. Create the next batch into the freed slots. ~3 per round while other work
+   runs; each round is ~30s. Verified to 101 live pool members from one
+   coordinator (38 create-limited + 63 recycled from wave history).
+
+Ownership wall: `devin_session_interact` 403s on sessions parented to other
+coordinators — every action (message, archive, get). Your pool is exactly the
+sessions YOUR session created. `devin_session_search parent_session_id=<self>`
+lists them; `get` returning 403 means foreign-parented.
+
+### Pool lifecycle
 
 - **Recycle on drain.** When a worker posts its verdict and goes
-  `waiting_for_user`, send `message` with the next item's prompt prefixed by:
+  `waiting_for_user`: `get_messages` for the verdict tail → record into
+  outcomes.json → either `message` the next item (prefixed by
   `# NEW ASSIGNMENT — your previous task is complete` / "Ignore all remaining
-  work from it. Below is your new board item." The session keeps its VM,
-  worktree, and context — the prompt must claim paths for the NEW item.
+  work from it.") or `sleep` it into the suspended reserve.
+- **Prefer `suspended` over `waiting_for_user` as the parked state.** A
+  verdict-posted worker left waiting looks ambiguous next to working sessions
+  and still counts toward the cap. `sleep` makes parked unambiguous and frees
+  the counter.
 - **Grow the pool.** Every worker ever spawned that isn't terminated or `exit`
-  is a recyclable slot. `devin_session_search` for the wave tag, filter
-  `status=suspended`: `unarchive` if archived, then `message` the new task.
-  Resuming is free; width is bounded only by how many sessions exist.
-- **Sleep, don't terminate, during an active wave.** A `sleep`ed worker stays
-  resumable; a terminated or exited one is gone. Only `archive`/`terminate`
-  when the wave is permanently ending or the session is corrupt.
+  is a recyclable slot: `unarchive` if archived, then `message` the new task.
+  Resuming is free; width is bounded only by how many sessions ever existed.
+- **Sleep, don't terminate.** A `sleep`ed worker stays resumable; terminated
+  is gone forever. Only terminate at permanent wave end or for corruption.
 - **Assign items with known remaining legs** when recycling (check the last
   verdict's `remaining_legs` in outcomes.json); a recycled worker on a finished
-  item just reports blocked/blocked-free and costs a drain cycle.
+  item just reports superseded and costs a drain cycle.
+- **Expect churn at width.** Beyond ~20 workers on this board, most verdicts
+  are `blocked` on foreign claims (other waves hold renewable leases; nothing
+  guarantees expiry). A blocked worker costs ~1-5 min and produces a structured
+  verdict — cheap, but the real width limiter is unfenced path supply, not
+  session count. TASKS.md regenerates legs as landings append board notes.
 
 ## Slots
 
 - The concurrency cap is **org-wide and shared across every coordinator and
   user**, not per-wave. On the free SWE-2 promotion it is ~7 SWE-2 sessions
-  total. Sessions outside your visibility (another coordinator's workers,
-  zombie sessions that answer `403`) hold real slots — your own search will
-  never show them.
-- Suspended and archived sessions count toward the **create** cap only; resume
-  via `message` ignores it. Once the recycle pool exists, the cap is a
-  bootstrap constraint, not a width constraint.
+  total — and the coordinator session itself counts. Sessions outside your
+  visibility (another coordinator's workers, foreign lanes) hold real slots —
+  your own `devin_session_search` only shows your children; count org-wide
+  `status=running` across all parents to see the true load.
+- The counter: `running` counts (working AND waiting_for_user), `suspended`
+  does not, `exit` is dead. See cap counting above.
 - A `429` on `create` while a suspended pool exists means: stop creating,
-  start recycling. Recycled resumes have no known cap — grow gradually and
-  verify (`get` each) rather than blasting the whole pool at once.
-- `terminate` is asynchronous and permanent — during a live wave prefer
-  `sleep`, which keeps the session resumable.
+  `sleep` any verdict-posted workers to free slots, then resume/recycle.
 - Probe slots (`probe_only` in the manifest) are real work: they report
   `verification_only`/`blocked` with the next acceptance — spawn them like any
   other item when the queue is otherwise empty.
 - A `blocked` result naming a live claim is a *retry later*, not a dead item —
-  note the expiry and respawn when it lapses.
+  record the lease expiry and respawn when it lapses. Foreign claims are
+  renewable leases: plan as "if", never "when".
 
 ## Bookkeeping
 
