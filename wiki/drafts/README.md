@@ -19,6 +19,10 @@ the existing task boards, not in a second tracking system.
   tradeoffs, not a proposed replacement; remove when superseded or no longer useful.
 - [Learned optimization](learned_optimization_policy.md): exploratory workload,
   ranking, and search ideas; remove when superseded by a concrete design or unused.
+- [Specialized-variant identity impact](specialized_variant_identity_impact.md):
+  how future specialized variants interact with code identity, deduplication,
+  and component replacement; remove when a variant producer lands or it is
+  superseded.
 - [Matching-logic interchange](matching_logic.md): research background and possible
   proof-route comparisons; remove when superseded by a concrete design or unused.
 - [Proof-search caching](proof_search_cache.md): exploratory derivation reuse;
