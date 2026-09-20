@@ -50,6 +50,7 @@ pub(crate) use discovery::*;
 use eligibility::*;
 pub(crate) use substitution::*;
 use synthesis::desugar_generic_data_instances;
+pub(super) use synthesis::desugar_generic_data_instances_with_selection;
 use uses::*;
 
 /// Authored constant arguments in concrete data fields and constant declarations.
@@ -363,6 +364,7 @@ pub fn normalize_generic_data(
         &mut syntax,
         &mut warnings,
         Some(&selection),
+        &[],
     )?;
     deduplicate_generic_warnings(&mut warnings);
     for warning in warnings {

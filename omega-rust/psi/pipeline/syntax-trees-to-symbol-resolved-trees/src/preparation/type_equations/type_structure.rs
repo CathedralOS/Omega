@@ -1,9 +1,10 @@
-//! Decompose fixed-array type constructors without observing runtime contents.
+//! Decompose declared type constructors without observing runtime contents.
 //!
 //! Element positions bind types and length positions bind integer constants.
-//! Nested arrays use the same recursion; closed leaves use the existing exact
-//! identity owner, including nominal applications and qualified types. This is
-//! not an arithmetic solver or a new source of array-length evaluation.
+//! Arrays and nominal applications share recursion; `applications` selects the
+//! exact declaration and parameter kinds of each nominal head. Closed leaves
+//! use the existing identity owner. This is not an arithmetic solver or a new
+//! source of array-length evaluation.
 
 use super::{Binding, Solver, collect_expression_binder_mentions};
 use crate::preparation::generic_data::closed_argument_identity;
@@ -15,6 +16,8 @@ use syntax_trees::item::TypeParameterKind;
 use syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
+
+mod applications;
 
 pub(super) fn collect_binder_mentions(
     syntax: &SyntaxTrees,
@@ -188,6 +191,7 @@ impl Solver<'_, '_> {
                 }
                 Ok(())
             }
+            TypeReferenceNode::Generic { .. } => self.match_application(pattern, actual, span),
             _ => {
                 self.require_closed_pattern(pattern, span)?;
                 self.require_equal_type_structure(pattern, actual, span)
@@ -288,6 +292,7 @@ impl Solver<'_, '_> {
                     },
                 )));
             }
+            TypeReferenceNode::Generic { .. } => return self.construct_application(pattern, span),
             _ => {}
         }
         self.require_closed_pattern(pattern, span)?;

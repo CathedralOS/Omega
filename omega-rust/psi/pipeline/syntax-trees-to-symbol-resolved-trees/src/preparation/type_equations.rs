@@ -22,14 +22,17 @@
 //! carry, so every later equation, repeat occurrence and closed identity
 //! compares one shape.
 //!
-//! Fixed-array operands retain ordinary type-reference trees. Their element
-//! and extent positions recursively recover type and const binders, or build
-//! an omitted array once those binders are known. `type_structure` owns this
-//! constructor traversal; closed leaves still use `closed_argument_identity`.
+//! Fixed arrays and declared generic applications retain ordinary type trees.
+//! Their type and integer-const positions recursively recover binders, or build
+//! an omitted type once those binders are known. `type_structure` owns this
+//! traversal: nominal heads join by selected declaration, never layout or leaf
+//! spelling. Closed leaves still use `closed_argument_identity`.
 //! Runtime contents and compatible storage sizes never supply an argument.
 //! Data synthesis and machine-call preparation supply their exact selected
 //! declaration telescopes; this solver owns neither call selection nor
-//! publication. Machine preparation currently requires closed explicit calls.
+//! publication. Machine preparation currently requires closed explicit calls
+//! and sends completed type roots back through ordinary data normalization;
+//! an equation does not discharge the selected constructor's own obligations.
 
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::closed_argument_identity;
@@ -1473,7 +1476,7 @@ fn integer_to_i128(value: &BigInt) -> Option<i128> {
         .or_else(|| value.to_u64().map(i128::from))
 }
 
-fn const_binder_envelope(type_name: &str) -> Option<(BigInt, BigInt)> {
+pub(super) fn const_binder_envelope(type_name: &str) -> Option<(BigInt, BigInt)> {
     let (minimum, maximum) = match type_name {
         "i8" => (i128::from(i8::MIN), i128::from(i8::MAX)),
         "i16" => (i128::from(i16::MIN), i128::from(i16::MAX)),

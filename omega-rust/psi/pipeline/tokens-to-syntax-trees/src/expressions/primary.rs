@@ -281,6 +281,20 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
                 .append_identifier_path_member(member)
         })?;
 
+        if context.allows_type_expression()
+            && input.at_punctuation(PunctuationKind::Less)
+            && starts_generic_type_operand(start)
+        {
+            let (type_reference, rest) = parse_type_reference_handle(syntax_trees, start)?;
+            let expression = syntax_trees
+                .expressions
+                .insert(ExpressionNode::TypeExpression(type_reference));
+            syntax_trees
+                .expressions
+                .set_source_span(expression, start.source_span_until(rest));
+            return Ok((expression, rest));
+        }
+
         if context.allows_struct_literal() && input.at_punctuation(PunctuationKind::LeftBrace) {
             let members = syntax_trees.expressions.identifier_path_members(path);
             let first = members.first().expect("constructor path has a head");
@@ -304,6 +318,54 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     }
 
     Err(input.error_here("expected expression"))
+}
+
+/// A generic type operand ends before a fact delimiter or Boolean/equality
+/// operator. A following value keeps ordinary comparisons, and `(` keeps a
+/// static call. Speculation uses scratch storage so failed type parses cannot
+/// publish phantom generic applications into later normalization.
+fn starts_generic_type_operand(input: Input<'_, '_>) -> bool {
+    let mut scratch = SyntaxTrees::new(input.source_id);
+    let Ok((reference, rest)) = parse_type_reference_handle(&mut scratch, input) else {
+        return false;
+    };
+    if !matches!(
+        scratch.type_references.type_reference(reference),
+        syntax_trees::types::TypeReferenceNode::Generic { .. }
+    ) {
+        return false;
+    }
+    [
+        PunctuationKind::Arrow,
+        PunctuationKind::EqualEqual,
+        PunctuationKind::ExclamationEqual,
+        PunctuationKind::PipePipe,
+        PunctuationKind::AndAnd,
+        PunctuationKind::Comma,
+        PunctuationKind::Semicolon,
+        PunctuationKind::LeftBrace,
+        PunctuationKind::RightBrace,
+        PunctuationKind::RightParen,
+    ]
+    .into_iter()
+    .any(|punctuation| rest.at_punctuation(punctuation))
+        || [
+            "requires",
+            "ensures",
+            "terminates",
+            "decreases",
+            "reaches",
+            "effects",
+            "invokes",
+            "suspends",
+            "blocks",
+            "crashes",
+            "boundary",
+            "where",
+            "satisfies",
+        ]
+        .into_iter()
+        .any(|keyword| rest.at_contextual(keyword))
 }
 
 /// The outer semicolon distinguishes `[Element; Count]` from a value array.
@@ -389,4 +451,67 @@ fn parse_struct_literal_handle<'tokens, 'source>(
         ),
     );
     Ok((expression, input))
+}
+
+#[cfg(test)]
+mod generic_type_operand_tests {
+    use crate::parser::parse_syntax_trees;
+    use source_files_to_tokens::Lexer;
+    use syntax_trees::expression::ExpressionNode;
+    use syntax_trees::types::TypeReferenceNode;
+
+    #[test]
+    fn proof_type_operands_keep_nested_applications_and_grouping() {
+        for equation in [
+            "Backing == Cell<Element, Count>",
+            "(Cell<Element, Count>) == Backing",
+            "Backing == Cell<Cell<Element, 2>, Count>",
+        ] {
+            let source = format!(
+                "data Buffer<Backing, Element, const Count: u64> where {equation} {{ storage: Backing; }}"
+            );
+            let tokens = Lexer::new(&source).tokenize().unwrap();
+            let parsed = parse_syntax_trees(&tokens).unwrap();
+            assert!(parsed.expressions.iter_expressions().any(|(_, expression)| {
+                matches!(expression, ExpressionNode::TypeExpression(reference)
+                    if matches!(parsed.type_references.type_reference(*reference), TypeReferenceNode::Generic { .. }))
+            }));
+        }
+    }
+
+    #[test]
+    fn comparisons_and_static_calls_do_not_become_type_operands() {
+        for fact in [
+            "left < middle > right",
+            "probe<u8>() == 1",
+            "probe<Cell<u8>>() == 1",
+        ] {
+            let source = format!("data Buffer where {fact} {{ storage: u64; }}");
+            let tokens = Lexer::new(&source).tokenize().unwrap();
+            let parsed = parse_syntax_trees(&tokens).unwrap();
+            assert!(
+                !parsed
+                    .expressions
+                    .iter_expressions()
+                    .any(|(_, expression)| {
+                        matches!(expression, ExpressionNode::TypeExpression(_))
+                    })
+            );
+        }
+    }
+
+    #[test]
+    fn application_operand_can_end_before_the_next_machine_clause() {
+        for (result, suffix) in [
+            ("", "-> u64"),
+            ("-> u64", "requires true"),
+            ("", "terminates; -> u64"),
+        ] {
+            let source = format!(
+                "machine capacity<Backing, Element, const Count: u64>() {result} where Backing == Cell<Element, Count> {suffix} {{ 7 }}"
+            );
+            let tokens = Lexer::new(&source).tokenize().unwrap();
+            parse_syntax_trees(&tokens).unwrap();
+        }
+    }
 }

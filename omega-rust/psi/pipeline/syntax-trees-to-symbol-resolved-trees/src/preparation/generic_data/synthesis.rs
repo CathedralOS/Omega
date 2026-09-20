@@ -55,13 +55,14 @@ pub(in crate::preparation::generic_data) fn desugar_generic_data_instances(
         None
     };
     super::domain_heads::normalize(syntax, selection.as_ref())?;
-    desugar_generic_data_instances_with_selection(syntax, warnings, selection.as_ref())
+    desugar_generic_data_instances_with_selection(syntax, warnings, selection.as_ref(), &[])
 }
 
-pub(super) fn desugar_generic_data_instances_with_selection(
+pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
     syntax: &mut SyntaxTrees,
     warnings: &mut Vec<Diagnostic>,
     selection: Option<&super::constant_selection::ConstantSelection>,
+    closed_roots: &[TypeReferenceHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     // Attachments belong to the carrier selected in their declaring source,
     // not to every generic declaration with the same leaf spelling.
@@ -256,9 +257,47 @@ pub(super) fn desugar_generic_data_instances_with_selection(
     // up and monomorphized by the NEXT round. Terminates: each round rewrites
     // >=1 Generic node to Named (permanent) or stops, and the distinct concrete
     // spellings are finite.
-    let mut synthesized: Vec<Instantiation> = Vec::new();
+    // Completion can add closed type owners after an earlier pass. Reuse
+    // declarations by retained template/argument identity, never by the name
+    // generated for them, and never clone their attached methods twice.
+    let mut synthesized = Vec::new();
+    for &declaration in syntax.root_item_handles() {
+        let Item::Data(definition) = syntax.root_item(declaration) else {
+            continue;
+        };
+        let Some(origin) = definition.generic_instance else {
+            continue;
+        };
+        let Some(ClosedArgumentIdentity::Instance(template, argument_identity)) =
+            super::closed_argument_identity(syntax, selection, origin, false)
+        else {
+            return Err(vec![Diagnostic::error(
+                "existing generic instance lost its exact template and argument identity",
+            )]);
+        };
+        let TypeReferenceNode::Generic { arguments, .. } =
+            syntax.type_references.type_reference(origin)
+        else {
+            return Err(vec![Diagnostic::error(
+                "existing generic instance lost its original application structure",
+            )]);
+        };
+        synthesized.push(Instantiation {
+            synthetic_name: definition.name.as_str().to_owned(),
+            declaration,
+            template,
+            argument_handles: syntax
+                .type_references
+                .type_reference_handles(*arguments)
+                .to_vec(),
+            argument_identity,
+        });
+    }
     loop {
-        let positions = collect_type_reference_positions(syntax);
+        let mut positions = collect_type_reference_positions(syntax);
+        for &root in closed_roots {
+            super::collect_type_positions(syntax, root, &mut positions, false);
+        }
         let mut rewrites: Vec<PendingRewrite> = Vec::new();
         let mut instantiations: Vec<Instantiation> = Vec::new();
         for position in positions {

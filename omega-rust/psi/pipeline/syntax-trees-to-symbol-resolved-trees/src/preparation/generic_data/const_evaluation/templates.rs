@@ -231,7 +231,7 @@ pub(in crate::preparation::generic_data) fn collect_data_type_reference_position
     collect_owned_type_reference_positions(syntax, false, public_only)
 }
 
-fn collect(
+pub(in crate::preparation) fn collect_type_positions(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
     positions: &mut Vec<TypeReferenceHandle>,
@@ -240,13 +240,13 @@ fn collect(
     positions.push(type_reference);
     match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
-            collect(syntax, *referee, positions, include_domain_arguments)
+            collect_type_positions(syntax, *referee, positions, include_domain_arguments)
         }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
-            collect(syntax, *base_type, positions, include_domain_arguments);
+            collect_type_positions(syntax, *base_type, positions, include_domain_arguments);
             // The legacy synthesis walk must not capture machine-domain
             // locals. Original-scope discovery may visit these children,
             // but its caller must resolve their lexical bindings first.
@@ -259,14 +259,19 @@ fn collect(
                         .type_references
                         .type_reference_handles(domain.arguments)
                     {
-                        collect(syntax, *argument, positions, include_domain_arguments);
+                        collect_type_positions(
+                            syntax,
+                            *argument,
+                            positions,
+                            include_domain_arguments,
+                        );
                     }
                 }
             }
         }
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => {
-            collect(syntax, *element_type, positions, include_domain_arguments)
+            collect_type_positions(syntax, *element_type, positions, include_domain_arguments)
         }
         TypeReferenceNode::Generic { arguments, .. } => {
             for argument in syntax
@@ -274,7 +279,7 @@ fn collect(
                 .type_references
                 .type_reference_handles(*arguments)
             {
-                collect(syntax, *argument, positions, include_domain_arguments);
+                collect_type_positions(syntax, *argument, positions, include_domain_arguments);
             }
         }
         TypeReferenceNode::ConstExpression(_)
@@ -305,12 +310,20 @@ fn collect_owned_type_reference_positions(
             {
                 for member in syntax.tables.items.data_members(definition.members) {
                     match member {
-                        DataMember::Field(field) => {
-                            collect(syntax, field.type_reference, &mut positions, true)
-                        }
+                        DataMember::Field(field) => collect_type_positions(
+                            syntax,
+                            field.type_reference,
+                            &mut positions,
+                            true,
+                        ),
                         DataMember::Variant(variant) => {
                             for field in syntax.tables.items.data_payload_fields(variant.payload) {
-                                collect(syntax, field.type_reference, &mut positions, true);
+                                collect_type_positions(
+                                    syntax,
+                                    field.type_reference,
+                                    &mut positions,
+                                    true,
+                                );
                             }
                         }
                         DataMember::Retired(_) => {}
@@ -322,7 +335,7 @@ fn collect_owned_type_reference_positions(
             // the closed `Box<u64>` instance exactly like a data field, or the
             // const retains a raw generic type downstream.
             Item::Const(definition) if !public_only || definition.is_public => {
-                collect(syntax, definition.type_reference, &mut positions, true)
+                collect_type_positions(syntax, definition.type_reference, &mut positions, true)
             }
             Item::Machine(machine) if include_machines && machine.type_parameters.is_empty() => {
                 // Conformance arguments participate in the same concrete
@@ -336,14 +349,14 @@ fn collect_owned_type_reference_positions(
                         .type_references
                         .type_reference_handles(conformance.arguments)
                     {
-                        collect(syntax, *argument, &mut positions, false);
+                        collect_type_positions(syntax, *argument, &mut positions, false);
                     }
                 }
                 for state_handle in syntax.tables.items.state_handles(machine.states) {
                     let state = syntax.tables.items.state(*state_handle);
-                    collect(syntax, state.return_type, &mut positions, false);
+                    collect_type_positions(syntax, state.return_type, &mut positions, false);
                     for parameter_handle in syntax.tables.items.state_parameters(state.parameters) {
-                        collect(
+                        collect_type_positions(
                             syntax,
                             syntax
                                 .tables
@@ -358,7 +371,12 @@ fn collect_owned_type_reference_positions(
                         if let StatementNode::LocalData(local) =
                             syntax.tables.statements.statement(*statement_handle)
                         {
-                            collect(syntax, local.type_reference, &mut positions, false);
+                            collect_type_positions(
+                                syntax,
+                                local.type_reference,
+                                &mut positions,
+                                false,
+                            );
                         }
                     }
                 }
@@ -379,7 +397,7 @@ fn collect_owned_type_reference_positions(
         if concrete_expressions.contains(&handle.arena_index())
             && let ExpressionNode::Cast(cast) = expression
         {
-            collect(syntax, cast.target_type, &mut positions, false);
+            collect_type_positions(syntax, cast.target_type, &mut positions, false);
         }
     }
     positions
@@ -407,9 +425,9 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
         {
             let state = syntax.items.state(*state_handle);
             let start = positions.len();
-            collect(syntax, state.return_type, &mut positions, true);
+            collect_type_positions(syntax, state.return_type, &mut positions, true);
             for parameter in syntax.items.state_parameters(state.parameters) {
-                collect(
+                collect_type_positions(
                     syntax,
                     syntax.items.state_parameter(*parameter).type_reference,
                     &mut positions,
@@ -421,7 +439,7 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
             }
             for statement in syntax.items.statements(state.statements) {
                 if let StatementNode::LocalData(local) = syntax.statements.statement(*statement) {
-                    collect(syntax, local.type_reference, &mut positions, true);
+                    collect_type_positions(syntax, local.type_reference, &mut positions, true);
                 }
             }
         }
@@ -431,12 +449,12 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
         if concrete_expressions.contains(&handle.arena_index())
             && let ExpressionNode::Cast(cast) = expression
         {
-            collect(syntax, cast.target_type, &mut positions, true);
+            collect_type_positions(syntax, cast.target_type, &mut positions, true);
             for argument in syntax
                 .type_references
                 .type_reference_handles(cast.semantic_domain_arguments)
             {
-                collect(syntax, *argument, &mut positions, true);
+                collect_type_positions(syntax, *argument, &mut positions, true);
             }
         }
     }
