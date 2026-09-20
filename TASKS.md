@@ -7952,6 +7952,21 @@ Platform/cross-host (structurally gated — document host limits):
   unsatisfiable); the preserving-decode mode and its remainder custody
   (`Relayed<T>`/`OpaqueWireRemainder` in `wiki/spec/layouts/codecs.md`) are the
   next slice.
+  Verified at `ded56393da2` (linux x86-64): the admission half is already
+  functional — `wire/wire_compatibility_preservation_met` re-witnessed green
+  (OMEGA_PASS_CANARY_FILTER, 1/1 PASS, 48s); an authored
+  `PreservingDecode<Policy, Value>` conformance satisfies the demand via
+  `admission/wire_protocol.rs::published_preserving_decode`, and `wire.omg`
+  already declares `PreservingDecode`, `Relayed<T>` and `OpaqueWireRemainder`.
+  The remaining work is the producing half, not detection: the only wire
+  decode machinery is the legacy synthesized strict `Schema::decode`
+  (`value_custody/wire/decode_call.rs`, v0 subset — i32/i64/u32/u64/bool,
+  borrowed text, one-level nested schema); `decode_preserving` is recognized
+  nowhere in validation, the checked interpreter (`evaluator/wire_codec.rs`),
+  or native codegen. A real preserving decode must validate known members,
+  capture unknown-member bytes + ordering sidecar, and bind codec identity
+  into `OpaqueWireRemainder` — a multi-crate slice (validation + interpreter
+  + codegen), larger than a single bounded leg.
 
 Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
