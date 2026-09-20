@@ -83,6 +83,33 @@ fn spec_table(marker: &str) -> BTreeMap<u8, String> {
         .collect()
 }
 
+/// Every data row of the spec table under `marker`, without the numeric-first
+/// column filter `spec_rows` applies for tag tables. The header and `---`
+/// separator lines drop out by position: the spec's tables always open with
+/// exactly those two rows.
+fn spec_data_rows(marker: &str) -> Vec<Vec<String>> {
+    let spec = read_workspace_file(ENCODING_SPEC);
+    let start = spec
+        .find(marker)
+        .unwrap_or_else(|| panic!("spec is missing the {marker} table marker"));
+    let mut lines = Vec::new();
+    for line in spec[start + marker.len()..].lines() {
+        let line = line.trim();
+        if !line.starts_with('|') {
+            if !lines.is_empty() && !line.is_empty() {
+                break;
+            }
+            continue;
+        }
+        lines.push(line);
+    }
+    assert!(lines.len() > 2, "spec table {marker} has no data rows");
+    lines[2..]
+        .iter()
+        .map(|line| line.split('|').map(str::trim).map(str::to_string).collect())
+        .collect()
+}
+
 /// The body of `fn name(` through its matching close brace.
 fn function_body<'a>(source: &'a str, name: &str) -> &'a str {
     let start = source
@@ -1185,4 +1212,326 @@ fn quotient_contract_owner_table_matches_codec() {
             "QuotientContractOwner",
         ),
     );
+}
+
+/// `spec envelope name -> codec source` for every byte-framed envelope
+/// terminal-codec emits. The magic and marker literals are then searched in
+/// that source: an envelope whose constants change without a spec row (or a
+/// spec row without a codec owner) fails here.
+const ENVELOPE_SOURCES: &[(&str, &str)] = &[
+    (
+        "semantic module",
+        "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module.rs",
+    ),
+    (
+        "proof bundle",
+        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle.rs",
+    ),
+    (
+        "sealed proof section",
+        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_bundle.rs",
+    ),
+    (
+        "obligation ledger",
+        "omega-rust/psi/semantics/terminal-codec/src/sections/obligation_ledger.rs",
+    ),
+    (
+        "canonical artifact",
+        "omega-rust/psi/semantics/terminal-codec/src/canonical_artifact.rs",
+    ),
+    (
+        "PCC proof sidecar",
+        "omega-rust/psi/semantics/terminal-codec/src/sections/proof_sidecar.rs",
+    ),
+    (
+        "debug map",
+        "omega-rust/psi/semantics/terminal-codec/src/sections/debug_map.rs",
+    ),
+    (
+        "optimization execution",
+        "omega-rust/psi/semantics/terminal-codec/src/sections/optimization_execution.rs",
+    ),
+];
+
+/// The envelope contract is what a receiver reads first: an eight-byte magic
+/// and `u16` marker per codec emission. A marker bumped in code but not in the
+/// contract leaves an independent implementer decoding a stale wire.
+#[test]
+fn envelope_markers_match_codec() {
+    let rows = spec_data_rows("<!-- envelope-markers -->");
+    let mut seen = BTreeMap::new();
+    for cells in &rows {
+        let name = cells[1].as_str();
+        let magic = cells[2].trim_matches('`');
+        let marker: u16 = cells[3]
+            .trim_matches('`')
+            .parse()
+            .unwrap_or_else(|_| panic!("envelope {name} marker is not numeric"));
+        let path = ENVELOPE_SOURCES
+            .iter()
+            .find(|(envelope, _)| *envelope == name)
+            .map(|(_, path)| *path)
+            .unwrap_or_else(|| panic!("spec envelope {name} has no codec source pin"));
+        let source = strip_line_comments(&read_workspace_file(path));
+        assert!(
+            source.contains(&format!("b\"{magic}\"")),
+            "{path} does not emit magic {magic} for {name}"
+        );
+        assert!(
+            source.contains(&format!("FORMAT_MARKER: u16 = {marker}")),
+            "{path} does not emit marker {marker} for {name}"
+        );
+        seen.insert(name, path);
+    }
+    assert_eq!(
+        rows.len(),
+        ENVELOPE_SOURCES.len(),
+        "spec envelope table and codec envelope inventory disagree"
+    );
+    for (name, _) in ENVELOPE_SOURCES {
+        assert!(
+            seen.contains_key(name),
+            "codec envelope {name} is missing from the spec table"
+        );
+    }
+}
+
+/// The shared vocabulary marker repeated inside the subject-bearing envelopes
+/// is one constant in `terminal-psi`; the module envelope sentence names it.
+/// The spec wraps mid-phrase, so whitespace is normalized before matching.
+#[test]
+fn vocabulary_marker_matches_semantic_vocabulary() {
+    let spec = read_workspace_file(ENCODING_SPEC)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        spec.contains("vocabulary marker 107"),
+        "module envelope must name vocabulary marker 107"
+    );
+    let source = read_workspace_file(
+        "omega-rust/psi/representations/terminal-psi/src/terminal_module/identity/vocabulary.rs",
+    );
+    assert!(
+        function_body(&source, "get").contains("107"),
+        "VocabularyMarker::get no longer returns 107"
+    );
+}
+
+/// Ordered `(spec table name, encode sentinel, decode sentinel)` triples
+/// pinning the module's counted-table declaration order. The sentinels are
+/// the exact `writer.len` labels or per-row codec entry points inside
+/// `encode_raw`/`decode_module_body`; a reordered table changes wire bytes
+/// and must move its spec row and both codec orders together.
+const MODULE_TABLE_ORDER: &[(&str, &str, &str)] = &[
+    (
+        "scalar qualification catalog",
+        "scalar_qualification_wire::encode",
+        "scalar_qualification_wire::decode",
+    ),
+    (
+        "structural types",
+        "\"structural types\"",
+        "decode_structural_type",
+    ),
+    (
+        "structural domains",
+        "\"structural domains\"",
+        "decode_structural_domain",
+    ),
+    ("services", "\"services\"", "decode_service"),
+    (
+        "concrete root service reach",
+        "\"concrete root service reach\"",
+        "decode_ids(reader, \"ServiceId\")",
+    ),
+    (
+        "installation reach dependencies",
+        "\"installation reach dependencies\"",
+        "decode_installation_reach_dependency",
+    ),
+    (
+        "placed-view inputs",
+        "\"placed-view inputs\"",
+        "decode_placed_view_input",
+    ),
+    (
+        "reborrow root handoffs",
+        "\"reborrow root handoffs\"",
+        "decode_reborrow_root_handoff",
+    ),
+    (
+        "reborrow restored call uses",
+        "\"reborrow restored call uses\"",
+        "decode_reborrow_restored_call_use",
+    ),
+    (
+        "boundary machines",
+        "\"boundary machines\"",
+        "decode_boundary_machine",
+    ),
+    (
+        "provider candidates",
+        "\"provider candidates\"",
+        "decode_provider_candidate",
+    ),
+    (
+        "float-meaning projections",
+        "\"float-meaning projections\"",
+        "decode_float_meaning_projection",
+    ),
+    (
+        "float-meaning equalities",
+        "\"float-meaning equalities\"",
+        "decode_float_meaning_equality",
+    ),
+    (
+        "proposition declarations",
+        "\"proposition declarations\"",
+        "decode_proposition_declaration",
+    ),
+    (
+        "proposition applications",
+        "\"proposition applications\"",
+        "decode_proposition_application",
+    ),
+    (
+        "evidence terms",
+        "\"evidence terms\"",
+        "decode_evidence_term",
+    ),
+    (
+        "evidence contract lanes",
+        "\"evidence contract lanes\"",
+        "decode_evidence_contract_lane",
+    ),
+    (
+        "proof-output invocations",
+        "\"proof-output invocations\"",
+        "decode_proof_output_call",
+    ),
+    (
+        "proof recursive components",
+        "\"proof recursive components\"",
+        "decode_proof_recursive_component",
+    ),
+    (
+        "closed conformance applications",
+        "\"closed conformance applications\"",
+        "decode_closed_conformance_application",
+    ),
+    (
+        "dynamic descriptor parameters",
+        "encode_dynamic_descriptor_parameters",
+        "decode_dynamic_descriptor_parameters",
+    ),
+    (
+        "dynamic descriptor arguments",
+        "encode_dynamic_descriptor_arguments",
+        "decode_dynamic_descriptor_arguments",
+    ),
+    (
+        "dynamic conformance selections",
+        "encode_dynamic_conformance_selections",
+        "decode_dynamic_conformance_selections",
+    ),
+    (
+        "rebound dynamic descriptors",
+        "encode_rebound_dynamic_descriptors",
+        "decode_rebound_dynamic_descriptors",
+    ),
+    (
+        "stored dynamic descriptors",
+        "encode_stored_dynamic_descriptors",
+        "decode_stored_dynamic_descriptors",
+    ),
+    (
+        "direct dynamic dispatches",
+        "encode_direct_dynamic_dispatches",
+        "decode_direct_dynamic_dispatches",
+    ),
+    (
+        "indirect dynamic dispatches",
+        "encode_indirect_dynamic_dispatches",
+        "decode_indirect_dynamic_dispatches",
+    ),
+    (
+        "stored dynamic dispatches",
+        "encode_stored_dynamic_dispatches",
+        "decode_stored_dynamic_dispatches",
+    ),
+    (
+        "parameter dynamic dispatches",
+        "encode_parameter_dynamic_dispatches",
+        "decode_parameter_dynamic_dispatches",
+    ),
+    (
+        "suspension rows",
+        "module.suspension_call_plan_count",
+        "decode_suspension_call_site",
+    ),
+    (
+        "quotient correspondences",
+        "\"quotient correspondences\"",
+        "decode_quotient_correspondence",
+    ),
+    (
+        "scalar block invariants",
+        "\"scalar block invariants\"",
+        "decode_scalar_block_invariant",
+    ),
+    (
+        "operation crash contracts",
+        "\"operation crash contracts\"",
+        "decode_operation_crash_contract",
+    ),
+    ("machines", "\"machines\"", "decode_machine"),
+];
+
+/// The module's counted-table order is wire-visible contract: a receiver's
+/// decode walk must name the same sequence the codec writes, so the spec's
+/// numbered table and both codec entry-point orders are pinned together.
+#[test]
+fn module_table_order_matches_codec() {
+    let spec_names: Vec<String> = spec_data_rows("<!-- module-table-order -->")
+        .iter()
+        .map(|cells| cells[2].clone())
+        .collect();
+    let expected: Vec<&str> = MODULE_TABLE_ORDER.iter().map(|row| row.0).collect();
+    assert_eq!(
+        spec_names.len(),
+        expected.len(),
+        "spec module table count changed"
+    );
+    for (index, cells) in spec_data_rows("<!-- module-table-order -->")
+        .iter()
+        .enumerate()
+    {
+        let number: u8 = cells[1].parse().expect("module table row number");
+        assert_eq!(number as usize, index + 1, "module table numbering breaks");
+        assert_eq!(
+            cells[2],
+            expected[index],
+            "spec module table row {} renamed",
+            index + 1
+        );
+    }
+    let source = strip_line_comments(&read_workspace_file(&module_wire("module_wire.rs")));
+    for (function, column, direction) in [
+        ("encode_raw", 1usize, "encode"),
+        ("decode_module_body", 2usize, "decode"),
+    ] {
+        let body = function_body(&source, function);
+        let mut cursor = 0usize;
+        for (index, row) in MODULE_TABLE_ORDER.iter().enumerate() {
+            let sentinel = if column == 1 { row.1 } else { row.2 };
+            let offset = body[cursor..].find(sentinel).unwrap_or_else(|| {
+                panic!(
+                    "{direction} order for module table '{}' ({sentinel}) is missing or out of order",
+                    spec_names[index]
+                )
+            });
+            cursor += offset + sentinel.len();
+        }
+    }
 }

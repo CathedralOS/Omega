@@ -1305,9 +1305,11 @@ Owners include
   own the vocabulary. The [encoding contract](wiki/spec/terminal-psi/encoding.md)
   now specifies every operation, terminator, scalar-term, proposition, and
   proof-node form the codec accepts, plus the machine, scalar-block-invariant,
-  catalog, and obligation-ledger row layouts;
-  `tests/architecture/encoding_contract.rs` pins each closed tag space against
-  the `terminal-codec` tag definitions so they cannot drift.
+  catalog, and obligation-ledger row layouts and the byte envelope — magic,
+  format marker, and vocabulary field — each codec emission opens with;
+  `tests/architecture/encoding_contract.rs` pins each closed tag space, the
+  module's counted-table declaration order, and every envelope marker against
+  the `terminal-codec` definitions so they cannot drift.
 
   Acceptance: source and producer state can be discarded before an
   independent verifier reconstructs every obligation and executes or lowers
