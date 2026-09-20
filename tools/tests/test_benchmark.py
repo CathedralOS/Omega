@@ -11,6 +11,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import re
 import sys
 import unittest
 
@@ -19,6 +20,11 @@ ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK = ROOT / "tools" / "benchmark" / "benchmark.py"
 README = ROOT / "tools" / "benchmark" / "README.md"
 RECORDS = ROOT / "tools" / "benchmark" / "records"
+MATRIX_DOC = ROOT / "wiki" / "drafts" / "benchmarks.md"
+TARGET_SOURCE = (
+    ROOT / "omega-rust" / "omega" / "representations" / "target"
+    / "src" / "lib.rs"
+)
 
 
 def load_benchmark():
@@ -206,6 +212,50 @@ class SelectionIdentity(unittest.TestCase):
             root = Path(directory) / "main.omg"
             root.write_text("")
             self.assertEqual(benchmark.authored_selection(root), [])
+
+
+def catalogued_target_names():
+    """Profile names from TargetProfile::target_name() — the catalog the
+    matrix's host-leg table must stay in step with."""
+    text = TARGET_SOURCE.read_text()
+    section = text[text.index("const fn target_name"):]
+    section = section[: section.index("\n    }\n")]
+    return set(re.findall(r'=> "([a-z][a-z0-9_]*)",', section))
+
+
+class HostRowMatrix(unittest.TestCase):
+    def matrix(self):
+        return benchmark.matrix_markdown(benchmark.load_records(RECORDS))
+
+    def test_host_legs_cover_the_catalogued_targets(self):
+        self.assertEqual(
+            {leg["target"] for leg in benchmark.HOST_LEGS},
+            catalogued_target_names(),
+        )
+
+    def test_unmeasured_host_legs_stay_explicit(self):
+        output = self.matrix()
+        windows = next(
+            line for line in output.splitlines() if "windows_x86_64" in line
+        )
+        self.assertIn("unavailable (os.wait4 absent on Windows)", windows)
+        uefi = next(
+            line for line in output.splitlines() if "uefi_x86_64" in line
+        )
+        self.assertIn("unavailable (needs QEMU or UEFI hardware)", uefi)
+
+    def test_measured_records_render_measured_cells(self):
+        row = next(
+            line for line in self.matrix().splitlines() if "cli_mvp" in line
+        )
+        self.assertIn("measured", row)
+        self.assertIn("default", row)
+
+    def test_doc_embeds_the_current_matrix(self):
+        lines = MATRIX_DOC.read_text().splitlines()
+        start = lines.index("<!-- benchmark-matrix:start -->")
+        end = lines.index("<!-- benchmark-matrix:end -->")
+        self.assertEqual("\n".join(lines[start + 1 : end]), self.matrix())
 
 
 class ReviewSettlement(unittest.TestCase):

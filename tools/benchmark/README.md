@@ -108,11 +108,29 @@ python3 tools/benchmark/benchmark.py validate tools/benchmark/records/*.json
 additionally checks that every committed record passes it and that this
 README still names the current schema version.
 
+## Host-row matrix
+
+```text
+python3 tools/benchmark/benchmark.py matrix
+```
+
+`matrix` renders a markdown table with one row per committed record plus
+one explicit row per catalogued deployment profile no record covers yet
+(`HOST_LEGS`, kept in `TargetProfile::ALL` catalog order and drift-checked
+by the test). Cell vocabulary: `measured` quotes the record's status and
+headline number; `measurable` legs run on any build host; `pending <host>`
+waits on the named runtime environment; `unavailable (<reason>)` carries
+the structural gap — `windows_x86_64` keeps its peak-RSS leg unavailable
+(`os.wait4` absent on Windows) and `uefi_x86_64` keeps its runtime leg
+unavailable (QEMU or hardware acceptance) even before either host
+participates. The rendered table is embedded in
+`wiki/drafts/benchmarks.md`; regenerate and repaste it when rows land.
+
 ## Host coverage
 
 The committed rows record which host produced them. Targets without a
 matching host (for example `windows_x86_64` or `macos_arm64` rows
 authored on a Linux machine, and the QEMU-dependent `uefi_x86_64` leg)
-are reported as unavailable in the task evidence rather than implied.
-When those hosts are reachable, run the same `measure` command there to
-publish their rows.
+appear in the matrix as explicit unavailable/pending rows rather than
+being implied or absent. When those hosts are reachable, run the same
+`measure` command there to publish their rows.
