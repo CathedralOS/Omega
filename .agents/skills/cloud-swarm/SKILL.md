@@ -24,8 +24,11 @@ Never sit still. The wave fails when the coordinator waits on one thing:
 - **Notifications drive drains.** When a settle notification arrives, handle it
   immediately: `devin_session_interact get` → verify commits are ancestors of
   `origin/main` → append a record to the wave outcomes file → `terminate` →
-  spawn the next unconflicted queue item into the freed slot. One settle =
-  one drain+backfill, in a single pass.
+  `archive` the session (finished sessions do not auto-archive; without this
+  they pile up as `exit`/`suspended` clutter) → spawn the next unconflicted
+  queue item into the freed slot. One settle = one drain+archive+backfill, in
+  a single pass. `terminate` accepts `archive_on_terminate=true` to fold the
+  two steps together.
 - **Never block.** Do not `get_output` with a long timeout or `wait` while a
   local check runs. Launch it in a background shell, return to coordination
   work, and poll it for ~seconds between other steps. A blocked coordinator
@@ -80,3 +83,12 @@ The wave drains when the queue holds only: running items, items blocked behind
 named live claims (record expiry times), and probe slots already spawned. Say
 so in outcomes; keep polling until the last running session settles, then
 report the wave summary to the user.
+
+## Housekeeping
+
+Sessions never auto-archive — a finished session sits as `exit`/`suspended`
+until someone archives it. Besides archiving on every drain, periodically sweep:
+`devin_session_search` with the wave tag, then for each result `devin_session_events
+list` (last outgoing message) to confirm a verdict was posted — recording any
+uncaptured verdict into the outcomes file first — then `archive`. Never archive
+a session that hasn't posted its verdict.

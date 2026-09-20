@@ -143,6 +143,11 @@ and renders a resume prompt — reuse the same manifest to continue.
 
 ## Drain
 
+Local subagents are in-session agents, not Devin sessions — there is nothing to
+archive; their state is the worktree, branch, and claims ticket, which this
+drain handles. Cloud-sibling sessions are different: archive finished ones via
+`devin_session_interact archive` (see the cloud-swarm skill).
+
 When the user says wrap up: stop backfilling, let running agents finish, then
 sweep — release remaining claim tickets, WIP-commit any dirty worktree worth
 keeping (never delete one with uncommitted work), record each parked WIP
