@@ -8220,7 +8220,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **OMEGA-D-SCALAR-ALPHA-EMISSION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-COMPILATION** — mined candidate; verify scope then implement.
 - **OMEGA-D-SCALAR-EMISSION-EXTENSION** — mined candidate; verify scope then implement.
-- **OMEGA-D-SCALAR-OPERATION-FRONTIER** — mined candidate; verify scope then implement.
+- **OMEGA-D-SCALAR-OPERATION-FRONTIER.** Mined candidate; scope
+  verified at `dbfa1b1702`, resolved — re-mines the remaining
+  scalar-operation coverage clause on the same file the sibling
+  OMEGA-D-SCALAR-* rows name: `bootstrap/5_omega/scalar_compilation.epsilon`.
+  Verified sibling OMEGA-D-SCALAR-COMPILATION records the landed legs
+  on `a0b906db93` — the emitter is a 1479-line checked compiler
+  (`580e13d525` folds parsed scalar operations, `64002bfb70` checks
+  calls/state sequencing, `32f2af7acc` admits `~x` → `x ^ 255`) — and
+  the open frontier is codes 15–24 per
+  OMEGA-D-REQUEST-AND-SCALAR-COMPILATION's frontier record:
+  comparisons, paths, `!`/`-` (LogicalNot produces Boolean; Negate is
+  not total on the unsigned carrier under Exact), locals, assignments,
+  remaining transition forms. Every implementing surface is fenced
+  this wave: `scalar_compilation.epsilon` by D-SCALAR-OPERATION-
+  CLOSURE (Zergling-166, 01:46Z) and `bootstrap` + `tests/bootstrap`
+  by CHAIN-MANIFEST (Zergling-112, 23:08Z); the gate dir
+  `tests/bootstrap/omega-executable` is claimed by
+  D-DIAGNOSTIC-ENTRY-ADAPTER-REPLACEMENT per the sibling row. No
+  separable slice exists — the sibling OMEGA-D-SCALAR-{ALPHA-EMISSION,
+  EMISSION-EXTENSION,SEQUENCING} rows name the same file.
 - **OMEGA-D-SCALAR-SEQUENCING** — mined candidate; verify scope then implement.
 - **OMEGA-ENTRY-MANIFEST-BINDINGS** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-GATE-WINDOWS.** Scope verified — sibling alias of
