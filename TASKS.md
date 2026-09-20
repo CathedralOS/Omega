@@ -6019,7 +6019,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **D-SCALAR-OPERATION-CLOSURE** — mined candidate; verify scope then implement.
 - **DELTA-COMPILER** — mined candidate; verify scope then implement.
 - **DELTA-EPSILON-CLOSURE-ACCEPTANCE** — mined candidate; verify scope then implement.
-- **DELTA-EPSILON-CLOSURE-COMPILE** — mined candidate; verify scope then implement.
+- **DELTA-EPSILON-CLOSURE-COMPILE.** Mined candidate; verify scope then implement.
 - **DELTA-EPSILON-CLOSURE-EXECUTION** — mined candidate; verify scope then implement.
 - **DELTA-EVALUATOR-EXHAUSTION-TRIAGE** — mined candidate; verify scope then implement.
 - **DELTA-POST-FRONTEND-ALLOCATION-PROBE** — mined candidate; verify scope then implement.
@@ -6091,7 +6091,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **ENTRYPOINT-MODULE-LAYOUT-GATE** — mined candidate; verify scope then implement.
 - **EPOCH-AGGREGATE-SNAPSHOTS** — mined candidate; verify scope then implement.
 - **EPSILON-BOOTSTRAP-CHAIN** — mined candidate; verify scope then implement.
-- **EPSILON-EVALUATOR-BOOTSTRAP-PATH** — mined candidate; verify scope then implement.
+- **EPSILON-EVALUATOR-BOOTSTRAP-PATH.** Scope verified at `83f5477357` — the mined alias names the Delta→Epsilon evaluator bootstrap path. Its in-fence surface is complete and green on Linux x86-64: `tests/bootstrap/epsilon-identity.sh` materializes the exact packed evaluator closure and refuses corrupted manifest/member/driver/entry/receipt shapes, and the source-closure gate checks the fixture plus the canonical `epsilon_compiler.delta.sources` manifest. The remaining legs — compiling the bound evaluator plus `execution_driver.delta` through the bound Delta compiler and executing the evaluator's entries — live under `tests/epsilon`, currently claimed by DELTA-COMPILER, and seed execution needs an audited host (macOS arm64 or Windows x64, none available here). Sibling stubs on the same path: BOOTSTRAP-EPSILON-EVALUATOR, DELTA-EPSILON-CLOSURE-COMPILE, DELTA-EPSILON-CLOSURE-EXECUTION, DELTA-EPSILON-CLOSURE-ACCEPTANCE, EPSILON-BOOTSTRAP-CHAIN.
 - **EPSILON-SCALAR-COMPILATION-EXTENSION** — mined candidate; verify scope then implement.
 - **EXACT-PROGRAM-ENTRY-MULTIPLICITY.** Verified on `main`: entry
   multiplicity is already enforced end to end — `admission/selection.rs`
