@@ -11,6 +11,14 @@ Check it (proof machines emit no runtime code, so there is no output):
 omega --check samples/cli/proofs/structural_proofs/main.omg
 ```
 
+`build.omg` binds the hosted targets' `ProgramEntry` slots to the inert
+`Main::main`, so a target compile also produces a native artifact (compile
+and code-size legs only; the empty entry's run behavior is unspecified):
+
+```
+omega --target linux_x86_64 samples/cli/proofs/structural_proofs/main.omg
+```
+
 The rungs, each with its Lean analog in a comment:
 
 - **Equality kernel** — reflexivity, constructor injectivity
@@ -19,11 +27,13 @@ The rungs, each with its Lean analog in a comment:
 - **Compute mode** — unfolding a proof machine's definition on ground
   arguments (`1 + 1 == 2`, `length(Empty) == 0`).
 - **Citation** — consuming a core lemma's proven ensures
-  (`add_zero_right`'s right identity, whose inductive body never finitely
-  unfolds for a symbolic argument).
+  (`length_append`, whose inductive body never finitely unfolds for a
+  symbolic argument).
 
-The library lemmas the citation rung leans on — `add_zero_right` (right
-identity, by structural induction) and `add_succ_law` (the successor-shift
-law, an equation between applications) — are proven **in** `core/nat.omg`,
-machine-checked for every importer. Every theorem here is TRUE; the FALSE
-twins live in `tests/omega/fail/proofs/`.
+The cited library lemma is `length_append` (`length(append s t) ==
+add(length s, length(t))`), proven **in** `core/seq.omg` and machine-checked
+for every importer. nat.omg's `add_zero_right` and `add_succ_law` theorems
+remain package-private, and a package selecting a product may only cite
+another package's public machines, so the citation rung uses the public
+`seq.omg` theorem. Every theorem here is TRUE; the FALSE twins live in
+`tests/omega/fail/proofs/`.

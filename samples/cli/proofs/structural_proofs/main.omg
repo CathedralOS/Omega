@@ -61,18 +61,24 @@ ensures
 
 // --- Structural induction and citation are proven IN THE CORE LIBRARY ----
 // core/nat.omg carries add_zero_right (right identity, by induction on a)
-// and add_succ_law (the successor-shift law); this program CITES them.
+// and add_succ_law (the successor-shift law); both are package-private, so
+// this program CITES seq.omg's public length_append theorem instead -- a
+// package selecting a product may only cite another package's public
+// machines.
 
-// A consumer that cites add_zero_right's proven law `add(a, Zero) == a` as a
-// bare statement, then returns the value that law names -- the theorem itself
-// is resultless. Its inductive body never finitely unfolds for a symbolic
-// argument, so citation is the only route. Lean analog: `exact Nat.add_zero a`.
-machine cite_right_identity(a: Nat) -> Nat
+// A consumer that cites length_append's proven law
+// `length(append(s, t)) == add(length(s), length(t))` as a bare statement;
+// the citation imports the proven equation into this machine's fact context.
+// Its inductive body never finitely unfolds for symbolic arguments, so
+// citation is the only route. Lean analog: `have h := List.length_append s t`.
+machine cite_append_length(s: Seq<u64>, t: Seq<u64>) -> Nat
+requires
+    length(s) == Nat::Zero
 ensures
-    result == a
+    result == Nat::Zero
 {
-    add_zero_right(a);
-    transition { _ -> a }
+    length_append(s, t);
+    transition { _ -> Nat::Zero }
 }
 
 // Proof machines emit no runtime code; the entrypoint is inert.
