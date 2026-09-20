@@ -7773,7 +7773,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SPILL-STAGES-OWNERSHIP** — mined candidate; verify scope then implement.
 - **SQUALR-CLI-ENTRY-AND-MODEL** — mined candidate; verify scope then implement.
 - **SQUALR-CLONE-SERIALIZATION** — mined candidate; verify scope then implement.
-- **SQUALR-DEBUG-ASSERTION-PARITY** — mined candidate; verify scope then implement.
+- **SQUALR-DEBUG-ASSERTION-PARITY.** Mined candidate; scope verified at
+  `e8bbe9fcc0` against upstream `568aa7589b68`: a re-mine of the
+  "Rust debug-only assertions" gap in the app repo's GEOMETRY-PARITY row
+  (and TASKS.md:6020 SQUALR-GEOMETRY-PARITY). Upstream `debug_assert!`
+  sites in the ported crates live in
+  `structures/scanning/filters/snapshot_region_filter.rs` (aligned base,
+  size >= value width — the Omega port carries a comment at the same site),
+  `structures/structs/valued_struct{,_field}.rs`, and the unported
+  scanning/targets-native surfaces. Omega needs no new machinery —
+  `configuration.md` excludes a debug/release mode and assertion
+  primitive; parity means authored `crash` checks or `requires` clauses on
+  the ported machines. Currently unworkable: every ported counterpart sits
+  under live claims — the only three existing `.omg` files
+  (`snapshot_region_filter.omg`, `normalized_region.omg`,
+  `memory_alignment.omg`) are file-fenced by Zergling-61's
+  SQUALR-CLONE-SERIALIZATION (expires ~2026-09-20T22:50Z) and the whole
+  `samples/apps/squalr` tree is dir-fenced by Jarod's
+  SQUALR-TARGETS-AND-THROUGHPUT and zergling-z73's
+  SQUALR-REGION-ALIGNMENT-EXPANSION. Coordinate with GEOMETRY-PARITY's
+  owner lane before working it.
 - **SQUALR-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
 - **SQUALR-ENGINE-CRATE-SOURCES** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-DEBUG-ASSERTIONS** — mined candidate; verify scope then implement.
