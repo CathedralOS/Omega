@@ -30,8 +30,50 @@ pub struct StagedOptimizedRegisterHomes {
 }
 
 impl StagedOptimizedRegisterHomes {
+    /// The retained producer stage. Replay and custody validation inspect it;
+    /// ordinary consumers read the current program and analyses directly.
     pub const fn legality_stage(&self) -> &StagedOptimizedAllocationLegality {
         &self.legality
+    }
+    /// The current selected program this assignment describes.
+    pub const fn selected(
+        &self,
+    ) -> &target_operations_to_selected_instructions::ValidatedSelectedInstructions {
+        self.legality.selected()
+    }
+    pub const fn register_environment(
+        &self,
+    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+        self.legality.register_environment()
+    }
+    /// The governing optimizer selections admitted with the retained stage.
+    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
+        self.legality.selections()
+    }
+    /// The per-pass work budget admitted beside the same evidence.
+    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+        self.legality.budget_per_pass()
+    }
+    pub const fn liveness(&self) -> &crate::ValidatedLiveness {
+        self.legality.liveness()
+    }
+    pub const fn ranges(&self) -> &crate::ValidatedLiveRanges {
+        self.legality.ranges()
+    }
+    pub const fn legality(&self) -> &crate::ValidatedAllocationLegality {
+        self.legality.legality()
+    }
+    /// The retained optimized-target proof input, kept as replay evidence;
+    /// downstream custody checks compare the owner handle by identity.
+    pub fn optimized_target_owner(
+        &self,
+    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
+    {
+        self.legality
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .optimized_target_owner()
     }
     pub const fn homes(&self) -> &ValidatedRegisterHomes {
         &self.homes
@@ -154,8 +196,51 @@ pub struct StagedOptimizedRegisterHomesAfterFixedViewCopies {
 }
 
 impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
+    /// The retained reanalysis stage. Replay and custody validation inspect
+    /// it; ordinary consumers read the current program and analyses directly.
     pub const fn reanalysis_stage(&self) -> &StagedOptimizedSelectedReanalysis {
         &self.reanalysis
+    }
+    /// The transformed program this assignment describes.
+    pub const fn selected(&self) -> &crate::ValidatedFixedViewCopies {
+        self.reanalysis.transformation_stage().copies()
+    }
+    pub const fn register_environment(
+        &self,
+    ) -> &register_environment::ValidatedTargetRegisterEnvironment {
+        self.reanalysis.register_environment()
+    }
+    /// The governing optimizer selections admitted with the retained stage.
+    pub fn selections(&self) -> &optimization_core::OptimizationSelections {
+        self.reanalysis.selections()
+    }
+    /// The per-pass work budget admitted beside the same evidence.
+    pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
+        self.reanalysis.budget_per_pass()
+    }
+    /// The reanalyzed facts over the transformed program.
+    pub const fn liveness(&self) -> &crate::ValidatedLiveness {
+        self.reanalysis.liveness()
+    }
+    pub const fn ranges(&self) -> &crate::ValidatedLiveRanges {
+        self.reanalysis.ranges()
+    }
+    pub const fn legality(&self) -> &crate::ValidatedAllocationLegality {
+        self.reanalysis.legality()
+    }
+    /// The retained optimized-target proof input, kept as replay evidence;
+    /// downstream custody checks compare the owner handle by identity.
+    pub fn optimized_target_owner(
+        &self,
+    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
+    {
+        self.reanalysis
+            .transformation_stage()
+            .source_legality_stage()
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .optimized_target_owner()
     }
     pub const fn homes(&self) -> &ValidatedRegisterHomes {
         &self.homes

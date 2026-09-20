@@ -48,12 +48,7 @@ fn build_homes_and_manifest(
     OptimizedPostLiteralFoldHomeCustodyError,
 > {
     let final_step = folds.final_step();
-    let environment = folds
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = folds.source_legality_stage().register_environment();
     let homes = assign_register_homes(
         final_step.legality(),
         final_step.ranges(),
@@ -85,12 +80,7 @@ pub(super) fn construct_register_homes_after_selected_lowering(
     let source = validate_selected_lowering_optimization_custody(&run)
         .map_err(OptimizedPostSelectedLoweringHomeCustodyError::UpstreamSelectedLowering)?;
     let (ranges, legality) = selected_lowering_final_analysis(&run);
-    let environment = run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = run.source_legality_stage().register_environment();
     let homes = assign_register_homes(
         legality,
         ranges,

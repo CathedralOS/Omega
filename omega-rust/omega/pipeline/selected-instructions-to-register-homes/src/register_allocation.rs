@@ -54,12 +54,7 @@ pub fn stage_register_allocation(
             return RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay);
         }
     };
-    let selections = ranges
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .selections();
+    let selections = ranges.selections().clone();
     let recovery = crate::selected_allocation_recovery_rule(
         &selections.project_phase(OptimizationExecutionPhase::AllocationRecovery),
     )

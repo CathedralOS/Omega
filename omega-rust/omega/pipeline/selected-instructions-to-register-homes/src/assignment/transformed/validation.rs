@@ -29,17 +29,10 @@ pub fn validate_optimized_register_home_after_literal_fold_custody(
 > {
     let source = validate_optimized_literal_fold_custody(&staged.folds)
         .map_err(OptimizedPostLiteralFoldHomeCustodyError::UpstreamFolds)?;
-    let final_step = staged.folds.final_step();
-    let environment = staged
-        .folds
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = staged.register_environment();
     let homes = validate_register_homes(
-        final_step.legality(),
-        final_step.ranges(),
+        staged.legality(),
+        staged.ranges(),
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -56,8 +49,8 @@ pub fn validate_optimized_register_home_after_literal_fold_custody(
         staged.manifest.record(),
         literal_fold_pre_physical(&source),
         &transformations,
-        final_step.ranges(),
-        final_step.legality(),
+        staged.ranges(),
+        staged.legality(),
         &homes,
     )
     .map_err(OptimizedPostLiteralFoldHomeCustodyError::Manifest)?;
@@ -77,13 +70,7 @@ pub fn validate_optimized_register_home_after_selected_lowering_custody(
     let source = validate_selected_lowering_optimization_custody(&staged.run)
         .map_err(OptimizedPostSelectedLoweringHomeCustodyError::UpstreamSelectedLowering)?;
     let (ranges, legality) = selected_lowering_final_analysis(&staged.run);
-    let environment = staged
-        .run
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = staged.register_environment();
     let homes = validate_register_homes(
         legality,
         ranges,

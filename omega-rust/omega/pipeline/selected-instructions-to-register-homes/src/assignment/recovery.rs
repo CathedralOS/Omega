@@ -22,13 +22,7 @@ fn fixed_view_reanalysis(
     legality: StagedOptimizedAllocationLegality,
     policy: FixedViewCopyPolicy,
 ) -> Result<crate::StagedOptimizedSelectedReanalysis, RegisterAllocationError> {
-    let budget = legality
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .budget_per_pass();
+    let budget = legality.budget_per_pass();
     let segments = stage_optimized_fixed_precolored_segment_homes(legality, budget)
         .map_err(RegisterAllocationError::FixedSegments)?;
     let copies = stage_optimized_fixed_view_copies(segments, policy, budget)
@@ -71,13 +65,7 @@ fn fixed_view_allocation(
     policy: FixedViewCopyPolicy,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     if policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 {
-        let budget = legality
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .optimized_target()
-            .optimized()
-            .budget_per_pass();
+        let budget = legality.budget_per_pass();
         if let Some(decline) =
             crate::probe_optimized_fixed_precolored_segment_homes(&legality, budget)
                 .err()
@@ -186,12 +174,7 @@ pub fn stage_leaf_local_fixed_view_register_allocation_composing(
 pub fn stage_active_resident_register_allocation(
     ranges: StagedOptimizedLiveRanges,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
-    let budget = ranges
-        .liveness_stage()
-        .selected_stage()
-        .optimized_target()
-        .optimized()
-        .budget_per_pass();
+    let budget = ranges.budget_per_pass();
     let legality = stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges).map_err(RegisterAllocationError::Legality)?;
     let pressure = stage_optimized_active_resident_rematerialization_pressure(
         legality,
@@ -200,12 +183,7 @@ pub fn stage_active_resident_register_allocation(
         PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
         budget,
     ).map_err(RegisterAllocationError::Rematerialization)?;
-    let environment = pressure
-        .source()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = pressure.source().register_environment();
     match crate::assign_register_homes(
         pressure.legality(),
         pressure.ranges(),

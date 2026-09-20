@@ -36,8 +36,8 @@ impl RuntimeSpillAllocation {
             manifest: &self.manifest,
             environment: self.source.register_environment(),
             target_input: self.source.optimized_target_owner(),
-            selections: self.source.optimized_target().optimized().selections(),
-            budget: self.source.optimized_target().optimized().budget_per_pass(),
+            selections: self.source.selections(),
+            budget: self.source.budget_per_pass(),
             evidence: AllocationEvidence::RuntimeSpill(self.manifest.record().identity),
         })
     }

@@ -32,7 +32,7 @@ pub(super) fn selected_lowering_final_analysis(
     match run.steps().last() {
         Some(step) => (step.ranges(), step.legality()),
         None => (
-            run.source_legality_stage().live_range_stage().ranges(),
+            run.source_legality_stage().ranges(),
             run.source_legality_stage().legality(),
         ),
     }

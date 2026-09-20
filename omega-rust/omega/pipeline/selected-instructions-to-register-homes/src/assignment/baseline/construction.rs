@@ -15,14 +15,10 @@ use super::model::{
 pub(super) fn construct_optimized_register_homes(
     legality: StagedOptimizedAllocationLegality,
 ) -> Result<StagedOptimizedRegisterHomes, OptimizedRegisterHomeCustodyError> {
-    let ranges = legality.live_range_stage();
-    let environment = ranges
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = legality.register_environment();
     let homes = assign_register_homes(
         legality.legality(),
-        ranges.ranges(),
+        legality.ranges(),
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -43,14 +39,10 @@ pub(super) fn construct_with_assignment(
         legality.legality(),
     )
     .map_err(OptimizedRegisterHomeCustodyError::UpstreamLegality)?;
-    let ranges = legality.live_range_stage();
-    let environment = ranges
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = legality.register_environment();
     let replayed = validate_register_homes(
         legality.legality(),
-        ranges.ranges(),
+        legality.ranges(),
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -65,7 +57,7 @@ pub(super) fn construct_with_assignment(
     let manifest = project_post_allocation_optimization_manifest(
         upstream.manifest(),
         &[],
-        ranges.ranges(),
+        legality.ranges(),
         legality.legality(),
         &homes,
     )
@@ -85,13 +77,7 @@ pub(super) fn construct_with_assignment(
 pub(super) fn assign_optimized_register_homes_after_fixed_view_copies(
     reanalysis: &StagedOptimizedSelectedReanalysis,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
-    let environment = reanalysis
-        .transformation_stage()
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = reanalysis.register_environment();
     assign_register_homes(
         reanalysis.legality(),
         reanalysis.ranges(),
@@ -128,13 +114,7 @@ pub(super) fn construct_optimized_register_homes_after_fixed_view_copies_with_as
         reanalysis.legality(),
     )
     .map_err(OptimizedPostCopyRegisterHomeCustodyError::UpstreamReanalysis)?;
-    let environment = reanalysis
-        .transformation_stage()
-        .source_legality_stage()
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = reanalysis.register_environment();
     let replayed = validate_register_homes(
         reanalysis.legality(),
         reanalysis.ranges(),

@@ -54,17 +54,9 @@ fn replay_prefix(
     {
         return Err(OptimizedActiveResidentRematerializationError::UnsupportedPolicy);
     }
-    let environment = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
-    let selected = source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .selected();
-    let source_ranges = source.live_range_stage().ranges();
+    let environment = source.register_environment();
+    let selected = source.selected();
+    let source_ranges = source.ranges();
     let choices = validate_spill_choices(
         source.legality(),
         source_ranges,
@@ -193,12 +185,7 @@ pub fn validate_optimized_active_resident_rematerialization(
             &staged.ranges,
             &staged.legality,
         )?;
-    let environment = staged
-        .source
-        .live_range_stage()
-        .liveness_stage()
-        .selected_stage()
-        .register_environment();
+    let environment = staged.source.register_environment();
     let homes = validate_register_homes(
         &legality,
         &ranges,

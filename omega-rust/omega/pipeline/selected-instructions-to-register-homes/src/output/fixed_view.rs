@@ -27,28 +27,21 @@ impl AllocationSource for StagedOptimizedRegisterHomesAfterFixedViewCopies {
 
 impl ProjectAllocation for StagedOptimizedRegisterHomesAfterFixedViewCopies {
     fn project_allocation(&self) -> AllocationOutput<'_> {
-        let reanalysis = self.reanalysis_stage();
-        let copies = reanalysis.transformation_stage();
-        let selected = copies
-            .source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage();
         AllocationOutput {
             program: register_homes::AllocatedProgramRef {
-                selected: &copies.copies().plan().transformed,
+                selected: &self.selected().plan().transformed,
                 homes: self.homes().plan(),
             },
-            selected: SelectedProgramRef::new(copies.copies()),
-            liveness: reanalysis.liveness(),
-            ranges: reanalysis.ranges(),
-            legality: reanalysis.legality(),
+            selected: SelectedProgramRef::new(self.selected()),
+            liveness: self.liveness(),
+            ranges: self.ranges(),
+            legality: self.legality(),
             homes: self.homes(),
             manifest: self.post_allocation_manifest(),
-            environment: selected.register_environment(),
-            target_input: selected.optimized_target_owner(),
-            selections: selected.optimized_target().optimized().selections(),
-            budget: selected.optimized_target().optimized().budget_per_pass(),
+            environment: self.register_environment(),
+            target_input: self.optimized_target_owner(),
+            selections: self.selections(),
+            budget: self.budget_per_pass(),
             evidence: AllocationEvidence::FixedViewCopies(self.custody().to_owned()),
         }
     }

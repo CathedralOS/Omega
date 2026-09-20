@@ -16,7 +16,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
     let (upstream_manifest, prefix) = source.upstream_manifest()?;
     let environment = source.register_environment();
     let mut failure = require_pressure(assign(environment, source.ranges(), source.legality()))?;
-    let budget = source.optimized_target().optimized().budget_per_pass();
+    let budget = source.budget_per_pass();
     let roster = candidates(source.base().plan());
     let mut used = Vec::new();
     let mut current_ranges = source.ranges().clone();

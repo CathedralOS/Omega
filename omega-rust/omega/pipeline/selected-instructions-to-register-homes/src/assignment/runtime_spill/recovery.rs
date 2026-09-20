@@ -13,12 +13,8 @@ pub(crate) fn assign_source(
     source: &StagedOptimizedAllocationLegality,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
     assign(
-        source
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .register_environment(),
-        source.live_range_stage().ranges(),
+        source.register_environment(),
+        source.ranges(),
         source.legality(),
     )
 }
@@ -356,7 +352,7 @@ fn recover_over(
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
         Ok(_) => return Err(RuntimeSpillAllocationError::RecoveryNotRequired),
     };
-    let budget = source.optimized_target().optimized().budget_per_pass();
+    let budget = source.budget_per_pass();
     let mut steps: Vec<RuntimeSpillStep> = Vec::new();
     let mut roster = candidates(source.base().plan());
     let mut current_ranges = source.ranges().clone();
