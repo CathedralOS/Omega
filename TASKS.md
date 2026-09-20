@@ -2195,17 +2195,13 @@ Owners include
 
   Remaining work:
 
-  - Widen foreign arguments and results. The scalar lane now admits every
-    `fixed_native_scalar_shape` kind — fixed-width integers, booleans, and
-    `IeeeFloat` binary32/64 — with retained-order sources resolved by the same
-    dominance precedence as the ordinary call lanes, in lowering and in
-    crate-local replay validation
-    (`abstract-operations-to-target-operations/src/lowering/unit/boundary_call/normalized_foreign.rs`),
-    witnessed on all four targets by
-    `normalized_foreign_calls::normalized_foreign_boolean_and_floating_arguments_replay_with_exact_sources`.
-    `target-operations-to-selected-instructions/src/selection/scalar_call_abi/normalized_foreign.rs`
-    still validates Integer only, so selected-instruction admission of the
-    widened shapes is the next leg. Borrowed flat-record projections, owned
+  - Finish aggregate and descriptor foreign transport. Fixed scalar arguments
+    and results now reach independently validated native execution; preserve
+    the macOS ARM64 source-to-C oracle:
+    `mbx nextest run -p compiler --test source_evaluated_native_realization --no-fail-fast --no-tests fail -E 'test(=scalar_native_arguments::mixed_foreign_scalars_execute_with_exact_argument_and_result_values)'`.
+    Other matching-host runtime legs and the mixed scalar/record execution
+    below remain open; cross-target selection replay is not runtime evidence.
+    Borrowed flat-record projections, owned
     whole-place aggregates, and borrowed dynamic descriptors all compose
     with scalars in retained formal order: an `Owned` argument admits only
     an empty path against the root structural type and joins the plan's
