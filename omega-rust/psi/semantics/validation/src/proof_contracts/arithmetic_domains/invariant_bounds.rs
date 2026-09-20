@@ -209,15 +209,51 @@ fn bounds(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    // Closed arithmetic has one value/selection owner shared with type identity.
-    // A failed closed query does not grant a value to the interval fallback.
-    if let Some(value) = program
-        .closed_integer_value_in(expression, machine)
-        .or_else(|| {
-            crate::value_custody::literals::closed_record_integer_projection(program, expression)
-        })
+    // Closed arithmetic has one value/selection owner shared with type
+    // identity; the strict record projection is preferred for member reads so
+    // a lost or foreign member symbol cannot name-match a literal field. A
+    // failed closed query does not grant a value to the interval fallback.
+    let mut closed_anonymous = None;
+    if let Some(value) =
+        crate::value_custody::literals::closed_record_integer_projection(program, expression)
+            .or_else(|| program.closed_integer_value_in(expression, machine))
     {
-        return Some(Bounds::constant(
+        // Every member read folded into the closed value must satisfy strict
+        // record custody: a member that resolves loosely but not through the
+        // declared field's own symbol is a custody break, not a value.
+        let mut has_member = false;
+        let mut pending = vec![expression];
+        while let Some(handle) = pending.pop() {
+            let node = program.expression_table.expression(handle);
+            if matches!(node, ExpressionNode::Member(_)) {
+                has_member = true;
+                if crate::value_custody::literals::closed_record_integer_projection(program, handle)
+                    .is_none()
+                    && program.closed_integer_value_in(handle, machine).is_some()
+                {
+                    return None;
+                }
+            }
+            crate::value_custody::literals::expression_children::children(program, node, |child| {
+                pending.push(child)
+            });
+        }
+        // A closed value outside its carrier is an overflow verdict, not a
+        // usable bound: a successful bounds run must prove carrier landing.
+        if let Some(primitive) = value.primitive {
+            typed_trees::closed_numeric::land_integer(&value.value, primitive)?;
+        }
+        // Anonymous results of member-bearing trees may have lost a field's
+        // declared carrier during closed evaluation; those trees prove their
+        // bounds structurally instead of trusting the carrier-free value.
+        if value.primitive.is_some() || !has_member {
+            return Some(Bounds::constant(
+                value.value,
+                value.primitive,
+                value.type_reference,
+            ));
+        }
+        closed_anonymous = Some(Bounds::constant(
             value.value,
             value.primitive,
             value.type_reference,
@@ -266,6 +302,11 @@ fn bounds(
                 binary.right,
                 declared_mutable_leaves,
             )?;
+            // A wholly anonymous tree already proved its closed value and has
+            // no carrier to check operand meanings against.
+            if left.primitive.is_none() && right.primitive.is_none() {
+                return closed_anonymous;
+            }
             // A context-free endpoint has no owning specialization to select.
             // Retained late-bound occurrences may still acquire a trait meaning.
             // ponytail: veto any matching specialization until endpoints carry
