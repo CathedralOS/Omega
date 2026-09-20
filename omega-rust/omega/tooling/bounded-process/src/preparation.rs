@@ -21,6 +21,10 @@ pub struct BoundedProcessPrepared {
     stdin: Option<BoundedStandardStreamDisposition>,
     stdout: Option<BoundedStandardStreamDisposition>,
     stderr: Option<BoundedStandardStreamDisposition>,
+    /// Parent descriptors explicitly assigned to the child (unix only).
+    /// Everything else above the standard streams is still closed on exec.
+    #[cfg(unix)]
+    retained_descriptors: Vec<std::os::fd::RawFd>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,6 +81,8 @@ impl BoundedProcessPrepared {
             stdin: None,
             stdout: None,
             stderr: None,
+            #[cfg(unix)]
+            retained_descriptors: Vec::new(),
         })
     }
 
@@ -138,6 +144,25 @@ impl BoundedProcessPrepared {
         self.command.stderr(Stdio::piped());
         self.stderr = Some(BoundedStandardStreamDisposition::Piped);
         self
+    }
+
+    /// Unix only: retain one parent descriptor across the child's exec.
+    ///
+    /// The descriptor keeps its number in the child — the retained set is
+    /// the entire inheritance contract, and ambient descriptors still
+    /// receive close-on-exec. Callers pass the number to the child through
+    /// arguments or the environment; the platform never relocates it.
+    #[cfg(unix)]
+    pub fn retain_descriptor(&mut self, descriptor: impl std::os::fd::AsFd) -> &mut Self {
+        use std::os::fd::AsRawFd;
+        self.retained_descriptors
+            .push(descriptor.as_fd().as_raw_fd());
+        self
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn retained_descriptors(&self) -> &[std::os::fd::RawFd] {
+        &self.retained_descriptors
     }
 
     pub fn get_program(&self) -> &OsStr {

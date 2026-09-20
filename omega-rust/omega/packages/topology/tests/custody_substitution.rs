@@ -92,8 +92,8 @@ impl PipeAdapter for SimAdapter {
         Ok(pair)
     }
 
-    fn endpoint_token(&self, endpoint: &SimEndpoint) -> u64 {
-        endpoint.0
+    fn endpoint_token(&self, endpoint: &SimEndpoint) -> Result<u64, SimError> {
+        Ok(endpoint.0)
     }
 
     fn close_endpoint(&mut self, _endpoint: SimEndpoint) -> Result<(), SimError> {
@@ -172,8 +172,13 @@ fn assert_unauthorized_request(
     let authorization = lifecycle
         .authorize(installation_request(expected, 7, components))
         .expect("fresh issuance");
-    let error = prepare_installation(checked, authorization, SimAdapter::new())
-        .expect_err("a mismatched commitment pairing must reject");
+    let error = prepare_installation(
+        checked,
+        authorization,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect_err("a mismatched commitment pairing must reject");
     match error {
         PrepareError::Rejected {
             rejection:
@@ -1972,8 +1977,13 @@ fn installation_request_rejects_every_one_field_substitution() {
     let authorization = lifecycle
         .authorize(installation_request(commitment, 7, &components))
         .expect("fresh issuance");
-    let prepared = prepare_installation(checked(), authorization, SimAdapter::new())
-        .expect("the baseline request prepares");
+    let prepared = prepare_installation(
+        checked(),
+        authorization,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("the baseline request prepares");
     prepared.disarm().expect("prepared custody disarms cleanly");
 
     // `expected_request`: any other commitment — foreign, zeroed, or the
@@ -1987,8 +1997,13 @@ fn installation_request_rejects_every_one_field_substitution() {
         let authorization = lifecycle
             .authorize(installation_request(expected, 7, &components))
             .expect("fresh issuance");
-        let error = prepare_installation(checked(), authorization, SimAdapter::new())
-            .expect_err("a substituted expected request must reject");
+        let error = prepare_installation(
+            checked(),
+            authorization,
+            SimAdapter::new(),
+            payment_operation_schemas(),
+        )
+        .expect_err("a substituted expected request must reject");
         match error {
             PrepareError::Rejected {
                 rejection: InstallationRejection::UnauthorizedRequest { expected: e, found },
@@ -2102,8 +2117,13 @@ fn installation_request_rejects_every_one_field_substitution() {
         mutate(&mut request);
         let mut lifecycle = InstallationLifecycle::default();
         let authorization = lifecycle.authorize(request).expect("fresh issuance");
-        let error = prepare_installation(checked(), authorization, SimAdapter::new())
-            .expect_err("a substituted artifact roster must reject");
+        let error = prepare_installation(
+            checked(),
+            authorization,
+            SimAdapter::new(),
+            payment_operation_schemas(),
+        )
+        .expect_err("a substituted artifact roster must reject");
         match error {
             PrepareError::Rejected { rejection, leaked } => {
                 assert!(expected(&rejection), "{name}: {rejection}");
@@ -2122,8 +2142,13 @@ fn installation_request_rejects_every_one_field_substitution() {
     request.artifacts[0].artifact = identity(0xA9);
     let mut lifecycle = InstallationLifecycle::default();
     let authorization = lifecycle.authorize(request).expect("fresh issuance");
-    let prepared = prepare_installation(checked(), authorization, SimAdapter::new())
-        .expect("a substituted artifact identity is adopted evidence");
+    let prepared = prepare_installation(
+        checked(),
+        authorization,
+        SimAdapter::new(),
+        payment_operation_schemas(),
+    )
+    .expect("a substituted artifact identity is adopted evidence");
     prepared.disarm().expect("prepared custody disarms cleanly");
 
     // The physical-mapping axis: an adapter that mints two ends with one
@@ -2135,8 +2160,13 @@ fn installation_request_rejects_every_one_field_substitution() {
     let authorization = lifecycle
         .authorize(installation_request(commitment, 7, &components))
         .expect("fresh issuance");
-    let error = prepare_installation(checked(), authorization, adapter)
-        .expect_err("an endpoint token collision must reject");
+    let error = prepare_installation(
+        checked(),
+        authorization,
+        adapter,
+        payment_operation_schemas(),
+    )
+    .expect_err("an endpoint token collision must reject");
     match error {
         PrepareError::Rejected {
             rejection: InstallationRejection::EndpointTokenCollision { binding: 0 },

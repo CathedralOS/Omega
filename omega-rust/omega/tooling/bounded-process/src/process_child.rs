@@ -34,6 +34,8 @@ impl BoundedProcessChild {
     /// Spawn a configured command inside the platform process
     /// container before any child code may execute.
     pub fn spawn(prepared: BoundedProcessPrepared) -> io::Result<Self> {
+        #[cfg(unix)]
+        let retained_descriptors = prepared.retained_descriptors().to_vec();
         let (command, limits) = prepared.into_command()?;
         #[cfg(not(windows))]
         let _ = limits;
@@ -41,6 +43,7 @@ impl BoundedProcessChild {
         let mut command = {
             let mut command = command;
             descriptors::mark_ambient_close_on_exec(&mut command)?;
+            descriptors::retain_descriptors(&mut command, retained_descriptors)?;
             command
         };
         #[cfg(windows)]

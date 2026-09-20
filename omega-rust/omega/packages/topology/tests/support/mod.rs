@@ -29,6 +29,7 @@ use terminal_psi::{
     ProviderCandidateConformance, ProviderRefinement, ProviderSignature, ServiceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, Terminator,
 };
+use topology_plan::topology_installation::{OperationSchema, OperationSchemas, PayloadSchema};
 use topology_plan::*;
 
 pub fn identity(byte: u8) -> Identity {
@@ -408,4 +409,283 @@ pub fn payment_pair() -> (Vec<u8>, Vec<u8>, DeploymentPlan) {
     .expect("payment composition succeeds");
     let plan_bytes = encode_plan(&plan).unwrap();
     (request_bytes, plan_bytes, plan)
+}
+
+// ---- operation schemas ----------------------------------------------------
+
+/// The payment contracts' operation table: `1` carries a bounded request
+/// payload, `2` is an empty acknowledgement, `3` carries an exact-length
+/// reply. The bound contracts differ by identity but share the wire law
+/// the installation profile selects.
+pub fn payment_operation_schema() -> OperationSchema {
+    OperationSchema::new([
+        (1, PayloadSchema::Bounded { bytes: 256 }),
+        (2, PayloadSchema::Empty),
+        (3, PayloadSchema::Exact { bytes: 8 }),
+    ])
+}
+
+/// The payment schema registered against every distinct contract identity
+/// the golden plan binds.
+pub fn payment_operation_schemas() -> OperationSchemas {
+    let (_, _, plan) = payment_pair();
+    let mut contracts = BTreeSet::new();
+    for instance in &plan.instances {
+        for endpoint in &instance.endpoints {
+            contracts.insert(endpoint.contract);
+        }
+    }
+    let mut schemas = OperationSchemas::new();
+    for contract in contracts {
+        schemas
+            .register(contract, payment_operation_schema())
+            .expect("each contract registers once");
+    }
+    schemas
+}
+
+// ---- the member process image (unix) --------------------------------------
+//
+// The local supervisor's acceptance leg spawns copies of *this test binary*
+// as the three payment members: `admit_executable` digests `current_exe`,
+// and the launch arguments select `topology_member_process_entry` by exact
+// libtest filter. `member_process_entry` below is that image's
+// install-and-serve loop — a real child process holding only the
+// descriptors the supervisor retained through exec.
+
+/// Environment naming the member's `id:descriptor` endpoint assignments.
+#[cfg(unix)]
+pub const MEMBER_ENDPOINTS_ENV: &str = "OMEGA_TOPOLOGY_ENDPOINTS";
+/// Environment naming the member's report-channel descriptor.
+#[cfg(unix)]
+pub const MEMBER_REPORTS_ENV: &str = "OMEGA_TOPOLOGY_REPORTS";
+/// Test-only knob: shift every echoed token by this amount. The member then
+/// honestly reports a physical identity that is not the assigned end's —
+/// the substituted mapping the activation gate must refuse.
+#[cfg(unix)]
+pub const MEMBER_SHIFT_TOKENS_ENV: &str = "OMEGA_TOPOLOGY_SHIFT_TOKENS";
+
+/// Borrow a retained descriptor just long enough to dup it into an owned
+/// `File`. The retained descriptor itself stays open — the member holds it
+/// for its whole run.
+#[cfg(unix)]
+fn borrowed(descriptor: std::os::fd::RawFd) -> std::io::Result<std::fs::File> {
+    use std::os::fd::BorrowedFd;
+    // SAFETY: `descriptor` is a number the supervisor explicitly retained
+    // across this process's exec (or stdin/stdout/stderr); borrowing it for
+    // a dup never takes ownership, so the original stays open.
+    let borrowed = unsafe { BorrowedFd::borrow_raw(descriptor) };
+    Ok(std::fs::File::from(borrowed.try_clone_to_owned()?))
+}
+
+/// The kernel identity of one descriptor: pipe inode and direction, the
+/// same measurement the adapter records — stable across the exec that
+/// installed it here.
+#[cfg(unix)]
+fn descriptor_token(descriptor: std::os::fd::RawFd) -> std::io::Result<u64> {
+    use std::io::Write;
+    use std::os::unix::fs::MetadataExt;
+    let file = borrowed(descriptor)?;
+    let inode = file.metadata()?.ino();
+    // A zero-length write on a read end is EBADF — direction is kernel
+    // truth, not a remembered flag.
+    let is_write = (&file).write(&[]).is_ok();
+    Ok(inode.wrapping_shl(1) | u64::from(is_write))
+}
+
+/// The supervised member's install-and-serve loop: echo the kernel token
+/// of every assigned descriptor on the report channel, block at the gate
+/// until `ENTER`, then serve line commands on stdin until `QUIT` or EOF.
+/// Commands are `WRITE-FD <fd> <hex>`, `READ-FD <fd> <cap>`,
+/// `TOKEN-FD <fd>`, `FDS`, `QUIT`. Returns a process exit status.
+#[cfg(unix)]
+pub fn member_process_entry() -> i32 {
+    use std::collections::BTreeMap;
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::os::fd::RawFd;
+
+    let mut endpoints: BTreeMap<u32, RawFd> = BTreeMap::new();
+    if let Ok(spec) = std::env::var(MEMBER_ENDPOINTS_ENV) {
+        for pair in spec.split(',') {
+            let mut halves = pair.split(':');
+            if let (Some(id), Some(descriptor)) = (halves.next(), halves.next())
+                && let (Ok(id), Ok(descriptor)) = (id.parse::<u32>(), descriptor.parse::<RawFd>())
+            {
+                endpoints.insert(id, descriptor);
+            }
+        }
+    }
+    let reports_descriptor: RawFd = std::env::var(MEMBER_REPORTS_ENV)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(-1);
+    let mut reports = match borrowed(reports_descriptor) {
+        Ok(file) => file,
+        Err(_) => return 2,
+    };
+    let shift: u64 = std::env::var(MEMBER_SHIFT_TOKENS_ENV)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
+
+    // The install handshake: the member attests the physical token of
+    // every descriptor it actually holds — the supervisor's gate compares
+    // this echo to the recorded assignment.
+    for (id, descriptor) in &endpoints {
+        let token = descriptor_token(*descriptor)
+            .unwrap_or(0)
+            .wrapping_add(shift);
+        if writeln!(reports, "ECHO {id} {token}").is_err() {
+            return 3;
+        }
+    }
+    if writeln!(reports, "ECHO-DONE")
+        .and_then(|()| reports.flush())
+        .is_err()
+    {
+        return 3;
+    }
+
+    let stdin = std::io::stdin();
+    let mut input = BufReader::new(stdin.lock());
+
+    // The gate: entry does not begin until the supervisor opens it.
+    let mut line = String::new();
+    match input.read_line(&mut line) {
+        Ok(_) if line.trim_end() == "ENTER" => {}
+        _ => return 4,
+    }
+    if writeln!(reports, "READY")
+        .and_then(|()| reports.flush())
+        .is_err()
+    {
+        return 3;
+    }
+
+    // The serve loop: one line command on stdin, one verdict line back.
+    loop {
+        line.clear();
+        match input.read_line(&mut line) {
+            Ok(0) | Err(_) => return 0,
+            Ok(_) => {}
+        }
+        let fields: Vec<&str> = line.trim_end().split(' ').collect();
+        let reply = match fields.as_slice() {
+            ["QUIT"] => return 0,
+            ["WRITE-FD", descriptor, hex] => {
+                let descriptor: RawFd = descriptor.parse().unwrap_or(-1);
+                match borrowed(descriptor) {
+                    Ok(file) => {
+                        let bytes = hex_decode(hex);
+                        match (&file).write_all(&bytes) {
+                            Ok(()) => "WROTE".to_owned(),
+                            Err(error) => {
+                                format!("IO-ERR {}", error.raw_os_error().unwrap_or(-1))
+                            }
+                        }
+                    }
+                    Err(error) => format!("IO-ERR {}", error.raw_os_error().unwrap_or(9)),
+                }
+            }
+            ["READ-FD", descriptor, cap] => {
+                let descriptor: RawFd = descriptor.parse().unwrap_or(-1);
+                let cap: usize = cap.parse().unwrap_or(0);
+                match borrowed(descriptor) {
+                    Ok(file) => {
+                        let mut buffer = vec![0u8; cap];
+                        match (&file).read(&mut buffer) {
+                            Ok(0) => "EOF".to_owned(),
+                            Ok(read) => format!("BYTES {}", hex_encode(&buffer[..read])),
+                            Err(error) => {
+                                format!("IO-ERR {}", error.raw_os_error().unwrap_or(-1))
+                            }
+                        }
+                    }
+                    Err(error) => format!("IO-ERR {}", error.raw_os_error().unwrap_or(9)),
+                }
+            }
+            ["TOKEN-FD", descriptor] => {
+                let descriptor: RawFd = descriptor.parse().unwrap_or(-1);
+                match descriptor_token(descriptor) {
+                    Ok(token) => format!("TOKEN {token}"),
+                    Err(error) => format!("IO-ERR {}", error.raw_os_error().unwrap_or(9)),
+                }
+            }
+            ["FDS"] => {
+                // Every live descriptor must be one of the standard
+                // streams or an explicitly retained end; the tolerated
+                // extras are the report-channel dup and the /dev/fd scan
+                // descriptor itself.
+                let mut allowed: BTreeSet<RawFd> = BTreeSet::from([0, 1, 2]);
+                allowed.extend(endpoints.values().copied());
+                allowed.insert(reports_descriptor);
+                match current_descriptors() {
+                    Some(table) => {
+                        let extras: Vec<RawFd> = table
+                            .into_iter()
+                            .filter(|fd| !allowed.contains(fd))
+                            .collect();
+                        if extras.len() <= 2 {
+                            "FDS-OK".to_owned()
+                        } else {
+                            format!(
+                                "FDS-EXTRA {}",
+                                extras
+                                    .iter()
+                                    .map(RawFd::to_string)
+                                    .collect::<Vec<_>>()
+                                    .join(",")
+                            )
+                        }
+                    }
+                    None => "IO-ERR -1".to_owned(),
+                }
+            }
+            _ => "PROTO-ERR".to_owned(),
+        };
+        if writeln!(reports, "{reply}")
+            .and_then(|()| reports.flush())
+            .is_err()
+        {
+            return 3;
+        }
+    }
+}
+
+/// The member's live descriptor table — confinement evidence: nothing
+/// beyond the retained set (plus transient ends its own measurement opens)
+/// may appear.
+#[cfg(unix)]
+fn current_descriptors() -> Option<Vec<std::os::fd::RawFd>> {
+    let mut descriptors = Vec::new();
+    for entry in std::fs::read_dir("/dev/fd").ok()? {
+        let entry = entry.ok()?;
+        if let Ok(descriptor) = entry
+            .file_name()
+            .to_string_lossy()
+            .parse::<std::os::fd::RawFd>()
+        {
+            descriptors.push(descriptor);
+        }
+    }
+    descriptors.sort_unstable();
+    Some(descriptors)
+}
+
+#[cfg(unix)]
+fn hex_encode(bytes: &[u8]) -> String {
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push_str(&format!("{byte:02x}"));
+    }
+    encoded
+}
+
+#[cfg(unix)]
+fn hex_decode(text: &str) -> Vec<u8> {
+    text.as_bytes()
+        .chunks(2)
+        .filter_map(|pair| std::str::from_utf8(pair).ok())
+        .filter_map(|pair| u8::from_str_radix(pair, 16).ok())
+        .collect()
 }

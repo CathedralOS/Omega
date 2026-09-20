@@ -46,8 +46,10 @@ pub trait PipeAdapter {
 
     /// The stable physical identity of one end, for the route table and the
     /// installed-token echo the activation gate checks. Two distinct live
-    /// ends must never report the same token.
-    fn endpoint_token(&self, endpoint: &Self::Endpoint) -> u64;
+    /// ends must never report the same token, and the token must identify
+    /// the kernel object — not the caller-local descriptor number — so an
+    /// end installed in another process still reports the same token.
+    fn endpoint_token(&self, endpoint: &Self::Endpoint) -> Result<u64, Self::Error>;
 
     /// Permanently close one end still in installer custody. `Ok` confirms
     /// the OS released it; `Err` means custody could not be confirmed and
@@ -104,22 +106,34 @@ impl PipeAdapter for StdPipeAdapter {
         })
     }
 
+    /// The end's token is its kernel pipe identity: the anonymous pipe's
+    /// inode shifted one bit, with the low bit recording the write end.
+    /// Both ends of one pipe share the inode, so the direction bit keeps
+    /// the pair's ends distinct; the inode is stable across the fork/exec
+    /// handoff that installs the end in the member, which is what lets the
+    /// activation gate compare a child's own attestation to the recorded
+    /// assignment instead of trusting a descriptor number.
     #[cfg(unix)]
-    fn endpoint_token(&self, endpoint: &StdPipeEnd) -> u64 {
-        use std::os::fd::AsRawFd;
-        match endpoint {
-            StdPipeEnd::Read(end) => end.as_raw_fd() as u64,
-            StdPipeEnd::Write(end) => end.as_raw_fd() as u64,
-        }
+    fn endpoint_token(&self, endpoint: &StdPipeEnd) -> Result<u64, std::io::Error> {
+        use std::os::fd::AsFd;
+        use std::os::unix::fs::MetadataExt;
+        let (end, is_write) = match endpoint {
+            StdPipeEnd::Read(end) => (end.as_fd(), false),
+            StdPipeEnd::Write(end) => (end.as_fd(), true),
+        };
+        let inode = std::fs::File::from(end.try_clone_to_owned()?)
+            .metadata()?
+            .ino();
+        Ok(inode.wrapping_shl(1) | u64::from(is_write))
     }
 
     #[cfg(windows)]
-    fn endpoint_token(&self, endpoint: &StdPipeEnd) -> u64 {
+    fn endpoint_token(&self, endpoint: &StdPipeEnd) -> Result<u64, std::io::Error> {
         use std::os::windows::io::AsRawHandle;
-        match endpoint {
+        Ok(match endpoint {
             StdPipeEnd::Read(end) => end.as_raw_handle() as usize as u64,
             StdPipeEnd::Write(end) => end.as_raw_handle() as usize as u64,
-        }
+        })
     }
 
     fn close_endpoint(&mut self, endpoint: StdPipeEnd) -> Result<(), std::io::Error> {
@@ -139,6 +153,19 @@ impl PipeAdapter for StdPipeAdapter {
             "endpoint delivery installs each end only into its assigned process",
             "general handle inheritance is disabled for spawned members",
             "the kernel attests which process produced each delivered frame",
+            "an endpoint token is its kernel pipe inode and direction, stable across exec",
         ]
+    }
+}
+
+/// Unix custody handoff: the physical descriptor a supervisor retains
+/// through the member's exec.
+#[cfg(unix)]
+impl std::os::fd::AsFd for StdPipeEnd {
+    fn as_fd(&self) -> std::os::fd::BorrowedFd<'_> {
+        match self {
+            StdPipeEnd::Read(end) => end.as_fd(),
+            StdPipeEnd::Write(end) => end.as_fd(),
+        }
     }
 }
