@@ -841,6 +841,64 @@ fn constrained_record_const_discharges_field_domain_facts() {
 }
 
 #[test]
+fn constrained_array_const_discharges_element_domain_facts() {
+    // An array constant binds `self` through its scalar-decodable elements, so
+    // `self[0] in u8::NonZero` evaluates against the canonical element leaf
+    // and the declaration publishes compatibility identity.
+    let program = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain u8::NonZero requires self > 0; domain [u8; 8]::Full requires self[0] in u8::NonZero; const A: [u8; 8] in Full = [1, 2, 3, 4, 5, 6, 7, 8];",
+    )])
+    .expect("array element membership discharges the constrained const");
+    assert_eq!(const_named(&program, "A"), "mine::A");
+    let declaration = program
+        .const_declarations
+        .iter()
+        .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::A")
+        .expect("mine::A");
+    assert!(
+        declaration.canonical_value_encoding.is_some(),
+        "a discharged array constrained const publishes compatibility identity"
+    );
+
+    // A refuting element value rejects with the precise refutation
+    // diagnostic, not the generic fence.
+    let error = lower_multi(&[(
+        "mine.omg",
+        "module mine; domain u8::NonZero requires self > 0; domain [u8; 8]::Full requires self[0] in u8::NonZero; const A: [u8; 8] in Full = [0, 2, 3, 4, 5, 6, 7, 8];",
+    )])
+    .expect_err("a refuted array element fact rejects");
+    assert!(error.contains("is false"), "unexpected diagnostic: {error}");
+
+    for (tag, sources) in [
+        // An index beyond the canonical element count binds no element, so
+        // the fact stays fenced for checked downstream evidence.
+        (
+            "out-of-bounds element index",
+            "module mine; domain u8::NonZero requires self > 0; domain [u8; 8]::Saturated requires self[8] in u8::NonZero; const A: [u8; 8] in Saturated = [1, 2, 3, 4, 5, 6, 7, 8];",
+        ),
+        // An element that is itself an aggregate has no scalar leaf;
+        // `self[0]` does not project through the element binding.
+        (
+            "nested array element",
+            "module mine; domain u8::NonZero requires self > 0; domain [[u8; 2]; 2]::Deep requires self[0] in u8::NonZero; const A: [[u8; 2]; 2] in Deep = [[1, 2], [3, 4]];",
+        ),
+        // A whole-aggregate `self` operand has no scalar identity to compare.
+        (
+            "whole-aggregate self operand",
+            "module mine; domain [u8; 8]::Any requires self == self; const A: [u8; 8] in Any = [1, 2, 3, 4, 5, 6, 7, 8];",
+        ),
+    ] {
+        let error = lower_multi(&[("mine.omg", sources)]).expect_err("{tag} must stay fenced");
+        assert!(
+            error
+                .contains("constrained const declarations require declaration-site proof checking"),
+            "{tag}: unexpected diagnostic: {error}"
+        );
+    }
+}
+
+#[test]
 fn constrained_const_keeps_fence_for_unselected_or_indexed_domains() {
     for (tag, sources) in [
         // `Pos` exists only inside the unimported sibling `units`; the
