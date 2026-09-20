@@ -14,8 +14,9 @@ binds exact entry contract/plan, profile-sealed executable manifest, and strong
 installed-artifact occurrence identity. Entry remains on its chosen era across
 routing changes; quiescence/retirement check active entries, retained holds,
 and complete dispositions. Era publication and program-local epoch leases retain
-complete candidates, not only compact coordinates. Concrete entry acquisition
-and OS policy remain separate work.
+complete candidates, not only compact coordinates.
+[entry_acquisition.rs](src/entry_acquisition.rs) seals the concrete runtime
+entry a live era entry may dispatch through; OS policy remains separate work.
 
 Deployment transactions, journal storage, and restart recovery belong to the
 consuming runtime/library package or OS. This crate neither persists deployment

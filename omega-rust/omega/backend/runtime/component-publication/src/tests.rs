@@ -19,17 +19,19 @@ use calling_conventions::{
 };
 use effects::provider_plan::{ProviderPlan, ServiceSchema};
 use effects::{
-    ComponentEraLedgerId, ComponentEraQuiescenceReceipt, ComponentEraRetirementReceipt,
-    ComponentProgressManifest, ExecutableTcbManifest, ExecutableTcbProfile,
-    ExecutableTcbProfileAcceptance, ExecutionScope, IncompleteScopePolicy, ScopeCompleteness,
-    SelectedProviderPlanFacts, evaluate_executable_tcb_profile,
+    ActiveComponentEraEntry, ComponentEraEntryReceipt, ComponentEraLedgerId,
+    ComponentEraQuiescenceReceipt, ComponentEraRetirementReceipt, ComponentProgressManifest,
+    ExecutableTcbManifest, ExecutableTcbProfile, ExecutableTcbProfileAcceptance, ExecutionScope,
+    IncompleteScopePolicy, ScopeCompleteness, SelectedProviderPlanFacts,
+    evaluate_executable_tcb_profile,
 };
 use executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactEntry, CodePlacementAuthority,
-    CodePlacementId, EntrySetId, FinalValidationCertificate, FinalValidationId, InstallAuthority,
-    InstallationAudience, InstallationReceipt, InstallationScopeId, InstalledCode,
-    MachineContractSetId, MachineFootprintId, MaterializationReceipt, PlacementPlanId,
-    RelocationSetId, WxEnforcement, admit_executable, install_validated,
+    CodePlacementId, EntryContractDigest, EntryReferenceAuthority, EntryReferenceFactDigest,
+    EntryReferenceReceipt, EntrySetId, FinalValidationCertificate, FinalValidationId,
+    InstallAuthority, InstallationAudience, InstallationReceipt, InstallationScopeId,
+    InstalledCode, MachineContractSetId, MachineFootprintId, MaterializationReceipt,
+    PlacementPlanId, RelocationSetId, WxEnforcement, admit_executable, install_validated,
     materialize_admitted_artifact, materialize_and_freeze, validate_final_placement,
 };
 use extents::{
@@ -66,6 +68,7 @@ use image_emission::{
 };
 use layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
+    RelocationTarget,
 };
 use machine_code::{
     CompilerPrivateMachineCodeFunction, MachineCodeFunction, MachineCodePlan,
@@ -2937,5 +2940,177 @@ fn interpreted_unregister_drives_registration_ledger_teardown() {
         driver.runtime.component_era_lease_holds(),
         Some(0),
         "the program's unregister released the exact component-era hold"
+    );
+}
+
+fn entry_contract() -> EntryContractDigest {
+    EntryContractDigest::from_canonical_bytes(b"omega.test.component-entry-contract")
+}
+
+fn entry_fact(canonical: &[u8]) -> EntryReferenceFactDigest {
+    EntryReferenceFactDigest::from_canonical_bytes(canonical)
+}
+
+/// Publish `runnable` as `era` and enter it once, returning the live entry
+/// token acquisition requires.
+fn live_era_entry(
+    ledger: &mut RunnableComponentEraLedger,
+    era: u64,
+    runnable: InstalledRunnableComponent,
+    invocation: u64,
+) -> ActiveComponentEraEntry {
+    let candidate = candidate(era, &runnable);
+    let receipt = ComponentEraPublicationReceipt::from_runtime(
+        era * 10 + 1,
+        ledger.lifecycle(),
+        &candidate,
+        true,
+        true,
+    );
+    ledger
+        .publish(candidate, receipt, runnable)
+        .expect("era publishes");
+    ledger
+        .enter(ComponentEraEntryReceipt::from_runtime(
+            invocation,
+            ledger.lifecycle(),
+            era,
+            format!("entry-plan:{era}"),
+            true,
+        ))
+        .expect("era entry linearizes")
+}
+
+#[test]
+fn entry_acquisition_seals_the_live_era_own_declared_entry() {
+    let mut ledger = lifecycle();
+    let fixture = runnable_fixture(700);
+    let entry_token = live_era_entry(&mut ledger, 70, fixture.runnable, 501);
+    let installed = ledger
+        .retained_component(70)
+        .expect("era retains runnable evidence")
+        .installed();
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry");
+    let contract = entry_contract();
+    let authority = EntryReferenceAuthority::from_admitted_provider(installed, entry, contract)
+        .with_required_facts([entry_fact(b"provider cache-order completion")]);
+    let receipt = EntryReferenceReceipt::from_provider(installed, entry, contract, true, true)
+        .with_established_facts([
+            entry_fact(b"provider cache-order completion"),
+            entry_fact(b"provider fetch-domain completion"),
+        ]);
+    let reference = ledger
+        .acquire_installed_entry(&entry_token, authority, receipt)
+        .expect("a live era entry acquires its declared runtime entry");
+    assert_eq!(reference.entry(), entry);
+    assert_eq!(reference.contract(), contract);
+    assert_eq!(reference.installed_code(), installed.identity());
+    assert_eq!(reference.artifact(), installed.artifact());
+    assert_eq!(reference.occurrence_digest(), installed.occurrence_digest());
+    assert_eq!(reference.installed_context(), installed.receipt_context());
+    assert_eq!(reference.selected_target(), RelocationTarget::Entry(entry));
+}
+
+#[test]
+fn entry_acquisition_rejects_an_authority_scoped_to_another_installation() {
+    let mut ledger = lifecycle();
+    let fixture = runnable_fixture(700);
+    let foreign = runnable_fixture(710);
+    let entry_token = live_era_entry(&mut ledger, 70, fixture.runnable, 502);
+    let installed = ledger
+        .retained_component(70)
+        .expect("era retains runnable evidence")
+        .installed();
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry");
+    let contract = entry_contract();
+    let authority = EntryReferenceAuthority::from_admitted_provider(
+        foreign.runnable.installed(),
+        entry,
+        contract,
+    );
+    let receipt = EntryReferenceReceipt::from_provider(installed, entry, contract, true, true);
+    let error = ledger
+        .acquire_installed_entry(&entry_token, authority, receipt)
+        .expect_err("an authority scoped to a foreign installation cannot acquire the entry");
+    assert!(
+        error.diagnostic().contains("not scoped"),
+        "unexpected rejection: {}",
+        error.diagnostic()
+    );
+    let (_authority, _receipt) = error.into_parts();
+}
+
+#[test]
+fn entry_acquisition_rejects_undeclared_entries_and_unestablished_receipts() {
+    let mut ledger = lifecycle();
+    let fixture = runnable_fixture(700);
+    let entry_token = live_era_entry(&mut ledger, 70, fixture.runnable, 503);
+    let installed = ledger
+        .retained_component(70)
+        .expect("era retains runnable evidence")
+        .installed();
+    let contract = entry_contract();
+
+    // An entry the artifact never declared cannot acquire even with an
+    // established receipt.
+    let foreign = EntryStubId::from_normalized_identity(5555).expect("foreign entry");
+    let authority = EntryReferenceAuthority::from_admitted_provider(installed, foreign, contract);
+    let receipt = EntryReferenceReceipt::from_provider(installed, foreign, contract, true, true);
+    let error = ledger
+        .acquire_installed_entry(&entry_token, authority, receipt)
+        .expect_err("an undeclared entry cannot acquire");
+    assert!(
+        error.diagnostic().contains("not a declared entry"),
+        "unexpected rejection: {}",
+        error.diagnostic()
+    );
+    let (_authority, _receipt) = error.into_parts();
+
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry");
+
+    // A receipt that does not establish instruction-fetch visibility cannot
+    // acquire.
+    let authority = EntryReferenceAuthority::from_admitted_provider(installed, entry, contract);
+    let receipt = EntryReferenceReceipt::from_provider(installed, entry, contract, true, false);
+    let error = ledger
+        .acquire_installed_entry(&entry_token, authority, receipt)
+        .expect_err("fetch-invisible entry cannot acquire");
+    assert!(
+        error.diagnostic().contains("instruction-fetch visibility"),
+        "unexpected rejection: {}",
+        error.diagnostic()
+    );
+
+    // A receipt naming another contract cannot acquire.
+    let authority = EntryReferenceAuthority::from_admitted_provider(installed, entry, contract);
+    let receipt = EntryReferenceReceipt::from_provider(
+        installed,
+        entry,
+        EntryContractDigest::from_canonical_bytes(b"omega.test.other-contract"),
+        true,
+        true,
+    );
+    let error = ledger
+        .acquire_installed_entry(&entry_token, authority, receipt)
+        .expect_err("a receipt binding another contract cannot acquire");
+    assert!(
+        error.diagnostic().contains("does not bind"),
+        "unexpected rejection: {}",
+        error.diagnostic()
+    );
+
+    // A receipt missing a demanded completion fact cannot acquire.
+    let authority = EntryReferenceAuthority::from_admitted_provider(installed, entry, contract)
+        .with_required_facts([entry_fact(b"provider fetch-domain completion")]);
+    let receipt = EntryReferenceReceipt::from_provider(installed, entry, contract, true, true);
+    let error = ledger
+        .acquire_installed_entry(&entry_token, authority, receipt)
+        .expect_err("a receipt lacking required facts cannot acquire");
+    assert!(
+        error
+            .diagnostic()
+            .contains("lacks required completion facts"),
+        "unexpected rejection: {}",
+        error.diagnostic()
     );
 }
