@@ -6592,7 +6592,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-FRONTEND-DROP-ORDER** — mined candidate; verify scope then implement.
 - **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY** — mined candidate; verify scope then implement.
-- **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION.** Done on linux x86-64: the three `source_evaluated_native_realization/*hosted_receiver*` fixtures already run the post-migration package-inputs harness (accepted semantic bindings + checked entry); what remained was the same stale source spelling family as the canary_suite siblings — `console: Service<Console> in Bound` (closed carrier) and unqualified `select_provider<Console, ConsoleNativeProvider>` (product-scope operands). Respelled linux + linux_arm64 fixtures to `Service<Console>` and `omega_language_std::{Console, ConsoleNativeProvider}`; windows fixture needed none (storage-only, no service field). All 5 hosted_receiver legs in the module pass: linux x86-64 emits and executes real ELF to exit 37/0, arm64 cross-emits with validated binding, windows storage leg cross-emits its PE. Remaining: windows/arm64 runtime execution is host-gated.
 - **NATIVE-DIFFERENTIAL-MATRIX** — mined candidate; verify scope then implement.
 - **NATIVE-I32-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **NATIVE-MATRIX-MATCHING-HOSTS** — mined candidate; verify scope then implement.
