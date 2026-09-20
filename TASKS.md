@@ -4482,12 +4482,14 @@ Owners include
     SemanticApplication` (codec tag 10) spells the catalog
     `FloatSemanticContractIdentity`, the declared result format, and the
     operand roster as projection-row references; the verifier rejoins the
-    contract through `for_contract_identity`, checks each operand's kind and
-    (where the signature carries a `Format`) its declared format, resolves
+    contract through `for_contract_identity`, checks each operand's kind,
+    rejoins explicit `Format` arguments to the declared result format (or
+    meaning-operand formats when the signature has no `Format`), resolves
     meaning operands to strictly earlier rows, and re-runs
     `kernel_discharge` when every meaning operand is a literal — the
-    discharged result rides the shared proof-value space so equality
-    propositions admit it unchanged (landed 2026-09-19). The checked side
+    discharged result rides the shared proof-value space. Equality row
+    validation establishes carrier compatibility, not the truth of an
+    equality or discharge of a source obligation. The checked side
     now produces the binding (landed 2026-09-19): each sealed
     `FloatSemantics::*` call inside a contract expression —
     declaration-level or transported `ensures` use site — resolves through
@@ -4504,9 +4506,8 @@ Owners include
     `typed-trees-to-checked-trees/src/proof/float_meaning.rs` /
     `checked-trees/src/checked_trees/proof/float_meaning.rs`. Remaining:
     `checked-trees-to-lowered-psi` emission of the application rows into
-    Terminal `FloatMeaningSource::SemanticApplication` is still missing
-    (c2l is fenced this wave), so no lowered/Terminal obligation cites the
-    binding yet.
+    Terminal `FloatMeaningSource::SemanticApplication` is still missing,
+    but emission alone does not close the source-proof path described below.
   - The non-call operation result and call result
     [source classes](wiki/spec/terminal-psi/mathematical_values.md#source-identity)
     now carry the use-site coordinate settled
@@ -4545,10 +4546,30 @@ Owners include
   `validation/src/proof_contracts/float_projection_invocations.rs` records
   equality only between projection invocations, so projection-to-
   `FloatSemantics::*` application contracts lack the required obligation.
-  Terminal, codec and the verifier now carry exact semantic applications and
-  their operand/result relationships, and checked facts produce the rows —
-  the open leg is `checked-trees-to-lowered-psi` emission of the checked
-  side table into Terminal rows (fenced this wave). Reuse
+  The source customer must first pass real contract checking, not only the
+  checked binder's fixtures that bypass exit proofs. At `d4b2444dda` on macOS
+  AArch64, `compile_to_checked` rejects this true literal obligation at
+  `validation/src/proof_contracts/contract_entailment.rs` as an unjudged
+  proof-only `Nat` claim (the real core `FloatMeaning` contains `Rat`/`Nat`):
+
+  ```omega
+  use omega::language::core::float_operations;
+  machine read() -> u64
+  ensures FloatSemantics::add(FloatFormat::BINARY32,
+      Float::meaning32(1.0f32), Float::meaning32(2.0f32))
+      == Float::meaning32(3.0f32);
+  { 7 }
+  ```
+
+  Carry this source through checked kernel discharge and the missing
+  `checked-trees-to-lowered-psi` application emission to source-free proof
+  verification; changing the expected result to `4.0f32` must reject.
+  Do not bypass structural entailment or treat well-formed equality metadata
+  as proof. The artifact consumer regression is
+  `cargo nextest run -p compiler --test float_semantic_applications`:
+  symbolic inputs must not suppress validation of later operands, including
+  on decode. Its explicitly constructed application metadata does not
+  establish the missing source acceptance. Reuse
   `float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract`
   and the signature-selected `numerics::FloatSemanticOperation::kernel_discharge`;
   catalog identity alone is insufficient. An application can produce the

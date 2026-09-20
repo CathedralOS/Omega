@@ -153,6 +153,7 @@ fn verify_semantic_application(
     }
     let format_free = !row.parameters.contains(&FloatSemanticValueKind::Format);
     let mut discharged = Vec::with_capacity(application.operands.len());
+    let mut all_operands_literal = true;
     for (operand_index, (operand, kind)) in application
         .operands
         .iter()
@@ -197,8 +198,10 @@ fn verify_semantic_application(
                         discharged.push(FloatSemanticOperand::Meaning(meaning));
                     }
                     None => {
-                        discharged.clear();
-                        return Ok((row, None));
+                        // A runtime meaning prevents constant discharge, not
+                        // validation of the remaining signature and row links.
+                        // Returning here would admit a later malformed operand.
+                        all_operands_literal = false;
                     }
                 }
             }
@@ -210,6 +213,9 @@ fn verify_semantic_application(
                 );
             }
         }
+    }
+    if !all_operands_literal {
+        return Ok((row, None));
     }
     let Some(discharge) = row.kernel_discharge(&discharged) else {
         return Err(FloatMeaningProjectionVerificationError::SemanticApplicationDischargeMismatch);
