@@ -1116,3 +1116,30 @@ where Backing == Cell<Element, Capacity>
         "conflicting nominal constructors",
     );
 }
+
+#[test]
+fn domain_application_arguments_reach_instance_identity_after_binding() {
+    // Both authored domain-application spellings bind the index through the
+    // shared matcher; what remains is a closed identity for the domain
+    // argument itself, which keeps specialization as the residual frontier.
+    let source = r#"
+domain<const Bound: u64> u64::AtMost<Bound>;
+
+data TinyBytes<Length, const Capacity: u64>
+where
+    Length == u64::AtMost<Capacity>
+{
+    storage: [u8; Capacity];
+    length: Length;
+}
+
+machine Main::main(&mut self) {}
+"#;
+    for spelling in ["u64::AtMost<256> ", "u64 in AtMost<256> "] {
+        let with_holder = format!("{source}\ndata Holder {{ inferred: TinyBytes<{spelling}>; }}");
+        rejects(
+            &[("main.omg", &with_holder)],
+            "closed instance specialization",
+        );
+    }
+}
