@@ -206,6 +206,39 @@ pub(super) fn analyze(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
+    // A member read that resolves through the loose name fallback but not
+    // through its declared field's symbol has lost record custody: it cannot
+    // supply a point bound or a carrier to any enclosing arithmetic.
+    let mut has_member = false;
+    let mut custody_broken = false;
+    let mut pending = vec![expression];
+    while let Some(handle) = pending.pop() {
+        let node = program.expression_table.expression(handle);
+        if matches!(node, ExpressionNode::Member(_)) {
+            has_member = true;
+            if crate::value_custody::literals::closed_record_integer_projection(program, handle)
+                .is_none()
+                && program
+                    .closed_integer_value_in(handle, machine.symbol)
+                    .is_some()
+            {
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "member read in {owner} lost its declared field binding -- a foreign or \
+                         missing field cannot supply a point bound"
+                    ))
+                    .with_source_span(program.expression_table.source_span(handle)),
+                );
+                custody_broken = true;
+            }
+        }
+        crate::value_custody::literals::expression_children::children(program, node, |child| {
+            pending.push(child)
+        });
+    }
+    if custody_broken {
+        return NEUTRAL;
+    }
     if let Some(value) =
         crate::value_custody::literals::closed_record_integer_projection(program, expression)
         && let Some(primitive) = value.primitive
@@ -237,32 +270,38 @@ pub(super) fn analyze(
             crate::value_custody::literals::has_anonymous_operator_meaning(program, expression)
         },
     ) {
-        let Some(value) = evaluated.value.to_integer_exact() else {
-            if target_primitive.is_some_and(|primitive| integer_bit_width(primitive).is_some()) {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "anonymous operand `{}` is not an integer in {owner}; type an operand \
-                 before division if integer division was intended",
-                        evaluated.value,
-                    ))
-                    .with_source_span(program.expression_table.source_span(expression)),
-                );
-            }
-            // Without an integer destination this is an exact rational value,
-            // not a truncated integer interval that may manufacture zero.
-            return NEUTRAL;
-        };
-        let interval = value
-            .to_i64()
-            .map_or(Interval::UNBOUNDED, |value| Interval {
-                low: Some(value),
-                high: Some(value),
-            });
-        return Analysis {
-            domain: None,
-            interval,
-            primitive: None,
-        };
+        // A member read folded into the anonymous value may have lost the
+        // field's declared carrier during evaluation; the structural walk below
+        // still owes that carrier its operand and overflow obligations.
+        if !has_member {
+            let Some(value) = evaluated.value.to_integer_exact() else {
+                if target_primitive.is_some_and(|primitive| integer_bit_width(primitive).is_some())
+                {
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "anonymous operand `{}` is not an integer in {owner}; type an operand \
+                     before division if integer division was intended",
+                            evaluated.value,
+                        ))
+                        .with_source_span(program.expression_table.source_span(expression)),
+                    );
+                }
+                // Without an integer destination this is an exact rational value,
+                // not a truncated integer interval that may manufacture zero.
+                return NEUTRAL;
+            };
+            let interval = value
+                .to_i64()
+                .map_or(Interval::UNBOUNDED, |value| Interval {
+                    low: Some(value),
+                    high: Some(value),
+                });
+            return Analysis {
+                domain: None,
+                interval,
+                primitive: None,
+            };
+        }
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
