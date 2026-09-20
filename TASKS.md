@@ -5670,7 +5670,8 @@ Language/semantic gaps:
 
 - **FUZZ-CLUSTER-ZERO-BYTE-ARRAY.** Canonical item for the zero/empty fixed byte-array admission question (covers all ZERO-*-BYTE-ARRAY-* mining aliases).
 - **DUPLICATE-OVERLOAD-AND-VISIBILITY-ADMISSION.** Duplicate named-machine overloads and recursive-argument name collisions — pin admission rules with fail-canaries. Distinct visible imported declarations must still reject when ambiguous; repeated selection of one exact declaration is legal under [import scope](wiki/spec/language/modules.md#import-scope-and-exposure).
-- **DYNAMIC-RECEIVER-LOAN-ORIGIN.** Dynamic receiver loan origin tracking.
+- **CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN.** Dynamic receiver/evidence loan origin across package boundaries.
+
 - **FLOAT-IDENTITY-LITERAL-CARRIER.** Float identity literal carrier semantics.
 - **STRUCTURAL-UNIT-LOWERING.** Structural-unit lowering gaps in checked-trees-to-lowered-psi.
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
