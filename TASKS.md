@@ -9271,7 +9271,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PIPELINE-ROUTE-CONFORMANCE-AUDIT** — mined candidate; scope verified, resolved by landed audits. `1ccc88fb51` added `tests/architecture/representation_ownership/route_conformance.rs` pinning the documented program route: every route-table owner link resolves inside its named crate, every pipeline crate on disk is owned by exactly one row, and crate/package names keep the X-to-Y shape (the stale `timing_report.rs` link it caught was repointed to `compile_timings/mod.rs`). `36ffc8af87` added the connectivity leg in `tests/architecture/stage_crate_ownership.rs`: every designed stage entrance reachable at its crate root must have a caller outside its own crate, so the executable route — not only the crate-name chain — stays connected. Both halves of the stub's named audit are landed and pinned.
 - **PIPELINE-SPILL-FAMILY-ORPHANS** — mined candidate; verify scope then implement.
 - **PIPELINE-WRAPPER-OBJECT-ORPHAN** — mined candidate; verify scope then implement.
-- **PKG-INPUTS-FLOAT-IDENTITY-LANDING** — mined candidate; scope verified,
+- **PKG-INPUTS-FLOAT-IDENTITY-LANDING.** Mined candidate; scope verified,
   resolved — landed at `742a2f1d84` ("psi: evaluate and independently replay
   floating constant declarations"): public floating module constants retain
   exact declaration identity and exact import owner through package inputs —
@@ -9280,9 +9280,9 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   signed zero/subnormal/infinity and forged-root drift rejection covered.
   Witness green at `cdee121ee9`:
   `public_float_constants_retain_landed_identity_and_exact_import_owner`
-  (package_compilation_inputs). Sibling stubs on this surface:
-  PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF, COMPUTED-CONSTANT-LEAF-CARRIER,
-  PACKAGE-INPUTS-PSI-FAILURES.
+  (package_compilation_inputs); re-verified at `a0b906db93`. Sibling
+  stubs on this surface: PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF,
+  COMPUTED-CONSTANT-LEAF-CARRIER, PACKAGE-INPUTS-PSI-FAILURES.
 - **PLACE-ACCESS-GEOMETRY.** Resolved — scope verified, already landed. The stub
   names the geometric half of placed access ([placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)):
   the referent geometry is the declared-carrier join plus path resolution and
