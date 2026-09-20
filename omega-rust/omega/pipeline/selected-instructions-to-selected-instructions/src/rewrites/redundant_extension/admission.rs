@@ -9,7 +9,7 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::IntegerValue;
@@ -18,7 +18,6 @@ use super::RedundantExtensionError;
 use crate::ValidatedSelectedAnalysis;
 
 pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
     pub block_index: usize,
     pub extension_index: usize,
     pub extension_id: SelectedInstructionId,
@@ -317,7 +316,6 @@ pub(super) fn admit<'source>(
         return Err(RedundantExtensionError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         extension_index,
         extension_id,

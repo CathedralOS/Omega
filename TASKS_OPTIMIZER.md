@@ -613,12 +613,20 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     candidate discovery that binds source and selection identities, and the
     call from `optimize_analyzed_selected_instructions`. Empty and nonempty
     selections stay on one physical route. Decision rows and receipts must
-    survive replay through allocation and emission.
-  - Separate validation from proposal. Every module's `validation.rs` calls
-    the same `admission::admit` as its `rewrite.rs`, then checks that undoing
-    the edit restores the source. That detects a wrong edit, not a wrong
-    legality decision. The validator must reconstruct the preconditions
-    without the producer's admission routine.
+    survive replay through allocation and emission. Naming a rule needs an
+    `Optimization` member in `representations/optimization-core`, claimed by
+    WORKSPACE-ROLLOUT in wave w9 — arrange the handoff there before the
+    catalog work proceeds.
+  - Separate validation from proposal: `copy_removal` and
+    `redundant_extension` now re-derive the legality contract without the
+    producer's `admission` routine — a wrong legality decision fails their
+    validators even when the proposal matches the emitted edit, and each
+    validator proves it on a forged proposal in its own `independence_tests`.
+    Every other module's `validation.rs` still calls the same
+    `admission::admit` as its `rewrite.rs`, then checks that undoing the edit
+    restores the source. That detects a wrong edit, not a wrong legality
+    decision. The validator must reconstruct the preconditions without the
+    producer's admission routine.
   - Scheduling refuses any window containing a call, hosted effect, barrier
     kind or call-roster entry, any cross-block move through a block that is
     not a plain `Source` block, and any control-flow shape without its own
