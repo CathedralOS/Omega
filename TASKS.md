@@ -5665,7 +5665,7 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
 - **BOUNDED-OPTIMIZATION-SEARCH.** Bounded candidate search + revalidation at scale (merges BOUNDED-CANDIDATE-SEARCH, CANDIDATE-REVALIDATION-AT-SEARCH-SCALE).
 - **GRAPH-COST-MODEL-STUDY.** Graph cost-model study.
 - **GENERAL-CYCLIC-EXECUTION-OPTIMIZER.** General cyclic execution optimizer.
-- **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Workload corpus + multiversing (workload versioning under multiple specialization variants).
+- **WORKLOAD-CORPUS-AND-MULTIVERSIONING.** Workload corpus + multiversing (workload versioning under multiple specialization variants). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: these are far-future extensions gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification; the versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records, and specialization-variant identity is SPECIALIZED-VARIANT-IDENTITY-IMPACT's question.
 - **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized variants.
 
 Build/packages:
