@@ -10903,6 +10903,42 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   NATIVE-CONTAINER-ACCEPTANCE sweep on `tests/gamma/beta-*` has drained.
   Still doubly blocked; no unfenced slice.
 - **GATE-LOCAL-PREFIX-BINDING.** — mined candidate; scope verified, residual
+||||||| parent of 244419fdbdde (board: GATE-LOCAL-DRIVER-PREFIX-BINDING — add missing resolved sibling row)
+- **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
+- **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
+- **GAMMA-CERT-FULL-CHECK** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-CHECKING** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-NATIVE-CHECK** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
+- **GAMMA-DERIVATION-CHECKER** — mined candidate; verify scope then implement.
+- **GAMMA-PROVISION-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
+- **GATE-LOCAL-PREFIX-BINDING** — mined candidate; scope verified, residual
+- **FRONTIER-EDGE-ERROR-ORDER** — mined candidate; verify scope then implement.
+- **GAMMA-CERT-CHAIN-PRODUCTION** — mined candidate; verify scope then implement.
+- **GAMMA-CERT-FULL-CHECK** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-CHECK** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-CHECKING** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-NATIVE-CHECK** — mined candidate; verify scope then implement.
+- **GAMMA-CERTIFICATE-NATIVE-EXECUTION** — mined candidate; verify scope then implement.
+- **GAMMA-DERIVATION-CHECKER** — mined candidate; verify scope then implement.
+- **GAMMA-PROVISION-NATIVE-ACCEPTANCE** — mined candidate; verify scope then implement.
+- **GATE-LOCAL-DRIVER-PREFIX-BINDING.** Mined candidate — resolved re-mine,
+  named in the sibling lists of both resolved prefix rows (adjacent
+  GATE-LOCAL-PREFIX-BINDING; CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING): the
+  TASKS_BOOTSTRAP.md bullet "gate-local prefixes packed on top of bound
+  member bytes" closed at `e1fba5f523` ("bootstrap: bind Epsilon slice
+  driver and reconstructed receipt identity") — `EPSILON_EXECUTION_DRIVER_*`
+  pins + `require_epsilon_execution_driver_identity` in
+  `tools/bootstrap/epsilon/evaluator_env.sh` gate every cross-rung consumer;
+  Delta's development entry, Gamma's derivation gate entries, D's customer
+  entries, and per-gate epsilon drivers are all bound and the bullet is
+  struck. Re-verified at `66a6ea93f70` (linux x86-64): `e1fba5f523` is an
+  ancestor of main and the pins stand. No independent slice exists; open
+  manifest legs stay named in their own rows.
+- **GATE-LOCAL-PREFIX-BINDING** — mined candidate; scope verified, residual
   already bound. The name resolves to the TASKS_BOOTSTRAP.md manifest bullet
   "gate-local prefixes packed on top of bound member bytes", whose written
   residual — "every gate-local driver except the shared Epsilon slice
