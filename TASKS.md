@@ -2265,37 +2265,23 @@ Owners include
 
 - **WRITE-ONLY-BORROW.** Finish `&write T` under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority)
-  through calls/results, dynamic dispatch, cleanup and native execution. Every
-  artifact Psi emits today already replays natively through ordinary reference
-  preparation in
-  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/`:
-  projected `&write`/`&mut` receivers and arguments, disjoint argument pairs,
-  re-forwarding, literal-indexed element and field stores, IEEE value stores,
-  head-of-body `let` subloans with restored parents, and reference carriers
-  through installation
-  (`tests/native-differential/tests/terminal_psi_indexed_receivers/`). The open
-  work is upstream: for the shapes below Psi produces no artifact, mostly with
-  `machine has no source-independent checked scalar control plan`
-  (`checked-trees-to-lowered-psi/src/machine_lowering/machine_dispatch.rs`).
-  **STRUCTURAL-BORROW-IDENTITY** owns the common reference ABI.
+  through calls/results, dynamic dispatch, cleanup and native execution.
+  Source planning belongs to `typed-trees-to-checked-trees/src/execution/`
+  and `checked-trees-to-lowered-psi`; native reference preparation belongs to
+  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/`.
+  **STRUCTURAL-BORROW-IDENTITY** owns the common reference ABI. Preserve
+  original referents and exact place/loan custody across these stages.
 
-  Remaining work. The list was recorded 2026-09-15 and Psi borrow planning has
-  changed since; rerun `tests/native-differential/tests/zz_wob_probe.rs`, which
-  prints each candidate's outcome, before assuming a row still fails.
+  Remaining work:
 
-  - A borrow held in a `let` is usable only as a head-of-body receiver. Make it
-    an ordinary place alias in checked execution planning
-    (`typed-trees-to-checked-trees/src/execution/`): `let` borrows after other
-    statements, a held scalar or aggregate borrow as a call argument or store
-    root (`held[2] = 17` rejects while `held[1].replace()` composes), and a
-    `&mut` receiver call on the parent while a disjoint subloan is live.
-  - Stores through a borrow beyond primitive leaves: a projected-element scalar
-    store on a borrowed array (`records[1].value = 17` under `&mut`) and whole
-    aggregate or `[copy]` sum replacement.
-  - An owned record's field lent as a call argument. Its exclusive form is the
-    owned-root subloan rule in **STRUCTURAL-BORROW-IDENTITY**.
-  - Shared `&` scalar callee bodies: "scalar callee has no checked executable
-    body" (`checked-trees-to-lowered-psi/src/scalar_graph/scalar_call_closure/callee.rs`).
+  - General aggregate and `[copy]` sum replacement beyond literal plain records
+    with scalar fields. Preserve displaced custody and whole-value validity;
+    the existing ordered field-store decomposition is not a general aggregate
+    replacement operation.
+  - Domain-qualified byte-field replacement from a runtime source. The named
+    `frontier_pins::domain_qualified_field_store_still_misses_the_checked_control_plan`
+    control supplies the source; retain its encoding proof and exact source
+    value through field-store planning, Terminal replay and native execution.
   - Runtime indexes. Terminal Psi has `WriteOnlyIndexedPrimitiveStore` with
     verifier, codec and interpreter support. No Psi producer emits it, a
     declared `[0..=3]` index range still yields no plan, and Omega rejects it
@@ -2324,20 +2310,18 @@ Owners include
   emitter. Run both Linux target runtime legs when available and record
   unavailable hosts; cross-emission is not matching-host execution.
 
-  Flag: the `let`, store and owned-field rows fail at one place, not three. The
-  attached Unit planner admits bodies by statement shape
-  (`typed-trees-to-checked-trees/src/execution/unit/control/checked_machine.rs`:
-  a `take_while` over leading `LocalData` statements, a `borrow_alias_prefix`,
-  and tests such as `local_count != 1 || calls.len() != 1 ||
-  statements.len() != 2`), so every new arrangement of lets, calls and stores
-  needs another case. The general mechanism is ordinary statement sequencing
-  over places and loans, which **STATE-LOCAL-VALUE-FRONTIER** names; closing
-  rows here one by one extends the recognizer. Separately, `zz_wob_probe.rs`
-  reached `main` in two `wip(write-only-borrow): interrupted mid-slice`
-  commits: one test sweeps 21 candidate sources and asserts 4, so the other 17
-  can change outcome unobserved. Promote passing candidates into named suite
-  tests with caller-storage observation, pin the rest as rejections, and
-  delete the probe.
+  Resume with the maintained `terminal_psi_indexed_receivers` integration target,
+  not the deleted `zz_wob_probe`. Its `frontier_pins` module distinguishes
+  required semantic rejections from outstanding producer limitations; move a
+  repaired limitation into the relevant execution module with caller-storage
+  observation. Preserve `held_borrows`, `indexed_stores`, `owned_subloans`,
+  `borrowed_arguments`, and `primitive_stores` as regression coverage, not new
+  implementation assignments. Run `mbx nextest run -p omega-native-differential-test
+  --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail` with
+  `RUST_MIN_STACK=67108864` on macOS ARM64; retain separate Windows and Linux
+  runtime requirements rather than counting four-target publication as execution.
+  Extend the shared place/loan sequencer under **STATE-LOCAL-VALUE-FRONTIER**;
+  do not reintroduce one producer family per arrangement of calls and stores.
 
 - **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
   [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
