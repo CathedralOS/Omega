@@ -147,6 +147,14 @@ pub fn compile_project(
                 .map_err(|conflict| CompileProjectError::BuildDirectory(conflict.to_string()))?,
         ),
     };
+    // Artifact writes bind the admitted canonical directory rather than the
+    // spelled name, so an alias swapped in during admission cannot redirect
+    // the publish or retained product paths.
+    let build_dir = _occupancy
+        .as_ref()
+        .map(|occupancy| occupancy.directory().to_path_buf())
+        .unwrap_or(build_dir);
+    options.build_dir = Some(build_dir.clone());
     let policy_root_path = options.root_path.clone();
     let target = crate::invocation_target_profile(options.target_name.as_deref())
         .map_err(|diagnostic| CompileProjectError::Diagnostics(vec![diagnostic]))?;
