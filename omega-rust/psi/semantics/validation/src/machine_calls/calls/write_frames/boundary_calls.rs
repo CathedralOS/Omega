@@ -180,7 +180,17 @@ fn boundary_receiver_type_symbol(
     mut reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
     for _ in 0..program.type_reference_table.type_reference_count() {
-        reference = live_unconstrained_type(program, reference)?;
+        // Validate the constraint chain before the service classifier walks it.
+        let unconstrained = live_unconstrained_type(program, reference)?;
+        // A provisioned service calls its exact boundary requirement, not the
+        // opaque carrier's data owner. Classify before peeling qualifications:
+        // an invalid Service shell must not acquire a complete write frame.
+        if let Some(carrier) =
+            typed_trees::service::classify_exact_bound_service_carrier(program, reference).ok()?
+        {
+            return Some(carrier.requirement);
+        }
+        reference = unconstrained;
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             TypeReferenceNode::Generic { base_symbol, .. } => return Some(*base_symbol),

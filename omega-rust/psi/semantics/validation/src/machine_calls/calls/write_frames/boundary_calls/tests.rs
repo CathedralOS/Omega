@@ -505,6 +505,43 @@ fn static_boundary_cyclic_formal_constraints_remain_opaque() {
     }
 }
 
+#[test]
+fn boundary_receiver_cyclic_constraints_remain_opaque() {
+    let program = typed(
+        "boundary trait Sink { machine touch(); } data Main { sink: Sink; } machine Main::inspect(&mut self) { self.sink.touch(); }",
+    );
+    for cycle_length in [1, 2] {
+        let mut invalid = program.clone();
+        let first = invalid
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: TypeReferenceHandle::invalid(),
+                constraints: Default::default(),
+            });
+        let mut reference = first;
+        for _ in 1..cycle_length {
+            reference = invalid
+                .type_reference_table
+                .insert(TypeReferenceNode::Constrained {
+                    base_type: reference,
+                    constraints: Default::default(),
+                });
+        }
+        invalid.type_reference_table.substitute_node(
+            first,
+            TypeReferenceNode::Constrained {
+                base_type: reference,
+                constraints: Default::default(),
+            },
+        );
+        assert_eq!(
+            super::boundary_receiver_type_symbol(&invalid, first),
+            None,
+            "receiver constraint cycle length {cycle_length}"
+        );
+    }
+}
+
 /// A resolved non-boundary requirement call keeps the runtime receiver's
 /// proven origin and every exclusive argument's origin: the retained
 /// `target_symbol` selects the requirement signature exactly, while the

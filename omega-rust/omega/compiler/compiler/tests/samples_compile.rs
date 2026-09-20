@@ -1188,6 +1188,27 @@ fn cli_mvp_preserves_both_lines_with_eof_and_enter() {
 }
 
 #[test]
+fn euclid_gcd_retains_service_call_entry_plan() {
+    let root = repo_root().join("samples/cli/arithmetic/euclid_gcd/main.omg");
+    let checked = compile_sample_to_checked(&root, Some(host_target_name())).unwrap();
+    assert_eq!(checked.selected_program_entry_machine(), Some("Main::main"));
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .unwrap();
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    // Losing Service's exact requirement makes the state write frame opaque,
+    // which drops this body before the selected entry can be established.
+    assert!(
+        plans.for_machine(machine.symbol).is_some()
+            || plans.composed_for_machine(machine.symbol).is_some(),
+        "entry body omitted: {:?}",
+        plans.omission_for_machine(machine.symbol)
+    );
+}
+
+#[test]
 fn samples_with_documented_exit_run_correctly() {
     let sample_mains = sample_mains();
     let mut failures: Vec<String> = Vec::new();
