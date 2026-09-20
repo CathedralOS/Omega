@@ -6,12 +6,13 @@
 use crate::common;
 
 use common::{
-    coercion_edge_fixture, coercion_region_fixture, control_flow_fixture, copy_fixture,
+    boolean, coercion_edge_fixture, coercion_region_fixture, control_flow_fixture, copy_fixture,
     dead_machine_coercion_fixture, minimal_unit_lowered, suspension_rows, two_machine_fixture,
     unit_call, value,
 };
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
+use semantic_vocabulary::ScalarTerm;
 use std::collections::BTreeSet;
 use terminal_psi::{DebugSubject, Terminator};
 
@@ -147,6 +148,46 @@ fn fold_keeps_the_false_arm_when_the_condition_is_false() {
             common::block_id(5)
         ],
         "the true arm strands b2; b3, b4, and b5 stay reachable through it"
+    );
+    terminal_verifier::validate_control_flow_cleanup(
+        &lowered.semantic_module,
+        &optimized.lowered().semantic_module,
+    )
+    .expect("the independent check accepts the executed rewrite");
+}
+
+#[test]
+fn folded_successor_keeps_its_erased_argument_terms() {
+    // A successor's erased arguments bind the target block's erased
+    // formals in authored order; the fold must carry them onto the `Jump`
+    // verbatim or the resulting edge violates the arity the verifier
+    // checks for every successor binding.
+    let mut lowered = control_flow_fixture();
+    let machine = &mut lowered.semantic_module.machines[0];
+    machine.blocks[1].erased_scalar_formals = vec![boolean(60)];
+    let Terminator::Conditional { when_true, .. } = &mut machine.blocks[0].terminator else {
+        unreachable!("control_flow_fixture entry is a conditional")
+    };
+    when_true.erased_arguments = vec![ScalarTerm::Boolean(true)];
+
+    let optimized = run_psi_optimization(lowered.clone(), selections())
+        .expect("the fold preserves the selected successor's erased arguments");
+    let machine = &optimized.lowered().semantic_module.machines[0];
+    let Terminator::Jump {
+        edge,
+        target,
+        erased_arguments,
+        ..
+    } = &machine.blocks[0].terminator
+    else {
+        panic!("the entry conditional folds to the selected successor edge")
+    };
+    assert_eq!(*edge, common::edge(2));
+    assert_eq!(*target, common::block_id(2));
+    assert_eq!(
+        erased_arguments.as_slice(),
+        &[ScalarTerm::Boolean(true)],
+        "the selected successor's erased terms bind the target's formals"
     );
     terminal_verifier::validate_control_flow_cleanup(
         &lowered.semantic_module,
