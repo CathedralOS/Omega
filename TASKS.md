@@ -10291,6 +10291,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   in the entry machine — so the exercises are checked in-package while
   squalr-tests retains `Squalr geometry: PASS` natively (linux_x86_64:
   `omega update` checks all 17 packages; `omega run --keep` exits 0).
+  Re-verified at `5b3caaf337` on linux x86-64: the landed submodule branch
+  `origin/zergling/z61-squalr-clone-serialization` (tip `5ea4a17`) is an
+  ancestor-of-pinned-head delta — +82/-7 lines across
+  `normalized_region.omg` (wire schema numbers + `encode`/`decode` +
+  `Clone`), `snapshot_region_filter.omg` (`Clone`), and
+  `memory_alignment.omg` — building directly on the tracked pin `4b1f7a6`,
+  which carries none of it; integration of that branch into the pinned
+  app remains the open leg, not any missing machinery.
 - **SQUALR-DEBUG-ASSERTION-PARITY.** Mined candidate; scope verified at
   `e8bbe9fcc0` against upstream `568aa7589b68`: a re-mine of the
   "Rust debug-only assertions" gap in the app repo's GEOMETRY-PARITY row
