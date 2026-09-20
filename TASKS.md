@@ -6748,7 +6748,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **PLACE-STORAGE-EXTENT-OWNER** — mined candidate; verify scope then implement.
 - **PLACED-ACCESS-NATIVE-OPS** — mined candidate; verify scope then implement.
 - **PLATFORM-RUN-LINUX-X86-64** — mined candidate; verify scope then implement.
-- **POC-NATIVE-WRAPPER-RELOCATION** — mined candidate; verify scope then implement.
+- **POC-NATIVE-WRAPPER-RELOCATION** — scope verified 2026-09-20: the name
+  re-mines the `optimized_semantic_wrapper_{encoding,object}` surface in
+  `omega-rust/omega/compiler/native-realization/` — the wrapper object's
+  relocation handling, where composition deliberately admits only a
+  relocation-free child (`object/composition.rs` rejects any child with
+  `relocation_record_count != 0`) while resolving the wrapper's own private
+  continuation relocation internally
+  (`resolve_x86_64_semantic_unit_wrapper_private_continuation`). No
+  independent slice exists here: the surface's keep/move/delete decision is
+  PIPELINE-OWNER-CONSOLIDATION's work (TASKS_OPTIMIZER.md), its codec move
+  leg belongs to DURABLE-CODEC-RELOCATION/REPRESENTATION-OWNERSHIP, and the
+  executable-route leg is a bullet of UEFI-PHYSICAL-SEMANTIC-ENTRY — and
+  `native-realization/src/optimized_semantic_wrapper_object` is under a
+  live PIPELINE-WRAPPER-OBJECT-ORPHAN claim at verification time.
+  Sibling re-mines of the same surface: SEMANTIC-WRAPPER-OBJECT-OWNERSHIP,
+  SEMANTIC-WRAPPER-OWNERSHIP, SEMANTIC-WRAPPER-OWNER-RELOCATION,
+  SEMANTIC-WRAPPER-OWNER-RESOLUTION, SEMANTIC-WRAPPER-COORDINATOR-RESIDUE,
+  OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION,
+  OPTIMIZED-WRAPPER-OBJECT-RELOCATION, WRAPPER-OBJECT-OWNERSHIP,
+  PIPELINE-WRAPPER-OBJECT-ORPHAN.
 - **POC-ORPHAN-ENTRANCE-AUDIT.** Resolved — the
   [stage-entrance orphan audit](wiki/drafts/stage_entrance_orphan_audit.md)
   now covers the post-allocation chain and `unsequenced_spill_stages/`
