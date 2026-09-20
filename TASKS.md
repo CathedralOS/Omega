@@ -2291,23 +2291,10 @@ Owners include
   reaches an ordinary call from a non-entry block parameter. Owned parameter
   fields now lend exact mutable/write-only subloans through receiver
   reconciliation, Terminal verification and `structural_arguments_match`.
-  This does not establish installation-record publication or every projected
-  source form.
+  This does not establish every projected source form.
 
   Remaining work:
 
-  - Finish native publication of the owned-field customer in
-    `tests/native-differential/tests/terminal_psi_indexed_receivers/owned_subloans.rs`.
-    Its source-produced Terminal and physical text retain caller-observed writes
-    and an unchanged sibling; the text executes on macOS ARM64 and cross-lowers
-    for all four hosted targets. Routing the same source through the suite's
-    `primitive_stores::published_text` reaches `build_installation_record`, then
-    rejects `InvalidInternalUnitCall(MachineId(2))`. Inspect
-    `image-emission/src/installation_record/record_shape/internal_unit_calls/`
-    and `object_artifact/replay/unit/call_custody.rs`'s
-    `exact_borrowed_projection`; its parent-access gate excludes `Owned`.
-    Preserve exact root/leaf, offset, placement and emitted-byte reconstruction;
-    do not replace the failing publication check with physical-text validation.
   - Complete mixed field/index paths and other admitted source owners through
     receiver preparation, native lowering and replay. `receiver_calls/mod.rs`
     still limits mutable receiver projections to fields, and native
@@ -2315,10 +2302,12 @@ Owners include
     restrictions for indexed projections. Terminal's owned-root array and
     construction-local restrictions remain separate; do not infer their
     availability merely from a parameter declaration.
-  - Record matching-host runtime and publication results for both Linux targets
-    and Windows. This owned-field checkpoint ran only on macOS ARM64;
-    cross-emission is not runtime coverage. Preserve the broader
-    `terminal_psi_indexed_receivers` and `primitive_store_return` controls.
+  - Record matching-host runtime results for both Linux targets and Windows.
+    `terminal_psi_indexed_receivers::owned_subloans` publishes objects, images
+    and installation records for all four hosted targets; its published text
+    has run only on macOS ARM64. Cross-emission is not runtime coverage.
+    Preserve the broader `terminal_psi_indexed_receivers` and
+    `primitive_store_return` controls.
 
   Acceptance: caller-visible writes, forwarded references, legal synchronized
   shared observations, write-only non-reading, and register/stack pointer
