@@ -7837,12 +7837,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ENTRY-CONTENT-ROOTS. Sibling stubs naming the same recorded surface:
   RC-NATIVE-MATRIX, -CLOSURE, -GATE, -HOST-EXECUTION, -HOST-LEGS,
   -HOST-RUNS, -HOSTS.
-- **RC-NATIVE-MATRIX-LINUX-X86-64** — recorded at
-  `wiki/drafts/rc_native_matrix_linux_x86_64.md` (revision 8ae40607a3,
-  linux-x86_64): 15 pass / 23 fail across 38 legs; all failures are the
-  Service<R>-carrier spelling and entry-binding/ownership fixture-migration
-  residuals owned by ENTRY-CONTENT-ROOTS. Re-run the row when those families
-  close.
+- **RC-NATIVE-MATRIX-LINUX-X86-64.** Re-run at `6ef64f6dd6`
+  (linux-x86_64): 24 pass / 14 fail across 38 legs — identical to the
+  `0977a4249e` recording; every green leg stays green and all 14 sysv legs
+  still refuse at product admission with `native-artifact production
+  requires one exact selected program entry` (the param-carrying
+  boundary-entry root surface owned by ENTRY-CONTENT-ROOTS). Witness:
+  `wiki/drafts/rc_native_matrix_linux_x86_64.md`. Re-run the row when that
+  family closes.
 - **RC-NATIVE-MATRIX-MACOS-ARM64** — mined candidate; verify scope then implement.
 - **RC-NATIVE-MATRIX-WINDOWS-X64** — mined candidate; verify scope then implement.
 - **RC-PCC-REPLAY** — mined candidate; verify scope then implement.
