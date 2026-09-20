@@ -5843,7 +5843,12 @@ Platform/cross-host (structurally gated — document host limits):
   `tests/alpha/io-registers.hex` must exit 0 with stdout `ABCDEF` for input
   `AB`, retaining exact bounds/Trap observations and register preservation
   through host I/O.
-- **EPOCH-RESOURCE-SNAPSHOTS.** Epoch aggregate/resource snapshots + installation-era journal (merges EPOCH-AGGREGATE-SNAPSHOTS, INSTALLATION-ERA-JOURNAL, REPLACEMENT-ERA-JOURNAL, SERVICE-ERA-REPLACEMENT-SUBSTRATE). Landed: restart-replayable `ComponentEraJournal`/`ComponentEraJournalFact`/`ComponentEraJournalRoster` covering the era journal legs — replay folds recorded publish/enter/leave/lease/quiesce/retire facts through the ledger's own accept rules and reconstructs the live-era roster. Remaining: epoch-attributed aggregate/resource snapshots checked against the authoritative live-era roster; wider service-era replacement substrate breadth.
+- **EPOCH-RESOURCE-SNAPSHOTS.** Check epoch-attributed aggregate/resource snapshots
+  against the authoritative live-era roster in `effects::ComponentEraEntryLedger`
+  and `external-roots` program-local accounting. Acceptance: snapshots match the
+  live era's retained resources; foreign or stale era attribution rejects.
+  Deployment journals and restart reconstruction belong to the consuming runtime,
+  not this task; see [deployment ownership](wiki/spec/build/component_publication.md#deployment-ownership).
 - **SHARED-MAPPING-REVOCATION.** Shared-mapping revocation and hostile shared-memory placement/remapping.
 - **DEVICE-EXTENT-ACCESS.** Device extent access.
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** External data schema conversion.
@@ -6233,7 +6238,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **INDEXED-OPERAND-ATTACHED-RECEIVER** — mined candidate; verify scope then implement.
 - **INDEXING-ATTACHED-RECEIVER-BORROW** — mined candidate; verify scope then implement.
 - **INLINE-ASSEMBLY-CATALOG-EXPANSION** — mined candidate; verify scope then implement.
-- **INSTALLATION-ERA-JOURNAL** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-PRODUCER-COVERAGE** — mined candidate; verify scope then implement.
 - **INTEGER-COMPARISON-OCCURRENCE-RETENTION** — mined candidate; verify scope then implement.
@@ -6501,7 +6505,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RECURSIVE-CALL-FIXTURE-RESOLUTION** — mined candidate; verify scope then implement.
 - **REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
-- **REPLACEMENT-ERA-JOURNAL** — mined candidate; verify scope then implement.
 - **REPLACEMENT-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
 - **REPOSITORY-BASELINE-GATE** — mined candidate; verify scope then implement.
 - **REPRESENTATION-OWNERSHIP** — mined candidate; verify scope then implement.
