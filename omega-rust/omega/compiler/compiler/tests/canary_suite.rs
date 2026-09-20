@@ -4768,6 +4768,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "versioning/runtime_versioned_three_era_match_zii_exit",
     "wire/wire_generic_trait",
     "wire/wire_compatibility_demand_report",
+    "wire/wire_compatibility_preservation_met",
     "wire/wire_compatibility_migration_across_shapes",
     "wire/runtime_transform_machine_from_wire",
     "wire/runtime_transform_machine_to_wire",
