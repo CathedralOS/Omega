@@ -6322,7 +6322,15 @@ Proof/evidence:
   (resolved).
 - **PROOF-INTERCHANGE-IMPORT.** External proof interchange: sort encoding,
   induction certificate, arithmetic import (3 mined aliases merged).
-  Scope verified at `e76d715c8e` — per-alias disposition:
+  Re-verified at `8e870505f7`: all cited surfaces still hold —
+  `tools/matching-logic-sort-encoding/sort_encoding.py` (check subcommand
+  live), `proof-admission/src/admission/recursion.rs`
+  `verify_recursive_component` (the row's `proof/` path corrected: the
+  carrier certificate lives in the proof-admission crate), `classicality.rs`
+  `AcceptedProofRule::foundation`, and `admission/` still carries only
+  evidence/normalization/recursion routes — no external import route has
+  appeared.
+  Original audit (`e76d715c8e`) — per-alias disposition:
   (a) **sort encoding** — landed by MATCHING-LOGIC-TYPED-TO-ONE-SORTED-ENCODING:
       `tools/matching-logic-sort-encoding/sort_encoding.py` emits the clause
       inventory + evidence record and `check` enforces definedness coverage,
