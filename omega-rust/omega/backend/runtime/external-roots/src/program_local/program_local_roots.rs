@@ -24,7 +24,6 @@ pub use epoch_cohorts::{
     ProgramLocalRootCohortMember, ProgramLocalRootEpochAggregate,
     ProgramLocalRootEpochAggregateCapacity, ProgramLocalRootEpochAggregateSnapshot,
     compose_program_local_root_coexistence_report,
-    compose_program_local_root_coexistence_report_from_journal_roster,
 };
 pub use establishment::{
     EstablishedProgramLocalRoot, EstablishedProgramLocalRootCapacity,

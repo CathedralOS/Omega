@@ -177,7 +177,6 @@ pub use program_local::program_local_roots::{
     ProgramLocalRootPrebindingId, ProgramLocalRootRetirementError, ProgramLocalRootScalarBinding,
     ProgramLocalRootScalarSource, ProgramLocalRootSchemaDigest, ProgramLocalRootSubjectPlaceId,
     RetiredProgramLocalRootOccurrence, compose_program_local_root_coexistence_report,
-    compose_program_local_root_coexistence_report_from_journal_roster,
 };
 pub use root_entry::opaque_callback_replacement::{
     CompletedOpaqueCallbackUnregistration, OpaqueCallbackRegistrationCapacityOccurrence,
