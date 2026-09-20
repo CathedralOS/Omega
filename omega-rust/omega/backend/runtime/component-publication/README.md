@@ -9,7 +9,7 @@ an executable implementation of arbitrary source `Independent` selections.
 
 [lib.rs](src/lib.rs) retains the real installed runnable and root/progress
 custody through era retirement. The
-[era ledger](../../../representations/effects/src/component_era_entry_ledger.rs)
+[era ledger](../../../representations/effects/src/component_eras/component_era_entry_ledger.rs)
 binds exact entry contract/plan, profile-sealed executable manifest, and strong
 installed-artifact occurrence identity. Entry remains on its chosen era across
 routing changes; quiescence/retirement check active entries, retained holds,
