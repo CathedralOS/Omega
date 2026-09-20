@@ -19,10 +19,11 @@
 //! join; `container.rs`, `container_bytes.rs`,
 //! `materializer.rs`, `post_handoff_writer.rs` and `replacement_quarantine.rs`
 //! carry the container, writer and quarantine. `owned_image_provider.rs` is a
-//! provider that performs the install, patch, and entry-sealing operations
-//! over resident image buffers it owns and turns a sealed entry reference
-//! into the resident call content, minting the receipts the transitions
-//! consume.
+//! provider that performs the install, patch, entry-sealing, retirement,
+//! and quarantine operations over resident image buffers it owns, turns a
+//! sealed entry reference into the resident call content, and frees storage
+//! only once retirement has unwound a range's execution state — minting the
+//! receipts the transitions consume.
 
 mod artifacts;
 mod authority_digests;

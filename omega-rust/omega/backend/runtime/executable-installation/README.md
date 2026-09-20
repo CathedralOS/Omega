@@ -37,7 +37,10 @@ Follow the subordinate protocols as needed:
   reserved but unserved — every operation refuses it and `release` cannot
   free it — so the minted `MappingQuarantineReceipt` reaches
   `quarantine_installed`/`uninstall_installed` with performed evidence
-  instead of a caller-recorded claim.
+  instead of a caller-recorded claim. Storage release follows only the
+  drained ending: `release` refuses a range still carrying execution state,
+  so freeing cannot outrun the retirement that proved the mapping
+  unreachable.
 
 Keep exact bytes, relocation/proof payload, placement lineage, final-byte
 snapshot, footprint, audience, and provider receipts behind report identities.
