@@ -5874,7 +5874,24 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 - **BASELINE-CANARY-PASS-CLUSTER.** Four unrepaired pass-canary failures in the canary suite section; triage and repair or retire each with attribution. w9 leg (this wave): `calls/statement_call_recursive_argument_compile` repaired — fixture's `Nat`/`add` collided with `core/nat.omg` exports (added 2026-09-17); renamed to `Peano`/`peano_add`, and the `read_line`/`extent_shape` diagnostics proved collision collateral. `operators/runtime_integer_division_value` repaired — added the missing `build.omg` entry binds and re-scoped operands to `u64` (the realized `ExactIntegerDivide` carrier); signed `i32` exact division remains attributed to the unsigned-quotient/arithmetic-policy lane (t2s fenced by CORPUS-RED-FAMILY this wave). `atomics/atomic_field_declared` GREEN on Linux at 4607987316 — its recorded failure is the macOS hosted-receiver bridge owned by ENTRY-CONTENT-ROOTS; retired here as host-bound. `filesystem/windows_set_file_time_exit` — owned by WINDOWS-SET-FILE-TIME-RESPELL (in flight); doc already names the unsigned-carrier re-spelling. Doc rows in `wiki/drafts/known_baseline_failures.md` were fenced to another wave member; update pending.
 - **BASELINE-PACKAGE-COMPILATION-INPUTS.** Two unrepaired failures under `package_compilation_inputs`.
 - **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Three unrepaired failures in the `terminal_psi_source` native-differential lane.
-- **BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP.** Unrepaired failure in the `pipeline_ownership` native-differential lane.
+- **BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP.** Unrepaired failure in the `pipeline_ownership` native-differential lane. Current red state is a
+  compile-broken test target at `62c502f9f6` (linux x86-64,
+  `cargo nextest run -p omega-native-differential-test --test
+  pipeline_ownership` exits 101 before running): four callers pass
+  `selected.optimized_target()`/`x86.optimized_target()` —
+  `&ValidatedOptimizedTargetOperations` — where
+  `validate_optimized_selection_custody` takes
+  `&Arc<ValidatedOptimizedTargetOperations>` (the
+  `optimized_target_owner()` accessor already yields that Arc; call sites
+  at `stages/realization/structural_units/structural_return.rs:33`,
+  `stages/selection/custody.rs:62`, `validation.rs:400,409` carry the
+  pre-change spelling), and `fixtures/ordinary_graph_controls.rs:32`
+  matches `LegalizedScalarTerminator` without the `Crash { .. }` arm the
+  variant added. Both repairs are confined to
+  `tests/native-differential/tests/pipeline_ownership{,.rs}`, which is
+  live-fenced to STRUCTURAL-UNIT-CALL-GRAPH-JOINS (exp 20:13Z) — no
+  unclaimed slice exists this wave; the repair ownership stays with that
+  claim's holder and the lane's underlying red legs are enumerated below.
 
 Language/semantic gaps:
 
