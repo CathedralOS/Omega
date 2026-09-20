@@ -5692,7 +5692,7 @@ Proof/evidence:
 
 Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`):
 
-- **LEARNED-OPTIMIZATION-COST-MODEL.** Learned cost model (includes LEARNED-COST-MODEL).
+- **LEARNED-OPTIMIZATION-COST-MODEL.** Learned cost model (includes LEARNED-COST-MODEL). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation, and `wiki/spec/build/optimizations.md` forbids a trainer, training corpus, model evaluator, or inference path in the Rust reference compiler — a premature trainer was already removed (`55ba7f6ab3`). GRAPH-COST-MODEL-STUDY recorded the ranking question's seam (`wiki/drafts/graph_cost_model_study.md`): the validated-candidate, feature-projection, and replay substrate exists; the missing evidence is a versioned workload corpus and measured comparison against the `predicted_cost_delta` baseline, gated on WORKLOAD-CORPUS-AND-MULTIVERSIONING plus the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) with a concrete justification. The doc's own predecessor leg is the model-free BOUNDED-OPTIMIZATION-SEARCH.
 - **BOUNDED-OPTIMIZATION-SEARCH.** Bounded candidate search + revalidation at scale (merges BOUNDED-CANDIDATE-SEARCH, CANDIDATE-REVALIDATION-AT-SEARCH-SCALE).
 - **GRAPH-COST-MODEL-STUDY.** Study whether typed operation/state graph
   features can rank optimization candidates before expensive measurement
