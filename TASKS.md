@@ -5526,6 +5526,52 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   omission again a single statement, while the general mechanism is the
   ordinary statement sequencing **STATE-LOCAL-VALUE-FRONTIER** names.
 
+
+## Fuzz findings (coordinator-harvested, swarm wave 9)
+
+New items mined from fuzz legs; each is a confirmed divergence from expected
+corpus polarity on origin/main. Claim the named paths under the parent corpus
+family and pin the documented behavior with a canary plus the fix if scoped.
+
+- **FUZZ-DOMAIN-NONBOOL-PREDICATE.** `domain Player::Odd requires self.health`
+  with `health: i32` (a bare non-boolean member access) compiles clean under
+  `omega --check`. Domain predicates should require a boolean-typed condition;
+  pin a fail-canary rejecting non-bool `requires` operands. Paths:
+  `tests/omega/fail/domains/`, `tests/omega/pass/domains/`, domain checking in
+  `omega-rust/psi/semantics/`.
+- **FUZZ-EMPTY-TRANSITION-ARMS.** A `transition` with zero arms produces no
+  diagnostic (transition can never proceed), and an integer literal arm over a
+  bool subject is silently accepted alongside a `_ ->` fallback. Pin
+  fail-canaries for empty-arm transitions and arm-subject type mismatches.
+  Paths: `tests/omega/fail/control_flow/`, control-flow checking in
+  `omega-rust/psi/semantics/`.
+- **FUZZ-HOST-SCALAR-FIELD-STORE.** `self.rc = self.host.close(self.fd)` —
+  storing a scalar host-call result directly into a field — passes `--check`;
+  the existing canary only documents FIELD-target refusal for composite byte
+  ops. Extend the host-call result-staging rule to scalar stores or pin the
+  intended allowance. Paths: `tests/omega/{pass,fail}/host/`,
+  `omega-rust/psi/semantics/`.
+- **FUZZ-BORROW-BYVALUE-MOVE-LIVE-VIEW.** Passing owner array `self.items`
+  (`[u32; 2]`) by value into a callee while a shared view is live did not
+  invalidate the view (compiled clean). If arrays are not `Copy`, this is a
+  borrow-safety hole; pin a fail-canary for move-under-live-borrow.
+  Paths: `tests/omega/{pass,fail}/borrow/`, borrow checking in
+  `omega-rust/psi/semantics/`.
+- **FUZZ-WEAK-VACANT-QUALIFIER-DROP.** `Weak { e: whole }` where `e` is
+  `Extent in Granted` but the field expects `Extent in Granted & Vacant`
+  exits 0 — the `Vacant` qualifier drops silently while `Resident` weakening
+  rejects. Pin a fail-canary for silent qualifier weakening in Weak.
+  Paths: `tests/omega/{pass,fail}/memory/`, weakening checks in
+  `omega-rust/psi/semantics/`.
+- **FUZZ-MODULE-PRIVACY-HOLE.** A non-`pub` member is nameable from the
+  importing file with no private-access rejection, and a duplicate `use` of
+  the same module is silently accepted. Pin fail-canaries for private member
+  access across module boundaries. Paths: `tests/omega/{pass,fail}/modules/`,
+  module resolution in `omega-rust/psi/`.
+
+Each fuzz leg's full divergence detail lives in wave-9.outcomes.json entries
+with `result: fuzz_report`.
+
 ## Platform-gated verification
 
 - Run Linux host/time/filesystem and `IntegerAt` runtime paths on AArch64;
