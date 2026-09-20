@@ -6523,7 +6523,26 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ARRAY-WITHOUT-COUNT-EXIT 00:33Z, CANARY-ACQUIRES-THROUGH-HELPER-RETURN
   23:30Z); the baseline doc entry needs its refresh when the family
   attribution settles.
-- **CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT** — mined candidate; verify scope then implement.
+- **CANARY-WIRE-EXACT-ARRAY-WITHOUT-COUNT-EXIT** — mined candidate; scope verified
+  2026-09-20 (z180): re-mines `tests/omega/pass/wire/runtime_wire_exact_
+  array_without_count_exit`, which already exists and is rostered in
+  `ACTIVE_PASS_CANARIES` (compiled by `pass_canaries_compile`): a
+  `#0 readings: [u32; 4]` exact-array field wired through generated `encode`
+  with no synthetic `<name>_count` sibling, then `exit_process(70)`. On linux
+  x86-64 at `0db54f596a` the canary is red at `selected ProgramEntry
+  establishment rejoins 0 Terminal attachment identities; expected one`
+  (`selected-dispatch/src/service_custody/root.rs`). Fixture bisection at that
+  revision: fields + `exit_process` alone pass; declaring the numbered schema
+  without calling the codec passes; any `Telemetry::encode`/`decode` call
+  inside `Main::main` fails — independent of field count, the `[u32; 4]`
+  member, control-flow shape, or codec direction — and a verbatim copy of
+  `runtime_wire_roundtrip_primitive_exit` fails identically. Same moved-failure
+  family as CANARY-RUNTIME-LITERAL-DISPATCH-EXIT: the unit-effects plan emits
+  no `attachment_type_identity` for the bound (`Main::main`, entry state) once
+  the entry machine calls a generated codec; the producing surfaces
+  (`typed-trees-to-checked-trees/src/execution/unit/*`, terminal-production
+  receiver eligibility) sit in GENERAL-CYCLIC-EXECUTION's unit-plan lane and
+  ENTRY-CONTENT-ROOTS' live claim — outside this item's fence.
 - **CANDIDATE-REVALIDATION-AT-SEARCH-SCALE** — mined candidate; verify scope then implement.
 - **CATHEDRAL-PORTABLE-PROTOCOL-VERIFICATION** — mined candidate; verify scope then implement.
 - **CHAIN-GATE-LOCAL-PREFIX-BINDING** — mined candidate; verify scope then implement.
