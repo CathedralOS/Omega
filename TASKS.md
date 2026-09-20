@@ -7516,6 +7516,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   member symbols (suspects 39e156c73a0 / 143636cec8a, unbisected). Residual:
   the two new families want a single-test bisect by their owning lanes;
   sibling stub CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET remains open.
+  Sibling alias C2L-BASELINE-FAILURE-ATTRIBUTION re-mines this attribution
+  surface; scope verified at `27deadf412` — the reading is current
+  (C2L-UNATTRIBUTED-FAILURE-TAIL's fresh 23392bc467 census attributes all
+  56 reds onto owned families with identical diagnostics), and every
+  residual family the alias is named for on the cluster rows is fenced to
+  a live claim: scalar-return custody
+  (`tests/owned_record_return_source.rs` ×4, plus
+  `src/returns`/`terminal-production` source-replay legs) under
+  C2L-RESIDUAL-FAILURE-ATTRIBUTION (~04:59Z Sep 21), provider-attachment
+  and attached-unit sets under GENERAL-CYCLIC-EXECUTION /
+  UEFI-OS-HANDOFF / WRITE-ONLY-BORROW / PROOF-CERTIFICATION-BRIDGE
+  per the ledger's fence notes, and the ledger doc itself under
+  LOWERED-UNIT-FAILURE-ATTRIBUTION (~01:17Z) and this row's own live
+  claim (~01:42Z). No independent slice remains; the open board owners
+  are C2L-SCALAR-RETURN-SOURCE-CUSTODY-FAILURES (the four-test family)
+  and C2L-RESIDUAL-FAILURE-ATTRIBUTION (in flight).
 - **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET** — scope verified and
   bisected at `c267df86acb8` (linux x86-64): the unattributed set is the
   three members the 6ef64f6dd6 reading opened as two new families, now
