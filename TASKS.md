@@ -1694,6 +1694,24 @@ Owners include
   invocation-bound callees, ranked-cyclic interiors, and
   relevant-precondition derivation.
 
+  Follow-on slice landed: absence-of-bound reports now carry the directed
+  cause the logical-work spec requires. An acyclic traversal that re-enters a
+  cyclic component reports `FixedFuelError::UnboundedCycleComponent {
+  component, cause: Unranked }` — the verifier-derived component identity,
+  not whichever block the walk happened to revisit — while `ControlCycle`
+  remains for the malformed-condensed-graph path. The component name is
+  `terminal_verifier::cyclic_component_identity`, a topology digest over the
+  members' internal edges that equals `control_cycle_identity` on any
+  producer ranking row for the same component (pinned by
+  `topology_derived_identity_matches_producer_identity`), so a report already
+  names the component a later ranking would join. Invocation-bound callees
+  already reject by name (`InvocationBoundCallee`) and ranked-cyclic
+  interiors bound through the condensed graph (`7591b2607c`); open inside the
+  leg is relevant-precondition derivation plus the remaining causes —
+  unbounded rank and the exact wait/foreign edge preventing closure — which
+  arrive with the dependent-bound machinery that can express them
+  (`cargo nextest run -p terminal-fixed-fuel` 61/61).
+
   Native/external execution, ABI, fixed native resource, and final-code replay
   claims additionally require exact final-realization evidence. Preserve
   complete standalone products without hidden `CheckedCompilation` state;
