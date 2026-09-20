@@ -5718,7 +5718,15 @@ Language/semantic gaps:
 - **STRUCTURAL-UNIT-CALL-GRAPH-JOINS.** Call-graph joins for structural units.
 - **STAGED-LOCAL-SEQUENCE-LOWERING.** Staged-local sequence lowering attribution and order.
 - **TERMINAL-SOURCE-CUSTODY-ORDER.** Terminal source-custody gate ordering.
-- **SUCCESSOR-DISCARD-ORDER.** Successor discard ordering in edge cleanup.
+- **SUCCESSOR-DISCARD-ORDER.** Resolved — same terminal-verifier cleanup-order
+  row as EDGE-CLEANUP-ERROR-PRECEDENCE, already repaired on `origin/main`:
+  edge validation consumes owned successor sources before the residual and
+  trivial discard rosters (`validation/frontier/block_parameters.rs` documents
+  the order; `terminators.rs` runs it), and `d96a0fda39` repinned
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` to
+  expect `EdgeAffineDiscardsInvalid` — the more precise diagnostic for discard
+  evidence naming an already-transferred place. All 26
+  `structural_scalar_fields::owned_reads` tests pass at `ff596a06e6`.
 - **CANARY-EXACT-ENTRY-SELECTION.** Exact entry selection for division/value canaries and entry binding.
 
 Omega-side / native:
