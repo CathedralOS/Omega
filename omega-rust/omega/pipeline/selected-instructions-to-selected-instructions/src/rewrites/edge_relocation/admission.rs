@@ -19,7 +19,8 @@ use selected_instructions::{
 use super::EdgeRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    all_edges, crossed_window, plain_edge, terminator_instruction, terminator_successors,
+    CrossingDirection, all_edges, crossed_window, plain_edge, terminator_instruction,
+    terminator_successors,
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
@@ -136,6 +137,7 @@ pub(super) fn admit<'source>(
         member_index,
         target_index,
         landing_index,
+        CrossingDirection::Forward,
         edge_limit,
     )
     .ok_or(EdgeRelocationError::WorkBudgetExceeded)?;
