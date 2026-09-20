@@ -3,10 +3,12 @@
 //! runs.
 
 use crate::admission::configuration::BuildConfig;
+use crate::admission::target_vocabulary::{
+    TargetBuildVocabulary, target_build_vocabulary, validate_immutable_build_target,
+};
 use crate::admission::vocabulary;
 use crate::admission::vocabulary::{
-    TargetBuildVocabulary, build_reaches_filesystem_facet, has_exact_toolchain_build_facet,
-    is_build_machine, target_build_vocabulary, validate_immutable_build_target,
+    build_reaches_filesystem_facet, has_exact_toolchain_build_facet, is_build_machine,
 };
 use crate::evidence::filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
