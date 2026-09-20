@@ -9832,7 +9832,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   conversion is claim-blocked this wave — the work item stays a named
   EXACT-MACHINE-SIMPLIFICATIONS sub-leg, not an independent surface.
 - **RO-CODEC-PLACEMENT** — mined candidate; verify scope then implement.
-- **RO-S2S-ANCESTRY-WALKS** — resolved: verified on `99b24364c2`. Every
+- **RO-S2S-ANCESTRY-WALKS.** Resolved — verified on `99b24364c2`,
+  re-witnessed at `f3d0d1748e` (linux x86-64, `cargo nextest run -p
+  selected-instructions-to-selected-instructions --test
+  ancestry_contract` 2/2 PASS incl.
+  `named_stage_hops_stay_at_custody_sites`). Every
   `live_range_stage()`/`liveness_stage()`/`selected_stage()`/
   `source_legality_stage()`/`source_segment_home_stage()`/`transformation_stage()`
   call in `selected-instructions-to-selected-instructions/src` is a custody
