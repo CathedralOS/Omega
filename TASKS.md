@@ -6289,6 +6289,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **CLI-COMMANDS** — mined candidate; verify scope then implement.
 - **COMMON-ROUTE-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
+  Verified scope: re-mines NORMALIZED-ABI-LOWERING's callback-transport
+  bullet (TASKS.md:2273) — "the common route rejects every request carrying
+  a callback in `native_realization/object_emission.rs`". That recorded
+  inventory is now partially stale: `lower_callback_thunks` runs inside the
+  common route and callback thunks reach the emitted object as private
+  functions (witness `direct_callback_relocation_resolves_to_its_private_
+  function`); the surviving rejection is `construction::build_plan`
+  refusing the materialized registrar row — CALLBACK-PRIVATE-
+  MATERIALIZATION's active surface, and its implementing files
+  (`object_emission.rs`, `callback_custody.rs`,
+  `callback_terminal_custody.rs`, `callback_materialization_closure.omg`)
+  sit under that item's live claim (Jarod / swarm-w9, expires 20:36Z).
+  A fuller inventory of remaining common-route rejections belongs inside
+  that owner's lane. Sibling re-mine name: REPLACEMENT-REJECTION-INVENTORY
+  (replacement-side inventory, separately claimed).
 - **COMPARE-TEST-SELECTION** — mined candidate; verify scope then implement.
 - **COMPARISON-OCCURRENCE-PRODUCER-COVERAGE** — mined candidate; verify scope then implement.
 - **COMPILER-BATCH-MANIFEST** — mined candidate; verify scope then implement.
