@@ -41,8 +41,8 @@
 //! existential descriptor parameter have no retained target and remain gaps.
 //!
 //! The build authoring surface is `builder.exclude_crash(CrashCause::X)`, a
-//! toolchain Build machine harvested statically from the root build entry's
-//! checked call scope (see `declarations::harvest_behavior_exclusions`).
+//! toolchain Build machine recorded only when executed against the original
+//! root Build value (see `declarations::harvest_behavior_exclusions`).
 //! Authored selections retain their exact declaration symbol, selecting
 //! machine, and source span so the product-admission join can reproduce and
 //! audit the canonical union independently. `builder.exclude_service<Trait>()`
@@ -52,7 +52,8 @@
 //! itself lives in `checked-compilation-to-terminal-artifact`, which replays
 //! the unoptimized lowering before the artifact is admitted.
 //!
-//! A physical-authority-class exclusion selects a class from D45's closed
+//! `builder.exclude_physical_authority(PhysicalAuthorityClass::X)` selects
+//! a class from D45's closed
 //! `TerminalAuthorityClass` vocabulary: no admitted mechanism may exercise
 //! that class under the shared mechanism-classification semantics. The
 //! semantic walk cannot adjudicate it — mechanisms are settled only by
@@ -176,6 +177,11 @@ pub enum AuthoredBehaviorExclusionKind {
         cause: CrashCause,
         case_symbol: SymbolHandle,
     },
+    /// Exact toolchain case selected by `builder.exclude_physical_authority`.
+    PhysicalAuthorityClass {
+        class: TerminalAuthorityClass,
+        case_symbol: SymbolHandle,
+    },
     /// `builder.exclude_service<Trait>()`: the exact boundary-trait symbol
     /// the authored type path resolved to. The Terminal service identity it
     /// names exists only per module, so the row resolves at the
@@ -212,6 +218,9 @@ impl AuthoredBehaviorExclusion {
             AuthoredBehaviorExclusionKind::CrashCause { cause, .. } => {
                 Some(BehaviorExclusion::CrashCause(cause))
             }
+            AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, .. } => {
+                Some(BehaviorExclusion::PhysicalAuthorityClass(class))
+            }
             AuthoredBehaviorExclusionKind::Service { trait_symbol } => {
                 let identity = trait_identity(trait_symbol)?;
                 module
@@ -224,7 +233,7 @@ impl AuthoredBehaviorExclusion {
     }
 }
 
-/// The canonical crash-cause union a set of authored rows selects. Service
+/// The canonical crash-cause and physical-class union authored rows select. Service
 /// rows need a module to resolve their identity and are not part of this
 /// set; product admission uses [`authored_behavior_exclusion_set_in`].
 pub fn authored_behavior_exclusion_set(
@@ -233,6 +242,9 @@ pub fn authored_behavior_exclusion_set(
     BehaviorExclusions::from_selections(exclusions.iter().filter_map(|row| match row.kind {
         AuthoredBehaviorExclusionKind::CrashCause { cause, .. } => {
             Some(BehaviorExclusion::CrashCause(cause))
+        }
+        AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, .. } => {
+            Some(BehaviorExclusion::PhysicalAuthorityClass(class))
         }
         AuthoredBehaviorExclusionKind::Service { .. } => None,
     }))

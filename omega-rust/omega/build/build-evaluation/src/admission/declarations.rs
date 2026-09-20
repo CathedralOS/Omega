@@ -382,7 +382,7 @@ pub fn harvest_root_grants(
 }
 
 /// Behavior exclusions (wiki/spec/build/behavior_exclusions.md):
-/// `builder.exclude_crash(cause)` / `builder.exclude_service<Trait>()` are
+/// Build crash, physical-authority, and service exclusions are
 /// product-admission requirements the granted build evaluation records as
 /// each call actually executes against the activation's original `Build`.
 /// A call present in the static call scope but never reached — an uncalled
@@ -390,7 +390,7 @@ pub fn harvest_root_grants(
 /// only because the root `Build` value reaches their frame at run time.
 ///
 /// This pass rejoins the executed coordinates and validates the retained
-/// argument identities — an exact toolchain `CrashCause` case or one exact
+/// argument identities — an exact toolchain enum case or one exact
 /// boundary trait — so replayable evidence, not a call-scope syntax pattern,
 /// admits the exclusion.
 pub fn harvest_behavior_exclusions(
@@ -458,6 +458,17 @@ pub fn harvest_behavior_exclusions(
                     }
                 }
             }
+            checked_interpreter::ExecutedBehaviorExclusionKind::PhysicalAuthorityClass {
+                case_symbol,
+            } => match evaluated_physical_authority_class(typed, case_symbol) {
+                Ok(class) => {
+                    AuthoredBehaviorExclusionKind::PhysicalAuthorityClass { class, case_symbol }
+                }
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic.with_source_span(call.source_span));
+                    continue;
+                }
+            },
         };
         let exclusion = AuthoredBehaviorExclusion {
             kind,
@@ -549,25 +560,70 @@ fn evaluated_crash_cause(
     typed: &TypedTrees,
     case_symbol: SymbolHandle,
 ) -> Result<terminal_psi::CrashCause, Diagnostic> {
-    let exact_causes = typed
+    match evaluated_exclusion_case(typed, case_symbol, "CrashCause")? {
+        "Trap" => Ok(terminal_psi::CrashCause::Trap),
+        "Abort" => Ok(terminal_psi::CrashCause::Abort),
+        other => Err(Diagnostic::error(format!(
+            "compiler-owned CrashCause contains unsupported case `{other}`"
+        ))),
+    }
+}
+
+fn evaluated_physical_authority_class(
+    typed: &TypedTrees,
+    case_symbol: SymbolHandle,
+) -> Result<effects::TerminalAuthorityClass, Diagnostic> {
+    use effects::TerminalAuthorityClass;
+    // This translates exact compiler-owned declarations, not program effects.
+    // Mechanism classification remains exclusively in native realization.
+    match evaluated_exclusion_case(typed, case_symbol, "PhysicalAuthorityClass")? {
+        "FilesystemContentRead" => Ok(TerminalAuthorityClass::FilesystemContentRead),
+        "FilesystemContentWrite" => Ok(TerminalAuthorityClass::FilesystemContentWrite),
+        "FilesystemMetadataQuery" => Ok(TerminalAuthorityClass::FilesystemMetadataQuery),
+        "DirectoryEnumeration" => Ok(TerminalAuthorityClass::DirectoryEnumeration),
+        "FilesystemNamespaceMutation" => Ok(TerminalAuthorityClass::FilesystemNamespaceMutation),
+        "FilesystemMetadataMutation" => Ok(TerminalAuthorityClass::FilesystemMetadataMutation),
+        "ProcessOutput" => Ok(TerminalAuthorityClass::ProcessOutput),
+        "ProcessTermination" => Ok(TerminalAuthorityClass::ProcessTermination),
+        "MachineControl" => Ok(TerminalAuthorityClass::MachineControl),
+        "PortIo" => Ok(TerminalAuthorityClass::PortIo),
+        "InterruptControl" => Ok(TerminalAuthorityClass::InterruptControl),
+        "InterruptEntry" => Ok(TerminalAuthorityClass::InterruptEntry),
+        "RootMemoryAccess" => Ok(TerminalAuthorityClass::RootMemoryAccess),
+        "ProcessInput" => Ok(TerminalAuthorityClass::ProcessInput),
+        other => Err(Diagnostic::error(format!(
+            "compiler-owned PhysicalAuthorityClass contains unsupported case `{other}`"
+        ))),
+    }
+}
+
+/// Recheck evaluated enum evidence independently of the interpreter. A
+/// same-spelled user enum, sibling case, or payload-bearing case is not a
+/// selection from the exact compiler-owned declaration.
+fn evaluated_exclusion_case<'a>(
+    typed: &'a TypedTrees,
+    case_symbol: SymbolHandle,
+    type_name: &str,
+) -> Result<&'a str, Diagnostic> {
+    let exact_types = typed
         .data_definitions()
         .iter()
         .filter(|definition| {
-            is_exact_toolchain_build_prelude_data(typed, definition.symbol, "CrashCause")
+            is_exact_toolchain_build_prelude_data(typed, definition.symbol, type_name)
         })
         .collect::<Vec<_>>();
-    let [causes] = exact_causes.as_slice() else {
-        return Err(Diagnostic::error(
-            "behavior exclusion requires exactly one compiler-owned CrashCause declaration",
-        ));
+    let [declaration] = exact_types.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "behavior exclusion requires exactly one compiler-owned {type_name} declaration"
+        )));
     };
     let selected = typed
-        .data_members(causes)
+        .data_members(declaration)
         .iter()
         .filter_map(|member| match member {
             typed_trees::data::DataMember::Variant(variant)
                 if variant.symbol == case_symbol
-                    && typed.symbols.get(variant.symbol).parent == causes.symbol =>
+                    && typed.symbols.get(variant.symbol).parent == declaration.symbol =>
             {
                 Some(variant)
             }
@@ -575,22 +631,16 @@ fn evaluated_crash_cause(
         })
         .collect::<Vec<_>>();
     let [selected] = selected.as_slice() else {
-        return Err(Diagnostic::error(
-            "executed `exclude_crash` selection does not name an exact compiler-owned CrashCause case",
-        ));
+        return Err(Diagnostic::error(format!(
+            "executed behavior exclusion does not name an exact compiler-owned {type_name} case"
+        )));
     };
     if !typed.data_payload_fields(selected).is_empty() {
-        return Err(Diagnostic::error(
-            "compiler-owned CrashCause case unexpectedly carries a payload",
-        ));
+        return Err(Diagnostic::error(format!(
+            "compiler-owned {type_name} case unexpectedly carries a payload"
+        )));
     }
-    match selected.name.as_str() {
-        "Trap" => Ok(terminal_psi::CrashCause::Trap),
-        "Abort" => Ok(terminal_psi::CrashCause::Abort),
-        other => Err(Diagnostic::error(format!(
-            "compiler-owned CrashCause contains unsupported case `{other}`"
-        ))),
-    }
+    Ok(selected.name.as_str())
 }
 
 fn authored_root_grant_statement_span(

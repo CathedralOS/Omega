@@ -658,38 +658,34 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   `behavior_exclusions.rs` / `build_behavior_exclusions.rs`.
 
 - **BUILD-EXCLUSION-REALIZATION.** Enforce requested physical-authority exclusions
-  under the [exclusion contract](wiki/spec/build/behavior_exclusions.md). The
-  retained `BehaviorExclusions` now carries a
-  `PhysicalAuthorityClass(TerminalAuthorityClass)` axis beside crash causes and
-  services: the semantic walk records it in the canonical union and still demands
-  a bounded entry/call closure, and native realization adjudicates it against the
-  mechanism-closure review's exercised dispositions before emission — including
-  when the request carries no receiving permission policy, since absence is
-  classification evidence, not receiver admission
-  (`build-evaluation/src/admission/behavior_exclusions.rs`,
-  `native-realization/src/native_realization/behavior_exclusions.rs`;
-  linux-x86_64). The same union stays retained on the realization proposal and is
-  replayed there; no second classifier exists. Both product routes now forward
-  it: `realize_native_artifact_with_behavior_exclusions` is the crate's
-  exclusion-taking entry point (re-exported from `lib.rs`);
-  `native_product/realization.rs` resolves the authored rows into the canonical
-  union against the produced module — unions without a physical-authority row
-  keep the canonical `realize_native_artifact` entry, and a union that
-  requests a physical absence enters the exclusion-taking entry — and
-  `retained_native_product.rs` forwards the proposal's retained union
-  (linux-x86_64, entry/adjudication exercised by
-  `native_product::realization::tests::exclusion_taking_entry_reaches_mechanism_adjudication`).
+  under the [exclusion contract](wiki/spec/build/behavior_exclusions.md).
+  `builder.exclude_physical_authority(PhysicalAuthorityClass::X)` is an executed,
+  exact-identity Build selection. Both direct and retained product routes carry
+  its canonical union to the existing mechanism-closure adjudication; do not
+  rebuild the authoring surface or classifier. Owners:
+  `build-evaluation/src/admission/{declarations,behavior_exclusions}.rs` and
+  `native-realization/src/{native_product/realization,native_realization/behavior_exclusions,retained_native_product}.rs`.
+
+  Resume evidence (2026-09-20, macOS ARM64, base a10fbe20d0 plus the authored
+  physical-exclusion change): `RUST_MIN_STACK=67108864 cargo nextest run
+  -p compiler --test build_behavior_exclusions --no-fail-fast` exercises
+  source-built publication and native execution. A standard-library Console
+  program prints `A` under a ProcessInput exclusion and rejects the same
+  composition under ProcessOutput, without a receiver permission policy.
+  The quiet product also cross-emits for Windows x64; Windows runtime was not
+  exercised. Helpers, skipped calls, exact cases, and canonical unions are
+  covered at the source boundary.
 
   Remaining work:
-  - Authoring surface: an `AuthoredBehaviorExclusionKind` physical-class row plus
-    `builder.exclude_*` syntax and the source/protocol fields the contract
-    requires before portable support can be claimed; until then the axis is
-    reachable only by constructing `BehaviorExclusion`s directly.
+  - Portable protocol coverage and independent consumer custody for the complete
+    physical exclusion envelope; source authoring does not establish it.
   - Envelope custody through rebinding/replacement via COMPONENT-SUBSTRATE and
     WIRE-RUNTIME-AND-INSTALLATION, and the image-emission and foreign-boundary
     legs.
-  - Exercise provider and installation controls on Windows/macOS hosts — both
-    unavailable on the landing host; report them as unavailable, not passing.
+  - Complete provider/replacement controls, including a silent Console provider,
+    receiver policy and optimization variations. Exercise Windows runtime and
+    installation controls on both Windows/macOS; the macOS ordinary Console
+    publication above is not installation/replacement acceptance.
 
   Reuse `terminal_authority_policy/` and the mechanism-closure review;
   classification is not receiving permission. Do not invent a second classifier,
@@ -3017,12 +3013,20 @@ Owners include
     body plans a source-independent `PrimitiveScalarRead`, a `&u64` formal
     forwards the exact entry place end to end, and `read(view)` retains an
     established `&u64` view as a whole `PrimitiveScalar` `SharedBorrow`
-    argument (2e4ee8f08b). The remaining boundary is representability, not
-    a missing read spelling: an established primitive join would be a
-    `PrimitiveScalar` block structural parameter, a shape Terminal does not
-    admit, so it still stops at `InvalidBlockStructuralParameter`
-    (`borrowed_selection_plans_a_primitive_referent_carrier` in
-    `tests/value_dispatch/borrowed_results.rs`).
+    argument (2e4ee8f08b). Primitive joins now verify and interpret
+    (8657ed47f7, 1a17b2938d); do not reopen the retired
+    `InvalidBlockStructuralParameter` gap. A focused macOS ARM64 probe at
+    a10fbe20d0 using `PRIMITIVE_CALL_SOURCE` from
+    `checked-trees-to-lowered-psi/tests/value_dispatch/borrowed_results.rs`
+    interpreted both arms as 1/4, but native lowering rejected
+    `UnsupportedStructuralBlockParameters` (machine 1, block 12).
+    Next acceptance is native execution of both projected-field arms.
+    `terminal-psi-to-abstract-operations/src/lowering/block_bindings.rs`
+    only accepts byte-sequence borrowed block parameters, and
+    `abstract-operations-to-target-operations/src/lowering/control_flow/transfers.rs`
+    additionally requires empty argument paths and equal whole-source types.
+    Coordinate the latter with WRITE-ONLY-BORROW's shared lowering scope;
+    removing only the first gate cannot close the customer.
   - Remaining borrowed joins are separate questions, not a wider carrier:
     exclusive (`&mut`) arms have affine custody of their own, and case-bearing
     referents stay outside the record-shaped frontier. Dynamic indexes, ranges,

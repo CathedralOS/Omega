@@ -709,20 +709,6 @@ fn build_prelude_owns_canonical_dependency_vocabulary() {
         })
         .collect::<Vec<_>>();
     dependency_methods.sort_by_key(|machine| machine.name.as_str());
-    assert_eq!(dependency_methods.len(), 9);
-    assert_eq!(dependency_methods[0].name.as_str(), "Build::application");
-    assert_eq!(dependency_methods[1].name.as_str(), "Build::artifact_only");
-    assert_eq!(dependency_methods[2].name.as_str(), "Build::build_depend");
-    assert_eq!(
-        dependency_methods[3].name.as_str(),
-        "Build::build_depend_as"
-    );
-    assert_eq!(dependency_methods[4].name.as_str(), "Build::depend");
-    assert_eq!(dependency_methods[5].name.as_str(), "Build::depend_as");
-    assert_eq!(dependency_methods[6].name.as_str(), "Build::exclude_crash");
-    assert_eq!(dependency_methods[7].name.as_str(), "Build::member");
-    assert_eq!(dependency_methods[8].name.as_str(), "Build::package");
-
     let parameter_names = |machine: &syntax_trees::item::Machine| {
         let [entry] = syntax_trees.items.state_handles(machine.states) else {
             panic!("dependency method must have exactly one entry state");
@@ -734,21 +720,24 @@ fn build_prelude_owns_canonical_dependency_vocabulary() {
             .map(|handle| syntax_trees.items.state_parameter(*handle).name.as_str())
             .collect::<Vec<_>>()
     };
-    assert_eq!(parameter_names(dependency_methods[0]), ["self", "name"]);
-    assert_eq!(parameter_names(dependency_methods[1]), ["self"]);
-    assert_eq!(parameter_names(dependency_methods[2]), ["self", "source"]);
-    assert_eq!(
-        parameter_names(dependency_methods[3]),
-        ["self", "alias", "source"]
-    );
-    assert_eq!(parameter_names(dependency_methods[4]), ["self", "source"]);
-    assert_eq!(
-        parameter_names(dependency_methods[5]),
-        ["self", "alias", "source"]
-    );
-    assert_eq!(parameter_names(dependency_methods[6]), ["self", "cause"]);
-    assert_eq!(parameter_names(dependency_methods[7]), ["self", "path"]);
-    assert_eq!(parameter_names(dependency_methods[8]), ["self", "name"]);
+    let expected_methods: &[(&str, &[&str])] = &[
+        ("Build::accept_component_assumption", &["self", "digest"]),
+        ("Build::application", &["self", "name"]),
+        ("Build::artifact_only", &["self"]),
+        ("Build::build_depend", &["self", "source"]),
+        ("Build::build_depend_as", &["self", "alias", "source"]),
+        ("Build::depend", &["self", "source"]),
+        ("Build::depend_as", &["self", "alias", "source"]),
+        ("Build::exclude_crash", &["self", "cause"]),
+        ("Build::exclude_physical_authority", &["self", "authority"]),
+        ("Build::member", &["self", "path"]),
+        ("Build::package", &["self", "name"]),
+    ];
+    assert_eq!(dependency_methods.len(), expected_methods.len());
+    for (machine, (name, parameters)) in dependency_methods.iter().zip(expected_methods) {
+        assert_eq!(machine.name.as_str(), *name);
+        assert_eq!(parameter_names(machine), *parameters);
+    }
     assert!(!syntax_trees.root_items().any(|item| matches!(
         item,
         syntax_trees::item::Item::Machine(machine)

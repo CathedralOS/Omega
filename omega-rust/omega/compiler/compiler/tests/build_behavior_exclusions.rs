@@ -12,6 +12,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[path = "support/console_acceptance.rs"]
+mod console_acceptance;
+#[path = "support/macos_entry_acceptance.rs"]
+mod macos_entry_acceptance;
+
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 struct TempProject(PathBuf);
@@ -50,12 +55,20 @@ fn toolchain_crash_cause_case(
     checked: &compiler::CheckedCompilation,
     case: &str,
 ) -> symbols::SymbolHandle {
+    toolchain_exclusion_case(checked, "CrashCause", case)
+}
+
+fn toolchain_exclusion_case(
+    checked: &compiler::CheckedCompilation,
+    type_name: &str,
+    case: &str,
+) -> symbols::SymbolHandle {
     let definition = checked
         .typed
         .data_definitions()
         .iter()
         .find(|definition| {
-            definition.name.as_str() == "CrashCause"
+            definition.name.as_str() == type_name
                 && checked
                     .typed
                     .symbols
@@ -66,7 +79,7 @@ fn toolchain_crash_cause_case(
                             && file.path == std::path::Path::new("<build-prelude>")
                     })
         })
-        .expect("exact toolchain CrashCause declaration");
+        .expect("exact toolchain exclusion declaration");
     checked
         .typed
         .data_members(definition)
@@ -77,7 +90,379 @@ fn toolchain_crash_cause_case(
             }
             _ => None,
         })
-        .expect("toolchain CrashCause case")
+        .expect("toolchain exclusion case")
+}
+
+#[test]
+fn physical_exclusion_vocabulary_retains_exact_identity_and_canonical_union() {
+    let project = TempProject::new();
+    project.write("main.omg", QUIET_MAIN);
+    let mut selections = String::new();
+    // Reverse and repeat the roster: the authored occurrences stay distinct
+    // while the admission union must use the shared classifier's exact set.
+    for class in effects::TerminalAuthorityClass::ALL.into_iter().rev() {
+        selections.push_str(&format!(
+            "    builder.exclude_physical_authority(PhysicalAuthorityClass::{class:?});\n"
+        ));
+    }
+    selections.push_str(
+        "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
+    );
+    project.write(
+        "build.omg",
+        &product_build("physical-exclusion-roster", &selections),
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect("all physical classes are authorable");
+    assert_eq!(
+        checked.behavior_exclusions().len(),
+        effects::TerminalAuthorityClass::ALL.len() + 1
+    );
+    for row in checked.behavior_exclusions() {
+        let build_evaluation::AuthoredBehaviorExclusionKind::PhysicalAuthorityClass {
+            class,
+            case_symbol,
+        } = row.kind
+        else {
+            panic!("physical class row");
+        };
+        assert_eq!(
+            case_symbol,
+            toolchain_exclusion_case(&checked, "PhysicalAuthorityClass", &format!("{class:?}"))
+        );
+        let source = checked
+            .typed
+            .symbols
+            .source_file(row.source_span)
+            .expect("authored span");
+        assert_eq!(source.path.file_name().unwrap(), "build.omg");
+    }
+    let union = build_evaluation::authored_behavior_exclusion_set(checked.behavior_exclusions());
+    assert_eq!(
+        union.physical_authority_classes(),
+        effects::TerminalAuthorityClass::ALL
+    );
+}
+
+#[test]
+fn physical_exclusions_follow_evaluated_helper_arguments_and_skip_untaken_calls() {
+    let project = TempProject::new();
+    project.write("main.omg", QUIET_MAIN);
+    project.write("build.omg", r#"machine restrict(builder: &mut Build, class: PhysicalAuthorityClass) {
+    builder.exclude_physical_authority(class);
+}
+machine unused(builder: &mut Build) {
+    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessTermination);
+}
+machine build(builder: &mut Build) {
+    builder.application("physical-exclusion-evaluated");
+    builder.roots.bind(windows_x86_64::ProgramEntry, launch);
+    let selected: PhysicalAuthorityClass = PhysicalAuthorityClass::ProcessOutput;
+    restrict(builder, selected);
+    transition false { true -> skipped(builder) false -> done() }
+    state skipped(builder: &mut Build) { builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessInput); }
+    state done() { }
+}
+"#);
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .expect("executed helper selection");
+    let [row] = checked.behavior_exclusions() else {
+        panic!("only executed selection retained");
+    };
+    let helper = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "restrict")
+        .unwrap();
+    assert_eq!(row.selecting_machine, helper.symbol);
+    let report = compile(product_request(
+        project.main(),
+        RequestedCompileProduct::TerminalArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("retained selected product");
+    let retained = report.into_retained_terminal_artifact().unwrap();
+    assert_eq!(
+        retained
+            .native_realization_proposal()
+            .unwrap()
+            .behavior_exclusions()
+            .physical_authority_classes(),
+        &[effects::TerminalAuthorityClass::ProcessOutput]
+    );
+}
+
+#[test]
+fn physical_exclusions_require_the_original_build_and_toolchain_case() {
+    for (statement, expected) in [
+        (
+            "let mut other: Build = Build {}; other.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);",
+            "source cannot construct the compiler-owned Build activation",
+        ),
+        (
+            "builder.exclude_physical_authority(CrashCause::Trap);",
+            "PhysicalAuthorityClass",
+        ),
+    ] {
+        let project = TempProject::new();
+        project.write("main.omg", QUIET_MAIN);
+        project.write(
+            "build.omg",
+            &product_build("physical-exclusion-invalid", statement),
+        );
+        let Err(diagnostics) = compile_to_checked(CheckedCompileRequest::new(
+            &project.main(),
+            Some("windows_x86_64"),
+        )) else {
+            panic!("invalid physical selection must reject");
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn physical_exclusion_admission_rechecks_the_evaluated_case_identity() {
+    let project = TempProject::new();
+    project.write("main.omg", QUIET_MAIN);
+    project.write(
+        "build.omg",
+        &product_build(
+            "physical-exclusion-replay",
+            "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
+        ),
+    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(
+        &project.main(),
+        Some("windows_x86_64"),
+    ))
+    .unwrap();
+    let authored = checked.behavior_exclusions()[0].clone();
+    // Replay the enum-evidence admission boundary independently of execution.
+    // Substituting an exact case of another compiler enum still must reject.
+    let mut typed = checked.typed.clone();
+    let site = typed
+        .statement_table
+        .insert(typed_trees::statement::StatementNode::Call(
+            typed_trees::statement::TableCall {
+                source_span: authored.source_span,
+                ..Default::default()
+            },
+        ));
+    let selection = |case_symbol| checked_interpreter::ExecutedBehaviorExclusion {
+        machine: authored.selecting_machine,
+        site: checked_interpreter::ExecutedBehaviorExclusionSite::Statement(site),
+        kind: checked_interpreter::ExecutedBehaviorExclusionKind::PhysicalAuthorityClass {
+            case_symbol,
+        },
+    };
+    let physical = toolchain_exclusion_case(&checked, "PhysicalAuthorityClass", "ProcessOutput");
+    assert_eq!(
+        build_evaluation::harvest_behavior_exclusions(&typed, &[selection(physical)]).unwrap(),
+        vec![authored.clone()]
+    );
+    for case_symbol in [
+        toolchain_crash_cause_case(&checked, "Trap"),
+        symbols::SymbolHandle::invalid(),
+    ] {
+        let diagnostics =
+            build_evaluation::harvest_behavior_exclusions(&typed, &[selection(case_symbol)])
+                .expect_err("substituted case cannot acquire physical authority identity");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("exact compiler-owned PhysicalAuthorityClass case")
+        }));
+    }
+}
+
+#[test]
+fn authored_physical_exclusion_reaches_the_native_product() {
+    let project = TempProject::new();
+    project.write("main.omg", QUIET_MAIN);
+    project.write(
+        "build.omg",
+        &product_build(
+            "physical-exclusion",
+            "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
+        ),
+    );
+    let report = compile(product_request(
+        project.main(),
+        RequestedCompileProduct::NativeArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("a source-authored physical exclusion admits an output-free native product");
+    assert!(report.retained_native_artifact().is_some());
+}
+
+#[test]
+fn authored_physical_exclusion_publishes_and_runs_on_the_host() {
+    let target = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "macos_arm64"
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows_x86_64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux_x86_64"
+    } else {
+        eprintln!(
+            "SKIP: native exclusion execution requires macOS ARM64, Windows x64, or Linux x64"
+        );
+        return;
+    };
+    let project = TempProject::new();
+    project.write("main.omg", QUIET_MAIN);
+    project.write(
+        "build.omg",
+        &product_build(
+            "physical-exclusion-host",
+            "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
+        )
+        .replace("windows_x86_64", target),
+    );
+    let request = CompileRequest::new(CompileOptions {
+        root_path: project.main(),
+        build_dir: None,
+        target_name: Some(target.to_owned()),
+    })
+    .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    let report = compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect("source-built output-free native product")
+        .publish_retained_native_artifact(&project.0.join("out"))
+        .expect("checked native publication");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("published executable");
+    let output = std::process::Command::new(executable)
+        .output()
+        .expect("run checked native product");
+    assert!(output.status.success(), "native result: {output:?}");
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn authored_physical_exclusion_rejects_exercised_output_not_unrelated_input() {
+    let project = TempProject::new();
+    project.write(
+        "main.omg",
+        r#"use omega_language_std::console;
+use omega::language::core::service;
+data Main { console: Service<Console>; }
+machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
+"#,
+    );
+    let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("repository root")
+        .join("source/library/std");
+    let build = format!(
+        r#"machine build(builder: &mut Build) {{
+    builder.application("physical-exclusion-output");
+    builder.depend(Source::Path {{ location: "{}" }});
+    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessInput);
+}}
+"#,
+        standard_library.to_string_lossy().replace('\\', "/")
+    );
+    project.write("build.omg", &build);
+    let root_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([81; 32]).unwrap();
+    let library_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([82; 32]).unwrap();
+    let entry_binding =
+        macos_entry_acceptance::candidate_macos_entry_binding(&standard_library, library_identity)
+            .expect("accept checked package entry");
+    let inputs = package_compilation::PackageCompilationInputs::new_package(
+        root_identity,
+        vec![
+            package_compilation::PackageSourceBinding::new(
+                root_identity,
+                "physical-exclusion-output",
+                project.0.clone(),
+            ),
+            package_compilation::PackageSourceBinding::new(
+                library_identity,
+                "omega-language-std",
+                standard_library,
+            ),
+        ],
+        vec![package_compilation::PackageDependencyBinding::new(
+            root_identity,
+            "omega_language_std",
+            library_identity,
+        )],
+    )
+    .expect("fixture packages")
+    .with_accepted_semantic_bindings(vec![entry_binding.clone()])
+    .expect("exact entry binding");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&project.main(), Some("macos_arm64"))
+    })
+    .expect("resolve exact Console provider");
+    let binding =
+        console_acceptance::candidate_console_exit_binding(&checked, library_identity, true, false)
+            .expect("accept fixture Console provider");
+    let inputs = inputs
+        .with_accepted_semantic_bindings(vec![entry_binding, binding])
+        .expect("exact accepted binding");
+    let request = || {
+        CompileRequest::new(CompileOptions {
+            root_path: project.main(),
+            build_dir: None,
+            target_name: Some("macos_arm64".into()),
+        })
+        .with_package_inputs(inputs.clone())
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+    };
+    let allowed = compile(request())
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect("output does not exercise excluded input authority")
+        .publish_retained_native_artifact(&project.0.join("allowed"))
+        .expect("publish checked output program");
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        let output = std::process::Command::new(
+            allowed
+                .checked_native_executable_path()
+                .expect("published executable"),
+        )
+        .output()
+        .expect("run output program");
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"A");
+        assert!(output.stderr.is_empty());
+    } else {
+        eprintln!("SKIP: output program execution requires macOS ARM64; cross-emission checked");
+    }
+    project.write(
+        "build.omg",
+        &build.replace("::ProcessInput", "::ProcessOutput"),
+    );
+    let Err(diagnostics) =
+        compile(request()).and_then(compiler::CompileOutcomes::into_single_report)
+    else {
+        panic!("output cannot satisfy its physical exclusion");
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("excluded physical authority class ProcessOutput")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]
