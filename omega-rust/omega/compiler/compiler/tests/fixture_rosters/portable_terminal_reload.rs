@@ -11,5 +11,9 @@ pub const PASS_CANARIES: &[&str] = &[SELECTED_EMPTY_COMPONENT, PORTABLE_CONTRACT
 
 /// Fixtures the serialized reload control runs. Membership requires a
 /// standalone Terminal product and an interpretable entry.
-pub const RELOAD_CANARIES: &[&str] =
-    &[SELECTED_EMPTY_COMPONENT, PORTABLE_CONTRACT_COMPONENT];
+pub const RELOAD_CANARIES: &[&str] = &[SELECTED_EMPTY_COMPONENT, PORTABLE_CONTRACT_COMPONENT];
+
+/// Reload fixtures whose programs carry real contract/operation
+/// obligations; consume asserts the independently reconstructed obligation
+/// ledger is non-empty for these.
+pub const OBLIGATION_BEARING_RELOAD_CANARIES: &[&str] = &[PORTABLE_CONTRACT_COMPONENT];
