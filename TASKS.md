@@ -9382,7 +9382,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (x86_feature_admission FMA rows + package entry-selection drift). The row
   stays open; repair legs belong to the feature owners.
 - **RC-BUILD-AND-PACKAGES-GATE** — mined candidate; verify scope then implement.
-- **RC-CLOSURE-EVIDENCE-RETENTION.** Scope verified at `797e99ead7` —
+- **RC-CLOSURE-EVIDENCE-RETENTION.** Scope verified at `797e99ead7`,
+  re-verified holding at `d74f2145b9` —
   mined candidate naming the post-closure directive in
   [rust_compiler_completion](wiki/drafts/rust_compiler_completion.md):
   "Delete the plan after closure, retaining the release evidence and
