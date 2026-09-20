@@ -263,7 +263,15 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                     .expect("proof fact span count overflow");
             }
         } else {
-            let expression = if input.at_name_like() && !fact_input.has_newline_before(input) {
+            // A same-line name is a state predicate applied to the fact's
+            // value (`ensures self.mutex unlocked`). A name-like token the
+            // caller declared as a list terminator is a clause keyword, not a
+            // predicate: `requires F reaches S` on one line ends the fact at
+            // `reaches`, exactly as the `;`- or newline-separated spellings do.
+            let expression = if input.at_name_like()
+                && !is_terminator(input)
+                && !fact_input.has_newline_before(input)
+            {
                 let (predicate, rest) = input.take_identifier()?;
                 input = rest;
                 syntax_trees

@@ -1,5 +1,6 @@
 use crate::parser::parse_syntax_trees;
 use source_files_to_tokens::Lexer;
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::StatementNode;
 
 #[test]
@@ -465,6 +466,185 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         assert_eq!(
             &source[source_span.span.start..source_span.span.end],
             "blocks"
+        );
+    }
+}
+
+#[test]
+fn parses_machine_requires_before_reaches_on_one_line() {
+    // The fact predicate form (`ensures place Predicate`) must not eat a
+    // same-line clause keyword: a `requires` fact ends at `reaches` exactly as
+    // it does before `;` or a newline.
+    let source = r#"
+        data App { a: u32; b: u32; }
+
+        machine App::main(&mut self) requires self.a <= self.b reaches Console {
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("requires before reaches should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect("machine item");
+
+    let service_reaches = parsed
+        .items
+        .identifier_path_members(machine.service_reaches);
+    assert_eq!(service_reaches.len(), 1);
+    assert_eq!(service_reaches[0].as_str(), "Console");
+
+    let [contract] = parsed.items.capability_contracts(machine.contracts) else {
+        panic!("machine should carry exactly one requires contract");
+    };
+    assert!(matches!(
+        contract.kind,
+        syntax_trees::item::CapabilityContractKind::Requires
+    ));
+    assert_eq!(parsed.items.proof_facts(contract.facts).len(), 1);
+}
+
+#[test]
+fn parses_contract_clause_orderings_and_predicate_boundaries() {
+    let source = r#"
+        data App { a: u32; b: u32; }
+
+        machine App::reaches_then_requires(&mut self) reaches Console requires self.a <= self.b {
+        }
+        machine App::requires_semicolon_reaches(&mut self) requires self.a <= self.b; reaches Console {
+        }
+        machine App::requires_newline_reaches(&mut self)
+            requires self.a <= self.b
+            reaches Console {
+        }
+        machine App::requires_only(&mut self) requires self.a <= self.b {
+        }
+        machine App::reaches_only(&mut self) reaches Console {
+        }
+        machine App::bare(&mut self) {
+        }
+        machine App::predicate_then_reaches(&mut self) ensures self.a settled reaches Console {
+        }
+
+        trait Visitor {
+            machine visit(&mut self) requires self.a <= self.b reaches Console;
+        }
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("clause orderings should parse");
+
+    let machine = |name: &str| {
+        parsed
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == name => {
+                    Some(machine)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("machine {name}"))
+    };
+    let reach_count = |machine: &syntax_trees::item::Machine| {
+        parsed
+            .items
+            .identifier_path_members(machine.service_reaches)
+            .len()
+    };
+    let contracts = |machine: &syntax_trees::item::Machine| {
+        parsed.items.capability_contracts(machine.contracts)
+    };
+
+    for (name, reaches, contracts_count) in [
+        ("App::reaches_then_requires", 1usize, 1usize),
+        ("App::requires_semicolon_reaches", 1, 1),
+        ("App::requires_newline_reaches", 1, 1),
+        ("App::requires_only", 0, 1),
+        ("App::reaches_only", 1, 0),
+        ("App::bare", 0, 0),
+        ("App::predicate_then_reaches", 1, 1),
+    ] {
+        let machine = machine(name);
+        assert_eq!(reach_count(machine), reaches, "{name} service reaches");
+        assert_eq!(
+            contracts(machine).len(),
+            contracts_count,
+            "{name} contracts"
+        );
+    }
+
+    // The same-line predicate form survives beside a following clause:
+    // `ensures self.a settled` keeps its `self.a.settled()` call fact.
+    let predicate_machine = machine("App::predicate_then_reaches");
+    let [contract] = contracts(predicate_machine) else {
+        panic!("predicate machine should carry one ensures contract");
+    };
+    assert!(matches!(
+        contract.kind,
+        syntax_trees::item::CapabilityContractKind::Ensures
+    ));
+    let [fact] = parsed.items.proof_facts(contract.facts) else {
+        panic!("ensures contract should carry one fact");
+    };
+    let syntax_trees::item::ProofFact::Expression(expression) = fact else {
+        panic!("predicate fact should be an expression");
+    };
+    assert!(matches!(
+        parsed.expressions.expression(*expression),
+        ExpressionNode::Call(_)
+    ));
+
+    let trait_definition = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("trait item");
+    let signature = parsed
+        .items
+        .state_signature(parsed.items.state_signatures(trait_definition.machines)[0]);
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(signature.service_reaches)
+            .len(),
+        1
+    );
+    let [signature_contract] = parsed.items.capability_contracts(signature.contracts) else {
+        panic!("requirement should carry one requires contract");
+    };
+    assert!(matches!(
+        signature_contract.kind,
+        syntax_trees::item::CapabilityContractKind::Requires
+    ));
+    assert_eq!(parsed.items.proof_facts(signature_contract.facts).len(), 1);
+}
+
+#[test]
+fn rejects_malformed_requires_fact_lists() {
+    for source in [
+        // A second stray name on the fact line is not a clause separator.
+        "machine f() requires self.a <= self.b bogus stray { }",
+        // `requires` followed by a separator authors no proposition.
+        "machine f() requires; { }",
+        // `requires` at end of input has no proposition to parse.
+        "machine f() requires",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        assert!(
+            parse_syntax_trees(&tokens).is_err(),
+            "malformed requires should reject: {source}"
         );
     }
 }
