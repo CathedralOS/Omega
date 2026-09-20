@@ -10387,7 +10387,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SQUALR-SEED-OPERATOR-PARITY** — mined candidate; verify scope then implement.
 - **SQUALR-SEED-REGION-OPERATIONS** — mined candidate; verify scope then implement.
 - **SQUALR-SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
-- **SQUALR-WINDOWS-GEOMETRY-VALIDATION** — mined candidate; verify scope then implement.
+- **SQUALR-WINDOWS-GEOMETRY-VALIDATION.** Mined candidate — scope
+  verified, re-mine of the audited sibling row
+  SQUALR-GEOMETRY-WINDOWS-VALIDATION (~line 10273, verified against
+  GEOMETRY-WINDOWS-VALIDATION at `8734480a01`). Same acceptance: the
+  Windows leg of the app repo's GEOMETRY-PARITY gate —
+  `python tools/verify.py native --timeout 600 --omega <executable>` on
+  a Windows host against the pinned `samples/apps/squalr` (4b1f7a6)
+  build graph; recorded geometry evidence is macOS ARM64 + Linux
+  x86-64 (`d82697ffca`, `Squalr geometry: PASS`), Windows remains
+  "was not run". Doubly gated: no Windows development host in this
+  environment, and `samples/apps/squalr` is dir-fenced by
+  SQUALR-TARGETS-AND-THROUGHPUT (+ SQUALR-CLONE-SERIALIZATION file
+  fences). A Linux `--target windows_x86_64` emit leg does not satisfy
+  the run-based acceptance. Owning parent: SQUALR-GEOMETRY-PARITY.
 - **STAGE-ANCESTRY-DIRECT-READS.** Resolved — re-mine of the settled
   selected-instructions ancestry surface, already closed under sibling
   SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL: `83766d57bf` moved custody reads
