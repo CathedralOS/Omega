@@ -66,6 +66,7 @@ pub(super) fn proves<'program>(
     }
     if evaluator.proves_boolean_result(expression) == Some(true)
         || evaluator.proves_immutable_result_comparison(expression)
+        || evaluator.proves_return_arithmetic(expression)
     {
         return true;
     }

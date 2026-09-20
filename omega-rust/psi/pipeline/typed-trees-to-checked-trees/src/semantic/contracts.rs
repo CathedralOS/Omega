@@ -92,7 +92,7 @@ pub(super) fn append_contract_semantic_facts(
             proof,
             facts,
             call,
-            call.requires,
+            proof.contract_fact_refs.span_or_empty(call.requires),
             FactOrigin::CallRequires,
             ProgramPoint::CallRequires {
                 machine_symbol: call.caller_machine_symbol,
@@ -115,33 +115,32 @@ pub(super) fn append_contract_semantic_facts(
             );
         }
 
-        let mut ensures = HandleSpan::empty();
-        append_call_semantic_contract_refs(
-            program,
-            proof,
-            facts,
-            call,
-            call.ensures,
-            FactOrigin::CallEnsures,
-            ProgramPoint::CallEnsures {
-                machine_symbol: call.caller_machine_symbol,
-                state_symbol: call.caller_state_symbol,
-                statement_index: call.statement_index,
-                call_ordinal: call.call_ordinal,
-            },
-            &mut ensures,
-        );
-        combined_ref_values.extend(facts.refs.span_or_empty(ensures).iter().copied());
-        if !ensures.is_empty() {
-            facts.append_context(
-                ProgramPoint::CallEnsures {
-                    machine_symbol: call.caller_machine_symbol,
-                    state_symbol: call.caller_state_symbol,
-                    statement_index: call.statement_index,
-                    call_ordinal: call.call_ordinal,
-                },
-                ensures,
+        let point = ProgramPoint::CallEnsures {
+            machine_symbol: call.caller_machine_symbol,
+            state_symbol: call.caller_state_symbol,
+            statement_index: call.statement_index,
+            call_ordinal: call.call_ordinal,
+        };
+        // Each promise has its own validity dependencies. Keep its evidence
+        // and dependency rows atomic, but do not let an unresolved or changed
+        // operand of a sibling promise retire an independent scalar guarantee.
+        // Flow already imports every context at this exact invocation point.
+        for source_ref in proof.contract_fact_refs.span_or_empty(call.ensures) {
+            let mut ensures = HandleSpan::empty();
+            append_call_semantic_contract_refs(
+                program,
+                proof,
+                facts,
+                call,
+                std::slice::from_ref(source_ref),
+                FactOrigin::CallEnsures,
+                point,
+                &mut ensures,
             );
+            combined_ref_values.extend(facts.refs.span_or_empty(ensures).iter().copied());
+            if !ensures.is_empty() {
+                facts.append_context(point, ensures);
+            }
         }
         let mut refs = HandleSpan::empty();
         for fact_ref in combined_ref_values {
@@ -552,12 +551,12 @@ fn append_call_semantic_contract_refs(
     proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,
-    source_refs: HandleSpan<ContractProofFactRef>,
+    source_refs: &[ContractProofFactRef],
     origin: FactOrigin,
     point: ProgramPoint,
     refs: &mut HandleSpan<FactRef>,
 ) {
-    for source_ref in proof.contract_fact_refs.span_or_empty(source_refs) {
+    for source_ref in source_refs {
         let contract = proof.contract_facts.get(source_ref.fact);
         let place = instantiate_call_contract_place(program, facts, call, contract);
         let mut payload = semantic_contract_payload(program, contract);

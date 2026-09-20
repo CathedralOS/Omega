@@ -1704,16 +1704,13 @@ impl<'program> Engine<'program> {
                 if crate::proof_contracts::proof_embeddings::is_exact_embed_call(
                     self.program,
                     &call,
-                ) && (self.strict_symbol_bindings.is_none() || self.proof_integer_formation)
-                {
-                    let [argument] = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                    else {
-                        return None;
-                    };
-                    return self.normalize_integer_embedding(*argument);
+                ) {
+                    let (_, argument) =
+                        crate::proof_contracts::proof_embeddings::integer_embedding_argument(
+                            self.program,
+                            expression,
+                        )?;
+                    return self.normalize_integer_embedding(argument);
                 }
                 // Ordinary proof views are source-defined data and machines.
                 // Their spelling cannot introduce an arithmetic atom or stand
@@ -1741,16 +1738,27 @@ impl<'program> Engine<'program> {
             return Some(Polynomial::constant(literal.value_bignum()?));
         }
         // A direct binding denotes its payload regardless of its arithmetic
-        // qualification. Computed sources remain opaque: normalizing their
-        // written arithmetic would erase wrapping or saturation semantics.
+        // qualification. Exact member occurrences use the same roster as raw
+        // projections; structural spelling cannot replace a missing binding.
+        // Computed sources remain opaque: normalizing their written arithmetic
+        // would erase wrapping or saturation semantics.
         let direct = if matches!(
             self.program.expression_table.expression(expression),
-            ExpressionNode::Name(_)
+            ExpressionNode::Name(_) | ExpressionNode::Member(_)
         ) {
             self.normalize(expression)
         } else {
             None
         };
+        // A scoped implication may read only values its owner captured. The
+        // formation query separately owns opaque source denotations; importing
+        // those here would equate occurrences across distinct scoped rosters.
+        if self.strict_symbol_bindings.is_some()
+            && !self.proof_integer_formation
+            && direct.is_none()
+        {
+            return None;
+        }
         let polynomial = direct.unwrap_or_else(|| {
             Polynomial::atom(format!(
                 "\0embed:{:?}:{}",

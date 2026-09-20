@@ -7,9 +7,14 @@
 //! Imported return guarantees are optional premises: an ordinary constructor
 //! can project a required field directly to an already bounded caller value.
 //! An unrelated call-result sibling does not change that scalar relationship.
+//! The shared backward value-origin trace follows captured copies through
+//! stores while proving intervening write preservation; it does not execute
+//! initializers. Calls use the exact operand-evaluation frontier, whereas a
+//! stable return uses the exit statement boundary. Those frontiers cannot be
+//! interchanged when an earlier sibling operand mutates storage.
 
 use super::callable::Callable;
-use super::{Invocation, actual_projection, bound_place, captured_place, direct_place};
+use super::{Invocation, actual_projection, bound_place, direct_place};
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;
@@ -28,11 +33,70 @@ pub(super) fn proves(
     contexts: &[FactContextHandle],
     required: &Invocation<'_>,
     goal: ExpressionHandle,
-    mut hypotheses: Vec<ScopedArithmeticHypothesis>,
+    hypotheses: Vec<ScopedArithmeticHypothesis>,
+    frames: &validation::CallFrameResolver<'_>,
 ) -> bool {
-    let Some(goal) = at_call(program, facts, contexts, required, goal) else {
+    let Some(goal) = at_call(program, facts, caller, required, goal, frames) else {
         return false;
     };
+    let Some(call) = invocation_fact(facts, caller, required) else {
+        return false;
+    };
+    proves_bound(
+        program,
+        facts,
+        caller,
+        required.statement,
+        contexts,
+        &goal,
+        hypotheses,
+        frames,
+        Some(call),
+    )
+}
+
+pub(in crate::checks) fn proves_at_exit(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    contexts: &[FactContextHandle],
+    frames: &validation::CallFrameResolver<'_>,
+    goal: &ScopedArithmeticExpression,
+) -> bool {
+    let hypotheses = super::available(program, facts, caller, statement, contexts, frames)
+        .into_iter()
+        .filter_map(|guarantee| {
+            at_call(
+                program,
+                facts,
+                caller,
+                &guarantee.invocation,
+                guarantee.expression,
+                frames,
+            )
+            .map(|proposition| ScopedArithmeticHypothesis {
+                proposition,
+                holds: true,
+            })
+        })
+        .collect();
+    proves_bound(
+        program, facts, caller, statement, contexts, goal, hypotheses, frames, None,
+    )
+}
+
+fn proves_bound(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    contexts: &[FactContextHandle],
+    goal: &ScopedArithmeticExpression,
+    mut hypotheses: Vec<ScopedArithmeticHypothesis>,
+    frames: &validation::CallFrameResolver<'_>,
+    call: Option<&checked_trees::FlowCallFact>,
+) -> bool {
     let Some(machine) = program
         .machines()
         .iter()
@@ -85,23 +149,36 @@ pub(super) fn proves(
             expression,
             |occurrence, primitive| {
                 let place = direct_place(program, occurrence)?;
-                let place = captured_place(program, &facts.semantic, contexts, place)?;
+                let place = if let Some(call) = call {
+                    crate::flow::value_origin_at_call(
+                        program,
+                        &facts.flow,
+                        machine,
+                        caller,
+                        call,
+                        place,
+                        Some(frames),
+                    )?
+                } else {
+                    value_origin(program, caller, statement, frames, place)?
+                };
                 Some(atom(place, primitive))
             },
         ) {
             hypotheses.push(ScopedArithmeticHypothesis { proposition, holds });
         }
     }
-    validation::scoped_arithmetic_implication(program, machine, &hypotheses, &goal)
+    validation::scoped_arithmetic_implication(program, machine, &hypotheses, goal)
         == StrictArithmeticImplicationJudgment::Proven
 }
 
 pub(super) fn at_call(
     program: &TypedTrees,
     facts: &CheckFacts,
-    contexts: &[FactContextHandle],
+    caller: &FlowStateFact,
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
+    frames: &validation::CallFrameResolver<'_>,
 ) -> Option<ScopedArithmeticExpression> {
     proposition(
         program,
@@ -122,13 +199,74 @@ pub(super) fn at_call(
                 }));
             }
             let place = bound_place(program, invocation, occurrence)?;
-            let place = captured_place(program, &facts.semantic, contexts, place)?;
+            let place = if matches!(place.root, facts::PlaceRoot::Expression(_)) {
+                place
+            } else {
+                let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
+                let call = invocation_fact(facts, caller, invocation)?;
+                // The statement boundary predates earlier sibling operands.
+                // Invocation inputs additionally owe their exact call-prefix
+                // preservation, even when this call's own arguments are places.
+                crate::flow::value_origin_at_call(
+                    program,
+                    &facts.flow,
+                    machine,
+                    caller,
+                    call,
+                    place,
+                    Some(frames),
+                )?
+            };
             Some(atom(place, primitive))
         },
     )
 }
 
-fn atom(place: crate::flow::CanonicalPlace, primitive: PrimitiveType) -> ScopedArithmeticValue {
+fn invocation_fact<'facts>(
+    facts: &'facts CheckFacts,
+    caller: &FlowStateFact,
+    invocation: &Invocation<'_>,
+) -> Option<&'facts checked_trees::FlowCallFact> {
+    let mut calls = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(caller.calls)
+        .iter()
+        .filter(|call| {
+            call.statement_index == invocation.statement && call.call_ordinal == invocation.ordinal
+        });
+    let call = calls.next()?;
+    calls.next().is_none().then_some(call)
+}
+
+pub(in crate::checks) fn value_origin(
+    program: &TypedTrees,
+    caller: &FlowStateFact,
+    statement: usize,
+    frames: &validation::CallFrameResolver<'_>,
+    place: crate::flow::CanonicalPlace,
+) -> Option<crate::flow::CanonicalPlace> {
+    let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
+    if matches!(place.root, facts::PlaceRoot::Expression(expression)
+        if matches!(program.expression_table.expression(expression), ExpressionNode::Call(_)))
+    {
+        return Some(place);
+    }
+    crate::flow::value_origin_before_statement(
+        program,
+        machine,
+        caller,
+        statement,
+        place,
+        Some(frames),
+    )
+}
+
+pub(in crate::checks) fn atom(
+    place: crate::flow::CanonicalPlace,
+    primitive: PrimitiveType,
+) -> ScopedArithmeticValue {
     ScopedArithmeticValue::Atom {
         // These are transient solver coordinates from generational declaration,
         // call and field handles, never display labels or artifact identities.
@@ -140,12 +278,12 @@ fn atom(place: crate::flow::CanonicalPlace, primitive: PrimitiveType) -> ScopedA
     }
 }
 
-fn proposition(
+pub(in crate::checks) fn proposition(
     program: &TypedTrees,
     facts: &CheckFacts,
     callable: &Callable<'_>,
     expression: ExpressionHandle,
-    mut value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
+    value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
 ) -> Option<ScopedArithmeticExpression> {
     if !super::super::has_builtin_operators(program, &facts.operators, expression)
         || !callable.builtin_meaning(program, expression)
@@ -153,6 +291,31 @@ fn proposition(
     {
         return None;
     }
+    bind_occurrences(program, callable, expression, value)
+}
+
+pub(in crate::checks) fn scalar_term(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+    value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
+) -> Option<ScopedArithmeticExpression> {
+    if !super::super::has_builtin_operators(program, &facts.operators, expression)
+        || !callable.builtin_meaning(program, expression)
+        || !term(program, callable, expression)
+    {
+        return None;
+    }
+    bind_occurrences(program, callable, expression, value)
+}
+
+fn bind_occurrences(
+    program: &TypedTrees,
+    callable: &Callable<'_>,
+    expression: ExpressionHandle,
+    mut value: impl FnMut(ExpressionHandle, PrimitiveType) -> Option<ScopedArithmeticValue>,
+) -> Option<ScopedArithmeticExpression> {
     let mut occurrences = Vec::new();
     crate::facts::contract_occurrences::append_expression_occurrences(
         program,
@@ -226,18 +389,61 @@ fn term(program: &TypedTrees, callable: &Callable<'_>, expression: ExpressionHan
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => callable.scalar_reference(program, expression)
-            .and_then(|reference| program.primitive_type_reference(reference)).is_some_and(fixed_integer),
-        ExpressionNode::Binary(binary) if matches!(binary.operator, BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply) => {
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => callable
+            .scalar_reference(program, expression)
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .is_some_and(fixed_integer),
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+            ) =>
+        {
             [binary.left, binary.right].into_iter().all(|operand| {
                 term(program, callable, operand)
-                    && callable.scalar_reference(program, operand)
-                        .map(|reference| program.arithmetic_domain_for_type_reference(reference) == ArithmeticDomain::Exact)
-                        .unwrap_or_else(|| matches!(program.expression_table.expression(operand), ExpressionNode::Integer(literal) if literal.landing().is_none()))
+                    && callable
+                        .scalar_reference(program, operand)
+                        .map(|reference| {
+                            program.arithmetic_domain_for_type_reference(reference)
+                                == ArithmeticDomain::Exact
+                        })
+                        .unwrap_or_else(|| proof_integer_term(program, operand))
             })
         }
+        ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
+            .is_some_and(|(primitive, source)| {
+                fixed_integer(primitive)
+                    && matches!(
+                        program.expression_table.expression(source),
+                        ExpressionNode::Name(_)
+                            | ExpressionNode::Member(_)
+                            | ExpressionNode::Integer(_)
+                    )
+                    && term(program, callable, source)
+            }),
         // Casts, indexing, computed actuals and selected calls need their own
         // meaning/capture evidence; no syntax-only polynomial interpretation.
+        _ => false,
+    }
+}
+
+// The ordinary runtime result-type query deliberately does not fabricate a
+// runtime carrier for embed. Its exact builtin identity selects proof Int;
+// only mathematical composition of those terms gets this fallback.
+fn proof_integer_term(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    if validation::integer_embedding_argument(program, expression).is_some() {
+        return true;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal.landing().is_none(),
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+            ) =>
+        {
+            proof_integer_term(program, binary.left) && proof_integer_term(program, binary.right)
+        }
         _ => false,
     }
 }

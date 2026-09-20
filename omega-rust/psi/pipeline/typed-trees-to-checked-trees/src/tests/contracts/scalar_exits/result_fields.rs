@@ -1,6 +1,61 @@
 use super::check;
 
 #[test]
+fn result_fields_compose_completed_call_guarantees() {
+    for returned in ["joined.remaining", "saved"] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+                 machine join(lower: u64, upper: u64) -> Count
+                 requires upper <= 100; lower <= 100
+                 ensures embed(result.remaining) == embed(lower) + embed(upper)
+                 {{ Count {{ remaining: lower + upper }} }}
+                 machine wrapper(lower: u64, upper: u64) -> Count
+                 requires upper <= 100; lower <= 100
+                 ensures embed(result.remaining) == embed(lower) + embed(upper)
+                 {{ let joined: Count = join(lower, upper);
+                    let saved: u64 = joined.remaining;
+                    Count {{ remaining: {returned} }} }}"
+            ),
+            true,
+        );
+    }
+}
+
+#[test]
+fn returned_geometry_uses_captured_values_not_replayed_reads() {
+    for (arguments, update, returned, accepted) in [
+        ("lower, upper", "joined.remaining = 7;", "saved", true),
+        (
+            "lower, upper",
+            "joined.remaining = 7;",
+            "joined.remaining",
+            false,
+        ),
+        ("lower, upper", "saved = 7;", "saved", false),
+        ("lower, lower", "", "saved", false),
+    ] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+             machine join(lower: u64, upper: u64) -> Count
+             requires lower <= 100; upper <= 100
+             ensures embed(result.remaining) == embed(lower) + embed(upper)
+             {{ Count {{ remaining: lower + upper }} }}
+             machine wrapper(lower: u64, upper: u64) -> Count
+             requires lower <= 100; upper <= 100
+             ensures embed(result.remaining) == embed(lower) + embed(upper)
+             {{ let mut joined: Count = join({arguments});
+                let mut saved: u64 = joined.remaining;
+                {update}
+                Count {{ remaining: {returned} }} }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
 fn nested_result_fields_publish_the_selected_count_computation() {
     for (returned, accepted) in [("capacity - length", true), ("capacity", false)] {
         check(
@@ -39,18 +94,22 @@ fn nested_result_fields_use_live_values_not_record_initializers() {
 
 #[test]
 fn nested_result_guarantees_do_not_replay_a_captured_source_after_a_write() {
-    check(
-        "data Count [copy] { remaining: u64; }
-         machine replace(value: &mut u64) { value = 8; }
-         machine produce(input: &mut Count) -> Count
-         ensures result.remaining == input.remaining
-         {
-             let saved: u64 = input.remaining;
-             replace(&mut input.remaining);
-             Count { remaining: saved }
-         }",
-        false,
-    );
+    for update in ["replace(&mut input.remaining);", "input.remaining = 8;"] {
+        check(
+            &format!(
+                "data Count [copy] {{ remaining: u64; }}
+                 machine replace(value: &mut u64) {{ value = 8; }}
+                 machine produce(input: &mut Count) -> Count
+                 ensures result.remaining == input.remaining
+                 {{
+                     let saved: u64 = input.remaining;
+                     {update}
+                     Count {{ remaining: saved }}
+                 }}"
+            ),
+            false,
+        );
+    }
 }
 
 #[test]

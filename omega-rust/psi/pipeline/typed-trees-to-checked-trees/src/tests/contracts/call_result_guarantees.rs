@@ -30,6 +30,27 @@ fn boundary_result_guarantees_bind_the_exact_invocation() {
 }
 
 #[test]
+fn independent_postconditions_keep_separate_storage_dependencies() {
+    for (update, accepted) in [("observed = 0;", true), ("input = 0;", false)] {
+        check(
+            &format!(
+                "data Counts [copy] {{ primary: u64; secondary: u64; }}
+             boundary trait Values {{ machine read(input: u64, observed: &u64) -> Counts
+                 ensures result.primary == input, result.secondary == observed; }}
+             machine consume(value: u64, expected: u64) requires value == expected {{}}
+             machine caller(service: &Values, mut input: u64) reaches Values {{
+                 let mut observed: u64 = 17;
+                 let value: Counts = service.read(input, &observed);
+                 {update}
+                 consume(value.primary, input);
+             }}"
+            ),
+            accepted,
+        );
+    }
+}
+
+#[test]
 fn boundary_result_guarantees_compose_with_caller_bounds() {
     for (bound, accepted) in [("48", true), ("47", false)] {
         check(
@@ -409,5 +430,27 @@ fn caller_result_relations_require_capture_preservation_not_purity() {
             ),
             accepted,
         );
+    }
+}
+#[test]
+fn embedded_call_guarantees_preserve_sibling_operand_order() {
+    for (first, second, accepted) in [
+        ("replace(&mut current)", "expect(&current)", false),
+        ("expect(&current)", "replace(&mut current)", true),
+    ] {
+        let source = format!(
+            "data Count [copy] {{ remaining: u64; }}
+             data Pair [copy] {{ first: u64; second: u64; }}
+             machine make() -> Count ensures embed(result.remaining) == 7
+             {{ Count {{ remaining: 7 }} }}
+             machine replace(value: &mut Count) -> u64
+             {{ value = Count {{ remaining: 8 }}; 0 }}
+             machine expect(value: &Count) -> u64
+             requires embed(value.remaining) == 7 {{ 0 }}
+             machine use_result() {{ let mut current: Count = make();
+                 let pair: Pair = Pair {{ first: {first}, second: {second} }}; }}"
+        );
+        let result = crate::lower_typed_trees(super::parse_typed_trees(&source));
+        assert_eq!(result.is_ok(), accepted, "{result:#?}\n{source}");
     }
 }

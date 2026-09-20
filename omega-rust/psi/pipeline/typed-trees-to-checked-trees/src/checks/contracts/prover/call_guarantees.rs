@@ -22,7 +22,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 
-mod arithmetic;
+pub(in crate::checks) mod arithmetic;
 pub(in crate::checks) mod callable;
 use callable::Callable;
 mod availability;
@@ -73,9 +73,10 @@ pub(super) fn proves(
         if let Some(proposition) = arithmetic::at_call(
             program,
             facts,
-            contexts,
+            caller,
             &guarantee.invocation,
             guarantee.expression,
+            frames,
         ) {
             arithmetic_hypotheses.push(validation::ScopedArithmeticHypothesis {
                 proposition,
@@ -102,6 +103,7 @@ pub(super) fn proves(
             &required,
             expression,
             arithmetic_hypotheses,
+            frames,
         )
 }
 
@@ -270,7 +272,10 @@ fn stable_value(
     stable
 }
 
-fn direct_place(program: &TypedTrees, expression: ExpressionHandle) -> Option<CanonicalPlace> {
+pub(in crate::checks) fn direct_place(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<CanonicalPlace> {
     let mut current = expression;
     let mut visited = Vec::new();
     loop {

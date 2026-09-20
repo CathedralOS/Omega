@@ -27,8 +27,8 @@
 // - `split` declares `result.taken.length == length` beside its content
 //   conservation law. `allocate` consumes that exact invocation's guarantee
 //   through `check_extent_length`; `separate` alone supplies no scalar law.
-//   The remaining tail length and reset capacity still need their own
-//   published geometry relations and exact captured-value transport.
+//   Split and merge also publish scalar conservation through `embed`, so
+//   fixed-width sums need not overflow to express the geometry relation.
 // - `allocate` publishes the decrement as `result.strategy.remaining ==
 //   strategy.remaining - length`. Exit checking proves that nested field's
 //   exact computation, and `check_remaining` consumes the relation from the
@@ -42,6 +42,8 @@
 //   and `exercise_fallible` then use `issued_first.strategy.remaining`, not
 //   a caller-invented floor, for the second allocation.
 // `reset` restores the residual from the recomposed range's own geometry.
+// Its checked postcondition composes both merge calls and the saved length;
+// `exercise` uses it to allocate the full original capacity without a guard.
 //
 // Shape decisions a next reader needs:
 //
@@ -84,9 +86,9 @@
 //   requires the current tag, not just the sum's declared alternatives.
 //   Rejection returns the original strategy unchanged. Recursive retired
 //   lists and outcome-specific partition frontiers remain separate work.
-// - Post-reset reuse remains fallible. `reset` returns its recomposed range's
-//   runtime length without a guarantee connecting it to the original capacity;
-//   `try_allocate` checks demand against that returned residual.
+// - An arbitrary post-reset demand remains fallible: `try_allocate` checks it
+//   against the returned residual. The separate full-capacity request in
+//   `exercise` needs no runtime check because conservation proves its bound.
 // - `BumpVec` retains one outgrown buffer in `RetiredSlot`. Growth allocates
 //   from the remaining tail and preserves the old buffer separately; it does
 //   not rewind allocation. Full-slot and exhausted-tail rejection both return
@@ -153,6 +155,7 @@ boundary trait ExtentPartition {
     machine split(whole: Extent in Granted & Vacant, length: u64) -> Split
     ensures
         result.taken.length == length,
+        embed(result.taken.length) + embed(result.rest.length) == embed(whole.length),
         Granted::content(old(&whole))
         == separate(
             Granted::content(&result.taken),
@@ -161,6 +164,7 @@ boundary trait ExtentPartition {
 
     machine merge(parts: Split) -> Extent
     ensures
+        embed(result.length) == embed(parts.taken.length) + embed(parts.rest.length),
         result in Granted & Vacant,
         separate(
             Granted::content(old(&parts.taken)),
@@ -206,7 +210,9 @@ machine allocate(partition: &ExtentPartition, strategy: Bump, length: u64) -> Is
 requires
     length <= strategy.remaining
 ensures
-    result.strategy.remaining == strategy.remaining - length
+    result.strategy.remaining == strategy.remaining - length;
+    result.allocation.length == length;
+    embed(result.strategy.tail.length) + embed(result.allocation.length) == embed(strategy.tail.length)
 reaches ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
@@ -246,6 +252,8 @@ machine reset(
     lower: Extent in Granted & Vacant,
     upper: Extent in Granted & Vacant
 ) -> Bump
+ensures
+    embed(result.remaining) == embed(lower.length) + embed(upper.length) + embed(strategy.tail.length)
 reaches ExtentPartition
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
@@ -387,7 +395,9 @@ reaches ExtentPartition
 // chained through the package machines `allocate` and `reset`. The caller
 // proves the exact capacity requirement at the entry — `capacity` covers the
 // whole 16 + 32 plan and equals the backing's geometry — then threads the
-// actual returned residual into the second request. Each returned record's
+// actual returned residual into the second request. Reset then proves the
+// original capacity available for a third request, without a runtime guard.
+// Each returned record's
 // qualified fields are restated
 // through exactly typed locals in the custody order described in the header.
 machine exercise(
@@ -423,7 +433,12 @@ reaches ExtentPartition
         first_allocation,
         second_allocation,
     );
-    restored.tail as Extent
+    let reused: Issued = allocate(partition, restored, capacity);
+    let recomposed: Extent in Granted & Vacant = partition.merge(Split {
+        taken: reused.allocation,
+        rest: reused.strategy.tail,
+    });
+    recomposed as Extent
 }
 
 // A second allocation epoch uses the real fallible request. `demand` is
