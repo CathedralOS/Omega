@@ -170,6 +170,68 @@ fn generated_projection_preserves_order_independence_and_custody_errors() {
 }
 
 #[test]
+fn generated_coordinates_distinguish_scopes_but_preserve_collision_rejection() {
+    use source::DependencyScope::{Build, Product};
+    let generated = |bytes: &[u8]| {
+        let tree = build_output::from_entries(&[build_output::OutputTreeEntry::regular_file(
+            b"shared.omg",
+            bytes,
+            false,
+        )])
+        .unwrap();
+        build_output::select_included_sources(&tree, &[b"shared.omg".to_vec()])
+            .unwrap()
+            .pop()
+            .unwrap()
+    };
+    let custody = vec![
+        (SourceId(1), generated(b"data Product {}")),
+        (SourceId(2), generated(b"data Helper {}")),
+    ];
+    let mut files = generated_files(&custody);
+    files[0].dependency_scope = Product;
+    files[1].dependency_scope = Build;
+    let units = derive_consumed_source_units(&checked_sources(files.clone()), &custody).unwrap();
+    assert_eq!(units.len(), 2);
+    assert_eq!(
+        units[0].kind(),
+        ConsumedSourceUnitKind::PackageGenerated(Product)
+    );
+    assert_eq!(
+        units[1].kind(),
+        ConsumedSourceUnitKind::PackageGenerated(Build)
+    );
+    assert_eq!(canonical_consumed_unit_bytes(&units[0])[0], 1);
+    assert_eq!(canonical_consumed_unit_bytes(&units[1])[0], 4);
+    verify_current_files(&checked_sources(files.clone()), &custody).unwrap();
+    files[1].dependency_scope = Product;
+    let diagnostics = derive_consumed_source_units(&checked_sources(files), &custody).unwrap_err();
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("distinct sources at duplicate canonical coordinates")
+    );
+
+    let mut authored = source(
+        "/package/shared.omg",
+        "/package",
+        Some(PackageKeyIdentity::from_digest([7; 32]).unwrap()),
+        SourceOrigin::User,
+        "data Shared {}",
+    );
+    authored.source_id = SourceId(3);
+    let mut other_scope = authored.clone();
+    other_scope.source_id = SourceId(4);
+    other_scope.dependency_scope = Build;
+    let baseline =
+        derive_consumed_source_units(&checked_sources(vec![authored.clone()]), &[]).unwrap();
+    assert_eq!(
+        baseline,
+        derive_consumed_source_units(&checked_sources(vec![authored, other_scope]), &[]).unwrap()
+    );
+}
+
+#[test]
 fn generated_verification_preserves_physical_rereads_and_custody_only_behavior() {
     let custody = generated_fixture();
     let mut files = generated_files(&custody);
@@ -221,7 +283,7 @@ fn canonical_row_fixture() -> Vec<ConsumedSourceUnit> {
             vec!["main.omg".to_owned()],
         ),
         (
-            ConsumedSourceUnitKind::PackageGenerated,
+            ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Product),
             Some(package),
             None,
             vec!["generated".to_owned(), "λ.omg".to_owned()],
@@ -279,7 +341,8 @@ fn canonical_row_layout_and_source_commitment_are_stable() {
             .map(|byte| format!("{byte:02x}"))
             .collect(),
     );
-    // Captured from the V3 row/commitment encoder before changing its storage.
+    // Product row framing is unchanged; the V4 commitment names scope-aware
+    // generated-source coordinates.
     assert_eq!(
         identities,
         [
@@ -287,7 +350,7 @@ fn canonical_row_layout_and_source_commitment_are_stable() {
             "519ca0511d1018331db0e01bb39405e40d0660985e099f787918737492c15671",
             "eb986861f4e7b8b2018605c9436f9aabf7e535182dd8ea9f774d90cdba4a9285",
             "24b8039fc620e9d7d4a69da5af6c2a203ecabb369fcf263a8acb134cd1021141",
-            "0085e87aac427a0e725966f478af42996e1714c151c8e93e10b9ad423278c6bd",
+            "a908b49af2d2319a97359c14fa6e5aa57af79f6c5cf90a304ef1781c5c27e01e",
         ]
     );
 }
@@ -443,7 +506,10 @@ fn consumed_units_are_logical_content_addressed_and_classified() {
 
     assert_eq!(authored, relocated);
     assert_eq!(authored.kind(), ConsumedSourceUnitKind::PackageAuthored);
-    assert_eq!(generated.kind(), ConsumedSourceUnitKind::PackageGenerated);
+    assert_eq!(
+        generated.kind(),
+        ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Product)
+    );
     assert_ne!(authored, generated);
     assert!(
         !canonical_consumed_unit_bytes(&authored)

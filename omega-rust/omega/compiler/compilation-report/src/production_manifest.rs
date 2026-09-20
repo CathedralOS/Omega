@@ -10,7 +10,7 @@ use package_compilation::PackageCompilationSubject;
 use sha2::{Digest, Sha256};
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};
 
-const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V10\0";
+const MANIFEST_DOMAIN: &[u8] = b"OMEGA-PRODUCTION-COMPILATION-MANIFEST-V11\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProductionCompilationManifestIdentity([u8; 32]);

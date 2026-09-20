@@ -396,8 +396,15 @@ impl SymbolTable {
             .collect()
     }
 
-    pub(super) fn has_namespace_context(&self, _reference: SourceSpan) -> bool {
+    pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
         !self.module_symbols.is_empty()
+            || self.source_scoped_top_level_bindings.iter().any(|binding| {
+                binding.reference_source == reference.source_id
+                    && binding
+                        .module_import
+                        .as_ref()
+                        .is_some_and(|import| import.exact_source)
+            })
     }
 
     pub(super) fn select_namespace_candidate(
@@ -449,8 +456,25 @@ impl SymbolTable {
         if !imported.is_empty() {
             return SymbolLookup::from_candidates(imported.into_iter());
         }
+        // In a module-less closure this selector is reached only because an
+        // exact loader import supplied namespace custody. A missing imported
+        // name must not fall back to the other checked scope. Preserve ordinary
+        // unmoduled discovery within the scope: package admission still checks
+        // whether a selected declaration is a direct dependency. Toolchain
+        // vocabulary and declared-module fallback retain their existing rules.
+        let exact_file_context = self.module_symbols.is_empty();
         SymbolLookup::from_candidates(candidates.iter().copied().filter(|candidate| {
-            self.name(*candidate) == name && !self.symbol_module(*candidate).is_valid()
+            self.name(*candidate) == name
+                && !self.symbol_module(*candidate).is_valid()
+                && (!exact_file_context
+                    || self.symbol_source_origin(*candidate) != Some(source::SourceOrigin::User)
+                    || self
+                        .symbol_provenance_source_span(*candidate)
+                        .and_then(|span| self.source_file(span))
+                        .zip(self.source_file(reference))
+                        .is_none_or(|(declaration, reference)| {
+                            declaration.dependency_scope == reference.dependency_scope
+                        }))
         }))
     }
 

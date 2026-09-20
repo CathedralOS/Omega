@@ -10,6 +10,148 @@ use crate::package_compilation::{
 use std::fs;
 
 #[test]
+fn one_source_package_retains_distinct_build_and_product_generated_bundles() {
+    let tree = TempTree::new();
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", tree.package("root")),
+            PackageSourceBinding::new(identity(2), "shared", tree.package("shared")),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "shared", identity(2)),
+            PackageDependencyBinding::for_purpose(
+                identity(1),
+                "shared",
+                identity(2),
+                build_declarations::DependencyPurpose::Build,
+            ),
+        ],
+    )
+    .unwrap();
+    use build_declarations::DependencyPurpose::{Build, Product};
+    let bundle = |purpose, target, value| {
+        PackageGeneratedSourceBundle::from_checked(
+            identity(2),
+            purpose,
+            target,
+            Some(target::TargetProfile::WindowsX64),
+            inputs.dependency_closure_for(identity(2)),
+            PackageSourceConsumptionCommitment::for_test([1; 32]),
+            vec![generated_source(b"answer.omg", value)],
+        )
+    };
+    let product = bundle(
+        Product,
+        target::TargetProfile::LinuxX64,
+        b"pub machine answer() -> u32 { 7 }",
+    );
+    let build = bundle(
+        Build,
+        target::TargetProfile::WindowsX64,
+        b"pub machine answer() -> u32 { 11 }",
+    );
+    assert!(
+        inputs
+            .clone()
+            .with_complete_dependency_generated_sources(vec![product.clone()])
+            .is_err(),
+        "a product bundle cannot stand in for the missing build activation"
+    );
+    assert!(
+        inputs
+            .clone()
+            .with_complete_dependency_generated_sources(vec![build.clone()])
+            .is_err(),
+        "a build bundle cannot stand in for the missing product activation"
+    );
+    let inputs = inputs
+        .with_complete_dependency_generated_sources(vec![product, build])
+        .expect("one acquired package must retain each checked activation's output");
+    assert_eq!(inputs.dependency_generated_source_bundles().count(), 2);
+    inputs
+        .validate_dependency_generated_source_target(Some(target::TargetProfile::LinuxX64))
+        .unwrap();
+    inputs
+        .validate_dependency_generated_source_execution_profile(Some(
+            target::TargetProfile::WindowsX64,
+        ))
+        .unwrap();
+    let instances = inputs
+        .dependency_generated_source_instances()
+        .collect::<Vec<_>>();
+    assert_eq!(instances.len(), 2);
+    assert_eq!(instances[0].0, Product);
+    assert_eq!(instances[1].0, Build);
+    assert_ne!(
+        instances[0].1.sources()[0].bytes(),
+        instances[1].1.sources()[0].bytes()
+    );
+    assert_eq!(
+        inputs
+            .generated_source_import_path(identity(2), Product, &[PathBuf::from("answer.omg")])
+            .unwrap(),
+        inputs
+            .generated_source_import_path(identity(2), Build, &[PathBuf::from("answer.omg")])
+            .unwrap(),
+        "identical virtual paths still name distinct checked source instances"
+    );
+    let (source, target) = inputs.clone().into_parts();
+    assert_eq!(
+        PackageCompilationInputs::from_parts(source, target).unwrap(),
+        inputs
+    );
+    assert!(
+        inputs.with_compilation_purpose(Build).is_err(),
+        "changing the root role must not relabel retained product outputs"
+    );
+}
+
+#[test]
+fn ordinary_dependencies_inherit_the_build_helpers_activation() {
+    use build_declarations::DependencyPurpose::{Build, Product};
+    let tree = TempTree::new();
+    let source_inputs = three_package_generated_inputs(&tree);
+    let inputs = source_inputs
+        .clone()
+        .with_compilation_purpose(Build)
+        .unwrap();
+    assert!(Arc::ptr_eq(
+        &source_inputs.source_inputs(),
+        &inputs.source_inputs()
+    ));
+    let bundle = |package, purpose| {
+        PackageGeneratedSourceBundle::from_checked(
+            package,
+            purpose,
+            target::TargetProfile::WindowsX64,
+            Some(target::TargetProfile::WindowsX64),
+            inputs.dependency_closure_for(package),
+            PackageSourceConsumptionCommitment::for_test([1; 32]),
+            Vec::new(),
+        )
+    };
+    assert!(
+        inputs
+            .clone()
+            .with_complete_dependency_generated_sources(vec![
+                bundle(identity(2), Product),
+                bundle(identity(3), Product)
+            ])
+            .is_err()
+    );
+    let bundles = vec![bundle(identity(2), Build), bundle(identity(3), Build)];
+    let inputs = inputs
+        .with_complete_dependency_generated_sources(bundles)
+        .unwrap();
+    assert!(
+        inputs
+            .dependency_generated_source_instances()
+            .all(|(scope, bundle)| scope == Product && bundle.purpose() == Build)
+    );
+}
+
+#[test]
 fn requester_local_aliases_may_name_different_targets() {
     let tree = TempTree::new();
     let packages = (1..=4)
@@ -341,6 +483,7 @@ fn generated_source_execution_profile_is_exact_even_for_empty_bundles() {
     let bundle = |package, profile| {
         PackageGeneratedSourceBundle::from_checked(
             package,
+            build_declarations::DependencyPurpose::Product,
             target::TargetProfile::WindowsX64,
             profile,
             inputs.dependency_closure_for(package),
@@ -442,7 +585,11 @@ fn complete_generated_source_bundles_bind_owner_closure_target_and_bytes() {
         .validate_dependency_generated_source_target(Some(target::TargetProfile::WindowsX64))
         .expect("matching generated-source targets should validate");
     let logical = inputs
-        .generated_source_import_path(identity(2), &[PathBuf::from("generated_api.omg")])
+        .generated_source_import_path(
+            identity(2),
+            build_declarations::DependencyPurpose::Product,
+            &[PathBuf::from("generated_api.omg")],
+        )
         .expect("compiler-issued generated path should remain canonical")
         .expect("generated module should resolve from retained custody");
     assert_eq!(
@@ -591,6 +738,7 @@ fn generated_source_bundle_omission_duplicate_foreign_root_and_closure_substitut
 
     let foreign = PackageGeneratedSourceBundle::from_checked(
         identity(4),
+        build_declarations::DependencyPurpose::Product,
         target::TargetProfile::WindowsX64,
         target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(identity(3)),
@@ -609,6 +757,7 @@ fn generated_source_bundle_omission_duplicate_foreign_root_and_closure_substitut
 
     let root = PackageGeneratedSourceBundle::from_checked(
         identity(1),
+        build_declarations::DependencyPurpose::Product,
         target::TargetProfile::WindowsX64,
         target::TargetProfile::host_if_supported(),
         inputs.dependency_closure(),
@@ -627,6 +776,7 @@ fn generated_source_bundle_omission_duplicate_foreign_root_and_closure_substitut
 
     let wrong_closure = PackageGeneratedSourceBundle::from_checked(
         identity(2),
+        build_declarations::DependencyPurpose::Product,
         target::TargetProfile::WindowsX64,
         target::TargetProfile::host_if_supported(),
         inputs.dependency_closure_for(identity(3)),

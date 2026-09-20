@@ -324,7 +324,10 @@ mod tests {
             "builder.build_depend_as(\"tool\", Source::Path { location: \"../tool\" });",
         );
         fixture.package("tool", "");
-        let profile = TargetProfile::CrossPlatformCli;
+        let Some(profile) = TargetProfile::host_if_supported() else {
+            eprintln!("SKIP: package build review requires a catalogued execution host");
+            return;
+        };
         let storage = SourceResolverStorage::for_hardened_base(
             fixture.0.join("ledger-cache"),
             PrimaryGitChoices::default(),

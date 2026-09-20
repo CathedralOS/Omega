@@ -235,7 +235,16 @@ impl PackagedFixture {
                 };
                 PackageGeneratedSourceBundle::from_checked(
                     package,
-                    product,
+                    if self.inputs.package_name(package) == Some("lib") {
+                        build_declarations::DependencyPurpose::Product
+                    } else {
+                        build_declarations::DependencyPurpose::Build
+                    },
+                    if self.inputs.package_name(package) == Some("lib") {
+                        product
+                    } else {
+                        target::TargetProfile::host_if_supported().expect("profiled test host")
+                    },
                     target::TargetProfile::host_if_supported(),
                     self.inputs.dependency_closure_for(package),
                     PackageSourceConsumptionCommitment::for_test([5; 32]),

@@ -516,50 +516,31 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   canonical consumption/review projections dedupe the identical fact rows a
   second instance re-derives.
 
-  - Extend nested build activation beyond same-profile, single-purpose
-    closures. The existing dependency-first review pass re-roots each package
-    for its own build and hands generated source to its consumer; source
-    acquisition and canonical replay retain nested requester/purpose edges
-    and reject cycles across both edge kinds. `package-compilation` still
-    correctly rejects non-root build edges inside one activation: those belong
-    to the dependency's separate compilation, not the caller's imports.
-    End-to-end coverage in `omega/tests/package_commands/build_purposes.rs`
-    exercises generator → helper build → consumer through CLI update, locked
-    `--check`, non-default-entry terminal inspection, and sample refresh to
-    native execution on macOS ARM64. Inspection grants no native authority;
-    refresh requires ordinary package review and exact trust settlement.
-    Cross-profile and dual-purpose nested graphs remain explicit pre-execution
-    implementation fences in `review/candidate/compilation/package_pass.rs`.
-    Replace the one-review/one-generated-bundle-per-package addressing with
-    exact activation purpose/profile/target occurrences before lifting them.
-    Generated bundles retain their producer's effective build execution profile;
-    checked children reject a different profile before loading generated source,
-    including reuse of a prepared source frontier. The regression is
-    `package_compilation_inputs::generated_sources_and_dependencies::generated_dependency_handoff_rejects_a_different_build_execution_profile`.
-    The occurrence roster now joins `review/compare/policy`,
-    `review/reconstruction`, and `lock`: `PackageOccurrenceRoster` derives the
-    complete (package, purpose) roster from the canonical source graph,
-    `PackageLockTarget` records per-package occurrence purposes inside the
-    `omega_lock 2` target frame and requires recovery to reproduce the derived
-    roster exactly (pre-ledger text assigns it), reconstruction question
-    version 2 prepends each entry's purpose mask so a recovered question keeps
-    which occurrences its review answered, and comparison joins baseline and
-    candidate rosters — a purpose-set change recommends audit and feeds the
-    versioned comparison fingerprint. Remaining identity work is
-    per-occurrence review production and decision subjects: review output is
-    still package-keyed in `review/candidate/compilation/package_pass.rs`, and
-    `review/decision` has no occurrence-exact subject, so a purpose-set gain
-    recommends audit rather than naming a consent row. Keep acquisition
-    package-keyed; do not union policy or copy legacy package-only consent
-    into both roles. The same limitation also affects currently admitted
-    non-nested dual-purpose packages.
-    These are implementation gaps, not unresolved language decisions. Windows
-    runtime validation remains.
+  - Replace package-only review and acceptance slots with exact checked
+    activation purpose/profile/target occurrences, starting with production in
+    `review/candidate/compilation/package_pass.rs` and subjects in
+    `review/decision`. Reuse `PackageOccurrenceRoster`, already derived from
+    the source graph and carried through comparison, reconstruction, and lock
+    recovery. Its purpose-set audit does not yet bind a decision to one
+    occurrence. Join every review and acceptance to that roster, update the
+    downstream payloads, and version affected encodings. Keep acquisition package-keyed;
+    do not union policy or copy package-only consent into both roles.
+    The compiler handoff already retains distinct generated bundles, even at
+    the same package-relative path, and rejects purpose/profile substitution.
+    Reuse `package_compilation_inputs::generated_sources_and_dependencies::generated_dependency_handoff_keeps_build_and_product_occurrences_distinct`
+    as the direct-compiler control: a Linux build helper and Windows product
+    publish different APIs from the same source package. Carry that capability
+    through real acquisition, CLI update/review/resume, and locked `--check`.
+    `review/candidate/compilation/package_pass.rs` rejects dual-purpose and
+    cross-profile review graphs before builds execute until acceptance can
+    represent them, including non-nested graphs. Lift that fence only with
+    occurrence-bound consumers. Non-root build edges still belong to separate
+    activations, not the consumer's import graph. The existing Windows nested
+    CLI test also needs its review/resume step:
+    `a_build_helper_runs_its_own_build_dependency_before_the_consumer` reaches
+    all three builds but expects success before settling the requested review.
   - Retain exact purpose/profile/target and accepted authority through
     acquisition, review, lock recovery, generated-source handoff, and checking.
-    Exact occurrence purposes now survive `omega_lock 2` recovery and
-    reconstruction-question recovery; generated-source handoff and checked
-    per-occurrence addressing remain under the `package_pass.rs` fences.
     Extend the existing owners; no second dependency resolver or build executor.
 
   Acceptance: real acquisition and CLI multi-file builds admit a helper that

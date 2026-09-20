@@ -35,6 +35,7 @@ pub struct CheckedCompilation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CheckedSourceCustody {
     source_file_count: usize,
+    package_purpose: Option<build_declarations::DependencyPurpose>,
     build_execution_profile: Option<target::TargetProfile>,
     package_subject: Option<package_compilation::PackageCompilationSubject>,
     base_source_consumption_commitment:
@@ -85,6 +86,7 @@ impl CheckedCompilation {
             execution,
             sources: CheckedSourceCustody {
                 source_file_count: sources.source_file_count,
+                package_purpose: package_inputs.map(PackageCompilationInputs::compilation_purpose),
                 build_execution_profile: sources.build_execution_profile,
                 package_subject,
                 base_source_consumption_commitment: sources.base_source_consumption_commitment,
@@ -355,6 +357,9 @@ impl CheckedCompilation {
         Ok(
             package_compilation::PackageGeneratedSourceBundle::from_checked(
                 package,
+                self.sources
+                    .package_purpose
+                    .ok_or("generated-source bundles require a checked package purpose")?,
                 target,
                 self.sources.build_execution_profile,
                 dependency_closure,

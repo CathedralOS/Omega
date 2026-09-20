@@ -325,6 +325,14 @@ impl PreparedCheckedSource {
         // shared, but generated build results belong to their execution profile.
         // This must precede assembly of the dependency's generated declarations.
         if let Some(inputs) = child.package_inputs {
+            if inputs.compilation_purpose() == build_declarations::DependencyPurpose::Build
+                && (child.build_execution_profile.is_none()
+                    || child.selected_target_profile != child.build_execution_profile)
+            {
+                return Err(vec![Diagnostic::error(
+                    "build-purpose package compilation requires its target to equal the admitted build execution profile",
+                )]);
+            }
             inputs
                 .validate_dependency_generated_source_execution_profile(
                     child.build_execution_profile,

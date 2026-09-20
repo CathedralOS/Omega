@@ -134,9 +134,9 @@ fn nested_build_cross_profile_and_dual_purpose_inputs_reject_before_execution() 
         assert_status(&output, 1);
         let text = combined(&output);
         let expected = if dual_purpose {
-            "dual-purpose nested builds"
+            "dual-purpose build activations"
         } else {
-            "cross-profile nested builds"
+            "cross-profile build activations"
         };
         assert!(text.contains(expected), "{text}");
         assert!(!text.contains("generator activation"), "{text}");
@@ -165,6 +165,33 @@ fn nested_build_dependency_does_not_become_a_helper_product_import() {
         "{text}"
     );
     assert_eq!(fixture.accepted_files(), before);
+}
+
+#[test]
+fn package_only_acceptance_cannot_collapse_non_nested_build_instances() {
+    let Some(profile) = nested_build_target() else {
+        return;
+    };
+    let foreign = if profile == target::TargetProfile::LinuxX64 {
+        target::TargetProfile::WindowsX64
+    } else {
+        target::TargetProfile::LinuxX64
+    };
+    for dual_purpose in [false, true] {
+        let fixture = nested_build_fixture();
+        fixture.write("dependency/build.omg", "machine build(builder: &mut Build) { builder.package(\"arithmetic-kernels\"); builder.log.write_line(\"helper activation\"); }\n");
+        fixture.write("dependency/main.omg", "pub machine value() -> u64 { 7 }\n");
+        fixture.write("root/build.omg", &format!("use kit::main;\nmachine build(builder: &mut Build) {{ builder.package(\"cli-project\"); builder.build_depend_as(\"kit\", Source::Path {{ location: \"../dependency\" }}); {} let answer: u64 = value(); }}\n",
+            if dual_purpose { "builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });" } else { "" }));
+        let target = if dual_purpose { profile } else { foreign };
+        let before = fixture.accepted_files();
+        let output = fixture.omega(&["update", "--target", target.target_name(), "--offline"]);
+        assert_status(&output, 1);
+        let text = combined(&output);
+        assert!(text.contains("package acceptance rows"), "{text}");
+        assert!(!text.contains("helper activation"), "{text}");
+        assert_eq!(fixture.accepted_files(), before);
+    }
 }
 
 #[test]

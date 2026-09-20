@@ -314,6 +314,10 @@ fn candidate_closure_binds_the_exact_root_role() {
 
 #[test]
 fn package_changes_join_both_sides_to_the_occurrence_roster() {
+    let Some(target) = target::TargetProfile::host_if_supported() else {
+        eprintln!("SKIP: package build review requires a catalogued execution host");
+        return;
+    };
     let parent = temp_root("occurrence-roster");
     let baseline_root = parent.join("baseline").join("root");
     let dep = parent.join("dep");
@@ -341,19 +345,20 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         concat!(
             "machine build(builder: &mut Build) {\n",
             "    builder.package(\"candidate-root\");\n",
-            "    builder.depend(Source::Path { location: \"../../dep\" });\n",
             "    builder.build_depend_as(\"dep_build\", Source::Path { location: \"../../dep\" });\n",
             "}\n"
         ),
     )
-    .expect("write dual-purpose candidate root");
+    .expect("write build-purpose candidate root");
     std::fs::write(
         candidate_root.join("main.omg"),
         "pub machine value() -> u64 { 2 }\n",
     )
     .expect("write candidate root source");
 
-    let target = target::TargetProfile::CrossPlatformCli;
+    // A purpose change is reviewable without collapsing two simultaneous
+    // occurrences into one package review. Dual-purpose review production
+    // remains rejected until it can publish one review per occurrence.
     let baseline_closure = resolve_external_local_package_closure_from_hardened_base(
         &baseline_root,
         ExternalSourceContext::derive(b"occurrence-roster-context"),
@@ -462,7 +467,7 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         &candidate_target,
         super::PackagePolicyChangeLimits::default(),
     )
-    .expect("dual-purpose comparison");
+    .expect("product-to-build purpose comparison");
     let dep_change = changes
         .packages()
         .iter()
@@ -474,12 +479,7 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
     );
     assert_eq!(
         dep_change.candidate_occurrence_purposes(),
-        Some(
-            &[
-                crate::declarations::dependencies::DependencyPurpose::Product,
-                crate::declarations::dependencies::DependencyPurpose::Build
-            ][..]
-        )
+        Some(&[crate::declarations::dependencies::DependencyPurpose::Build][..])
     );
     assert!(dep_change.occurrence_purposes_changed());
     assert!(

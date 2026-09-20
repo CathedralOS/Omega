@@ -5,14 +5,14 @@ use source::{SourceFile, SourceOrigin};
 use std::path::{Component, Path};
 
 const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
-const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V3\0";
+const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4\0";
 
 /// Exact owner class of one source unit consumed by the final checked
 /// frontend closure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ConsumedSourceUnitKind {
     PackageAuthored,
-    PackageGenerated,
+    PackageGenerated(source::DependencyScope),
     ToolchainVirtual,
     ToolchainOwned,
 }
@@ -22,7 +22,8 @@ pub enum ConsumedSourceUnitKind {
 ///
 /// Physical cache roots and compiler-local source IDs are deliberately absent.
 /// Package identity or toolchain namespace plus the canonical relative path
-/// owns the coordinate; the collision-resistant content digest owns the exact
+/// owns the coordinate, with the checked import scope additionally distinguishing
+/// generated units; the collision-resistant content digest owns the exact
 /// bytes. The ordered set of these rows is the sole source projection used by
 /// both production manifests and source-consumption commitments.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -53,7 +54,8 @@ impl ConsumedSourceUnit {
         content_digest: [u8; 32],
     ) -> Result<Self, &'static str> {
         let coordinates_match = match kind {
-            ConsumedSourceUnitKind::PackageAuthored | ConsumedSourceUnitKind::PackageGenerated => {
+            ConsumedSourceUnitKind::PackageAuthored
+            | ConsumedSourceUnitKind::PackageGenerated(_) => {
                 package.is_some() && toolchain_namespace.is_none()
             }
             ConsumedSourceUnitKind::ToolchainOwned => {
@@ -341,11 +343,10 @@ pub fn derive_consumed_source_units(
         )]);
     }
     units.sort();
-    // Two checked instances of one path (product scope and build scope)
-    // consume identical source bytes: they project to the same canonical
-    // unit, and the byte-level projection keeps it once. A coordinate
-    // collision between *different* bytes is still the pathology this
-    // guard exists to reject.
+    // Authored instances share their physical bytes across checked scopes and
+    // retain one source row. Generated instances include their checked scope
+    // in the coordinate: equal virtual paths may carry different bytes across
+    // scopes, but conflicting bytes within one coordinate still reject.
     units.dedup();
     if units
         .windows(2)
@@ -481,7 +482,7 @@ fn consumed_source_unit(
                 })?;
             (
                 if generated {
-                    ConsumedSourceUnitKind::PackageGenerated
+                    ConsumedSourceUnitKind::PackageGenerated(source.dependency_scope)
                 } else {
                     ConsumedSourceUnitKind::PackageAuthored
                 },
@@ -567,7 +568,8 @@ fn canonical_consumed_unit_bytes(unit: &ConsumedSourceUnit) -> Vec<u8> {
 fn append_canonical_consumed_unit(bytes: &mut Vec<u8>, unit: &ConsumedSourceUnit) {
     bytes.push(match unit.kind {
         ConsumedSourceUnitKind::PackageAuthored => 0,
-        ConsumedSourceUnitKind::PackageGenerated => 1,
+        ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Product) => 1,
+        ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Build) => 4,
         ConsumedSourceUnitKind::ToolchainVirtual => 2,
         ConsumedSourceUnitKind::ToolchainOwned => 3,
     });
