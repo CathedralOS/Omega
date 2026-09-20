@@ -230,6 +230,12 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
+        // The one member-run relocation admission every scheduling family
+        // delegates to once the window derivation is shared.
+        module: "relocation",
+        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
+    },
+    RewriteModuleRow {
         module: "run_interchange",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
