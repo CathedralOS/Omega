@@ -6150,7 +6150,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **COMPARE-TEST-SELECTION** — mined candidate; verify scope then implement.
 - **COMPARISON-OCCURRENCE-PRODUCER-COVERAGE** — mined candidate; verify scope then implement.
 - **COMPILER-BATCH-MANIFEST** — mined candidate; verify scope then implement.
-- **COMPILER-EXECUTABLE-PUBLICATION-OPERATION** — mined candidate; verify scope then implement.
+- **COMPILER-EXECUTABLE-PUBLICATION-OPERATION.** Resolved — the compiler's
+  executable publication operation exists and is the CLI's only route to
+  visible bytes. `omega` compilation stops at the in-memory semantic product;
+  `omega/src/compilation/publication.rs` (`publish_compilation` /
+  `publish_native_artifact`) is the product-owned operation that then calls
+  `CompileReport::publish_retained_native_artifact`
+  (`compilation-report/src/compile_report.rs`), which validates the retained
+  artifact and manifest, refuses non-local output filenames, requires
+  compiler-text and compiler-function validation evidence, self-checks any
+  requested PCC pair before a byte installs, and commits one staged tree +
+  atomic rename through `executable_publication.rs` so a failed publish
+  leaves no half-written executable or stale sidecar;
+  `publish_completed_build_outputs` then writes companions and
+  `checked_native_executable_path` returns the receipt-bound executable.
+  `output_kind` gating matches the spec's report/entry-bridge rule: native
+  output requires publication custody, object output has no executable
+  receipt, check-only has neither. Coverage:
+  `build_target_activation::activation_identifiers_and_publication`,
+  `production_manifest_custody`, and the `executable_publication.rs` unit
+  tests. The distinct installed-component route is also landed:
+  `component-deployment::flat_output::publish_component_flat_output`
+  implements component_publication.md's visible-component contract
+  (installation replay, sealed bytes + executable mode staging, atomic
+  rename, visible-file replay, runnable custody returned on failure) for
+  `component_publication::InstalledRunnableComponent` eras — deliberately
+  not the CLI's carrier.
 - **COMPILER-OBSERVATION-OUTPUTS** — mined candidate; verify scope then implement.
 - **COMPILER-OBSERVATION-PRODUCTS** — mined candidate; verify scope then implement.
   Verified scope: the surface this name points at is deliberately closed —
