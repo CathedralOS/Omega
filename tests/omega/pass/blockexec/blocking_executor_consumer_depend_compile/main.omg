@@ -1,0 +1,34 @@
+// BLOCKEXEC — durable depend-edge consumer pin: this application consumes
+// the bundled `blocking-executor` package's real contract surface through
+// an authored `builder.depend` row — `use blocking_executor::executor`
+// resolves the package's own `WorkerProvider`, `Executor`, `Submission`,
+// and `Ticket` declarations rather than a copied contract. The custody
+// pin (`blocking_executor_custody_claims_compile`) hand-instantiated these
+// shapes because the checked-compile fixture harness did not wire depend
+// rows into package inputs; this fixture is the durable consumer.
+
+use blocking_executor::executor;
+use omega::language::core::service;
+
+// A small payload moved through the package's submission contract.
+data Token {
+    id: u64;
+}
+
+// The canary worker provider: satisfies the package's own `WorkerProvider`
+// trait unqualified, selected by ordinary build `select_provider`.
+data CanaryWorkerProvider { }
+
+machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(
+    &self,
+    arguments: Arguments
+) -> T
+where machine Target(arguments: Arguments) -> T suspends; blocks;
+satisfies WorkerProvider::execute
+via Binding::CompilerIntrinsic;
+
+data Main {
+    executor: Executor<Token, Token, 4>;
+}
+
+machine Main::main(&mut self) { }
