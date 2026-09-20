@@ -10,8 +10,9 @@ cannot drift from the documented format.
 Requires Python 3.9+ and a built ``omega`` binary. No third-party
 packages and no shell-specific runtime; the same file runs on Windows,
 macOS, and Linux. Per-leg peak RSS uses ``os.wait4`` where the platform
-provides it (POSIX); elsewhere the memory metric records ``unavailable``
-rather than omitting the leg silently.
+provides it (POSIX) and a fresh job object's kernel-tracked
+``PeakJobMemoryUsed`` on Windows; elsewhere the memory metric records
+``unavailable`` rather than omitting the leg silently.
 
 Typical use from the repository root of a checkout:
 
@@ -25,6 +26,7 @@ Typical use from the repository root of a checkout:
 """
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
@@ -53,14 +55,108 @@ REVIEW_LINE = re.compile(r"^review: (.+)$", re.M)
 PENDING_DECISION = re.compile(r"(?m)^(decision .*) pending$")
 
 
+# Windows peak-RSS accounting: the spawned child is assigned to a fresh job
+# object whose PeakJobMemoryUsed is read after exit. The job counter tracks
+# the peak of the summed working sets of every member, which matches the
+# wait4 rollup the POSIX path reports (the child plus its reaped
+# descendants). Both helpers fail closed to None so the caller keeps
+# recording `unavailable` rather than a wrong number.
+_PROCESS_SET_QUOTA = 0x0100
+_PROCESS_TERMINATE = 0x0001
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+_JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+
+if sys.platform == "win32":
+    class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", ctypes.c_uint32),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", ctypes.c_uint32),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", ctypes.c_uint32),
+            ("SchedulingClass", ctypes.c_uint32),
+        ]
+
+    class _IO_COUNTERS(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_uint64),
+            ("WriteOperationCount", ctypes.c_uint64),
+            ("OtherOperationCount", ctypes.c_uint64),
+            ("ReadTransferCount", ctypes.c_uint64),
+            ("WriteTransferCount", ctypes.c_uint64),
+            ("OtherTransferCount", ctypes.c_uint64),
+        ]
+
+    class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
+            ("IoInfo", _IO_COUNTERS),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+
+def _windows_job_assign(proc):
+    """Assign a running child to a fresh job object; return its HANDLE.
+
+    Returns None when the job route is unavailable (no kernel handle,
+    OpenProcess denied, or the child is already bound to a non-nesting job).
+    """
+    kernel = ctypes.windll.kernel32
+    job = kernel.CreateJobObjectW(None, None)
+    if not job:
+        return None
+    process_handle = kernel.OpenProcess(
+        _PROCESS_SET_QUOTA | _PROCESS_TERMINATE
+        | _PROCESS_QUERY_LIMITED_INFORMATION,
+        False,
+        proc.pid,
+    )
+    assigned = bool(process_handle) and bool(
+        kernel.AssignProcessToJobObject(job, process_handle)
+    )
+    if process_handle:
+        kernel.CloseHandle(process_handle)
+    if not assigned:
+        kernel.CloseHandle(job)
+        return None
+    return job
+
+
+def _windows_job_peak_bytes(job):
+    """Read an exited child's job peak in bytes; None when unknown."""
+    if job is None:
+        return None
+    kernel = ctypes.windll.kernel32
+    info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+    ok = kernel.QueryInformationJobObject(
+        job,
+        _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+        ctypes.byref(info),
+        ctypes.sizeof(info),
+        None,
+    )
+    kernel.CloseHandle(job)
+    if not ok or not info.PeakJobMemoryUsed:
+        return None
+    return info.PeakJobMemoryUsed
+
+
 def run_measured(argv, cwd, stdin_path=None, env=None):
     """Run argv once; return (exit_code, wall_ms, max_rss_bytes|None).
 
     On POSIX the child is waited on with os.wait4 so its own
     max-resident-set is reported, normalized to bytes (Linux reports
-    kilobytes, macOS bytes). Where wait4 is absent (Windows) the wall
-    clock is still measured and the RSS field returns None so the
-    caller records the metric as unavailable rather than guessing.
+    kilobytes, macOS bytes). On Windows the child runs inside a fresh job
+    object and the job's peak working set is reported in bytes. On hosts
+    with neither route the wall clock is still measured and the RSS field
+    returns None so the caller records the metric as unavailable rather
+    than guessing.
     """
     if stdin_path is None:
         stdin_path = os.devnull
@@ -84,6 +180,19 @@ def run_measured(argv, cwd, stdin_path=None, env=None):
             rss *= 1024
         wall_ms = (time.monotonic() - started) * 1000.0
         return exit_code, wall_ms, rss
+    if sys.platform == "win32":
+        stdin = open(stdin_path, "rb")
+        proc = subprocess.Popen(
+            argv, cwd=cwd, stdin=stdin,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=env,
+        )
+        stdin.close()
+        job = _windows_job_assign(proc)
+        proc.wait()
+        peak = _windows_job_peak_bytes(job)
+        wall_ms = (time.monotonic() - started) * 1000.0
+        return proc.returncode, wall_ms, peak
     stdin = open(stdin_path, "rb")
     completed = subprocess.run(
         argv, cwd=cwd, stdin=stdin, env=env,
@@ -125,6 +234,16 @@ def capture_compile(argv, cwd):
         wall_ms = (time.monotonic() - started) * 1000.0
         text = b"".join(chunks).decode("utf-8", "replace")
         return os.waitstatus_to_exitcode(status), wall_ms, rss, text
+    if sys.platform == "win32":
+        proc = subprocess.Popen(
+            argv, cwd=cwd, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+        job = _windows_job_assign(proc)
+        text = proc.communicate()[0].decode("utf-8", "replace")
+        peak = _windows_job_peak_bytes(job)
+        wall_ms = (time.monotonic() - started) * 1000.0
+        return proc.returncode, wall_ms, peak, text
     completed = subprocess.run(
         argv, cwd=cwd, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -281,8 +400,8 @@ def unavailable(unit, reason):
 # host has run yet explicit in the matrix rather than absent. `blocked`
 # marks every metric unavailable with one reason; `expect` overrides
 # single legs where a host that can participate still cannot report a
-# metric (Windows has no os.wait4, UEFI artifacts need QEMU or hardware
-# to run). tools/tests/test_benchmark.py rejects drift from
+# metric (UEFI artifacts need QEMU or hardware to run).
+# tools/tests/test_benchmark.py rejects drift from
 # TargetProfile::target_name().
 HOST_LEGS = (
     {"target": "linux_arm64", "host": "Linux ARM64 host"},
@@ -293,13 +412,7 @@ HOST_LEGS = (
         "host": "macOS x86-64 host",
         "blocked": "native realization pending; see MACOS-X64-HOST-PROFILE",
     },
-    {
-        "target": "windows_x86_64",
-        "host": "Windows x86-64 host",
-        "expect": {
-            "peak_memory_bytes": "unavailable (os.wait4 absent on Windows)",
-        },
-    },
+    {"target": "windows_x86_64", "host": "Windows x86-64 host"},
     {
         "target": "uefi_x86_64",
         "host": "QEMU or UEFI hardware",
@@ -471,8 +584,9 @@ def measure(args):
     }
     if metrics["peak_memory_bytes"]["status"] == "unavailable":
         metrics["peak_memory_bytes"]["reason"] = (
-            "os.wait4 is absent on this host (Windows); per-leg peak RSS "
-            "was not measured"
+            "no peak-RSS accounting route on this host (neither POSIX "
+            "os.wait4 nor Windows job-object accounting reported); per-leg "
+            "peak RSS was not measured"
         )
     if run_status == "skipped":
         metrics["runtime_ms"]["reason"] = "--no-run was passed"
