@@ -8426,7 +8426,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   compile → `omega` recompile equivalence. Sibling decompositions of the
   same gated rung: OMEGA-C, OMEGA-COMPILER-TAPE-BINDING, OMEGA-D*,
   OCREQ-REQUEST-{BINDING,ENTRY-BINDING}.
-- **OMEGA-COMPILER-TAPE-BINDING** — mined candidate; verify scope then implement.
+- **OMEGA-COMPILER-TAPE-BINDING** — mined candidate; scope verified,
+  dependency gate recorded at `f3d0d1748e`. The clause is the
+  CHAIN-MANIFEST remaining-work bullet "The `omega0` and `omega` compiler
+  tapes, which **OMEGA-C** has yet to produce": only
+  `bootstrap/1_beta/beta_compiler_bytecode.tape` exists today — no omega0 or
+  omega tape exists, so there is nothing to bind. The producing rung is
+  itself gated: OMEGA-C ("compile the exact Omega-written closure rooted at
+  `source/omega/{build.omg,main.omg}` with D, then with `omega0`") requires
+  product source + OMEGA-D, both open and live-claimed (OMEGA-D family over
+  `bootstrap/5_omega`; CHAIN-MANIFEST over `tools/bootstrap`/`tests/bootstrap`).
+  Binding surfaces are the same `*_env.sh` materializer pattern
+  (`tools/bootstrap/omega/compiler_env.sh` pins OMEGA_REQUEST_ENTRY_* and
+  OMEGA_EXECUTABLE_OCREQ_ENTRY_* today) — they extend by the same rule only
+  once each tape exists. Ordered frontier: OMEGA-D acceptance → D compiles
+  the closure → omega0 tape bound here → `omega0` self-host compile →
+  `omega` recompile equivalence. Sibling decompositions of the same gated
+  rung: OMEGA-C, OMEGA-C-SELF-HOST-EDGE (both already annotated), OMEGA-D*,
+  OCREQ-REQUEST-{BINDING,ENTRY-BINDING}.
 - **OMEGA-D** — mined candidate; verify scope then implement.
 - **OMEGA-D-COMPILER-REQUEST-TABLES** — mined candidate; verify scope then implement.
 - **OMEGA-D-ENTRY-ADAPTER.** Scope verified at `cec5934277` (assigned as the
