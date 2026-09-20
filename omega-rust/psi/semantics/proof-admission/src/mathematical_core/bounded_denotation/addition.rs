@@ -6,10 +6,13 @@
 //! is `IntLe` between two canonical numerals: the binary numeral laws decide
 //! a true relation outright, and a false one is emptied through a checked
 //! false premise. Sums still open keep the monotonicity and cancellation
-//! chain; cases that need a numeral-to-operation equation — a closed
-//! difference under an open sum, or a sum outside the fixed literal range —
-//! retain the existing explicit instance fallback rather than claiming that
-//! arithmetic laws are definitional.
+//! chain; once the correlated difference has collapsed to its numeral `n`
+//! the applicative `add (sub e r) r` cancellation cannot match `add n r`,
+//! so the chain substitutes the checked numeral-operation equation
+//! `add n r = e` — an exact interned assumption — in its place. A
+//! conclusion outside the fixed literal range retains the existing
+//! explicit instance fallback rather than claiming that arithmetic laws
+//! are definitional.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -35,6 +38,10 @@ enum Law {
 pub(super) struct Addition {
     operation: Option<u32>,
     laws: BTreeMap<Law, u32>,
+    /// `add l r = s` equations — numeral-operation bridges between an
+    /// `add` application over evaluated operands and their denoted sum.
+    /// Each is interned once by its checked `(l, r, s)` value triple.
+    numeral_sums: BTreeMap<(IntegerValue, IntegerValue, IntegerValue), u32>,
 }
 
 impl Denotation {
@@ -139,6 +146,48 @@ impl Denotation {
         Ok(function)
     }
 
+    /// `Id Int (add l r) s` — the numeral-operation equation bridging an
+    /// `add` application over evaluated operands to their denoted sum.
+    /// Interned once per checked `(l, r, s)` value triple: the signature
+    /// then names that exact equation in place of a whole-rule
+    /// implication. `None` when the values do not satisfy `l + r = s` —
+    /// a defensive refusal, since the caller derives them from a checked
+    /// exact subtraction — so a miss keeps the instance fallback rather
+    /// than naming a false equation.
+    fn numeral_sum(
+        &mut self,
+        addend: IntegerValue,
+        augend: IntegerValue,
+        sum: IntegerValue,
+        addend_term: TermHandle,
+        augend_term: TermHandle,
+        sum_term: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let as_integer = |value: IntegerValue| match value {
+            IntegerValue::Signed(value) => BigInt::from_i128(value),
+            IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+        };
+        if as_integer(addend).add(&as_integer(augend)) != as_integer(sum) {
+            return Ok(None);
+        }
+        if let Some(&position) = self.addition.numeral_sums.get(&(addend, augend, sum)) {
+            return Ok(Some(self.constant(position)));
+        }
+        let integer = self.integer_constant()?;
+        let application = self.add_terms(addend_term, augend_term)?;
+        let ty = self.arena.insert(Term::Id {
+            ty: integer,
+            left: application,
+            right: sum_term,
+        });
+        let position = self.position()?;
+        self.declarations.push(Declaration::assumption(0, ty));
+        self.addition
+            .numeral_sums
+            .insert((addend, augend, sum), position);
+        Ok(Some(self.constant(position)))
+    }
+
     /// Select a checked carrier-endpoint-minus-addend witness. The
     /// caller has already run affine_bound_relation, including citation checks.
     /// Integer equality normalization may reorder authored `Equal` endpoints;
@@ -179,8 +228,9 @@ impl Denotation {
         // literal, so it always evaluates. When the sum side still has a
         // canonical numeral the goal is a decidable `IntLe` between
         // numerals, discharged by the numeral laws rather than an instance
-        // axiom; an open sum keeps the law chain below only while the
-        // difference stays an unreduced `subtract` application.
+        // axiom; an open sum keeps the law chain below, substituting a
+        // checked numeral-operation equation for the cancellation step
+        // once the difference has collapsed to its numeral.
         let evaluate = |term: &IntegerMathTerm| {
             ClosedIntegerEvaluator::default()
                 .evaluate_closed(term)
@@ -244,13 +294,12 @@ impl Denotation {
         else {
             return Ok(None);
         };
-        // The cancellation transport matches `add (subtract endpoint right)
-        // right` against the difference denotation, which collapses to a
-        // numeral once the difference is closed; that goal needs a
-        // numeral-operation equation, so it keeps the instance fallback.
-        if difference.integer_value().is_some() {
-            return Ok(None);
-        }
+        // A closed difference denotes to its numeral `n` rather than the
+        // `subtract` application, so the applicative cancellation equation
+        // `add (sub e r) r = e` cannot match `add n r`: that chain instead
+        // substitutes the checked numeral-operation equation `add n r = e`
+        // — an exact interned assumption — for the cancellation law.
+        let closed_difference = difference.integer_value().is_some();
         let expected_premise = if lower {
             Proposition::LessOrEqual(witness.root.clone(), left.as_ref().clone())
         } else {
@@ -313,8 +362,34 @@ impl Denotation {
             [left_term, difference_term, right_term, evidence]
         };
         let order = self.add_law_application(Law::Monotone, &ordered_terms)?;
-        let equality =
-            self.add_law_application(Law::CancelSubtract, &[endpoint_term, right_term])?;
+        let equality = if closed_difference {
+            let (
+                Some((_, difference_value)),
+                Some((_, decrement_value)),
+                Some((_, endpoint_value)),
+            ) = (
+                difference.integer_value(),
+                decrement.integer_value(),
+                endpoint.integer_value(),
+            )
+            else {
+                return Ok(None);
+            };
+            let Some(equality) = self.numeral_sum(
+                difference_value,
+                decrement_value,
+                endpoint_value,
+                difference_term,
+                right_term,
+                endpoint_term,
+            )?
+            else {
+                return Ok(None);
+            };
+            equality
+        } else {
+            self.add_law_application(Law::CancelSubtract, &[endpoint_term, right_term])?
+        };
         let order = if lower {
             self.integer_law_application(
                 IntegerLaw::LessOrEqualSubstituteLeft,
