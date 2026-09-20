@@ -112,6 +112,7 @@ fn proof_fact_array_values_remain_value_expressions() {
         "[1, 2] == [1, 2]",
         "([[1, 2], [3, 4]] == [[1, 2], [3, 4]])",
         "[match 1 { 1 -> 2, _ -> 3 }] == [2]",
+        "&[1, 2] == &[1, 2]",
     ] {
         let source = format!("data Buffer where {equation} {{ storage: u64; }}");
         let tokens = Lexer::new(&source)
@@ -130,6 +131,87 @@ fn proof_fact_array_values_remain_value_expressions() {
                 .iter_expressions()
                 .any(|(_, expression)| { matches!(expression, ExpressionNode::TypeExpression(_)) })
         );
+    }
+}
+
+#[test]
+fn reference_operands_retain_access_and_element_type_role_through_copy() {
+    for (access, expected) in [
+        ("", language_core::ReferenceAccess::Shared),
+        ("mut ", language_core::ReferenceAccess::Mutable),
+        ("write ", language_core::ReferenceAccess::WriteOnly),
+    ] {
+        let source = format!(
+            "data Buffer<Backing, Element, const Count: u64> where Backing == (&{access}[&Element; Count]) {{ storage: Backing; }}"
+        );
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let parsed = parse_syntax_trees(&tokens).expect("reference around a type-role operand");
+        let item = parsed.root_items().next().unwrap();
+        let mut copied = syntax_trees::SyntaxTrees::default();
+        let copied_item = copied.copy_item_from(&parsed, item);
+        for (trees, item) in [(&parsed, item), (&copied, &copied_item)] {
+            let syntax_trees::item::Item::Data(data) = item else {
+                panic!("data");
+            };
+            let [syntax_trees::item::ProofFact::Expression(fact)] =
+                trees.items.proof_facts(data.where_facts)
+            else {
+                panic!("equation");
+            };
+            let ExpressionNode::Binary(equation) = trees.expressions.expression(*fact) else {
+                panic!("equality");
+            };
+            let ExpressionNode::Borrow(borrow) = trees.expressions.expression(equation.right)
+            else {
+                panic!("borrow syntax retains access until type-role resolution");
+            };
+            assert_eq!(borrow.access, expected);
+            let ExpressionNode::TypeExpression(reference) =
+                trees.expressions.expression(borrow.target)
+            else {
+                panic!("array operand retains its type role");
+            };
+            let TypeReferenceNode::FixedArray { element_type, .. } =
+                trees.type_references.type_reference(*reference)
+            else {
+                panic!("array");
+            };
+            assert!(matches!(
+                trees.type_references.type_reference(*element_type),
+                TypeReferenceNode::Reference {
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: None,
+                    ..
+                }
+            ));
+        }
+    }
+}
+
+#[test]
+fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() {
+    let tokens = Lexer::new("data Buffer where &left == &right { storage: u64; }")
+        .tokenize()
+        .unwrap();
+    let parsed = parse_syntax_trees(&tokens).unwrap();
+    assert!(
+        !parsed
+            .expressions
+            .iter_expressions()
+            .any(|(_, expression)| matches!(expression, ExpressionNode::TypeExpression(_)))
+    );
+    for target in ["&u8", "& &u8", "&mut &write u8"] {
+        let source =
+            format!("machine view(value: &u64) -> &u8 {{ value as {target} in Wrapping }}");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let error = parse_syntax_trees(&tokens).expect_err("recast policy must reject");
+        assert!(
+            error.message.contains("takes no arithmetic domain"),
+            "{error:?}"
+        );
+        let without_policy = source.replace(" in Wrapping", "");
+        let tokens = Lexer::new(&without_policy).tokenize().unwrap();
+        parse_syntax_trees(&tokens).expect("the reference target itself is valid syntax");
     }
 }
 

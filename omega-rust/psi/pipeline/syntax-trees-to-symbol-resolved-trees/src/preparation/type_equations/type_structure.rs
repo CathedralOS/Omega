@@ -2,7 +2,11 @@
 //!
 //! Element positions bind types and length positions bind integer constants.
 //! Nominal const positions additionally preserve Boolean identity and kind.
-//! Arrays and nominal applications share recursion; `applications` selects the
+//! Arrays, slices, references and nominal applications share recursion;
+//! anonymous references compare exact access, not borrow compatibility. Named
+//! lifetime occurrences remain undecidable until their lexical binders are
+//! retained here; neither matching a name nor erasing it proves type equality.
+//! `applications` selects the
 //! exact declaration and parameter kinds of each nominal head. Closed leaves
 //! use the existing identity owner. This is not an arithmetic solver or a new
 //! source of array-length evaluation.
@@ -96,6 +100,66 @@ pub(super) fn collect_binder_mentions(
 }
 
 impl Solver<'_, '_> {
+    /// Materialize only the type grammar retained in an ambiguous expression
+    /// operand. Classification already established the opposite type binder;
+    /// every resulting node rejoins the same constructor matcher below.
+    pub(super) fn type_operand_reference(
+        &mut self,
+        expression: syntax_trees::expression::ExpressionHandle,
+        span: SourceSpan,
+    ) -> Result<TypeReferenceHandle, Diagnostic> {
+        use syntax_trees::expression::ExpressionNode;
+        use syntax_trees::identifier::Identifier;
+        match self.syntax.expressions.expression(expression).clone() {
+            ExpressionNode::TypeExpression(reference) => Ok(reference),
+            ExpressionNode::Name(path) => {
+                let parts = self.syntax.expressions.identifier_path_members(path);
+                let Some(first) = parts.first() else {
+                    return Err(self.type_structure_error("lost its element type name", span));
+                };
+                let mut name_span = first.source_span();
+                if let Some(last) = parts.last() {
+                    name_span.span.end = last.source_span().span.end;
+                }
+                let name = Identifier::new(
+                    parts
+                        .iter()
+                        .map(Identifier::as_str)
+                        .collect::<Vec<_>>()
+                        .join("::"),
+                    name_span,
+                );
+                Ok(self
+                    .syntax
+                    .type_references
+                    .insert(TypeReferenceNode::Named(name)))
+            }
+            ExpressionNode::Borrow(borrow) => {
+                let referee = self.type_operand_reference(borrow.target, span)?;
+                Ok(self
+                    .syntax
+                    .type_references
+                    .insert_reference(referee, borrow.access))
+            }
+            ExpressionNode::ArrayLiteral(elements) => {
+                let [element] = self.syntax.expressions.expression_handles(elements) else {
+                    return Err(
+                        self.type_structure_error("requires exactly one slice element type", span)
+                    );
+                };
+                let element_type = self.type_operand_reference(*element, span)?;
+                Ok(self
+                    .syntax
+                    .type_references
+                    .insert(TypeReferenceNode::Slice { element_type }))
+            }
+            _ => Err(self.type_structure_error(
+                "cannot use a value as a reference or slice element type",
+                span,
+            )),
+        }
+    }
+
     fn parameter_position(&self, name: &str) -> Option<(usize, bool)> {
         self.syntax
             .items
@@ -120,6 +184,38 @@ impl Solver<'_, '_> {
         span: SourceSpan,
     ) -> Result<(), Diagnostic> {
         match self.syntax.type_references.type_reference(pattern).clone() {
+            TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime: None,
+            } => {
+                let TypeReferenceNode::Reference {
+                    referee: actual_referee,
+                    access: actual_access,
+                    lifetime: None,
+                } = self.syntax.type_references.type_reference(actual).clone()
+                else {
+                    return Err(self.type_structure_error(
+                        "requires the same anonymous reference constructor",
+                        span,
+                    ));
+                };
+                if access != actual_access {
+                    return Err(self.type_structure_error("has conflicting reference access", span));
+                }
+                self.match_type_structure(referee, actual_referee, span)
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                let TypeReferenceNode::Slice {
+                    element_type: actual_element,
+                } = self.syntax.type_references.type_reference(actual).clone()
+                else {
+                    return Err(
+                        self.type_structure_error("requires the same slice constructor", span)
+                    );
+                };
+                self.match_type_structure(element_type, actual_element, span)
+            }
             TypeReferenceNode::Named(name) => {
                 if let Some((position, is_type)) = self.parameter_position(name.as_str()) {
                     if !is_type {
@@ -130,6 +226,7 @@ impl Solver<'_, '_> {
                     }
                     let expected = match self.bindings[position].clone() {
                         None => {
+                            self.require_lifetime_free_argument(actual, span)?;
                             if closed_argument_identity(self.syntax, self.selection, actual, false)
                                 .is_none()
                             {
@@ -234,6 +331,8 @@ impl Solver<'_, '_> {
         actual: TypeReferenceHandle,
         span: SourceSpan,
     ) -> Result<(), Diagnostic> {
+        self.require_lifetime_free_argument(expected, span)?;
+        self.require_lifetime_free_argument(actual, span)?;
         match (
             closed_argument_identity(self.syntax, self.selection, expected, false),
             closed_argument_identity(self.syntax, self.selection, actual, false),
@@ -255,6 +354,30 @@ impl Solver<'_, '_> {
         span: SourceSpan,
     ) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
         match self.syntax.type_references.type_reference(pattern).clone() {
+            TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime: None,
+            } => {
+                let Some(referee) = self.construct_type_structure(referee, span)? else {
+                    return Ok(None);
+                };
+                return Ok(Some(
+                    self.syntax
+                        .type_references
+                        .insert_reference(referee, access),
+                ));
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                let Some(element_type) = self.construct_type_structure(element_type, span)? else {
+                    return Ok(None);
+                };
+                return Ok(Some(
+                    self.syntax
+                        .type_references
+                        .insert(TypeReferenceNode::Slice { element_type }),
+                ));
+            }
             TypeReferenceNode::Named(name) => {
                 if let Some((position, is_type)) = self.parameter_position(name.as_str()) {
                     if !is_type {
@@ -265,7 +388,10 @@ impl Solver<'_, '_> {
                     }
                     return match self.bindings[position].clone() {
                         None => Ok(None),
-                        Some(Binding::Type(reference)) => Ok(Some(reference)),
+                        Some(Binding::Type(reference)) => {
+                            self.require_lifetime_free_argument(reference, span)?;
+                            Ok(Some(reference))
+                        }
                         Some(Binding::NamedType(name)) => Ok(Some(
                             self.syntax
                                 .type_references
@@ -301,6 +427,7 @@ impl Solver<'_, '_> {
             _ => {}
         }
         self.require_closed_pattern(pattern, span)?;
+        self.require_lifetime_free_argument(pattern, span)?;
         if closed_argument_identity(self.syntax, self.selection, pattern, false).is_none() {
             return Err(self.type_structure_error(
                 "cannot construct an open or unsupported element type; supply explicit arguments",

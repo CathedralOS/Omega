@@ -58,6 +58,11 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     allow_trailing_domain: bool,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    if input.at_punctuation(PunctuationKind::Ampersand) {
+        // References compose inside static arguments and other type constructors.
+        // Keep cast suffix ownership through the recursive referee as well.
+        return parse_borrow_type_reference(syntax_trees, input, allow_trailing_domain);
+    }
     if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
@@ -669,6 +674,14 @@ pub(crate) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    parse_borrow_type_reference(syntax_trees, input, true)
+}
+
+fn parse_borrow_type_reference<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    allow_trailing_domain: bool,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     let (is_reference, lifetime, access, input) =
         if input.at_punctuation(PunctuationKind::Ampersand) {
             let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
@@ -703,7 +716,11 @@ pub(crate) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
             (false, None, language_core::ReferenceAccess::Shared, input)
         };
 
-    let (type_reference, input) = parse_type_reference_handle(syntax_trees, input)?;
+    let (type_reference, input) = parse_type_reference_handle_with_trailing_domain(
+        syntax_trees,
+        input,
+        allow_trailing_domain,
+    )?;
     let type_reference = if is_reference {
         syntax_trees
             .type_references

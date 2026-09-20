@@ -335,7 +335,7 @@ impl Solver<'_, '_> {
 
     // ClosedArgumentIdentity currently omits application lifetimes. Do not
     // let a whole recovered element conceal one from repeated-equality checks.
-    fn require_lifetime_free_argument(
+    pub(in crate::preparation::type_equations) fn require_lifetime_free_argument(
         &self,
         reference: TypeReferenceHandle,
         span: SourceSpan,
@@ -346,6 +346,11 @@ impl Solver<'_, '_> {
             .generic_application_origin(reference);
         let reference = if origin.is_valid() { origin } else { reference };
         match self.syntax.type_references.type_reference(reference) {
+            TypeReferenceNode::Reference {
+                lifetime: Some(_), ..
+            } => {
+                return Err(self.type_structure_error("requires anonymous reference lifetimes until lexical lifetime identity is retained", span));
+            }
             TypeReferenceNode::Generic { .. } => {
                 let application = self.application(reference, false, span)?;
                 for (argument, parameter) in application
@@ -358,7 +363,12 @@ impl Solver<'_, '_> {
                     }
                 }
             }
-            TypeReferenceNode::FixedArray { element_type, .. } => {
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type }
+            | TypeReferenceNode::Reference {
+                referee: element_type,
+                ..
+            } => {
                 self.require_lifetime_free_argument(*element_type, span)?;
             }
             TypeReferenceNode::Constrained { base_type, .. } => {

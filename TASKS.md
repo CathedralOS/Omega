@@ -3466,8 +3466,8 @@ Owners include
   pending equations; transitive build-time invocation cannot execute them.
 
   Lifetime-free declared applications with type and builtin integer/Boolean const
-  positions now share that traversal, including nested arrays/applications and
-  reverse construction. Machine completion retains selected declaration identity,
+  positions share that traversal with arrays, slices and anonymous references,
+  including reverse construction. Machine completion retains selected declaration identity,
   normalizes the completed type roots through ordinary data synthesis, and reuses
   existing instances; matching never discharges a constructor's own constraints.
   `compiler --test application_type_equations` exercises source-free Terminal
@@ -3483,7 +3483,13 @@ Owners include
     every admitted alternative, and a static branch's equality fact dropped
     at its join. No machine-level customer or control exists.
   - Extend constructor matching beyond its lifetime-free type/integer/Boolean-const
-    cohort, preserving exact lifetime/reference and other const-index identities.
+    cohort, preserving exact named lifetime and other const-index identities.
+    Named lifetimes lack selected lexical binder identity at this pre-resolution
+    matcher; neither spelling equality nor erased layout identity can supply it.
+    Keep `application_type_equations::reference_equations_` as the anonymous
+    reference/slice native control, including value-kind and occurs rejection.
+    Write-only static type arguments retain their independent
+    **WRITE-ONLY-BORROW** admission dependency.
     Combine machine
     equations with existing argument/result inference rather than requiring a
     closed explicit prefix; retain obligations through generic forwarding and

@@ -114,6 +114,32 @@ pub(crate) fn canonicalize_lifetime_bearing_type_argument(
         .type_reference(type_reference)
         .clone();
     match node {
+        TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime: None,
+        } => {
+            let referee = canonicalize_lifetime_bearing_type_argument(
+                syntax,
+                referee,
+                outer_lifetime_parameters,
+                outer_lifetime_arguments,
+            )?;
+            Some(syntax.type_references.insert_reference(referee, access))
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            let element_type = canonicalize_lifetime_bearing_type_argument(
+                syntax,
+                element_type,
+                outer_lifetime_parameters,
+                outer_lifetime_arguments,
+            )?;
+            Some(
+                syntax
+                    .type_references
+                    .insert(TypeReferenceNode::Slice { element_type }),
+            )
+        }
         TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
@@ -199,6 +225,24 @@ pub(crate) fn type_reference_slug(
     handle: TypeReferenceHandle,
 ) -> Option<String> {
     match syntax.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime: None,
+        } => {
+            let access = match access {
+                language_core::ReferenceAccess::Shared => "",
+                language_core::ReferenceAccess::Mutable => "mut ",
+                language_core::ReferenceAccess::WriteOnly => "write ",
+            };
+            Some(format!(
+                "&{access}{}",
+                type_reference_slug(syntax, *referee)?
+            ))
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            Some(format!("[{}]", type_reference_slug(syntax, *element_type)?))
+        }
         TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
         TypeReferenceNode::Generic {
             base_name,
@@ -311,6 +355,23 @@ pub(crate) fn closed_argument_identity(
         return Some(ClosedArgumentIdentity::Instance(declaration, identities));
     }
     match syntax.type_references.type_reference(handle) {
+        // Named lifetime occurrences have not selected lexical binders here.
+        // Keep them undecidable rather than equating spellings or erasing the
+        // relation. Anonymous constructors retain exact access and child type;
+        // this identity supplies no runtime loan or lifetime evidence.
+        TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime: None,
+        } => Some(ClosedArgumentIdentity::Reference(
+            *access,
+            Box::new(closed_argument_identity(
+                syntax, selection, *referee, false,
+            )?),
+        )),
+        TypeReferenceNode::Slice { element_type } => Some(ClosedArgumentIdentity::Slice(Box::new(
+            closed_argument_identity(syntax, selection, *element_type, false)?,
+        ))),
         TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,

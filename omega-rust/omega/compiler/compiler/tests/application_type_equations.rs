@@ -132,6 +132,215 @@ fn declared_application_recovers_element_and_capacity_natively() {
 }
 
 #[test]
+fn reference_equations_recover_array_elements_and_extents_natively() {
+    let source = r#"
+machine capacity<Backing, Element, const Capacity: u64>() -> u64
+where Backing == &[Element; Capacity]
+{ Capacity }
+machine recovered() -> u64 { capacity<&[u8; 7]>() }
+"#;
+    assert_native_seven(&executes(&[("main.omg", source)]));
+}
+
+#[test]
+fn reference_equations_type_role_drives_scalar_and_slice_element_inference() {
+    for (parameters, equation, arguments) in [
+        ("Backing, Element", "Backing == &Element", "&u8"),
+        ("Backing, Element", "Backing == &[Element]", "&[u8]"),
+        ("Backing, Element", "[Element] == Backing", "[u8]"),
+        ("Element, Backing", "Backing == &mut [Element]", "u8"),
+    ] {
+        let source = format!(
+            "machine selected<{parameters}>(value: Element) -> Element
+             where {equation} {{ value }}
+             machine recovered() -> u64 {{ selected<{arguments}>(7u8) as u64 }}"
+        );
+        assert_native_seven(&executes(&[("main.omg", &source)]));
+    }
+}
+
+#[test]
+fn reference_equations_type_role_rejects_value_binders_and_occurs_cycles() {
+    for (parameters, equation, arguments, fragment) in [
+        (
+            "Backing",
+            "Backing == &[Backing]",
+            "&[u8]",
+            "through itself",
+        ),
+        (
+            "Backing, Other",
+            "Backing == &[Other], Other == &[Backing]",
+            "&[u8]",
+            "same anonymous reference constructor",
+        ),
+        (
+            "Backing, const Count: u64",
+            "Backing == &[Count]",
+            "&[u8], 7",
+            "value binder",
+        ),
+        ("Backing", "Backing == &[7]", "&[u8]", "value expression"),
+        ("Backing", "Backing == &[]", "&[u8]", "exactly one element"),
+        (
+            "Backing",
+            "Backing == &[u8, u16]",
+            "&[u8]",
+            "exactly one element",
+        ),
+    ] {
+        let source = format!(
+            "data Count {{ value: u8; }}
+             machine selected<{parameters}>() -> u64 where {equation} {{ 7 }}
+             machine recovered() -> u64 {{ selected<{arguments}>() }}"
+        );
+        rejects(&[("main.omg", &source)], fragment);
+    }
+}
+
+#[test]
+fn reference_equations_reconstruct_access_and_nested_slice_types_natively() {
+    for access in ["", "mut "] {
+        let source = format!(
+            "machine capacity<Element, const Capacity: u64, Backing>() -> u64
+             where Backing == &{access}[[Element]; Capacity] {{ Capacity }}
+             machine recovered() -> u64 {{ capacity<u8, 7>() }}"
+        );
+        assert_native_seven(&executes(&[("main.omg", &source)]));
+    }
+}
+
+#[test]
+fn reference_equations_preserve_nested_element_identity() {
+    for (pattern, actual) in [
+        ("&[[Element]; Capacity]", "&[[u8]; 7]"),
+        ("&mut [&Element; Capacity]", "&mut [&u8; 7]"),
+        ("&mut [Cell<Element>; Capacity]", "&mut [Cell<u8>; 7]"),
+    ] {
+        let source = format!(
+            "data Cell<Element> {{ value: Element; }}
+             machine capacity<Backing, Element, const Capacity: u64>() -> u64
+             where Backing == {pattern} {{ Capacity }}
+             machine recovered() -> u64 {{ capacity<{actual}>() }}"
+        );
+        let _artifact = executes(&[("main.omg", &source)]);
+    }
+}
+
+#[test]
+fn reference_equations_reject_access_shape_and_repeated_element_conflicts() {
+    for actual in ["&mut [u8; 7]", "&write [u8; 7]"] {
+        let source = format!(
+            "machine capacity<Backing, Element, const Capacity: u64>() -> u64
+             where Backing == &[Element; Capacity] {{ Capacity }}
+             machine recovered() -> u64 {{ capacity<{actual}>() }}"
+        );
+        rejects(&[("main.omg", &source)], "conflicting reference access");
+    }
+    for (pattern, actual, fragment) in [
+        ("&[Element; Capacity]", "[u8; 7]", "reference constructor"),
+        ("&[Element; Capacity]", "&[u8]", "fixed-array constructor"),
+        (
+            "&[[Element]; Capacity]",
+            "&[[u8; 3]; 7]",
+            "slice constructor",
+        ),
+    ] {
+        let source = format!(
+            "machine capacity<Backing, Element, const Capacity: u64>() -> u64
+             where Backing == {pattern} {{ Capacity }}
+             machine recovered() -> u64 {{ capacity<{actual}>() }}"
+        );
+        rejects(&[("main.omg", &source)], fragment);
+    }
+    rejects(
+        &[(
+            "main.omg",
+            r#"
+machine capacity<Left, Right, Element, const Capacity: u64>() -> u64
+where Left == &[Element; Capacity], Right == &[Element; Capacity]
+{ Capacity }
+machine recovered() -> u64 { capacity<&[u8; 7], &[u16; 7]>() }
+"#,
+        )],
+        "conflicting element types",
+    );
+}
+
+#[test]
+fn reference_equations_reject_named_lifetimes_hidden_in_element_types() {
+    for (arguments, fragment) in [
+        ("&[View<'a, u8>; 7]", "lifetime-free application structure"),
+        ("&[&'a u8; 7]", "closed explicit type argument"),
+    ] {
+        let source = format!(
+            "data View<'a, Element> {{ value: &'a Element; }}
+             machine capacity<Backing, Element, const Capacity: u64>() -> u64
+             where Backing == &[Element; Capacity] {{ Capacity }}
+             machine recovered<'a>() -> u64 {{ capacity<{arguments}>() }}"
+        );
+        rejects(&[("main.omg", &source)], fragment);
+    }
+    rejects(
+        &[(
+            "main.omg",
+            r#"
+data View<'a, Element> { value: &'a Element; }
+machine same<Left, Right>() -> u64 where Left == Right { 7 }
+machine recovered<'a, 'b>() -> u64 {
+    same<&View<'a, u8>, &View<'b, u8>>()
+}
+"#,
+        )],
+        "lifetime-free application structure",
+    );
+}
+
+#[test]
+fn reference_equations_data_instances_reuse_exact_argument_identity() {
+    let source = r#"
+data Buffer<Backing, Element, const Capacity: u64>
+where Backing == &[Element; Capacity] { storage: Backing; }
+machine preserve(value: Buffer<&[u8; 7]>) -> Buffer<&[u8; 7], u8, 7> { value }
+machine recovered() -> u64 { 7 }
+"#;
+    assert_native_seven(&executes(&[("main.omg", source)]));
+    let invalid = source.replace("Buffer<&[u8; 7], u8, 7>", "Buffer<&[u8; 7], u16, 7>");
+    rejects(&[("main.omg", &invalid)], "conflicting element types");
+}
+
+#[test]
+fn reference_equations_do_not_waive_write_only_argument_admission() {
+    rejects(
+        &[(
+            "main.omg",
+            r#"
+machine capacity<Element, const Capacity: u64, Backing>() -> u64
+where Backing == &write [Element; Capacity] { Capacity }
+machine recovered() -> u64 { capacity<u8, 7>() }
+"#,
+        )],
+        "static type argument uses `&write`",
+    );
+}
+
+#[test]
+fn reference_equations_inferred_element_drives_runtime_value_transport() {
+    let source = r#"
+machine selected<Backing, Element, const Capacity: u64>(value: Element) -> Element
+where Backing == &[Element; Capacity] { value }
+machine recovered() -> u64 { selected<&[u8; 7]>(7u8) as u64 }
+"#;
+    assert_native_seven(&executes(&[("main.omg", source)]));
+    let invalid = source.replace("(7u8)", "(7u16)");
+    let project = Project::new(&[("main.omg", &invalid)]);
+    assert!(
+        project.check().is_err(),
+        "the recovered element is fixed, not re-inferred from the value"
+    );
+}
+
+#[test]
 fn boolean_constructor_equations_recover_exact_index_source_free() {
     for expected in [true, false] {
         for (parameters, arguments) in [

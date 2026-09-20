@@ -22,11 +22,15 @@
 //! carry, so every later equation, repeat occurrence and closed identity
 //! compares one shape.
 //!
-//! Fixed arrays and declared generic applications retain ordinary type trees.
+//! Fixed arrays, slices, anonymous references and declared generic applications
+//! retain ordinary type trees.
 //! Their type, integer and Boolean const positions recursively recover binders, or build
 //! an omitted type once those binders are known. `type_structure` owns this
 //! traversal: nominal heads join by selected declaration, never layout or leaf
 //! spelling. Closed leaves still use `closed_argument_identity`.
+//! Borrow and singleton-array operands gain type role only opposite a declared
+//! type binder. They materialize into that same type tree; ordinary value-borrow
+//! equalities remain value facts, never parser guesses about identifier spelling.
 //! Runtime contents and compatible storage sizes never supply an argument.
 //! Data synthesis and machine-call preparation supply their exact selected
 //! declaration telescopes; this solver owns neither call selection nor
@@ -97,7 +101,7 @@ pub(crate) fn template_type_equation_offsets(
     ) {
         match equation.shape {
             EquationShape::Structural {
-                structure: Structure::TypeReference(_),
+                structure: Structure::TypeReference(_) | Structure::TypeOperand(_),
                 ..
             } => offsets.push(equation.fact_offset),
             EquationShape::Structural { .. } => {}
@@ -164,6 +168,9 @@ enum EquationShape {
 
 #[derive(Clone)]
 enum Structure {
+    /// Borrow/singleton-array syntax whose type role follows from the opposite
+    /// declared type binder, not from parser guesses about identifier spelling.
+    TypeOperand(ExpressionHandle),
     /// Type-role syntax retains recursive constructors instead of rendering them
     /// as names or treating their operands as runtime array elements.
     TypeReference(TypeReferenceHandle),
@@ -197,6 +204,9 @@ impl Structure {
     fn binder_mentions(&self, syntax: &SyntaxTrees, parameters: &[String]) -> Vec<usize> {
         let mut mentions = Vec::new();
         match self {
+            Structure::TypeOperand(expression) => {
+                collect_expression_binder_mentions(syntax, *expression, parameters, &mut mentions);
+            }
             Structure::TypeReference(reference) => {
                 type_structure::collect_binder_mentions(
                     syntax,
@@ -234,6 +244,7 @@ impl Structure {
 }
 
 enum Side {
+    AmbiguousTypeOperand(ExpressionHandle),
     TypeStructure(TypeReferenceHandle),
     TypeBinder(usize),
     ValueBinder(usize),
@@ -326,6 +337,9 @@ fn classify_side(
     expression: ExpressionHandle,
 ) -> Side {
     match syntax.expressions.expression(expression) {
+        ExpressionNode::Borrow(_) | ExpressionNode::ArrayLiteral(_) => {
+            Side::AmbiguousTypeOperand(expression)
+        }
         ExpressionNode::TypeExpression(reference) => Side::TypeStructure(*reference),
         ExpressionNode::Name(path) => {
             let [member] = syntax.expressions.identifier_path_members(*path) else {
@@ -357,6 +371,7 @@ fn classify_side(
 
 fn describe_side(parameters: &[TypeParameter], side: &Side) -> String {
     match side {
+        Side::AmbiguousTypeOperand(_) => "a reference or slice operand".to_owned(),
         Side::TypeStructure(_) => "a type structure".to_owned(),
         Side::TypeBinder(index) => format!("type binder `{}`", parameters[*index].name.as_str()),
         Side::ValueBinder(index) => {
@@ -378,6 +393,12 @@ fn equation_shape(
     let binder_name = parameters[binder].name.as_str();
     let mismatch = |description: String| EquationShape::KindMismatch { span, description };
     let structure = match other {
+        Side::AmbiguousTypeOperand(expression) => {
+            if let Some(reason) = type_operand_kind_error(syntax, parameters, expression) {
+                return mismatch(reason.to_owned());
+            }
+            Structure::TypeOperand(expression)
+        }
         Side::TypeStructure(reference) => Structure::TypeReference(reference),
         Side::TypeBinder(index) => Structure::Name {
             name: parameters[index].name.clone(),
@@ -460,6 +481,37 @@ fn classify_endpoint(
     }
 }
 
+/// Resolve the operand's role only after the opposite side selected a declared
+/// type binder. Ordinary borrow/array equalities remain value propositions.
+fn type_operand_kind_error(
+    syntax: &SyntaxTrees,
+    parameters: &[TypeParameter],
+    expression: ExpressionHandle,
+) -> Option<&'static str> {
+    match syntax.expressions.expression(expression) {
+        ExpressionNode::Name(path) => {
+            if let [name] = syntax.expressions.identifier_path_members(*path)
+                && binder_index(parameters, name.as_str())
+                    .is_some_and(|(_, kind)| !matches!(kind, TypeParameterKind::Type))
+            {
+                return Some("a value binder cannot supply a reference or slice element type");
+            }
+            None
+        }
+        ExpressionNode::Borrow(borrow) => {
+            type_operand_kind_error(syntax, parameters, borrow.target)
+        }
+        ExpressionNode::ArrayLiteral(elements) => {
+            let [element] = syntax.expressions.expression_handles(*elements) else {
+                return Some("a slice type requires exactly one element type");
+            };
+            type_operand_kind_error(syntax, parameters, *element)
+        }
+        ExpressionNode::TypeExpression(_) => None,
+        _ => Some("a value expression cannot supply a reference or slice element type"),
+    }
+}
+
 fn collect_expression_binder_mentions(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
@@ -470,6 +522,17 @@ fn collect_expression_binder_mentions(
         return;
     }
     match syntax.expressions.expression(expression) {
+        ExpressionNode::Borrow(borrow) => {
+            collect_expression_binder_mentions(syntax, borrow.target, parameters, mentions);
+        }
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in syntax.expressions.expression_handles(*elements) {
+                collect_expression_binder_mentions(syntax, *element, parameters, mentions);
+            }
+        }
+        ExpressionNode::TypeExpression(reference) => {
+            type_structure::collect_binder_mentions(syntax, *reference, parameters, mentions);
+        }
         ExpressionNode::Name(path) => {
             if let [member] = syntax.expressions.identifier_path_members(*path)
                 && let Some(index) = parameters
@@ -856,6 +919,14 @@ impl<'a, 's> Solver<'a, 's> {
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         let (name, other) = match structure {
+            Structure::TypeOperand(expression) => {
+                let pattern = self.type_operand_reference(*expression, span)?;
+                let Some(reference) = self.construct_type_structure(pattern, span)? else {
+                    return Ok(Outcome::Deferred);
+                };
+                self.bindings[binder] = Some(Binding::Type(reference));
+                return Ok(Outcome::Settled);
+            }
             Structure::TypeReference(reference) => {
                 let Some(reference) = self.construct_type_structure(*reference, span)? else {
                     return Ok(Outcome::Deferred);
@@ -1152,6 +1223,11 @@ impl<'a, 's> Solver<'a, 's> {
         warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         match structure {
+            Structure::TypeOperand(expression) => {
+                let pattern = self.type_operand_reference(*expression, span)?;
+                self.match_type_structure(pattern, handle, span)?;
+                Ok(Outcome::Settled)
+            }
             Structure::TypeReference(reference) => {
                 self.match_type_structure(*reference, handle, span)?;
                 Ok(Outcome::Settled)
@@ -1160,6 +1236,7 @@ impl<'a, 's> Solver<'a, 's> {
                 name,
                 binder: other,
             } => {
+                self.require_lifetime_free_argument(handle, span)?;
                 let actual = closed_argument_identity(self.syntax, self.selection, handle, false);
                 self.match_name(binder, actual, name, *other, span)
             }
@@ -1331,6 +1408,7 @@ impl<'a, 's> Solver<'a, 's> {
                     return Ok(Outcome::Settled);
                 }
                 Some(Binding::Type(bound)) => {
+                    self.require_lifetime_free_argument(bound, span)?;
                     closed_argument_identity(self.syntax, self.selection, bound, false)
                 }
                 Some(Binding::NamedType(bound)) => {
