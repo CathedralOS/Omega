@@ -119,6 +119,7 @@ pub(crate) fn retain(
                 operators.push(syntax.expressions.source_span(expression));
                 pending.push(unary.operand);
             }
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
             ExpressionNode::Call(call) => {
                 let arguments = syntax.expressions.expression_handles(call.arguments);
                 if arguments.len() != call.arguments.len() {

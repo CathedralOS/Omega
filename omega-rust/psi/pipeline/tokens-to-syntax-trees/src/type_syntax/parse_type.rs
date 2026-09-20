@@ -380,6 +380,7 @@ fn const_expression_requires_semantic_admission(
             | ExpressionNode::ArrayLiteral(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::Unary(_)
+            | ExpressionNode::Cast(_)
             | ExpressionNode::Call(_)
     ) {
         return true;

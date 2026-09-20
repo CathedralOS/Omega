@@ -20,6 +20,10 @@
 //! participate in the complete shape pass before execution: Boolean negation
 //! needs bool, and complement needs an already selected integer width. The
 //! shared integer operation preserves that width, including signed complement.
+//! Ordinary Exact integer casts introduce a landing at the conversion itself;
+//! they cannot widen earlier arithmetic retroactively. Landed operands require
+//! total carrier inclusion, while anonymous operands use the existing rational
+//! landing check. Partial conversions need evidence this evaluator does not own.
 //!
 //! Match uses this same work stack: retain the subject, test patterns in order,
 //! then visit only the selected result. The Match owner first checks the complete
@@ -287,6 +291,7 @@ fn evaluate_expression(
     }
     enum Step {
         Enter(ExpressionHandle),
+        Cast(ExpressionHandle, LandedIntegerType),
         Unary(ExpressionHandle, UnaryOperator),
         Binary(ExpressionHandle, BinaryOperator),
         LogicalLeft(ExpressionHandle, BinaryOperator, ExpressionHandle),
@@ -369,6 +374,11 @@ fn evaluate_expression(
                         active.push(expression);
                         pending.push(Step::Unary(expression, unary.operator));
                         pending.push(Step::Enter(unary.operand));
+                    }
+                    ExpressionNode::Cast(cast) => {
+                        active.push(expression);
+                        pending.push(Step::Cast(expression, cast_integer_carrier(program, cast)?));
+                        pending.push(Step::Enter(cast.value));
                     }
                     ExpressionNode::Binary(binary) => {
                         if !context.has_builtin(program, expression) {
@@ -512,6 +522,30 @@ fn evaluate_expression(
                 if !matches!(values.last(), Some(Value::Boolean(_))) {
                     return Err("Boolean logic requires a Boolean right operand".into());
                 }
+            }
+            Step::Cast(expression, target) => {
+                if active.pop() != Some(expression) {
+                    return Err("invalid constant expression traversal".into());
+                }
+                let operand = values.pop().ok_or("missing constant cast operand")?;
+                let result = match operand {
+                    Value::Anonymous(operand) => land_anonymous(
+                        program,
+                        context,
+                        operand,
+                        primitive(target)?,
+                        &selected_arms,
+                        &mut warnings,
+                    )?,
+                    Value::Landed(source, value) => Value::Landed(
+                        target,
+                        integer_type(source)?
+                            .exact_cast_value_to(integer_type(target)?, value)
+                            .ok_or("constant cast value does not fit its target carrier")?,
+                    ),
+                    _ => return Err("constant cast requires an integer operand".into()),
+                };
+                values.push(result);
             }
             Step::Unary(expression, operator) => {
                 if active.pop() != Some(expression) {
@@ -716,6 +750,11 @@ fn validate_shapes(
                     pending.push((expression, true));
                     pending.push((unary.operand, false));
                 }
+                ExpressionNode::Cast(cast) => {
+                    active.push(expression);
+                    pending.push((expression, true));
+                    pending.push((cast.value, false));
+                }
                 ExpressionNode::Binary(binary) => {
                     if !context.has_builtin(program, expression) {
                         return Err(
@@ -759,6 +798,27 @@ fn validate_shapes(
                 _ => return Err("unary constant operator has incompatible operand type".into()),
             };
             shapes.push(result);
+            continue;
+        }
+        if let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) {
+            let target = cast_integer_carrier(program, cast)?;
+            let source = shapes.pop().ok_or("missing constant cast operand type")?;
+            // Conversion owns a new landing; it never retags arithmetic below
+            // it. Anonymous operands owe their full all-arm landing here. An
+            // already-landed operand must prove total carrier inclusion without
+            // executing a skipped call to discover a convenient result. Partial
+            // conversions still need their independent representability evidence.
+            match source {
+                Shape::Anonymous(operand) => {
+                    match_dispatch::validate_landing(
+                        program, context, operand, primitive(target)?, &mut warnings,
+                    )?;
+                }
+                Shape::Integer(source, _) if source == target
+                    || integer_type(source)?.can_widen_to(integer_type(target)?) => {}
+                _ => return Err("constant cast needs a total integer conversion or checked partial-conversion evidence".into()),
+            }
+            shapes.push(Shape::Integer(target, cast.target_type));
             continue;
         }
         let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
@@ -943,6 +1003,24 @@ fn scalar_shape(primitive: PrimitiveType) -> Result<Shape, String> {
         },
         typed_trees::types::TypeReferenceHandle::invalid(),
     ))
+}
+
+fn cast_integer_carrier(
+    program: &TypedTrees,
+    cast: &typed_trees::expression::TableCastExpression,
+) -> Result<LandedIntegerType, String> {
+    if cast.form.is_recast()
+        || !cast.semantic_domain.is_empty()
+        || cast.domain != ArithmeticDomain::Exact
+    {
+        return Err("constant cast requires an ordinary Exact integer conversion".into());
+    }
+    let target = super::exact_probe_destination(program, cast.target_type)
+        .ok_or("constant cast target requires an unqualified fixed integer carrier")?;
+    let Shape::Integer(carrier, _) = scalar_shape(target)? else {
+        return Err("constant cast target requires a fixed integer carrier".into());
+    };
+    Ok(carrier)
 }
 
 fn float_primitive(format: FloatFormat) -> PrimitiveType {
