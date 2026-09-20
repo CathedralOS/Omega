@@ -3,7 +3,9 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::policy::conformances as project_public_conformances;
-use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
+use crate::capture::semantics::declarations::{
+    is_product_scope_instance, nominal_identity, reviewed_package_owns,
+};
 use crate::record::{PackagePolicyRepresentationAvailability, PackageReviewConformanceSubject};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -19,6 +21,7 @@ pub(super) fn project(
     let mut rows = Vec::new();
     for declaration in compilation.conformances().iter().filter(|declaration| {
         declaration.is_public
+            && is_product_scope_instance(&compilation.typed.symbols, declaration.symbol)
             && representation_planning::is_compiler_owned_opaque_representation_trait(
                 &compilation.typed,
                 declaration.trait_symbol,

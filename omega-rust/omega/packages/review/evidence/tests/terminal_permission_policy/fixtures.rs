@@ -1,8 +1,8 @@
 use super::{
     AcceptedSemanticBindingRole, PackageCompilationInputs, PackageDependencyBinding,
-    PackageKeyIdentity, PackageSourceBinding, Path, ReviewFixture,
-    ServiceTerminalAuthorityPermission, TargetProfile, TempPackage, TerminalAuthorityDisposition,
-    compile_review_fixture, fs, package_identity,
+    PackageKeyIdentity, PackageSourceBinding, ReviewFixture, ServiceTerminalAuthorityPermission,
+    TargetProfile, TempPackage, TerminalAuthorityDisposition, compile_review_fixture,
+    package_identity, standard_library_dependency, standard_library_source,
 };
 use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
@@ -47,6 +47,16 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     }
 
     fn new(source: &str, foreign: bool, service: &str, method: &str, console: bool) -> Self {
+        // The seeded entry contract already declares `omega::language::std::calling`;
+        // a package-local copy of the vocabulary duplicates it. Sources spell the
+        // ordinary dependency alias instead.
+        let calling_dependency = source.contains("use calling;");
+        let source = if calling_dependency {
+            source.replace("use calling;", "use omega_language_std::calling;")
+        } else {
+            source.to_owned()
+        };
+        let source = source.as_str();
         let root = TempPackage::new();
         let dependency = foreign.then(TempPackage::new);
         let owner = if foreign {
@@ -85,20 +95,10 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         } else {
             root.write("main.omg", source);
         }
-        if source.contains("use calling;") {
-            let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .ancestors()
-                .nth(5)
-                .unwrap();
-            let calling = fs::read_to_string(repository.join("source/library/std/calling.omg"))
-                .unwrap()
-                .replace("\ndata ", "\npub data ")
-                .replace("\ntrait ", "\npub trait ")
-                .replace("\ndomain ", "\npub domain ");
-            dependency
-                .as_ref()
-                .unwrap_or(&root)
-                .write("calling.omg", &calling);
+        if calling_dependency {
+            sources.push(standard_library_source());
+            // The import lives in whichever package received the source.
+            dependencies.push(standard_library_dependency(owner));
         }
         root.write(
             "build.omg",

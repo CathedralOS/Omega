@@ -92,3 +92,18 @@ pub(crate) fn is_canonical_virtual_toolchain_path(path: &std::path::Path) -> boo
         component.len() >= 3 && component.starts_with('<') && component.ends_with('>')
     })
 }
+
+/// Whether the symbol's declaration lives on the product dependency scope.
+/// A source imported on both the product and build scopes is checked once
+/// per scope; review projections name authored declarations, so they see
+/// only the product instance. Source-free and toolchain declarations keep
+/// their existing behavior.
+pub(crate) fn is_product_scope_instance(
+    symbols: &symbols::SymbolTable,
+    symbol: SymbolHandle,
+) -> bool {
+    symbols
+        .symbol_provenance_source_span(symbol)
+        .and_then(|span| symbols.source_file(span))
+        .is_none_or(|file| file.dependency_scope != source::DependencyScope::Build)
+}

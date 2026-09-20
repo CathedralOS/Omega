@@ -21,7 +21,7 @@ pub UnusedTokenRepresentation:
     UnusedCarrier satisfies OpaqueRepresentation<UnusedToken>;
 "#;
 
-const CALLING: &str = r#"use calling;
+const CALLING: &str = r#"use omega_language_std::calling;
 data TransferPolicy { }
 TransferPolicyCallingPolicy: TransferPolicy satisfies CallingPolicy;
 machine TransferPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -67,21 +67,14 @@ boundary trait TransferEntry: Calling<TransferPolicy> {
 
 fn fixture(foreign_types: bool) -> (TempPackage, Option<TempPackage>, ReviewFixture) {
     let package = TempPackage::new();
-    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(5)
-        .unwrap();
-    package.write(
-        "calling.omg",
-        &fs::read_to_string(repository.join("source/library/std/calling.omg")).unwrap(),
-    );
     let dependency = foreign_types.then(TempPackage::new);
     let mut source_bindings = vec![PackageSourceBinding::new(
         package_identity(),
         "review-fixture",
         package.0.clone(),
     )];
-    let mut dependency_bindings = Vec::new();
+    source_bindings.push(standard_library_source());
+    let mut dependency_bindings = vec![standard_library_dependency(package_identity())];
     let imports = if let Some(dependency) = &dependency {
         dependency.write(
             "types.omg",
