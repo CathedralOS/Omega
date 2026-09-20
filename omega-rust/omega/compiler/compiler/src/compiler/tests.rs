@@ -143,6 +143,9 @@ fn native_publication_writes_only_declared_products() {
         r#"machine build(builder: &mut Build) {
     builder.application("no-observation-products");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,
     );
