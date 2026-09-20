@@ -58,6 +58,10 @@ fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<
 struct SchemaRow {
     qualified_path: String,
     entry: WireSchemaReportEntry,
+    /// The runtime data definition a `PreservingDecode<Policy, Value>`
+    /// implementation names as its value type, when the schema has one.
+    /// `wire` declarations without a data counterpart carry none.
+    value_symbol: Option<symbols::SymbolHandle>,
 }
 
 fn build_wire_protocol_report(
@@ -70,20 +74,25 @@ fn build_wire_protocol_report(
         .map(|schema| SchemaRow {
             qualified_path: qualified_schema_path(typed, schema.symbol, schema.name.as_str()),
             entry: schema_report_entry(typed, schema),
+            value_symbol: None,
         })
         .collect::<Vec<_>>();
-    for (ordinary_path, ordinary) in typed.data_definitions().iter().filter_map(|data| {
-        ordinary_data_schema_report_entry(typed, data).map(|entry| {
-            (
-                qualified_schema_path(typed, data.symbol, data.name.as_str()),
-                entry,
-            )
+    for (ordinary_path, ordinary, value_symbol) in
+        typed.data_definitions().iter().filter_map(|data| {
+            ordinary_data_schema_report_entry(typed, data).map(|entry| {
+                (
+                    qualified_schema_path(typed, data.symbol, data.name.as_str()),
+                    entry,
+                    data.symbol,
+                )
+            })
         })
-    }) {
+    {
         if let Some(generated) = rows
             .iter_mut()
             .find(|row| row.qualified_path == ordinary_path)
         {
+            generated.value_symbol = Some(value_symbol);
             generated.entry.normalized_schema_report_identity =
                 ordinary.normalized_schema_report_identity;
             if generated.entry.fields.is_empty() {
@@ -98,6 +107,7 @@ fn build_wire_protocol_report(
             rows.push(SchemaRow {
                 qualified_path: ordinary_path,
                 entry: ordinary,
+                value_symbol: Some(value_symbol),
             });
         }
     }
@@ -261,16 +271,16 @@ fn compatibility_demand_report(
 ) -> WireCompatibilityDemandReportEntry {
     let local = select_era_path(
         &demand.local_schema,
-        rows.iter()
-            .map(|row| (row.qualified_path.as_str(), &row.entry)),
+        rows.iter().map(|row| (row.qualified_path.as_str(), row)),
     );
     let peer = select_era_path(
         &demand.peer_schema,
-        rows.iter()
-            .map(|row| (row.qualified_path.as_str(), &row.entry)),
+        rows.iter().map(|row| (row.qualified_path.as_str(), row)),
     );
-    let local_schema = era_resolved(&local).copied();
-    let peer_schema = era_resolved(&peer).copied();
+    let local_row = era_resolved(&local).copied();
+    let peer_row = era_resolved(&peer).copied();
+    let local_schema = local_row.map(|row| &row.entry);
+    let peer_schema = peer_row.map(|row| &row.entry);
     let codec = local_schema
         .and_then(|schema| schema.encoding.as_deref())
         .or_else(|| peer_schema.and_then(|schema| schema.encoding.as_deref()))
@@ -339,10 +349,15 @@ fn compatibility_demand_report(
 
     let readability = fact(demand.require_readable, readability_value, readable_detail);
     let writability = fact(demand.require_writable, writability_value, writable_detail);
+    let preserving_decode = local_row
+        .and_then(|row| row.value_symbol)
+        .and_then(|symbol| published_preserving_decode(typed, symbol));
     let unknown_preservation = fact(
         demand.require_unknown_preservation,
-        false,
-        if compact_binary {
+        preserving_decode.is_some(),
+        if let Some(detail) = preserving_decode {
+            detail
+        } else if compact_binary {
             "compact_binary publishes strict unknown-member behavior".to_owned()
         } else {
             format!("codec `{codec}` publishes no preserving behavior")
@@ -386,6 +401,55 @@ fn compatibility_demand_report(
         migration_coverage,
         satisfied,
     }
+}
+
+/// Whether an authored `PreservingDecode<Policy, Value>` realization exists
+/// for the local schema's value type — the codec publishing preserving
+/// decode stops `PreserveUnknown` demands from being unsatisfiable. Returns
+/// the report detail naming the realizing machine.
+fn published_preserving_decode(
+    typed: &TypedTrees,
+    value_symbol: symbols::SymbolHandle,
+) -> Option<String> {
+    typed
+        .machines()
+        .iter()
+        .flat_map(|machine| {
+            typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .map(move |conformance| (machine, conformance))
+        })
+        .filter(|(machine, conformance)| {
+            let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement,
+            }) = typed_trees::machine::resolve_satisfied_declaration(
+                typed, machine, conformance,
+            )
+            else {
+                return false;
+            };
+            if definition.name.as_str() != "PreservingDecode"
+                || requirement.name.as_str() != "decode_preserving"
+            {
+                return false;
+            }
+            typed
+                .type_reference_table
+                .type_reference_handles(conformance.arguments)
+                .get(1)
+                .is_some_and(|value| {
+                    typed.type_reference_table.type_symbol(*value) == value_symbol
+                })
+        })
+        .map(|(machine, _)| {
+            format!(
+                "codec publishes preserving decode: `{}` satisfies `PreservingDecode::decode_preserving` for the local schema's value type",
+                qualified_schema_path(typed, machine.symbol, machine.name.as_str())
+            )
+        })
+        .next()
 }
 
 fn fact(required: bool, satisfied: bool, detail: String) -> WireCompatibilityFactReport {
@@ -445,9 +509,9 @@ fn select_era_path<'a, T>(
     }
 }
 
-fn schema_selection_detail(
-    local: &EraSelection<&WireSchemaReportEntry>,
-    peer: &EraSelection<&WireSchemaReportEntry>,
+fn schema_selection_detail<T>(
+    local: &EraSelection<T>,
+    peer: &EraSelection<T>,
     demand: &crate::WireCompatibilityDemand,
 ) -> String {
     if matches!(local, EraSelection::Missing) && matches!(peer, EraSelection::Missing) {
