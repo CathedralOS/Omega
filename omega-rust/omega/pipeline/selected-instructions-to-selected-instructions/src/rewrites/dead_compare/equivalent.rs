@@ -26,7 +26,7 @@
 //! value all refuse.
 //!
 //! The motivating shape is what the selection folds leave behind.
-//! `literal_compare` rewrites `CompareI64` into `CompareI64Immediate` or
+//! the compare pair rules rewrite `CompareI64` into `CompareI64Immediate` or
 //! `CompareI64Zero` while the materialization stays for its other readers;
 //! a later compare — register-form, or immediate-form against the same
 //! literal — then republishes the subtraction the folded shadow already

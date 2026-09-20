@@ -6466,7 +6466,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SELECTED-REWRITE-CATALOG-ROUTE** — mined candidate; verify scope then implement.
 - **SELECTED-REWRITE-CATALOG-WIRING** — mined candidate; verify scope then implement.
 - **SELECTED-REWRITE-EXECUTION-ROUTE** — mined candidate; verify scope then implement.
-- **SELECTED-REWRITES-CATALOG-OR-DELETE** — mined candidate; verify scope then implement.
+- **SELECTED-REWRITES-CATALOG-OR-DELETE** — mined candidate; verify scope then implement. Landed (delete leg): `rewrites/literal_compare` and `rewrites/literal_arithmetic` removed — uncalled standalone producers re-implementing the immediate folds the selected-lowering pair rules already run; both roots are pinned in `optimizer_source_organization::retired_paths`. Remaining: widen pair-rule candidate nomination for the retained-materialization and operand-0 cases under DECLARATIVE-PEEPHOLES; catalog disposition for the other uncalled rewrites modules belongs to the SELECTED-REWRITE-CATALOG-* siblings.
 - **SELECTED-STAGE-RULE-CATALOG** — mined candidate; verify scope then implement.
 - **SELECTIVE-ARITHMETIC-EXPANSION** — scope verified 2026-09-20: this mined
   stub re-covers open work already owned by **MATCH-SELECTIVE-LOWERING**. Its

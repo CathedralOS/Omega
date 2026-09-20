@@ -106,6 +106,8 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/global_value_numbering/contract_custody.rs",
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/passes/tests/dead_scalar_elimination.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_arithmetic.rs",
+        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_compare.rs",
         "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
         if repository.join(obsolete).exists() {

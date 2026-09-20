@@ -47,7 +47,7 @@
 //! different operand registers when each side of the subtraction provably
 //! coincides — by shared register identity, audited stable along every
 //! path, or by the literal a unique `MaterializeI64` producer pins
-//! function-wide. It is the removal the `literal_compare` fold leaves
+//! function-wide. It is the removal the compare pair rules leave
 //! reachable: an immediate- or zero-form shadow against a later
 //! register-form compare computes one subtraction, and the flag
 //! publication, not the instruction kind, is what the reader observes.

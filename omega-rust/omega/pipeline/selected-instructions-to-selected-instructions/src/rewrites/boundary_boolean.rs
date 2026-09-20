@@ -4,8 +4,8 @@
 //! observes is compile-time constant on both operands
 //! (`rewrites/constant_boolean` materializes the decided boolean,
 //! `rewrites/constant_branch` jumps the decided edge), and the literal
-//! selection folds (`rewrites/literal_compare`, `rewrites/literal_minuend`)
-//! only change the compare's form. Between those cases a compare whose
+//! selection folds (the selected-lowering compare pair rules and
+//! `rewrites/literal_minuend`) only change the compare's form. Between those cases a compare whose
 //! single known operand sits at a carrier-domain pole still reaches a
 //! reader whose predicate the pole decides alone: `x < 0` unsigned and
 //! `x < i64::MIN` signed can never hold, `0 <= x` unsigned and
