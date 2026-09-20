@@ -214,7 +214,7 @@ pub fn source_consumption_custody(case: &SourceConsumptionCustodyCase) -> Source
 /// package-identity leg.
 fn substituted_graph(
     field: PackageGraphConsumptionFieldForTest,
-    root: &PathBuf,
+    root: &std::path::Path,
 ) -> PackageCompilationInputs {
     use PackageGraphConsumptionFieldForTest as Field;
     let binding = |identity: PackageKeyIdentity, name: &'static str| {
