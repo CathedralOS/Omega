@@ -732,38 +732,45 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   `build-evaluation/src/admission/{declarations,behavior_exclusions}.rs` and
   `native-realization/src/{native_product/realization,native_realization/behavior_exclusions,retained_native_product}.rs`.
 
-  Resume evidence (2026-09-20, macOS ARM64, base a10fbe20d0 plus the authored
-  physical-exclusion change): `RUST_MIN_STACK=67108864 cargo nextest run
-  -p compiler --test build_behavior_exclusions --no-fail-fast` exercises
-  source-built publication and native execution. A standard-library Console
-  program prints `A` under a ProcessInput exclusion and rejects the same
-  composition under ProcessOutput, without a receiver permission policy.
-  The quiet product also cross-emits for Windows x64; Windows runtime was not
-  exercised. Helpers, skipped calls, exact cases, and canonical unions are
-  covered at the source boundary.
+  Resume evidence (2026-09-20, Linux x86_64, base d05ec39a5d):
+  `cargo test -p compiler --test build_behavior_exclusions` passes 22/23 in
+  ~184s. Covered this round: the exercised-output rejection now runs under a
+  receiver permission policy AND under enabled optimizations
+  (SparseConditionalConstantPropagation + ControlFlowCleanup) on the
+  `macos_arm64` target; a silent `Console` provider composition admits under
+  `ProcessOutput` while swapping in `ConsoleNativeProvider` for the same
+  program rejects; a retained ProcessOutput exclusion replays against the
+  product through `realize_retained_native_artifact` and rejects with the
+  mechanism-closure diagnostic both with and without a receiver permission
+  policy, while a retained ProcessInput exclusion validates. Provider operands
+  use the package-scope spelling (`omega_language_std::ConsoleNativeProvider`,
+  `dep::Decl`); the pre-c103af89b0 unqualified form no longer resolves.
+  `authored_physical_exclusion_publishes_and_runs_on_the_host` remains red
+  preexisting: the quiet program's emitted linux_x86_64 `_start` is
+  `movabs rax,0; ret`, so the `ret` jumps to argc (rip=0x1, SIGSEGV, exit 139,
+  gdb-witnessed with no exclusion); the defect lives in entry/provider
+  emission machinery outside this item's paths.
+
+  Next native control: `sink_composition_physical_exclusion_reaches_native_custody_frontier`
+  in `build_behavior_exclusions.rs` is a committed sentinel — it compiles the
+  `sink-app`/`logger-kit` composition with `QuietSink` bound under
+  `exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput)` on
+  `macos_arm64`, `linux_x86_64`, and `windows_x86_64`, and asserts the current
+  `Selection(Legalization(SourceCustodyMismatch))` frontier. The silent
+  service invocation still needs ordinary native custody in
+  `target-operations-to-selected-instructions/src/legalization`, a dependency
+  owned outside this item's paths. When that closes, the panic path tells the
+  next owner to upgrade the sentinel into the full control: native execution
+  with empty output plus independent retained-product replay, preserving the
+  existing service-exclusion rejection for the same invocation.
 
   Remaining work:
-  - Portable protocol coverage and independent consumer custody for the complete
-    physical exclusion envelope; source authoring does not establish it.
   - Envelope custody through rebinding/replacement via COMPONENT-SUBSTRATE and
     WIRE-RUNTIME-AND-INSTALLATION, and the image-emission and foreign-boundary
     legs.
-  - Complete provider/replacement controls, including a silent Console provider,
-    receiver policy and optimization variations. Exercise Windows runtime and
-    installation controls on both Windows/macOS; the macOS ordinary Console
-    publication above is not installation/replacement acceptance.
-
-  Next native control: reuse the `sink-app` / `logger-kit` package composition
-  from `compiler/tests/behavior_exclusions.rs`, target `macos_arm64`, replace
-  `exclude_service<Sink>()` with
-  `exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput)`, and
-  request `NativeArtifact`. A temporary probe at `ee249ec910` on macOS ARM64
-  reaches `Selection(Legalization(SourceCustodyMismatch))` before publication.
-  The silent service invocation therefore still needs ordinary native custody
-  in `target-operations-to-selected-instructions/src/legalization`, not another
-  authority classifier. After that dependency closes, require native execution
-  with empty output and independent retained-product replay; preserve the
-  existing service-exclusion rejection for the same invocation.
+  - Runtime and installation legs on Windows/macOS hosts: this session ran on
+    Linux x86_64, so those legs were not exercised; the windows_x86_64
+    sentinel leg is compile-time selection only.
 
   Reuse `terminal_authority_policy/` and the mechanism-closure review;
   classification is not receiving permission. Do not invent a second classifier,
