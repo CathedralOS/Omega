@@ -7728,7 +7728,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Remaining open legs on the manifest stay named in their own rows (`omega0`/
   `omega` tapes under OMEGA-C; certificates and admission records per edge).
 - **GENERAL-LICM** — mined candidate; verify scope then implement.
-- **GENERAL-SCHEDULE-RELOCATION** — mined candidate; verify scope then implement.
+- **GENERAL-SCHEDULE-RELOCATION.** First migration landed — the stub
+  re-mines the EXACT-MACHINE-SIMPLIFICATIONS Flag bullet ("one relocation
+  rule over a member run and a destination point"). The mechanism already
+  sat in `rewrites/block_edges.rs::crossed_window` (acyclic-path
+  derivation of the crossed positions/edges) and
+  `rewrites/window_hazards.rs::admit_run_relocation` (the single hazard/
+  memory/transport/settlement audit), both dead behind
+  `#[allow(dead_code)]` awaiting a consumer. `edge_relocation` and
+  `edge_run_relocation` now keep only their traversal-parity gates —
+  unconditional `Jump`, plain successor, non-entry `Source` destination,
+  single predecessor, landing resolution — and hand the window to the
+  shared derivation+audit; `RunRelocationRejection` kinds map onto each
+  family's typed errors and the path walk is bounded by the function's
+  edge roster. Verified at base 043ccb576d (linux x86-64): `cargo nextest
+  run -p selected-instructions-to-selected-instructions --lib` 1592/1592,
+  clippy clean; measured-budget tests re-pinned (+1 edge-walk charge).
+  Remaining legs: migrate predecessor/diamond/join/fork/arm/bypass/
+  triangle/confluence/inflow (± run and commuting variants — diamond and
+  join are the first multi-path windows), then the in-block families
+  (`local_relocation`, `run_relocation`, `local_schedule`), retiring each
+  family's hand-rolled window scan.
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION** — mined candidate; verify scope then implement.
 - **GENERIC-DYNAMIC-FAMILY-DISPATCH** — mined candidate; verify scope then implement.

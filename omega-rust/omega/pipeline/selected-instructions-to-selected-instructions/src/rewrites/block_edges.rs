@@ -2,8 +2,11 @@
 //! that walks a function: the successor edges a terminator names, the
 //! instruction it carries, the whole-function edge roster, and the per-edge
 //! checks and surfaces the relocation admissions apply to an edge a member
-//! crosses. Each rewrite locates its own blocks and edges; reading them is
-//! one owner.
+//! crosses. `acyclic_paths` and `crossed_window` additionally derive the
+//! general relocation window — the positions and edges every acyclic path
+//! between a member run and its destination crosses — so a family that
+//! admits a run-and-destination pair applies its own traversal-parity gates
+//! and hands the window to one derivation and one audit.
 use std::collections::{BTreeMap, BTreeSet};
 
 use selected_instructions::{
@@ -143,10 +146,6 @@ pub(super) fn edge_surface(successor: &SelectedSuccessor) -> usize {
 /// One edge traversal on a path between two blocks: the block the edge
 /// leaves, the instruction its terminator carries — the edge's own
 /// position — and the crossed successor row.
-///
-/// Dead until a relocation family migrates to the shared window — module
-/// registration and the roster live under the catalog owner's claim.
-#[allow(dead_code)]
 #[derive(Clone)]
 pub(super) struct PathEdge<'function> {
     /// The block whose terminator carries the crossed edge.
@@ -159,9 +158,6 @@ pub(super) struct PathEdge<'function> {
 
 /// Every acyclic edge path from block `from` to block `to`, in walk order.
 ///
-/// Dead until a relocation family migrates — see [`PathEdge`].
-#[allow(dead_code)]
-#[allow(clippy::too_many_arguments)]
 ///
 /// A relocation window crosses each edge at most once on any traversal, so
 /// the walk never revisits a block: cyclic completions add no crossed
@@ -241,16 +237,13 @@ pub(super) fn acyclic_paths<'function>(
 
 /// The window a relocation of a contiguous member run crosses between the
 /// run's block and a destination position — the shared derivation the
-/// per-shape families enumerate by hand today: the union over every acyclic
-/// path of the positions and edges the move trades order with, plus the
-/// span the run occupies and lands at. In the run block the tail behind
-/// the run is crossed; in an intermediate block the whole body is; in the
-/// destination block the head before the landing index is. Each traversed
-/// edge contributes its successor row and its terminator-carried
+/// per-shape families enumerated by hand before migrating here: the union
+/// over every acyclic path of the positions and edges the move trades order
+/// with, plus the span the run occupies and lands at. In the run block the
+/// tail behind the run is crossed; in an intermediate block the whole body
+/// is; in the destination block the head before the landing index is. Each
+/// traversed edge contributes its successor row and its terminator-carried
 /// instruction — the edge's own position.
-///
-/// Dead until a relocation family migrates — see [`PathEdge`].
-#[allow(dead_code)]
 pub(super) struct RelocationCrossing<'function> {
     /// Whether at least one acyclic path joins the run block to the
     /// destination block — a relocation onto an unreachable position
@@ -280,9 +273,6 @@ pub(super) struct RelocationCrossing<'function> {
 /// same the window is the span between the run and the landing index, the
 /// landing position included — the in-block family's case — and no edge
 /// is crossed. `None` when the acyclic walk exceeds `edge_limit`.
-///
-/// Dead until a relocation family migrates — see [`PathEdge`].
-#[allow(dead_code)]
 pub(super) fn crossed_window<'function>(
     function: &'function SelectedFunction,
     run_block: usize,

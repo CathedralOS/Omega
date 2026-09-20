@@ -246,9 +246,6 @@ pub(super) fn surface(instruction: &SelectedInstruction) -> usize {
 
 /// Why the run-level relocation audit refused a window — one kind per
 /// crossed contract so a caller can keep reporting its own typed errors.
-/// Dead until a relocation family migrates — module registration and the
-/// roster live under the catalog owner's claim.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum RunRelocationRejection {
     /// No acyclic path joins the run block to the destination block, or
@@ -284,9 +281,7 @@ pub(super) enum RunRelocationRejection {
 /// positions, every crossed edge plain and free of transport conflicts,
 /// and no boundary settlement inside the moved span or a crossed block.
 /// Hazards between the run's own members are not re-checked: the members
-/// keep their relative order. Dead until a family migrates — see
-/// [`RunRelocationRejection`].
-#[allow(dead_code)]
+/// keep their relative order.
 pub(super) fn admit_run_relocation(
     function: &SelectedFunction,
     members: &[&SelectedInstruction],
