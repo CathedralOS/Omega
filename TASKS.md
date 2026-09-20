@@ -57,7 +57,7 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   graph. The submodule's TASKS owns port work; this item owns integration and
   compiler blockers exposed by that application.
 
-  The tracked app `63baef1` uses intrinsic `Service<Console>` and pins std
+  The tracked app `4b1f7a6` uses intrinsic `Service<Console>` and pins std
   to `daa47e2d5048b67840393d2bb05ede58ea38e7c7`, the revision publishing the
   `CString` domain that the public Objective-C boundary already named; earlier
   pins fail candidate review on the `Service<R>` carrier mandate (87d8b2) or
@@ -76,11 +76,14 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   review. Windows execution remains untested; the supplied-byte scanner is not
   ported.
 
-  Scanner prerequisites (2026-09-20, Omega `daa47e2d`): the pinned Rust
-  `439090da02eb674eb2511664ae217ede86890e4a` is absent from the inspected local
-  Squalr/Olorin checkouts, and fetching that exact revision from the recorded
-  upstream returns `upload-pack: not our ref`. Recover the pinned reference or
-  review an explicit reference update; do not silently port a moving checkout.
+  Scanner prerequisites (2026-09-20, Squalr-Omega `4b1f7a6`): the recorded
+  `439090da02eb674eb2511664ae217ede86890e4a` had no surviving published
+  counterpart — upstream upload-pack reports `not our ref` and no refs/pull
+  head or sampled fork contains it. `upstream.json` now records the explicit
+  reference update to published upstream main
+  `568aa7589b68b2fd4621cc66c6dde23fa14c7f50`, the newest upstream commit
+  predating the lost pin's authorship; `tools/verify.py layout --upstream`
+  verifies the recorded 17-package/37-edge map against it exactly.
   Runtime growable storage remains an implementation dependency:
   `core/vec.omg` declares no construction or storage mechanics.
   **BUMP-ALLOCATOR-CANARY** and **PLAN-LAID-VIEWS** own element establishment
