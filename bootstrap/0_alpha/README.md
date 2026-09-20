@@ -101,7 +101,9 @@ SEMANTICS.md             AlphaBootstrapV5 execution and tape semantics
 ```
 
 Host seed selection and tape stamping live under `tools/bootstrap/alpha/`.
-Conformance and the independent reference VM live under `tests/alpha/`.
+`tests/alpha/container.sh` validates both containers' native structure and the
+stamping-hole contract on any host. Conformance and the independent reference
+VM live under `tests/alpha/`.
 `tests/bootstrap/alpha-beta-edge.sh` checks behavior and optional native-source
 provenance.
 

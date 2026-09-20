@@ -4,6 +4,9 @@
 #                 (macOS arm64: clang rebuild modulo the OS-imposed code
 #                 signature; Windows x64: the committed forge re-emits the
 #                 audited .hex listing — checkable on any host with Python 3);
+#   container   - both audited seeds parse as native executables and the
+#                 recorded stamping hole is the tape section's raw extent —
+#                 checkable on any host with Python 3;
 #   behavior    - it realizes SEMANTICS.md (conformance.sh, every opcode + edge);
 #   reconstruction - the VM reproduces the admitted Beta compiler tape.
 # Run after touching a seed; this is the per-platform acceptance gate.
@@ -91,6 +94,11 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
       ;;
   esac
 fi
+
+# The container leg inspects the committed seeds' native structure, so it runs
+# on every host with Python 3, including ones that cannot execute a seed.
+echo "--- container (both seeds' native structure) ---"
+if sh "$OMEGA_REPO_ROOT/tests/alpha/container.sh"; then :; else rc=1; fi
 
 # Seed-execution legs need a host that can run an audited Alpha container.
 # On any other host they refuse (exit 2 at the leaf gates), and the edge then

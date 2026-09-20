@@ -6,6 +6,7 @@ audited VM implementations and normative semantics remain in `bootstrap/0_alpha/
 | Retained child/files | Role | Deletion condition |
 | --- | --- | --- |
 | `conformance.sh` | Pins every Alpha opcode and the selected seed profile. | Delete only when a stronger executable conformance gate subsumes every case. |
+| `container.sh`, `container.py` | Validates both audited seed containers as native executables on every host: bound identity for the non-host seed too, PE32+/Mach-O structure, hole offset equal to the tape section's raw extent, and the stamped-artifact contract. | Delete only when an identity or provenance gate covers the same native-container contract. |
 | `bounds.py` | Hand-encoded bounds cases shared by native and reference checks. | Delete when stronger conformance controls subsume these exact/adjacent observations. |
 | `io-registers.hex` | Shared raw-tape regression for host scratch/register isolation. | Delete when stronger I/O conformance checks subsume its full-word and operand controls. |
 | `reference/` | Independent VM differential checks. | Delete when checked native correspondence subsumes the diagnostic. |
