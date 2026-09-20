@@ -468,9 +468,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `LocalStorageSlotId::Spill` slot. `runtime_spill/slot.rs` shares an
     existing slot only for the zero-offset `Store64` or
     `FrameAddress`-plus-`Load64` idiom when a last-writer replay proves the
-    windows cannot interleave. Interval-based coloring exists only as
-    `unsequenced_spill_stages/stack_slot_coloring`, which
-    `stage_register_allocation` never calls.
+    windows cannot interleave. Interval-based coloring is sequenced as
+    `assignment/stack_slot_coloring`: `stage_register_allocation`'s
+    runtime-spill recovery colors its retained logical-operation plan and
+    replays the coloring, but emission still consumes only the per-step
+    `LocalStorageSlotId` homes — the colored plan is validated evidence, not
+    yet a physical input.
   - Composition (`src/register_allocation.rs`). A completed selected-lowering
     run takes `assignment::transformed` homes and surfaces pressure as
     `TransformedHomes`; it never enters `assignment::runtime_spill`. A
@@ -504,10 +507,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Flag: the remaining `unsequenced_spill_stages/` families have test,
   architecture and non-authoritative frame-planning consumers, not an
   executable allocation route. Logical planning has moved out but still needs
-  the physical join above. Slot reuse still has two owners:
-  `unsequenced_spill_stages/stack_slot_coloring` and `runtime_spill/slot.rs`.
-  Follow consumers when sequencing a needed family or deleting a superseded
-  one with its exports and tests; do not extend both implementations.
+  the physical join above. Slot reuse still has two producers:
+  `assignment/stack_slot_coloring` (sequenced, retained evidence) and
+  `runtime_spill/slot.rs` (drives the emitted slot sharing). Follow consumers
+  when sequencing a needed family or deleting a superseded one with its
+  exports and tests; do not extend both implementations.
 
 - **ALLOCATION-REFINEMENT.** Add general live-range splitting to
   [register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)

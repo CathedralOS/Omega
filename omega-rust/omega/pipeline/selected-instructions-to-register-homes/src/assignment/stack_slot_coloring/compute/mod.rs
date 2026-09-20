@@ -11,8 +11,8 @@ use crate::{
     StackSlotColoringPolicy, ValidatedLogicalSpillOperations,
 };
 
-pub(in crate::unsequenced_spill_stages::stack_slot_coloring) use first_fit::color_intervals_first_fit;
-pub(in crate::unsequenced_spill_stages::stack_slot_coloring) use intervals::StackSlotInterval;
+pub(in crate::assignment::stack_slot_coloring) use first_fit::color_intervals_first_fit;
+pub(in crate::assignment::stack_slot_coloring) use intervals::StackSlotInterval;
 use intervals::intervals_for_function;
 
 pub(super) fn compute_stack_slot_coloring(
