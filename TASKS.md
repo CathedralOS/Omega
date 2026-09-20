@@ -5908,7 +5908,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CONCURRENCY-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
 - **CONCURRENT-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
 - **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
-- **CONCURRENT-PROTOCOL-EXTRACTION** — mined candidate; verify scope then implement.
+- **CONCURRENT-PROTOCOL-EXTRACTION** — mined candidate; scope verified, authorization gate recorded. Its source surface authorizes no implementation: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. Sibling stubs naming the same deferred surface: CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION, CONCURRENT-PROTOCOL-WHOLE-COMPOSITION, CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, CONCURRENCY-COMPOSITION-EXTRACTION, CONCURRENT-COMPOSITION-EXTRACTION.
 - **CONCURRENT-PROTOCOL-WHOLE-COMPOSITION** — mined candidate; verify scope then implement.
 - **CONCURRENT-WHOLE-COMPOSITION-EXTRACTION** — mined candidate; verify scope then implement.
 - **CONNECTED-ROUTE-GATE** — mined candidate; verify scope then implement.
