@@ -6384,7 +6384,8 @@ Optimizer lane (source: `TASKS_OPTIMIZER.md` + `learned_optimization_policy.md`)
 - **SPECIALIZED-VARIANT-IDENTITY-IMPACT.** Identity impact of specialized
   variants — resolved as an answered analysis question.
   `wiki/drafts/specialized_variant_identity_impact.md` records the verdict and
-  its claims verified current at `36ffc8af87`/friends: unit identity digests
+  its claims verified current at `9f48bb2a59` (earlier stamp
+  `36ffc8af87`)/friends: unit identity digests
   complete canonical content (`optimization-unit`), the specialization chain
   re-derives candidate/output identities and rejects `StaleCandidateRevision` /
   `OutputIdentityMismatch` (`state_specialization`), `MachineFunctionIdentity`
