@@ -13,10 +13,13 @@ pub const CORE_TASK_PARKED_CONTINUATION_MUTATION_REJECTED: &str =
 
 pub const BLOCKEXEC_BLOCKING_EXECUTOR_CUSTODY_CLAIMS_COMPILE: &str =
     "blockexec/blocking_executor_custody_claims_compile";
+pub const BLOCKEXEC_BLOCKING_EXECUTOR_CONSUMER_DEPEND_COMPILE: &str =
+    "blockexec/blocking_executor_consumer_depend_compile";
 
 pub const PASS_CANARIES: &[&str] = &[
     CORE_TASK_LIFECYCLE_OPERATIONS,
     BLOCKEXEC_BLOCKING_EXECUTOR_CUSTODY_CLAIMS_COMPILE,
+    BLOCKEXEC_BLOCKING_EXECUTOR_CONSUMER_DEPEND_COMPILE,
 ];
 
 pub const FAIL_CANARIES: &[&str] = &[CORE_TASK_CORE_SCOPE_LOSS];
