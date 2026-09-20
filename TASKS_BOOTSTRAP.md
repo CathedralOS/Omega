@@ -163,7 +163,13 @@ prerequisite to every lower-rung milestone.
     than the selected chain, which still needs a native host to evaluate and
     check.
   - Check the full certificate, and the full-subject mutations the acceptance
-    document lists, under the exact profile.
+    document lists, under the exact profile. The check gate exists:
+    `tests/gamma/beta-encoding-check/run.sh` emits the theory through the
+    selected evaluator, reproduces the pinned 135,485,028-byte request, and
+    requires the `Checked` observation with row count 3,182,974 and work
+    inside the 2^26 provision, on the native hosts only. Remaining: execute
+    it on macOS arm64 or Windows x64 and record measured work and time, then
+    run the mutation legs the acceptance document lists.
   - Show that each retained checker rule and encoding helper has a role in
     that certificate, and remove the rest. The audit is resolved: every
     rule except symmetry appears (symmetry stays as one of the five
