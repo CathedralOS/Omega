@@ -7001,7 +7001,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RECAST-SOURCE-POSITIONS** — mined candidate; verify scope then implement.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; verify scope then implement.
 - **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP** — mined candidate; verify scope then implement.
-- **RECURSIVE-CALL-FIXTURE-RESOLUTION** — mined candidate; verify scope then implement.
+- **RECURSIVE-CALL-FIXTURE-RESOLUTION** — mined candidate; scope verified, resolved — the recursive-call fixture resolution already landed under BASELINE-CANARY-PASS-CLUSTER's w9 leg: `e5912f303a` ("canaries: repair statement-call-recursive-argument and integer-division fixtures") renamed `tests/omega/pass/calls/statement_call_recursive_argument_compile`'s local `Nat`/`add` to `Peano`/`peano_add` to end the collision with `core/nat.omg` exports (the `read_line`/`extent_shape` diagnostics were collision collateral), and the repair is documented both in the fixture's own header comment and the BASELINE-CANARY-PASS-CLUSTER row.
 - **REGION-ALIGNMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
 - **REPLACEMENT-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
