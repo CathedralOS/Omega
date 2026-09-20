@@ -25,13 +25,15 @@ mod tests;
 
 #[cfg(test)]
 mod domain_carrier_subjects {
-    use super::*;
+    use super::domain_expression_result_type_reference;
     use source_files_to_tokens::Lexer;
     use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
     use tokens_to_syntax_trees::parse_syntax_trees;
     use typed_trees::TypedTrees;
     use typed_trees::domain::ProofFact;
+    use typed_trees::expression::ExpressionHandle;
+    use typed_trees::types::PrimitiveType;
 
     fn typed_source(source: &str) -> TypedTrees {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
