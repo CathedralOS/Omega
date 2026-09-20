@@ -48,8 +48,57 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None open. No unanswered owner decision stands; implementation and deliberately
-deferred research remain on the task boards.
+1. **Which declared-default field rows of a `&mut self` receiver cross a
+   method call — the machine-storage ZII set or the caller's checked
+   incoming set?** (named decision:
+   `mutable-self-receiver-declared-field-rows`).
+   [Default domains and zero
+   initialization](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization)
+   states both halves without joining them for receivers: "machine-owned
+   storage may begin zeroed while gated fields remain inaccessible until
+   established" governs a callee's `self` entry, while the same section
+   makes calls a consumption point where "the domain must be proved again"
+   — without saying whether the receiver place at a method call is the
+   callee's machine storage or a caller-obligated place like a `&mut`
+   actual. [Receiver state](
+   wiki/language_guide/chapter_8_domains.md#machines-and-states-can-require-or-guarantee-domains)
+   supplies the authored route (`requires self in D` / `ensures self in D`)
+   and stays silent on unannotated declared-field rows, and
+   [data_and_literals](wiki/spec/language/data_and_literals.md) confines
+   zero-initialization to construction, not call contracts. The
+   implementation currently picks the machine-storage route: a callee's
+   `self` entry assumption seeds only rows whose ZII value satisfies the
+   domain (`typed-trees-to-checked-trees/src/semantic/field_domains.rs`),
+   `checks/contracts/exits/result_domains.rs` re-proves exactly the assumed
+   rows at return, and `flow/call_phases/referents.rs` hands exactly those
+   back — so a caller's established non-ZII receiver facts survive a method
+   call only when the callee's write frame provably spares the field. Every
+   `&mut` parameter already rides the other route: "nominal input storage
+   instead relies on the checked incoming argument" (same file).
+   Motivating requirement: receiver field invariants are the common shape
+   of authored data invariants — a caller that proves `player.health`
+   inside its declared bound and then invokes `player.update()` permanently
+   loses the row under the current reading, while no authored
+   `requires`/`ensures` is needed for declared fields on plain arguments,
+   making receivers the one surface where declared defaults drop silently.
+   Options:
+
+   - (a) A `&mut self` receiver is a readable `&mut` referent like any
+     other: the caller owes the receiver's declared-default field rows at
+     the call, the callee assumes them on entry and re-proves them at
+     return. Method calls preserve receiver invariants the way argument
+     calls do; in exchange the receiver's declared surface becomes
+     caller-facing contract.
+   - (b) Receiver declared-default rows stay machine-internal: calls on
+     `self` carry only ZII-satisfiable rows plus authored
+     `requires`/`ensures`, established non-ZII facts retire at the
+     boundary, and frame precision remains the only preservation route —
+     the current implementation is the contract.
+
+   Until answered, NOMINAL-FIELD-FLOW's receiver-handback widening stays
+   open: the flow machinery already transports whatever the entry
+   assumption carries, so the missing piece is the ruling, not the
+   plumbing.
 
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
