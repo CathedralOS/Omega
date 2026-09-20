@@ -1,9 +1,29 @@
+// Arithmetic as a runtime value: a decremented `i32` field. The deployable
+// shape matches the sibling runtime canaries: the computed value is checked
+// in a guard ladder and the process exits 70 only when exact.
+
+use omega_language_std::console;
+use omega::language::core::service;
+
 data Main {
+    console: Service<Console>;
+    health: i32;
 }
 
-machine Main::main(
-    &mut self,
-    health: &mut i32
-) {
-    health = max(0, health - 1);
+machine Main::main(&mut self) reaches Console {
+    self.health = 5;
+    self.health = self.health - 1;
+
+    transition self.health == 4 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
 }

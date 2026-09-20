@@ -1,3 +1,11 @@
+// A call result lands in a carrier's enum field as a runtime value:
+// `reward.item = self.pick()`. The deployable shape matches the sibling
+// runtime canaries: the stored case is checked in a guard ladder and the
+// process exits 70 only when exact.
+
+use omega_language_std::console;
+use omega::language::core::service;
+
 data ItemKind {
     case RustedDagger;
     case DeepKey;
@@ -8,18 +16,27 @@ data Reward {
 }
 
 data Main {
+    console: Service<Console>;
+    reward: Reward;
 }
 
-machine Main::main(
-    &mut self,
-    reward: &mut Reward
-) {
-    reward.item = self.pick();
-    
+machine Main::main(&mut self) reaches Console {
+    self.reward.item = self.pick();
+
+    transition self.reward.item == ItemKind::DeepKey {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
 }
 
-machine Main::pick(
-    &mut self
-    ) -> ItemKind {
+machine Main::pick(&mut self) -> ItemKind {
     ItemKind::DeepKey
 }
