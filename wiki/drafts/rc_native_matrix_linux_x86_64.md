@@ -1,18 +1,18 @@
 # RC native matrix — linux_x86_64 row
 
 Witnessed row of the release-candidate native matrix on the Linux x86-64
-host. Recorded at revision `0977a4249e` (2026-09-20), host
+host. Recorded at revision `6ef64f6dd6` (2026-09-20), host
 `x86_64-unknown-linux-gnu`, pinned toolchain `nightly-2026-09-04`,
 cargo-nextest (mbx unavailable). Every command below was executed on this
 host at that revision; legs that only cross-emit here are marked.
 
-Verdict: **red** — 24 pass / 14 fail across 38 legs. The
-source_evaluated hosted-receiver pair respelled in this revision window
-now passes (family 1 below is closed), and the sysv fixture respells
-landed with this row collapse every remaining leg onto one residual:
-hosted `ProgramEntry` is the only bindable root slot and admits no
-visible parameters or result, so the param-carrying boundary-machine
-fixtures cannot select an entry at all.
+Verdict: **red** — 24 pass / 14 fail across 38 legs. The row is
+unchanged from the `0977a4249e` record: the hosted-receiver and
+source-evaluated legs stay green, and all 14 sysv failures still refuse
+at product admission with `native-artifact production requires one
+exact selected program entry` — hosted `ProgramEntry` is the only
+bindable root slot and admits no visible parameters or result, so the
+param-carrying boundary-machine fixtures cannot select an entry at all.
 
 ## Baseline gates
 
@@ -38,7 +38,7 @@ fixtures cannot select an entry at all.
   boundary_requirement_executes_its_foreign_call_on_linux_x64` runs the
   foreign call natively; GOT/PLT import-slot custody and dynamic ELF custody
   legs pass; `linux_dynamic_realization::import_bearing_linux_compiler_route`
-  is slow (~83s) but passes.
+  is slow (~150s at `6ef64f6dd6`) but passes.
 - `hosted_receiver_linux_arm64` legs now compile the fixture fine and are
   cross-emit-only — they are green everywhere since they never execute an
   aarch64 binary.
@@ -79,8 +79,16 @@ The 14 failures now reduce to one recorded residual:
 ## Row gaps
 
 - Adjacent entry legs sampled for context and not counted above:
-  `program_entries_and_image_validation` x2 and `aarch64_entry_abi` x11
-  fail with the same entry-selection residual.
+  `aarch64_entry_abi` x11 fail with the same entry-selection residual
+  (`requires one exact selected program entry`).
+  `program_entries_and_image_validation` grew to 14 legs — 9 pass, 5
+  fail: three share the entry-selection residual
+  (`catalog_checked_assembly_…`, `structured_machine_control_…`,
+  `migrated_main_entries_…`), and two fail on newer distinct shapes —
+  `immediate_port_io_…` refuses at terminal-authority closure
+  (`no selected provider requirement custody`) and
+  `production_check_accepts_entry_agnostic_semantic_corpus` misses the
+  expected `05_capability_manifest.json` build artifact.
 - `calling_policy_plans` counts include the module's linux_arm64 policy
   legs (host-independent plan evaluation); they are green.
 - Not run: `canary_suite` full corpus (recorded red elsewhere),
