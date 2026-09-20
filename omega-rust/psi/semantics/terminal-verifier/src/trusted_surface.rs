@@ -864,7 +864,10 @@ fn check_proved_set<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        BTreeMap, EntryBinding, LedgerFailure, LedgerFamily, SoundnessStatus, TrustRoot,
+        TrustedSurfaceEntry, check_dependency_edges, check_proved_set, check_soundness_status,
+    };
 
     static UNFINISHED: TrustedSurfaceEntry = TrustedSurfaceEntry {
         id: "test:unfinished-row",
