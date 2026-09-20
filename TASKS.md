@@ -6889,7 +6889,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **WINDOWS-PEAK-MEMORY-MEASUREMENT** — mined candidate; verify scope then implement.
 - **WINDOWS-SET-FILE-TIME-CARRIER** — mined candidate; verify scope then implement.
 - **WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL** — mined candidate; verify scope then implement.
-- **WORKLOAD-CORPUS** — mined candidate; verify scope then implement.
+- **WORKLOAD-CORPUS** — mined candidate; scope verified, authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg (the versioned workload corpus that GRAPH-COST-MODEL-STUDY's `predicted_cost_delta` comparison is missing). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records. Same verdict already recorded on sibling GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
 - **WORKLOAD-MULTIVERSIONING** — mined candidate; verify scope then implement.
 - **WORKSPACE-ROLLOUT** — mined candidate; verify scope then implement.
 - **WR-REJOIN-LEGS** — mined candidate; verify scope then implement.
