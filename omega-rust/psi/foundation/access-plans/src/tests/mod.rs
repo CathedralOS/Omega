@@ -18,18 +18,20 @@ use crate::{
     AccessExposure, AccessFieldEntry, AccessFieldKey, AccessOperation, AccessPlan,
     AdmittedResourceProfile, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
     AtomicTransferRule, AuthorizedFieldAccess, BorrowPolarity, BoundaryReach,
-    BoundaryServiceReachId, DeviceOperation, DeviceOperationRequirement,
-    DeviceOperationRequirementId, DeviceOrderingScopeId, DormantOwnedAtomicResident,
+    BoundaryServiceReachId, DeviceOperation, DeviceOperationProviderPlanId,
+    DeviceOperationRequirement, DeviceOperationRequirementId, DeviceOrderingScopeId,
+    DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId, DormantOwnedAtomicResident,
     EffectFootprint, EffectiveFieldSupply, EffectiveSupplyKind, EstablishedOwnedPlacement,
     ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, FieldAccessDescriptor,
     LogicalFieldExtent, ObservationModel, PlacedOccurrenceId, PlacementAdmission,
     PlacementAdmissionId, PlacementPlan, PlacementPlanId, PlacementRejection,
-    PrimitiveAccessRequest, ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId,
-    ResourceRegion, SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId,
-    SchemaDeviceCorrespondenceGrant, SchemaDeviceCorrespondenceReceiptContext, StableCapability,
-    StableDeviceInstanceId, TransferRule, ValidatedAccessPlan, ValidatedPlacementPlan,
-    admit_owned_placement, admit_placement, adopt_owned_atomic, adopt_owned_stable,
-    validate_access_plan, validate_placement_plan,
+    PrimitiveAccessRequest, ProviderAssertedDeviceOperationClaim, ResourceProfile,
+    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
+    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
+    SchemaDeviceCorrespondenceReceiptContext, StableCapability, StableDeviceInstanceId,
+    TransferRule, ValidatedAccessPlan, ValidatedPlacementPlan, admit_owned_placement,
+    admit_placement, adopt_owned_atomic, adopt_owned_stable, validate_access_plan,
+    validate_placement_plan,
 };
 use extents::Extent;
 use extents::ExtentLoan;
@@ -818,6 +820,32 @@ fn device_requirement_correspondence(
     .admit(&placement, &profile)
     .expect("admitted device correspondence")
     .receipt_context()
+}
+
+fn device_scope_occurrence(ordering_scope: u64, occurrence: u64) -> DeviceOrderingScopeOccurrence {
+    DeviceOrderingScopeOccurrence::from_provider_assertion(
+        DeviceOrderingScopeId::from_normalized_identity(ordering_scope)
+            .expect("device ordering scope capability"),
+        DeviceOrderingScopeOccurrenceId::from_normalized_identity(occurrence)
+            .expect("device ordering-scope occurrence"),
+    )
+}
+
+fn device_claim(
+    provider_plan: u64,
+    requirement: &DeviceOperationRequirement,
+    occurrence: u64,
+) -> ProviderAssertedDeviceOperationClaim {
+    ProviderAssertedDeviceOperationClaim::from_provider_assertion(
+        DeviceOperationProviderPlanId::from_normalized_identity(provider_plan)
+            .expect("device provider plan"),
+        requirement,
+        device_scope_occurrence(
+            requirement.ordering_scope().normalized_identity(),
+            occurrence,
+        ),
+    )
+    .expect("scope occurrence covers the demanded scope capability")
 }
 
 fn device_requirement(

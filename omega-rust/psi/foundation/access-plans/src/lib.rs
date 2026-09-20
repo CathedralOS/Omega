@@ -99,6 +99,7 @@ pub use primitive_access::primitive_specialization::{
 pub use resources::device_operation_requirements::{
     DeviceOperation, DeviceOperationProviderPlanId, DeviceOperationRequirement,
     DeviceOperationRequirementId, DeviceOperationStructuralClosureError, DeviceOrderingScopeId,
+    DeviceOrderingScopeOccurrence, DeviceOrderingScopeOccurrenceId,
     ProviderAssertedDeviceOperationClaim, StructurallyClosedDeviceOperationRequirement,
     StructurallyClosedDeviceOperationRequirements,
     structurally_close_device_operation_requirements,

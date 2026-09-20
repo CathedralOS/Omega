@@ -44,6 +44,49 @@ normalized_identity!(
 );
 normalized_identity!(DeviceOrderingScopeId, "device-ordering scope identity");
 normalized_identity!(
+    DeviceOrderingScopeOccurrenceId,
+    "device ordering-scope occurrence identity"
+);
+
+/// Opaque provider-issued occurrence of one admitted ordering-scope
+/// capability.
+///
+/// Per [device ordering](wiki/spec/resources/device_access.md), build
+/// selection admits a provider and its scope-capability schema — the
+/// `DeviceOrderingScopeId` coordinate on the requirement — but runtime scope
+/// occurrences are issued only by the installed provider. Source code can
+/// carry this token; it cannot construct one except through provider
+/// assertion, inspect its identity, or compare it to another occurrence, so
+/// the token intentionally has no `Clone`, `PartialEq`, or identity accessor.
+#[derive(Debug)]
+#[must_use = "ordering-scope occurrence is provider-issued runtime scope evidence"]
+pub struct DeviceOrderingScopeOccurrence {
+    scope: DeviceOrderingScopeId,
+    occurrence: DeviceOrderingScopeOccurrenceId,
+}
+
+impl DeviceOrderingScopeOccurrence {
+    /// The installed provider issues a runtime occurrence of an admitted
+    /// scope capability. Construction is provider assertion: it records the
+    /// occurrence, it does not establish ordering or admission itself.
+    pub const fn from_provider_assertion(
+        scope: DeviceOrderingScopeId,
+        occurrence: DeviceOrderingScopeOccurrenceId,
+    ) -> Self {
+        Self { scope, occurrence }
+    }
+
+    /// The admitted scope-capability coordinate this occurrence was issued
+    /// under — not the occurrence identity, which stays opaque to source.
+    pub const fn scope_capability(&self) -> DeviceOrderingScopeId {
+        self.scope
+    }
+
+    const fn occurrence_identity(&self) -> DeviceOrderingScopeOccurrenceId {
+        self.occurrence
+    }
+}
+normalized_identity!(
     DeviceOperationProviderPlanId,
     "device-operation provider-plan identity"
 );
@@ -114,31 +157,51 @@ impl DeviceOperationRequirement {
     }
 }
 
-/// Non-clonable provider assertion for one exact emitted requirement.
+/// Non-clonable provider assertion for one exact emitted requirement,
+/// carrying the runtime ordering-scope occurrence the provider issued for it.
 ///
 /// Construction snapshots the complete demand instead of asking a provider to
-/// restate public IDs or geometry. The provider-plan ID is provenance for the
-/// asserted claim row; it is not admission, operation, or mapping authority.
+/// restate public IDs or geometry, and binds the provider-issued scope
+/// occurrence covering the requirement's scope capability so a closed row
+/// cannot name an ordering scope the provider never issued. The provider-plan
+/// ID is provenance for the asserted claim row; it is not admission,
+/// operation, or mapping authority.
 #[derive(Debug)]
 #[must_use = "device-operation claim retains one exact provider assertion"]
 pub struct ProviderAssertedDeviceOperationClaim {
     provider_plan: DeviceOperationProviderPlanId,
     requirement: DeviceOperationRequirement,
+    scope_occurrence: DeviceOrderingScopeOccurrence,
 }
 
 impl ProviderAssertedDeviceOperationClaim {
     pub fn from_provider_assertion(
         provider_plan: DeviceOperationProviderPlanId,
         requirement: &DeviceOperationRequirement,
-    ) -> Self {
-        Self {
+        scope_occurrence: DeviceOrderingScopeOccurrence,
+    ) -> Result<Self, AccessPlanDiagnostic> {
+        if scope_occurrence.scope != requirement.ordering_scope {
+            return Err(AccessPlanDiagnostic(format!(
+                "ordering-scope occurrence {} does not cover the demanded scope capability {}",
+                scope_occurrence.occurrence_identity().normalized_identity(),
+                requirement.ordering_scope.normalized_identity()
+            )));
+        }
+        Ok(Self {
             provider_plan,
             requirement: requirement.clone(),
-        }
+            scope_occurrence,
+        })
     }
 
     pub const fn provider_plan(&self) -> DeviceOperationProviderPlanId {
         self.provider_plan
+    }
+
+    /// The provider-issued runtime scope occurrence bound into this claim.
+    /// Opaque to consumers: carryable, never inspectable or comparable.
+    pub const fn scope_occurrence(&self) -> &DeviceOrderingScopeOccurrence {
+        &self.scope_occurrence
     }
 
     pub const fn requirement(&self) -> &DeviceOperationRequirement {
@@ -160,6 +223,13 @@ impl StructurallyClosedDeviceOperationRequirement {
 
     pub const fn provider_plan(&self) -> DeviceOperationProviderPlanId {
         self.claim.provider_plan
+    }
+
+    /// The runtime ordering-scope occurrence the provider issued under this
+    /// admitted coverage row. Opaque: a consumer may carry it but cannot
+    /// construct, inspect, or compare its identity.
+    pub const fn scope_occurrence(&self) -> &DeviceOrderingScopeOccurrence {
+        self.claim.scope_occurrence()
     }
 
     fn validate_structure(&self) -> Result<(), AccessPlanDiagnostic> {

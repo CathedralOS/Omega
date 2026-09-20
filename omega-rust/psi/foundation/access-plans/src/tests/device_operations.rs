@@ -1,7 +1,7 @@
-use super::device_requirement;
+use super::{device_claim, device_requirement, device_scope_occurrence};
 use crate::{
-    DeviceOperation, DeviceOperationProviderPlanId, ProviderAssertedDeviceOperationClaim,
-    structurally_close_device_operation_requirements,
+    DeviceOperation, DeviceOperationProviderPlanId, DeviceOrderingScopeId,
+    ProviderAssertedDeviceOperationClaim, structurally_close_device_operation_requirements,
 };
 
 #[test]
@@ -21,13 +21,7 @@ fn device_operation_requirements_close_all_five_non_fence_families_exactly() {
     let evidence = requirements
         .iter()
         .rev()
-        .map(|requirement| {
-            ProviderAssertedDeviceOperationClaim::from_provider_assertion(
-                DeviceOperationProviderPlanId::from_normalized_identity(822)
-                    .expect("device provider plan"),
-                requirement,
-            )
-        })
+        .map(|requirement| device_claim(822, requirement, 900))
         .collect();
 
     let closed = structurally_close_device_operation_requirements(requirements, evidence)
@@ -52,7 +46,38 @@ fn device_operation_requirements_close_all_five_non_fence_families_exactly() {
                 .device()
                 .normalized_identity()
                 == 818
+            && row.scope_occurrence().scope_capability()
+                == DeviceOrderingScopeId::from_normalized_identity(821).unwrap()
     }));
+}
+
+#[test]
+fn device_operation_claim_binds_the_issued_scope_occurrence() {
+    let requirement = device_requirement(860, DeviceOperation::MmioNotification, 0, 831, 832);
+    let plan = DeviceOperationProviderPlanId::from_normalized_identity(833).expect("provider plan");
+
+    let foreign_scope = device_scope_occurrence(834, 901);
+    let rejection = ProviderAssertedDeviceOperationClaim::from_provider_assertion(
+        plan,
+        &requirement,
+        foreign_scope,
+    )
+    .expect_err("an occurrence issued for a different scope cannot cover this demand");
+    assert!(rejection.0.contains("does not cover the demanded scope"));
+
+    let issued = device_scope_occurrence(832, 902);
+    let claim =
+        ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &requirement, issued)
+            .expect("provider-issued occurrence of the demanded scope covers it");
+    let closed = structurally_close_device_operation_requirements(vec![requirement], vec![claim])
+        .expect("claim bound to its issued scope occurrence closes");
+    let row = &closed.rows()[0];
+    // The occurrence is opaque: a consumer may carry it but cannot construct,
+    // inspect, or compare its identity — only its scope capability is visible.
+    assert_eq!(
+        row.scope_occurrence().scope_capability(),
+        DeviceOrderingScopeId::from_normalized_identity(832).unwrap()
+    );
 }
 
 #[test]
@@ -64,11 +89,7 @@ fn device_operation_structural_closure_rejects_drift_and_returns_retry_custody()
         device_requirement(840, DeviceOperation::DmaPublication, 0, 825, 824),
         device_requirement(840, DeviceOperation::DmaPublication, 0, 823, 826),
     ] {
-        let evidence = ProviderAssertedDeviceOperationClaim::from_provider_assertion(
-            DeviceOperationProviderPlanId::from_normalized_identity(827)
-                .expect("device provider plan"),
-            &drifted,
-        );
+        let evidence = device_claim(827, &drifted, 903);
         let error =
             structurally_close_device_operation_requirements(vec![exact.clone()], vec![evidence])
                 .expect_err("compact identity cannot cover structural drift");
@@ -82,11 +103,7 @@ fn device_operation_structural_closure_rejects_drift_and_returns_retry_custody()
             827
         );
 
-        let repaired = ProviderAssertedDeviceOperationClaim::from_provider_assertion(
-            DeviceOperationProviderPlanId::from_normalized_identity(827)
-                .expect("device provider plan"),
-            &returned_requirements[0],
-        );
+        let repaired = device_claim(827, &returned_requirements[0], 904);
         let _closed =
             structurally_close_device_operation_requirements(returned_requirements, vec![repaired])
                 .expect("returned demand supports corrected retry");
@@ -97,12 +114,10 @@ fn device_operation_structural_closure_rejects_drift_and_returns_retry_custody()
 fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
     let first = device_requirement(850, DeviceOperation::CacheMaintenance, 0, 828, 829);
     let second = device_requirement(851, DeviceOperation::CacheMaintenance, 0, 828, 829);
-    let plan =
-        DeviceOperationProviderPlanId::from_normalized_identity(830).expect("device provider plan");
 
     let missing = structurally_close_device_operation_requirements(
         vec![first.clone(), second.clone()],
-        vec![ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first)],
+        vec![device_claim(830, &first, 905)],
     )
     .expect_err("each equal-looking occurrence needs its own evidence");
     assert!(missing.diagnostic().0.contains("no provider claim"));
@@ -113,7 +128,7 @@ fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
 
     let duplicate_requirement = structurally_close_device_operation_requirements(
         vec![first.clone(), first.clone()],
-        vec![ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first)],
+        vec![device_claim(830, &first, 906)],
     )
     .expect_err("duplicate emitted identities reject");
     assert!(
@@ -126,8 +141,8 @@ fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
     let duplicate_evidence = structurally_close_device_operation_requirements(
         vec![first.clone()],
         vec![
-            ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first),
-            ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first),
+            device_claim(830, &first, 907),
+            device_claim(830, &first, 908),
         ],
     )
     .expect_err("duplicate provider assertions reject");
@@ -141,8 +156,8 @@ fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
     let extra = structurally_close_device_operation_requirements(
         vec![first.clone()],
         vec![
-            ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &first),
-            ProviderAssertedDeviceOperationClaim::from_provider_assertion(plan, &second),
+            device_claim(830, &first, 909),
+            device_claim(830, &second, 910),
         ],
     )
     .expect_err("evidence for an un-emitted occurrence rejects");
