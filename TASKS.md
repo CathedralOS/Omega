@@ -7174,7 +7174,31 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   DEPENDENCY-FREE-BENCHMARK-SUBJECT, DEPENDENCY-FREE-RUNTIME-BENCHMARK-
   SUBJECT, BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT,
   BENCHMARK-MEASURABLE-SUBJECT-CORPUS.
-- **DEPENDENCY-FREE-RUNTIME-BENCHMARK-SUBJECT** — mined candidate; verify scope then implement.
+- **DEPENDENCY-FREE-RUNTIME-BENCHMARK-SUBJECT.** Mined candidate — resolved,
+  gate recorded at `867443a8fd`. The runtime leg needs a depend-free subject
+  whose process completes cleanly, and two joined gates stand in the way.
+  (a) Process completion on every hosted target is a provider operation:
+      `source/library/std/targets/linux_x86_64/entry.omg` completes through
+      the `exit_group` syscall sequence and the canonical `ProcessExit`
+      provider is bound to the std package identity
+      (`source/library/std/process_exit.omg` +
+      `targets/*/process_exit_impl.omg`), which a `depend()`-free subject
+      cannot import or select.
+  (b) A boundary machine declared in the subject's own package produces no
+      provider plan — only dependency packages contribute them — so no
+      package-local provider route exists either
+      (`samples/cli/basics/standalone/README.md`; consistent with
+      entry_roots.md's "omission from that complete set denies authority"
+      and process_exit.md's "selecting a provider grants no authority").
+  The repair is the spec-named PROCESS-EXIT-CONTRACT migration (~TASKS.md:873)
+  — the provider/capability/cross-stage legs that decide whether a root
+  package may contribute a provider plan and bind exit authority — not a
+  benchmark-harness change. Until it lands, depend-free subjects stay
+  `--no-run` with `runtime_ms` honestly `skipped` (the matrix records this).
+  Sibling stubs on the same surface: DEPENDENCY-FREE-BENCHMARK-SUBJECT,
+  DEPENDENCY-FREE-MEASURABLE-SUBJECT (subject landed `3dd805679c`),
+  BENCHMARK-DEPEND-FREE-RUNNABLE-SUBJECT, BENCHMARK-MEASURABLE-SUBJECT-CORPUS,
+  BENCHMARK-STANDALONE-SUBJECT.
 - **DEPENDENT-RELATIONAL-PROOF-SUPPORT.** Resolved — the mined sentence
   (chapter_12: "implementation support for relational proofs and views
   remains narrower") named a real fence: `unsigned_increase_fits` admitted
