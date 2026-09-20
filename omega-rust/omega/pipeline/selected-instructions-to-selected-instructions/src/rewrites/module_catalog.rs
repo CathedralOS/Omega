@@ -79,6 +79,10 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
+        module: "catalog",
+        route: RewriteModuleRoute::Shared,
+    },
+    RewriteModuleRow {
         module: "commuting_accesses",
         route: RewriteModuleRoute::Shared,
     },
