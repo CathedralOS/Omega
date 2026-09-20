@@ -4756,15 +4756,14 @@ Owners include
   compiles it to checked trees and pins linearity, suspension/blocking
   envelopes, and the selected provider plan.
 
-  The package itself currently fails `omega --check`:
-  `Executor.runtime` is spelled `Service<WorkerProvider> in Bound`, which
-  the closed `Service` carrier now rejects ("admits no authored
-  qualification") — drop the ` in Bound` qualifier to restore it. That
-  repair is fenced under the live `source/library` claim
-  (ENTRY-CONTENT-ROOTS); the depend-and-consume consumer shape is proven on
-  a scratch copy (`builder.depend` + `use blocking_executor::executor` +
-  `select_provider` checks clean once the field is plain
-  `Service<WorkerProvider>`).
+  The package passes `omega --check` at d05ec39a5d + this slice:
+  `Executor.runtime` is now the plain closed-carrier spelling
+  `Service<WorkerProvider>` (the retired `in Bound` qualification was
+  dropped — the closed `Service` carrier rejects authored qualification).
+  The depend-and-consume consumer shape is proven on a scratch copy
+  (`builder.depend` + `use blocking_executor::executor` +
+  `select_provider` checks clean); a durable consumer fixture remains
+  unlanded.
 
   Remaining legs: queue/executor machine bodies (generic-machine frontier,
   recorded in `source/library/core/fixed_vec.omg`; a concrete ring over
@@ -4773,7 +4772,7 @@ Owners include
   multiplicity checker wants "an explicit outcome mapping" — the
   conserved-claim join machinery), real provider admission for the
   type-attached `boundary requirement`s joining TR3-TR8's execution route,
-  the `in Bound` carrier-spelling repair above, and the process-isolation
+  a durable `builder.depend` consumer fixture, and the process-isolation
   boundary for hung-worker recovery.
 
 - **QUOTIENT-THEOREM-LIFT.** Admit explicit representative operation,
