@@ -17743,6 +17743,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SUCCESSOR-ARGUMENT-DIAGNOSTIC-ORDER** — mined candidate; verify scope then implement.
 - **SUPERVISED-STARTUP-RUNTIME-ENFORCEMENT** — mined candidate; verify scope then implement.
 - **STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
+||||||| parent of c8cfb8beec50 (board: STARTUP-ENTRY-MECHANICS resolved — alias of settled ownership cluster)
+- **STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
+- **STARTUP-ENTRY-MECHANICS.** Resolved — named sibling alias of the
+  settled STARTUP-ENTRY-MECHANICS-OWNERSHIP cluster (resolved by audit
+  at `be03555d17`; ENTRY-MECHANICS-RUNTIME-CONSOLIDATION at :7683 names
+  this stub verbatim). Entry/exit mechanics consolidate at
+  `backend/runtime/external-roots/src/root_entry` (validation,
+  admission, provider execution, progress-profile installation) plus
+  `platform_bringup` for UEFI bootstrap; `program-entry-plan` is
+  data-only and `_start` resolution + `entry_settlement` are emission
+  detail, not a second mechanics site. `tests/architecture/layering.rs`
+  pins the ownership rows; the runtime side was settled by
+  BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS (free Unit entries emit
+  process adapters on linux_x86_64/linux_arm64; ELF `e_entry`
+  round-trips through final-image validation). No independent slice
+  exists.
 - **STARTUP-ENTRY-PLACEHOLDER-SWEEP.** Resolved — named sibling alias of
   the resolved STARTUP-ENTRY-MECHANICS-OWNERSHIP cluster (:7578). The
   sweep for placeholder/shadow startup-entry mechanics is already
