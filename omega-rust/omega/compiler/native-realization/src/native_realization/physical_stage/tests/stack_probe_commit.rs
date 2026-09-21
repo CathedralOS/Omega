@@ -174,15 +174,16 @@ fn wide_scalar_call_artifact() -> (Vec<u8>, Vec<u8>) {
 
 fn lower(
     target: target::NativeTarget,
+    artifact: &(Vec<u8>, Vec<u8>),
 ) -> (
     abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     optimization_core::PostTerminalOptimizationSelectionProjection,
 ) {
-    let (semantic, proof) = wide_scalar_call_artifact();
+    let (semantic, proof) = artifact;
     let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
         terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
+            semantic_bytes: semantic,
+            proof_bytes: proof,
             obligation_ledger_bytes: None,
         },
         &proof_admission::AdmissionProfile::default(),
@@ -237,121 +238,127 @@ fn aarch64_commit_chunks(prologue: &[u8]) -> (u64, Vec<u64>) {
 #[test]
 fn wide_outgoing_area_commits_through_exact_probe_roster_and_publication() {
     let caller = MachineId::new(CALLER).unwrap();
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::uefi_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let (target_program, post_terminal) = lower(target);
-        let physical = crate::stage_optimized_verified_physical_pipeline(
-            target_program,
-            post_terminal.selections(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let realization = physical.fixed_frame_for_test();
-        let layout = realization.frame();
-        let row = layout
-            .plan()
-            .functions
-            .iter()
-            .find(|function| function.machine == caller)
-            .unwrap();
-        assert!(row.contains_call, "{target:?}");
-        let interval = match (target.architecture, target.object_format) {
-            (target::Architecture::Aarch64, target::ObjectFormat::MachO) => 16_384,
-            _ => isa_x86_64::X86_64_STACK_PROBE_INTERVAL_BYTES,
-        };
-        assert_eq!(row.stack_probe.interval_bytes, interval, "{target:?}");
-        // On Linux the frame exceeds the 4 KiB granule and commits by roster;
-        // on Darwin it fits inside one 16 KiB granule and emits no touches,
-        // while still clearing the single-instruction immediate bound.
-        assert_eq!(
-            u64::from(row.stack_probe.touches),
-            if row.frame_size_bytes > interval {
-                row.frame_size_bytes.div_ceil(interval)
-            } else {
-                0
-            },
-            "{target:?}"
-        );
-        if target.object_format == target::ObjectFormat::MachO {
-            assert_eq!(row.stack_probe.touches, 0, "{target:?}");
-            assert!(row.frame_size_bytes > 4095, "{target:?}: {row:?}");
-        } else {
-            assert!(
-                row.frame_size_bytes > interval,
-                "{target:?}: outgoing ABI area must exceed one commit granule: {row:?}"
+    let encoded = wide_scalar_call_artifact();
+    let module = terminal_codec::decode_module(&encoded.0).unwrap();
+    let proof = terminal_codec::decode_proof_section_for(&module, &encoded.1).unwrap();
+    let optimization =
+        terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
+    super::run_target_legs(
+        &[
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::uefi_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ],
+        |target| {
+            let (target_program, post_terminal) = lower(target, &encoded);
+            let physical = crate::stage_optimized_verified_physical_pipeline(
+                target_program,
+                post_terminal.selections(),
+            )
+            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let realization = physical.fixed_frame_for_test();
+            let layout = realization.frame();
+            let row = layout
+                .plan()
+                .functions
+                .iter()
+                .find(|function| function.machine == caller)
+                .unwrap();
+            assert!(row.contains_call, "{target:?}");
+            let interval = match (target.architecture, target.object_format) {
+                (target::Architecture::Aarch64, target::ObjectFormat::MachO) => 16_384,
+                _ => isa_x86_64::X86_64_STACK_PROBE_INTERVAL_BYTES,
+            };
+            assert_eq!(row.stack_probe.interval_bytes, interval, "{target:?}");
+            // On Linux the frame exceeds the 4 KiB granule and commits by
+            // roster; on Darwin it fits inside one 16 KiB granule and emits no
+            // touches, while still clearing the single-instruction immediate
+            // bound.
+            assert_eq!(
+                u64::from(row.stack_probe.touches),
+                if row.frame_size_bytes > interval {
+                    row.frame_size_bytes.div_ceil(interval)
+                } else {
+                    0
+                },
+                "{target:?}"
             );
-            assert_eq!(layout.receipt().probed_function_count(), 1, "{target:?}");
-        }
-        let protocol = realization.protocol().plan();
-        let encoding = protocol
-            .functions
-            .iter()
-            .find(|function| function.machine == caller)
-            .unwrap();
-        let prologue = encoding.prologue.bytes(&protocol.bytes).unwrap();
-        match target.architecture {
-            target::Architecture::X86_64 => {
-                // Each committed chunk is one granule move followed by a touch
-                // of the newly entered page: `sub rsp, 4096 ; cmp byte ptr [rsp], 0`.
-                let chunk = [
-                    0x48, 0x81, 0xec, 0x00, 0x10, 0x00, 0x00, 0x80, 0x3c, 0x24, 0x00,
-                ];
+            if target.object_format == target::ObjectFormat::MachO {
+                assert_eq!(row.stack_probe.touches, 0, "{target:?}");
+                assert!(row.frame_size_bytes > 4095, "{target:?}: {row:?}");
+            } else {
                 assert!(
-                    prologue.starts_with(&chunk),
-                    "{target:?}: prologue {prologue:02x?}"
+                    row.frame_size_bytes > interval,
+                    "{target:?}: outgoing ABI area must exceed one commit granule: {row:?}"
                 );
+                assert_eq!(layout.receipt().probed_function_count(), 1, "{target:?}");
             }
-            target::Architecture::Aarch64 => {
-                // The emitted commit chunks replay the recorded roster: every
-                // chunk but the last commits exactly one granule, the last
-                // carries the partial tail, and together they commit the whole
-                // frame before the save roster opens.
-                let (committed, chunks) = aarch64_commit_chunks(prologue);
-                assert_eq!(
-                    chunks.len(),
-                    usize::try_from(row.stack_probe.touches).unwrap(),
-                    "{target:?}: {chunks:?}"
-                );
-                for (ordinal, chunk) in chunks.iter().enumerate() {
+            let protocol = realization.protocol().plan();
+            let encoding = protocol
+                .functions
+                .iter()
+                .find(|function| function.machine == caller)
+                .unwrap();
+            let prologue = encoding.prologue.bytes(&protocol.bytes).unwrap();
+            match target.architecture {
+                target::Architecture::X86_64 => {
+                    // Each committed chunk is one granule move followed by a
+                    // touch of the newly entered page:
+                    // `sub rsp, 4096 ; cmp byte ptr [rsp], 0`.
+                    let chunk = [
+                        0x48, 0x81, 0xec, 0x00, 0x10, 0x00, 0x00, 0x80, 0x3c, 0x24, 0x00,
+                    ];
                     assert!(
-                        *chunk == interval || ordinal + 1 == chunks.len(),
-                        "{target:?}: non-final chunk must commit one granule: {chunks:?}"
+                        prologue.starts_with(&chunk),
+                        "{target:?}: prologue {prologue:02x?}"
                     );
-                    assert!(*chunk <= interval, "{target:?}: {chunks:?}");
                 }
-                assert_eq!(committed, row.frame_size_bytes, "{target:?}: {chunks:?}");
+                target::Architecture::Aarch64 => {
+                    // The emitted commit chunks replay the recorded roster:
+                    // every chunk but the last commits exactly one granule, the
+                    // last carries the partial tail, and together they commit
+                    // the whole frame before the save roster opens.
+                    let (committed, chunks) = aarch64_commit_chunks(prologue);
+                    assert_eq!(
+                        chunks.len(),
+                        usize::try_from(row.stack_probe.touches).unwrap(),
+                        "{target:?}: {chunks:?}"
+                    );
+                    for (ordinal, chunk) in chunks.iter().enumerate() {
+                        assert!(
+                            *chunk == interval || ordinal + 1 == chunks.len(),
+                            "{target:?}: non-final chunk must commit one granule: {chunks:?}"
+                        );
+                        assert!(*chunk <= interval, "{target:?}: {chunks:?}");
+                    }
+                    assert_eq!(committed, row.frame_size_bytes, "{target:?}: {chunks:?}");
+                }
             }
-        }
-        let emitted = machine_emission::stage_optimized_function_fragment_emission(
-            physical.into_function_fragment_emission_source(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+            let emitted = machine_emission::stage_optimized_function_fragment_emission(
+                physical.into_function_fragment_emission_source(),
+            )
             .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let object = object_file::stage_optimized_relocation_free_object_container(text)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let (semantic, proof) = wide_scalar_call_artifact();
-        let module = terminal_codec::decode_module(&semantic).unwrap();
-        let proof = terminal_codec::decode_proof_section_for(&module, &proof).unwrap();
-        let optimization =
-            terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
-        let terminal = terminal_codec::CanonicalTerminalArtifact::from_parts(
-            &module,
-            &proof,
-            &optimization,
-            None,
-        )
-        .unwrap();
-        let artifact = object_file::stage_validated_optimized_object_artifact(terminal, object)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let callable = native_artifact::stage_validated_optimized_ordinary_callable_entry(artifact)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        assert_eq!(callable.entry().returns.len(), 1, "{target:?}");
-    }
+            let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let object = object_file::stage_optimized_relocation_free_object_container(text)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let terminal = terminal_codec::CanonicalTerminalArtifact::from_parts(
+                &module,
+                &proof,
+                &optimization,
+                None,
+            )
+            .unwrap();
+            let artifact = object_file::stage_validated_optimized_object_artifact(terminal, object)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let callable =
+                native_artifact::stage_validated_optimized_ordinary_callable_entry(artifact)
+                    .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            assert_eq!(callable.entry().returns.len(), 1, "{target:?}");
+        },
+    );
 }

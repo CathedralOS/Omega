@@ -388,157 +388,164 @@ fn lower_with_selections(
 
 #[test]
 fn loop_carried_u64_pressure_recovers_through_runtime_spill() {
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::uefi_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let (target_program, _) = lower(target);
-        let register_environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
-        let selected =
-            target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-                target_program,
-                register_environment,
-            )
-            .unwrap();
-        let selected =
-            selected_instructions_to_selected_instructions::optimize_selected_instructions(
-                selected,
-            )
-            .unwrap();
-        let allocation =
-            selected_instructions_to_register_homes::stage_register_allocation(selected)
-                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        assert!(
-            matches!(
-                allocation.current().evidence(),
-                selected_instructions_to_register_homes::AllocationEvidence::RuntimeSpill(_)
-            ),
-            "{target:?}: {:?}",
-            allocation.current().evidence()
-        );
-        let (target_program, post_terminal) = lower(target);
-        crate::stage_optimized_verified_physical_pipeline(
-            target_program,
-            post_terminal.selections(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-    }
+    super::run_target_legs(
+        &[
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::uefi_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ],
+        |target| {
+            let (target_program, _) = lower(target);
+            let register_environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let selected =
+                target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+                    target_program,
+                    register_environment,
+                )
+                .unwrap();
+            let selected =
+                selected_instructions_to_selected_instructions::optimize_selected_instructions(
+                    selected,
+                )
+                .unwrap();
+            let allocation =
+                selected_instructions_to_register_homes::stage_register_allocation(selected)
+                    .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            assert!(
+                matches!(
+                    allocation.current().evidence(),
+                    selected_instructions_to_register_homes::AllocationEvidence::RuntimeSpill(_)
+                ),
+                "{target:?}: {:?}",
+                allocation.current().evidence()
+            );
+            super::continue_staged_physical_tail(target, allocation);
+        },
+    );
 }
 
 #[test]
 fn loop_carried_spill_frame_replays_private_accesses_through_callable_publication() {
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::uefi_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let (target_program, post_terminal) = lower(target);
-        let physical = crate::stage_optimized_verified_physical_pipeline(
-            target_program,
-            post_terminal.selections(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let layout = physical.fixed_frame_for_test().frame().plan();
-        let frame = layout.functions.first().unwrap();
-        assert!(
-            !frame.local_storage_slots.is_empty() && frame.frame_size_bytes != 0,
-            "{target:?}: spill storage must occupy a nonzero frame: {frame:?}"
-        );
-        let emitted = machine_emission::stage_optimized_function_fragment_emission(
-            physical.into_function_fragment_emission_source(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let function = emitted.fragments().functions.first().unwrap();
-        assert!(
-            function.blocks.len() > 3,
-            "{target:?}: {}",
-            function.blocks.len()
-        );
-        let has_backward_branch = function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .filter_map(|row| row.branch.as_deref())
-            .any(|branch| match branch {
-                machine_code::FunctionFragmentBranchEvidence::Conditional(branch) => {
-                    branch.byte_displacement < 0
-                }
-                machine_code::FunctionFragmentBranchEvidence::Jump(jump) => {
-                    jump.byte_displacement < 0
-                }
-            });
-        assert!(has_backward_branch, "{target:?}: loop back edge");
-        let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+    let encoded = artifact();
+    let module = terminal_codec::decode_module(&encoded.0).unwrap();
+    let proof = terminal_codec::decode_proof_section_for(&module, &encoded.1).unwrap();
+    let optimization =
+        terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
+    super::run_target_legs(
+        &[
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::uefi_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ],
+        |target| {
+            let (target_program, post_terminal) = lower_with_selections(
+                target,
+                &encoded,
+                &optimization_core::OptimizationSelections::default(),
+            );
+            let physical = crate::stage_optimized_verified_physical_pipeline(
+                target_program,
+                post_terminal.selections(),
+            )
             .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        assert_eq!(applied.receipt().epilogue_application_count(), 1);
-        let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
+            let layout = physical.fixed_frame_for_test().frame().plan();
+            let frame = layout.functions.first().unwrap();
+            assert!(
+                !frame.local_storage_slots.is_empty() && frame.frame_size_bytes != 0,
+                "{target:?}: spill storage must occupy a nonzero frame: {frame:?}"
+            );
+            let emitted = machine_emission::stage_optimized_function_fragment_emission(
+                physical.into_function_fragment_emission_source(),
+            )
             .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let object = object_file::stage_optimized_relocation_free_object_container(text)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let (semantic, proof) = artifact();
-        let module = terminal_codec::decode_module(&semantic).unwrap();
-        let proof = terminal_codec::decode_proof_section_for(&module, &proof).unwrap();
-        let optimization =
-            terminal_codec::build_identity_optimization_execution_record(&module, &proof).unwrap();
-        let terminal = terminal_codec::CanonicalTerminalArtifact::from_parts(
-            &module,
-            &proof,
-            &optimization,
-            None,
-        )
-        .unwrap();
-        let artifact = object_file::stage_validated_optimized_object_artifact(terminal, object)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let callable = native_artifact::stage_validated_optimized_ordinary_callable_entry(artifact)
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        assert_eq!(callable.entry().returns.len(), 1, "{target:?}");
-    }
+            let function = emitted.fragments().functions.first().unwrap();
+            assert!(
+                function.blocks.len() > 3,
+                "{target:?}: {}",
+                function.blocks.len()
+            );
+            let has_backward_branch = function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|row| row.branch.as_deref())
+                .any(|branch| match branch {
+                    machine_code::FunctionFragmentBranchEvidence::Conditional(branch) => {
+                        branch.byte_displacement < 0
+                    }
+                    machine_code::FunctionFragmentBranchEvidence::Jump(jump) => {
+                        jump.byte_displacement < 0
+                    }
+                });
+            assert!(has_backward_branch, "{target:?}: loop back edge");
+            let applied = machine_emission::stage_function_fragment_frame_application(emitted)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            assert_eq!(applied.receipt().epilogue_application_count(), 1);
+            let text = machine_emission::stage_optimized_fixed_frame_text_section(applied)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let object = object_file::stage_optimized_relocation_free_object_container(text)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let terminal = terminal_codec::CanonicalTerminalArtifact::from_parts(
+                &module,
+                &proof,
+                &optimization,
+                None,
+            )
+            .unwrap();
+            let artifact = object_file::stage_validated_optimized_object_artifact(terminal, object)
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let callable =
+                native_artifact::stage_validated_optimized_ordinary_callable_entry(artifact)
+                    .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            assert_eq!(callable.entry().returns.len(), 1, "{target:?}");
+        },
+    );
 }
 
 #[test]
 fn acyclic_u64_pressure_recovers_through_runtime_spill_on_the_default_route() {
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let (target_program, _) = lower_with_selections(
-            target,
-            &acyclic_artifact(),
-            &optimization_core::OptimizationSelections::default(),
-        );
-        let register_environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
-        let selected =
-            target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-                target_program,
-                register_environment,
-            )
-            .unwrap();
-        let selected =
-            selected_instructions_to_selected_instructions::optimize_selected_instructions(
-                selected,
-            )
-            .unwrap();
-        let allocation =
-            selected_instructions_to_register_homes::stage_register_allocation(selected)
-                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        assert!(
-            matches!(
-                allocation.current().evidence(),
-                selected_instructions_to_register_homes::AllocationEvidence::RuntimeSpill(_)
-            ),
-            "{target:?}: {:?}",
-            allocation.current().evidence()
-        );
-    }
+    let encoded = acyclic_artifact();
+    let selections = optimization_core::OptimizationSelections::default();
+    super::run_target_legs(
+        &[
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ],
+        |target| {
+            let (target_program, _) = lower_with_selections(target, &encoded, &selections);
+            let register_environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let selected =
+                target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+                    target_program,
+                    register_environment,
+                )
+                .unwrap();
+            let selected =
+                selected_instructions_to_selected_instructions::optimize_selected_instructions(
+                    selected,
+                )
+                .unwrap();
+            let allocation =
+                selected_instructions_to_register_homes::stage_register_allocation(selected)
+                    .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            assert!(
+                matches!(
+                    allocation.current().evidence(),
+                    selected_instructions_to_register_homes::AllocationEvidence::RuntimeSpill(_)
+                ),
+                "{target:?}: {:?}",
+                allocation.current().evidence()
+            );
+        },
+    );
 }
 
 // The declared shared-entry fixed-view route is entered before ordinary
@@ -563,63 +570,61 @@ fn loop_carried_u64_pressure_after_declared_fixed_view_sequence_recovers_through
         optimization_core::Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
     ])
     .unwrap();
-    for target in [
-        target::NativeTarget::linux_x64(),
-        target::NativeTarget::windows_x64(),
-        target::NativeTarget::linux_arm64(),
-        target::NativeTarget::macos_arm64(),
-    ] {
-        let (target_program, _) = lower_with_selections(target, &acyclic_artifact(), &selections);
-        let register_environment =
-            register_environment::baseline_target_register_environment(target).unwrap();
-        let selected =
-            target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-                target_program,
-                register_environment,
-            )
-            .unwrap();
-        let selected =
-            selected_instructions_to_selected_instructions::optimize_selected_instructions(
-                selected,
-            )
-            .unwrap();
-        let allocation =
-            selected_instructions_to_register_homes::stage_register_allocation(selected)
-                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let transformations = &allocation
-            .current()
-            .post_allocation_manifest()
-            .record()
-            .selected_transformations;
-        let first_spill = transformations.iter().position(|transformation| {
-            matches!(
-                transformation,
-                PostAllocationSelectedTransformation::RuntimeSpill(_)
-                    | PostAllocationSelectedTransformation::RuntimeRematerialization(_)
-            )
-        });
-        assert!(first_spill.is_some(), "{target:?}: {transformations:?}");
-        // A fixed-view transformation, when the sequence ran far enough to
-        // record one, stays ahead of every runtime-spill step in the manifest.
-        assert!(
-            transformations
-                .iter()
-                .skip(first_spill.expect("asserted above"))
-                .all(|transformation| !matches!(
+    let encoded = acyclic_artifact();
+    super::run_target_legs(
+        &[
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::windows_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+        ],
+        |target| {
+            let (target_program, _) = lower_with_selections(target, &encoded, &selections);
+            let register_environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let selected =
+                target_operations_to_selected_instructions::stage_optimized_instruction_selection(
+                    target_program,
+                    register_environment,
+                )
+                .unwrap();
+            let selected =
+                selected_instructions_to_selected_instructions::optimize_selected_instructions(
+                    selected,
+                )
+                .unwrap();
+            let allocation =
+                selected_instructions_to_register_homes::stage_register_allocation(selected)
+                    .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            let transformations = &allocation
+                .current()
+                .post_allocation_manifest()
+                .record()
+                .selected_transformations;
+            let first_spill = transformations.iter().position(|transformation| {
+                matches!(
                     transformation,
-                    PostAllocationSelectedTransformation::FixedViewCopy(_)
-                )),
-            "{target:?}: {transformations:?}"
-        );
-        allocation
-            .replay_allocation()
-            .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-        let (target_program, post_terminal) =
-            lower_with_selections(target, &acyclic_artifact(), &selections);
-        crate::stage_optimized_verified_physical_pipeline(
-            target_program,
-            post_terminal.selections(),
-        )
-        .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
-    }
+                    PostAllocationSelectedTransformation::RuntimeSpill(_)
+                        | PostAllocationSelectedTransformation::RuntimeRematerialization(_)
+                )
+            });
+            assert!(first_spill.is_some(), "{target:?}: {transformations:?}");
+            // A fixed-view transformation, when the sequence ran far enough to
+            // record one, stays ahead of every runtime-spill step in the manifest.
+            assert!(
+                transformations
+                    .iter()
+                    .skip(first_spill.expect("asserted above"))
+                    .all(|transformation| !matches!(
+                        transformation,
+                        PostAllocationSelectedTransformation::FixedViewCopy(_)
+                    )),
+                "{target:?}: {transformations:?}"
+            );
+            allocation
+                .replay_allocation()
+                .unwrap_or_else(|error| panic!("{target:?}: {error:?}"));
+            super::continue_staged_physical_tail(target, allocation);
+        },
+    );
 }
