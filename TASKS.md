@@ -9943,10 +9943,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   row-less `speculatable` member gate and the dead-path audit from the
   landing index forward — while the lone `Jump` edge's window comes
   from `crossed_window` + `admit_run_relocation`.
+  `local_schedule/scheduled_relocation` migrated as well (this
+  revision): admission and validation both derive the crossed window
+  through `crossed_window` under the family's sink/hoist
+  `CrossingDirection` at the general `relocation` admission's
+  PATH_EDGE_LIMIT (its dominance bounds admit multi-path windows, so
+  the edge-roster bound the single-path families use does not apply)
+  and run `admit_run_relocation` once — the shared audit's
+  intermediate-block settlement refusal is a new, stricter arm of this
+  family's settlement check. The sink/hoist once-per-traversal gates
+  (dominance, re-entry, continuations), the members' pure-work
+  sinkability bound, and the skipped-edge dead-path audit stay local;
+  validation re-derives all of it without the producer's `admit`.
+  Verified at this revision (macOS aarch64): `cargo nextest run -p
+  selected-instructions-to-selected-instructions --lib` 1735/1735,
+  clippy clean.
   Remaining legs: migrate arm/fork_run and the
-  interchange/commuting variants, then `local_schedule`, retiring each
-  family's hand-rolled window scan — `arm_relocation` stays fenced to
-  Zergling-65.
+  interchange/commuting variants, retiring each family's hand-rolled
+  window scan — `arm_relocation` stays fenced to Zergling-65.
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION.** Give generated wire codecs a
   route to `Derived` trust that does not depend on an authored grammar
