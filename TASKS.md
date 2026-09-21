@@ -8053,6 +8053,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (4) `optimized_semantic_wrapper_object/codec` moves only after
   PIPELINE-OWNER-CONSOLIDATION resolves whether native-realization retains
   that owner — skip it while undecided.
+
+  Re-survey at `7364d9ea12b` (2026-09-21): legs (1)–(3) are landed. The
+  durable identity newtypes moved to
+  `representations/selected-instructions/src/selected_instructions/identity.rs`
+  (`FixedViewCopyIdentity`, `LiteralFoldIdentity`,
+  `PressureRematerializationIdentity`); the manifest record+codec landed in
+  `representations/register-homes/src/register_homes/post_allocation_manifest/codec.rs`
+  at `32e4ff98f4d17`; and `fixed_view_copy`'s codec lives at
+  `representations/register-homes/src/register_homes/recovery/fixed_view_copy/codec`.
+  The transform trees no longer carry any of the three codec sites — the
+  row's cited paths under `selected-instructions-to-*/` are gone and
+  `native-realization` itself moved to `compiler/native-realization`. Only
+  leg (4) remains: `compiler/native-realization/src/optimized_semantic_
+  wrapper_object/codec.rs` still sits beside its owner pending
+  PIPELINE-OWNER-CONSOLIDATION's keep/move decision (the module dir is now
+  additionally fenced by UEFI-PHYSICAL-SEMANTIC-ENTRY, exp ~08:44Z).
+  Alias stub on this surface: TRANSFORM-CODEC-RELOCATION — same subject,
+  resolved residual as this row records.
 - **DYNAMIC-RETURN-LOAN-ORIGIN.** Mined candidate; scope verified — resolved
   re-mine of the same cross-package dynamic loan-origin cluster closed by
   SHARED-RECEIVER-LOAN-ORIGIN at `e76d715c8e`: the stub's surface is a
