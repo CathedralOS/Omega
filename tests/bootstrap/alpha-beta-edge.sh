@@ -48,6 +48,11 @@ fi
 
 if [ "$ALPHA_VERIFY_MODE" = full ]; then
   echo "--- provenance (supply-chain diagnostic) ---"
+  # Each leg records whether it actually ran a comparison so the summary can
+  # say when the diagnostic degraded to the --edge surface instead of silently
+  # claiming provenance evidence that no host toolchain produced.
+  provenance_ran=0
+  provenance_skipped=0
   case "$(uname -s)-$(uname -m)" in
     Darwin-arm64)
       ALPHA_DEVELOPER_DIR=$(xcode-select -p 2>/dev/null || true)
@@ -58,6 +63,7 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
         ALPHA_SDK=$(xcrun --show-sdk-path 2>/dev/null || true)
       fi
       if [ -x "$ALPHA_CLANG" ] && [ -d "$ALPHA_SDK" ]; then
+        provenance_ran=$((provenance_ran + 1))
         TMP=$(mktemp -d)
         if "$ALPHA_CLANG" -arch arm64 -isysroot "$ALPHA_SDK" -Wl,-no_uuid \
             -o "$TMP/rebuilt" "$OMEGA_PATH_ALPHA/alpha_arm64_macos.s" 2>"$TMP/err"; then
@@ -74,6 +80,7 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
         rm -rf "$TMP"
       else
         echo "provenance SKIP — selected Xcode/CommandLineTools clang or macOS SDK not found"
+        provenance_skipped=$((provenance_skipped + 1))
       fi
       unset ALPHA_DEVELOPER_DIR ALPHA_CLANG ALPHA_SDK
       ;;
@@ -83,6 +90,7 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
       # comparison needs only Python 3, so it also runs on hosts (like this
       # Linux checkout) where the container itself cannot execute.
       if command -v python3 >/dev/null 2>&1; then
+        provenance_ran=$((provenance_ran + 1))
         if python3 "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/forge.py" \
             "$OMEGA_PATH_ALPHA/alpha_x64_windows.hex" --check \
             "$OMEGA_PATH_ALPHA/alpha_x64_windows.exe"; then
@@ -92,6 +100,7 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
         fi
       else
         echo "provenance MANUAL — audit $ALPHA_SEED against its .hex listing (committed forge needs python3)"
+        provenance_skipped=$((provenance_skipped + 1))
       fi
       ;;
   esac
@@ -102,6 +111,7 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
   # there — the same shape as the macOS leg living under Xcode clang.
   if [ "$(uname -s)-$(uname -m)" = "Linux-x86_64" ]; then
     if command -v as >/dev/null 2>&1 && command -v ld >/dev/null 2>&1; then
+      provenance_ran=$((provenance_ran + 1))
       TMP=$(mktemp -d)
       if as --64 -o "$TMP/a.o" "$OMEGA_PATH_ALPHA/alpha_x64_linux.s" 2>"$TMP/err" &&
          ld -s -o "$TMP/rebuilt" --build-id=none -e _start "$TMP/a.o" 2>>"$TMP/err"; then
@@ -116,6 +126,7 @@ if [ "$ALPHA_VERIFY_MODE" = full ]; then
       rm -rf "$TMP"
     else
       echo "provenance SKIP — GNU binutils as/ld not found for alpha_x64_linux rebuild"
+      provenance_skipped=$((provenance_skipped + 1))
     fi
   fi
 fi
@@ -173,7 +184,13 @@ elif [ $refused != 0 ]; then
   echo "Alpha-to-Beta edge UNAVAILABLE — seed execution requires macOS arm64, Linux x86-64, or Windows x64"
   rc=2
 elif [ "$ALPHA_VERIFY_MODE" = full ]; then
-  echo "Alpha-to-Beta edge VERIFIED (provenance diagnostic + behavior + Beta compiler construction)"
+  if [ "$provenance_ran" -eq 0 ]; then
+    echo "Alpha-to-Beta edge VERIFIED (behavior + exact Beta compiler construction; provenance diagnostic degraded — every leg skipped)"
+  elif [ "$provenance_skipped" -ne 0 ]; then
+    echo "Alpha-to-Beta edge VERIFIED (provenance diagnostic + behavior + Beta compiler construction; $provenance_skipped provenance leg(s) skipped)"
+  else
+    echo "Alpha-to-Beta edge VERIFIED (provenance diagnostic + behavior + Beta compiler construction)"
+  fi
 else
   echo "Alpha-to-Beta edge VERIFIED (behavior + exact Beta compiler construction; provenance diagnostic omitted)"
 fi
