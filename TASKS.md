@@ -4323,6 +4323,21 @@ moved to the termination-catalog fence (see that row's refresh note).
     completion-route gate is unchanged: co-landing the bounded declaration
     with a satisfier still waits on TOP-LEVEL-BOUNDARY-REQUIREMENTS'
     checked-body linear-receiver discharge.
+    Re-verified at `7d03d489e3` (linux x86-64): the declaration and pin
+    are unmoved — `interrupt.omg` still declares `complete` as bare
+    `reaches PortIo` and `opaque_boundaries.rs` still asserts
+    `!complete.service_reach_is_installation_bound`. The fence map
+    rotated again: every recorded lease on this surface
+    (COMPONENT-SUBSTRATE, TOPOLOGY-PRIVATE-PIPE-INSTALLATION,
+    STARTUP-ENTRY-MECHANICS, EPOCH-RESOURCE-SNAPSHOTS,
+    DYNAMIC-UNIT-CALL-GRAPH-AND-REACH-EDGES) has expired; the only
+    `external-roots` records now are elapsed sibling pins
+    (NEW-BI-INSTALLED-OCCURRENCE-REPLAY-PINS ~10:26Z,
+    NEW-APB-CANCELLATION-RACE-PINS ~12:52Z) — all past expiry. The gate
+    itself is unchanged in kind: the completion route still needs
+    TOP-LEVEL-BOUNDARY-REQUIREMENTS' checked-body linear-receiver
+    discharge plus a co-landed satisfier, and that owner has no live
+    claim. No uncontested slice exists on this row.
 
   Acceptance: from the shipped core requirement, PIC completion resolves to
   `PortIo` and LAPIC/x2APIC completion to `MachineControl` through checked
