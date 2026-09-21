@@ -60,14 +60,14 @@ MEMBER_RECORDS = [
      "01b56c0845dc7f1520e3a84bd1e1382323c04fdc8e40185282fc7b64763e410c"),
     ("alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
-    ("scalar_compilation.epsilon", 56892,
-     "d3d12ae0b0fe051d949be55dc6ea6a4da5f1152992acbbf7080b2c092edbeef6"),
-    ("outcome.epsilon", 11348,
-     "7bedff58b88aa02c93dc36f16c67a8a99dd97955cce8322392c2573a7093883b"),
+    ("scalar_compilation.epsilon", 66010,
+     "ec1be1bdd5f059370bb3758a788c51a27d3cb2547730610aad69143ade2b0389"),
+    ("outcome.epsilon", 13989,
+     "a36fabd20ccecd3c15ba8dc10044567a11c0f60e92661277c11728121be65a4e"),
 ]
 
-PACKED_RECORD = (558161,
-                 "8f0321344c893c3c64bb631bfde10e3ecbde4384e130dca9f7e2c21818a9eca3")
+PACKED_RECORD = (569920,
+                 "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,

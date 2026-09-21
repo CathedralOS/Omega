@@ -50,6 +50,8 @@
 //! eligibility and `recast_judgments.rs` judges scalar and slice recasts.
 
 mod literal_indexed_footprints;
+#[cfg(test)]
+mod offset_bound_tests;
 mod offset_bounds;
 mod qualification;
 mod raw_byte_region;
@@ -158,6 +160,7 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
                                 machine,
                                 state,
                                 cast,
+                                initializer,
                                 *referee,
                                 access.is_exclusive(),
                                 diagnostics,
@@ -188,11 +191,14 @@ pub(crate) fn validate_recasts(program: &TypedTrees, diagnostics: &mut Vec<Diagn
             && cast.form.is_recast()
             && !blessed.contains(&handle)
         {
-            diagnostics.push(Diagnostic::error(
-                "a recast binds to a reference-typed let (`let v: &T = &x as &T;`) in this \
-                 rung; inline re-views land with the byte-view rung"
-                    .to_string(),
-            ));
+            diagnostics.push(
+                Diagnostic::error(
+                    "a recast binds to a reference-typed let (`let v: &T = &x as &T;`) in this \
+                     rung; inline re-views land with the byte-view rung"
+                        .to_string(),
+                )
+                .with_source_span(program.expression_table.source_span(handle)),
+            );
         }
         // STR4 checked plans, slice 3 (decision 19): a NON-policy `in <Name>`
         // cast suffix is the semantic-domain QUALIFICATION spelling. It is

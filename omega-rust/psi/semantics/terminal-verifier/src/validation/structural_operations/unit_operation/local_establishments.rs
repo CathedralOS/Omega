@@ -52,7 +52,7 @@ pub(super) fn validate_establish_byte_sequence_literal(
     Ok(())
 }
 
-pub(super) fn validate_establish_trivial_affine_local(
+pub(crate) fn validate_establish_trivial_affine_local(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,

@@ -2,8 +2,10 @@
 // both drive a computed transition argument (w * h + 58). The check discriminates three ways:
 // the Rect arm must be selected over Circle, AND both payload fields must bind to the right
 // values -- the Circle arm computes r * 7, so a wrong arm or a swapped/mis-bound field changes
-// the exit. Rect{3,4} -> 3 * 4 + 58 = 70. (Computing in the transition arg, not the host-call
-// arg, is deliberate: a host-call argument must be a simple value, see
+// the exit. Rect{3,4} -> 3 * 4 + 58 = 70. (Computing in the transition arg rather than the
+// host-call arg keeps this canary's subject on payload binding; a value call in
+// host-call argument position is independently LEGAL and pinned by
+// pass/calls/value_call_as_host_arg_exit. The rejection formerly cited here, see
 // fail/calls/value_call_as_host_arg_rejected.)
 use omega_language_std::console;
 use omega::language::core::service;

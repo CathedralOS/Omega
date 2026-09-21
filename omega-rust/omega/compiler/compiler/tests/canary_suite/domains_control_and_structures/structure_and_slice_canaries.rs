@@ -1272,6 +1272,41 @@ fn zero_length_byte_array_is_admitted_at_check() {
 }
 
 #[test]
+fn zero_length_scalar_array_is_admitted_at_check() {
+    // The admission is element-generic: every closed scalar leaf declares an
+    // empty fixed array, not just bytes. `[u16; 0]` and `[u64; 0]` admit in
+    // the same structural positions; `==`/`!=` stay byte-array-only and the
+    // non-scalar-leaf refusal is pinned separately.
+    let canary = pass_canary(fixture_roster::ZERO_LENGTH_SCALAR_ARRAY_ADMISSION);
+    check_canary(&canary).expect("a zero-length non-byte scalar array should be admitted at check");
+}
+
+#[test]
+fn zero_length_scalar_array_use_fences_reject_at_check() {
+    // The use-site fences are element-generic too: a `[u16; 0]` index is as
+    // unprovable as a byte array's. The fixture carries its pinned diagnostic
+    // in expected.txt.
+    let canary = fail_canary(fixture_roster::ZERO_LENGTH_SCALAR_ARRAY_INDEX_REJECTED);
+    let expected_fragment = fs::read_to_string(canary.join("expected.txt"))
+        .expect("fail canary should carry expected.txt")
+        .trim()
+        .to_owned();
+    let diagnostics = match check_canary(&canary) {
+        Ok(()) => panic!("zero-length scalar array index must reject at check"),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains(&expected_fragment),
+        "missing expected fragment {expected_fragment:?}:\n{combined}"
+    );
+}
+
+#[test]
 fn zero_length_byte_array_use_fences_reject_at_check() {
     // `[u8; 0]` is admitted, but using it is fenced: no element exists so no
     // index is provable, and construction must supply exactly 0 elements or

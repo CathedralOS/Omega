@@ -11,11 +11,7 @@ pub(super) fn call_operands_have_builtin_coordinates(
     state_symbol: SymbolHandle,
     site: &CallSite<'_>,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
         return false;
     };
     let Some(state) = find_state(program, state_symbol) else {

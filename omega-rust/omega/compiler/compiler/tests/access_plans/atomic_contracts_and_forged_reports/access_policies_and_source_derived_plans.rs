@@ -1,11 +1,12 @@
 use crate::{POLICY_SOURCE, extent_identity, provider_issuance, write_program};
 use access_plans::{
     AtomicCapability, AtomicPermissions, AtomicTransferRule, BoundaryReach, EffectiveSupplyKind,
-    ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PlacementAdmissionId,
-    ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion,
-    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
-    StableCapability, StableDeviceInstanceId, TransferRule, admit_owned_placement, admit_placement,
-    adopt_owned_stable, bind_schema_correspondence_to_placement,
+    ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess, PeerWritability,
+    PlacementAdmissionId, ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId,
+    ResourceRegion, SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId,
+    SchemaDeviceCorrespondenceGrant, StableCapability, StableDeviceInstanceId, TransferRule,
+    admit_owned_placement, admit_placement, adopt_owned_stable,
+    bind_schema_correspondence_to_placement,
 };
 use build_time_evaluation::{compute_access_plan, compute_layout_plan};
 use compiler::{CheckedCompileRequest, compile_to_checked};
@@ -319,6 +320,7 @@ machine Main::main(&mut self) {}
         regions: vec![ResourceRegion {
             offset: 0,
             length: 8,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::ReadWrite,
             external: ExternalCapability::None,
             atomic: AtomicCapability::None,
@@ -547,6 +549,7 @@ machine Main::main(&mut self) {}
         regions: vec![ResourceRegion {
             offset: 0,
             length: 8,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
@@ -842,6 +845,7 @@ machine Main::main(&mut self) {}
         regions: vec![ResourceRegion {
             offset: 0,
             length: 4,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::None,
             atomic: AtomicCapability::Access {
@@ -871,6 +875,7 @@ machine Main::main(&mut self) {}
         regions: vec![ResourceRegion {
             offset: 0,
             length: 4,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::None,
             atomic: AtomicCapability::Access {
@@ -1060,6 +1065,7 @@ machine Main::main(&mut self) {}
         regions: vec![ResourceRegion {
             offset: 0,
             length: 4,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Repeatable,
@@ -1086,6 +1092,7 @@ machine Main::main(&mut self) {}
         regions: vec![ResourceRegion {
             offset: 0,
             length: 4,
+            peer: PeerWritability::Exclusive,
             stable: StableCapability::None,
             external: ExternalCapability::Access {
                 read: ExternalReadBehavior::Destructive,

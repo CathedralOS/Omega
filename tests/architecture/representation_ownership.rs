@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 #[path = "representation_ownership/allocation_analysis.rs"]
 mod allocation_analysis;
+#[path = "representation_ownership/pipeline_route.rs"]
+mod pipeline_route;
 #[path = "representation_ownership/route_conformance.rs"]
 mod route_conformance;
 #[path = "representation_ownership/selected_analysis.rs"]
@@ -993,6 +995,73 @@ fn every_psi_representation_has_one_named_entry() {
 }
 
 #[test]
+fn every_omega_representation_is_a_named_root_or_pinned_vocabulary() {
+    // The omega half enforces the same named-root rule
+    // (omega-rust/pipeline.md#placement-and-semantic-ownership) as the psi
+    // enumeration above: every crate under representations/ is either a
+    // program representation with exactly `lib.rs` + one named entry, or a
+    // shared-vocabulary crate whose root file set is pinned by
+    // `shared_vocabulary_representations_need_no_program_root`. Adding a
+    // crate, growing a second program entrance, or renaming a root is a
+    // deliberate edit of this table.
+    let root = repository().join("omega-rust/omega/representations");
+    let entries = [
+        ("abstract-operations", "abstract_operations"),
+        ("boundary-applications", "boundary_applications"),
+        ("legalized-operations", "legalized_operations"),
+        ("machine-code", "machine_code"),
+        ("optimization-unit", "optimization_unit"),
+        ("physical-instructions", "physical_instructions"),
+        ("register-homes", "register_homes"),
+        ("representation-selections", "representation_selections"),
+        ("selected-instructions", "selected_instructions"),
+        ("target-operations", "target_operations"),
+    ];
+    let vocabulary = [
+        "calling-conventions",
+        "effects",
+        "function-identity",
+        "installation-evidence",
+        "optimization-core",
+        "register-model",
+        "target",
+        "task-plans",
+    ];
+    let mut packages = std::fs::read_dir(&root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("Cargo.toml").exists())
+        .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    packages.sort();
+    let mut expected_packages = entries
+        .map(|(package, _)| package)
+        .into_iter()
+        .chain(vocabulary)
+        .collect::<Vec<_>>();
+    expected_packages.sort();
+    assert_eq!(
+        packages, expected_packages,
+        "a new representations/ crate must join the named-root or vocabulary set"
+    );
+    for (package, entry) in entries {
+        let directory = root.join(package).join("src");
+        let mut files = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.is_file())
+            .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        files.sort();
+        let mut expected = vec!["lib.rs".to_owned(), format!("{entry}.rs")];
+        expected.sort();
+        assert_eq!(files, expected, "ambiguous entry in {package}");
+        let entrance = std::fs::read_to_string(directory.join("lib.rs")).unwrap();
+        assert!(entrance.contains(&format!("mod {entry};")));
+    }
+}
+
+#[test]
 fn allocation_algorithms_and_staging_have_one_transform_owner() {
     let root = repository();
     let retired = root.join("omega-rust/omega/pipeline/omega-regalloc");
@@ -1401,7 +1470,12 @@ fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
             "exit replay uses record producer {forbidden}"
         );
     }
-    for (file, expected_count) in [("stage.rs", 3), ("layout_optimization.rs", 2)] {
+    // `stage.rs` dropped to two validating entrances at 361d6a1294, which pruned
+    // the dead `stage_whole_function_exit_contract` /
+    // `validate_whole_function_exit_contract` compatibility wrappers and their
+    // `lib.rs` exports. The third call lived in one of those wrappers, so no live
+    // stage path lost its validation — the count is the pin, not the invariant.
+    for (file, expected_count) in [("stage.rs", 2), ("layout_optimization.rs", 2)] {
         let entrance = std::fs::read_to_string(owner.join(file)).unwrap();
         assert_eq!(
             entrance.matches("validation::validate(").count(),
@@ -2029,4 +2103,83 @@ fn fragment_consumers_read_current_data_and_only_replay_walks_history() {
             );
         }
     }
+}
+
+/// The documented program route is a connected `X-to-Y`, `Y-to-Y`, `Y-to-Z`
+/// sequence: each stage's input is the preceding stage's output, X-to-X legs
+/// sit inline at their node, and the route covers every pipeline crate on
+/// disk — an unlinked or renamed stage fails here.
+#[test]
+fn connected_pipeline_route_covers_every_stage_crate() {
+    let root = repository();
+    // Canonical program route (pipeline.md "Connected program route").
+    const PROGRAM_ROUTE: &[&str] = &[
+        "psi/pipeline/source-files-to-tokens",
+        "psi/pipeline/tokens-to-syntax-trees",
+        "psi/pipeline/syntax-trees-to-symbol-resolved-trees",
+        "psi/pipeline/symbol-resolved-trees-to-typed-trees",
+        "psi/pipeline/typed-trees-to-checked-trees",
+        "psi/pipeline/checked-trees-to-lowered-psi",
+        "psi/pipeline/lowered-psi-to-lowered-psi",
+        "psi/pipeline/lowered-psi-to-terminal-psi",
+        "omega/pipeline/terminal-psi-to-abstract-operations",
+        "omega/pipeline/abstract-operations-to-abstract-operations",
+        "omega/pipeline/abstract-operations-to-target-operations",
+        "omega/pipeline/target-operations-to-selected-instructions",
+        "omega/pipeline/selected-instructions-to-selected-instructions",
+        "omega/pipeline/selected-instructions-to-register-homes",
+        "omega/pipeline/register-homes-to-post-allocation-machine",
+        "omega/pipeline/post-allocation-machine-to-selected-form-encoding",
+        "omega/pipeline/selected-form-encoding-to-resolved-layout",
+        "omega/pipeline/resolved-layout-to-resolved-layout",
+    ];
+    // The omega-side frontend boundary route that feeds that chain across
+    // build evaluation (pipeline.md "Omega frontend stages").
+    const FRONTEND_ROUTE: &[&str] = &[
+        "omega/pipeline/source-files-to-assembled-syntax",
+        "omega/pipeline/assembled-syntax-to-checked-compilation",
+        "omega/pipeline/checked-compilation-to-terminal-artifact",
+    ];
+    let mut covered = std::collections::BTreeSet::new();
+    for route in [PROGRAM_ROUTE, FRONTEND_ROUTE] {
+        let mut previous_output = "";
+        for stage in route {
+            let directory = root.join("omega-rust").join(stage);
+            assert!(
+                directory.join("Cargo.toml").is_file(),
+                "route stage {stage} is missing"
+            );
+            let name = stage.rsplit('/').next().unwrap();
+            let (input, output) = name
+                .split_once("-to-")
+                .unwrap_or_else(|| panic!("stage crate {name} does not name an X-to-Y transform"));
+            if !previous_output.is_empty() {
+                assert_eq!(
+                    input, previous_output,
+                    "route break: {name} does not consume the preceding stage's output"
+                );
+            }
+            previous_output = output;
+            covered.insert(String::from(*stage));
+        }
+    }
+    let mut on_disk = std::collections::BTreeSet::new();
+    for half in ["psi", "omega"] {
+        let directory = root.join("omega-rust").join(half).join("pipeline");
+        for entry in std::fs::read_dir(&directory)
+            .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
+        {
+            let path = entry.unwrap().path();
+            if path.is_dir() && path.join("Cargo.toml").is_file() {
+                on_disk.insert(format!(
+                    "{half}/pipeline/{}",
+                    path.file_name().unwrap().to_str().unwrap()
+                ));
+            }
+        }
+    }
+    assert_eq!(
+        covered, on_disk,
+        "connected routes differ from the on-disk pipeline stage crates"
+    );
 }

@@ -34,6 +34,7 @@ pub(crate) fn emit(
                 let id = operations.allocate();
                 operations.push(Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id,
                     result: OperationResult::Unit,
                     kind: OperationKind::StructuralScalarFieldStore {
@@ -94,12 +95,14 @@ pub(crate) fn emit(
                 )?;
                 operations.push(Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id,
                     result: OperationResult::Unit,
                     kind: OperationKind::CallUnit {
                         callee: lookup_machine_id(calls.machine_ids, call.target_machine)?,
                         arguments: arguments.iter().map(|argument| argument.id).collect(),
                         erased_arguments: Vec::new(),
+                        erased_proof_arguments: call.erased_proof_arguments.clone(),
                         structural_arguments: call.structural_arguments.clone(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),

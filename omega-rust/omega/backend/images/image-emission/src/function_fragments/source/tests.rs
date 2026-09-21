@@ -17,6 +17,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
         scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
     };
     let result = StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: PlaceId::new(1).unwrap(),
         structural_type: StructuralTypeId::new(1).unwrap(),
         multiplicity: StructuralMultiplicity::Unrestricted,

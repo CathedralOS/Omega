@@ -1,5 +1,12 @@
 # Numeric values and bounds
 
+Numeric bounds are propositions established by domains, contracts, and ordinary
+flow reasoning. A scalar carrier does not accept a separate bracketed range
+annotation. In particular, a call's `ensures` supplies facts about its result
+without a matching annotation on the receiving local. Explicit reusable
+qualification follows [domains](domains.md#declaration-and-membership); internal
+interval analysis does not introduce another authored type form.
+
 ## Literal landing and destinations
 
 A suffixed integer or float literal retains its chosen carrier or format through
@@ -101,6 +108,14 @@ Saturating clamps it to carrier bounds; Trapping uses the primitive's exact
 crash predicate. An overflow policy does not invent a result for undefined
 operands such as an integer zero divisor. Any number of value qualifications
 may compose, but at most one arithmetic policy governs an operation.
+
+Trapping's language contract is settled — the executable operation owns its
+crash site under the primitive's exact predicate — while its Terminal encoding
+remains unsettled: the reconstructed
+[observation profile](../terminal-psi/observations.md) keys crash sites only by
+edge or by `BoundaryCall` route, and an operation-level trap carries neither.
+The profile row shape such a trap joins awaits the named
+`terminal-operation-level-trap-crash-site` decision.
 
 ### Integer quotient and remainder
 
@@ -338,3 +353,23 @@ and additional requirements remain exact; named calls do not gain this
 conversion. Bounds must follow that selected operator's actual contract, not
 another declaration sharing its token. Bounds evidence grants no element-domain,
 borrow, mutation, or transfer authority.
+
+## Status
+
+Psi checking accepts the Exact, Wrapping, Saturating, and Trapping policies
+above, but no program using them yet reaches a native artifact: Terminal
+production covers only part of the surface. Landed legs include
+boolean-to-integer conversion, unsigned saturating narrowing casts, and
+unsigned-to-unsigned wrapping casts. Signed or mixed-sign saturating and
+modular conversions still refuse at the check stage, and Trapping's
+operation-level crash site has no admitted observation-profile row — its
+Terminal encoding stays unsettled behind the
+`terminal-operation-level-trap-crash-site` question. The leg is tracked under
+`ARITHMETIC-POLICY-REALIZATION` on [TASKS.md](../../../TASKS.md).
+
+Audited at `d650f2e45ac`: the frontier above matches the realized/refused
+split pinned in `integer_policy_realization.rs` — boolean-to-integer,
+unsigned saturating narrowing, and unsigned-to-unsigned wrapping compose;
+Trapping conversion retains `IntegerTrappingCast` and refuses at expression
+lowering; signed or mixed-sign saturating and modular conversions keep the
+no-value-fact boundary.

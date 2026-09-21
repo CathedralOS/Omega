@@ -136,17 +136,19 @@ pub(super) fn validate_asm_statement_call(
         current_state,
         ..
     } = *scope;
-    let control_write =
+    let register_write =
         language_core::inline_assembly::AsmControlRegister::from_write_intrinsic_name(
             call.target.as_str(),
-        );
-    let (source_mnemonic, expected_arguments) = match control_write {
-        Some(register) => (
-            register
-                .write_mnemonic()
-                .expect("writable control-register intrinsic"),
-            1,
-        ),
+        )
+        .and_then(|register| register.write_mnemonic())
+        .or_else(|| {
+            language_core::inline_assembly::AsmSystemRegister::from_write_intrinsic_name(
+                call.target.as_str(),
+            )
+            .and_then(|register| register.write_mnemonic())
+        });
+    let (source_mnemonic, expected_arguments) = match register_write {
+        Some(mnemonic) => (mnemonic, 1),
         None => match call.target.as_str() {
             "asm#hlt" => ("hlt", 0),
             "asm#port_out" => ("out", 2),
@@ -155,6 +157,18 @@ pub(super) fn validate_asm_statement_call(
             "asm#mfence" => ("mfence", 0),
             "asm#cli" => ("cli", 0),
             "asm#sti" => ("sti", 0),
+            "asm#serialize" => ("serialize", 0),
+            "asm#isb" => ("isb", 0),
+            "asm#pause" => ("pause", 0),
+            "asm#yield" => ("yield", 0),
+            "asm#wbinvd" => ("wbinvd", 0),
+            "asm#invd" => ("invd", 0),
+            "asm#wbnoinvd" => ("wbnoinvd", 0),
+            "asm#nop" => ("nop", 0),
+            "asm#wfe" => ("wfe", 0),
+            "asm#wfi" => ("wfi", 0),
+            "asm#sev" => ("sev", 0),
+            "asm#sevl" => ("sevl", 0),
             "asm#popfq" => ("popfq", 1),
             "asm#wrmsr" => ("wrmsr", 2),
             other => {
@@ -174,7 +188,7 @@ pub(super) fn validate_asm_statement_call(
         )));
         return;
     }
-    if control_write.is_some() || matches!(source_mnemonic, "out" | "popfq" | "wrmsr") {
+    if register_write.is_some() || matches!(source_mnemonic, "out" | "popfq" | "wrmsr") {
         let contract = user_asm_contract(source_mnemonic);
         for (operand, constraint) in arguments.iter().zip(contract.operands.iter()) {
             validate_asm_operand_constraint(

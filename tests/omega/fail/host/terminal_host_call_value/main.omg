@@ -8,8 +8,8 @@
 // local. (Free VALUE-MACHINE calls on ALWAYS arms auto-hoist into that
 // spelling since 2026-07-11 -- pass/calls/runtime_value_call_terminal_exit
 // -- but host calls stay manual: the receiver marks the boundary effect.)
-use omega::language::std::filesystem_host;
-use omega::language::std::console;
+use omega_language_std::filesystem_host;
+use omega_language_std::console;
 use omega::language::core::service;
 data Probe { host: Service<FilesystemHost>; fd: i32; }
 machine Probe::shutdown(&mut self, fd: i32) -> i32 reaches FilesystemHost {

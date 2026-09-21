@@ -3,19 +3,19 @@
 Contracts: [installed roots](../../../../../wiki/spec/build/external_roots.md),
 [entry stacks](../../../../../wiki/spec/resources/entry_stacks.md), and
 [logical work](../../../../../wiki/spec/resources/logical_work.md).
-Start at [lib.rs](src/lib.rs); [root_validation.rs](src/root_validation.rs)
-owns admission and [provider_execution.rs](src/provider_execution.rs) owns the
+Start at [lib.rs](src/lib.rs); [root_validation.rs](src/root_entry/root_validation.rs)
+owns admission and [provider_execution.rs](src/root_entry/provider_execution.rs) owns the
 validated execution binding.
 
-[stack_demand.rs](src/stack_demand.rs) composes artifact/root demand.
-[epoch_stack_demand.rs](src/epoch_stack_demand.rs) joins the complete entry
+[stack_demand.rs](src/stack_and_fuel/stack_demand.rs) composes artifact/root demand.
+[epoch_stack_demand.rs](src/stack_and_fuel/epoch_stack_demand.rs) joins the complete entry
 realization, body-domain closure, and installed-code evidence. Keep exact
 retained inputs behind compact report fingerprints. Resource rows and provider
 execution consume the same bound result; a scalar byte total is not a second
 admission route.
 
 The target arrival model lives in
-[calling-conventions/stack_realizations.rs](../../../representations/calling-conventions/src/stack_realizations.rs).
+[calling-conventions/stack_realizations.rs](../../../representations/calling-conventions/src/stack_realizations/mod.rs).
 Its x86-64 rule derives arrival from installed vector, gate/TSS and privilege
 facts, not caller-authored word counts. The binder requires exact equality with
 the validated context roster and the selected boundary commitment. Unknown,
@@ -28,14 +28,14 @@ stack geometry, not firmware invocation or a physical stack switch. Broader
 adapter coverage must derive its own emitted epochs; it cannot copy this
 wrapper's fixed count or generated-origin label.
 
-[fixed_fuel.rs](src/fixed_fuel.rs) retains schedule identity and distinguishes
+[fixed_fuel.rs](src/stack_and_fuel/fixed_fuel.rs) retains schedule identity and distinguishes
 Terminal-derived entry/segment evidence from opaque provider claims. Segment
 custody never becomes whole-entry authority by sharing a numeric bound.
 Entry/stack, logical-work, and machine-state support must be evaluated separately;
 the existence of one composer does not establish all entry origins or a general
 WCET model.
 
-[interrupt_table.rs](src/interrupt_table.rs) accounts one descriptor table's
+[interrupt_table.rs](src/interrupts/interrupt_table.rs) accounts one descriptor table's
 complete declared member set — fatal exception entries on their own dedicated
 critical stack classes plus acknowledged interrupts such as the timer — over
 the installed-root ledger. Admission replays the ledger's retained root records
@@ -80,11 +80,13 @@ the checked post-handoff writer program whose fragments resolve each member's
 sealed entry target into the produced gate's offset fields, while the
 consumer-declared descriptor constants — selector, gate kind, privilege, IST
 slot, and the reserved-zero bytes — are staged table content the writer
-preserves. `validate_written_descriptor_table` is the consumer's semantic
-edge: it proves the produced image came from exactly this table's derived
-writer over this exact installed realization, replays every declared
-descriptor's constant fields plus the zero fill across undeclared slots,
-joins each member's declared IST slot through the installed TSS to its
-declared critical stack class, and only then mints the established value
-naming the exact written destination. Publication still consumes only that
+preserves. **Corrected 2026-09-21:** `f47afed31d676` retired the
+compiler-owned interrupt-table model from this crate, so the validation triple
+this paragraph described (`validate_written_descriptor_table`,
+`descriptor_table_writer_plan`, `descriptor_table_staged_image`) no longer
+exists here. The semantic edge is consumer-owned: the authored
+`DescriptorTableValidation::validate`
+(`tests/omega/pass/memory/interrupt_table_canary/cathedral/interrupt_validation.omg:106`)
+issues the Accepted verdict that warrants the established value the publication
+carrier binds. Publication still consumes only that
 established value plus separately supplied authority.

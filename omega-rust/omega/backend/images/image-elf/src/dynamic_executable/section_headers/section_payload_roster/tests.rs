@@ -146,15 +146,16 @@ fn candidate(target: TargetProfile) -> Candidate {
 }
 
 #[test]
-fn both_targets_join_exact_thirteen_payloads_and_indexed_fixups() {
+fn both_targets_join_exact_fourteen_payloads_and_indexed_fixups() {
     for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
         let plan = plan_elf_indexed_section_payloads(headers(target, &IMPORTS)).unwrap();
-        assert_eq!(plan.row_count(), 13);
-        assert_eq!(plan.dynamic_fixup_count(), 8);
+        assert_eq!(plan.row_count(), 14);
+        assert_eq!(plan.dynamic_fixup_count(), 9);
         assert!(plan.contents.rows[0].bytes.is_empty());
         assert_eq!(plan.contents.rows[7].bytes.len(), 36);
-        assert_eq!(plan.contents.rows[11].bytes.len(), 256);
-        assert_eq!(plan.contents.rows[12].bytes.len(), 112);
+        assert_eq!(plan.contents.rows[11].bytes.len(), 0);
+        assert_eq!(plan.contents.rows[12].bytes.len(), 288);
+        assert_eq!(plan.contents.rows[13].bytes.len(), 122);
         for (index, row) in plan.contents.rows.iter().enumerate() {
             assert_eq!(row.index, index as u32);
             assert_eq!(
@@ -211,7 +212,7 @@ fn indexed_storage_targets_constraints_and_raw_bytes_are_exact() {
             .iter()
             .map(|fixup| fixup.target_section_index)
             .collect::<Vec<_>>(),
-        [9, 4, 7, 2, 3, 10, 5, 6]
+        [9, 4, 7, 2, 3, 10, 11, 5, 6]
     );
 }
 

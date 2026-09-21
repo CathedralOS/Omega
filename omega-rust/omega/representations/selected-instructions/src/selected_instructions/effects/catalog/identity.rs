@@ -444,6 +444,8 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ExactShiftLeftI64 => 108,
         MachineSemanticKind::ExactShiftRightI64 => 109,
         MachineSemanticKind::ExactShiftRightU64 => 110,
+        MachineSemanticKind::ExactDivideI64 => 112,
+        MachineSemanticKind::ExactRemainderI64 => 113,
     }
 }
 
@@ -536,6 +538,8 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ExactShiftLeftI64 => 108,
         MachineAlternativeFamily::ExactShiftRightI64 => 109,
         MachineAlternativeFamily::ExactShiftRightU64 => 110,
+        MachineAlternativeFamily::ExactDivideI64 => 112,
+        MachineAlternativeFamily::ExactRemainderI64 => 113,
     }
 }
 

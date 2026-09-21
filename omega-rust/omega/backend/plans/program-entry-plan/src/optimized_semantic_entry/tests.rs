@@ -284,6 +284,9 @@ fn receiver_role_and_semantic_policy_drift_fail_closed() {
     .expect_err("non-UEFI target must reject");
     assert!(error.0.contains("exact UEFI x86-64"), "{error}");
 
+    // The canary's `Boot::launch` carries a provisioned mutable receiver: the
+    // contract admits the exact selected source shape and the wrapper owns the
+    // residence downstream.
     let receiver = source(
         ProgramEntrySourceReceiverSignature::ProvisionedMutable {
             normalized_type_identity: "Boot".into(),
@@ -293,14 +296,13 @@ fn receiver_role_and_semantic_policy_drift_fail_closed() {
             ProgramStorageEntryRootRole::InitialStorage,
         ],
     );
-    let error = bind_optimized_program_storage_semantic_entry_contract(
+    bind_optimized_program_storage_semantic_entry_contract(
         target::NativeTarget::uefi_x64(),
         &selected,
         &receiver,
         &application,
     )
-    .expect_err("receiver-bound source must reject");
-    assert!(error.0.contains("receiver-free Unit"), "{error}");
+    .expect("provisioned-mutable receiver source must bind");
 
     let swapped = source(
         ProgramEntrySourceReceiverSignature::Free,

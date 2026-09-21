@@ -34,6 +34,7 @@ pub(in super::super) fn suffix_module() -> TerminalModule {
     };
     machine.blocks[1].operations[0].result =
         OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: suffix,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
@@ -75,6 +76,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
     });
     machine.blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(32).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -93,14 +95,17 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(40).unwrap(),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         operations: vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(41).unwrap(),
                 result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
                     place: nested,
                     structural_type,
                     multiplicity: StructuralMultiplicity::Unrestricted,
@@ -118,6 +123,7 @@ pub(super) fn nested_suffix_module() -> TerminalModule {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(42).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -156,6 +162,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
     let producer_block = &mut machine.blocks[if nested { 3 } else { 1 }];
     producer_block.operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(51).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -174,12 +181,14 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(60).unwrap(),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         operations: vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(60).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -197,6 +206,7 @@ pub(super) fn derived_read_module(nested: bool) -> TerminalModule {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(61).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -249,11 +259,13 @@ pub(super) fn subrange_module(read: bool) -> TerminalModule {
     *endpoint = end;
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(70).unwrap(),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(71).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -277,6 +289,7 @@ pub(super) fn subrange_module(read: bool) -> TerminalModule {
 fn successor(edge: u64, block: u64) -> SuccessorEdge {
     SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),

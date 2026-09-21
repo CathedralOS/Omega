@@ -100,12 +100,24 @@ pub struct BlockingSummary {
     pub transitive_may_block: bool,
 }
 
+/// One interned row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ServiceReachRow {
+    /// A normalized concrete service set.
+    Concrete(Vec<ServiceReachId>),
+    /// An independent abstract row bounded above by `bound`. Refinement
+    /// clause locations mint these for `reaches _;`: the row names no
+    /// services itself and is bounded by the covered requirement's inherited
+    /// row, never correlated with a sibling requirement's row.
+    AbstractBounded(ServiceReachRowId),
+}
+
 /// Deterministic normalizer for service-only rows. Boundary-trait identity is
 /// minted before rows are interned; this table owns set normalization and
 /// preserves the empty published ceiling as the fixed row id 1.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ServiceReachRowTable {
-    pub(crate) rows: Vec<Vec<ServiceReachId>>,
+    pub(crate) rows: Vec<ServiceReachRow>,
 }
 
 impl ServiceReachRowTable {
@@ -120,21 +132,66 @@ impl ServiceReachRowTable {
         services.sort_by_key(|service| service.0);
         services.dedup();
         if self.rows.is_empty() {
-            self.rows.push(Vec::new());
+            self.rows.push(ServiceReachRow::Concrete(Vec::new()));
         }
-        if let Some(position) = self.rows.iter().position(|row| *row == services) {
+        if let Some(position) = self
+            .rows
+            .iter()
+            .position(|row| matches!(row, ServiceReachRow::Concrete(row) if *row == services))
+        {
             return ServiceReachRowId(u32::try_from(position + 1).expect("row table fits u32"));
         }
-        self.rows.push(services);
+        self.rows.push(ServiceReachRow::Concrete(services));
         ServiceReachRowId(u32::try_from(self.rows.len()).expect("row table fits u32"))
     }
 
+    /// Intern an independent abstract row bounded above by `bound`. The same
+    /// bound interns to the same row so order-independent meets stay stable.
+    pub fn intern_abstract(&mut self, bound: ServiceReachRowId) -> ServiceReachRowId {
+        if self.rows.is_empty() {
+            self.rows.push(ServiceReachRow::Concrete(Vec::new()));
+        }
+        if let Some(position) = self.rows.iter().position(
+            |row| matches!(row, ServiceReachRow::AbstractBounded(existing) if *existing == bound),
+        ) {
+            return ServiceReachRowId(u32::try_from(position + 1).expect("row table fits u32"));
+        }
+        self.rows.push(ServiceReachRow::AbstractBounded(bound));
+        ServiceReachRowId(u32::try_from(self.rows.len()).expect("row table fits u32"))
+    }
+
+    /// The row's ceiling service set. An abstract row reports its bound's
+    /// set — the row may narrow further at the bound fit check but never
+    /// exceeds it.
     pub fn services(&self, row: ServiceReachRowId) -> &[ServiceReachId] {
+        match row
+            .0
+            .checked_sub(1)
+            .and_then(|index| self.rows.get(index as usize))
+        {
+            Some(ServiceReachRow::Concrete(services)) => services.as_slice(),
+            Some(ServiceReachRow::AbstractBounded(bound)) => self.services(*bound),
+            None => &[],
+        }
+    }
+
+    /// Whether the row is an independent abstract row bounded by another row.
+    pub fn is_abstract(&self, row: ServiceReachRowId) -> bool {
+        matches!(self.entry(row), Some(ServiceReachRow::AbstractBounded(_)))
+    }
+
+    /// The row bounding an abstract row.
+    pub fn abstract_bound(&self, row: ServiceReachRowId) -> Option<ServiceReachRowId> {
+        match self.entry(row) {
+            Some(ServiceReachRow::AbstractBounded(bound)) => Some(*bound),
+            _ => None,
+        }
+    }
+
+    fn entry(&self, row: ServiceReachRowId) -> Option<&ServiceReachRow> {
         row.0
             .checked_sub(1)
             .and_then(|index| self.rows.get(index as usize))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
     }
 }
 

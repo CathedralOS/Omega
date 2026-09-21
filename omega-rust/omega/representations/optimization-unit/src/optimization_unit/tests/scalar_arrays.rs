@@ -12,6 +12,7 @@ fn array_identity_binds_order_count_producer_and_complete_result() {
     plan.functions[0].operations[0] = AbstractOperation::EstablishScalarArray {
         psi_operation: id(301, OperationId::new),
         result: StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place: id(302, PlaceId::new),
             structural_type: id(303, StructuralTypeId::new),
             multiplicity: StructuralMultiplicity::Unrestricted,

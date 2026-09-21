@@ -1,11 +1,16 @@
 ; Leave one step, consume it in a successful visit, then refuse terminal resume.
+; The initial reservation seeds the shared counter so the same probe lands on
+; the bound without iterating to it.
 (def comparison_test_execute ((grounded Int)) Int
-  (let repeated Int (comparison_test_repeat (comparison_start grounded) 1 1 12289 16391 327679)
-    (if (eq (first repeated) 6)
-      (let different Int (compare_ground_terms (comparison_session (second repeated)) 1 2 12289 16391)
-        (let observed Int (comparison_test_observe different)
-          (if (eq (first different) 6)
-            (comparison_test_observe (compare_ground_terms
-              (comparison_session (second different)) 1 1 12289 16391))
-            0)))
-      (comparison_test_observe repeated))))
+  (let prior Int (comparison_reserve (comparison_start grounded) 67108860 12289)
+    (if (eq (first prior) 6)
+      (let repeated Int (comparison_test_repeat (comparison_session (second prior)) 1 1 12289 16391 1)
+        (if (eq (first repeated) 6)
+          (let different Int (compare_ground_terms (comparison_session (second repeated)) 1 2 12289 16391)
+            (let observed Int (comparison_test_observe different)
+              (if (eq (first different) 6)
+                (comparison_test_observe (compare_ground_terms
+                  (comparison_session (second different)) 1 1 12289 16391))
+                0)))
+          (comparison_test_observe repeated)))
+      (comparison_test_observe prior))))

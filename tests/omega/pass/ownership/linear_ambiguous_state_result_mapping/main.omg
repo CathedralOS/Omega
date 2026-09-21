@@ -1,0 +1,37 @@
+data Receipt [linear] {
+    code: i32;
+}
+
+machine Receipt::ack(self) {}
+
+data Pair {
+    left: Receipt;
+    right: Receipt;
+}
+
+data Main {}
+
+machine Main::pack(swap: bool, left: Receipt, right: Receipt) -> Pair {
+    transition swap {
+        false -> (Pair { left: left, right: right })
+        true -> (Pair { left: right, right: left })
+    }
+}
+
+machine Main::issue(&mut self) -> Pair {
+    let left: Receipt = Receipt { code: 1 };
+    let right: Receipt = Receipt { code: 2 };
+    // Each output arm maps the same claims to the same result fields up to
+    // normalization, so the checked callee publishes one normalized outcome
+    // map even though the arms name different inputs.
+    transition { _ -> Main::pack(false, left, right) }
+}
+
+machine Main::main(&mut self) -> i32 {
+    let returned: Pair = self.issue();
+    let left: Receipt = returned.left;
+    let right: Receipt = returned.right;
+    Receipt::ack(left);
+    Receipt::ack(right);
+    0
+}

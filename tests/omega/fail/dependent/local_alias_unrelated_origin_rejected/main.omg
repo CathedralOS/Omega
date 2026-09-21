@@ -1,0 +1,18 @@
+// FAIL canary (sibling of pass/dependent/local_alias_forwards_entry_origin):
+// a local bound to an unrelated value does not hold the entry parameter's
+// origin, so forwarding it cannot prove the ensures.
+machine held_other(input: i32) -> i32
+ensures result == input
+{
+    let held: i32 = 0;
+    transition { _ -> last(held) }
+    state last(carried: i32) {
+        carried
+    }
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

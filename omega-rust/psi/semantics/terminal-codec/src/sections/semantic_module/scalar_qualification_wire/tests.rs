@@ -1,7 +1,7 @@
 use super::{
-    CodecError, Reader, ScalarDomainDeclaration, ScalarFloatRange, ScalarQualificationCatalog,
-    ScalarQualificationCoercion, ScalarQualificationSet, ScalarQualificationSetId, Writer, decode,
-    encode, validate,
+    CodecError, Reader, ScalarDomainDeclaration, ScalarDomainEstablishmentRoute, ScalarFloatRange,
+    ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
+    ScalarQualificationSetId, Writer, decode, encode, validate,
 };
 use semantic_vocabulary::{DomainSemanticId, IeeeFloatValue, ScalarDomainId, ScalarType};
 
@@ -12,6 +12,14 @@ fn catalog() -> ScalarQualificationCatalog {
             semantic_domain: DomainSemanticId::new(9).unwrap(),
             identity: "carrier::Tag<7>".into(),
             carrier: ScalarType::Boolean,
+            establishment_routes: vec![
+                ScalarDomainEstablishmentRoute::CheckedRequirement {
+                    requirement_identity: "unit::Req<9>".into(),
+                },
+                ScalarDomainEstablishmentRoute::ExactMachine {
+                    machine_identity: "unit::Issuer<9>".into(),
+                },
+            ],
         }],
         sets: vec![ScalarQualificationSet {
             id: ScalarQualificationSetId::new(1),
@@ -19,6 +27,7 @@ fn catalog() -> ScalarQualificationCatalog {
         }],
         coercions: Vec::new(),
         float_entry_ranges: Vec::new(),
+        integer_entry_ranges: Vec::new(),
     }
 }
 
@@ -47,6 +56,62 @@ fn scalar_qualification_catalog_rejects_zero_empty_and_duplicate_sets() {
     catalog.sets[0].domains.clear();
     assert!(validate(&catalog).is_err());
     assert_eq!(validate(&ScalarQualificationCatalog::default()), Ok(()));
+}
+
+#[test]
+fn scalar_domain_establishment_routes_reject_noncanonical_and_malformed_rows() {
+    let mut catalog = catalog();
+    catalog.domains[0].establishment_routes.swap(0, 1);
+    assert_eq!(
+        validate(&catalog),
+        Err(CodecError::NonCanonicalOrder(
+            "scalar domain establishment routes"
+        ))
+    );
+    catalog.domains[0].establishment_routes.reverse();
+    catalog.domains[0]
+        .establishment_routes
+        .push(ScalarDomainEstablishmentRoute::ExactMachine {
+            machine_identity: "unit::Issuer<9>".into(),
+        });
+    assert_eq!(
+        validate(&catalog),
+        Err(CodecError::NonCanonicalOrder(
+            "scalar domain establishment routes"
+        ))
+    );
+    catalog.domains[0].establishment_routes.pop();
+    catalog.domains[0].establishment_routes[0] =
+        ScalarDomainEstablishmentRoute::CheckedRequirement {
+            requirement_identity: String::new(),
+        };
+    assert_eq!(validate(&catalog), Err(CodecError::NonCanonicalEncoding));
+
+    // An unknown route tag fails at the wire, not the caller.
+    catalog.domains[0].establishment_routes.clear();
+    catalog.domains[0].establishment_routes.push(
+        ScalarDomainEstablishmentRoute::CheckedRequirement {
+            requirement_identity: "unit::Req<9>".into(),
+        },
+    );
+    let mut writer = Writer::default();
+    encode(&mut writer, &catalog).unwrap();
+    let mut bytes = writer.finish();
+    let identity = b"carrier::Tag<7>";
+    let tag = bytes
+        .windows(identity.len())
+        .position(|window| window == identity)
+        .unwrap()
+        + identity.len()
+        + 5;
+    bytes[tag] = u8::MAX;
+    assert_eq!(
+        decode(&mut Reader::new(&bytes)),
+        Err(CodecError::InvalidTag(
+            "ScalarDomainEstablishmentRoute",
+            u8::MAX
+        ))
+    );
 }
 
 #[test]
@@ -143,6 +208,77 @@ fn scalar_float_entry_ranges_round_trip_and_reject_noncanonical_rows() {
 
     // A truncated or hostile payload fails at the wire, not the caller.
     catalog.float_entry_ranges.clear();
+    let mut writer = Writer::default();
+    encode(&mut writer, &catalog).unwrap();
+    let mut bytes = writer.finish();
+    bytes.truncate(bytes.len() - 2);
+    assert_eq!(
+        decode(&mut Reader::new(&bytes)),
+        Err(CodecError::UnexpectedEnd)
+    );
+}
+
+#[test]
+fn scalar_integer_entry_ranges_round_trip_and_reject_malformed_rows() {
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ValueId};
+    use terminal_psi::ScalarIntegerRange;
+    let mut catalog = catalog();
+    let u64_carrier = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let range = ScalarIntegerRange {
+        machine: MachineId::new(1).unwrap(),
+        parameter: ValueId::new(7).unwrap(),
+        integer_type: u64_carrier,
+        minimum: IntegerValue::Unsigned(0),
+        maximum: IntegerValue::Unsigned(3),
+    };
+    catalog.integer_entry_ranges = vec![range];
+    assert_eq!(validate(&catalog), Ok(()));
+    let mut writer = Writer::default();
+    encode(&mut writer, &catalog).unwrap();
+    assert_eq!(
+        decode(&mut Reader::new(&writer.finish())),
+        Ok(catalog.clone())
+    );
+
+    // Duplicate and reversed (machine, parameter) keys are noncanonical.
+    catalog.integer_entry_ranges = vec![range, range];
+    assert_eq!(
+        validate(&catalog),
+        Err(CodecError::NonCanonicalOrder("scalar integer entry ranges"))
+    );
+    catalog.integer_entry_ranges[1].parameter = ValueId::new(9).unwrap();
+    catalog.integer_entry_ranges.reverse();
+    assert_eq!(
+        validate(&catalog),
+        Err(CodecError::NonCanonicalOrder("scalar integer entry ranges"))
+    );
+
+    // A reversed interval is malformed: the carrier cannot order it.
+    catalog.integer_entry_ranges = vec![ScalarIntegerRange {
+        minimum: IntegerValue::Unsigned(4),
+        maximum: IntegerValue::Unsigned(0),
+        ..range
+    }];
+    assert_eq!(validate(&catalog), Err(CodecError::NonCanonicalEncoding));
+
+    // An address carrier is not an entry-range carrier.
+    catalog.integer_entry_ranges = vec![ScalarIntegerRange {
+        integer_type: IntegerType::address(64).unwrap(),
+        minimum: IntegerValue::Unsigned(0),
+        maximum: IntegerValue::Unsigned(3),
+        ..range
+    }];
+    assert_eq!(validate(&catalog), Err(CodecError::NonCanonicalEncoding));
+
+    // An endpoint the carrier does not admit is malformed wire.
+    catalog.integer_entry_ranges = vec![ScalarIntegerRange {
+        maximum: IntegerValue::Signed(-1),
+        ..range
+    }];
+    assert_eq!(validate(&catalog), Err(CodecError::NonCanonicalEncoding));
+
+    // A truncated or hostile payload fails at the wire, not the caller.
+    catalog.integer_entry_ranges = vec![range];
     let mut writer = Writer::default();
     encode(&mut writer, &catalog).unwrap();
     let mut bytes = writer.finish();

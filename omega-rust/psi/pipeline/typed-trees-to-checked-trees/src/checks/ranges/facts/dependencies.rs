@@ -13,6 +13,13 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::{TypedTrees, machine::Machine, state::State};
 
+/// Bound shared by every walk below: `record_dependencies` and
+/// `collect_reads` recurse over expression trees, while the captures.rs
+/// chain walks unroll the same bound iteratively. Authored expressions
+/// deeper than the bound record the visited prefix and stop rather than
+/// recursing to the bottom of the arena; pinned by tests/depth.rs.
+pub(super) const EXPRESSION_WALK_DEPTH_BOUND: usize = 128;
+
 #[derive(Clone)]
 pub(super) struct ExpressionDependencies {
     expression: ExpressionHandle,
@@ -191,7 +198,9 @@ impl RangeFacts<'_> {
         expression: ExpressionHandle,
         depth: usize,
     ) {
-        if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+        if depth >= EXPRESSION_WALK_DEPTH_BOUND
+            || !program.expression_table.expression_is_valid(expression)
+        {
             return;
         }
         if matches!(

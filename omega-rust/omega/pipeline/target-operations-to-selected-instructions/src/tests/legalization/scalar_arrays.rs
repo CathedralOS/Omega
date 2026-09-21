@@ -67,6 +67,7 @@ fn fixture(
         O::EstablishScalarArray {
             psi_operation: OperationId::new(3).unwrap(),
             result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place,
                 structural_type: root,
                 multiplicity: StructuralMultiplicity::Unrestricted,

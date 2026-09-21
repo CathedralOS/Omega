@@ -3,9 +3,11 @@ use super::{
     ModuleError, OperationKind, ProofBundle, Proposition, PropositionId, ScalarTerm, ScalarType,
     StructuralMultiplicity, StructuralTypeId, TerminalModule, VerificationError, block_id,
     boolean_declaration, boolean_value, boundary_call_module, boundary_id, machine_id,
-    operation_id, place_id, provider_candidate_module, validate_module, value_id, verify_module,
+    operation_id, place_id, provider_candidate_module, structural_type_id, validate_module,
+    value_id, verify_module,
 };
-use terminal_psi::CrashPredicateTerm;
+use semantic_vocabulary::{ClaimId, StructuralPlaceKind};
+use terminal_psi::{CompletionReceipt, CrashPredicateTerm, StructuralAccess};
 use terminal_verifier::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
 
 #[test]
@@ -355,6 +357,112 @@ fn observation_v1_reconstructs_boundary_crash_sites_at_the_call_operation() {
             .map(|row| row.operation)
             .collect::<Vec<_>>(),
         [operation_id(2)],
+    );
+}
+
+#[test]
+fn observation_v1_boundary_call_replays_arguments_not_settlement_receipts() {
+    let mut module = boundary_call_module();
+    // Completion receipts are settlement custody validated by
+    // `validate_module` (structural_unit/partial_affine_moves.rs), not runtime
+    // values: the observation schema describes the values a semantic trace
+    // compares, so no replayed row carries them. Give the call one structural
+    // argument carrying a receipt and pin that the event row still equals the
+    // declaration's bare argument/result schemas.
+    module
+        .structural_types
+        .push(terminal_psi::StructuralTypeDeclaration {
+            id: structural_type_id(1),
+            identity: "receipt carrier".into(),
+            shape: terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+        });
+    module.machines[0]
+        .structural_places
+        .push(terminal_psi::StructuralPlaceDeclaration {
+            id: place_id(1),
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        });
+    module.machines[0]
+        .structural_parameters
+        .push(terminal_psi::StructuralParameterDeclaration {
+            place: place_id(1),
+            position: 0,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    module.machines[0]
+        .entry_claims
+        .push(terminal_psi::EntryClaim {
+            claim: ClaimId::new(1).expect("nonzero test identity"),
+            input: place_id(1),
+            path: Vec::new(),
+        });
+    module.boundary_machines[0].structural_parameters.push(
+        terminal_psi::StructuralParameterDeclaration {
+            place: place_id(9),
+            position: 0,
+            is_self: false,
+            structural_type: structural_type_id(1),
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        },
+    );
+    module.boundary_machines[0]
+        .parameter_order
+        .push(terminal_psi::BoundaryParameterKind::Structural);
+    let OperationKind::BoundaryCall {
+        structural_arguments,
+        completion_receipts,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(terminal_psi::StructuralArgument {
+        place: place_id(1),
+        path: Vec::new(),
+        access: StructuralAccess::Owned,
+    });
+    completion_receipts.push(CompletionReceipt {
+        claim: ClaimId::new(1).expect("nonzero test identity"),
+        argument_index: 0,
+    });
+
+    let rows = terminal_verifier::reconstruct_terminal_trace_v1_rows(&module)
+        .expect("settlement-carrying boundary call reconstructs");
+    assert_eq!(
+        rows.ordinary_events,
+        [terminal_psi::TerminalTraceOrdinaryEventRow {
+            machine: machine_id(1),
+            block: block_id(1),
+            operation: operation_id(2),
+            kind: terminal_psi::TerminalTraceOrdinaryEventKind::BoundaryCall {
+                boundary: boundary_id(1),
+                boundary_identity: "test::observe".into(),
+            },
+            scalar_arguments: vec![terminal_psi::TerminalTraceScalarSchema {
+                scalar_type: ScalarType::Boolean,
+                comparison: terminal_psi::TerminalTraceValueComparison::ExactSemanticValue,
+            }],
+            structural_arguments: vec![terminal_psi::TerminalTraceStructuralSchema {
+                structural_type: structural_type_id(1),
+                multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                comparison: terminal_psi::TerminalTraceValueComparison::ExactSemanticValue,
+            }],
+            result: terminal_psi::TerminalTraceResultSchema::Unit,
+        }],
     );
 }
 

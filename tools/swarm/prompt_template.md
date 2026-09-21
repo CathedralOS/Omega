@@ -34,7 +34,23 @@ report `blocked` with the named owner and reason; do not retry with
 
 ## Collision rules
 
-Edit only your item's board text. Never touch these excluded items: {exclusions}.
+Never edit board or coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`,
+`tools/swarm/waves/`): board text is the coordinator's, and `landing.py`
+refuses candidates that touch only those files or change nothing — do not
+land `board:` commits or empty ledger commits. Record durable findings on
+your claim ticket instead — `python3 tools/claims.py note --ticket <ticket>
+--text "<finding>"` — and repeat them in the structured output; the
+coordinator writes board updates at drain. A re-verification that confirms
+the board's current text is the common case and rides the claim note alone:
+do not take a board-only claim to stamp the row, and expect no board edit
+for an unchanged verdict. Re-verification at a newer revision that reproduces
+the recorded verdict is noise, not evidence — no stamp lands for it. A row
+carries at most one current verification line; a stamp that does land
+replaces the dated observation it supersedes rather than stacking under it,
+and at most one stamp per assigned row per session is permitted — only when
+it changes the row's frontier. Serial witness paragraphs ("re-verified a
+second/third time") are never appended. Never touch these excluded items:
+{exclusions}.
 If your fix needs a path owned by another item in the wave, stop and report
 `blocked` with the needed path so the coordinator can arrange a handoff. Apply
 the same rule to a confirmed active claim outside this wave

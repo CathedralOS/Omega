@@ -71,11 +71,17 @@ fn terminal_summary(
                         element.get()
                     )
                 }
+                terminal_psi::StructuralTypeShape::ElementView { element } => {
+                    format!("element_view(element=type:{})", element.get())
+                }
                 terminal_psi::StructuralTypeShape::Sum { cases } => {
                     format!("sum(cases={})", cases.len())
                 }
                 terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
                     format!("mixed(fields={},cases={})", fields.len(), cases.len())
+                }
+                terminal_psi::StructuralTypeShape::ElementView { element } => {
+                    format!("element_view(element=type:{})", element.get())
                 }
             }
         )

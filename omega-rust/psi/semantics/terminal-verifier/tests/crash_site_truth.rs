@@ -56,6 +56,7 @@ fn crash(edge: u64, guards: Vec<Proposition>) -> Terminator {
 fn block(identity: u64, terminator: Terminator) -> Block {
     Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: BlockId::new(identity).unwrap(),
         parameters: Vec::new(),
@@ -71,6 +72,7 @@ fn successor(edge: u64, target: u64, arguments: &[u64]) -> SuccessorEdge {
         target: BlockId::new(target).unwrap(),
         arguments: arguments.iter().copied().map(value).collect(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
 }
@@ -83,6 +85,7 @@ fn jump(edge: u64, target: u64, arguments: &[u64]) -> Terminator {
         target: successor.target,
         arguments: successor.arguments,
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         residual_affine_discards: Vec::new(),
         trivial_affine_discards: Vec::new(),
     }
@@ -137,6 +140,7 @@ fn module(parameter: u64, expected: bool) -> TerminalModule {
             blocks: vec![block(1, crash(1, vec![boolean(parameter, expected)]))],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: ContractId::new(1).unwrap(),
                 requires: Vec::new(),
                 ensures: Vec::new(),
@@ -308,6 +312,7 @@ fn updated_scalar_values_do_not_inherit_old_entry_predicates() {
     checked.machines[0].contract.requires = vec![boolean(1, true)];
     checked.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(declaration(2)),
         kind: OperationKind::BooleanConstant { value: false },
@@ -341,6 +346,7 @@ fn derived_branch(kind: OperationKind, expected: bool) -> TerminalModule {
     let mut checked = branch_module(expected, false, false);
     checked.machines[0].blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(declaration(3)),
         kind,
@@ -422,6 +428,7 @@ fn computed_condition_join_preserves_only_feasible_entry_predicate_paths() {
         let result = index as u64 + 1;
         machine.blocks[index].operations = vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(index as u64).unwrap(),
             result: OperationResult::Scalar(declaration(result)),
             kind: OperationKind::BooleanConstant { value: constant },

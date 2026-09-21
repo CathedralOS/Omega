@@ -19,6 +19,27 @@ Runtime payload copies, effect observations, and retained return/cleanup metadat
 remain separate from executable code. This removes code copying, not all runtime
 allocation, and does not establish a measured speedup.
 
+## Embedding contract and probe limits
+
+The accepted [embedding contract](../../../../wiki/spec/build/embedding.md)
+is broader than this low-level execution entrance. The public program/instance,
+binding-adapter, shutdown, and interpreter-backed replacement library remains
+tracked under [embedding tasks](../../../../TASKS.md#embedding-and-interpreted-components).
+Do not expose the raw effect hook as an admitted binding API.
+
+The source-free [embedding lifetime probes](tests/unit/embedding_lifetimes.rs)
+cover owned artifact lifetime, separate host contexts, once-only scalar effects
+across fuel stops, rejection after an effect, response shape, and a host result
+returned through the guest. They also demonstrate that the raw hook can switch
+host handlers between resumes: that is a missing public-binding constraint, not
+permission to rebind an invocation. They do not demonstrate source-generated
+adapters, borrowed host-resource safety, pending host completion, or component
+replacement. Run the focused mechanics with:
+
+```text
+cargo nextest run -p terminal-interpreter --test unit -E 'test(embedding_lifetimes::)' --no-tests fail --no-fail-fast
+```
+
 ## Cyclic execution
 
 Ordinary interpretation accepts verified natural-ranked scalar, plain-owned-input,
@@ -158,9 +179,10 @@ validation of the written prefix; buffer writeback itself grants none.
 
 ## Fixed byte arrays
 
-`start_artifact_with_structural_arguments_and_byte_arrays` and the existing
-`start_artifact_with_provider_installation` entrypoint supply explicit
-initialized fixed-array contents by structural argument and relative field path.
+`TerminalExecution::start_artifact` -- the only start entry, since `8e2dc8b8ade91`
+collapsed the two named variants -- supplies explicit initialized fixed-array
+contents through `TerminalStructuralInputs.byte_arrays`, by structural argument
+and relative field path.
 Every supplied value must match a real unqualified `FixedArray(u8, N)` and contain
 exactly `N` bytes. Duplicate referents, mistyped paths, and fabricated storage
 reject; an opaque root does not imply initialization. `structural_byte_array`
