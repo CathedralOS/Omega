@@ -7244,6 +7244,22 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
   pipeline_ownership, checked-interpreter, package-evidence, host notes) were left
   unchanged. Every section now names a leaf or is explicitly environmental.
 
+- **NEW-RBRA-PASS-TERMINATION.** Inserted row, scope verified at `891eb5c584`
+  (planner-scoped to `tests/omega/pass/termination`) — no pending work on the
+  scoped surface: the directory holds 114 fixtures, every one carrying
+  `main.omg` and named on a canary roster (`termination/` is referenced 234
+  times across `canary_suite.rs`'s checked-only/active/fail rosters); four
+  package-form members carry `build.omg` and 18 carry `README.md`. Witness on
+  Linux x86-64: `OMEGA_PASS_CANARY_FILTER=termination/ mbx nextest run -p
+  compiler --test canary_suite` pass-coverage gate green at `891eb5c584`.
+  The `RBRA` token occurs nowhere in the tree or boards; the only named
+  siblings in the series are NEW-RBRA-PASS-RECAST-GENERICS (holds
+  `tests/omega/pass/{recast,generics}`) and NEW-RBRA-STD-LIBRARY-MIGRATION —
+  the series appears to be a pass-corpus surface-migration sweep, and this
+  corpus is already fully rostered and green. Nothing to implement under
+  this name until a concrete contract or failing customer identifies the
+  delta.
+
 - **BASELINE-NATIVE-DIFF-TERMINAL-PSI-SOURCE.** Resolved — the lane is fully
   green: `cargo nextest run -p omega-native-differential-test --test
   terminal_psi_source --no-fail-fast` reports 90 run / 90 passed / 0 skipped
