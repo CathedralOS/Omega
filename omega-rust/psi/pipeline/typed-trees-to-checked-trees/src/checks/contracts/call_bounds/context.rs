@@ -102,22 +102,8 @@ fn prove(
     )?;
     // The callee is a machine head: the target names the machine itself or
     // resolves to the machine's entry state.
-    let callee = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == call.target_symbol)
-        .or_else(|| {
-            crate::semantic_calls::find_state_with_machine(program, call.target_symbol).and_then(
-                |(machine, state)| {
-                    program
-                        .machine_states(machine)
-                        .first()
-                        .is_some_and(|entry| entry.symbol == state.symbol)
-                        .then_some(machine)
-                },
-            )
-        })?;
-    let parameters = program.state_parameters(program.machine_states(callee).first()?);
+    let (callee, entry) = crate::semantic_calls::find_machine_head(program, call.target_symbol)?;
+    let parameters = program.state_parameters(entry);
     if caller.machine_symbol == callee.symbol
         && matches!(
             site,
