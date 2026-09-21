@@ -92,9 +92,8 @@ use crate::rewrites::block_edges::{terminator_instruction, terminator_successors
 use crate::rewrites::condition_state::materialized_bits;
 use crate::rewrites::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
-    local_slot_is_place_storage, local_store_shape, packed_store_row_shape,
-    place_store_row_shape, slot_is_subject_storage, staging_slot,
-    structural_place_declarations, transport_defines,
+    local_slot_is_place_storage, local_store_shape, packed_store_row_shape, place_store_row_shape,
+    slot_is_subject_storage, staging_slot, structural_place_declarations, transport_defines,
 };
 
 pub(super) struct Admission<'source> {
