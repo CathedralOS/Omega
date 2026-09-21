@@ -10,7 +10,7 @@ use super::{
     Terminator, ValueDeclaration, block_id, contract_id, decode_module, edge_id, encode_module,
     encode_proof_section, interpret_terminal_artifact_measured, machine_id, operation_id,
     payloadless_case_module, place_id, structural_case_id, structural_field_id, structural_type_id,
-    value_id,
+    unit_module, value_id,
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::{TerminalStructuralCaseValue, TerminalStructuralInputs};
@@ -1008,4 +1008,178 @@ fn case_membership_suspension_charges_each_observation_once() {
     );
     assert_eq!(meter.usage().total_units(), 5);
     assert_eq!(execution.live_affine_frontier().count(), 0);
+}
+
+fn mixed_membership_module(nested: bool, queried: u64) -> TerminalModule {
+    let mut module = unit_module();
+    module.structural_types = vec![StructuralTypeDeclaration {
+        id: structural_type_id(1),
+        identity: "test::Flagged".into(),
+        shape: StructuralTypeShape::Mixed {
+            fields: vec![StructuralFieldDeclaration {
+                id: structural_field_id(1),
+                identity: "flag".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            }],
+            cases: vec![
+                terminal_psi::StructuralCaseDeclaration {
+                    id: structural_case_id(1),
+                    identity: "Off".into(),
+                    fields: Vec::new(),
+                },
+                terminal_psi::StructuralCaseDeclaration {
+                    id: structural_case_id(2),
+                    identity: "On".into(),
+                    fields: Vec::new(),
+                },
+            ],
+        },
+    }];
+    if nested {
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: structural_type_id(2),
+            identity: "test::Holder".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: structural_field_id(2),
+                    identity: "flagged".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(structural_type_id(1)),
+                }],
+            },
+        });
+    }
+    let boolean = |identity| ValueDeclaration {
+        id: value_id(identity),
+        scalar_type: ScalarType::Boolean,
+        qualifications: Default::default(),
+    };
+    let machine = &mut module.machines[0];
+    machine.result = TerminalMachineResult::Scalar(boolean(2));
+    machine.structural_parameters = vec![StructuralParameterDeclaration {
+        place: place_id(1),
+        position: 0,
+        is_self: false,
+        structural_type: structural_type_id(if nested { 2 } else { 1 }),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }];
+    machine.structural_places = vec![StructuralPlaceDeclaration {
+        id: place_id(1),
+        kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }];
+    machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(1),
+        result: OperationResult::Scalar(boolean(1)),
+        kind: OperationKind::StructuralCaseMembership {
+            source: place_id(1),
+            path: if nested {
+                vec![StructuralPathSegment::Field("flagged".into())]
+            } else {
+                Vec::new()
+            },
+            case: structural_case_id(queried),
+        },
+    }];
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(1),
+        value: value_id(1),
+        cleanup_actions: Vec::new(),
+    };
+    module
+}
+
+#[test]
+fn mixed_case_membership_observes_bound_discriminator_at_root_and_field() {
+    for nested in [false, true] {
+        for (bound, queried, expected) in [(2_u64, 2_u64, true), (2, 1, false), (1, 2, false)] {
+            let module = mixed_membership_module(nested, queried);
+            terminal_verifier::validate_module(&module).unwrap();
+            let mut execution = TerminalExecution::start_artifact(
+                &encode_module(&module).unwrap(),
+                &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
+                &AdmissionProfile::default(),
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &[TerminalStructuralValue {
+                        opaque_identity: 77,
+                        structural_type: module.machines[0].structural_parameters[0]
+                            .structural_type,
+                        qualifications: Vec::new(),
+                        path: Vec::new(),
+                    }],
+                    cases: &[TerminalStructuralCaseValue {
+                        argument_index: 0,
+                        path: if nested {
+                            vec![StructuralPathSegment::Field("flagged".into())]
+                        } else {
+                            Vec::new()
+                        },
+                        case: structural_case_id(bound),
+                    }],
+                    ..Default::default()
+                },
+            )
+            .expect("mixed case discriminator binds");
+            let mut meter = TerminalFuelMeter::with_allowance(8);
+            assert_eq!(
+                execution
+                    .resume(&mut meter, &mut AcceptTerminalEffects)
+                    .unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                    TerminalScalarValue::Boolean(expected)
+                )),
+                "nested {nested} bound {bound} queried {queried}"
+            );
+        }
+    }
+}
+
+#[test]
+fn mixed_case_contents_reject_payload_claims() {
+    let mut module = mixed_membership_module(false, 1);
+    let StructuralTypeShape::Mixed { cases, .. } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    cases[1].fields.push(StructuralFieldDeclaration {
+        id: structural_field_id(3),
+        identity: "payload".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+    });
+    assert!(matches!(
+        TerminalExecution::start_artifact(
+            &encode_module(&module).unwrap(),
+            &encode_proof_section(&module, &ProofBundle::default()).unwrap(),
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs {
+                arguments: &[TerminalStructuralValue {
+                    opaque_identity: 77,
+                    structural_type: structural_type_id(1),
+                    qualifications: Vec::new(),
+                    path: Vec::new(),
+                }],
+                cases: &[TerminalStructuralCaseValue {
+                    argument_index: 0,
+                    path: Vec::new(),
+                    case: structural_case_id(2),
+                }],
+                ..Default::default()
+            },
+        ),
+        Err(
+            terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::VerifiedOperationMalformed
+            )
+        )
+    ));
 }
