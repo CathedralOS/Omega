@@ -354,11 +354,11 @@ pub(super) fn admit_run_relocation(
             // prefix.
             index > crossing.landing_index
         } else {
-            // An intermediate block's whole body is crossed — any
-            // settlement in it observes a changed executed prefix.
-            crossing.positions.iter().any(|(block_index, positions)| {
-                !positions.is_empty() && function.blocks[*block_index].id == settlement.block
-            })
+            // The run never occupies an intermediate block's executed
+            // prefix — it vacates its own block's body and lands inside
+            // the destination's — so a settlement in any other block keeps
+            // the observed prefix it always had.
+            false
         };
         if refused {
             return Err(RunRelocationRejection::Settlement);

@@ -156,6 +156,13 @@ pub(super) struct PathEdge<'function> {
     pub(super) successor: &'function SelectedSuccessor,
 }
 
+/// The acyclic-path walk bound the relocation admissions share: every
+/// per-shape family bounded its window by shape; the shared derivation
+/// bounds the walk itself. A function whose run-to-destination paths take
+/// more edges than this abandons as over budget rather than reporting a
+/// truncated window.
+pub(super) const PATH_EDGE_LIMIT: usize = 64;
+
 /// Every acyclic edge path from block `from` to block `to`, in walk order.
 ///
 ///
