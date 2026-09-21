@@ -417,7 +417,13 @@ projects each conjunct onto the same endpoint machinery, and its
 conclusion names the `add` application itself, so two-sided monotonicity
 and the checked `add lb rb = k` equation land the bound on the
 application directly. An endpoint sum outside the representable numeral
-range keeps the instance fallback.
+range keeps the instance fallback. The direct subtract form shares the
+machinery with subtraction's antitone twist: the right operand's
+endpoint re-shapes to the direction opposite the conclusion's, a fixed
+`a ≤ b → d ≤ c → sub a c ≤ sub b d` law combines the operands, and the
+checked `sub lb rb = k` numeral equation lands the literal — including
+the `(Exact, Carrier)` boundary cases the checker admits and negative
+bounds over unsigned carriers.
 
 Remaining families, including other bound and correlated-root
 witnesses, transport through opaque operations, reversed identities nested

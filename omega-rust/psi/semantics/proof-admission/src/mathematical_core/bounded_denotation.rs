@@ -137,8 +137,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{
-    ContentAlgebra, ContentTerm, IntegerMathTerm, Proposition, PropositionContext, ScalarTerm,
-    ScalarType, ValueId,
+    ContentAlgebra, ContentTerm, IntegerMathLiteral, IntegerMathTerm, IntegerValue, Proposition,
+    PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
 
 use super::certificate::{
@@ -263,6 +263,25 @@ fn record_premise(premises: &mut Vec<AcceptedPremise>, index: usize, proposition
             index,
             proposition: proposition.clone(),
         });
+    }
+}
+
+/// The `IntegerValue` a canonical math literal denotes when its magnitude
+/// fits the fixed numeral range — i128::MIN's unsigned magnitude
+/// included. A literal outside it denotes to an opaque `Int` constant no
+/// checked numeral-operation equation can name, so `None` callers keep
+/// their explicit instance fallback.
+fn math_literal_value(literal: IntegerMathLiteral) -> Option<IntegerValue> {
+    if literal.negative() {
+        if literal.magnitude() == (i128::MAX as u128) + 1 {
+            Some(IntegerValue::Signed(i128::MIN))
+        } else {
+            i128::try_from(literal.magnitude())
+                .ok()
+                .map(|magnitude| IntegerValue::Signed(-magnitude))
+        }
+    } else {
+        Some(IntegerValue::Unsigned(literal.magnitude()))
     }
 }
 
@@ -2435,6 +2454,15 @@ impl<'a> Elaboration<'a> {
                     return Ok(evidence);
                 }
                 if let Some(evidence) = self.denotation.direct_add_bound_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &proof.conclusion,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
+                if let Some(evidence) = self.denotation.direct_subtract_bound_evidence(
                     &root_bound.conclusion,
                     root,
                     witness,

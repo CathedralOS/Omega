@@ -2189,7 +2189,13 @@ Owners include
     names the `add` application itself, so two-sided monotonicity and
     the checked endpoint-sum equation land the bound on `add l r` —
     an endpoint sum outside the representable numeral range keeps the
-    explicit instance assumption. An already admitted
+    explicit instance assumption. The direct subtract form reuses it
+    with the antitone flip: the right operand's endpoint follows the
+    direction opposite the conclusion's, a fixed
+    `a ≤ b → d ≤ c → sub a c ≤ sub b d` law combines the operands, and
+    a checked `sub lb rb = k` numeral equation lands the literal —
+    including the `(Exact, Carrier)` boundary cases and negative bounds
+    over unsigned carriers. An already admitted
     open expression stays opaque
     if composing a child would introduce a resource refusal. The remaining
     fixed-integer scalar operations — multiply, divide, remainder, bitwise,
