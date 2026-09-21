@@ -2225,6 +2225,18 @@ Owners include
     a `self` transition that changes storage, and residue order or
     disequality claims are still not proposed.
 
+  Re-verified at `992aa33c27` (linux x86-64): the recorded fences are still
+  live — PROOF-KERNEL-CORE holds `proof-admission/src/mathematical_core`
+  (~09:00Z) for the open-term judgment leg, STATE-LOCAL-VALUE-FRONTIER
+  holds the attached-route `typed-trees-to-checked-trees` execution
+  surfaces (~02:17Z), and PCC-CANONICAL-SEMANTIC-LEDGER holds the
+  terminal-verifier reconstruction and shared `verify_normalization`
+  route (~06:20Z); the earlier WRITE-ONLY-BORROW fence on this row has
+  expired but leg 1 stays gated by the kernel-core claim. The
+  header-proposal widening leg remains open engineering under this row —
+  multi-state loop-carried values, storage-changing self transitions,
+  and residue order/disequality reach — not a bounded swarm slice.
+
   Acceptance: an arithmetic accumulation claim over a generated loop (the two
   fixtures, or a free-loop restatement of their sums) executes natively, and
   its wrong-update twin fails the functional claim on the preservation
