@@ -89,6 +89,80 @@ fn rejects_nested_helper_and_control_flow_dependency_requests() {
 }
 
 #[test]
+fn rejects_dependency_calls_inside_trait_default_bodies() {
+    for argument in [
+        "Source::Path { location: \"hidden\" }",
+        "source_from_state()",
+    ] {
+        let fixture = PackageFixture::with_source(&format!(
+            r#"
+            trait Defaults {{
+                machine helper() {{
+                    builder.depend({argument});
+                }}
+            }}
+            machine build(builder: &mut Build) {{
+                builder.package("trait-default-dependency");
+            }}
+            "#,
+        ));
+        assert!(matches!(
+            fixture.extract(),
+            Err(DependencyProjectionError::UnsupportedDependencyShape)
+        ));
+    }
+}
+
+#[test]
+fn rejects_dependency_calls_inside_conformance_member_machines() {
+    for argument in [
+        "Source::Path { location: \"hidden\" }",
+        "source_from_state()",
+    ] {
+        let fixture = PackageFixture::with_source(&format!(
+            r#"
+            trait Ranked {{
+                machine rank_value(value: u32) -> u32;
+            }}
+
+            data Card {{ power: u32; }}
+
+            PowerOrder: Card satisfies Ranked {{
+                machine rank_value(value: u32) -> u32 {{
+                    builder.depend({argument});
+                }}
+            }}
+            machine build(builder: &mut Build) {{
+                builder.package("conformance-dependency");
+            }}
+            "#,
+        ));
+        assert!(matches!(
+            fixture.extract(),
+            Err(DependencyProjectionError::UnsupportedDependencyShape)
+        ));
+    }
+}
+
+#[test]
+fn rejects_stray_package_selection_literals() {
+    for source in [
+        "machine build(builder: &mut Build) { builder.package(\"stray-selection\"); let selection: PackageSelection = PackageSelection::Root {}; }",
+        "machine build(builder: &mut Build) { builder.package(\"stray-selection\"); let selection: PackageSelection = PackageSelection::Named { package: \"std\" }; }",
+        "const SELECTION: PackageSelection = PackageSelection::Root {};\nmachine build(builder: &mut Build) { builder.package(\"stray-selection\"); }",
+    ] {
+        let fixture = PackageFixture::with_source(source);
+        assert!(
+            matches!(
+                fixture.extract(),
+                Err(DependencyProjectionError::UnsupportedDependencyShape)
+            ),
+            "unexpected projection result for {source:?}"
+        );
+    }
+}
+
+#[test]
 fn rejects_dependency_syntax_without_an_authoritative_build_machine() {
     let fixture = PackageFixture::with_source(
         r#"
