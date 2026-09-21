@@ -17074,6 +17074,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   **MATCH-SELECTIVE-LOWERING** under a live claim on
   `validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`
   (~07:39Z at this check); no independent slice exists under this name.
+  Re-verified at `12ea4941eb` (linux x86-64): the adjudication stands
+  and the recorded fence has drained — MATCH-SELECTIVE-LOWERING no
+  longer appears in the claims registry (its ~07:39Z lease on
+  `match_dispatch.rs`/`result_type.rs` expired), so the surface is
+  owned-but-unclaimed rather than live-fenced; the parser expansion
+  legs still belong to that owner item.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION.** — mined candidate; verify scope then implement.
 - **SELECTIVE-EVALUATION-SOURCE-EXPANSION** — mined candidate; verify scope then implement.
 - **SEMANTIC-WRAPPER-COORDINATOR-RESIDUE.** Mined candidate; scope verified
