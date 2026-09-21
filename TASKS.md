@@ -16728,6 +16728,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   1,351/3,057 run in `rc_release_run_linux_x86_64.md`. No unclaimed
   repair slice exists under this stub — the suite's green legs belong
   to the named failure-family owners.
+||||||| parent of 5e336e6e5da8 (board: SNAPSHOT-STORAGE-AND-FILTERING scope-verified — submodule lane)
+- **SNAPSHOT-STORAGE-AND-FILTERING** — mined candidate; verify scope then implement.
+- **SOURCE-SEMANTICS-SUITE** — mined candidate; verify scope then implement.
+- **SNAPSHOT-STORAGE-AND-FILTERING.** Scope verified — real item, no
+  bounded slice inside this repo's board. The stub names the Squalr
+  submodule's SUPPLIED-BYTES-SCAN row (`samples/apps/squalr/TASKS.md:19`):
+  port the scalar scan's snapshot storage and snapshot filtering
+  infrastructure (RLE filters, independently produced result batches,
+  shared snapshot per PORTING.md:9/27) under the pinned Rust revision's
+  semantics. Ordered execution places it after GEOMETRY-PARITY, which
+  gates it. The submodule path is wholesale-fenced at verification time —
+  `samples/apps/squalr` dir-claimed by SQUALR-WINDOWS-GEOMETRY-VALIDATION
+  (dev-88738, exp 05:49Z) with same-lane item claims live
+  (SQUALR-SUPPLIED-BYTES-SCAN, SQUALR-GEOMETRY-PARITY-RESIDUE).
+  Execution belongs to the submodule's own lane under its pin — not a
+  parent-repo slice.
+- **SOURCE-SEMANTICS-SUITE** — mined candidate; verify scope then implement.
 - **SPILL-FAMILY-SEQUENCE-OR-DELETE** — mined candidate; verify scope then implement.
 - **SPILL-STAGES-OWNERSHIP.** — mined candidate; scope verified, covered — the
   ownership answer is already recorded on the canonical row and in the module
