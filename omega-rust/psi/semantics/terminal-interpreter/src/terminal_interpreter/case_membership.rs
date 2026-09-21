@@ -51,7 +51,9 @@ impl TerminalExecution {
                 .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
             // This input form establishes a complete empty-payload case. It
             // cannot claim that a missing payload satisfies its declaration.
-            let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             };
             if !cases
