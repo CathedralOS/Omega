@@ -9706,7 +9706,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`tests/gamma/beta-encoding-check`, ~02:47Z). Sibling re-mines of the
   same acceptance leg: GAMMA-CERT-FULL-CHECK, GAMMA-CERTIFICATE-
   CHECK-UNDER-PROFILE, GAMMA-CERTIFICATE-NATIVE-CHECK,
-  GAMMA-CERTIFICATE-NATIVE-EXECUTION.
+  GAMMA-CERTIFICATE-NATIVE-EXECUTION. Re-verified at `0a0662ad27a`:
+  PROFILE.md's projected checker work (~45-52M vs the 655,360 provision)
+  still refuses the request, and the gate stays fenced —
+  `tests/gamma/beta-encoding-check` + `bootstrap/proofs/checker` under
+  GAMMA-CERTIFICATE-CHECK-UNDER-PROFILE (~08:53Z); the BETA-ENCODING-
+  NATIVE-CONTAINER-ACCEPTANCE sweep on `tests/gamma/beta-*` has drained.
+  Still doubly blocked; no unfenced slice.
 - **GATE-LOCAL-PREFIX-BINDING.** — mined candidate; scope verified, residual
   already bound. The name resolves to the TASKS_BOOTSTRAP.md manifest bullet
   "gate-local prefixes packed on top of bound member bytes", whose written
