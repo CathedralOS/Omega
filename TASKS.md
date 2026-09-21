@@ -4440,6 +4440,29 @@ Owners include
   nominally claimed by PLACED-ACCESS-NATIVE-OPS. Bullet 3 waits on
   MODULE-NAMESPACE-RESOLUTION; bullet 4 waits on STATE-LOCAL-VALUE-FRONTIER
   and ENTRY-CONTENT-ROOTS, and its native leg needs a macOS ARM64 host.
+  Re-verified at `0f75a052f09` on linux x86-64 (Zergling-202): bullets 1 and
+  2 have since landed — the local-initializer bullet is enforced in
+  `writes.rs` (`requires_provenance || predicate_domain` discharges through
+  `initializer_satisfies_predicate_domain`) and pinned by the
+  `predicate_domain_initializer_*` matrix in `tests/contracts/main.rs`
+  (wrong case, union membership, member predicates, live and stale
+  evidence, wrong owner all adjudicated); the source-map bullet's
+  regression `runtime_bound_stale_call_guard_rejects_publication` already
+  rejects at `check_source` with "cannot prove requires contract" before
+  the artifact gate. The open bullets stay fenced: the value-binder
+  construction leg intersects `execution/unit` (PLACED-ACCESS-NATIVE-OPS,
+  item-level 06:27Z, plus `providers.rs` under
+  PROVIDER-ATTACHMENT-MACHINE-PLAN 09:49Z and `unit/calls` under
+  BASELINE-T2C-INDEXED-OPERAND-ACCESS 12:17Z); the module-owned-forms
+  follow-through crosses `preparation/type_equations` +
+  `machine_equations.rs` (STRUCTURAL-GENERIC-INFERENCE, 09:58Z), the
+  `const_evaluation` tree (TARGET-SEMANTIC-APPLICATIONS, 11:23Z/11:43Z),
+  `checked-trees-to-lowered-psi/src/unit` (STRUCTURAL-UNIT-LOWERING,
+  09:16Z) and `terminal_module/contracts` (PROOF-RELEVANCE-MIGRATION,
+  11:29Z); the native route bullet still waits on
+  STATE-LOCAL-VALUE-FRONTIER + ENTRY-CONTENT-ROOTS
+  (`hosted_receiver.rs` under PLAN-LAID-VIEWS, 09:25Z) and needs a macOS
+  ARM64 host. No unfenced slice remains.
 
 - **STRUCTURAL-GENERIC-MATCHING.** Implement
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
