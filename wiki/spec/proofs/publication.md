@@ -16,7 +16,9 @@ builder.pcc.psi = true;
 builder.pcc.native = true;
 ```
 
-These fields describe the required interface, not implemented support. Omission
+These fields describe the required interface, and the compiler implements it:
+each request publishes its artifact beside a `.proof` companion, and a stop that
+excludes native production cannot satisfy the native request. Omission
 means `false`; dependency metadata cannot enable or override root selections.
 Compiler implementation owns exact API/CLI plumbing, not the semantic defaults.
 Requests are retained in normalized Build and cross-invocation realization inputs.

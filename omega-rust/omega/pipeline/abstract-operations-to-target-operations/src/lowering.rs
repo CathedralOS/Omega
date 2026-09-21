@@ -70,8 +70,9 @@ pub fn lower_to_target_operations(
 /// Lower one abstract plan while consuming exact target-owned native callback
 /// argument admissions; the admitted roster is retained on the returned plan
 /// itself in `native_callback_arguments`, joined to each consuming row by its
-/// Terminal operation.
-pub fn lower_to_target_operations_and_native_callbacks(
+/// Terminal operation. Crate-internal delegate of `lower_to_target_operations`
+/// and `lower_optimized_to_target_operations`, not a public stage entrance.
+pub(crate) fn lower_to_target_operations_and_native_callbacks(
     plan: &AbstractOperationPlan,
     request: TargetLoweringRequest<'_>,
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],

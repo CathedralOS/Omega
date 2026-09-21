@@ -580,6 +580,37 @@ fn terminal_production_requires_typed_custody_but_not_debug_presentation() {
     assert_eq!(without_debug.debug_map, None);
 }
 
+/// Pins the custody-gate ordering behind the wholesale typed-frontend drop
+/// above. The program-level parameter custody gate resolves machines, states,
+/// and state signatures only; it never reads authored statements. Discarding
+/// just the statement table therefore leaves that gate satisfied, and the
+/// per-machine lowering's scalar source custody then reports the narrower
+/// authored-statement gap rather than the parameter diagnostic.
+#[test]
+fn source_statement_custody_gate_runs_after_the_parameter_custody_gate() {
+    let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "terminal-Psi source canary should compile:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    let mut without_authored_statements = checked.into_program();
+    without_authored_statements.typed.statement_table = Default::default();
+    assert_eq!(
+        lower_machine(
+            &without_authored_statements,
+            "terminal_direct_integer_constant"
+        )
+        .expect_err("parameter custody resolves while authored statement custody is absent"),
+        LoweringError::Unsupported("scalar source custody has no authored statement")
+    );
+}
+
 #[test]
 fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))

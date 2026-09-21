@@ -9,8 +9,9 @@ use crate::admission::{
 };
 use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
-    ReviewOnlyCapabilityConflictLimits, compile_resolved_package_candidate_for_production,
-    ungranted_restricted_build_requests,
+    RestrictedBuildCheckpoint, ReviewOnlyCapabilityConflictLimits,
+    compile_resolved_package_candidate_for_production,
+    compile_resolved_package_candidate_for_production_with_checkpoint,
 };
 use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
 use diagnostics::Diagnostic;
@@ -102,8 +103,6 @@ impl PreparedLocalProjectNativeRequest {
 #[derive(Debug)]
 pub enum CompilePreparedLocalProjectNativeError {
     Review(CompileResolvedPackageReviewsError),
-    GrantJoin(crate::lock::PackageLockError),
-    UngrantedRestrictedBuild(Vec<crate::review::UngrantedRestrictedBuildRequest>),
     Evidence(AcceptedOrdinaryEvidenceError),
     TrustAdmission(Vec<Diagnostic>),
     Native(Vec<Diagnostic>),
@@ -114,22 +113,6 @@ impl fmt::Display for CompilePreparedLocalProjectNativeError {
         match self {
             Self::Review(error) => {
                 write!(formatter, "cannot compile fresh package review: {error}")
-            }
-            Self::GrantJoin(error) => {
-                write!(
-                    formatter,
-                    "cannot project fresh package policy for the restricted build grant join: {error}"
-                )
-            }
-            Self::UngrantedRestrictedBuild(ungranted) => {
-                writeln!(
-                    formatter,
-                    "fresh production compile projects restricted build authority the accepted lock policy does not grant:"
-                )?;
-                for gap in ungranted {
-                    writeln!(formatter, "  {gap}")?;
-                }
-                Ok(())
             }
             Self::Evidence(error) => {
                 write!(
@@ -182,25 +165,27 @@ pub fn compile_prepared_local_project_for_native<Observation>(
     } = request;
     let (_, source_closure, accepted_target) = prepared.into_review_parts();
     let target_closure = source_closure.for_exact_target(target_profile);
-    let candidate = compile_resolved_package_candidate_for_production(
-        &target_closure,
-        &build_dir,
-        SemanticBindingReview::Discover,
-        build_snapshot.as_ref(),
-    )
-    .map_err(CompilePreparedLocalProjectNativeError::Review)?;
-    // Native production is an executor of the accepted policy: a projected
-    // restricted build request the accepted rows do not grant rejects before
-    // the compile's generated sources and checked root reach realization.
-    if let Some(accepted) = accepted_target.as_ref() {
-        let ungranted = ungranted_restricted_build_requests(accepted, candidate.reviews())
-            .map_err(CompilePreparedLocalProjectNativeError::GrantJoin)?;
-        if !ungranted.is_empty() {
-            return Err(
-                CompilePreparedLocalProjectNativeError::UngrantedRestrictedBuild(ungranted),
-            );
-        }
+    // Native production is an executor of the accepted policy: the retained
+    // target's restricted-request checkpoint arms the pass, so a projected
+    // request the accepted rows do not grant rejects before its own build
+    // effect executes — before generated sources or the checked root can
+    // reach realization.
+    let candidate = match accepted_target.as_ref() {
+        Some(accepted) => compile_resolved_package_candidate_for_production_with_checkpoint(
+            &target_closure,
+            &build_dir,
+            SemanticBindingReview::Discover,
+            build_snapshot.as_ref(),
+            &RestrictedBuildCheckpoint::derive(accepted),
+        ),
+        None => compile_resolved_package_candidate_for_production(
+            &target_closure,
+            &build_dir,
+            SemanticBindingReview::Discover,
+            build_snapshot.as_ref(),
+        ),
     }
+    .map_err(CompilePreparedLocalProjectNativeError::Review)?;
     let evidence = accept_ordinary_closure_evidence(
         &target_closure,
         candidate.reviews(),

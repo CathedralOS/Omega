@@ -236,6 +236,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
                 id: call_operation,
@@ -244,6 +245,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
                     callee: machine_id(2),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments,
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -260,6 +262,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
             id: contract_id(1),
             crash_routes: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),

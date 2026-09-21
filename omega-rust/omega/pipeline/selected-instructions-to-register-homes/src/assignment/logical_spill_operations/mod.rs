@@ -4,24 +4,24 @@
 //! boundary: over the recovery's input facts it plans the store, reload, and
 //! operand-rewrite obligations for the first supported active-resident
 //! pressure choice, retains the validated output on the produced allocation,
-//! and re-derives it during replay.
+//! and re-derives it during replay. The durable record, canonical identity,
+//! and versioned transport live in `register_homes::logical_spill_operations`;
+//! computation, validation, and replay stay transform-local.
 
 use crate::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
     ValidatedSpillChoices,
 };
 
-mod codec;
 mod compute;
-mod identity;
 mod model;
 mod validate;
 
 #[cfg(test)]
 mod tests;
 
-pub use identity::logical_spill_operation_identity;
 pub use model::*;
+pub use register_homes::logical_spill_operations::*;
 pub use validate::validate_logical_spill_operations;
 
 /// Plan target-neutral storage, store, reload, and operand-rewrite obligations

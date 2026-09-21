@@ -19,6 +19,7 @@ pub(crate) mod calls;
 mod result_bounds;
 mod result_fields;
 mod static_calls;
+mod write_transport;
 
 pub(super) fn proves<'program>(
     program: &'program TypedTrees,
@@ -92,7 +93,8 @@ pub(super) fn proves<'program>(
                     // operands to single values. Use the same exit premises as the
                     // whole-contract prover; failed search never supplies false.
                     (evaluator.proves_result_field_equality(atom)
-                        || evaluator.current_predicate(atom))
+                        || evaluator.current_predicate(atom)
+                        || evaluator.write_transported_equality(atom))
                     .then_some(true)
                 })
         },

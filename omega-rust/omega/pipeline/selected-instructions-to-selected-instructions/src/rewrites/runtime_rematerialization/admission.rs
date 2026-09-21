@@ -307,11 +307,13 @@ pub(super) fn fresh(next: &mut u32) -> Result<u32, RuntimeRematerializationError
 }
 
 /// The fresh register and materialization inserted for one admitted use, at an
-/// instruction operand or at a terminator operand. Proposal and replay build
-/// the identical pair from this one constructor; the consumer operand keeps
-/// its own access, class, and any fixed ABI view while only the referenced
-/// register changes. The instruction repeats the victim's exact immediate and
-/// source-value provenance, so value lineage survives regeneration.
+/// instruction operand or at a terminator operand. The proposal builds the
+/// pair from this one constructor; validation rebuilds the identical pair
+/// inside its own expected stream rather than calling back here. The
+/// consumer operand keeps its own access, class, and any fixed ABI view
+/// while only the referenced register changes. The instruction repeats the
+/// victim's exact immediate and source-value provenance, so value lineage
+/// survives regeneration.
 pub(super) struct Materialization {
     pub register: VirtualRegister,
     pub instruction: SelectedInstruction,

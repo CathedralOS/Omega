@@ -704,7 +704,7 @@ Code that wants a local dynamic interface over a component owns a local proxy:
 
 ```omega
 data LoggingProxy {
-    service: Service<LoggingService>;
+    service: Binding<LoggingService>;
 }
 
 ComponentLogger:

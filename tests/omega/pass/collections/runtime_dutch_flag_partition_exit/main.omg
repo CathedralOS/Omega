@@ -20,7 +20,8 @@
 // invariant check tripped, 95 = increment re-guard tripped).
 use omega_language_std::console;
 use omega::language::core::service;
-data Color {
+// Swaps copy these payload-free values out of borrowed array storage.
+data Color [copy] {
     case Red;
     case White;
     case Blue;

@@ -150,6 +150,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
             blocks: vec![
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(1),
                     parameters: Vec::new(),
@@ -162,6 +163,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
                             target: id(2),
                             arguments: Vec::new(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
@@ -170,12 +172,14 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
                             target: id(3),
                             arguments: Vec::new(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
                     },
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(2),
                     parameters: Vec::new(),
@@ -189,6 +193,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
                 },
                 Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: id(3),
                     parameters: Vec::new(),
@@ -201,6 +206,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
             ],
             contract: MachineContract {
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 id: id::<ContractId>(1),
                 requires: Vec::new(),
                 ensures: Vec::new(),
