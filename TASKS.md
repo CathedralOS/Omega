@@ -9062,6 +9062,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   GENERAL-CYCLIC-EXECUTION-OPTIMIZER (~13:51Z), and sibling
   CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET under live claim
   (~14:02Z). Verdict stands — no independent slice.
+
+  Re-verified at `59e0b5ec22` (linux x86-64, scoped 77-member filter —
+  [z70 ledger](wiki/drafts/c2l_baseline_attribution_z70.md)): 72/77 green;
+  both recorded closures hold (ranked pair, closed-projection replay),
+  and all 5 reds are owned families at identical signatures — the single
+  structural-custody member and the 4-member `scalar_array_source::cyclic`
+  index-out-of-bounds family (`call_lowering.rs:419`). No new drift.
 - **CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET.** — scope verified and
   bisected at `c267df86acb8` (linux x86-64): the unattributed set is the
   three members the 6ef64f6dd6 reading opened as two new families, now
