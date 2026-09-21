@@ -8,6 +8,7 @@ use provider_planning::ProviderPlanDerivation;
 mod borrowed_parameters;
 mod finite_family;
 mod generic_requirements;
+mod mixed_providers;
 mod source_retention;
 mod top_level_requirements;
 use crate::boundary_dispatch::boundary_fields::exact_adapter_receiver_shape;

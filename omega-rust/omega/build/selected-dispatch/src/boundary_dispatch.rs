@@ -143,6 +143,32 @@ pub fn settle_selected_boundary_adapter_dispatch(
     Ok(())
 }
 
+/// Service erasure joins the selected plan, not its checked-adapter subset.
+/// Intrinsic and foreign rows deliberately produce no adapter dispatch; an
+/// unrelated checked provider must not make their service carriers invalid.
+/// Exact schema ownership still matters: another requirement's valid digest
+/// cannot authorize this receiver. Fused selection provenance and carrier
+/// custody remain independently checked by `service_custody` before native use.
+fn selected_service_plan_matches_requirement(
+    typed: &TypedTrees,
+    selected_plans: &effects::SelectedProviderPlanFacts,
+    requirement: symbols::SymbolHandle,
+    provider_plan_digest: &[u8; 32],
+) -> bool {
+    let Some(plan) = selected_plans
+        .plans()
+        .iter()
+        .find(|plan| plan.identity_digest().as_bytes() == provider_plan_digest)
+    else {
+        return false;
+    };
+    typed.traits().iter().any(|definition| {
+        definition.symbol == requirement
+            && provider_planning::service_schema::from_typed(typed, definition)
+                .is_some_and(|schema| schema == plan.schema)
+    })
+}
+
 fn plan_selected_boundary_adapter_dispatch(
     checked: &CheckedTrees,
     selected_plans: &effects::SelectedProviderPlanFacts,
@@ -218,13 +244,12 @@ fn plan_selected_boundary_adapter_dispatch(
                 let Some(authorization) = typed.fused_service_erasure(requirement) else {
                     continue;
                 };
-                if !adapters.iter().any(|adapter| {
-                    adapter.receiver_trait == requirement
-                        && adapter.provider_plan_digest == authorization.provider_plan_digest
-                }) && !generic_requirements.iter().any(|selected| {
-                    selected.receiver_trait == requirement
-                        && selected.provider_plan_digest == authorization.provider_plan_digest
-                }) {
+                if !selected_service_plan_matches_requirement(
+                    typed,
+                    selected_plans,
+                    requirement,
+                    &authorization.provider_plan_digest,
+                ) {
                     diagnostics.push(Diagnostic::error(format!(
                         "routed service field `{}::{}` has no exact Fused selected-provider-plan join",
                         data.name, field.name,
@@ -628,17 +653,25 @@ fn plan_selected_boundary_adapter_dispatch(
             let Some(receipt) = &parameter.fused_service_erasure else {
                 continue;
             };
-            if !adapters.iter().any(|adapter| {
-                adapter.receiver_trait == receipt.requirement
-                    && adapter.provider_plan_digest == receipt.provider_plan_digest
-            }) && !generic_requirements.iter().any(|selected| {
-                selected.receiver_trait == receipt.requirement
-                    && selected.provider_plan_digest == receipt.provider_plan_digest
-            }) {
+            if !selected_service_plan_matches_requirement(
+                typed,
+                selected_plans,
+                receipt.requirement,
+                &receipt.provider_plan_digest,
+            ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "routed service parameter {:?} has no exact Fused selected-provider-plan join",
                     receipt.source_parameter,
                 )));
+                continue;
+            }
+            if !adapters
+                .iter()
+                .any(|adapter| adapter.receiver_trait == receipt.requirement)
+                && !generic_requirements
+                    .iter()
+                    .any(|selected| selected.receiver_trait == receipt.requirement)
+            {
                 continue;
             }
             if let Some(existing) = boundary_fields
