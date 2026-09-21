@@ -200,20 +200,3 @@ fn conditional_module(vocabulary_marker: VocabularyMarker) -> TerminalModule {
         }],
     }
 }
-
-#[cfg(unix)]
-static NEXT_SCRATCH_DIRECTORY: AtomicU64 = AtomicU64::new(0);
-
-#[cfg(unix)]
-struct ScratchDirectory(PathBuf);
-
-#[cfg(unix)]
-impl Drop for ScratchDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-#[cfg(unix)]
-use std::path::PathBuf;
-#[cfg(unix)]
-use std::sync::atomic::AtomicU64;

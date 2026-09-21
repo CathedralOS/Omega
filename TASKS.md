@@ -7799,6 +7799,97 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CONSERVATION-CONTRACT. Still no landable slice from this row.
 - **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; verify scope then implement.
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; verify scope then implement.
+- **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; scope verified,
+  covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
+  surface recorded on the resolved ENTRY-MECHANICS-RUNTIME-CONSOLIDATION
+  row (~TASKS.md:7467, audit at `be03555d17`): entry/exit mechanics sit
+  under one owner,
+  `omega-rust/omega/backend/runtime/external-roots/src/root_entry/`
+  (root_validation, root_admission, provider_execution,
+  progress_profile_installation, opaque_callback_replacement) plus
+  `platform_bringup` for UEFI bootstrap; the runtime leg was settled by
+  BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS — free Unit entries emit process
+  adapters and ELF `e_entry` round-trips through final-image validation
+  (`image-emission/src/hosted_unit_entry.rs` pins the exact Linux
+  x86-64/ARM64 adapter selection). Re-verified at `83625209125b` on linux
+  x86-64: `root_entry/` module layout intact, `cargo check -p
+  external-roots` clean, `hosted_unit_entry` suite 7/7 green. No
+  independent slice exists here. Sibling aliases: STARTUP-ENTRY-MECHANICS,
+  STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS,
+  BACKEND-STARTUP-ENTRY-MECHANICS.
+- **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
+- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
+  cb01abfa42 — audit that every vocabulary operation reaching the backend is
+  either legalized+selected or cleanly refused, never silently miscompiled or
+  panicked on. The classification point is
+  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/nodes.rs`:
+  `admit()` covers 83 `AbstractOperation` variants, falling through to
+  `Err(NodeRejection::UnsupportedFamily)` → `LegalizationError::UnsupportedScalarOperation`
+  (model.rs:120); `control::validate` classifies terminators with the same
+  `_ => SourceCustodyMismatch` refusal. Ordering is the audit's core fact:
+  `nodes::validate` runs per-block inside `legalize_target_operations` BEFORE
+  `validate_target` and before `source/scalar_graph`'s `instruction()` calls —
+  so the `admit(..).ok()`/`filter_map` sites downstream can only ever see
+  admitted nodes, never a suppressed UnsupportedFamily. Open audit questions
+  for the implementing leg: (a) whether every *admitted* family has selection
+  coverage on every ISA (admitted-but-unencodable is the remaining hole class
+  — e.g. `NearestIeeeFloatFusedMultiplyAdd` is ingest-refused today, tracked
+  by FLOAT-FMA-NATIVE-TRANSPORT); (b) whether `UnsupportedScalarOperation`
+  surfaces as a compile diagnostic end-to-end rather than aborting; (c)
+  whether any `match` on `node.operation` outside nodes.rs/control.rs is
+  reachable before `nodes::validate` (none found at verify time — all are
+  provenance replays under validate_target or per-node dispatch under
+  validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
+  + `representations/abstract-operations` (read-only enumeration).
+- **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS** — mined candidate; verify scope then implement.
+- **BASELINE-SERVICE-CARRIER-FAILURES.** Resolved. The bare
+  boundary-trait carrier family is fully migrated: the 21
+  `console: Console` and `output: Output` spellings across the lowering
+  crate's `src/tests` sources became `Service<R>` carrier fields at
+  00a69f066b0, with `checked_source_with_core_service` installing the core
+  service source, and `tests/unit_plan_omissions.rs`'s 4
+  `runtime: TaskRuntime` spellings became `&'s mut TaskRuntime` receivers at
+  37e309e6060. Verified at 00e1da7ae2a on macOS arm64, 2199 run and 2174
+  passed with no `validate_no_bare_boundary_trait_values` rejection left in
+  the log, and every declared boundary trait in those trees scanned for a
+  value-position field. The library members pass, not vacuously: their
+  harness ends in a check the fixture must survive before the tests assert
+  on the lowered result. The three carrier-semantic `unit_plan_omissions`
+  members reach the further stop the item predicted, `signature`-phase local
+  construction, joining the missing-transitive-machine-plan family behind
+  the **GENERAL-CYCLIC-EXECUTION** and **UEFI-OS-HANDOFF** fences until
+  **ENTRY-CONTENT-ROOTS**' receiver-lifecycle leg lands; the shared-borrow
+  negative control still pins that stop.
+
+- **BASELINE-VERIFIER-CLEANUP-DIAGNOSTIC-ORDER.** Resolved — names the
+  baseline row's verifier cleanup-order surface
+  (wiki/drafts/known_baseline_failures.md terminal-verifier section),
+  settled on `origin/main`: phase one consumes each owned source before the
+  residual and trivial cleanup rosters run for the same edge, then
+  parameters establish last (`validation/frontier/block_parameters.rs`,
+  per-terminator close order documented in `validation/frontier/
+  terminators.rs`); a still-live transferred place in a discard roster
+  reports `EdgeAffineDiscardsInvalid` as malformed evidence rather than a
+  bad argument (repin `d96a0fda39`, pass witness `bbfda8bc2e`). Fresh
+  witness at `1a772e4ae1` on linux x86-64: 11/11 ordering pins pass,
+  including `owned_successors_reject_same_arity_aliases_and_transfer_
+  after_disposal`, the `affine_local_frontier` reorder/double/missing
+  rejections, `unranked_frontiers`, and
+  `ranked_preservation_compares_every_frontier_axis_in_diagnostic_order`.
+  Sibling aliases: EDGE-CLEANUP-DIAGNOSTIC-ORDER, EDGE-CLEANUP-ERROR-
+  PRECEDENCE, OWNED-SUCCESSOR-DISCARD-ORDER (resolved separately).
+- **BENCHMARK-COMPARISON-OCCURRENCE-GATE** — Resolved at `749794ddeb`.
+  The recorded rejection (`Terminal proposal must retain every integer
+  comparison occurrence exactly once`, witnessed at `e48558bd41`) came from a
+  module-wide census counting builtin/generated `std` comparisons against
+  the selected-occurrence roster; `76dc49a99e` rescoped it to the
+  checked-boundary scope in `terminal_product/integer_comparisons.rs`
+  (also witnessed at `f2f39039da` per BENCHMARK-COMPILE-ONLY-ROWS).
+  This leg verified end-to-end on linux_x86_64: `cli_mvp` compiles past
+  the gate and `benchmark.py measure` produced a valid measured row
+  (`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`:
+  compile median 1,681,237 ms, run median 1.94 ms, exit 0 x5,
+  8,192-byte image, `validate` clean).
 - **BENCHMARK-COMPILE-ONLY-ROWS.** Mined candidate. Upstream:
   [wiki/drafts/benchmarks.md](wiki/drafts/benchmarks.md) — produce committed
   `tools/benchmark/records/` rows for cross-target compile legs
