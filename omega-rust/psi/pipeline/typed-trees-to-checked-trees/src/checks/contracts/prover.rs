@@ -80,6 +80,35 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         return true;
     }
 
+    // `subject in T::C` lowers to `subject == T::C`: the caller's installed or
+    // observed case at the place the subject actual names decides it, not a
+    // value comparison.
+    if let Some((subject, case)) = crate::proof::exact_outcome_case_test(program, expression)
+        && let Some((value, remaining)) =
+            case_test_subject_actual(program, &call_site, target_parameters, subject)
+        && let Some(mut place) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state_flow.state_symbol,
+            call_flow.statement_index,
+            value,
+        )
+    {
+        place.segments.extend(remaining);
+        if crate::flow::place_case_has_value(
+            program,
+            semantic,
+            entry_contexts,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
+            call_flow.statement_index,
+            &place,
+            case,
+            true,
+        ) {
+            return true;
+        }
+    }
+
     let mut field_handled = false;
     for entry_context in entry_contexts {
         if let Some(proven) = field_actuals::proves(
@@ -354,4 +383,33 @@ pub(super) fn indexed_membership(program: &typed_trees::TypedTrees, payload: Fac
         domain.symbol == domain_symbol
             && !typed_trees::domain::index_parameters(program, domain).is_empty()
     })
+}
+
+/// The caller actual a case test's subject names: the positional argument for
+/// an ordinary formal, or the receiver for `self`.
+fn case_test_subject_actual(
+    program: &typed_trees::TypedTrees,
+    call_site: &crate::semantic_calls::CallSite<'_>,
+    parameters: &[typed_trees::signature::StateParameter],
+    subject: typed_trees::expression::ExpressionHandle,
+) -> Option<(
+    typed_trees::expression::ExpressionHandle,
+    Vec<facts::PlaceSegment>,
+)> {
+    if let typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(subject)
+        && path.symbol.is_valid()
+        && parameters
+            .iter()
+            .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
+        && let crate::semantic_calls::CallSite::Expression { call, .. } = call_site
+    {
+        return Some((call.receiver, Vec::new()));
+    }
+    crate::semantic_places::call_contract_argument_projection(
+        program,
+        parameters,
+        crate::semantic_calls::call_site_argument_expressions(program, call_site),
+        subject,
+    )
 }
