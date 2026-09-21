@@ -14815,6 +14815,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   action, and it stays until closure. No independent slice exists
   before the contract closes; residual stays on the open gate rows
   (RC-REPOSITORY-CLOSURE, RC-* gate/cluster rows).
+||||||| parent of f2445e247cae (board: RC-DIAGNOSTICS scope-verified — gate red, residuals fenced)
+- **RC-DIAGNOSTICS** — mined candidate; verify scope then implement.
+- **RC-DIAGNOSTICS.** Scope verified at `faf902cea487` — the gate row
+  itself: `proof_and_float_suites::proof_and_domain_canaries::
+  fail_canaries_reject_with_expected_diagnostic_fragment` must run green
+  for the release-matrix diagnostics gate. Measurement recorded at
+  `wiki/drafts/rc_diagnostics_linux_x86_64.md` (e76d715c8e): **red** —
+  10 drifted canaries in 127.3s (8 stale `expected.txt` fragments, 2
+  silent acceptances). Status at `faf902cea487`: one member repaired
+  (`domains/boundary_operator_mutation_invalidates_domain` respelled to
+  forward `&mut` through a `&mut` binding, green at `2e1db3ba3e` via
+  RC-DIAGNOSTICS-STABILITY's landed slice); the remaining 9 stay fenced —
+  the fail fixture dirs are claimed by RC-DIAGNOSTICS-STABILITY (z22,
+  exp 05:30Z) and the ledger file by RC-DIAGNOSTICS-CLOSURE (z175, exp
+  04:26Z). Sibling stubs RC-DIAGNOSTICS-GATE and RC-DIAGNOSTICS-STABILITY
+  re-mine the same row; no independent slice exists.
 - **RC-DIAGNOSTICS-CLOSURE.** — recorded at
   `wiki/drafts/rc_diagnostics_linux_x86_64.md` (refreshed `1edade1a480`,
   linux-x86_64): the `RC-DIAGNOSTICS` fail-canary row runs
