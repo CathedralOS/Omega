@@ -347,15 +347,28 @@ the [Rust compiler completion plan](wiki/drafts/rust_compiler_completion.md).
   unavailable hosts explicitly; scoped reruns do not establish a new complete
   baseline.
 
-  z168 wave state: `samples/` and the integration harness
-  (`compiler/tests/samples_compile.rs`) are fenced to six live claims —
-  FFIVAL, SQUALR-TARGETS-AND-THROUGHPUT, BENCHMARK-PROOF-SUBJECT-SELECTION
-  (also `samples_compile.rs`, 22:34Z), PROOF-SAMPLES-CHECKED-CALL-SELECTION,
-  BENCHMARK-SUBJECT-CORPUS-EXPANSION (00:34Z), and SAMPLE-CORPUS/wire-protocol
-  (01:08Z). The linux x86-64 focused oracle
-  (`samples_with_documented_exit_run_correctly`) was left running past
-  28 minutes at `12ecbe98f8` — per-sample native compile+run is the slow
-  leg; its result belongs to whichever claim holder refreshes the table.
+  z203 wave state (re-measured on linux x86-64 at `50559da3ab9`): the
+  checked-cohort leg was driven sample-by-sample with the same
+  `compile_sample_to_checked` plumbing as `all_samples_reach_checked_trees`
+  — **146 of 147 maintained `samples/cli|gui|uefi` mains reach checked
+  trees, zero check failures; `gui/windowed_calculator` is the sole
+  outlier: it does not terminate** (observed >25 minutes at ~100% CPU with
+  zero further file I/O inside checked compile, then killed). The sample is
+  1007 lines — 3–6x the sibling GUI mains (166–372) — and the previous
+  full-cohort run shows the same signature (froze at identical input
+  position, ~40.3 MB read). Superlinear blowup in source checking or
+  provider selection, not a diagnostic: no error is ever emitted.
+  `samples_with_documented_exit_run_correctly` remains the un-run native
+  leg; `OMEGA_SAMPLE_RUNTIME_FILTER` per-sample runs stay with the fenced
+  owners below.
+
+  Live fences this wave: `samples/gui` + `source/library/std/macos_gui.omg`
+  + `source/library/std/targets/macos_arm64` under
+  MACOS-APPLICATION-PUBLICATION (~08:13Z), `samples/cli/arithmetic/
+  prime_counter` under PRIME-COUNTER-BENCHMARK-ROW (~07:13Z), and
+  `samples/apps/squalr` under SQUALR-WINDOWS-GEOMETRY-VALIDATION (~05:49Z).
+  The windowed_calculator spin is inside the checked-compile surface — the
+  row's acceptance can move forward without touching the fenced lanes.
 
   `calendar`'s next native dependency is **ARITHMETIC-POLICY-REALIZATION**:
   its numeric helpers reach `checked trapping conversion requires runtime
@@ -2828,6 +2841,26 @@ Owners include
     `normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_transport`
     and
     `normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_field`.
+    The a2t replay now admits both classes —
+    `validation/structural_call_arguments.rs::normalized_foreign_call`
+    classifies the formals' shapes against the calling policy itself
+    (`validation/structural_shapes.rs::classified_boundary_shape`, mirrored
+    crate-locally from provider planning), replays `Owned` whole-place rows
+    from caller placements and affine call-result `StructuralHome` custody,
+    and replays `BorrowedView` formals from a whole stored view or a stored
+    descriptor field via `borrowed_view_field_offset`, witnessed by
+    `normalized_foreign_owned_aggregate_arguments_replay_across_native_targets`,
+    `normalized_foreign_borrowed_view_descriptors_replay_whole_place_and_stored_field`,
+    `normalized_foreign_owned_aggregate_from_call_result_replays_affine_home`,
+    and `normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows`.
+    The frontier moved to instruction selection: a source-produced
+    scalar+record foreign call now stops at
+    `Selection(Legalization(SourceCustodyMismatch))` because the legalizer's
+    `legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
+    and selection's
+    `selection/scalar_call_abi/normalized_foreign.rs` operand views still
+    admit only borrowed single-pointer sources — those two mirrors are the
+    remaining legs before matching-host execution.
   - Dynamic descriptor calls. Target lowering produces
     `StoreDynamicDescriptor`, the stored, rebound and parameter dynamic calls
     and the `...WithDynamicArguments` calls, and
@@ -9906,26 +9939,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   work under DYNAMIC-CALL-OCCURRENCE-SPANS, not to access profiles.
 - **PIPELINE-OWNER-CONSOLIDATION.** Mined candidate — scope verified; this stub
   is a self-mine of the canonical coordinator row in `TASKS_OPTIMIZER.md`
-  (~line 26), not a separate task. At `54e321bdf0` every enumerated leg is
-  routed and claimed this wave: the ~38 orphan `rewrites/` entrances sit under
-  PIPELINE-REWRITE-CATALOG-WIRING (`rewrites/{mod,module_catalog}.rs` +
-  `selected_optimization.rs`, ~08:00Z), SELECTED-REWRITE-CATALOG-ROUTE and
+  (~line 26), not a separate task. Re-verified at `408953d975a`: every
+  enumerated leg is routed and claimed this wave — the ~38 orphan `rewrites/`
+  entrances sit under PIPELINE-REWRITE-CATALOG-WIRING
+  (`rewrites/{mod,module_catalog}.rs` + `selected_optimization.rs`, ~08:00Z),
+  SELECTED-REWRITE-CATALOG-ROUTE (~04:11Z) and
   SELECTED-REWRITE-CATALOG-WIRING/PIPELINE-REWRITE-ORPHANS item claims, with
   `rewrites/allocation_recovery` under DURABLE-CODEC-EXTRACTION (~07:34Z); the
   `unsequenced_spill_stages/` families are wholesale under
-  POC-SPILL-FAMILY-SEQUENCING (~06:53Z) plus UNSEQUENCED-SPILL-STAGE-TRIAGE /
-  UNSEQUENCED-SPILL-DISPOSITION item claims; the coupled
+  POC-SPILL-FAMILY-SEQUENCING (~06:53Z) plus UNSEQUENCED-SPILL-STAGE-TRIAGE
+  (~02:46Z) / UNSEQUENCED-SPILL-DISPOSITION (~04:06Z) item claims; the coupled
   `optimized_semantic_wrapper_{encoding,object}` disposition is claimed by
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION (~06:52Z) and SEMANTIC-WRAPPER-OWNER-
-  RESOLUTION, with the whole `backend/native-realization` crate additionally
-  under OPAQUE-BY-VALUE-BOUNDARY-ABI (~08:24Z); the audit leg is resolved
+  RESOLUTION (~02:04Z), with `native-realization` crate legs additionally
+  under TWO-AXIS-TERMINAL-AUTHORITY-REVIEW (~04:54Z) and
+  BUILD-EXCLUSION-REALIZATION (~07:37Z); and the audit leg is resolved
   (STAGE-ENTRANCE-ORPHAN-AUDIT's sweep at `280c4a83b6`, ORPHAN-ENTRANCE-AUDIT
   resolved, POC-ORPHAN-ENTRANCE-AUDIT resolved — its `wiki/drafts/
-  poc_orphan_entrance_audit.md` remains claimed ~07:58Z for the draft update).
-  No unfenced slice of the coordinator exists on this host; the canonical row
-  carries the wave-ownership map. Sibling stubs on this row's bullets:
-  PIPELINE-REWRITE-ORPHANS, PIPELINE-SPILL-FAMILY-ORPHANS,
-  PIPELINE-WRAPPER-OBJECT-ORPHAN, and the resolved POC-* family.
+  poc_orphan_entrance_audit.md` remains claimed ~07:58Z for the draft update,
+  now beside ORPHAN-STAGE-OUTPUT-AUDIT ~06:14Z on
+  `wiki/drafts/stage_output_orphan_audit.md`, with
+  BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP ~07:31Z covering the
+  pipeline-ownership differential test). No unfenced slice of the coordinator
+  exists on this host; the canonical row carries the wave-ownership map.
+  Sibling stubs on this row's bullets: PIPELINE-REWRITE-ORPHANS,
+  PIPELINE-SPILL-FAMILY-ORPHANS, PIPELINE-WRAPPER-OBJECT-ORPHAN, and the
+  resolved POC-* family.
 - **PIPELINE-REWRITE-ORPHANS.** — mined candidate; verify scope then implement.
 - **PLACE-ACCESS-GEOMETRY.** Resolved — scope verified, already landed. The stub
   names the geometric half of placed access ([placed access](wiki/spec/resources/placed_access.md#establishment-and-retirement)):
@@ -10022,7 +10061,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION,
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION, WRAPPER-OBJECT-OWNERSHIP,
   PIPELINE-WRAPPER-OBJECT-ORPHAN.
-- **POC-REWRITE-ORPHANS.** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS, ORPHAN-REWRITE-MODULES-CATALOG.
+- **POC-REWRITE-ORPHANS.** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS,
+  ORPHAN-REWRITE-MODULES-CATALOG — resolved as a stub at `e7c0099cb2b`:
+  the named catalog is landed (`rewrites/module_catalog.rs`, 54 rows at
+  tip — 6 Routed / 38 Orphaned under EXACT-MACHINE-SIMPLIFICATIONS (35) +
+  ALIAS-AWARE-MEMORY (3) / 8 Shared / 1 TestSupport), reconciled against
+  `mod.rs` by `module_catalog_reconciles_with_mod_declarations` and pinned
+  against silent Orphaned drift by `252353dacb2`; what remains is the
+  catalog-execution leg this row already assigns to the
+  SELECTED-REWRITE-CATALOG-* cluster. The former
+  ORPHAN-REWRITE-MODULES-CATALOG claim on
+  `rewrites/{mod.rs,module_catalog.rs}` has drained; that surface is now
+  fenced under SELECTED-REWRITE-CATALOG-DISPOSITION (~13:52Z) together
+  with `selected_optimization.rs`.
 - **POC-SELECTED-REWRITE-CATALOG.** Mined candidate — scope verified,
   covered. Re-mines the catalog-execution leg already scoped by
   SELECTED-REWRITE-CATALOG-EXECUTION (which folds into
@@ -11283,8 +11334,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Ownership is partitioned on the optimizer board: EXACT-MACHINE-SIMPLIFICATIONS
   (35 orphaned rows), ALIAS-AWARE-MEMORY (3), DECLARATIVE-PEEPHOLES (2, and
   the pair-rule widening leg). Implementing surfaces under live claims:
-  `rewrites/{mod.rs,module_catalog.rs}` under ORPHAN-REWRITE-MODULES-CATALOG
-  (22:38Z), pair-rule/composable descriptors under COMPOSABLE-PAIR-DESCRIPTORS
+  `rewrites/{mod.rs,module_catalog.rs}` under SELECTED-REWRITE-CATALOG-DISPOSITION
+  (~13:52Z; the ORPHAN-REWRITE-MODULES-CATALOG claim drained), pair-rule/composable descriptors under COMPOSABLE-PAIR-DESCRIPTORS
   (23:57Z), `address_fold` under REWRITE-VALIDATOR-INDEPENDENCE (00:19Z+1d).
   Sibling re-mine names on this cluster: SELECTED-REWRITE-CATALOG-DISPOSITION,
   -OR-DELETE, -ROUTE, -WIRING, SELECTED-REWRITES-CATALOG-OR-DELETE (delete
@@ -11321,7 +11372,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `rewrites/module_catalog.rs` needs a catalog entry dispatched there.
   Folds into SELECTED-REWRITE-CATALOG-EXECUTION /
   EXACT-MACHINE-SIMPLIFICATIONS; implementing surfaces fenced (rewrites/
-  {mod.rs,module_catalog.rs} under ORPHAN-REWRITE-MODULES-CATALOG 22:38Z,
+  {mod.rs,module_catalog.rs} under SELECTED-REWRITE-CATALOG-DISPOSITION
+  ~13:52Z — the ORPHAN-REWRITE-MODULES-CATALOG claim drained;
   pair descriptors under COMPOSABLE-PAIR-DESCRIPTORS 23:57Z).
 - **SELECTED-REWRITE-CATALOG-WIRING.** Mined candidate; scope verified at
   6d00135b89 — re-mines the wiring leg of the same cluster: retained
@@ -11329,11 +11381,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   dispatch. Folds into SELECTED-REWRITE-CATALOG-EXECUTION /
   EXACT-MACHINE-SIMPLIFICATIONS; no independent slice (see sibling
   SELECTED-REWRITE-CATALOG-DISPOSITION's owner-chain routing).
-  Re-verified at `12ecbe98f8`: `rewrites/module_catalog.rs` retains 42
-  `Orphaned` rows and `optimize_selected_instructions` still dispatches
+  Re-verified at `12ecbe98f8`: `rewrites/module_catalog.rs` retains 42 `Orphaned` rows and `optimize_selected_instructions` still dispatches
   only the selected-lowering run. Implementing surfaces are all under live
   claims — `rewrites/{mod.rs,module_catalog.rs}` under
-  ORPHAN-REWRITE-MODULES-CATALOG (2026-09-20T20:33Z),
+  SELECTED-REWRITE-CATALOG-DISPOSITION (~13:52Z; the
+  ORPHAN-REWRITE-MODULES-CATALOG claim drained),
   `rewrites/selected_lowering/{catalog.rs,tests.rs,literal_fold/...}`
   under COMPOSABLE-PAIR-DESCRIPTORS (23:57Z), and the retirement-pin
   surface `tests/architecture/optimizer_source_organization` under
@@ -11342,8 +11394,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `rewrites/module_catalog.rs` still retains 42 `Orphaned` rows and
   `optimize_selected_instructions` still only routes through the
   selected-lowering analysis chain. The catalog surface stays fenced:
-  ORPHAN-REWRITE-MODULES-CATALOG renewed to 04:27Z and sibling stub
-  SELECTED-REWRITE-CATALOG-ROUTE is now also claimed (04:11Z).
+  SELECTED-REWRITE-CATALOG-DISPOSITION (~13:52Z) now holds
+  `rewrites/{mod.rs,module_catalog.rs}` + `selected_optimization.rs` —
+  the ORPHAN-REWRITE-MODULES-CATALOG claim drained after the catalog
+  landed — and sibling stub SELECTED-REWRITE-CATALOG-ROUTE is claimed
+  (04:11Z). Re-verified at `e7c0099cb2b`: `module_catalog.rs` retains 38
+  `Orphaned` rows (54 total) and `optimize_selected_instructions` still
+  dispatches only the selected-lowering run.
 - **SELECTIVE-ARITHMETIC-EXPANSION.** Resolved 2026-09-20 at `a3ab15b761`,
   re-verified at `12ecbe98f8` (owner files `match_dispatch.rs` +
   `result_type.rs` present; 8 `expressions/match_*` canaries on disk):
@@ -11402,23 +11459,30 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SOURCE-SEMANTICS-SUITE.** — mined candidate; verify scope then implement.
 - **SPILL-STAGES-OWNERSHIP.** — mined candidate; scope verified, covered — the
   ownership answer is already recorded on the canonical row and in the module
-  itself. `unsequenced_spill_stages/` is a stage group of 18
-  validated-but-unsequenced spill-boundary families (`mod.rs`: "Spill
-  boundaries validated but not yet sequenced by register allocation");
+  itself. Re-verified at `b8d336adcf`: `unsequenced_spill_stages/` is a stage
+  group of 16 validated-but-unsequenced spill-boundary families (`mod.rs`:
+  "Spill boundaries validated but not yet sequenced by register allocation");
   executable pressure recovery is owned by `assignment/runtime_spill`, and
   sequencing ownership belongs to SPILL-REALIZATION per
   UNSEQUENCED-SPILL-STAGES-DISPOSITION's verified flag — a family is either
   sequenced behind the executable route via `stage_register_allocation` or
-  deleted, and extending both is the banned shape (identified duplicate-owner
-  pair: `stack_slot_coloring` vs `runtime_spill/slot.rs`). This stub is a fifth
-  mined duplicate of that directory after the four named there —
+  deleted, and extending both is the banned shape. The identified
+  duplicate-owner pair this row used to name — `stack_slot_coloring` vs
+  `runtime_spill/slot.rs` — is resolved: `a5dd60617e` moved the family out of
+  the stage group and sequenced it under
+  `crate::assignment::stack_slot_coloring` behind runtime-spill recovery
+  (mod.rs now names it among the sequenced owners beside
+  `assignment::logical_spill_operations`). This stub is a fifth mined
+  duplicate of that directory after the four named there —
   UNSEQUENCED-SPILL-STAGE-DISPOSITION, UNSEQUENCED-SPILL-STAGE-TRIAGE,
   UNSEQUENCED-SPILL-STAGES-SEQUENCE-OR-DELETE — plus
   SPILL-FAMILY-SEQUENCE-OR-DELETE beside this one. The whole territory stays
-  fenced this wave: `selected-instructions-to-register-homes` wholesale
-  (POC-SPILL-FAMILY-SEQUENCING), `optimizer_source_organization`
-  (ORPHAN-STAGE-OUTPUT-AUDIT), `pipeline_ownership`
-  (STRUCTURAL-UNIT-CALL-GRAPH-JOINS).
+  fenced this wave: `unsequenced_spill_stages/` wholesale
+  (POC-SPILL-FAMILY-SEQUENCING, ~06:53Z) plus the
+  UNSEQUENCED-SPILL-STAGE-TRIAGE / UNSEQUENCED-SPILL-DISPOSITION item claims
+  (~02:46Z / ~04:06Z), `assignment/` under DURABLE-CODEC-EXTRACTION
+  (~07:34Z), and the terminal-to-abstract control-flow lowering under
+  STRUCTURAL-UNIT-CALL-GRAPH-JOINS (~04:33Z).
 - **SQUALR-CLONE-SERIALIZATION.** Resolved — implemented under `samples/apps/squalr`
   (submodule branch zergling/z61-squalr-clone-serialization): `NormalizedRegion`
   fields carry wire schema numbers, so the synthesized `encode`/`decode` pair
@@ -11945,9 +12009,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   **SPILL-REALIZATION** owns connecting that result where needed or removing
   redundant planning; retention and replay alone do not complete the join.
 
-  Follow actual consumers before deleting dependent families. In particular,
-  `unsequenced_spill_stages/stack_slot_coloring` and the executable
-  `runtime_spill/slot.rs` still represent competing slot-reuse owners.
+  Follow actual consumers before deleting dependent families. The
+  `stack_slot_coloring`/`runtime_spill/slot.rs` pair this called out is
+  resolved — `a5dd60617e` sequenced the family under
+  `assignment/stack_slot_coloring` behind runtime-spill recovery.
   Acceptance and physical correspondence stay on the optimizer board; this
   item does not add a second spill implementation.
 - **WAIT-WAKE-SUBSTRATE.** Scope verified — authorization gate recorded.
