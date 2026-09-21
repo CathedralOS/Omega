@@ -1,18 +1,22 @@
 //! Optimizer module role: executable entrance. Canonical logical-spill slot coloring and replay.
+//!
+//! `stage_register_allocation`'s runtime-spill recovery sequences this
+//! boundary: it colors the retained logical-operation plan and replays the
+//! coloring. The durable record, canonical identity, and versioned transport
+//! live in `register_homes::stack_slot_coloring`; computation, validation, and
+//! replay stay transform-local.
 
 use crate::ValidatedLogicalSpillOperations;
 
-mod codec;
 mod compute;
-mod identity;
 mod model;
 mod validate;
 
 #[cfg(test)]
 mod tests;
 
-pub use identity::stack_slot_coloring_identity;
 pub use model::*;
+pub use register_homes::stack_slot_coloring::*;
 pub use validate::validate_stack_slot_coloring;
 
 /// Assign target-neutral, spill-area-relative storage to validated logical spills.
