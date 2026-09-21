@@ -11009,7 +11009,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   evidence, pinned by
   STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.
 - **OMEGA-PARSER-GATE-WINDOWS** — mined candidate; verify scope then implement.
-- **OMEGA-PARSER-GATE-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
+- **OMEGA-PARSER-GATE-WINDOWS-ROUTE.** Scope verified — third sibling alias
+  of the omega-parser bootstrap gate's Windows x64 leg (same surface as
+  OMEGA-PARSER-GATE-WINDOWS / OMEGA-PARSER-GATE-WINDOWS-VALIDATION, both
+  adjudicated on this board). The host-free leg is landed:
+  `tests/bootstrap/omega-parser/run.sh --identity` binds every identity
+  plus DCREQ framing, customer assembly, and expected fixture, verified
+  green on Linux x86-64 (`9b75533b9c7`). The remaining leg is the literal
+  `sh tests/bootstrap/omega-parser/run.sh` on a MINGW/MSYS x64 Windows
+  host — de-risked byte-exactly under wine-10 (721,484-byte Epsilon
+  receipt + all twelve customer invocations status 0) but still requiring
+  real hardware: the PE commits a 128 GiB `VirtualAlloc` extent at
+  startup and the full gate is multi-hour (customer leg 6,551 s on
+  Linux). Re-verified at `340540eed7` (linux x86-64, 2026-09-21 ~08:05Z):
+  `tests/bootstrap/omega-parser/` is currently unfenced — no claim holds
+  it — yet the residual is host-gated, not claim-gated; no Linux slice
+  exists under this name.
 - **OMEGA-PARSER-GATE-WINDOWS-VALIDATION** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-WINDOWS-ROUTE** — mined candidate; verify scope then implement.
 - **OMEGA-PARSER-WINDOWS-ROUTE-VALIDATION** — mined candidate; verify scope then implement.
