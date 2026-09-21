@@ -728,6 +728,100 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         }
     }
 
+    /// Re-seat one held account's installed backing under a remapped
+    /// revision: consume the exact recombined root Extent carrying the
+    /// account's CURRENT (pre-remap) runtime facts — the same stale-authority
+    /// checks [`ProgramLocalExtentRegistry::retire`] applies, including the
+    /// refusal under any live retained foreign argument, since a foreign side
+    /// still holding the old range would ride stale authority across the
+    /// rebind — and install `new_backing` in its place.
+    ///
+    /// The replacement must be ambient provider-issued authority (no
+    /// program-local origin) covering the SAME address-space geometry the
+    /// established account occupies, with rights no wider than the installed
+    /// backing's, and carrying a DIFFERENT mapping era: a provenance/era
+    /// advance is the only provable remap — a same-era Extent swap is
+    /// indistinguishable from ambient substitution and rejects. Because the
+    /// presented stale Extent is consumed, every descendant minted under the
+    /// old revision — including peer-shared (hostile) views whose contents
+    /// may have moved under them — now fails the era check in
+    /// [`ProgramLocalExtentRegistry::validate_backing`], so stale views
+    /// cannot follow the account across its remap. The account's lineage,
+    /// receiver-partition residuals, and lifecycle custody are preserved.
+    /// Success returns a freshly minted program-local Extent carrying the
+    /// remapped revision's facts.
+    ///
+    /// This is the program-local half of the checked
+    /// revocation/remapping protocol a provider runs when a shared or forced
+    /// teardown remaps live backing; the release-evidence leg
+    /// (`PendingUnmap::complete` over the mapping's release obligations)
+    /// stays in the extents mapping surface.
+    pub fn remap(
+        &mut self,
+        extent: Extent,
+        new_backing: Extent,
+    ) -> Result<Extent, Box<ProgramLocalExtentRemapError>> {
+        let origin = match self.validate_retirement_member(&extent) {
+            Ok(origin) => origin,
+            Err(diagnostic) => {
+                return Err(Box::new(ProgramLocalExtentRemapError::new(
+                    extent,
+                    new_backing,
+                    diagnostic.0,
+                )));
+            }
+        };
+        let held = self
+            .held
+            .get(&origin)
+            .expect("validated held program-local account remains present");
+        let mismatch = if new_backing.program_local_origin().is_some() {
+            Some(
+                "program-local Extent remap requires ambient provider-issued replacement backing, not another held account's authority",
+            )
+        } else if new_backing.address_space() != held.backing.address_space()
+            || new_backing.base() != held.backing.base()
+            || new_backing.length() != held.backing.length()
+        {
+            Some(
+                "program-local Extent remap replacement backing must cover the account's exact installed geometry in the same address space",
+            )
+        } else if !held.backing.rights().contains(new_backing.rights()) {
+            Some(
+                "program-local Extent remap replacement backing widens rights beyond the installed revision",
+            )
+        } else if new_backing.era() == held.backing.era() {
+            Some("program-local Extent remap replacement backing must carry a new mapping era")
+        } else {
+            None
+        };
+        if let Some(message) = mismatch {
+            return Err(Box::new(ProgramLocalExtentRemapError::new(
+                extent,
+                new_backing,
+                message,
+            )));
+        }
+
+        let held = self
+            .held
+            .get_mut(&origin)
+            .expect("validated held program-local account remains present");
+        let lineage = held.lineage;
+        held.backing = new_backing;
+        let geometry = ValidatedExtentGeometry::check(held.backing.base(), held.backing.length())
+            .expect("validated remapped backing geometry remains valid");
+        Ok(ExtentRootGrant::from_established_program_local(
+            origin,
+            lineage,
+            held.backing.address_space(),
+            held.backing.rights().clone(),
+            held.backing.provenance(),
+            held.backing.era(),
+        )
+        .mint_validated(geometry))
+    }
+
     /// Atomically complete the complete live membership of one reconstructed
     /// aggregate — the completion counterpart of
     /// [`ProgramLocalExtentRegistry::materialize_aggregate`].
@@ -988,6 +1082,36 @@ impl ProgramLocalExtentRetirementError {
 
     pub fn into_extent(self) -> Extent {
         self.extent
+    }
+}
+
+/// Rejection of [`ProgramLocalExtentRegistry::remap`]: the presented
+/// stale-revision Extent and the rejected replacement backing are both
+/// retained so neither authority is dropped on failure.
+#[derive(Debug)]
+pub struct ProgramLocalExtentRemapError {
+    extent: Extent,
+    backing: Extent,
+    diagnostic: ExternalRootDiagnostic,
+}
+
+impl ProgramLocalExtentRemapError {
+    fn new(extent: Extent, backing: Extent, diagnostic: impl Into<String>) -> Self {
+        Self {
+            extent,
+            backing,
+            diagnostic: ExternalRootDiagnostic(diagnostic.into()),
+        }
+    }
+
+    pub const fn diagnostic(&self) -> &ExternalRootDiagnostic {
+        &self.diagnostic
+    }
+
+    /// Consume into the presented stale-root Extent and the rejected
+    /// replacement backing.
+    pub fn into_parts(self) -> (Extent, Extent) {
+        (self.extent, self.backing)
     }
 }
 
