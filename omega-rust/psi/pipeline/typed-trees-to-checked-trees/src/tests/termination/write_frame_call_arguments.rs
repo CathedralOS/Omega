@@ -567,7 +567,7 @@ fn member_projection_off_aggregate_call_result_lends_the_leaf_referents() {
     let state = typed.machine_states(machine).first().expect("entry");
     let frame = resolver.inferred_state_write_frame(machine, state);
     assert_eq!(
-        frame.complete_paths().as_deref(),
+        frame.complete_paths(),
         Some(["self.audit".to_owned(), "self.other".to_owned()].as_slice()),
         "a &mut leaf projected off a transparent aggregate call result must lend the leaf's proven referents"
     );
