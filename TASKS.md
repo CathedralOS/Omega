@@ -12590,6 +12590,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `cargo nextest run -p terminal-verifier -E 'test(~trusted_surface)'`
   is 15/15 PASS on linux x86-64.
 
+  Duty pass at `138ed79a677` (assigned row TRUSTED-SURFACE-DIGEST-RE-RECORD):
+  the ledger is current — `tools/trusted_surface_digests.py` reports "all
+  recorded digests match the working tree" and the 15-test
+  `trusted_surface` suite is 15/15 PASS on linux x86-64. No drift since the
+  `39317a770b` re-record, so no entry needed revalidation this pass.
+
 - **TV-GENERAL-CALLS-REPLAY.** — mined candidate; verify scope then implement.
 - **TV-INTRINSIC-SPAN-ARMS.** — verified 14e6f8f72e: the span-arm surface
   for every intrinsic family that produces coverage occurrences is
