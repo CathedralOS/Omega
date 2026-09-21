@@ -15455,6 +15455,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   or re-fenced to their own authors per that row's third slice).
   Sibling stub RC-REPOSITORY-BASELINE and resolved REPOSITORY-BASELINE-
   GATE name the same gate; no unclaimed repair slice exists.
+||||||| parent of fa71109fa02c (board: RC-REPOSITORY-BASELINE-GREEN scope-verified — ledger row, no slice)
+- **RC-REPOSITORY-BASELINE-GREEN** — mined candidate; verify scope then implement.
+- **RC-REPOSITORY-BASELINE-GREEN.** Scope verified at `5ae1ed1fe51` —
+  the green half of the RC-REPOSITORY gate (:9452): all five commands
+  green on one commit. The residual set is decomposed into owned legs
+  rather than a single slice here: fmt/clippy drift repairs land on
+  RC-REPOSITORY-BASELINE (z186, holds `structural_call_custody.rs` +
+  `domain_self.rs`), the glob-self-import residuals on this item's named
+  glob-leg sub-claims (GLOB-SELF-IMPORTS-REPAIR :7910 records nine
+  sibling-fenced survivors), the stale native-differential fixtures on
+  GRAPH-FEATURE-PROJECTION-SCHEMA + STRUCTURAL-UNIT-CALL-GRAPH-JOINS, and
+  the libtest families on their owners (selected-dispatch →
+  UEFI-OS-HANDOFF, terminal-codec wire-tag drift, package-manager →
+  TWO-AXIS). The gate stays red until the family repairs land; nothing
+  under this name is independently producible — it is the ledger row the
+  repairs drain into.
 - **RC-REPOSITORY-CLOSURE.** Close the `RC-REPOSITORY` gate row from [rust_compiler_completion](wiki/drafts/rust_compiler_completion.md): its command block (`cargo fmt --all -- --check`, `mbx clippy --workspace --all-targets -- -D warnings`, `mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast`, `mbx check --workspace --all-targets`, `mbx nextest run --workspace --lib --no-fail-fast`) must pass on one commit. Row measured 2026-09-20 at `a9fa1a4fe6` (Linux x86-64, cargo — no mbx): **open, all five commands red**. fmt: 16 unformatted files across external-roots interrupt_table/stack_demand, compiler layout_plans/module_machine_indices tests, calling-conventions, c2l integer_policy_realization, t2c2 multiplicity/termination-origins, validation domain_weakening/match_dispatch. clippy: `permissions_set_readonly_false` at `omega-rust/omega/packages/sources/acquisition/src/tree/capture/traversal.rs:513`. arch-test: 12/547 — glob-self-import ceilings grew in 7 crates; 9 boundary-ensures/symbolic-walk recast-witness rejections (RECAST lane in flight); 2 provider-receiver fixtures stale under the `Service<R>`-only service spelling. check: `omega-native-differential-test` `abstract_publication/decision_custody.rs:58` fixture declares 6 Psi catalog members vs 7 actual. libtests: 95/15,621 failed — selected-dispatch 64 (mostly `Service<R>`-spelling stale fixtures), terminal-codec 20 (wire-tag drift), package-manager 14, a2a2 14, sf2as 6, t2c2 4, calling-conventions 4, native-realization 2, a2t2 2 — most unattributed in [known_baseline_failures](wiki/drafts/known_baseline_failures.md).
 - **RC-REPOSITORY-GATE-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-CLOSURE** — mined candidate; verify scope then implement.
