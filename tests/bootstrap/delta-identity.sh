@@ -87,8 +87,8 @@ rc=0
   export OMEGA_PATH_DELTA_COMPILER_SOURCES=$TMP/implementation/implementation.gamma.sources
   materialize_delta_compiler "$TMP/refused-member"
 ) 2>"$TMP/corrupt-member.err" || rc=$?
-[ "$rc" != 0 ] ||
-  fail "corrupted member: materialization unexpectedly succeeded"
+[ "$rc" = 1 ] ||
+  fail "corrupted member: expected exit 1, got $rc"
 grep -q 'member digest changed' "$TMP/corrupt-member.err" ||
   fail "corrupted member: refusal did not name the member digest"
 [ ! -e "$TMP/refused-member" ] ||
@@ -104,8 +104,8 @@ rc=0
   export OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES=$TMP/support/support.gamma.sources
   materialize_delta_support "$TMP/refused-support-truncated"
 ) 2>/dev/null || rc=$?
-[ "$rc" != 0 ] ||
-  fail "truncated support manifest: materialization unexpectedly succeeded"
+[ "$rc" = 3 ] ||
+  fail "truncated support manifest: expected exit 3, got $rc"
 [ ! -e "$TMP/refused-support-truncated" ] ||
   fail "truncated support manifest: destination was written"
 echo "support manifest: a truncated support manifest is refused before packing"
@@ -124,8 +124,8 @@ rc=0
   export OMEGA_PATH_DELTA_COMPILER_SUPPORT=$TMP/support
   materialize_delta_support "$TMP/refused-support-member"
 ) 2>"$TMP/corrupt-support-member.err" || rc=$?
-[ "$rc" != 0 ] ||
-  fail "corrupted support member: materialization unexpectedly succeeded"
+[ "$rc" = 1 ] ||
+  fail "corrupted support member: expected exit 1, got $rc"
 grep -q 'member digest changed' "$TMP/corrupt-support-member.err" ||
   fail "corrupted support member: refusal did not name the member digest"
 [ ! -e "$TMP/refused-support-member" ] ||
@@ -261,8 +261,8 @@ rc=0
   export OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES=$TMP/internal-boundary/controls.gamma.sources
   require_delta_internal_boundary_controls_identity
 ) 2>"$TMP/corrupt-ib-member.err" || rc=$?
-[ "$rc" != 0 ] ||
-  fail "corrupted internal-boundary member: repack unexpectedly succeeded"
+[ "$rc" = 1 ] ||
+  fail "corrupted internal-boundary member: expected exit 1, got $rc"
 grep -q 'digest' "$TMP/corrupt-ib-member.err" ||
   fail "corrupted internal-boundary member: refusal did not name the member digest"
 echo "controls: a truncated manifest or changed internal-boundary member refuses"
@@ -278,7 +278,25 @@ rc=0
 ) 2>/dev/null || rc=$?
 [ "$rc" = 3 ] ||
   fail "truncated emission manifest: expected exit 3, got $rc"
-echo "controls: a truncated emission manifest refuses"
+
+cp "$OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES" \
+  "$TMP/emission/controls/emission.gamma.sources"
+CORRUPT_EMISSION_MEMBER="$TMP/emission/controls/main.gamma"
+if [ "$(od -An -tc -j 100 -N1 "$CORRUPT_EMISSION_MEMBER" | tr -d ' ')" = "a" ]; then
+  printf 'b' | dd of="$CORRUPT_EMISSION_MEMBER" bs=1 seek=100 conv=notrunc status=none
+else
+  printf 'a' | dd of="$CORRUPT_EMISSION_MEMBER" bs=1 seek=100 conv=notrunc status=none
+fi
+rc=0
+(
+  export OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES=$TMP/emission/controls/emission.gamma.sources
+  require_delta_emission_controls_identity
+) 2>"$TMP/corrupt-emission-member.err" || rc=$?
+[ "$rc" = 1 ] ||
+  fail "corrupted emission member: expected exit 1, got $rc"
+grep -q 'member digest changed' "$TMP/corrupt-emission-member.err" ||
+  fail "corrupted emission member: refusal did not name the member digest"
+echo "controls: a truncated emission manifest or changed emission member refuses"
 
 for needle in \
   "$GAMMA_EVALUATOR_TAPE_SHA256" "$DELTA_COMPILER_PACKED_SHA256" \
