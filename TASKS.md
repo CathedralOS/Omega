@@ -9578,6 +9578,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   d-composition/refinement acceptance gates live under `tests/epsilon`
   (claimed by DELTA-COMPILER until 21:48Z). Per FEATURE_LEDGER's decision
   method, extension also needs a concrete `D`-side use to cite.
+  Re-verified at `0a0662ad27ad1` (linux x86-64): `fold_operator` still
+  admits exactly the 10 arithmetic cases (`Add`..`BitwiseXor`) and
+  `mark_unsupported`s the eight Boolean-result operators. Fence map
+  refreshed — the earlier `omega_compiler.epsilon.sources` (OMEGA-D-
+  SCALAR-SEQUENCING) and `tests/epsilon` (DELTA-COMPILER) claims
+  expired; current live claims on the OMEGA-D lane are
+  OMEGA-D-REQUEST-AND-ENTRY-ROUTE (z130, 10:05Z) and
+  OMEGA-D-REQUEST-V1-TABLES (z126, 11:19Z, `outcome.epsilon` +
+  `tests/bootstrap/omega-outcome`), and BOOTSTRAP-OMEGA-D-COMPILER
+  holds TASKS.md (w9-ffival, 08:13Z). The sources pin and
+  `tests/epsilon` gates are unclaimed at this stamp.
 - **EXACT-PROGRAM-ENTRY-MULTIPLICITY.** Retired row — resolved; stub
   restores the pointer so the dangling owner references
   (`TASKS.md` ~:4052, ~:11232) resolve. The row was retired at
