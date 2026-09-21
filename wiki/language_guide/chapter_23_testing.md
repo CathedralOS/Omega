@@ -17,17 +17,31 @@ trait Tests {
 machine addition_is_correct()
 satisfies Tests::arithmetic
 {
-    if 2u32 + 3u32 != 5u32 {
+    transition 2u32 + 3u32 != 5u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    state failed() {
         crash Trap;
     }
+
+    state passed() { }
 }
 
 machine subtraction_is_correct()
 satisfies Tests::arithmetic
 {
-    if 5u32 - 3u32 != 2u32 {
+    transition 5u32 - 3u32 != 2u32 {
+        true -> failed()
+        _ -> passed()
+    }
+
+    state failed() {
         crash Trap;
     }
+
+    state passed() { }
 }
 ```
 

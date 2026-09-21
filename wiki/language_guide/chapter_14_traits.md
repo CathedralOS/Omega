@@ -36,9 +36,16 @@ SaturatingIncrement:
     Counter satisfies Incrementable
 {
     machine increment(&mut self) {
-        if self.value < i32::Maximum {
+        transition self.value < i32::Maximum {
+            true -> bump()
+            _ -> saturated()
+        }
+
+        state bump(&mut self) {
             self.value = self.value + 1;
         }
+
+        state saturated(&mut self) { }
     }
 }
 ```

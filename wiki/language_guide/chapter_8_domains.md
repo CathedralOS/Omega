@@ -550,10 +550,12 @@ Matching a data value with `Type::Domain` means "check whether this value is in
 that domain." The selected arm receives the domain's facts in its proof
 context.
 
-Domain patterns can be interleaved with ordinary data patterns and guards:
+Domain patterns can be interleaved with ordinary data patterns and guards —
+but a record destructure or a guard makes the dispatch `transition` grammar,
+not `match`. Value-position `match` admits value and wildcard arms only:
 
 ```omega
-match player {
+transition player {
     Player::Dead -> respawn(player)
     Player { beans, .. } if beans > 69 -> handle_beans(player)
     Player::Alive -> continue_playing(player)
@@ -561,9 +563,13 @@ match player {
 }
 ```
 
-This is an ordered match like Rust's `match`: earlier arms win. That means
-overlapping domain patterns are allowed in ordinary value matching because the
-source order is part of the program.
+Writing that as a `match` is rejected: "record and domain destructure patterns
+belong to `transition` dispatch; `match` arms admit value and wildcard
+patterns". The plain-value dispatches above and below this section are `match`
+precisely because none of their arms destructures or guards.
+
+This is ordered like Rust's `match`: earlier arms win. That means overlapping
+domain patterns are allowed because the source order is part of the program.
 
 ## Sub-Domains
 
@@ -605,13 +611,15 @@ A domain pattern is executable when its predicate requirements are pure, finite,
 runtime-checkable:
 
 ```omega
-if player in Player::Dead {
-    respawn(player)
+transition player in Player::Dead {
+    true -> respawn(player)
+    _ -> keep_playing(player)
 }
 ```
 
-This lowers to the body's comparisons and narrows the true branch with `player
-in Player::Dead`. Domains with quantifiers, opaque proof calls, or
+This lowers to the body's comparisons and narrows the `true` arm with `player
+in Player::Dead`. There is no `if` statement: dispatch is always `transition`,
+and every arm set must provably cover all cases. Domains with quantifiers, opaque proof calls, or
 non-executable facts cannot be used as runtime checks.
 
 A match over a known union must cover it; ordinary value matches are ordered.
