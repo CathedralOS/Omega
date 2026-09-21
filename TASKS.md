@@ -7774,6 +7774,37 @@ rejection, native-route `InvalidStructuralArrayLength` pin) green at
   by BORROW-PROOF-CONVERGENCE, exp 06:46Z).
 
 
+- **NEW-RBRA-PASS-CALLS.** Inserted row, scope verified at `416e9dd7e6`
+  (planner-scoped to `tests/omega/pass/calls`) — no pending work assignable
+  to this name on the scoped surface: the directory holds 190 fixtures,
+  every one carrying `main.omg` (`calls/` is referenced 346 times across
+  `canary_suite.rs`'s rosters); 182 are package-form members carrying
+  `build.omg` and 8 are compile-only. Witness on Linux x86-64:
+  `OMEGA_PASS_CANARY_FILTER=calls/ cargo nextest run -p compiler --test
+  canary_suite
+  entry_and_abi::pass_canary_coverage::pass_canaries_compile` ran at
+  `416e9dd7e6` — 174/190 green; 16 members fail compile, every diagnostic
+  inside an already-owned baseline family: nine on "selected ProgramEntry
+  establishment rejoins 0 Terminal attachment identities … omitted at
+  local construction" (the recorded in-window missing-plan family owned by
+  SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT / PROGRAM-ENTRY-SELECTION-EXACTNESS
+  — `runtime_{inline,value_call_direct,value_call_statement}_recursive_walk_exit`,
+  `runtime_mut_ref_forward_exit`, `runtime_call_enum_field_value`,
+  `runtime_call_enum_value`, `runtime_nested_named_conversion_alias_exit`,
+  `runtime_contained_call_value`, `runtime_transition_argument_call_value`),
+  four on "native-artifact production requires one exact selected program
+  entry" (`runtime_call_enum_field_{with_args,with_mut_arg}`,
+  `runtime_call_enum_sequence`, `runtime_transition_subject_call_guard`),
+  one on the host-gated Fused-provider refusal
+  (`runtime_arm_target_host_result_exit` — `FilesystemHost`), one on
+  receiver provisioning (`nested_machine_continuation` — "no executable
+  nominal cleanup"), and one on the missing transitive machine plan
+  (`runtime_call_guard` — "has no admitted body"). The `RBRA` token occurs
+  nowhere in the tree or boards; the series is a pass-corpus
+  surface-migration sweep whose deltas belong to the owning rows. Nothing
+  to implement under this name until a concrete contract identifies the
+  migration.
+
 - **NEW-RBRA-PASS-TERMINATION.** Inserted row, scope verified at `891eb5c584`
   (planner-scoped to `tests/omega/pass/termination`) — no pending work on the
   scoped surface: the directory holds 114 fixtures, every one carrying
