@@ -13135,9 +13135,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   they are also the legs **OFFLINE-REBUILD**'s blank-host reconstruction
   eventually needs on each seed host.
 
-  Remaining: (1) add the refusal stanza to the seventeen unguarded legs
-  above — currently fenced by the DELTA-COMPILER claim on `tests/delta` +
-  `tests/epsilon` and the BETA-PE-SEED-REFUSAL claim on `tests/beta/compiler`;
+  Remaining: (1) **done except where noted — re-measured 2026-09-21 at
+  `f72122f71e`.** Sixteen of the seventeen legs listed above already call
+  `require_seed_execution_host`; the fences that blocked them (DELTA-COMPILER
+  on `tests/delta` + `tests/epsilon`, BETA-PE-SEED-REFUSAL on
+  `tests/beta/compiler`) have all drained. The sole outlier was
+  `tests/epsilon/interpreted-omega-experiment/run.sh`, guarded beside this
+  note, which makes the count 20/20 across every seed-executing gate under
+  `tests/{alpha,beta,delta,epsilon,bootstrap}`. Its unguarded behaviour was
+  measured on macOS arm64 before the fix: the gate materialized the
+  evaluator, executed it, and exited 1 with the opaque
+  `evaluator slice returned -9 with 0 bytes and SHA-256 e3b0c44298…`
+  (SIGKILL, empty-string digest) instead of refusing. With the guard a
+  non-seed host now gets the sibling stanza and exit 2. Two corrections to
+  the text above: the stanza reads `requires macOS arm64, Linux x86-64, or
+  Windows x64` — Linux x86-64 was admitted by
+  ALPHA-SEED-CONTAINER-NATIVE-VALIDATION, so the row's two-host wording is
+  stale — and the guard passes rather than refuses on macOS arm64, so it does
+  not by itself make the seed-execution legs runnable on a memory-limited
+  host (this 16 GB machine still SIGKILLs the seed);
   (2) run each seed-executing leg on Windows x64 and record the per-host
   result — every Windows leg stays outstanding until a Windows host validates
   it; no leg may report an unexecuted host result as passing.
