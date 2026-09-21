@@ -423,9 +423,10 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     /// ordinary block composes exactly as the acyclic walk charges it, while
     /// a component interior bounds committing walks by the longest member
     /// path that can still reach the endpoint when the component's other
-    /// internal edges cannot cycle, and by the rank-multiplied component
-    /// bound — the rank carrier's type maximum plus one member visits —
-    /// when they can or when the endpoint commits after an exit.
+    /// internal edges cannot cycle, and by the re-enterable members at the
+    /// rank carrier's visit ceiling plus the once-only members charged once
+    /// when they can — whether the endpoint commits on a member or beyond
+    /// an exit.
     fn natural_segment_bound(
         &self,
         start_block: BlockId,
@@ -648,10 +649,14 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     /// the members that can still be re-entered — the rank carrier's type
     /// maximum plus one visits each — while members left off every cycle
     /// are crossed at most once, plus the committing edge's ordered cleanup
-    /// work. When no member terminator carries the endpoint, the bound is
-    /// the component charge plus the worst exit's own continuation: a
-    /// component cannot be re-entered once left, and a walk that leaves
-    /// through another terminal edge is covered by that edge's own segment.
+    /// work. When no member terminator carries the endpoint, the walk must
+    /// leave the component through a member exit before it can commit, so
+    /// the same split bounds the interior over the members that can still
+    /// reach an exit — charged exactly like the acyclic walk, once for a
+    /// member left off every surviving cycle and at the rank ceiling for one
+    /// still re-enterable — plus the worst exit's own continuation. A
+    /// component cannot be re-entered once left, and a walk that ends on
+    /// another terminal edge is covered by that edge's own segment.
     fn component_node_to_edge_bound(
         &self,
         index: usize,
@@ -661,11 +666,6 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     ) -> Result<Option<u128>, FixedFuelError> {
         let component = components
             .get(index)
-            .ok_or(FixedFuelError::InvalidRankedScc(self.machine.id))?;
-        let units = geometry
-            .component_units
-            .get(index)
-            .copied()
             .ok_or(FixedFuelError::InvalidRankedScc(self.machine.id))?;
         let mut committing_cleanup = None;
         let mut exits = Vec::new();
@@ -732,6 +732,11 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             }
             return Ok(None);
         }
+        // The endpoint commits beyond the component, so a committing walk
+        // leaves through one of the exit edges and can never return. When no
+        // exit target can commit, the component is a dead end exactly as the
+        // old whole-component charge read it — continuation is resolved
+        // first so that failure keeps its reporting shape.
         let mut continuation = None;
         for target in exits {
             continuation = maximum_u128(
@@ -739,9 +744,17 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 self.node_to_edge_bound(geometry.node_for(target), components, geometry, walk)?,
             );
         }
-        continuation
-            .map(|tail| units.checked_add(tail).ok_or(FixedFuelError::BoundOverflow))
-            .transpose()
+        let Some(tail) = continuation else {
+            return Ok(None);
+        };
+        // Only members that can still reach an exit participate; the same
+        // split the committing path uses bounds the interior over them.
+        let (adjacency, reaching) = self.exit_reach(component, index, geometry, walk.end_edge)?;
+        let interior = self.split_interior_units(component, &adjacency, &reaching, walk)?;
+        interior
+            .checked_add(tail)
+            .map(Some)
+            .ok_or(FixedFuelError::BoundOverflow)
     }
 
     /// The member subgraph a committing walk can still traverse: the
@@ -765,7 +778,6 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         FixedFuelError,
     > {
         let mut committing = BTreeSet::new();
-        let mut adjacency: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
         for rank in &component.ranks {
             let block = self
                 .blocks
@@ -775,27 +787,94 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             if block.terminator.edges().any(|edge| edge == end_edge) {
                 committing.insert(rank.block);
             }
+        }
+        let adjacency = self.interior_adjacency(component, index, geometry, end_edge)?;
+        let reaching = Self::reverse_reaching(&adjacency, &committing);
+        Ok((committing, adjacency, reaching))
+    }
+
+    /// The member subgraph an exiting walk can still traverse: the
+    /// component's internal adjacency and the members that can still reach
+    /// an exit-taking member — one whose terminator carries a non-member
+    /// successor — through it. Once a walk leaves the reaching set it can
+    /// never take an exit, so it can never commit the endpoint beyond the
+    /// component; the exit path's interior bound is computed over this
+    /// subgraph. `end_edge` stays excluded for symmetry even though no
+    /// member terminator carries it on this path.
+    fn exit_reach(
+        &self,
+        component: &TerminalNaturalCycle,
+        index: usize,
+        geometry: &NaturalGeometry,
+        end_edge: EdgeId,
+    ) -> Result<(BTreeMap<BlockId, Vec<BlockId>>, BTreeSet<BlockId>), FixedFuelError> {
+        let mut exiting = BTreeSet::new();
+        for rank in &component.ranks {
+            let block = self
+                .blocks
+                .get(&rank.block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
+            if super::outcome_bounds::terminator_targets(&block.terminator)
+                .iter()
+                .any(|target| geometry.member_of.get(target) != Some(&index))
+            {
+                exiting.insert(rank.block);
+            }
+        }
+        let adjacency = self.interior_adjacency(component, index, geometry, end_edge)?;
+        let reaching = Self::reverse_reaching(&adjacency, &exiting);
+        Ok((adjacency, reaching))
+    }
+
+    /// The component's internal adjacency for an interior bound: every
+    /// member's successor edges that stay inside the component, minus
+    /// `exclude`. The committing case drops the endpoint edge so a surviving
+    /// cycle is real.
+    fn interior_adjacency(
+        &self,
+        component: &TerminalNaturalCycle,
+        index: usize,
+        geometry: &NaturalGeometry,
+        exclude: EdgeId,
+    ) -> Result<BTreeMap<BlockId, Vec<BlockId>>, FixedFuelError> {
+        let mut adjacency: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
+        for rank in &component.ranks {
+            let block = self
+                .blocks
+                .get(&rank.block)
+                .copied()
+                .ok_or(FixedFuelError::UnknownBlock(rank.block))?;
             adjacency.insert(
                 rank.block,
                 terminator_edge_targets(&block.terminator)
                     .into_iter()
                     .filter(|(edge, target)| {
-                        *edge != end_edge && geometry.member_of.get(target) == Some(&index)
+                        *edge != exclude && geometry.member_of.get(target) == Some(&index)
                     })
                     .map(|(_, target)| target)
                     .collect(),
             );
         }
-        let mut reaching: BTreeSet<BlockId> = committing.iter().copied().collect();
-        let mut pending: Vec<BlockId> = committing.iter().copied().collect();
+        Ok(adjacency)
+    }
+
+    /// Members that can still reach `frontier` through `adjacency` — the
+    /// reverse reachability the interior bounds share.
+    fn reverse_reaching(
+        adjacency: &BTreeMap<BlockId, Vec<BlockId>>,
+        frontier: &BTreeSet<BlockId>,
+    ) -> BTreeSet<BlockId> {
+        let mut reaching: BTreeSet<BlockId> = frontier.iter().copied().collect();
+        let mut pending: Vec<BlockId> = frontier.iter().copied().collect();
         while let Some(member) = pending.pop() {
-            for (predecessor, targets) in &adjacency {
+            for (predecessor, targets) in adjacency {
                 if targets.contains(&member) && reaching.insert(*predecessor) {
                     pending.push(*predecessor);
                 }
             }
         }
-        Ok((committing, adjacency, reaching))
+        reaching
     }
 
     /// Tighter interior bound when the endpoint commits on a member
@@ -905,23 +984,38 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     }
 
     /// Interior bound when the endpoint exclusion leaves a cycle in the
-    /// reaching subgraph. A member that can still be re-entered through
-    /// the surviving internal edges may be visited up to the rank
-    /// carrier's type maximum plus one times before the walk commits —
-    /// the same per-member visit ceiling the whole-component charge uses —
-    /// while a member left off every surviving cycle is crossed at most
-    /// once, since a committing walk cannot return to it. The bound is
-    /// therefore the rank-multiplied sum over the re-enterable members
-    /// plus the once-only members charged once, rather than the
-    /// rank-multiplied sum over every member. A member whose own charge
-    /// fails (an all-crash call, say) admits no committing traversal and
-    /// contributes nothing, exactly as the acyclic walk reads it.
+    /// reaching subgraph. The committing edge's ordered cleanup composes on
+    /// top of the member split `split_interior_units` computes.
     fn cyclic_interior_bound(
         &self,
         component: &TerminalNaturalCycle,
         adjacency: &BTreeMap<BlockId, Vec<BlockId>>,
         reaching: &BTreeSet<BlockId>,
         cleanup: u64,
+        walk: &mut NaturalSegmentWalk<'_>,
+    ) -> Result<u128, FixedFuelError> {
+        self.split_interior_units(component, adjacency, reaching, walk)?
+            .checked_add(u128::from(cleanup))
+            .ok_or(FixedFuelError::BoundOverflow)
+    }
+
+    /// The interior member split both component bounds share. A member that
+    /// can still be re-entered through the surviving internal edges may be
+    /// visited up to the rank carrier's type maximum plus one times before
+    /// the walk leaves the component — the same per-member visit ceiling the
+    /// whole-component charge uses — while a member left off every surviving
+    /// cycle is crossed at most once, since the walk cannot return to it.
+    /// The bound is therefore the rank-multiplied sum over the re-enterable
+    /// members plus the once-only members charged once, rather than the
+    /// rank-multiplied sum over every member. A member whose own charge
+    /// fails (an all-crash call, say) admits no traversal that leaves the
+    /// component and contributes nothing, exactly as the acyclic walk reads
+    /// it.
+    fn split_interior_units(
+        &self,
+        component: &TerminalNaturalCycle,
+        adjacency: &BTreeMap<BlockId, Vec<BlockId>>,
+        reaching: &BTreeSet<BlockId>,
         walk: &mut NaturalSegmentWalk<'_>,
     ) -> Result<u128, FixedFuelError> {
         let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
@@ -931,8 +1025,8 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         let mut once_units = 0_u128;
         for &member in reaching {
             // The member stays re-enterable when one of its surviving
-            // successors reaches it again — a cycle the endpoint exclusion
-            // left intact.
+            // successors reaches it again — an internal cycle the
+            // adjacency left intact.
             let mut reenterable = false;
             let mut pending: Vec<BlockId> = adjacency
                 .get(&member)
@@ -979,7 +1073,6 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             .checked_add(1)
             .and_then(|visits| visits.checked_mul(reenterable_units))
             .and_then(|bound| bound.checked_add(once_units))
-            .and_then(|bound| bound.checked_add(u128::from(cleanup)))
             .ok_or(FixedFuelError::BoundOverflow)
     }
 }

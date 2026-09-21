@@ -1497,4 +1497,166 @@ mod machine_bounds {
             "entry edge plus the tightened interior"
         );
     }
+
+    /// A `Natural` countdown whose work member calls a callee that can only
+    /// crash: entry 1 passes machine parameter `initial` into header 2's
+    /// rank parameter `rank`; 2 conditionally enters work 3 (preserving) or
+    /// exits to return block 4; 3 computes `next`, calls crash-only machine
+    /// 5, and would pass `next` back to 2 (strict). Every traversal of 3
+    /// invokes the call, so a walk that reaches 3 crashes before it can
+    /// commit an exit — member 3 cannot participate in an exit-committing
+    /// segment at all.
+    fn cyclic_crash_member_machine() -> TerminalMachine {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar = ScalarType::Integer(rank_type);
+        let value = |raw: u64| ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(raw),
+            scalar_type: scalar,
+        };
+        let rank_constant = |operation: u64, result: u64| Operation {
+            static_reach_binding: None,
+            id: id(operation),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(result),
+                scalar_type: scalar,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(0),
+            },
+        };
+        let jump_with = |edge: u64, target: u64, arguments: Vec<ValueId>| Terminator::Jump {
+            edge: id(edge),
+            target: id(target),
+            arguments,
+            erased_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        // The call republishes callee 5's Trap route verbatim: a call's
+        // crash continuations must match the callee contract the semantic
+        // identity replays, or the module is malformed before fuel runs.
+        let mut crash_call = call_unit(31, 5);
+        let OperationKind::CallUnit {
+            crash_continuations,
+            ..
+        } = &mut crash_call.kind
+        else {
+            unreachable!("call_unit builds a CallUnit operation")
+        };
+        *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let mut semantic = machine(
+            1,
+            1,
+            vec![
+                block(1, Vec::new(), jump_with(1, 2, vec![id(100)])),
+                Block {
+                    erased_scalar_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    id: id(2),
+                    parameters: vec![value(200)],
+                    operations: vec![boolean_constant(20, 9_000, true)],
+                    terminator: conditional(2, 3, 3, 4),
+                },
+                block(
+                    3,
+                    vec![rank_constant(30, 300), crash_call],
+                    jump_with(4, 2, vec![id(300)]),
+                ),
+                block(4, Vec::new(), return_unit(5)),
+            ],
+            Some(TerminalRankedScc::Natural(vec![TerminalNaturalCycle {
+                rank_type,
+                ranks: [2, 3]
+                    .into_iter()
+                    .map(|block| TerminalBlockNaturalRank {
+                        block: id(block),
+                        value: id(200),
+                    })
+                    .collect(),
+                edges: vec![
+                    TerminalNaturalRankEdge {
+                        edge: id(2),
+                        source: id(2),
+                        target: id(3),
+                        successor_rank: id(200),
+                        comparison: TerminalNaturalRankComparison::Preserving,
+                    },
+                    TerminalNaturalRankEdge {
+                        edge: id(4),
+                        source: id(3),
+                        target: id(2),
+                        successor_rank: id(300),
+                        comparison: TerminalNaturalRankComparison::Strict,
+                    },
+                ],
+            }])),
+        );
+        semantic.parameters = vec![value(100)];
+        // The caller republishes the Trap route the call propagates:
+        // uncovered continuations are malformed before fuel accounting.
+        semantic.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        semantic
+    }
+
+    /// When no member terminator carries the endpoint, a committing walk
+    /// leaves the component through an exit edge — so the interior bound
+    /// covers only the members a committing walk can still traverse, at the
+    /// segment's normal-return accounting. Work member 3 invokes a callee
+    /// that can only crash, so it contributes nothing; the bound keeps
+    /// header 2 at the rank scale rather than charging both members' visit
+    /// units the way the old whole-component charge did: segment
+    /// (2, edge 5) is rank * visit(2) + the exit block, not
+    /// rank * (visit 2 + visit 3). Uses the internal surface because the
+    /// verifier requires discharged rank obligations that a hand-built
+    /// module cannot carry.
+    #[test]
+    fn natural_cycle_exit_segment_drops_members_that_cannot_return() {
+        // callee 5 always crashes (returned: None, crashed: Some(1)); the
+        // contract publishes the Trap route coverage semantic identity
+        // validation requires.
+        let mut callee = machine(5, 5, vec![], None);
+        callee.blocks = vec![block(
+            5,
+            Vec::new(),
+            Terminator::Crash {
+                edge: id(50),
+                cause: terminal_psi::CrashCause::Trap,
+                site_guard: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            },
+        )];
+        callee.contract.crash_routes = vec![terminal_psi::CrashRouteBucket {
+            cause: terminal_psi::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+        }];
+        let module = module(1, vec![cyclic_crash_member_machine(), callee]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+        assert_eq!(
+            prepared
+                .segment_certificate(id(2), id(5), &mut BTreeMap::new())
+                .expect("mid-component exit segment derives")
+                .ceiling_units,
+            2 * 256 + 1,
+            "re-enterable header 2 at the u8 rank scale plus the exit block; \
+             member 3 never returns from its call"
+        );
+        assert_eq!(
+            prepared
+                .segment_certificate(id(1), id(5), &mut BTreeMap::new())
+                .expect("entry-to-exit segment derives")
+                .ceiling_units,
+            1 + 2 * 256 + 1,
+            "entry edge plus the tightened interior"
+        );
+    }
 }
