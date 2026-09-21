@@ -9668,7 +9668,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CONCURRENT-WHOLE-COMPOSITION-EXTRACTION.** Scope verified — authorization gate recorded. Same deferred surface as CONCURRENT-PROTOCOL-EXTRACTION and CONCURRENT-PROTOCOL-WHOLE-COMPOSITION: `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction — this stub's exact subject — "until a concrete protocol or safety-profile customer needs it." Activation requires such a customer plus the sealed erased model (activation creation/bounds, resource identities, wait/wake edges, priorities, placement, selected provider premises) consumed by ordinary proof machines. No implementation slice exists to claim.
   Re-verified at `fbf36233c9` (z181): both deferral sentences intact (concurrency.md:138-139, chapter_18:399-400) and `cross_activation_edges` still publishes `CompositionCrossActivationEdges::NotRetained` at composition_model/mod.rs:226 — no same-item claim live; the authorization gate stands.
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE.** — mined candidate; verify scope then implement.
-- **CONSTANT-LEAF-EXACT-CARRIER.** — mined candidate; verify scope then implement.
+- **CONSTANT-LEAF-EXACT-CARRIER.** — mined candidate; resolved,
+  verified-covered re-mine of COMPUTED-CONSTANT-LEAF-CARRIER's surface:
+  `syntax-trees-to-symbol-resolved-trees/src/constant/initializer_leaves.rs`
+  carries every computed leaf kind with an exact declared carrier —
+  builtin int/bool/float/string arms, closed generic applications via
+  `closed_leaf_carrier` (:29) + substitution, nominal literals via
+  `require_closed_data` (:464), literal-length array carriers, and
+  constrained→base fallback — and refuses each unsupported shape
+  explicitly. Landed under PKG-INPUTS-FLOAT-IDENTITY-LANDING `742a2f1d84`;
+  witnesses green at `cdee121ee9`/`d32183a35c`, surface re-verified
+  intact at `6f91898606`. No independent slice remains.
 - **COORDINATOR-OVEROWNERSHIP-AUDIT.** — mined candidate; scope verified, audit
 - **CONST-GENERIC-EXTENT-RANGE-DISCHARGE** — mined candidate; verify scope then implement.
 - **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
