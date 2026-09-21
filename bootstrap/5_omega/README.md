@@ -56,10 +56,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 16,286 lines / 561,794 bytes with SHA-256
-`60754c730dfb928f9b2b6edbf2904d9a7bb292b0657eb6656a31930c28be05af`.
+manifest materializes 16,482 lines / 569,920 bytes with SHA-256
+`f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842`.
 The manifest itself is 1,338 bytes, SHA-256
-`cc0b7e320a26ba4906a1bc177e90cd85c106de8a45e1500179819cc6c60af959`;
+`1d3208356faf8eea788f05cb2ee629da80ecd79b1900a803fe26cc866b792f5f`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
@@ -82,8 +82,14 @@ is `u8` over literal operands joined by the arithmetic, bitwise, and shift
 binary operators and the `~` bitwise-complement prefix, folded under the
 default Exact policy — every node must stay representable in the carrier, so
 overflow, underflow, a zero divisor, or a shift count at or above the width
-refuses the source while comparison, logical `!`, arithmetic-negation `-`,
-path, and other non-`u8`-producing forms remain implementation work.
+refuses the source. The fold tracks a carrier class per node: `true`/`false`
+literals, the `==`/`!=`/`<`/`<=`/`>`/`>=` comparisons, `&&`/`||`, and the `!`
+complement produce and consume Boolean folds (equality compares same-class
+operands, ordering takes `u8` operands, the logical operators take Boolean),
+a class mismatch is a carrier-class rejection, and a Boolean at the `u8`
+terminal stays a coverage refusal. Arithmetic-negation `-` (not total on an
+unsigned carrier under Exact), paths, and other non-admitted forms remain
+implementation work.
 Within that scalar slice the same checking pass now covers bounded control
 flow: a state body is a sequence of nullary calls to free machines followed
 by one terminal — a folded `u8` expression, a grouped nullary call whose
