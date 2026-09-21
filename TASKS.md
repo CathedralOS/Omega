@@ -13919,6 +13919,18 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `foundation/extents/src/ordering_events/tests.rs` (`use super::*`,
   file-fenced to DEVICE-EXTENT-ACCESS until 11:04Z). Every recorded
   residual remains fenced; still no unowned slice.
+  Re-verified at `53817f8759` (linux x86-64): the ledger rotated once
+  more — the `result_type.rs` glob is repaired (no `use super::*`
+  remains there); only `ordering_events/tests.rs` still carries the
+  glob residual. Every lease recorded against this gate has now
+  expired: DEVICE-EXTENT-ACCESS (~11:04Z), RC-REPOSITORY's
+  uefi_boot_services/uefi_system_table glob claim (~14:39Z),
+  RC-REPOSITORY-BASELINE's baseline draft (~15:39Z), and
+  REPOSITORY-BASELINE-GATE (~17:03Z) all drained. The clippy repair
+  still holds (`reference_values.rs:337` region has no `return`).
+  Adjudication unchanged: this row is the named re-mine — fresh
+  measurement and repair stay on RC-REPOSITORY-GATE-CLOSURE's lane;
+  the unmarked duplicate stub under the mined list is consumed here.
 - **RC-REPOSITORY-GATE-CLOSURE.** Mined candidate — scope verified,
   slice landed on `zergling/z93-rc-repository-gate-closure`. Re-mines the
   `RC-REPOSITORY` gate row ([RC-REPOSITORY-CLOSURE](wiki/drafts/rust_compiler_completion.md)
@@ -14248,7 +14260,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Sibling stub RC-REPOSITORY-BASELINE and resolved REPOSITORY-BASELINE-
   GATE name the same gate; no unclaimed repair slice exists.
 - **RC-REPOSITORY-CLOSURE.** Close the `RC-REPOSITORY` gate row from [rust_compiler_completion](wiki/drafts/rust_compiler_completion.md): its command block (`cargo fmt --all -- --check`, `mbx clippy --workspace --all-targets -- -D warnings`, `mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast`, `mbx check --workspace --all-targets`, `mbx nextest run --workspace --lib --no-fail-fast`) must pass on one commit. Row measured 2026-09-20 at `a9fa1a4fe6` (Linux x86-64, cargo — no mbx): **open, all five commands red**. fmt: 16 unformatted files across external-roots interrupt_table/stack_demand, compiler layout_plans/module_machine_indices tests, calling-conventions, c2l integer_policy_realization, t2c2 multiplicity/termination-origins, validation domain_weakening/match_dispatch. clippy: `permissions_set_readonly_false` at `omega-rust/omega/packages/sources/acquisition/src/tree/capture/traversal.rs:513`. arch-test: 12/547 — glob-self-import ceilings grew in 7 crates; 9 boundary-ensures/symbolic-walk recast-witness rejections (RECAST lane in flight); 2 provider-receiver fixtures stale under the `Service<R>`-only service spelling. check: `omega-native-differential-test` `abstract_publication/decision_custody.rs:58` fixture declares 6 Psi catalog members vs 7 actual. libtests: 95/15,621 failed — selected-dispatch 64 (mostly `Service<R>`-spelling stale fixtures), terminal-codec 20 (wire-tag drift), package-manager 14, a2a2 14, sf2as 6, t2c2 4, calling-conventions 4, native-realization 2, a2t2 2 — most unattributed in [known_baseline_failures](wiki/drafts/known_baseline_failures.md).
-- **RC-REPOSITORY-GATE** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY-GATE-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-CLOSURE** — mined candidate; verify scope then implement.
 - **RC-REPRESENTATIVE-PROGRAMS-GATE** — mined candidate; verify scope then implement.
