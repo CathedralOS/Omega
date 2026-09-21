@@ -50,6 +50,11 @@ driver and receipt refusals and every consuming gate's record.
 entries the omega-parser, omega-outcome, omega-request, and omega-executable
 gates append on top of the bound member bytes, and the omega-request gate's
 canonical sealed request fixture, each recorded in its gate's README.
+The same env binds D's OCREQ request entry — `program.omg`, the canonical
+174-byte Omega source the request names as the compilation subject, SHA-256
+`b880031336a824e41ce6021dda44e1a64aaa9e849a6b25ab658ea6fc612c1b2e` — a
+separate input fed to the bound customer as sealed bytes, not a manifested
+member.
 `tools/bootstrap/proofs/sources_env.sh` binds the
 `implementation.gamma.sources` and `theory.gamma.sources` manifests and their
 repacked member closures against `bootstrap/proofs/checker/README.md` and
@@ -60,8 +65,10 @@ recorded in its gate's README.
 `check-chain-hygiene.sh` is the single repository-topology gate. It positively
 enumerates the implemented compiler source/tape identities, inventories every
 retained source, test, and bootstrap-tool owner, rejects alternate bootstrap
-owners and native compiler identities above Alpha, and prevents a lower
-compiler owner from reaching beyond its immediate successor.
+owners and native compiler identities above Alpha, prevents a lower
+compiler owner from reaching beyond its immediate successor, and audits the
+manifested closure members plus bootstrap step surfaces for the
+Rust-producer omission contract.
 Owner roots come from tracked and nonignored untracked files in a Git checkout,
 or from physical files in a source archive. Empty directories left by a move do
 not create owners. `sh tests/bootstrap/chain-hygiene.sh` checks this inventory
@@ -78,6 +85,11 @@ evaluator; `EpsilonSourceClosureV1` selects `.epsilon` members for Omega D. All
 use the same identity, length, digest, and canonical relative-path rows. The
 manifest parent owns the complete source-file inventory: missing, extra,
 wrong-language, stale, and symlinked members reject before output replacement.
+`--prefix ENTRY` prepends one entry file — a marked entry or gate-local
+diagnostic header that is not a manifested member — ahead of the packed
+members; it must be a regular file carrying the manifest's source suffix and
+rejects before output replacement on a wrong language, a symlink, a
+non-regular path, or forbidden bytes.
 Inventory traversal checks membership only; it never selects or orders inputs.
 
 `paths.sh` exports canonical selected-owner paths. Future compiler artifact

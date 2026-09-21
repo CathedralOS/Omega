@@ -45,10 +45,12 @@ fn result_consumer_module() -> TerminalModule {
     });
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(2),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(3),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

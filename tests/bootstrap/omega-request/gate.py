@@ -1,7 +1,7 @@
 """Drive D's canonical OCREQ request entry through the selected evaluator."""
 
-ENTRY_SIZE = 4115
-ENTRY_SHA256 = "0d612813e17cfbe2e755b7398d90bb3572f5ed32da249c8863b37f545d3822c0"
+ENTRY_SIZE = 4112
+ENTRY_SHA256 = "9368297baef947465d5f1ee11df8f1a0fdf60a01e369836ce0555df02890d9ca"
 REQUEST_SIZE = 132
 REQUEST_SHA256 = "ab2e980a89d20651b69782446cd8a8333313dce109636fd3e26cc7f52bc98062"
 
@@ -65,8 +65,12 @@ def observation(code, payload):
 
 
 def main():
-    directory = Path(sys.argv[1]).resolve()
-    adapter = Path(sys.argv[2]).read_bytes()
+    argv = sys.argv[1:]
+    identity_only = argv and argv[0] == "--identity"
+    if identity_only:
+        argv = argv[1:]
+    directory = Path(argv[0]).resolve()
+    adapter = Path(argv[1]).read_bytes()
     gate = Path(__file__).resolve().parent
     timeout = int(os.environ.get("OMEGA_REQUEST_OBSERVATION_SECONDS", "14400"))
     if timeout <= 0:
@@ -83,8 +87,8 @@ def main():
     require_identity("execution adapter", adapter, 2565,
                      "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 558161,
-                     "8f0321344c893c3c64bb631bfde10e3ecbde4384e130dca9f7e2c21818a9eca3")
+    require_identity("D", compiler, 569920,
+                     "f5f051fba1ac62322cc1b0af9f3dc8e5fb1951feef24e44a627f1d9e4c28f842")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("request entry", entry, ENTRY_SIZE, ENTRY_SHA256)
     fixture = (gate / "request.bin").read_bytes()
@@ -98,6 +102,16 @@ def main():
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                + subject + support)
+    if identity_only:
+        # Host-free leg: every bound identity above is checked — entry, canonical
+        # request fixture, and the assembled customer/DCREQ byte streams — and the
+        # expected observation decodes; only the evaluator executions need a seed
+        # host (macOS arm64 or Windows x64).
+        (directory / "evaluator.exe").stat()
+        print(f"Omega request: identity legs green; execution legs need a seed "
+              f"host ({len(request)}-byte receipt request, {len(customer)}-byte "
+              f"customer, {len(expected)}-byte expected observation)", flush=True)
+        return
     receipt = evaluate(directory, (directory / "delta_compiler.gamma").read_bytes(),
                        request, receipt_seconds, "Epsilon receipt reconstruction")
     require_identity("Epsilon execution receipt", receipt, 721484,

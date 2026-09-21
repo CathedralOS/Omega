@@ -15,6 +15,7 @@ fn primitive_storage_identity_binds_producer_place_type_and_value() {
         scalar_type: ScalarType::Boolean,
     };
     let result = StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: id(302, PlaceId::new),
         structural_type: id(303, StructuralTypeId::new),
         multiplicity: StructuralMultiplicity::Unrestricted,

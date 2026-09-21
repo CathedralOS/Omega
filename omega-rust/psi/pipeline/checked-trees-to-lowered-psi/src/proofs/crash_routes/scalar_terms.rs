@@ -74,6 +74,9 @@ pub(crate) fn checked_boolean_scalar_term(
             }
             .map_err(LoweringError::InvalidCrashPredicate)?
         }
+        CheckedBooleanExpression::ScalarIeeeFloatComparison { .. } => {
+            return unsupported("scalar IEEE equality is an atomic proposition, not a scalar term");
+        }
         CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
@@ -431,3 +434,6 @@ fn checked_boolean_scalar_term_from_lowered(
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

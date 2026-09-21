@@ -1,0 +1,17 @@
+// The abstract requirement signature's precondition must hold of the cited
+// call's exact subject: `other` carries no establishment, so the citation
+// rejects even though `value` is established.
+data Tree {
+    marked: bool;
+    case Empty;
+    case Node(child: Tree);
+}
+
+trait Empties {
+    machine Self::read(value: Tree) requires value in Tree::Empty;
+}
+
+machine probe(value: Tree, other: Tree)
+requires value in Tree::Empty;
+ensures Empties::read(other) == Empties::read(other);
+{}

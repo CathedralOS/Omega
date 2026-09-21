@@ -393,13 +393,15 @@ fn module_spans(encoded: &[u8]) -> ModuleSpans {
     walker.take(2); // format marker
     walker.take(2); // vocabulary marker
     walker.take(8); // entry machine identity
-    // The scalar-qualification catalog encodes four counted rosters even when
-    // empty: domains, qualification sets, coercions, and float entry ranges.
+    // The scalar-qualification catalog encodes five counted rosters even when
+    // empty: domains, qualification sets, coercions, and the float and integer
+    // entry ranges.
     for label in [
         "scalar domains",
         "scalar qualification sets",
         "scalar qualification coercions",
         "scalar float entry ranges",
+        "scalar integer entry ranges",
     ] {
         walker.expect_empty_count(label);
     }
@@ -577,15 +579,18 @@ fn caller_machine(raw: u64, place: u64, operation: u64) -> TerminalMachine {
         entry: block_id(raw),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(raw),
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(operation),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     callee: machine_id(2),
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
@@ -605,6 +610,7 @@ fn caller_machine(raw: u64, place: u64, operation: u64) -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: contract_id(raw),
             crash_routes: Vec::new(),
             requires: Vec::new(),

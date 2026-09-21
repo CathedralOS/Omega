@@ -50,6 +50,30 @@ DELTA_COMPILER_SUPPORT_PACKED_SHA256=cfdf07cf8010eba2fd7da47e6936ea1e237f637f4de
 DELTA_COMPILER_DEVELOPMENT_ENTRY_SIZE=580
 DELTA_COMPILER_DEVELOPMENT_ENTRY_SHA256=7bcf4098ff44fb5cec57659b7d3c1ceddfbb50a05e1e9f2ec9704be0da5b95bb
 
+# Bound gate-local prefix entries packed on top of the bound Delta member
+# closure. lowering-plan's height_driver.gamma and normalization's
+# normalization_driver.gamma are single-file driver entries packed as the
+# --prefix; internal-boundary and emission instead repack a gate-owned
+# controls closure manifest and prefix the packed bytes, so each binds its
+# manifest and the packed bytes it reproduces. The identical pins in each
+# gate's {README.md,run.sh} are records of these same subjects, not
+# independent identities. A digest here is an identity check on the driver or
+# controls bytes; it is not a proof of the gate's judgment. Changing a driver
+# or a controls member changes the packed subject and must update every
+# record together.
+DELTA_LOWERING_PLAN_DRIVER_SIZE=807
+DELTA_LOWERING_PLAN_DRIVER_SHA256=d387d18cf6653ea2076694f15f24b81bd7078f51fba0f2b334ca0b3c731871fd
+DELTA_NORMALIZATION_DRIVER_SIZE=2224
+DELTA_NORMALIZATION_DRIVER_SHA256=22ebe29c49fed577e769b55e1c871638ffecabea1b156012a863a7b50df4ec90
+DELTA_INTERNAL_BOUNDARY_CONTROLS_MANIFEST_SIZE=485
+DELTA_INTERNAL_BOUNDARY_CONTROLS_MANIFEST_SHA256=086ba78eee677b226a09cc6afc6e0655758231fa51525bd7852ea81933ffc52e
+DELTA_INTERNAL_BOUNDARY_CONTROLS_PACKED_SIZE=6127
+DELTA_INTERNAL_BOUNDARY_CONTROLS_PACKED_SHA256=00e77ea3c4f86077ffdfa804e58602ca7a004b5d1cbbc94e062ff6af5614ffe9
+DELTA_EMISSION_CONTROLS_MANIFEST_SIZE=951
+DELTA_EMISSION_CONTROLS_MANIFEST_SHA256=8e09cd671d6908ffdd06057379f9f340e875f342bf8bd79f5099d03c2d15893d
+DELTA_EMISSION_CONTROLS_PACKED_SIZE=6114
+DELTA_EMISSION_CONTROLS_PACKED_SHA256=dffa334b13d250c7372fff0dd511f4f0c43cf724b9c89c16be4a2f618a11350f
+
 # require_delta_compiler_identity : the canonical entry, manifests, and
 # composed record are the bound files; the composed record names the selected
 # Gamma evaluator, packed closure, and packed support section; and repacking
@@ -135,6 +159,87 @@ require_delta_compiler_development_entry_identity() {
     "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SIZE" \
     "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SHA256" \
     "tests/delta/staged-compiler/README.md"
+}
+
+# require_delta_lowering_plan_driver_identity : the lowering-plan gate's
+# height_driver.gamma entry is the bound file. Same contract as
+# require_delta_compiler_development_entry_identity.
+require_delta_lowering_plan_driver_identity() {
+  require_bound_identity "height_driver.gamma" \
+    "$OMEGA_PATH_DELTA_LOWERING_PLAN_DRIVER" \
+    "$DELTA_LOWERING_PLAN_DRIVER_SIZE" "$DELTA_LOWERING_PLAN_DRIVER_SHA256" \
+    "tests/delta/lowering-plan/README.md"
+}
+
+# require_delta_normalization_driver_identity : the normalization gate's
+# normalization_driver.gamma entry is the bound file. Same contract.
+require_delta_normalization_driver_identity() {
+  require_bound_identity "normalization_driver.gamma" \
+    "$OMEGA_PATH_DELTA_NORMALIZATION_DRIVER" \
+    "$DELTA_NORMALIZATION_DRIVER_SIZE" "$DELTA_NORMALIZATION_DRIVER_SHA256" \
+    "tests/delta/normalization/README.md"
+}
+
+# require_delta_controls_identity LABEL SOURCES MANIFEST_SIZE MANIFEST_SHA256
+#   PACKED_SIZE PACKED_SHA256 RECORD : a gate-owned controls closure's
+#   manifest is the bound file and repacking it reproduces the bound packed
+#   prefix bytes. Shared by the internal-boundary and emission controls.
+#   Repacking needs python3; without it the check refuses rather than
+#   skipping.
+require_delta_controls_identity() {
+  DELTA_CONTROLS_LABEL=$1
+  DELTA_CONTROLS_SOURCES=$2
+  DELTA_CONTROLS_MANIFEST_SIZE=$3
+  DELTA_CONTROLS_MANIFEST_SHA256=$4
+  DELTA_CONTROLS_PACKED_SIZE=$5
+  DELTA_CONTROLS_PACKED_SHA256=$6
+  DELTA_CONTROLS_RECORD=$7
+  require_bound_identity "$DELTA_CONTROLS_LABEL manifest" \
+    "$DELTA_CONTROLS_SOURCES" \
+    "$DELTA_CONTROLS_MANIFEST_SIZE" "$DELTA_CONTROLS_MANIFEST_SHA256" \
+    "$DELTA_CONTROLS_RECORD" || return $?
+  command -v python3 >/dev/null 2>&1 || {
+    echo "bootstrap artifact: no python3 to repack the $DELTA_CONTROLS_LABEL controls" >&2
+    return 2
+  }
+  DELTA_CONTROLS_TMP=$(mktemp -d)
+  python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+    "$DELTA_CONTROLS_SOURCES" "$DELTA_CONTROLS_TMP/controls.gamma" || {
+      DELTA_CONTROLS_RC=$?
+      rm -rf -- "$DELTA_CONTROLS_TMP"
+      return "$DELTA_CONTROLS_RC"
+    }
+  require_bound_identity "$DELTA_CONTROLS_LABEL packed controls" \
+    "$DELTA_CONTROLS_TMP/controls.gamma" \
+    "$DELTA_CONTROLS_PACKED_SIZE" "$DELTA_CONTROLS_PACKED_SHA256" \
+    "$DELTA_CONTROLS_RECORD"
+  DELTA_CONTROLS_RC=$?
+  rm -rf -- "$DELTA_CONTROLS_TMP"
+  return "$DELTA_CONTROLS_RC"
+}
+
+# require_delta_internal_boundary_controls_identity : the internal-boundary
+# gate's packed controls prefix is the bound closure.
+require_delta_internal_boundary_controls_identity() {
+  require_delta_controls_identity "internal-boundary" \
+    "$OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES" \
+    "$DELTA_INTERNAL_BOUNDARY_CONTROLS_MANIFEST_SIZE" \
+    "$DELTA_INTERNAL_BOUNDARY_CONTROLS_MANIFEST_SHA256" \
+    "$DELTA_INTERNAL_BOUNDARY_CONTROLS_PACKED_SIZE" \
+    "$DELTA_INTERNAL_BOUNDARY_CONTROLS_PACKED_SHA256" \
+    "tests/delta/internal-boundary/README.md"
+}
+
+# require_delta_emission_controls_identity : the emission gate's packed
+# controls prefix is the bound closure.
+require_delta_emission_controls_identity() {
+  require_delta_controls_identity "emission" \
+    "$OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES" \
+    "$DELTA_EMISSION_CONTROLS_MANIFEST_SIZE" \
+    "$DELTA_EMISSION_CONTROLS_MANIFEST_SHA256" \
+    "$DELTA_EMISSION_CONTROLS_PACKED_SIZE" \
+    "$DELTA_EMISSION_CONTROLS_PACKED_SHA256" \
+    "tests/delta/emission/README.md"
 }
 
 # materialize_delta_compiler DEST : write the canonical entry-plus-member

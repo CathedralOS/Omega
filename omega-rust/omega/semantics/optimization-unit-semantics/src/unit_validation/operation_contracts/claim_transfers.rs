@@ -207,7 +207,8 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
         match proposition {
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right) => {
+            | Proposition::LessOrEqual(left, right)
+            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
                 scalar_term_roots(left, roots);
                 scalar_term_roots(right, roots);
             }

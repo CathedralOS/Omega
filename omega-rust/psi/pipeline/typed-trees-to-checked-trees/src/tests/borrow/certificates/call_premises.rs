@@ -101,6 +101,35 @@ fn immutable_result_copies_and_boolean_decomposition_preserve_call_identity() {
     }
 }
 
+#[test]
+fn premise_evidence_cannot_retarget_to_a_mutable_result_binding() {
+    // `split_point` supplies the `ensures result >= 2` premise only while its
+    // recorded binding stays immutable: mutable storage has no version evidence
+    // pinning which occurrence the guarantee spoke about, so replaying the
+    // certificate against a mutable spelling must reject.
+    let mut checked = checked_source(RETURNED_WINDOW);
+    let spans: Vec<_> = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .map(|state| state.statement_nodes)
+        .collect();
+    let mut flipped = false;
+    for span in spans {
+        for statement in checked.typed.statement_table.statements_mut(span) {
+            if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                && local.name.as_str() == "split_point"
+            {
+                local.is_mutable = true;
+                flipped = true;
+            }
+        }
+    }
+    assert!(flipped, "fixture local split_point");
+    assert_replay_rejects(&mut checked);
+}
+
 fn assert_conflict(source: &str) {
     use super::{
         Lexer, ResolutionRequest, lower_symbol_resolved_trees, parse_syntax_trees, resolve,

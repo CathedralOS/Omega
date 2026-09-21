@@ -1,14 +1,16 @@
 //! Ordinary scalar instructions, block parameters and explicit control edges.
 use super::SaturatingCarrier;
-use abstract_operations::ValueBinding;
+use abstract_operations::{AbstractParameterDynamicDispatch, ValueBinding};
 use calling_conventions::{CallPlan, ValuePlacement};
 use optimization_unit::{EffectLink, FuelSettlement, OwnershipEvent, ValueDefinitionSite};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId,
     OperationId, ScalarType, StructuralTypeId, ValueId,
 };
-use target_operations::TerminalPsiProvenance;
-use terminal_psi::CrashRouteBucket;
+use target_operations::{
+    TargetDynamicDescriptorParameterAbi, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
+use terminal_psi::{CrashRouteBucket, TerminalDynamicRequirement};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedScalarFunction {
@@ -96,7 +98,8 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
-                    | LegalizedScalarInstructionKind::BoundarySettlement(_) => false,
+                    | LegalizedScalarInstructionKind::BoundarySettlement(_)
+                    | LegalizedScalarInstructionKind::DynamicParameterCall(_) => false,
                     LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                         .scalar_arguments
                         .iter()
@@ -325,6 +328,14 @@ pub enum LegalizedScalarInstructionKind {
     /// this kind never collapses into an authored `Call` or a compiler-builtin
     /// `BoundarySettlement`.
     NormalizedForeignCall(LegalizedNormalizedForeignCall),
+    /// One indirect call through a requirement slot of the function's own
+    /// borrowed two-word descriptor parameter. `parameter_abi` binds the
+    /// incoming `{instance, table}` signature placements, `requirement` is the
+    /// closed interface row `dispatch_call_plan` invokes, and
+    /// `table_slot_byte_offset` is its entry offset in the incoming table. The
+    /// erased adapter plan carries the ABI, clobber, and stack contract; no
+    /// realization machine is ever named here.
+    DynamicParameterCall(LegalizedDynamicParameterCall),
     /// Addition clamped to the named carrier's bounds. The carrier is part of
     /// the kind so replay can reject a kind naming a different width than the
     /// source operation declares: clamping to the wrong bounds is a silent
@@ -614,7 +625,9 @@ impl LegalizedScalarArgument {
 /// lookup authority. `scalar_arguments` and `structural_arguments` retain the
 /// evaluated plan's exact ordered placements; `result_home` requires
 /// downstream assignment to preserve an optional fixed-integer result for
-/// later Unit operations.
+/// later Unit operations. `callback` carries the unique retained registrar
+/// callback roster row this call consumes when its evaluated plan
+/// materializes a private callback parameter, and is `None` otherwise.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedNormalizedForeignCall {
     pub boundary: BoundaryMachineId,
@@ -623,6 +636,27 @@ pub struct LegalizedNormalizedForeignCall {
     pub scalar_arguments: Vec<target_operations::NormalizedForeignScalarArgument>,
     pub structural_arguments: Vec<target_operations::NormalizedForeignStructuralArgument>,
     pub result_home: Option<target_operations::TargetUnitScalarHomeRequirement>,
+    pub callback: Option<target_operations::TargetNativeCallbackArgument>,
+}
+
+/// One indirect requirement invocation through the function's own borrowed
+/// descriptor parameter. `dynamic_dispatch` retains the caller-side join
+/// between the dispatch row and the exact parameter it consumes;
+/// `parameter_abi`, `requirement`, `dispatch_call_plan` and
+/// `table_slot_byte_offset` retain the exact target contract produced by
+/// lowering so selection and replay can reject any substituted instance,
+/// table, slot, ABI, or result custody. `result_home` is present exactly when
+/// the invoked requirement returns a scalar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedDynamicParameterCall {
+    pub dynamic_dispatch: AbstractParameterDynamicDispatch,
+    pub parameter_abi: TargetDynamicDescriptorParameterAbi,
+    pub requirement: TerminalDynamicRequirement,
+    pub dispatch_call_plan: CallPlan,
+    pub table_slot_byte_offset: u32,
+    pub result_home: Option<TargetUnitScalarHomeRequirement>,
+    pub requirement_obligations: Vec<ObligationId>,
+    pub crash_continuations: Vec<CrashRouteBucket>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -6,16 +6,16 @@ mod root;
 pub use root::derive_fused_program_entry_establishments;
 
 use checked_trees::{
-    CheckedFusedServiceErasureReceipt, CheckedTrees, CheckedUnitStructuralFieldPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape,
+    CheckedFusedServiceErasureReceipt, CheckedTrees, CheckedUnitPlanOmissionStage,
+    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape,
 };
 use diagnostics::Diagnostic;
 use provider_planning::CompositionMode;
 use provider_planning::SelectedProviderReviewProvenance;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 
-/// Rejoin every checked `Service<R> in Bound` erasure to its exact typed
-/// source field or direct owned parameter and owner-controlled Fused
+/// Rejoin every checked routed `Service<R>` carrier erasure to its exact
+/// typed source field or direct owned parameter and owner-controlled Fused
 /// selected-provider plan. This runs immediately before Terminal production,
 /// where erasure becomes irreversible.
 pub fn validate_fused_service_terminal_custody(
@@ -350,7 +350,8 @@ fn structural_shape_contains_fused_service(shape: &CheckedUnitStructuralTypeShap
         CheckedUnitStructuralTypeShape::Reference { .. }
         | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
-        | CheckedUnitStructuralTypeShape::FixedArray { .. } => false,
+        | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => false,
     }
 }
 

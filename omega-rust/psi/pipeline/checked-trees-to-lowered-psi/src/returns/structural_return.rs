@@ -243,12 +243,14 @@ pub(crate) fn lower_structural_return_machine(
             id: block_id(1),
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             operations: local_places
                 .iter()
                 .enumerate()
                 .map(|(index, (_, _, destination))| {
                     Ok(Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: operation_id(dense_identity(index)?),
                         result: terminal_psi::OperationResult::Unit,
                         kind: OperationKind::EstablishTrivialAffineLocal {
@@ -268,6 +270,7 @@ pub(crate) fn lower_structural_return_machine(
             id: contract_id(1),
             crash_routes: Vec::new(),
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             requires: Vec::new(),
             ensures: Vec::new(),
             outcome_specific_ensures: Vec::new(),
@@ -346,6 +349,7 @@ fn lower_structural_domain_plans(
         .into_iter()
         .map(|plan| {
             Ok(StructuralDomainDeclaration {
+                establishment_routes: Vec::new(),
                 id: lookup_domain_id(&domain_ids, plan.domain)?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,

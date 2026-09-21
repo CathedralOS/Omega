@@ -248,13 +248,8 @@ impl ExitScalars<'_, '_> {
         if actual != expression || selected.target_symbol != call.target_symbol {
             return None;
         }
-        let callee = self.program.machines().iter().find(|machine| {
-            self.program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == call.target_symbol)
-        })?;
-        let entry = self.program.machine_states(callee).first()?;
+        let (callee, entry) =
+            crate::semantic_calls::find_machine_by_entry_state(self.program, call.target_symbol)?;
         let parameters = self.program.state_parameters(entry);
         if parameters
             .iter()

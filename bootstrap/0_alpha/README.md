@@ -52,6 +52,8 @@ and `INT64_MIN / -1` exactly as the arm64 seed does. The tape hole is the
 is `.data` at 0x402000 and text at 0x401000. Rebuild for provenance:
 `as --64 -o a.o alpha_x64_linux.s && ld -s -o alpha_x64_linux --build-id=none -e _start a.o`,
 then compare the committed bytes directly.
+`tests/bootstrap/alpha-beta-edge.sh` runs that clone-serialization check on
+Linux x86-64 hosts wherever GNU `as`/`ld` are present.
 
 The extent is a startup allocation, so the
 [PE32+ image-size limit of 2 GiB](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
@@ -88,6 +90,18 @@ zerofill (`__bss` shrinks to the registers page plus the I/O byte), and the
 mechanically repacked linkedit tables. On Windows the occupied code extent
 grows for the allocation call and register compares; the tape hole, file
 offsets, and total container size are unchanged.
+
+Known divergence pending re-forge: the committed `alpha_arm64_macos`
+(SHA-256 `3a9cc311…` below) encodes its startup extent as
+`movz x1/x23, #0x2000, lsl #32` — `0x200000000000` (32 TiB) rather than the
+specified `0x2000000000` (128 GiB). `alpha_arm64_macos.s` and
+`macho_v5_transform.py` now carry the corrected immediate; the container
+itself awaits re-forge and re-signature on a macOS arm64 host plus repinning
+of its `ALPHA_SEED_ARM64_MACOS_*` identity constants and inventory row.
+Until then, the native bounds battery on macOS would observe data, fetch,
+and stack accesses in `0x2000000000..0x200000000000` admitted rather than
+trapped, so macOS MEMSIZE validation stays unestablished. The x64 seeds
+already encode the specified extent.
 See [bounds conformance](../../tests/alpha/README.md#bounds-conformance) for
 tested behavior and observation limits. macOS execution and source rebuild
 are checked on a macOS host; Windows listing reconstruction is not Windows

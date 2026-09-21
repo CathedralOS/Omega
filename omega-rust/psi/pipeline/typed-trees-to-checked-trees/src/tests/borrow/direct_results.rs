@@ -70,24 +70,53 @@ fn direct_result_keeps_every_candidate_leaf_with_the_same_lifetime() {
 }
 
 #[test]
-fn direct_result_rejects_ambiguity_between_owned_and_direct_inputs() {
-    for (binder, application, reference, expected) in [
-        (
-            "<'source>",
-            "View<'source>",
-            "&'source mut i32",
-            "shared by multiple inputs",
-        ),
-        ("", "View", "&mut i32", "candidate ref inputs"),
+fn direct_result_links_the_union_of_inputs_sharing_the_result_lifetime() {
+    // An explicit result lifetime shared across an owned carrier and a
+    // direct input names both as candidate sources: either may supply the
+    // returned view, so the signature resolves rather than rejecting.
+    let source = "data View<'source> { body: &'source mut i32; }
+         machine select<'source>(value: View<'source>, other: &'source mut i32) -> &'source mut i32 {
+             value.body
+         }";
+    check_program(source).expect("a shared explicit lifetime names the candidate source union");
+}
+
+#[test]
+fn direct_result_union_tracks_the_loan_on_every_candidate_source() {
+    for (operation, admitted) in [
+        ("write(first);", false),
+        ("write(second);", false),
+        ("write(other);", true),
     ] {
+        // Either input could supply the returned view, so writing either
+        // candidate source must invalidate it; an unrelated source stays
+        // outside the union.
         let source = format!(
-            "data View{binder} {{ body: {reference}; }}
-             machine select{binder}(value: {application}, other: {reference}) -> {reference} {{
-                 value.body
+            "machine select<'source>(first: &'source mut i32, second: &'source mut i32) -> &'source mut i32 {{
+                 first
+             }}
+             machine write(value: &mut i32) {{ value = 1; }}
+             machine exercise<'source>(first: &'source mut i32, second: &'source mut i32, other: &mut i32) {{
+                 let held: &'source mut i32 = select(first, second);
+                 {operation}
+                 write(held);
              }}"
         );
-        rejects(&source, expected);
+        if admitted {
+            check_program(&source).expect("an unrelated source is outside the candidate union");
+        } else {
+            rejects(&source, "while local borrow `held` is still active");
+        }
     }
+}
+
+#[test]
+fn direct_result_rejects_ambiguity_between_owned_and_direct_inputs() {
+    let source = "data View { body: &mut i32; }
+         machine select(value: View, other: &mut i32) -> &mut i32 {
+             value.body
+         }";
+    rejects(source, "candidate ref inputs");
 }
 
 #[test]

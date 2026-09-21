@@ -1,7 +1,7 @@
 use crate::plan_policy::normalized_identities::non_authoritative_resource_profile_compatibility_fingerprint;
 use crate::{
     AccessPlanDiagnostic, AtomicCapability, ExternalCapability, ExternalReadBehavior,
-    ResourceProfile, ResourceRegion, TransferRule, ValidatedResourceProfile,
+    PeerWritability, ResourceProfile, ResourceRegion, TransferRule, ValidatedResourceProfile,
 };
 
 /// Normalize one provider resource profile into exact disjoint supply rows.
@@ -35,6 +35,12 @@ pub fn validate_resource_profile(
         }
         normalize_external_capability(&mut region.external)?;
         normalize_atomic_capability(&mut region.atomic)?;
+        if region.peer == PeerWritability::HostileShared && region.stable.any() {
+            return Err(AccessPlanDiagnostic(format!(
+                "resource-profile region {}..{end} supplies stable access over hostile-shared memory",
+                region.offset
+            )));
+        }
         if !region.stable.any() && !region.external.any() && !region.atomic.any() {
             return Err(AccessPlanDiagnostic(format!(
                 "resource-profile region {}..{end} supplies no operation",
@@ -50,6 +56,7 @@ pub fn validate_resource_profile(
                 )));
             }
             if region.offset == previous_end
+                && previous.peer == region.peer
                 && previous.stable == region.stable
                 && previous.external == region.external
                 && previous.atomic == region.atomic

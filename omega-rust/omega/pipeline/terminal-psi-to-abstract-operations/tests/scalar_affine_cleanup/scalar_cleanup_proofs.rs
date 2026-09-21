@@ -404,11 +404,13 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 entry: block_id(1),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(1),
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: semantic_vocabulary::OperationId::new(1).expect("operation"),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -434,6 +436,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(1),
                     crash_routes: Vec::new(),
                     requires: vec![caller_requirement.clone()],
@@ -459,6 +462,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 entry: block_id(2),
                 blocks: vec![Block {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     structural_parameters: Vec::new(),
                     id: block_id(2),
                     parameters: Vec::new(),
@@ -470,6 +474,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 }],
                 contract: MachineContract {
                     erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     id: contract_id(2),
                     crash_routes: Vec::new(),
                     requires: vec![Proposition::Equal(

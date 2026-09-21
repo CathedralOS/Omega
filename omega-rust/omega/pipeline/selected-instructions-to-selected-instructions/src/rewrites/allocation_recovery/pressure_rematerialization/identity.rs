@@ -1,5 +1,3 @@
-use sha2::{Digest, Sha256};
-
 use crate::{
     PressureRematerializationIdentity, PressureRematerializationPlan,
     PressureRematerializationPolicy,
@@ -11,7 +9,7 @@ pub fn pressure_rematerialization_identity(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"omega.terminal-pressure-rematerialization.v2\0");
     bytes.extend_from_slice(&encode_terminal_pressure_rematerialization_content(plan));
-    PressureRematerializationIdentity(Sha256::digest(bytes).into())
+    PressureRematerializationIdentity::from_canonical_bytes(&bytes)
 }
 
 pub(crate) fn encode_terminal_pressure_rematerialization_content(

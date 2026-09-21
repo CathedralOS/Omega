@@ -7,7 +7,15 @@ pub const SELECTED_EMPTY_COMPONENT: &str = "terminal_psi/selected_empty_componen
 /// by the consumer after producer state is gone.
 pub const PORTABLE_CONTRACT_COMPONENT: &str = "terminal_psi/portable_contract_component";
 
-pub const PASS_CANARIES: &[&str] = &[SELECTED_EMPTY_COMPONENT, PORTABLE_CONTRACT_COMPONENT];
+/// Named trait operators: the crowned requirement token, its named-call and
+/// proof-static binder resolutions, and a concrete crowning declaration.
+pub const STRUCTURAL_SCALAR_TRAIT_OPERATOR: &str = "terminal_psi/structural_scalar_trait_operator";
+
+pub const PASS_CANARIES: &[&str] = &[
+    SELECTED_EMPTY_COMPONENT,
+    PORTABLE_CONTRACT_COMPONENT,
+    STRUCTURAL_SCALAR_TRAIT_OPERATOR,
+];
 
 /// Fixtures the serialized reload control runs. Membership requires a
 /// standalone Terminal product and an interpretable entry.

@@ -568,6 +568,7 @@ fn hash_entry_slot(hash: &mut Fnv1a, entry_slot: ProgramEntrySlotDeclaration) {
             .map_or(0, |package| match package {
                 ProgramEntryPhysicalContractPackage::UefiX64 => 1,
                 ProgramEntryPhysicalContractPackage::MacosArm64 => 2,
+                ProgramEntryPhysicalContractPackage::MacosX64 => 6,
                 ProgramEntryPhysicalContractPackage::LinuxX86_64 => 3,
                 ProgramEntryPhysicalContractPackage::LinuxArm64 => 4,
                 ProgramEntryPhysicalContractPackage::WindowsX64 => 5,
@@ -646,7 +647,13 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        FIELD_COUNT, LayoutPlacementReport, TargetProfile,
+        UEFI_X64_BOOT_SERVICES_NATIVE_LAYOUT_COMMITMENT, UefiBootServicesNativeField,
+        exact_uefi_x64_boot_services_layout_plan_report,
+        exact_uefi_x64_boot_services_native_layout, plan_uefi_boot_services_native_layout,
+        replayed_uefi_x64_boot_services_native_layout, validate_fields,
+    };
 
     #[test]
     fn exact_boot_services_layout_retains_every_x64_field() {

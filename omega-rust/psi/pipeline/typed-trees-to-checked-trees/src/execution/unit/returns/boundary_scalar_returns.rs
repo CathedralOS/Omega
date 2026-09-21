@@ -222,6 +222,8 @@ pub(crate) fn build_boundary_scalar_return_machine(
     }
     let erased_scalar_parameters =
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
+    let erased_proof_parameters =
+        crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
     Some(CheckedBoundaryScalarReturnMachinePlan {
         machine: machine.symbol,
         state: state.symbol,
@@ -229,6 +231,7 @@ pub(crate) fn build_boundary_scalar_return_machine(
         structural_parameters,
         scalar_parameters,
         erased_scalar_parameters,
+        erased_proof_parameters,
         entry_claims,
         boundary_call,
         result_type,

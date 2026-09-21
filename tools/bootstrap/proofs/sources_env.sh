@@ -24,9 +24,9 @@
 # checker, the theory, or any derived certificate. Changing a member or a
 # manifest invalidates the dependent evidence and must update every record.
 DERIVATION_CHECKER_MANIFEST_SIZE=9046
-DERIVATION_CHECKER_MANIFEST_SHA256=661f3483b149bfed17cc9b994aac5dc377061c95f7f0d1bc32e3b620dae70165
-DERIVATION_CHECKER_PACKED_SIZE=62349
-DERIVATION_CHECKER_PACKED_SHA256=6423e10ca5dab533d8d0f58dc1e66eb08917273889a00d5da985433483528802
+DERIVATION_CHECKER_MANIFEST_SHA256=21ba1a712dd68e3492abb46d435a906fab8bbc49b67557d13910512e2c975f5b
+DERIVATION_CHECKER_PACKED_SIZE=62357
+DERIVATION_CHECKER_PACKED_SHA256=382531b910429c7111c2bc9e7dcce7e96394c45fa0a89b624debd061b69422b2
 BETA_ENCODING_MANIFEST_SIZE=5536
 BETA_ENCODING_MANIFEST_SHA256=f93d98315b2197d81babcc8b3345a1df0e4eb219bf7e5c3288132ec2d3fe2e5d
 BETA_ENCODING_PACKED_SIZE=130363
@@ -35,9 +35,10 @@ BETA_ENCODING_DEFINITION_PACKAGE_SIZE=116900
 BETA_ENCODING_DEFINITION_PACKAGE_SHA256=6bbdd15abac8060a9c5718f58944f758c5c647c1aae827d92f61231b01c3987c
 
 # Bound gate-local prefix entries packed on top of the bound member bytes.
-# Each derivation gate packs its own diagnostic entry on the packed checker
-# or theory closure — the customer bytes are the gate's prefix plus the
-# bound members — so the entries bind here the same way the staged-compiler
+# The beta-encoding theory and certificate-check gates pack the shared
+# producer entry on the packed theory closure; each derivation gate packs
+# its own diagnostic entry on the packed checker or theory closure — the
+# customer bytes are the gate's prefix plus the bound members — so the entries bind here the same way the staged-compiler
 # development driver binds on the Delta edge and the omega-* customer
 # entries bind on the Omega edge: separate inputs from the canonical
 # closures, never part of the manifested members. The identical pins in each
@@ -46,6 +47,10 @@ BETA_ENCODING_DEFINITION_PACKAGE_SHA256=6bbdd15abac8060a9c5718f58944f758c5c647c1
 # is an identity check on the entry source; it is not a proof of the gate's
 # judgment. Changing an entry changes the packed customer and must update
 # every record together.
+BETA_ENCODING_PRODUCER_ENTRY_SIZE=211
+BETA_ENCODING_PRODUCER_ENTRY_SHA256=35577d248b7745f3a6f4d2615e81bb8aae40cb8608d5fbda0be55978b544b373
+DERIVATION_ADMISSION_ENTRY_SIZE=1270
+DERIVATION_ADMISSION_ENTRY_SHA256=d657d412c92123bdc6dc7c95c38eed50a158c5c986507c5eb3f5ae4420a96e88
 DERIVATION_CHECKING_ENTRY_SIZE=1155
 DERIVATION_CHECKING_ENTRY_SHA256=8601e23955e3054eba95a2b5e7e2dd2a92d4ae47c8cb9bf49d9ce77c295a16a2
 DERIVATION_FORMATION_ENTRY_SIZE=1584
@@ -57,10 +62,10 @@ DERIVATION_LAYOUT_ENTRY_SHA256=49b1d9e459cfcb6b81f84725fc5855f4554174102a3b78269
 
 DERIVATION_SUBSTITUTION_DIAGNOSTIC_SIZE=1638
 DERIVATION_SUBSTITUTION_DIAGNOSTIC_SHA256=3b312fed1fc8a87293c04102e55e247c342109594b89483b19a5e717251e2d9d
-DERIVATION_SUBSTITUTION_ENTRY_BUDGET_SIZE=864
-DERIVATION_SUBSTITUTION_ENTRY_BUDGET_SHA256=08fa1b7b60291529108122ff06d652cd45e92f08867bad8c132dcb643c4baede
-DERIVATION_SUBSTITUTION_ENTRY_BULK_SIZE=1030
-DERIVATION_SUBSTITUTION_ENTRY_BULK_SHA256=376603ce42d18ed36d637b08b142ae7eb355c7a8faa9eb456ce5bcf78ac8fad1
+DERIVATION_SUBSTITUTION_ENTRY_BUDGET_SIZE=872
+DERIVATION_SUBSTITUTION_ENTRY_BUDGET_SHA256=29d8df5655066363f790568ea0c2385d4ced2a6f78919de94c7602962bcac371
+DERIVATION_SUBSTITUTION_ENTRY_BULK_SIZE=1036
+DERIVATION_SUBSTITUTION_ENTRY_BULK_SHA256=a06db5c3cb773b4df95902e9e0d138ae903dee98dffd2373b5f83dfa8f7f25e5
 DERIVATION_SUBSTITUTION_ENTRY_CASE_SIZE=213
 DERIVATION_SUBSTITUTION_ENTRY_CASE_SHA256=ca69d2d53087b8fd1ddf74ff8cdc7c362cc590a9a3637cad9b018d0d12b9b349
 DERIVATION_SUBSTITUTION_ENTRY_CLAUSE_SIZE=333
@@ -78,14 +83,14 @@ DERIVATION_SUBSTITUTION_ENTRY_WITNESS_SHA256=5b199af8fd19f3f93c5235182b32917d250
 
 DERIVATION_COMPARISON_DIAGNOSTIC_SIZE=2999
 DERIVATION_COMPARISON_DIAGNOSTIC_SHA256=84e7a38014645379516949ce58fb9fb6f93ef87abb6b2bd2539b1f5795ccccd3
-DERIVATION_COMPARISON_ENTRY_BUDGET_SIZE=569
-DERIVATION_COMPARISON_ENTRY_BUDGET_SHA256=335eb658f739240d4b5f6101562872c158b8cf04ceeeb16c7ac7ef63eb04aca4
+DERIVATION_COMPARISON_ENTRY_BUDGET_SIZE=905
+DERIVATION_COMPARISON_ENTRY_BUDGET_SHA256=52f6ed0b0041a1427c8472269f0af8bcee1dbb5a5c187c21cb1a16cca9ccaf8a
 DERIVATION_COMPARISON_ENTRY_INVALID_SIZE=750
 DERIVATION_COMPARISON_ENTRY_INVALID_SHA256=9eee13b41741dafed34df7c3eed902c4fa1d26a4dc3cf2fdf6083250249a2a8d
-DERIVATION_COMPARISON_ENTRY_PENDING_SIZE=420
-DERIVATION_COMPARISON_ENTRY_PENDING_SHA256=ff3cb286d0946d8930013783020ab39d99174f4c522878f88da79fcfbf6e170a
-DERIVATION_COMPARISON_ENTRY_RESUME_SIZE=655
-DERIVATION_COMPARISON_ENTRY_RESUME_SHA256=e496e6a604c1a461952a8ca38c317bf90cb28a44d74a24a449280c67cf5d92f3
+DERIVATION_COMPARISON_ENTRY_PENDING_SIZE=708
+DERIVATION_COMPARISON_ENTRY_PENDING_SHA256=df595624382e734d40c29f598bf304d5884d825c34cae0c2a044dc7475337d65
+DERIVATION_COMPARISON_ENTRY_RESUME_SIZE=959
+DERIVATION_COMPARISON_ENTRY_RESUME_SHA256=c65fd47ecd7a09c23b92793c3a1cc359a292b6fb7fc48f9e007d33cc9c12c676
 DERIVATION_COMPARISON_ENTRY_RETENTION_SIZE=1017
 DERIVATION_COMPARISON_ENTRY_RETENTION_SHA256=7a84754c984ca008e8408210cbc2be2710bdb459fa851a66a676bbe854f2a94a
 DERIVATION_COMPARISON_ENTRY_ROOT_SIZE=390
@@ -173,11 +178,32 @@ materialize_beta_encoding_theory() {
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" "$BETA_ENCODING_DEST"
 }
 
+# require_beta_encoding_producer_entry_identity : the shared producer prefix
+# entry the beta-encoding theory and certificate-check gates pack on the
+# bound theory members is the bound file. The entry is a separate input
+# from the canonical closure and never part of the manifested members, so
+# consumers that pack it run this before packing; tests may call it
+# directly. It does not run during materialization.
+require_beta_encoding_producer_entry_identity() {
+  require_bound_identity "main.gamma" \
+    "$OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY" \
+    "$BETA_ENCODING_PRODUCER_ENTRY_SIZE" \
+    "$BETA_ENCODING_PRODUCER_ENTRY_SHA256" \
+    "tests/gamma/beta-encoding-theory/README.md"
+}
+
 # require_derivation_*_entry_identity : the gate's diagnostic prefix entry is
 # the bound file. The entry is a separate input from the canonical closure
 # and never part of the manifested members, so consumers that pack it run
 # this before packing; tests may call it directly. It does not run during
 # materialization.
+require_derivation_admission_entry_identity() {
+  require_bound_identity "main.gamma" \
+    "$OMEGA_PATH_DERIVATION_ADMISSION_ENTRY" \
+    "$DERIVATION_ADMISSION_ENTRY_SIZE" "$DERIVATION_ADMISSION_ENTRY_SHA256" \
+    "tests/gamma/derivation-admission/README.md"
+}
+
 require_derivation_checking_entry_identity() {
   require_bound_identity "main.gamma" \
     "$OMEGA_PATH_DERIVATION_CHECKING_ENTRY" \

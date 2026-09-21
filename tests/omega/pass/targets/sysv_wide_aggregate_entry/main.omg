@@ -2,11 +2,11 @@
 // 32-byte Microsoft boundary-handoff exception. It arrives inline on the
 // incoming SysV stack and every fragment is copied into runtime storage.
 pub data WideRecord {
-    first: u64;
-    second: u64;
-    third: u64;
-    fourth: u64;
-    fifth: u64;
+    first: u64 [0..=100];
+    second: u64 [0..=100];
+    third: u64 [0..=100];
+    fourth: u64 [0..=100];
+    fifth: u64 [0..=100];
 }
 pub data Main { observed: u64; }
 boundary machine Main::main(&mut self, value: WideRecord) -> i32 {

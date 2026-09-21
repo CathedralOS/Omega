@@ -477,10 +477,7 @@ pub(crate) fn check_published_ceiling_coverage(
             plan.crash.interface() == checked_trees::CrashInterface::PublishedCeiling
         })
     {
-        let caller_machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == caller.machine);
+        let caller_machine = crate::lookup::machine_by_symbol(program, caller.machine);
         let caller_name = caller_machine
             .map(|machine| machine.name.as_str())
             .unwrap_or("<unknown>");
@@ -513,10 +510,7 @@ pub(crate) fn check_published_ceiling_coverage(
                 if covered {
                     continue;
                 }
-                let target_name = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == call.target_machine())
+                let target_name = crate::lookup::machine_by_symbol(program, call.target_machine())
                     .map(|machine| machine.name.as_str())
                     .unwrap_or("<unknown>");
                 diagnostics.push(Diagnostic::error(format!(

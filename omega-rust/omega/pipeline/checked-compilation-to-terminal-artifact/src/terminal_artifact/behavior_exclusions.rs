@@ -437,6 +437,9 @@ fn describe_site(module: &terminal_psi::TerminalModule, site: &ProhibitedSite) -
                 .unwrap_or("<undeclared boundary>");
             format!("call to boundary `{identity}` (block {block}, operation {operation})")
         }
+        ProhibitedSite::DynamicCall { block, operation } => {
+            format!("dynamic call (block {block}, operation {operation})")
+        }
         ProhibitedSite::PortWrite { block, operation } => {
             format!("port write (block {block}, operation {operation})")
         }

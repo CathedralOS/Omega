@@ -73,6 +73,11 @@ pub(super) fn validate_type_shape(
                 return malformed("fixed array references an unknown structural element type");
             }
         }
+        StructuralTypeShape::ElementView { element } => {
+            if !has_structural_type(module, *element) {
+                return malformed("element view references an unknown structural element type");
+            }
+        }
         StructuralTypeShape::Sum { cases } => {
             require_unique_nonempty_identities(
                 cases.iter().map(|case| case.identity.as_str()),

@@ -1,8 +1,8 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterConstraintKey, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
-    SelectedInstructionPlanIdentity, VirtualRegisterId,
+    PressureRematerializationIdentity, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
 
@@ -14,18 +14,6 @@ use crate::{
 
 const MAGIC: &[u8; 8] = b"OMGREM\0\0";
 const VERSION: u32 = 2;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PressureRematerializationIdentity(pub(crate) [u8; 32]);
-
-impl PressureRematerializationIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PressureRematerializationPolicy {
