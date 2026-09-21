@@ -533,8 +533,9 @@ Service<R> family). The current failure set attributes to six families:
   **Cross-suite span, measured 2026-09-21 on macOS arm64 once
   `cargo check --workspace` came back green.** The same refusal STRING accounts
   for at least 17 failures across three suites, not 16 in one -- but they are
-  **three distinct causes**, not one wall. An earlier version of this note said
-  otherwise; that was wrong, and the split is recorded after the list:
+  **four distinct causes**, not one wall, and one recorded leg does not belong
+  to any of them. Two earlier versions of this note got that wrong (first "one
+  wall", then "three causes"); the measured split is recorded after the list:
 
   - `checked-trees-to-lowered-psi` — 8 more than this section lists, in
     `retention::conformance_applications::tests` ×3 and
@@ -548,7 +549,7 @@ Service<R> family). The current failure set attributes to six families:
 
   **The three causes, measured.**
 
-  - **Cause A -- the 8 `checked-trees-to-lowered-psi` failures.** A
+  - **Cause A -- the 8 `checked-trees-to-lowered-psi` failures. FIXED.** A
     consumer-side gap, and a regression about a day old:
     `caller_erased_proof_roster`
     (`c2l/src/scalar_graph/scalar_contracts.rs:346-369`, added by
@@ -569,11 +570,33 @@ Service<R> family). The current failure set attributes to six families:
     `asm_value_intrinsic_result_types_reach_the_call_operation_frontier`, whose
     own comment says they stop "where no `CheckedUnitEffectOperationPlan` arm
     exists for it yet". Owned by ASM-CATALOG-MEMORY-AND-CONTROL.
-  - **Cause C -- the `terminal_psi_runnable` legs.** Partly stale as recorded:
-    re-measured at HEAD, three of the four sources now lower cleanly and only
-    the bounded-root service-reach source still fails. It shares Cause B's
-    omission phase label but not its feature -- there is no operation-plan arm
-    for a call through a bounded machine-typed generic parameter either.
+  - **Cause C -- one `terminal_psi_runnable` leg.** No operation-plan arm for a
+    call through a **bounded machine-typed generic parameter**
+    (`let accepted: bool = Completion();`). Shares Cause B's omission phase
+    label but not its feature: B is builtin asm intrinsics, this is a bounded
+    machine parameter. Two different missing arms.
+  - **Cause D -- two `terminal_psi_runnable` legs.** Stop at
+    `local construction stopped at signature` on the `Service<Console>` carrier
+    shape -- the same omission variant `CANARY-ACQUIRES-THROUGH-HELPER-RETURN`
+    records at `TASKS.md:10377`, and a different one again from A/B/C.
+
+  **And one recorded leg is not this cluster at all.**
+  `source_concrete_root_service_reach_reaches_verified_optimizer_admission`
+  (`CONCRETE_ROOT_SERVICE_REACH_SOURCE`, entry `Root::enter`) lowers cleanly and
+  produces no omission row. If that leg is still red it is red somewhere after
+  lowering, and no record should keep attributing it here.
+
+  Per-leg, measured against exactly what `project_source_entry`
+  (`tests/native-differential/tests/terminal_psi_runnable.rs:117-154`) does --
+  an earlier probe of mine bound fused-service erasures the test does not, which
+  is what produced the bogus "three of four lower OK" reading:
+
+  | leg | source | entry | state |
+  |---|---|---|---|
+  | `source_byte_sequence_literal_...` (:157) | `canonical_console_source()` | `Main::main` | fails at `signature` (D) |
+  | `source_provider_attachment_specialization_...` (:218) | `straight_line_console_source(2, 0)` | `Main::main` | fails at `signature` (D) |
+  | `source_concrete_root_service_reach_...` (:386) | `CONCRETE_ROOT_SERVICE_REACH_SOURCE` | `Root::enter` | **lowers OK** |
+  | `source_bounded_root_service_reach_...` (:435) | `BOUNDED_ROOT_SERVICE_REACH_SOURCE` | `Root::enter` | fails at `call: call operation` (C) |
 
   The omission phase that accompanies B and C is a **third** one beside the two
   recorded above (`signature`, `state graph: state signature: ...`):
