@@ -59,9 +59,19 @@ exists to surface.
 
 ## Candidate side
 
-`record["candidate"]` is `pending` on purpose: the matching-logic slice
-checker, its theory/axiom set, and its certificate format belong to
-`MATCHING-LOGIC-BOUNDED-SLICE` (`tools/matching-logic-slice`) and
-`MATCHING-LOGIC-COMPARISON-METRICS` (`tools/matching-logic-metrics`). Once
-they land, the same axes over the same pinned pairs fill the second
-column; nothing in the schema changes.
+`record["candidate"]` carries one measured column and two pending ones:
+
+- **Sort encoding (measured)** — `candidate.sort_encoding` runs the
+  typed-to-one-sorted encoder
+  (`tools/matching-logic-sort-encoding/sort_encoding.py check`) over every
+  case in its `cases/` corpus and records the emitted clause inventory —
+  every clause is an axiom admission — plus per-case diagnostics and the
+  checklist provenance (fragment, rule/semantics versions, subject,
+  capsule, observation profile, bridge graph). `translation_surface` is
+  the encoder's own physical line count: the candidate's translation
+  size, counterpart to `0` on the current route.
+- **Checker / theory / certificate (pending)** — these belong to
+  `MATCHING-LOGIC-BOUNDED-SLICE` (`tools/matching-logic-slice`) and
+  `MATCHING-LOGIC-COMPARISON-METRICS` (`tools/matching-logic-metrics`).
+  Once they land, the same axes over the same pinned pairs fill the
+  remaining columns; nothing in the schema changes.

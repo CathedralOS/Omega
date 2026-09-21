@@ -7,5 +7,5 @@ pub data WrappedFloat { leaf: FloatLeaf; }
 pub data Main { output: WrappedFloat; }
 boundary machine Main::main(&mut self, input: WrappedFloat) -> WrappedFloat {
     self.output = input;
-    transition { _ -> (self.output) }
+    transition { _ -> (WrappedFloat { leaf: FloatLeaf { value: self.output.leaf.value } }) }
 }

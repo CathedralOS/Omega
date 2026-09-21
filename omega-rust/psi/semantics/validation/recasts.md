@@ -23,6 +23,11 @@ offsets need proved congruence. Source recasts are currently validated as direct
 reference-typed `let` initializers restating the target type. Other positions
 remain fenced; a mismatched bare borrow cannot bypass the recast judgment.
 
+Every recast-path diagnostic attaches the authored source span of the
+offending `as` expression (the stray cast itself for the positional sweep, the
+let's initializer for the unspelled reference pun), so fenced positions and
+judgment refusals name their exact site.
+
 Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence
 cannot replace the placement access plan. Focused source cases live in

@@ -125,6 +125,7 @@ fn machine() -> TerminalMachine {
         entry: id(1, BlockId::new),
         blocks: vec![Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: id(1, BlockId::new),
             parameters: Vec::new(),
@@ -136,6 +137,7 @@ fn machine() -> TerminalMachine {
         }],
         contract: MachineContract {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: id(1, ContractId::new),
             crash_routes: Vec::new(),
             requires: Vec::new(),
@@ -369,12 +371,14 @@ fn an_early_return_through_a_second_block_rejects() {
         target: id(2, BlockId::new),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(2, BlockId::new),
         parameters: Vec::new(),
@@ -558,6 +562,7 @@ fn the_window_cannot_cross_an_edge() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
                 place: id(1, PlaceId::new),
                 path: argument,
@@ -568,6 +573,7 @@ fn the_window_cannot_cross_an_edge() {
         };
         machine.blocks.push(Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: id(5, PlaceId::new),
                 position: 0,
@@ -625,6 +631,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
             target: id(2, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -633,12 +640,14 @@ fn a_join_must_carry_the_window_through_both_arms() {
             target: id(3, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
     };
     let open_arm = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(2, BlockId::new),
         parameters: Vec::new(),
@@ -648,6 +657,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
             target: id(4, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -655,6 +665,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
     };
     let quiet_arm = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(3, BlockId::new),
         parameters: Vec::new(),
@@ -664,6 +675,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
             target: id(4, BlockId::new),
             arguments: Vec::new(),
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
             trivial_affine_discards: Vec::new(),
             residual_affine_discards: Vec::new(),
@@ -671,6 +683,7 @@ fn a_join_must_carry_the_window_through_both_arms() {
     };
     let merge = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: id(4, BlockId::new),
         parameters: Vec::new(),
@@ -770,4 +783,232 @@ fn crash_abandons_the_window_without_cleanup() {
         frontier_lower_bound: Vec::new(),
     };
     validate_module(&module).expect("crash retains no restoration obligation");
+}
+
+#[test]
+fn successor_arity_reports_before_window_debt() {
+    let mut module = window_module();
+    let machine = &mut module.machines[0];
+    // Leave the `left` window open, then jump to a target declaring one
+    // shared-borrow parameter while the edge carries two arguments that both
+    // overlap the open window. Successor-argument arity reports before the
+    // restoration-debt scan — a misordered scan would surface the window
+    // violation instead.
+    machine.blocks[0].operations.pop();
+    machine.blocks[0].terminator = Terminator::Jump {
+        edge: id(2, EdgeId::new),
+        target: id(2, BlockId::new),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: vec![
+            StructuralArgument {
+                place: id(1, PlaceId::new),
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+            StructuralArgument {
+                place: id(1, PlaceId::new),
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+        ],
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(5, PlaceId::new),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: id(2, BlockId::new),
+            position: 0,
+        },
+    });
+    machine.blocks.push(Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: vec![StructuralParameterDeclaration {
+            place: id(5, PlaceId::new),
+            position: 0,
+            is_self: false,
+            structural_type: envelope(),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }],
+        id: id(2, BlockId::new),
+        parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: Terminator::ReturnUnit {
+            edge: id(3, EdgeId::new),
+            trivial_affine_discards: Vec::new(),
+        },
+    });
+    assert_rejects(
+        &module,
+        ModuleError::StructuralJumpArityMismatch {
+            edge: id(2, EdgeId::new),
+            expected: 1,
+            actual: 2,
+        },
+    );
+}
+
+#[test]
+fn overlapping_successor_arguments_report_in_edge_order() {
+    for (first, second, reported) in [(2_u64, 1_u64, 2_u64), (1_u64, 2_u64, 1_u64)] {
+        let mut module = window_module();
+        let machine = &mut module.machines[0];
+        machine.blocks[0].operations.pop();
+        machine.structural_places.extend([
+            StructuralPlaceDeclaration {
+                id: id(5, PlaceId::new),
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: id(2, BlockId::new),
+                    position: 0,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: id(6, PlaceId::new),
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: id(2, BlockId::new),
+                    position: 1,
+                },
+            },
+        ]);
+        // Both arguments overlap the open `left` window at distinct places —
+        // the borrowed envelope covers the hole and the moved Cell still
+        // aliases it. The earlier argument in the edge is the one that
+        // reports, so diagnostic order is authored order.
+        let argument = |place: u64| StructuralArgument {
+            place: id(place, PlaceId::new),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        };
+        machine.blocks[0].terminator = Terminator::Jump {
+            edge: id(2, EdgeId::new),
+            target: id(2, BlockId::new),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![argument(first), argument(second)],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        };
+        machine.blocks.push(Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: vec![
+                StructuralParameterDeclaration {
+                    place: id(5, PlaceId::new),
+                    position: 0,
+                    is_self: false,
+                    structural_type: cell(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+                StructuralParameterDeclaration {
+                    place: id(6, PlaceId::new),
+                    position: 1,
+                    is_self: false,
+                    structural_type: envelope(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+            ],
+            id: id(2, BlockId::new),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: id(3, EdgeId::new),
+                trivial_affine_discards: Vec::new(),
+            },
+        });
+        assert_eq!(
+            validate_module(&module).unwrap_err(),
+            ModuleError::InvalidStructuralSuccessorArgument {
+                edge: id(2, EdgeId::new),
+                place: id(reported, PlaceId::new),
+            },
+            "edge order {first} then {second} must report place {reported}"
+        );
+    }
+}
+
+#[test]
+fn a_conditional_reports_the_true_arm_successor_first() {
+    let mut module = window_module();
+    let machine = &mut module.machines[0];
+    machine.blocks[0].operations.pop();
+    machine.blocks[0].operations.push(boolean_constant(
+        id(5, OperationId::new),
+        id(1, ValueId::new),
+        true,
+    ));
+    // Both arms carry the same window-overlapping argument into equivalent
+    // targets; the true arm's edge must report first.
+    let overlapping_argument = StructuralArgument {
+        place: id(1, PlaceId::new),
+        path: Vec::new(),
+        access: StructuralAccess::SharedBorrow,
+    };
+    machine.blocks[0].terminator = Terminator::Conditional {
+        condition: id(1, ValueId::new),
+        when_true: SuccessorEdge {
+            edge: id(2, EdgeId::new),
+            target: id(2, BlockId::new),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![overlapping_argument.clone()],
+            trivial_affine_discards: Vec::new(),
+        },
+        when_false: SuccessorEdge {
+            edge: id(3, EdgeId::new),
+            target: id(3, BlockId::new),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![overlapping_argument],
+            trivial_affine_discards: Vec::new(),
+        },
+    };
+    for (block, place) in [(id(2, BlockId::new), 5_u64), (id(3, BlockId::new), 6_u64)] {
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: id(place, PlaceId::new),
+            kind: StructuralPlaceKind::BlockParameter { block, position: 0 },
+        });
+        machine.blocks.push(Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: id(place, PlaceId::new),
+                position: 0,
+                is_self: false,
+                structural_type: envelope(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }],
+            id: block,
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: id(10 + place, EdgeId::new),
+                trivial_affine_discards: Vec::new(),
+            },
+        });
+    }
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidStructuralSuccessorArgument {
+            edge: id(2, EdgeId::new),
+            place: id(1, PlaceId::new),
+        },
+    );
 }

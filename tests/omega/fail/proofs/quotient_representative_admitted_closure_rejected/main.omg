@@ -1,11 +1,11 @@
 use omega::language::core::relation;
 
-data Representative {
+pub data Representative {
     case Zero;
     case Next(previous: Representative);
 }
 
-proposition equivalent(a: Representative, b: Representative) = a == b;
+pub proposition equivalent(a: Representative, b: Representative) = a == b;
 
 machine equivalent_reflexive(a: Representative)
 ensures a == a
@@ -46,7 +46,13 @@ boundary machine observe(value: Representative) -> bool;
 // The representative declaration is an ordinary checked body; only its
 // transitive call closure reaches the boundary seam. Acceptance must hold
 // under a policy refusing quotient assumptions, so the closure decides.
-machine representative(value: Representative) -> Representative {
+//
+// The closure check is unreachable today: bodyless boundary machines are
+// symbols for contracts only, so `observe(value)` is refused at call-site
+// validation before quotient validation runs. The pinned diagnostic now
+// names that earlier gate (same masking class as the boundary/theorem
+// siblings).
+pub machine representative(value: Representative) -> Representative {
     let seen: bool = observe(value);
     value
 }

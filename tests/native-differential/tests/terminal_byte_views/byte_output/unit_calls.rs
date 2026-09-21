@@ -21,6 +21,7 @@ pub(super) fn unit_byte_output_calls_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: module.entry,
             arguments: vec![value],
             structural_arguments: Vec::new(),

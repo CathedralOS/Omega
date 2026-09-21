@@ -27,6 +27,7 @@ pub use optimized_semantic_entry::{
     bind_optimized_program_storage_semantic_entry_contract,
 };
 pub use optimized_semantic_wrapper::{
+    OptimizedProgramStorageSemanticReceiverLayout, OptimizedProgramStorageSemanticReceiverStorage,
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     OptimizedProgramStorageSemanticWrapperPlan,

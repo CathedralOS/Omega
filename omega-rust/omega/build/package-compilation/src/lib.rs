@@ -7,12 +7,16 @@
 //! `source_consumption` records exactly which of it was read, and
 //! `semantic_bindings` carries the optional standard-library bindings.
 
+mod checked_source_cache;
 mod package_compilation;
 mod semantic_bindings;
 mod source_consumption;
 mod source_snapshot;
 
 pub use build_declarations::BuildDeclarationKind;
+pub use checked_source_cache::{
+    CachedSourceIndex, CheckedSourceCache, CheckedSourceCacheLimits, CheckedSourceCacheOutcome,
+};
 pub use package_compilation::{
     BuildDependencyOccurrence, IndependentComponentDescription, PackageCompilationInputError,
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,

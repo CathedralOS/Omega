@@ -37,6 +37,21 @@ pub(super) fn collect(
             "calling requirement application has stale telescope arity",
         ));
     }
+    // The lifetime zip below resolves by first source-name match, so a
+    // repeated binder on an inherited trait would silently collapse to the
+    // earlier argument. Boundary and method telescopes reject repeats; the
+    // intermediate declaring scopes must not be the one silent case.
+    if application
+        .owner
+        .lifetime_parameters
+        .iter()
+        .enumerate()
+        .any(|(index, name)| application.owner.lifetime_parameters[..index].contains(name))
+    {
+        return Err(rejected(
+            "calling requirement inheritance repeats a trait lifetime binder",
+        ));
+    }
     let local = compilation
         .trait_machine_signatures(&application.owner)
         .iter()
@@ -122,3 +137,6 @@ pub(super) fn collect(
     active.pop();
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

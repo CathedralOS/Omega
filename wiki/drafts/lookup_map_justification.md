@@ -83,9 +83,20 @@ they are durable-child indexing, the sanctioned default.
 
 ## Residual risk and trigger
 
-The audit is a point-in-time census at `c2ccb2a202`, not a gate. A new
-name-keyed declaration map violates the policy only if it resolves authored
-spellings the scoped tree already owns; when a genuinely new key domain
-appears (e.g. another canonical-identity space), the measured-reason clause
-is satisfied by recording the key domain and why scoped lookup cannot serve
-it — as the classes above do.
+The census at `c2ccb2a202` is now repeatable:
+`tests/architecture/scoped_lookup_maps.rs` re-enumerates every production
+`HashMap`/`BTreeMap` keyed by an authored-spelling token and fails when a
+file carries one without a cataloged key-domain justification — or when a
+catalog entry outlives its map. A new name-keyed declaration map violates
+the policy only if it resolves authored spellings the scoped tree already
+owns; when a genuinely new key domain appears (e.g. another
+canonical-identity space), the measured-reason clause is satisfied by
+recording the key domain and why scoped lookup cannot serve it — as the
+classes above do.
+
+The gate sees declarations in source text; a map whose key hides behind a
+type alias, or a `Map` constructed only through a generic parameter, can
+still slip through — as can a second unjustified map added to a file that
+already cataloged one. Both are review-visible in the same file as the
+recorded row, so the tripwire's cost stays proportional to the policy's
+value.

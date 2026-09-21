@@ -23,6 +23,7 @@ pub(crate) fn checked_boolean_contains_short_circuit(
         | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
         | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
         | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
@@ -65,6 +66,7 @@ pub(crate) fn checked_boolean_local_reference_count(
         | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
         | checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
         | checked_trees::CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
         | checked_trees::CheckedBooleanExpression::ByteSequenceEqual { .. }
         | checked_trees::CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | checked_trees::CheckedBooleanExpression::StructuralCaseMembership { .. } => 0,
@@ -109,7 +111,10 @@ pub(crate) fn is_structural_boolean_return_expression(
                     available_locals,
                 )
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            left, right, ..
+        } => {
             is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
                 && is_branch_free_structural_integer_expression(
                     right,
@@ -157,7 +162,8 @@ pub(crate) fn is_branch_free_structural_integer_expression(
         }
         CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
         | CheckedScalarExpression::IntegerWiden { operand, .. }
-        | CheckedScalarExpression::IntegerExactCast { operand, .. } => {
+        | CheckedScalarExpression::IntegerExactCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
             is_branch_free_structural_integer_expression(
                 operand,
                 scalar_parameters,
@@ -220,7 +226,10 @@ pub(crate) fn is_branch_free_structural_boolean_expression(
                     available_locals,
                 )
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. }
+        | checked_trees::CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            left, right, ..
+        } => {
             is_branch_free_structural_integer_expression(left, scalar_parameters, available_locals)
                 && is_branch_free_structural_integer_expression(
                     right,

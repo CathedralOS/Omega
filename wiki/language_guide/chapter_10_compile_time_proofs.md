@@ -580,7 +580,7 @@ development builds with a standing warning until granted; dependency boundary
 machines are inert until granted. A package cannot grant its own claims on
 behalf of its consumers. Development use is not consumer or release acceptance.
 
-A boundary statement the checker can refute against declared ranges, domains,
+A boundary statement the checker can refute against established bounds, domains,
 or another accepted statement rejects despite a grant. This is not a guarantee
 that the complete assumption set is consistent. These rules belong to
 [receiving policy](../spec/proofs/contracts.md#axioms-and-receiving-policy).

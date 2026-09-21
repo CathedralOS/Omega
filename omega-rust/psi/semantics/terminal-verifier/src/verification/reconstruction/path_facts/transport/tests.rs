@@ -43,6 +43,7 @@ fn successor_block(parameters: Vec<(u64, ScalarType)>) -> Block {
             })
             .collect(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         operations: Vec::new(),
         terminator: Terminator::ReturnUnit {

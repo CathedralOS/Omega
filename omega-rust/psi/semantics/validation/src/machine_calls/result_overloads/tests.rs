@@ -221,3 +221,100 @@ fn missing_exact_result_dispatch_set_rejects_without_rebinding() {
             .contains("result dispatch set `arithmetic:Wrapping`")
     }));
 }
+
+fn module_free_overload(
+    program: &mut TypedTrees,
+    machine_symbol: u32,
+    entry_symbol: u32,
+    parameter_type: TypeReferenceHandle,
+    return_type: TypeReferenceHandle,
+) -> Machine {
+    let mut overload = overload(
+        program,
+        machine_symbol,
+        entry_symbol,
+        parameter_type,
+        return_type,
+    );
+    overload.name = Identifier::generated("convert");
+    overload.attached_data = None;
+    overload
+}
+
+#[test]
+fn unbound_receiverless_call_into_duplicate_name_family_resolves_by_result_dispatch() {
+    let mut program = TypedTrees::default();
+    let bool_type = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("bool"),
+        });
+    let i32_type = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("i32"),
+        });
+    let saturating_type = constrained_policy(&mut program, i32_type, ArithmeticDomain::Saturating);
+    // Two same-named top-level machines form one result-overload family:
+    // identical path and parameter signature, distinct result dispatch sets.
+    let unqualified = module_free_overload(&mut program, 10, 11, bool_type, i32_type);
+    let saturating = module_free_overload(&mut program, 20, 21, bool_type, saturating_type);
+    program.push_machine(unqualified);
+    program.push_machine(saturating);
+
+    let argument = program
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    // The ambiguous authored name binds no provisional symbol upstream.
+    let qualified_call = expression_call(&mut program, SymbolHandle::invalid(), argument);
+    let ordinary_call = expression_call(&mut program, SymbolHandle::invalid(), argument);
+    let mut caller_state = State {
+        symbol: SymbolHandle::from_arena_index(31),
+        name: Identifier::generated("entry"),
+        ..State::default()
+    };
+    program.statement_table.push_statement(
+        &mut caller_state.statement_nodes,
+        StatementNode::LocalData(TableLocalData {
+            symbol: SymbolHandle::from_arena_index(32),
+            name: Identifier::generated("qualified"),
+            type_reference: saturating_type,
+            initial_value: qualified_call,
+            is_mutable: false,
+            type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
+        }),
+    );
+    program.statement_table.push_statement(
+        &mut caller_state.statement_nodes,
+        StatementNode::LocalData(TableLocalData {
+            symbol: SymbolHandle::from_arena_index(33),
+            name: Identifier::generated("ordinary"),
+            type_reference: i32_type,
+            initial_value: ordinary_call,
+            is_mutable: false,
+            type_is_inferred: false,
+            relevance: language_core::BindingRelevance::Relevant,
+        }),
+    );
+    let mut caller = Machine {
+        symbol: SymbolHandle::from_arena_index(30),
+        name: Identifier::generated("Main::run"),
+        ..Machine::default()
+    };
+    program.push_machine_state(&mut caller, caller_state);
+    program.push_machine(caller);
+
+    resolve_named_result_overloads(&mut program).expect("overload family resolves");
+
+    let ExpressionNode::Call(call) = program.expression_table.expression(qualified_call) else {
+        panic!("expected call expression");
+    };
+    assert_eq!(call.target_symbol, SymbolHandle::from_arena_index(21));
+    let ExpressionNode::Call(call) = program.expression_table.expression(ordinary_call) else {
+        panic!("expected call expression");
+    };
+    assert_eq!(call.target_symbol, SymbolHandle::from_arena_index(11));
+}

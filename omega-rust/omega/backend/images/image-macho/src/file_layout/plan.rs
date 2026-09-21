@@ -4,13 +4,13 @@
 use crate::code_signature::code_signature_size;
 use crate::dyld_linking::load_commands::MachoDylib;
 use crate::file_layout::constants::{
-    MACHO_ARM64_PAGE_SIZE, MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYLD_INFO_COMMAND_SIZE,
-    MACHO_DYSYMTAB_COMMAND_SIZE, MACHO_EXECUTABLE_BASE,
-    MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE, MACHO_HEADER_SIZE,
+    MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYLD_INFO_COMMAND_SIZE, MACHO_DYSYMTAB_COMMAND_SIZE,
+    MACHO_EXECUTABLE_BASE, MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE, MACHO_HEADER_SIZE,
     MACHO_LOAD_DYLINKER_COMMAND_SIZE, MACHO_MAIN_COMMAND_SIZE, MACHO_SECTION_SIZE,
     MACHO_SEGMENT_COMMAND_SIZE, MACHO_SYMTAB_COMMAND_SIZE, MACHO_UUID_COMMAND_SIZE,
 };
 use crate::file_layout::layout::{align_to, align_to_u64};
+use crate::isa::MachoIsa;
 use image::{FinalImage, FinalImageLayout};
 
 pub(crate) struct MachOImagePlan {
@@ -55,7 +55,9 @@ pub(crate) fn plan_macho_image(
     bind_size: usize,
     dylibs: &[MachoDylib],
     code_signature_identifier: &str,
+    isa: MachoIsa,
 ) -> MachOImagePlan {
+    let page_size = usize::try_from(isa.page_size()).expect("Mach-O page size");
     let has_imports = import_count > 0;
     let has_dyld_info = rebase_size > 0 || has_imports;
     let data_section_count =
@@ -83,7 +85,7 @@ pub(crate) fn plan_macho_image(
         + MACHO_SEGMENT_COMMAND_SIZE
         + MACHO_CODE_SIGNATURE_COMMAND_SIZE;
     let text_offset = align_to(MACHO_HEADER_SIZE + sizeofcmds, 16);
-    let data_offset = align_to(text_offset + image.memory.text.len(), MACHO_ARM64_PAGE_SIZE);
+    let data_offset = align_to(text_offset + image.memory.text.len(), page_size);
     let text_address = MACHO_EXECUTABLE_BASE + text_offset as u64;
     let data_address = MACHO_EXECUTABLE_BASE + data_offset as u64;
     let bss_address = align_to_u64(
@@ -93,7 +95,7 @@ pub(crate) fn plan_macho_image(
     let text_file_size = if has_data_segment {
         data_offset
     } else {
-        align_to(text_offset + image.memory.text.len(), MACHO_ARM64_PAGE_SIZE)
+        align_to(text_offset + image.memory.text.len(), page_size)
     };
     let data_memory_size = if has_data_segment {
         (bss_address - data_address)
@@ -102,16 +104,17 @@ pub(crate) fn plan_macho_image(
     } else {
         0
     };
-    let data_vm_size = align_to_u64(data_memory_size, MACHO_ARM64_PAGE_SIZE as u64);
+    let data_vm_size = align_to_u64(data_memory_size, isa.page_size());
     let unsigned_file_end = if has_data_segment {
         data_offset + image.memory.data.len()
     } else {
         text_offset + image.memory.text.len()
     };
-    let rebase_offset = align_to(unsigned_file_end, MACHO_ARM64_PAGE_SIZE);
+    let rebase_offset = align_to(unsigned_file_end, page_size);
     let bind_offset = rebase_offset + rebase_size;
-    let code_signature_offset = align_to(bind_offset + bind_size, MACHO_ARM64_PAGE_SIZE);
-    let code_signature_size = code_signature_size(code_signature_offset, code_signature_identifier);
+    let code_signature_offset = align_to(bind_offset + bind_size, page_size);
+    let code_signature_size =
+        code_signature_size(code_signature_offset, code_signature_identifier, isa);
     let linkedit_vmaddr = if has_data_segment {
         data_address
             .checked_add(data_vm_size)
@@ -123,7 +126,7 @@ pub(crate) fn plan_macho_image(
     };
     let linkedit_offset = rebase_offset;
     let linkedit_filesize = code_signature_offset + code_signature_size - linkedit_offset;
-    let linkedit_vmsize = align_to(linkedit_filesize, MACHO_ARM64_PAGE_SIZE);
+    let linkedit_vmsize = align_to(linkedit_filesize, page_size);
 
     MachOImagePlan {
         has_dyld_info,
@@ -151,9 +154,12 @@ pub(crate) fn plan_macho_image(
 #[cfg(test)]
 mod tests {
     use super::plan_macho_image;
-    use crate::file_layout::constants::{MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE};
+    use crate::file_layout::constants::MACHO_EXECUTABLE_BASE;
+    use crate::isa::MachoIsa;
     use arena::Handle;
     use image::FinalImage;
+
+    const PAGE_SIZE: usize = 0x4000;
 
     #[test]
     fn plans_macho_data_bss_and_linkedit_layout() {
@@ -178,24 +184,22 @@ mod tests {
             12,
             &[crate::dyld_linking::load_commands::MachoDylib::LIBSYSTEM],
             "omega-program",
+            MachoIsa::Aarch64,
         );
 
         assert!(plan.has_dyld_info);
         assert!(plan.has_data_segment);
         assert_eq!(plan.command_count, 13);
-        assert_eq!(plan.data_offset, MACHO_ARM64_PAGE_SIZE);
+        assert_eq!(plan.data_offset, PAGE_SIZE);
         assert_eq!(
             plan.text_address,
             MACHO_EXECUTABLE_BASE + plan.text_offset as u64
         );
-        assert_eq!(
-            plan.data_address,
-            MACHO_EXECUTABLE_BASE + MACHO_ARM64_PAGE_SIZE as u64
-        );
+        assert_eq!(plan.data_address, MACHO_EXECUTABLE_BASE + PAGE_SIZE as u64);
         assert_eq!(plan.bss_address, plan.data_address + 8);
-        assert_eq!(plan.data_vm_size, MACHO_ARM64_PAGE_SIZE as u64);
-        assert_eq!(plan.bind_offset, MACHO_ARM64_PAGE_SIZE * 2);
-        assert_eq!(plan.code_signature_offset, MACHO_ARM64_PAGE_SIZE * 3);
+        assert_eq!(plan.data_vm_size, PAGE_SIZE as u64);
+        assert_eq!(plan.bind_offset, PAGE_SIZE * 2);
+        assert_eq!(plan.code_signature_offset, PAGE_SIZE * 3);
         assert_eq!(plan.linkedit_vmaddr, plan.data_address + plan.data_vm_size);
         assert!(plan.linkedit_filesize >= plan.code_signature_size);
     }
@@ -222,12 +226,13 @@ mod tests {
             0,
             &[crate::dyld_linking::load_commands::MachoDylib::LIBSYSTEM],
             "omega-program",
+            MachoIsa::Aarch64,
         );
 
         assert!(plan.has_dyld_info);
-        assert_eq!(plan.rebase_offset, MACHO_ARM64_PAGE_SIZE * 2);
+        assert_eq!(plan.rebase_offset, PAGE_SIZE * 2);
         assert_eq!(plan.bind_offset, plan.rebase_offset + 5);
         assert_eq!(plan.linkedit_offset, plan.rebase_offset);
-        assert_eq!(plan.code_signature_offset, MACHO_ARM64_PAGE_SIZE * 3);
+        assert_eq!(plan.code_signature_offset, PAGE_SIZE * 3);
     }
 }

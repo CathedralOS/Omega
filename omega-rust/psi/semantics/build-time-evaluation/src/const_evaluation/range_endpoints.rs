@@ -95,18 +95,18 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
 use crate::BuildTimeAdmissionPlan;
 
-mod arguments;
+pub(super) mod arguments;
 mod integer_type;
 
-struct PendingEndpoint {
-    expression: ExpressionHandle,
-    root: ExpressionHandle,
+pub(super) struct PendingEndpoint {
+    pub(super) expression: ExpressionHandle,
+    pub(super) root: ExpressionHandle,
     /// The resolved callee in the working tree: a plain machine, or the
     /// generic template of a static application, explicit or inferred.
-    machine: symbols::SymbolHandle,
+    pub(super) machine: symbols::SymbolHandle,
     /// The authored target is generic; the executable callee must be the
     /// prepared tree's specialized instance.
-    static_application: bool,
+    pub(super) static_application: bool,
 }
 
 struct EndpointRoot {
@@ -186,7 +186,7 @@ impl EndpointCallee {
 /// must have been rewritten there to its concrete instance; a call that still
 /// carries static arguments was not specialized, which after `prepare` means
 /// a binder is missing or open, so ask for the explicit argument.
-fn resolve_endpoint_callee(
+pub(super) fn resolve_endpoint_callee(
     execution: &TypedTrees,
     endpoint: &PendingEndpoint,
 ) -> Result<EndpointCallee, String> {
@@ -555,7 +555,7 @@ fn endpoint_plan(typed: &TypedTrees) -> Result<EndpointPlan, Vec<Diagnostic>> {
 /// static application. Returns `None` for calls this route never
 /// folds: runtime receivers and evidence/dispatch forms. Generic callees still
 /// require an exact concrete instance from ordinary specialization.
-fn selected_endpoint_machine(
+pub(super) fn selected_endpoint_machine(
     typed: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(&typed_trees::machine::Machine, bool)> {

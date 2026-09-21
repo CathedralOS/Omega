@@ -995,8 +995,28 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
         return canonicalize_const_expression(syntax, origin, expression, selection, substitution);
     }
     match syntax.tables.type_references.type_reference(expected_type) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            canonicalize_const_expression(syntax, *base_type, expression, selection, substitution)
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let node = canonicalize_const_expression(
+                syntax,
+                *base_type,
+                expression,
+                selection,
+                substitution,
+            )?;
+            // A leaf landing under `in <domain>` owes the declaration-site
+            // domain discharge the declaration's own constrained carrier gets:
+            // nested positions are the construction-site parallel of the
+            // runtime field-domain gate.
+            crate::preparation::generic_data::prove_const_leaf_domain_constraints(
+                syntax,
+                syntax.tables.type_references.constraints(*constraints),
+                &node,
+                selection,
+            )?;
+            Ok(node)
         }
         TypeReferenceNode::Named(type_name)
             if matches!(
