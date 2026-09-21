@@ -923,34 +923,51 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   three rewrites and the commutation audit. `place_storage.rs` is the start
   of that owner.
 - **REPRESENTATION-SPECIALIZATION.** Add field/variant relevance and
-  invariant-window specialization. The bounded case-membership family in
+  invariant-window specialization. The bounded representation families in
   `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization/`
-  is now wired into the pass pipeline: `Optimization::RepresentationSpecialization`
-  selects `omega.psi-pass.representation-specialization.v1` (rule
-  `omega.psi-rule.case-membership-specialization.v1`) by exact name through
-  `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and replaying
-  independently under the evidence-matrix legs with
-  `omega.validator.case-membership-specialization.v1` re-deriving the proof.
+  and
+  `omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/field_value_specialization/`
+  are now wired into the pass pipeline under one exact-name selection:
+  `Optimization::RepresentationSpecialization` selects
+  `omega.psi-pass.representation-specialization.v1`, which schedules
+  `omega.psi-rule.case-membership-specialization.v1` then
+  `omega.psi-rule.field-value-specialization.v1` through
+  `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and
+  replaying each commit independently under the evidence-matrix legs.
   A `StructuralCaseMembership` reading a place whose case the unit itself
   proves — established in the same machine by `EstablishScalarCase`, or
   declared under a closed `Sum`/`Mixed` roster of exactly one case — folds
-  to a `BooleanConstant` carrying the proven verdict, with separate
-  proposal, validation and application. The roster basis covers places no
-  producer can fix (parameters, block parameters, results, and
-  non-`EstablishScalarCase` operation results), and a membership's non-empty
-  path folds when the position it resolves to — a `Record`/`Mixed` common
-  field, `FixedArray` element, or `Reference` referent — closes over exactly
-  one case. It declines memberships whose observed position carries no
-  proof — unestablished multi-case roots and paths ending on multi-case or
-  non-structural positions — and machines holding cyclic components stay
-  frozen byte-exact. Field relevance on `EstablishRecord` results still
-  lacks operand-substitution machinery, and no invariant-window operation
-  reaches this stage yet; both remain open under this item.
-  The bounded family's acceptance chain is witnessed: a source-produced
-  machine selects the rule by exact name through
-  `optimize_abstract_operations`, publishes, and replays independently, with
-  forged or stale membership provenance, disabled selection, and the cyclic
-  freeze behaving as
+  to a `BooleanConstant` carrying the proven verdict, with
+  `omega.validator.case-membership-specialization.v1` re-deriving the
+  proof. The roster basis covers places no producer can fix (parameters,
+  block parameters, results, and non-`EstablishScalarCase` operation
+  results), and a membership's non-empty path folds when the position it
+  resolves to — a `Record`/`Mixed` common field, `FixedArray` element, or
+  `Reference` referent — closes over exactly one case. It declines
+  memberships whose observed position carries no proof — unestablished
+  multi-case roots and paths ending on multi-case or non-structural
+  positions.
+  A `BooleanStructuralField`/`IntegerStructuralField` read whose stored
+  scalar the unit proves folds to the matching `BooleanConstant`/
+  `IntegerConstant`, with `omega.validator.field-value-specialization.v1`
+  re-deriving the proof on three bounded bases: the place's
+  `EstablishRecord` producer supplying a constant-resolving scalar
+  initializer at an empty path, the place's `EstablishScalarCase` producer
+  supplying one at a lone `Case` path matching `result_case`, or the
+  resolved field's declared `BoundedInteger` bound closing over exactly
+  one value. Constant resolution follows same-function block-parameter
+  bindings transitively and rejects divergent or cyclic chains; reads on
+  unproven places, non-singleton bounds, unsupported paths, and non-scalar
+  fields stay observations. Machines holding cyclic components stay frozen
+  byte-exact under both rules. Field relevance beyond these proven-scalar
+  observation folds still lacks operand-substitution machinery, and no
+  invariant-window operation reaches this stage yet; both remain open
+  under this item.
+  The bounded families' acceptance chains are witnessed: source-produced
+  machines select the rules by exact name through
+  `optimize_abstract_operations`, publish, and replay independently, with
+  forged or stale membership and field provenance, disabled selection, and
+  the cyclic freeze behaving as
   [validation when extending a stage](omega-rust/optimization.md#validation-when-extending-a-stage)
   requires.
 - **CLEANUP-PRUNING.** Add cleanup and transition reachability pruning without

@@ -34,6 +34,7 @@ pub enum PsiRewritePatch {
     EliminateTotalScalarIdentity(TotalScalarIdentityRewrite),
     SpecializeStateArgument(StateArgumentSpecializationRewrite),
     SpecializeCaseMembership(CaseMembershipSpecializationRewrite),
+    SpecializeFieldValue(FieldValueSpecializationRewrite),
 }
 
 impl PsiRewritePatch {

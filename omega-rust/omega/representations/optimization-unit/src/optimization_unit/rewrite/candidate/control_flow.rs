@@ -2,13 +2,13 @@
 
 use super::super::{
     AdjacentBlockMergeRewrite, BlockId, CaseMembershipSpecializationRewrite,
-    ConstantConditionalRewrite, LinearEmptyBlockRewrite, NonAdjacentBlockMergeRewrite,
-    OptimizationRuleContract, OptimizationUnitIdentity, OwnershipFrontierWitness,
-    PathQualifiedEmptyBlockRewrite, ProvenanceRewrite, PsiRewriteCandidate,
-    PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness, RedundantBlockParameterRewrite,
-    RedundantBlockParameterWitness, ScalarConstantFactIdentity, ScalarEvaluationWitness,
-    ScalarSubstitution, SharedJumpFusionRewrite, StateArgumentSpecializationRewrite,
-    UnreachablePrivateMachinesRewrite,
+    ConstantConditionalRewrite, FieldValueSpecializationRewrite, LinearEmptyBlockRewrite,
+    NonAdjacentBlockMergeRewrite, OptimizationRuleContract, OptimizationUnitIdentity,
+    OwnershipFrontierWitness, PathQualifiedEmptyBlockRewrite, ProvenanceRewrite,
+    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness,
+    RedundantBlockParameterRewrite, RedundantBlockParameterWitness, ScalarConstantFactIdentity,
+    ScalarEvaluationWitness, ScalarSubstitution, SharedJumpFusionRewrite,
+    StateArgumentSpecializationRewrite, UnreachablePrivateMachinesRewrite,
 };
 impl PsiRewriteCandidate {
     pub fn new_redundant_block_parameter(
@@ -224,6 +224,27 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::StructuralIdentity,
             predicted_cost_delta,
             PsiRewritePatch::SpecializeCaseMembership(patch),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_field_value_specialization(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        predicted_cost_delta: i64,
+        patch: FieldValueSpecializationRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::StructuralIdentity,
+            predicted_cost_delta,
+            PsiRewritePatch::SpecializeFieldValue(patch),
         )
     }
 

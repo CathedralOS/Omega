@@ -68,5 +68,6 @@ mod decision_custody;
 mod global_value_numbering;
 mod manifests;
 mod proof_check_elision;
+mod representation_specialization_custody;
 mod selection_and_external_decisions;
 mod sparse_conditional_constants;

@@ -294,18 +294,19 @@ pub(super) fn convergence_measure(
     } else if registry.pass() == Some(state_specialization_pass) {
         dispatch_chain_depth_measure(unit)
     } else if registry.pass() == Some(representation_specialization_pass) {
-        case_membership_operation_count(unit)
+        representation_observation_count(unit)
     } else {
         integer_evaluation_operation_count(unit)
     }
 }
 
 /// Non-increasing convergence measure for the representation-specialization
-/// pass: the count of `StructuralCaseMembership` observations left to fold.
-/// Every committed candidate rewrites each admitted observation into a
-/// `BooleanConstant`, so a commit strictly lowers the measure and a fixed
-/// point is reached when no proven membership remains.
-fn case_membership_operation_count(unit: &PsiOptimizationUnit) -> u64 {
+/// pass: the count of structural observations left to fold —
+/// `StructuralCaseMembership`, `BooleanStructuralField`, and
+/// `IntegerStructuralField`. Every committed candidate rewrites each admitted
+/// observation into a constant, so a commit strictly lowers the measure and a
+/// fixed point is reached when no proven observation remains.
+fn representation_observation_count(unit: &PsiOptimizationUnit) -> u64 {
     unit.functions
         .iter()
         .flat_map(|function| &function.blocks)
@@ -314,6 +315,8 @@ fn case_membership_operation_count(unit: &PsiOptimizationUnit) -> u64 {
             matches!(
                 node.operation,
                 abstract_operations::AbstractOperation::StructuralCaseMembership { .. }
+                    | abstract_operations::AbstractOperation::BooleanStructuralField { .. }
+                    | abstract_operations::AbstractOperation::IntegerStructuralField { .. }
             )
         })
         .count() as u64

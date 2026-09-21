@@ -10,6 +10,7 @@ use crate::validate_case_membership_specialization_candidate;
 use crate::validate_constant_conditional_candidate;
 use crate::validate_dead_scalar_node_candidate;
 use crate::validate_dominating_scalar_common_subexpression_candidate;
+use crate::validate_field_value_specialization_candidate;
 use crate::validate_linear_empty_block_candidate;
 use crate::validate_local_scalar_common_subexpression_candidate;
 use crate::validate_non_adjacent_block_merge_candidate;
@@ -82,6 +83,9 @@ pub fn validate_psi_rewrite_candidate(
         }
         PsiRewritePatch::SpecializeCaseMembership(_) => {
             validate_case_membership_specialization_candidate(input, candidate)
+        }
+        PsiRewritePatch::SpecializeFieldValue(_) => {
+            validate_field_value_specialization_candidate(input, candidate)
         }
     }
 }
