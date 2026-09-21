@@ -1447,7 +1447,14 @@ Owners include
     `cfg`-selected arm branch then executes the AArch64 fragment natively.
     The empty-array regression in `layout_plans/writer_lowering.rs` also
     pins direct/indexed-write rejection, live sibling writes and empty
-    nested/generic carriers.
+    nested/generic carriers. Re-verified at `93c472428e` (linux x86-64):
+    the earlier same-item swarm claim expired unworked and no live claim
+    touches the implementing surfaces — `backend/layout/src/sum_
+    materialization`, `layout-plans/src/symbolic_materialization.rs`,
+    and the `layout_plans` writer harness are all unfenced (nearest
+    adjacent fence: QUOTIENT-RUNTIME-REALIZATION on `backend/layout/src/
+    builder.rs`, ~07:12Z) — so the leg is workable in-tree but still
+    requires a linux_arm64 host for the matching-ISA execution row.
 
   Acceptance: nested field/index canaries execute on both Linux ISAs and compare
   destination bytes with the reference image, including guard bytes. Both ISAs
