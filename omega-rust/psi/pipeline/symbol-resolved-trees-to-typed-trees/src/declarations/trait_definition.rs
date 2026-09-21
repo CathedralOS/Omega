@@ -236,6 +236,8 @@ pub(crate) fn lower_trait_definition(
             }
             let mut clause_services = Vec::new();
             for reach in &clause.service_reaches {
+                // `reaches _;` is the independent abstract row bounded by the
+                // inherited row; the clause-location row variant is pending.
                 if reach.as_str() == "_" {
                     continue;
                 }
