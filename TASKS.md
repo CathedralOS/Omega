@@ -10023,6 +10023,64 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   identities are unchanged). Executing half stays seed-host-gated;
   linux x86-64 is an admitted audited host so that leg is duration, not
   code. Record: `wiki/drafts/chain_ocreq_entry_binding.md`.
+||||||| parent of d1163d90d610 (board: add CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS resolved row)
+  OCREQ-REQUEST-BINDING.
+- **CHAIN-MANIFEST-OCREQ-BINDING** — mined candidate; verify scope then implement.
+- **CHAIN-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a re-mine of
+  the CHAIN-MANIFEST OCREQ-entry surface already bound on main (siblings
+  CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING and
+  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING name this stub): re-verified at
+  `201d58c591`, `tools/bootstrap/omega/compiler_env.sh` pins
+  `OMEGA_REQUEST_ENTRY_SIZE=4115` / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…`,
+  the sealed-request fixture pair (132 bytes / `ab2e980a…`), and
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19253` /
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256=9573d734…`, recorded in
+  `tests/bootstrap/omega-request/README.md`; the gate asserts the
+  `coverage_request_semantics` frame through the sealed boundary
+  (gate.py:130) and `tests/bootstrap/omega-identity.sh` refuses a mutated
+  entry (`require_omega_request_entry_identity`). Provisions
+  `coverage_request_semantics`/`request_staging_bytes` sit in
+  `wiki/spec/build/compiler_request.md:453-454` and drive the entry's
+  Incomplete/resource refusals (main.epsilon header). Executable-chain
+  legs stay host-gated per the frontier. No unbound residual. Sibling
+  stubs: CHAIN-MANIFEST-OCREQ-BINDING, D-OCREQ-ENTRY-BINDING,
+  OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING.
+  OCREQ-REQUEST-BINDING.
+- **CHAIN-MANIFEST-OCREQ-BINDING** — mined candidate; verify scope then implement.
+- **CHAIN-OCREQ-ENTRY-BINDING.** Mined candidate — resolved as a re-mine of
+  the CHAIN-MANIFEST OCREQ-entry surface already bound on main (siblings
+  CHAIN-MANIFEST-D-OCREQ-REQUEST-BINDING and
+  CHAIN-MANIFEST-OCREQ-ENTRY-BINDING name this stub): re-verified at
+  `201d58c591`, `tools/bootstrap/omega/compiler_env.sh` pins
+  `OMEGA_REQUEST_ENTRY_SIZE=4115` / `OMEGA_REQUEST_ENTRY_SHA256=0d612813…`,
+  the sealed-request fixture pair (132 bytes / `ab2e980a…`), and
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SIZE=19253` /
+  `OMEGA_EXECUTABLE_OCREQ_ENTRY_SHA256=9573d734…`, recorded in
+  `tests/bootstrap/omega-request/README.md`; the gate asserts the
+  `coverage_request_semantics` frame through the sealed boundary
+  (gate.py:130) and `tests/bootstrap/omega-identity.sh` refuses a mutated
+  entry (`require_omega_request_entry_identity`). Provisions
+  `coverage_request_semantics`/`request_staging_bytes` sit in
+  `wiki/spec/build/compiler_request.md:453-454` and drive the entry's
+  Incomplete/resource refusals (main.epsilon header). Executable-chain
+  legs stay host-gated per the frontier. No unbound residual. Sibling
+  stubs: CHAIN-MANIFEST-OCREQ-BINDING, D-OCREQ-ENTRY-BINDING,
+  OCREQ-ENTRY-BINDING, OCREQ-REQUEST-BINDING.
+- **CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.** Resolved — sibling
+  stub of PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION's resolved row (the
+  resolved verdict at `1fc01bb690` is already cited verbatim on
+  MATH-PROOFS-CALL-SELECTION-OCCURRENCE :8189):
+  `validation/src/proof_contracts/contract_entailment/specification_calls.rs`
+  checks selected concrete calls before fact intake and attributes the
+  callee's selected precondition to the call's exact subject;
+  `proofs/case_call_wrong_subject` rejects `empty_only(other)` when only
+  `known in Tree::Empty` is established, `case_citation_wrong_result`
+  pins the result side, pass twin `case_call_premises` compiles
+  (re-verified green at `f1675418b1`). Remaining owners are the parent's
+  own list (abstract signatures, domain predicates, postcondition
+  transport of case membership, induction); `samples/cli/proofs/
+  math_proofs` is fenced by PROOF-SAMPLES-CHECKED-CALL-SELECTION. No
+  independent slice exists here.
 - **CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION.** Scope verified and leg
   completed — the attribution ledger
   `wiki/drafts/known_baseline_failures.md` §checked-trees-to-lowered-psi
