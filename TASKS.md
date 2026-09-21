@@ -12131,6 +12131,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZED-SEMANTIC-WRAPPER-OWNERSHIP, OPTIMIZED-SEMANTIC-WRAPPER-RELOCATION,
   OPTIMIZED-WRAPPER-OBJECT-RELOCATION, WRAPPER-OBJECT-OWNERSHIP,
   PIPELINE-WRAPPER-OBJECT-ORPHAN.
+- **POC-ORPHAN-ENTRANCE-AUDIT.** — mined candidate; resolved
+  2026-09-21 — the retired audit row is re-closed at
+  `90df29812c0`: this leg lands the audit artifact itself.
+  `wiki/drafts/poc_orphan_entrance_audit.md` was authored on
+  zergling-z186's lane at `fb9b7128ebe` but that commit never
+  merged (not an ancestor of `90df29812c0`) and its fence expired
+  ~07:58Z — the doc is carried over here, preserving its content:
+  the 18 `unsequenced_spill_stages` families' entrance fns,
+  boundary roles, internal edges (`reload_value_homes` dual role,
+  `generalized_spill_recovery_actions` dual entrance), the
+  machine-emission non-authoritative-frame acceptance, and the
+  sequence-vs-delete boundary that stays with
+  POC-SPILL-FAMILY-SEQUENCING. The durable note it carried —
+  spill codec entrance names (`encode`/`decode`) collide
+  workspace-wide, so automated orphan gates need qualified
+  identities — already lives on the coordinator row.
 - **POC-REWRITE-ORPHANS.** — mined candidate; scope verified and partially landed. Alias of the rewrite-orphans bullet in `TASKS_OPTIMIZER.md`'s PIPELINE-OWNER-CONSOLIDATION. This slice deleted the `literal_compare` and `literal_arithmetic` rewrite modules — second producers of folds the cataloged pair rules already produce, named for removal in the item's flag; their general-case (non-pressure-nominated) fold nomination leg stays with DECLARATIVE-PEEPHOLES. About 38 modules remain orphan stage entrances; each retained one needs a catalog entry executed by `optimize_selected_instructions` under EXACT-MACHINE-SIMPLIFICATIONS / ALIAS-AWARE-MEMORY / DECLARATIVE-PEEPHOLES. Sibling stubs naming the same bullet: PIPELINE-REWRITE-ORPHANS,
   ORPHAN-REWRITE-MODULES-CATALOG — resolved as a stub at `e7c0099cb2b`:
   the named catalog is landed (`rewrites/module_catalog.rs`, 54 rows at
