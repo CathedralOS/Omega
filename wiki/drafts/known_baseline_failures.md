@@ -19,6 +19,24 @@ Rows verified by independent stash-baseline reproduction at revision
 > unmeasurable at this HEAD until the ElementView consumer legs land;
 > per-row memberships are carried from their last measurable readings.
 
+## omega-architecture-test
+
+`cargo nextest run -p omega-architecture-test --no-fail-fast` at
+`301582616c` (2026-09-21, linux x86-64, cargo — mbx absent): 596 run, 595
+passed, 1 failed —
+`scoped_lookup_maps::every_name_keyed_lookup_map_file_is_cataloged` reports
+name-keyed maps lacking a recorded reason in
+`omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs`
+(`BTreeMap<String, …>` keyed by qualified schema path, from the wire-codec
+trust pinning) and
+`omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
+(`BTreeMap<String, _>` member tables, new file). Both arrived in the
+`a3e52751ef..530bc264e4` zergling batch-merge, so this is a merged-range
+failure, not an excused baseline row: close it by recording each key domain
+and the scoped-tree refusal in `JUSTIFIED_LOOKUP_MAP_FILES`
+(`tests/architecture/scoped_lookup_maps.rs`) or by keying on handles, then
+delete this note.
+
 ## typed-trees-to-checked-trees
 
 `cargo nextest run -p typed-trees-to-checked-trees --lib --no-fail-fast` at
@@ -494,7 +512,9 @@ Service<R> family). The current failure set attributes to six families:
   plan family below, stopping at `signature`-phase local construction; the
   shared-borrow negative control still pins that stop.
 
-- Missing checked transitive machine plan (16 tests).
+- Missing checked transitive machine plan (16 tests in this crate, but the
+  cluster is wider than this section records — see the cross-suite note at the
+  end of this entry).
   `provider_attachment_source` ×6 stop at `signature` and
   `unit_state_graph::provider_attachments` ×9 plus
   `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`
@@ -508,8 +528,73 @@ Service<R> family). The current failure set attributes to six families:
   checking (already migrated in 0e1977994b) and stop while admitting the
   attached closure's bodies. Fences: `execution/unit/{control,state_graph,composed_control}`
   is under GENERAL-CYCLIC-EXECUTION and `execution/unit/{mod.rs,candidate_closure,calls}`
-  plus `checked-trees-to-lowered-psi/src/unit` under UEFI-OS-HANDOFF. This is
-  the continuing "provider attachment and results" group from the 9d0d864656
+  plus `checked-trees-to-lowered-psi/src/unit` under UEFI-OS-HANDOFF.
+
+  **Cross-suite span, measured 2026-09-21 on macOS arm64 once
+  `cargo check --workspace` came back green.** The same refusal STRING accounts
+  for at least 17 failures across three suites, not 16 in one -- but they are
+  **three distinct causes**, not one wall. An earlier version of this note said
+  otherwise; that was wrong, and the split is recorded after the list:
+
+  - `checked-trees-to-lowered-psi` — 8 more than this section lists, in
+    `retention::conformance_applications::tests` ×3 and
+    `tests::composed_operand_catalogs` ×5. These were not measurable before:
+    the crate's test target could not build while the `StructuralTypeShape::ElementView`
+    consumer legs were outstanding, so they are newly visible rather than new.
+  - `compiler --test canary_suite -E 'test(/inline_asm/)'` — 5 of 13 legs, all
+    the `x86_asm_*` byte-emission ones. Each pins an explicit
+    `target_name: linux_x86_64` cross-compile, so this is not host-dependent.
+  - the native-differential suite — 4 `terminal_psi_runnable` legs.
+
+  **The three causes, measured.**
+
+  - **Cause A -- the 8 `checked-trees-to-lowered-psi` failures.** A
+    consumer-side gap, and a regression about a day old:
+    `caller_erased_proof_roster`
+    (`c2l/src/scalar_graph/scalar_contracts.rs:346-369`, added by
+    `e2728569622f6`) knows only two rosters, scalar graphs and ordinary/composed
+    Unit bodies. A dynamic-dispatch caller's body is in neither -- it lives in
+    `terminal_unit_effects.dynamic_dispatch` -- so the lookup falls through to
+    `UnitBody::find` and reports the machine as having no plan when the checked
+    stage had in fact produced a complete plan for it. Every one of the eight is
+    a `&dyn` erasure fixture; every non-dynamic `closed_sum_*` sibling passes.
+    These surface as bare `Unsupported(...)` without omission text, because the
+    failing site is not the closure builder.
+  - **Cause B -- the 5 `x86_asm_*` canary legs.** A genuinely missing producer
+    arm. The checked stage models asm instructions as builtin intrinsic calls,
+    and `t2c/.../unit/calls/call_operations.rs` has an operation arm for exactly
+    one of them (`AsmPortOut` -> `PortWrite`); the 30-odd other `Asm*` builtins
+    have none. This is already pinned deliberately by
+    `t2c/src/tests/contracts/assembly.rs`'s
+    `asm_value_intrinsic_result_types_reach_the_call_operation_frontier`, whose
+    own comment says they stop "where no `CheckedUnitEffectOperationPlan` arm
+    exists for it yet". Owned by ASM-CATALOG-MEMORY-AND-CONTROL.
+  - **Cause C -- the `terminal_psi_runnable` legs.** Partly stale as recorded:
+    re-measured at HEAD, three of the four sources now lower cleanly and only
+    the bounded-root service-reach source still fails. It shares Cause B's
+    omission phase label but not its feature -- there is no operation-plan arm
+    for a call through a bounded machine-typed generic parameter either.
+
+  The omission phase that accompanies B and C is a **third** one beside the two
+  recorded above (`signature`, `state graph: state signature: ...`):
+  `statement sequence: call: call operation, statement 0`. Note the phase string
+  is a diagnostic breadcrumb only -- there are 123 distinct phase strings across
+  23 families and the trace never changes admission -- so sharing a phase label
+  is not evidence of a shared cause.
+
+  **Engineering, not design, for all three.** `wiki/spec/**` contains zero
+  occurrences of "attached Unit closure", "transitive machine plan" or "machine
+  plan": these name implementation-coverage rosters inside the compiler, not
+  language constructs, and the producer says so itself -- "these catalogs
+  describe implementation coverage, not additional language rules"
+  (`t2c/src/execution/unit/mod.rs:2-5`). The features involved are settled
+  affirmatively: `dynamic_dispatch.md` specifies dynamic-call lowering in full,
+  and `assembly.md` says every accepted instruction has a compiler-owned
+  contract and assembly remains valid source surface. The one asm question
+  `OWNER_QUESTIONS.md` does leave open is embedded-interpretation asm, which is
+  not what these legs exercise -- they cross-compile to `linux_x86_64`.
+
+  This is the continuing "provider attachment and results" group from the 9d0d864656
   reading.
 - Crash predicate outside the selected scalar namespace (3 tests).
   `exact_affine_sibling_source::landed_affine_sibling_custody_crosses_source_codec_and_independent_verification`,

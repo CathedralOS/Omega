@@ -8,6 +8,16 @@
 //! signature cannot express. Admitting the scalar result does not widen the
 //! surrounding requirement, claim, content, or crash-contract vocabulary: the
 //! arm keeps the closure the structural arm already requires.
+//!
+//! Boundary `requires` rows are deliberately absent from both arms: they are
+//! caller-admission checks on the structural arguments, not provider
+//! authority. The conformance row already mirrors them verbatim onto
+//! `refinement.required_domains`, and call admission re-enforces them on the
+//! actual arguments whether or not a provider is installed. Boundary
+//! `program_local_root_introductions` and `content_guarantees` do stay gated:
+//! no candidate-side evidence exists for a provider to perform a
+//! boundary-declared root introduction or to mint the boundary's content
+//! guarantees, so a provider row cannot yet serve those contracts.
 
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, StructuralMultiplicity, TerminalMachine,
@@ -32,7 +42,6 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
         (BoundaryMachineResult::Scalar(required), TerminalMachineResult::Scalar(actual)) => {
             actual.scalar_type == *required
                 && actual.qualifications.is_empty()
-                && boundary.requires.is_empty()
                 && boundary.content_guarantees.is_empty()
                 && boundary.program_local_root_introductions.is_empty()
                 && entry_claims_bind_parameters(candidate)
@@ -62,7 +71,6 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
                 && actual.multiplicity == required.multiplicity
                 && actual.qualifications == required.qualifications
                 && actual.projected_qualifications.is_empty()
-                && boundary.requires.is_empty()
                 && boundary.content_guarantees.is_empty()
                 && boundary.program_local_root_introductions.is_empty()
                 && entry_claims_bind_parameters(candidate)
