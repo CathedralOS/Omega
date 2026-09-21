@@ -9,48 +9,104 @@ emitted native programs rather than replaying them by cross-emit.
 Host-execution record for the RC-NATIVE-MATRIX gate
 (`mbx nextest run -p omega-native-differential-test --all-targets
 --no-fail-fast`; executed as `cargo nextest run` — `mbx` is not installed on
-this worker) at revision `4dbdaa9bc3`, host `x86_64-unknown-linux-gnu`.
+this worker) at revision `75650d2e94`, host `x86_64-unknown-linux-gnu`,
+cargo-nextest 0.9.145, toolchain `nightly-2026-09-04`.
 
 ## Result
 
-558 pass / 112 fail / 1 skip across 670 legs in ~1695 s (28 test binaries +
-lib). The skip is expected: `source_custody_artifact`'s fixture is owned by
-its own gate (`#[ignore]`). The long legs are real native executions —
-`optimizer_corpus` deterministic legs ran 300–680 s each and
-`ieee_comparisons` cross-replayed binary64 against host IEEE for 361 s.
+**1103 pass / 29 fail / 1 skip across 1132 executed legs in 3524 s**, 33
+test binaries. The skip is expected: `source_custody_artifact`'s fixture is
+owned by its own gate (`#[ignore]`). The long legs are real native
+executions — `optimizer_corpus` deterministic legs ran 300–420 s each and
+`ieee_comparisons` cross-replayed binary64 against host IEEE for ~240 s.
 
-## Harness legs that cannot compile at this revision
+Every binary compiles and runs: the `pipeline_ownership` custody-handle
+drift and `abstract_publication` catalog-count drift that partitioned the
+`4dbdaa9bc3` sweep (670 legs over 27 binaries) are repaired upstream
+(confirmed clean under `cargo check -p omega-native-differential-test
+--all-targets` at this revision), so this row records the unpartitioned
+invocation the `e5bbe53956f` sweep in
+[rc_native_matrix_hosts.md](rc_native_matrix_hosts.md) first ran.
 
-Two of the 29 test binaries do not build; the run above covers the other 27:
+## Per-target results
 
-- `tests/native-differential/tests/pipeline_ownership.rs` drifted behind
-  `83766d57bf`: its call sites pass `&ValidatedOptimizedTargetOperations`
-  where `validate_optimized_selection_custody` now takes
-  `&Arc<ValidatedOptimizedTargetOperations>`, and
-  `scalar_case_results/ordinary_graph_controls.rs` does not cover the
-  `LegalizedScalarTerminator::Crash` variant.
-- `tests/native-differential/tests/abstract_publication.rs` pins a
-  six-member optimization catalog that has grown to seven
-  (`[Optimization; 6] == [Optimization; 7]`).
+| test target | result |
+|-------------|--------|
+| `abstract_publication` | 57/57 |
+| `asm_memory_transfer` | 1/1 |
+| `build_time` | 4/4 |
+| `coverage` | 64/77 |
+| `frontend_drop_expectations` | 26/26 |
+| `gui_headless` | 0/1 |
+| `hosted_receiver` | 9/9 |
+| `ieee_comparisons` | 3/3 |
+| `local_record_receivers` | 3/3 |
+| `optimizer_corpus` | 7/7 |
+| `owned_control_cycles` | 5/5 |
+| `physical_child_replay` | 12/12 |
+| `pipeline_ownership` | 392/392 |
+| `primitive_locals` | 17/17 |
+| `primitive_store_return` | 7/7 |
+| `real_fs` | 8/10 |
+| `recast_views` | 10/10 |
+| `scalar_array_results` | 35/35 |
+| `scalar_case_results` | 123/125 |
+| `scalar_control_cycles` | 24/24 |
+| `source_custody_artifact` | 0 run / 1 skipped (expected, host-gated) |
+| `terminal_byte_views` | 113/113 |
+| `terminal_psi` | 3/3 |
+| `terminal_psi_calls` | 3/4 |
+| `terminal_psi_conditional` | 2/2 |
+| `terminal_psi_debug_spans` | 1/1 |
+| `terminal_psi_indexed_receivers` | 79/79 |
+| `terminal_psi_record_returns` | 0/6 |
+| `terminal_psi_runnable` | 1/5 |
+| `terminal_psi_source` | 91/91 |
+| `terminal_psi_source_payloadless_optimizer` | 3/3 |
 
-Both surfaces are under live claims (pipeline_ownership →
-STRUCTURAL-UNIT-CALL-GRAPH-JOINS; abstract_publication →
-NATIVE-DIFFERENTIAL-MATRIX); their exclusion here is a fence, not a verdict.
-
-## Failure families (112 legs)
+## Failure families (29 legs)
 
 | legs | first refusal | family |
 |------|---------------|--------|
-| 69 (coverage ×65, terminal_psi_runnable ×4) | checking | `Service<R>` carrier spelling: `field console on data Main names bare boundary trait Console in value position; the intrinsic Service<R> carrier is the only service value spelling`. Owned by ENTRY-CONTENT-ROOTS / fixture migration. |
-| 10 (real_fs) | checking | Checked-body obligations: exact-arithmetic (`cast from i64 to i32 is not provably representable`) and service-reach publication (`publishes service reach <none> but its checked body reaches undeclared services Console + FilesystemHost`). |
-| 10 (recast_views ×9, gui_headless ×1) | fixture resolution | Bundled-std shim rename: sources reference `omega_language_std/console.omg`; the corpus now ships `platform/console.omg`. Harness fixture paths need migration. |
-| 8 (terminal_psi_record_returns ×6, scalar_case_results ×2) | proof decode | `ProofSubjectMismatch`: claimed TerminalPsiIdentity fingerprint ≠ reconstructed fingerprint — the replayed identity drifts under record-return / joined-record shapes. |
-| 8 (terminal_byte_views, natural_writer) | fuel derivation | `derive_fixed_entry_fuel` no longer returns `ControlCycle` for the natural-writer replay body; the pinned expectation is stale. |
-| 6 (terminal_psi_source) | artifact admission | `hosted receiver requires exact checked initialization and cleanup custody` — ProgramEntry provisioning residual; also one `attached Unit closure is missing a checked transitive machine plan` shape. |
-| 1 (terminal_psi_calls) | pinned bytes | `scalar_i32_call_has_exact_exportable_terminal_bytes` byte drift — reviewed replacement recorded in the failure output. |
+| 13 (`coverage` `filesystem_*`) | interpreted execution | Real-FilesystemHost legs reach checked trees and run; the program exits a `fail()` state — observed exit 71 vs pinned 70. The failing transition varies per leg (`open(missing)`/kind mapping, `create_dir(existing)`, `try_exists` on a chmod-0 file, `read_dir_nth` enumeration, `canonicalize`, `hard_link`, `locking`, `ownership`, `remove_dir_all`, `read_dir_stats`, `value_returning_append`, `path_subslice_domain`). Deterministic — `filesystem_std_module_error_kind` fails identically in isolation. These legs were previously refused at checking by the `Service<R>` spelling fence; the migration exposed the execution-stage residual underneath. |
+| 6 (`terminal_psi_record_returns`) | proof decode | `ArtifactLowering(ProofDecode(ProofSubjectMismatch))`: claimed `TerminalPsiIdentity.program_fingerprint` ≠ reconstructed fingerprint on record-return shapes. Same legs as prior records. |
+| 4 (`terminal_psi_runnable`) | lowering | `InvalidUnitMachinePlan`: `attached Unit closure is missing a checked transitive machine plan` — `Main::main` (×3, local construction stopped at signature) and `Root::enter` (×1, stopped at statement-0 call). Same family as the prior record's single `Root::enter` leg. |
+| 2 (`real_fs`) | interpreted execution | Real-fs enumeration residuals, distinct from the retired service-reach family: `real_provider_serves_the_full_virtual_op_set` diverges at parity step 13 of 14; `scoped_wrapper_read_dir_count_enumerates_a_real_directory` exits a mid-drain `bad(74)` state instead of draining 48 seeded entries. |
+| 2 (`scalar_case_results`) | proof decode / lowering | `joined_record_cannot_move_and_lend_its_child_to_the_same_call` — `ProofSubjectMismatch` (same leg as before); `owned_record_parameter_return_survives_an_observable_call` — `Lowering(Unsupported("composed Unit scalar call requires structural call custody"))`. Same legs as prior records. |
+| 1 (`terminal_psi_calls`) | pinned bytes | `scalar_i32_call_has_exact_exportable_terminal_bytes` — pinned terminal bytes still drift; the reviewed replacement is printed in the failure output. Same leg as prior records. |
+| 1 (`gui_headless`) | compile | `window_demo` still references the missing vendored `omega_language_std/console.omg` fixture. The `recast_views` siblings of this family (10 legs at `4dbdaa9bc3`) are repaired — only this leg remains. |
+
+## Families retired since `4dbdaa9bc3`
+
+The 112-failure record reduced to 29:
+
+- **`Service<R>` carrier spelling (~69 legs)** — closed by the carrier
+  migration; `coverage` non-fs legs and the `terminal_psi_runnable`
+  spellings now pass checking.
+- **Vendored `omega_language_std` fixtures (10 of 11 legs)** — the
+  `recast_views` fixtures now resolve; only `gui_headless` remains.
+- **Checked-body exact-arithmetic / service-reach obligations (8 of 10
+  `real_fs` legs)** — the remaining two are enumeration residuals above.
+- **Fixed-fuel `natural_writer` drift (8 legs)** — `terminal_byte_views`
+  is 113/113.
+- **`terminal_psi_source` golden bytes** — 91/91.
+- **`pipeline_ownership` in-flight residuals** — the target compiles and
+  runs 392/392.
+
+The dominant residual is no longer checking-fence fixture drift; it is the
+real-fs execution family (15 legs across `coverage`/`real_fs`) plus the
+standing proof-decode/unit-plan set.
 
 ## Scope notes
 
+- Every macos_arm64 residual (15 legs at `163618c89557`) is a named member
+  of the linux families above — the six `terminal_psi_record_returns`
+  proof-decode legs, the two `scalar_case_results` legs, the pinned
+  `terminal_psi_calls` bytes leg, four `terminal_psi_runnable`
+  `InvalidUnitMachinePlan` legs, `coverage`'s
+  `filesystem_path_subslice_domain`, and `gui_headless`. No recorded
+  failure is a matching-host execution differential; the redness is
+  shared-pipeline, host-independent.
 - Cross-emit legs still run: `publish on four targets` families re-encode
   and replay every hosted target from this host. Only direct
   macos_arm64/windows_x86_64 execution rows stay host-gated.
@@ -147,14 +203,3 @@ owner rather than reaching across the fence.
 - The `windows_x86_64` row remains the only runner with no execution of any
   kind.
 
-## Re-verification — `5bb9a74842` (linux x86-64, Zergling-126, claim `5a2e0ee2`)
-
-Harness compile state improved: `cargo check -p omega-native-differential-test
---all-targets` now finishes clean — the `pipeline_ownership` custody-handle
-drift (`optimized_target()` → `optimized_target_owner()`), the uncovered
-`LegalizedScalarTerminator::Crash` arm, and the dropped
-`produce_checked_canonical_integer_proof` symbol recorded at `f3d0d1748e`
-have all been repaired upstream. The gate can now report red/green again
-rather than failing to build; the per-host re-run belongs to the canonical
-RC-NATIVE-MATRIX-LINUX-X86-64 owner, so no leg sweep was executed under this
-claim.
