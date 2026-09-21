@@ -120,6 +120,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
     ];
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(910),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -207,6 +208,7 @@ fn payloadless_case_operation_adds_one_fixed_fuel_unit() {
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: caller_operation,
                     result: OperationResult::Structural(StructuralOperationResult {
                         qualification_establishments: Vec::new(),
@@ -958,12 +960,14 @@ fn unit_affine_local_establishments_are_in_the_fixed_entry_bound() {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(900),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal { destination: first },
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(901),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal {
@@ -1168,12 +1172,14 @@ fn each_trivial_affine_local_establishment_adds_one_fixed_fuel_unit() {
     machine.blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(900),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(901),
             result: OperationResult::Unit,
             kind: OperationKind::EstablishTrivialAffineLocal {

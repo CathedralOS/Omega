@@ -153,6 +153,7 @@ fn shared_scalar_call_module() -> TerminalModule {
         parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(902),
             result: OperationResult::Scalar(scalar_declaration(CALL_VALUE)),
             kind: OperationKind::CallStructuralScalar {
@@ -206,6 +207,7 @@ fn shared_scalar_call_module() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(910),
                 result: OperationResult::Scalar(scalar_declaration(READ_VALUE)),
                 kind: OperationKind::PrimitiveScalarRead {

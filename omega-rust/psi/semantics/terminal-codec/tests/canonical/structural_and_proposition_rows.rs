@@ -963,6 +963,7 @@ fn boundary_inline_byte_module(
     }];
     machine.blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(901),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

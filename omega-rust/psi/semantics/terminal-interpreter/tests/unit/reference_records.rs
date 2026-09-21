@@ -45,6 +45,7 @@ fn record_reference_module() -> TerminalModule {
     caller.blocks[0].operations.extend([
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(96),
             result: OperationResult::Structural(StructuralOperationResult {
                 qualification_establishments: Vec::new(),
@@ -68,6 +69,7 @@ fn record_reference_module() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(97),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -110,6 +112,7 @@ fn record_reference_module() -> TerminalModule {
         parameters: vec![],
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(98),
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value_id(98),
@@ -434,6 +437,7 @@ fn owned_record_repacking_preserves_captured_ingress_after_parameter_moves() {
     );
     forward.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(406),
         result: OperationResult::Structural(StructuralOperationResult {
             qualification_establishments: Vec::new(),
@@ -838,6 +842,7 @@ fn record_reference_supports_a_child_reborrow_after_the_owned_move() {
     caller.blocks[0].operations.insert(2, child);
     caller.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(100),
         result: OperationResult::Unit,
         kind: OperationKind::ReleaseReference {

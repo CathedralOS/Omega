@@ -585,6 +585,7 @@ fn caller_machine(raw: u64, place: u64, operation: u64) -> TerminalMachine {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(operation),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {

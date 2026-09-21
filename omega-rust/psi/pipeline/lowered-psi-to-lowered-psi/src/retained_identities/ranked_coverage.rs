@@ -156,6 +156,7 @@ mod tests {
     fn constant(ordinal: u64, result: u64, value_bits: u128) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(ordinal).unwrap(),
             result: OperationResult::Scalar(declaration(result, u32_type())),
             kind: OperationKind::IntegerConstant {
@@ -167,6 +168,7 @@ mod tests {
     fn subtract(ordinal: u64, result: u64, left: u64, right: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(ordinal).unwrap(),
             result: OperationResult::Scalar(declaration(result, u32_type())),
             kind: OperationKind::WrappingIntegerSubtract {

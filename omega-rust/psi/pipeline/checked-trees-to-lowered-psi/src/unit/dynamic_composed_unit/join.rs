@@ -642,6 +642,7 @@ fn branch_block(
         erased_proof_formals: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

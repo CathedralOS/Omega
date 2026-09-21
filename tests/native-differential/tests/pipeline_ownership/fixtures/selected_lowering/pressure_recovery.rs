@@ -102,6 +102,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_graph(
     };
     let operation = |id, result, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,

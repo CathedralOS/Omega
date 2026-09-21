@@ -44,6 +44,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
         parameters: Vec::new(),
         operations: vec![Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(operation).unwrap(),
             result: OperationResult::Scalar(value(result, integer)),
             kind: OperationKind::IntegerConstant {
@@ -81,6 +82,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
                 parameters: Vec::new(),
                 operations: vec![Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: OperationId::new(1).unwrap(),
                     result: OperationResult::Scalar(value(3, ScalarType::Boolean)),
                     kind: match comparison {
@@ -127,6 +129,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
             0,
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1).unwrap(),
                 result: OperationResult::Scalar(value(2, integer)),
                 kind: OperationKind::IntegerConstant {
@@ -138,6 +141,7 @@ pub(super) fn artifact(comparison: Comparison, sign: IntegerSign) -> (Vec<u8>, V
     if matches!(comparison, Comparison::NotEqual | Comparison::NotEqualZero) {
         machine.blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(value(7, ScalarType::Boolean)),
             kind: OperationKind::BooleanNot {

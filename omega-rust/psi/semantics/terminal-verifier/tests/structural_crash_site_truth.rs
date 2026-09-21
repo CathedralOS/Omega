@@ -35,6 +35,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
         operations.extend([
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(1),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -45,6 +46,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id::<OperationId>(2),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralScalarFieldStore {
@@ -59,6 +61,7 @@ fn module(store_first: bool, entry_predicate: bool) -> TerminalModule {
     }
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id::<OperationId>(3),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

@@ -180,6 +180,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(10),
                 result: OperationResult::Unit,
                 kind: OperationKind::CallUnit {
@@ -250,6 +251,7 @@ fn call_composition_ledger_fixture() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(20),
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
@@ -412,6 +414,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
                 ),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(11),
                     result: OperationResult::Unit,
                     kind: OperationKind::PortWrite {
@@ -477,6 +480,7 @@ fn structural_effect_ledger_fixture() -> TerminalModule {
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(20),
                 result: OperationResult::Unit,
                 kind: OperationKind::EstablishTrivialAffineLocal { destination: local },
@@ -1074,6 +1078,7 @@ fn ledger_spike_fixture(asymmetric: bool) -> TerminalModule {
 fn scalar_operation(id: u64, result: ValueDeclaration, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(id),
         result: OperationResult::Scalar(result),
         kind,

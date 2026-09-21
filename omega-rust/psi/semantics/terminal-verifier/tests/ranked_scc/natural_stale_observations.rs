@@ -12,6 +12,7 @@ use terminal_psi::{
 fn length(operation: u64, value: u64, source: u64) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(operation, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -79,6 +80,7 @@ fn current_observations() -> TerminalModule {
     let machine = &mut module.machines[0];
     machine.blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(32, OperationId::new),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -206,6 +208,7 @@ fn target_local_descriptor() -> TerminalModule {
         length(10, 10, 1),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(40, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -218,6 +221,7 @@ fn target_local_descriptor() -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(41, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -232,6 +236,7 @@ fn target_local_descriptor() -> TerminalModule {
         length(13, 13, 3),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(42, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

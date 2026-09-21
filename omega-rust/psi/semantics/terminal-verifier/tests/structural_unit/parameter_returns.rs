@@ -85,6 +85,7 @@ fn module() -> TerminalModule {
         1,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -185,6 +186,7 @@ fn consume(module: &mut TerminalModule, block: usize) {
     module.machines.push(callee);
     module.machines[0].blocks[block].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

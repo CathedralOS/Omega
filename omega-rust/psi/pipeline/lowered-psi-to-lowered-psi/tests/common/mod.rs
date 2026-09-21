@@ -91,6 +91,7 @@ pub fn natural_self_loop(
 pub fn operation(ordinal: u64, result: ValueDeclaration, kind: OperationKind) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(ordinal).unwrap(),
         result: OperationResult::Scalar(result),
         kind,
@@ -831,6 +832,7 @@ pub fn two_machine_fixture() -> LoweredPsi {
 pub fn unit_call(ordinal: u64, callee: MachineId) -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(ordinal).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

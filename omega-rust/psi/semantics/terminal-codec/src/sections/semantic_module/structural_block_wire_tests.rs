@@ -140,6 +140,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
         machine.blocks[0].operations = vec![
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(31),
                 result: OperationResult::Structural(StructuralOperationResult {
                     qualification_establishments: Vec::new(),
@@ -154,6 +155,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
             },
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(32),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -173,7 +175,7 @@ fn primitive_local_operations_round_trip_with_exact_result_and_operand_identitie
         };
 
         let bytes = encode_module(&module).expect("primitive local module encodes");
-        assert_eq!(&bytes[8..12], &[104, 0, 107, 0]);
+        assert_eq!(&bytes[8..12], &[105, 0, 107, 0]);
         let decoded = decode_module(&bytes).expect("primitive local module decodes");
         assert_eq!(decoded, module);
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
@@ -282,7 +284,7 @@ fn structural_block_module() -> TerminalModule {
 fn structural_block_bindings_round_trip_and_bind_each_argument_order() {
     let module = structural_block_module();
     let bytes = encode_module(&module).expect("borrowed block bindings encode");
-    assert_eq!(&bytes[8..12], &[104, 0, 107, 0]);
+    assert_eq!(&bytes[8..12], &[105, 0, 107, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
@@ -414,6 +416,7 @@ fn unit_byte_field_module() -> TerminalModule {
     };
     module.machines[0].blocks[0].operations = vec![Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: id(1),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

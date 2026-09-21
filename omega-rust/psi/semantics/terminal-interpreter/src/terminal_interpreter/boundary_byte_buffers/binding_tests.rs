@@ -46,6 +46,7 @@ fn repeated_calls_retain_one_code_graph_and_resume_each_paid_prefix_once() {
     caller.blocks.get_mut(&caller.entry).unwrap().operations = (1..=2)
         .map(|ordinal| terminal_psi::Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(ordinal).unwrap(),
             result: terminal_psi::OperationResult::Unit,
             kind: OperationKind::CallUnit {

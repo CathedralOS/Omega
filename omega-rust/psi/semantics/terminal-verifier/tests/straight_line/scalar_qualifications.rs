@@ -277,6 +277,7 @@ fn scalar_membership_cannot_be_forged_on_an_operation_or_consumed_by_arithmetic(
     let mut forged = module();
     forged.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(value(5, 1)),
         kind: OperationKind::IntegerConstant {
@@ -286,6 +287,7 @@ fn scalar_membership_cannot_be_forged_on_an_operation_or_consumed_by_arithmetic(
     assert!(validate_module(&forged).is_err());
     forged.machines[0].blocks[1].operations[0] = Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(value(5, 0)),
         kind: OperationKind::IntegerBitwiseNot {
@@ -522,6 +524,7 @@ fn scalar_membership_calls_transport_both_arguments_and_results() {
     };
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(value(3, 1)),
         kind: OperationKind::Call {

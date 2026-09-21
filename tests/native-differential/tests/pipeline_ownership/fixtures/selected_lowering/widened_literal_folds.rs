@@ -79,6 +79,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
     };
     let operation = |id, result, scalar_type, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,

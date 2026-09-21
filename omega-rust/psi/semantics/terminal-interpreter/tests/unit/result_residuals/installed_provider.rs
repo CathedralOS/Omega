@@ -264,6 +264,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
     });
     module.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {

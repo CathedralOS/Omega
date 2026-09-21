@@ -100,6 +100,7 @@ fn module(scalar_call: bool) -> TerminalModule {
         });
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -118,6 +119,7 @@ fn module(scalar_call: bool) -> TerminalModule {
     } else {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
@@ -279,6 +281,7 @@ fn current_body_values_are_not_entry_requirement_assumptions() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

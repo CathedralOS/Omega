@@ -297,6 +297,7 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
             erased_proof_formals: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(1),
                 result: terminal_psi::OperationResult::Scalar(call_result),
                 kind: OperationKind::CallStructuralScalar {

@@ -138,12 +138,14 @@ fn shared_spill_slot_module() -> TerminalModule {
     let value = |id: u64| ValueId::new(id).unwrap();
     let xor = |op: u64, left: ValueId, right: ValueId, result: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(op).unwrap(),
         result: OperationResult::Scalar(declaration(value(result))),
         kind: OperationKind::IntegerBitwiseXor { left, right },
     };
     let constant = |op: u64, result: u64, n: u64| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(op).unwrap(),
         result: OperationResult::Scalar(declaration(value(result))),
         kind: OperationKind::IntegerConstant {
@@ -152,6 +154,7 @@ fn shared_spill_slot_module() -> TerminalModule {
     };
     let call = |op: u64, callee: u64, arguments: Vec<ValueId>| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(op).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {

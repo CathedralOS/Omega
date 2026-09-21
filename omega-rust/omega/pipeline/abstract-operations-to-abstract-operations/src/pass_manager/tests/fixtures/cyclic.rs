@@ -115,6 +115,7 @@ pub(in crate::pass_manager::tests) fn verified_unranked_cycle_unit() -> Verified
                     }],
                     operations: vec![Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(507).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),

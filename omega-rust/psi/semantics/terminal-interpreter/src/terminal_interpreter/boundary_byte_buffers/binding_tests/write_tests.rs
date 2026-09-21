@@ -187,6 +187,7 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
                 operations: vec![
                     Operation {
                         static_reach_binding: None,
+                        suspension_crossing: None,
                         id: OperationId::new(1).unwrap(),
                         result: OperationResult::Scalar(ValueDeclaration {
                             qualifications: Default::default(),
@@ -409,6 +410,7 @@ fn unsigned(bits: u16, value: u128) -> TerminalScalarValue {
 fn write() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(2).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::ByteSequenceWrite {
@@ -464,6 +466,7 @@ fn fixed_view_write_survives_suspension_nested_return_and_preserves_immutable_ta
         .operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

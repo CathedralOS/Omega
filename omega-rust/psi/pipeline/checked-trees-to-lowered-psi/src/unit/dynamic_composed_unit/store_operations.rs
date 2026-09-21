@@ -78,6 +78,7 @@ pub(crate) fn lower_caller_store_operations(
     Ok(vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(1),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -88,6 +89,7 @@ pub(crate) fn lower_caller_store_operations(
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
@@ -155,6 +157,7 @@ pub(crate) fn lower_realization_operations(
         };
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -205,6 +208,7 @@ pub(crate) fn lower_realization_operations(
         };
         operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -307,6 +311,7 @@ fn lower_realization_store_operation(
     Ok(vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: constant_operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
@@ -317,6 +322,7 @@ fn lower_realization_store_operation(
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: store_operation,
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {

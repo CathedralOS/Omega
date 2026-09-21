@@ -377,6 +377,7 @@ mod tests {
             }],
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: producer,
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

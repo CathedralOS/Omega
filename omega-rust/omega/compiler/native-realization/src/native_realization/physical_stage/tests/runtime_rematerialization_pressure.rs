@@ -25,6 +25,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
     let mut operations = Vec::new();
     let operation = |result: u64, kind: OperationKind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(result).unwrap(),
         result: OperationResult::Scalar(value(result)),
         kind,
@@ -69,6 +70,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
     next_value += 1;
     loop_operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(condition).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),

@@ -453,6 +453,7 @@ mod tests {
     fn marker(id: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(id).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::BooleanConstant { value: false },
@@ -462,6 +463,7 @@ mod tests {
     fn producer(id: u64, value: u64) -> Operation {
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(id).unwrap(),
             result: OperationResult::Scalar(scalar_parameter(value)),
             kind: OperationKind::BooleanConstant { value: true },

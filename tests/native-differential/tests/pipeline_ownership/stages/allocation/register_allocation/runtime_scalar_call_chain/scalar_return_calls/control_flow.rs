@@ -124,6 +124,7 @@ pub(super) fn branch_call_artifact_parts(equal: bool) -> (TerminalModule, ProofB
     };
     let constant = |raw, literal| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(raw).unwrap(),
         result: OperationResult::Scalar(declaration(raw)),
         kind: OperationKind::IntegerConstant {
@@ -160,6 +161,7 @@ pub(super) fn branch_call_artifact_parts(equal: bool) -> (TerminalModule, ProofB
             constant(raw, literal),
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(raw + 1).unwrap(),
                 result: OperationResult::Scalar(declaration(raw + 1)),
                 kind: OperationKind::Call {
@@ -192,6 +194,7 @@ pub(super) fn branch_call_artifact_parts(equal: bool) -> (TerminalModule, ProofB
             parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(28_140).unwrap(),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),

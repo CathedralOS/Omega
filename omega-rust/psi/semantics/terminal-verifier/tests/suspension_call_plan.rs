@@ -148,6 +148,7 @@ fn fixture() -> TerminalModule {
                     operations: vec![
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(1),
                             result: OperationResult::Scalar(local),
                             kind: OperationKind::BooleanNot {
@@ -156,6 +157,7 @@ fn fixture() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: Some(id(41)),
                             id: id(2),
                             result: OperationResult::Scalar(call_result),
                             kind: OperationKind::Call {
@@ -169,6 +171,7 @@ fn fixture() -> TerminalModule {
                         },
                         Operation {
                             static_reach_binding: None,
+                            suspension_crossing: None,
                             id: id(3),
                             result: OperationResult::Scalar(second_call_result),
                             kind: OperationKind::Call {
@@ -369,6 +372,33 @@ fn suspension_call_plan_rejoins_operation_target_after_site_validation() {
     module.suspension_call_plans[0].target =
         terminal_psi::TerminalSuspensionCallTarget::Machine(id(1));
     refresh_site(&mut module);
+    assert_reason(&module, SuspensionCallPlanError::RedirectedToNonCall);
+}
+
+#[test]
+fn suspension_call_plan_rejects_coordinated_site_and_plan_deletion() {
+    let mut module = fixture();
+    module.suspension_call_sites.clear();
+    module.suspension_call_plans.clear();
+    module.suspension_call_plan_count = 0;
+    assert_reason(&module, SuspensionCallPlanError::MissingCallSidePlan);
+}
+
+#[test]
+fn suspension_call_plan_rejects_unmarked_call_side() {
+    let mut module = fixture();
+    module.machines[0].blocks[0].operations[1].suspension_crossing = None;
+    assert_reason(&module, SuspensionCallPlanError::UnmarkedCallSide);
+
+    let mut module = fixture();
+    module.machines[0].blocks[0].operations[1].suspension_crossing = Some(id(42));
+    assert_reason(&module, SuspensionCallPlanError::UnmarkedCallSide);
+}
+
+#[test]
+fn suspension_call_plan_rejects_marker_on_non_call() {
+    let mut module = fixture();
+    module.machines[0].blocks[0].operations[0].suspension_crossing = Some(id(43));
     assert_reason(&module, SuspensionCallPlanError::RedirectedToNonCall);
 }
 

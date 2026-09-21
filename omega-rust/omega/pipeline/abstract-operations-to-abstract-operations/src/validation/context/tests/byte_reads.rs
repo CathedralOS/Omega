@@ -242,6 +242,7 @@ pub(super) fn verified_byte_operation(
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id(1, OperationId::new),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -254,6 +255,7 @@ pub(super) fn verified_byte_operation(
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: id(2, OperationId::new),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -280,6 +282,7 @@ pub(super) fn verified_byte_operation(
             structural_parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: id(3, OperationId::new),
                 result: OperationResult::Scalar(ValueDeclaration {
                     qualifications: Default::default(),
@@ -340,6 +343,7 @@ pub(super) fn verified_byte_operation(
         };
         machine.blocks[1].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: id(4, OperationId::new),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

@@ -55,6 +55,7 @@ pub(crate) fn conditional_exact_binary_artifact_with_values(
     };
     let integer_operation = |id, result, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,
@@ -274,6 +275,7 @@ pub(crate) fn single_block_exact_add_fold_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let integer_operation = |id, result, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id,
         result: OperationResult::Scalar(declaration(result, scalar_type)),
         kind,

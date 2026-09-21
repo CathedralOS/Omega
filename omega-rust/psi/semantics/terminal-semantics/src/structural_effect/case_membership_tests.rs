@@ -13,6 +13,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, ValueDecla
 fn operation() -> Operation {
     Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(1).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             id: ValueId::new(2).unwrap(),
