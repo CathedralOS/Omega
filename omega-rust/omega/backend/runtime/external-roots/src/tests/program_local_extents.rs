@@ -1009,6 +1009,82 @@ fn retained_foreign_argument_under_custody_uses_the_authored_row() {
             .contains("no argument")
     );
 
+    // The retained source must be the authored entry-time parameter itself.
+    // A `Current`-version place, a `Result` root, or the `self` receiver all
+    // drift off the authored entry-parameter shape and must reject rather
+    // than silently re-binding whichever argument the caller prefers.
+    let mutated_sources = [
+        {
+            let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut custody) =
+                retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
+            else {
+                unreachable!()
+            };
+            custody.source.version = semantic_vocabulary::ContentPlaceVersion::Current;
+            custody
+        },
+        {
+            let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut custody) =
+                retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
+            else {
+                unreachable!()
+            };
+            custody.source.root = terminal_psi::RetainedBorrowPlaceRoot::Result;
+            custody
+        },
+        {
+            let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut custody) =
+                retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
+            else {
+                unreachable!()
+            };
+            custody.source.root = terminal_psi::RetainedBorrowPlaceRoot::Parameter {
+                position: 0,
+                identity: "self".to_owned(),
+                is_self: true,
+            };
+            custody
+        },
+    ];
+    for custody in mutated_sources {
+        assert!(
+            registry
+                .retain_foreign_argument_under_custody(
+                    &[&extent],
+                    RetainedForeignArgumentRange::new(0x80, 0x10, rights.clone()).unwrap(),
+                    &terminal_psi::BoundaryContentGuarantee::RetainedBorrow(custody),
+                )
+                .expect_err("a non-entry-parameter custody source rejects")
+                .0
+                .contains("not an entry parameter")
+        );
+    }
+
+    // A projected source (`buffer.field`) names interior storage, not the
+    // entry parameter place the authored loan binds.
+    let terminal_psi::BoundaryContentGuarantee::RetainedBorrow(mut projected) =
+        retained_borrow_custody(0, terminal_psi::StructuralAccess::SharedBorrow)
+    else {
+        unreachable!()
+    };
+    projected
+        .source
+        .segments
+        .push(semantic_vocabulary::ContentPlaceSegment::Field(
+            "field".to_owned(),
+        ));
+    assert!(
+        registry
+            .retain_foreign_argument_under_custody(
+                &[&extent],
+                RetainedForeignArgumentRange::new(0x80, 0x10, rights.clone()).unwrap(),
+                &terminal_psi::BoundaryContentGuarantee::RetainedBorrow(projected),
+            )
+            .expect_err("a projected custody source rejects")
+            .0
+            .contains("not a direct parameter")
+    );
+
     // A range outside the argument's backing still rejects against the
     // ledger's own backing bounds.
     assert!(
