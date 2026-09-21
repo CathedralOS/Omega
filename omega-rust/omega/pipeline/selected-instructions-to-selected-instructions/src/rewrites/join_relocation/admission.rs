@@ -26,8 +26,7 @@
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedSuccessor,
-    SelectedTerminator,
+    SelectedBlockOrigin, SelectedInstructionId, SelectedSuccessor, SelectedTerminator,
 };
 
 use super::JoinRelocationError;
@@ -38,8 +37,7 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The member's own block: the diamond's converging join.
     pub block_index: usize,
     /// The member's index inside that block's body.
@@ -53,14 +51,14 @@ pub(super) struct Admission<'source> {
     pub landing_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, JoinRelocationError> {
+) -> Result<Admission, JoinRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(JoinRelocationError::SourceMismatch);
@@ -302,7 +300,6 @@ pub(super) fn admit<'source>(
         return Err(JoinRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_index,
         target_index,
