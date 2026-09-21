@@ -122,13 +122,14 @@ pub(super) fn check(
         return;
     };
     let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
-    let target_machine = program.machines().iter().find(|machine| {
-        machine.symbol == call.target_symbol
-            || program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == call.target_symbol)
-    });
+    let target_machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == call.target_symbol)
+        .or_else(|| {
+            crate::semantic_calls::find_state_with_machine(program, call.target_symbol)
+                .map(|(machine, _)| machine)
+        });
     let mut argument_index = 0;
     for parameter in parameters {
         let argument = if parameter.is_self {
