@@ -9600,19 +9600,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION holds a live claim (exp
   2026-09-21T06:52Z). Verdict unchanged: no independent slice.
 - **PORTABLE-PROCESS-EXIT-OBSERVATION.** Mined candidate; scope verified at
-  9ff8673b31 — re-mines sibling row PROCESS-EXIT-PORTABLE-OBSERVATION
+  9ff8673b31, re-verified at `94e764a6da6b` — re-mines sibling row
+  PROCESS-EXIT-PORTABLE-OBSERVATION
   (verified at `b28abc01fe`, same surface word-for-word): the
   portable-observation leg of the Process-exit contract parent — Terminal
   observations must compare the exact semantic `i32` status and preserve
   ordered preceding events. Residual primitives open as recorded there:
-  `psi/representations/terminal-psi/terminal_module/control_flow/
-  termination.rs` has no external-completion terminator (8 variants,
-  exhaustive matches repo-wide), and the terminal-codec deliberately
-  writes/rejects the terminal-external group with count zero until the
-  source-to-verifier migration retains the terminal transfer (per its
-  README fence note). The slice is inherently the parent's cross-stage
-  terminator + codec + verifier + interpreter + realization leg — no
-  file-local slice exists; coordinate with the parent owner lane.
+  `psi/representations/terminal-psi/src/terminal_module/control_flow/
+  termination.rs` has no external-completion terminator (9 variants —
+  Jump, Conditional, StructuralCase, Return, ReturnUnit,
+  ReturnUnitPartialAffine, ReturnUnitNominalAffine, ReturnStructural,
+  Crash — exhaustive matches repo-wide), and the terminal-codec
+  deliberately writes/rejects the terminal-external group with count zero
+  until the source-to-verifier migration retains the terminal transfer
+  (per its README fence note). The slice is inherently the parent's
+  cross-stage terminator + codec + verifier + interpreter + realization
+  leg — no file-local slice exists; coordinate with the parent owner lane
+  (the parent row records live fences on source/library/std/process_exit.omg
+  and PLACED-ACCESS-NATIVE-OPS's claimed cross-stage intent).
 - **PRIME-COUNTER-BENCHMARK-ROW.** — mined candidate; verify scope then implement.
 - **PRIVATE-PIPE-RUNTIME-ENFORCEMENT.** — mined candidate; scope verified, platform-gated residual — re-mines the runtime-enforcement leg of TOPOLOGY-PRIVATE-PIPE-INSTALLATION. The platform-neutral enforcement is landed on the unix leg: private channels are bound by kernel-attested pipe tokens (inode + direction, probed via `fcntl`/`fstat`), each binding registers an operation/payload schema (`topology_installation/operation_schema.rs`), an ungranted endpoint or substituted mapping refuses, schema violations close the binding, and peer failure EOFs the channel (`a_three_process_installation_mediated_over_real_private_channels` + `tests/process_confinement.rs`, `cargo nextest run -p topology-plan`). The remaining legs are the Windows and macOS providers — unrun, host-gated (Windows needs inheritable handle passing behind `StdPipeEnd`; macOS needs a signed/adhoc member image) — no linux-runnable work remains.
 - **PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN.** Mined candidate; scope verified —
