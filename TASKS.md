@@ -7824,6 +7824,14 @@ Baseline-failure repairs (source: `wiki/drafts/known_baseline_failures.md`):
 
 Language/semantic gaps:
 
+  **CLOSED by measurement 2026-09-21 (macOS arm64):**
+  `cargo nextest run -p omega-native-differential-test --test pipeline_ownership
+  --no-fail-fast` is **392/392**. Both recorded compile breaks are repaired
+  upstream -- `optimized_target_owner()` and the
+  `LegalizedScalarTerminator::Crash` arm -- so the harness leg this row records
+  as unbuildable now builds and passes whole. No code change was needed; the row
+  was stale, not blocked.
+
 - **FUZZ-CLUSTER-ZERO-BYTE-ARRAY.** Resolved — the empty fixed byte array is a first-class value: `[u8; 0]` admits at check in locals, constants, parameters, returns, record fields, and nested arrays, constructed exactly by `[]` or `""` (`pass/collections/zero_length_byte_array_admission`, `zero_length_byte_array_is_admitted_at_check`). The use-site fences are pinned: no provable index (`x[0]` → "cannot prove index `0` is within length 0"), and fixed-array literals must supply exactly 0 elements/bytes (`fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}` and `zero_length_byte_literal_length_rejected`, driven by `zero_length_byte_array_use_fences_reject_at_check`). Non-scalar-leaf `[T; 0]` stays fenced by `InvalidStructuralArrayLength` in the terminal verifier (settled by BASELINE-VERIFIER-ZERO-BYTE-ARRAY-FENCE); a native-route corpus pin for it belongs to the ACTIVE_FAIL roster. Verified: `cargo nextest run -p compiler --test canary_suite` scoped to the two new tests — 2/2 green on linux x86-64 at
 `ff596a06e6`; re-verified 3/3 zero_length canaries (admission, use-fence
 rejection, native-route `InvalidStructuralArrayLength` pin) green at
@@ -13639,6 +13647,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   now compiles (`cargo check --all-targets` clean). Still fenced by
   siblings: `pipeline_ownership*` under BASELINE-NATIVE-DIFF-PIPELINE-
   OWNERSHIP, per-host evidence rows under the RC-NATIVE-MATRIX-* lanes.
+  **`pipeline_ownership` re-measured 2026-09-21 (macOS arm64): 392/392.** The
+  fence this row recorded on that harness is gone and the leg no longer excludes
+  itself from the matrix -- it was one of the two binaries the linux row could
+  not build, and both now compile.
+
 - **NATIVE-MATRIX-MATCHING-HOSTS.** Resolved — covered by owned sibling rows. The stub re-mines the [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix) "matching host" requirement: each hosted target's products executed and independently validated on its own host (`mbx nextest run -p omega-native-differential-test --all-targets --no-fail-fast` plus RC-SOURCE-SEMANTICS per host). The gate leg is landed under RC-NATIVE-MATRIX-GATE; the crate leg is NATIVE-DIFFERENTIAL-MATRIX; every required host row is separately owned and live — RC-NATIVE-MATRIX-LINUX-X86-64, RC-NATIVE-MATRIX-LINUX-ARM64, RC-NATIVE-MATRIX-MACOS-ARM64, RC-NATIVE-MATRIX-WINDOWS-X64 — with host coordination under RC-NATIVE-MATRIX-HOSTS, RC-NATIVE-MATRIX-HOST-RUNS, RC-NATIVE-MATRIX-HOST-LEGS and RC-NATIVE-MATRIX-HOST-EXECUTION. Missing/unavailable runners stay explicit open rows per the doc's platform table; nothing in this surface is unowned. No slice exists under this name.
 - **NEW-APR-TRAPPING-SHIFT-REFUSAL-PIN.** Inserted row — minted name (planner
   scope: `tests/omega/fail/arithmetic/trapping_shift_requires_realization` +
@@ -13692,6 +13705,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   the record-note rewrite and any benchmarks.md application marker are
   fenced under BENCHMARK-PROOF-SUBJECT-SELECTION (Zergling-126, ~14:19Z
   Sep 21 — both `tools/benchmark/records` and `wiki/drafts/benchmarks.md`).
+  **Applied 2026-09-21.** `structural_proofs__linux_x86_64__default.json`'s
+  `notes[0]` led with `z125:`, naming the lane that ran it. Per this row's own
+  ruling (`wiki/drafts/benchmarks.md:210` -- keep note fields "descriptive of
+  the measurement (subject/leg/host), not of the lane that ran it") the prefix is
+  dropped; the descriptive remainder is unchanged. `tools/tests/test_benchmark.py`
+  29/29.
+
 - **NEW-BOARD-DUPLICATE-STUB-SWEEP.** Inserted row — sweep executed at
   `96bc0ef81043`+ head fetch (Zergling-52, linux x86-64). Removed 61
   duplicate bare `- **NAME** — mined candidate; verify scope then
@@ -19000,7 +19020,27 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 - **PIPELINE-ORPHAN-ENTRANCE-RESIDUE.** (split-of:STAGE-ENTRANCE-ORPHAN-AUDIT)
   Retire or wire the public stage entrances the executed stage-entrance orphan
-  sweep named. **Re-verified at `a9286683d0` against the whole repository, and
+  sweep named.
+
+  **Four more demoted 2026-09-21.**
+  `abstract-operations-to-abstract-operations` re-exported four proposal and
+  validation helpers with zero references anywhere outside its own crate:
+  `propose_field_value_specializations`,
+  `propose_case_membership_specializations`,
+  `propose_state_argument_specializations` and
+  `validate_state_argument_specialization`. All four are now `pub(crate)`, which
+  is this row's "demote" disposition and the same one
+  `lower_to_target_operations_and_native_callbacks` took at `f6bb8e6c2eb4c`.
+  They need no `PLUMBING_REEXPORTS` entry precisely because demotion removes
+  them from the public surface rather than excusing them on it. Their `apply_*`
+  siblings stay public — those do have consumers. Workspace check clean,
+  1130/1130 across `omega-architecture-test` and the crate.
+
+  Caution for the next sweep: verify caller counts with word boundaries.
+  `validate_state_argument_specialization` looks externally referenced under a
+  substring grep, but the two hits are
+  `validate_state_argument_specialization_candidate` in
+  optimization-unit-semantics — a different function. **Re-verified at `a9286683d0` against the whole repository, and
   the list shrank to one.** Both the original sweep and this row's first
   revision searched only `omega-rust/`, which misses the `tests/` tree at the
   repository root — a separate crate tree that consumes these crates. Any
