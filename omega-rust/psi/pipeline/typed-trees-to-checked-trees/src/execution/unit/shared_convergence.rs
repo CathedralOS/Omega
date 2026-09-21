@@ -50,10 +50,9 @@ pub(super) fn checked_shared_boolean_convergence(
     let has_integer_scalar_input = runtime_inputs
         .iter()
         .any(|input| matches!(input, SharedBooleanRuntimeInput::IntegerScalar(_)));
-    if structural_fields.len() > 1
-        || (!structural_fields.is_empty() && !has_boolean_scalar_input)
+    if (!structural_fields.is_empty() && !has_boolean_scalar_input)
         || (!structural_fields.is_empty() && has_integer_scalar_input)
-        || structural_fields.first().is_some_and(|(position, _)| {
+        || structural_fields.iter().any(|(position, _)| {
             !cleanup_actions.iter().any(|action| {
                 matches!(
                     action,
@@ -314,4 +313,135 @@ pub(crate) fn shared_integer_runtime_parameter_positions_for_test(
             })
             .collect()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use checked_trees::{
+        CheckedBooleanExpression as Boolean, CheckedBooleanExpression,
+        CheckedIntegerComparisonKind, CheckedLocatedScalarExpression,
+        CheckedScalarBindingDestination, CheckedScalarBindingValue,
+        CheckedStructuralPredicatePathSegment as Segment,
+        CheckedUnitNominalAffineCleanupPlan,
+    };
+
+    fn direct_field(parameter_position: u32, field: &str) -> CheckedBooleanExpression {
+        Boolean::StructuralParameterField {
+            parameter_position,
+            path: vec![Segment::Field(field.to_owned())],
+        }
+    }
+
+    fn convergence(
+        binding_expression: CheckedBooleanExpression,
+        scalar_parameter_count: usize,
+        cleanup_positions: &[u32],
+    ) -> Option<checked_trees::CheckedStructuralBooleanConvergencePlan> {
+        let mut facts = CheckFacts::default();
+        let state = SymbolHandle::from_parts(1, 1);
+        facts.values.scalar_expressions.expressions.push(
+            CheckedLocatedScalarExpression {
+                state,
+                statement_ordinal: 0,
+                role: CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+                expression: CheckedScalarExpression::Boolean(Box::new(binding_expression)),
+            },
+        );
+        let bindings = [CheckedScalarBinding {
+            statement_ordinal: 0,
+            destination: CheckedScalarBindingDestination::Immutable,
+            primitive_type: PrimitiveType::Bool,
+            value: CheckedScalarBindingValue::Expression,
+        }];
+        let cleanup_actions = cleanup_positions
+            .iter()
+            .map(|position| {
+                CheckedStructuralScalarReturnCleanupAction::InvokeNominal(
+                    CheckedUnitNominalAffineCleanupPlan {
+                        source_parameter_index: *position,
+                        type_identity: String::new(),
+                        cleanup_machine: SymbolHandle::invalid(),
+                        cleanup_state: SymbolHandle::invalid(),
+                        cleanup_contract_report_fingerprint: 0,
+                        requirements: Vec::new(),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let return_expression = CheckedScalarExpression::Boolean(Box::new(Boolean::Local {
+            position: scalar_parameter_count,
+        }));
+        checked_shared_boolean_convergence(
+            &facts,
+            state,
+            &bindings,
+            &return_expression,
+            scalar_parameter_count,
+            &cleanup_actions,
+        )
+    }
+
+    #[test]
+    fn second_member_fields_converge_when_each_source_carries_cleanup() {
+        // `flag && (token.observed || token.other)`
+        let same_source = Boolean::And {
+            left: Box::new(Boolean::Parameter { position: 0 }),
+            right: Box::new(Boolean::Or {
+                left: Box::new(direct_field(0, "observed")),
+                right: Box::new(direct_field(0, "other")),
+            }),
+        };
+        assert!(convergence(same_source, 1, &[0]).is_some());
+        // `flag && (a.ready || b.ready)` reads fields of two parameters.
+        let two_sources = Boolean::And {
+            left: Box::new(Boolean::Parameter { position: 0 }),
+            right: Box::new(Boolean::Or {
+                left: Box::new(direct_field(0, "ready")),
+                right: Box::new(direct_field(1, "ready")),
+            }),
+        };
+        assert!(convergence(two_sources.clone(), 1, &[0, 1]).is_some());
+        // Each member field's source parameter must carry nominal cleanup.
+        assert!(convergence(two_sources, 1, &[0]).is_none());
+    }
+
+    #[test]
+    fn member_only_and_nested_fields_stay_outside_convergence() {
+        // `token.observed || token.other` still lacks a Boolean scalar input.
+        let field_only = Boolean::Or {
+            left: Box::new(direct_field(0, "observed")),
+            right: Box::new(direct_field(0, "other")),
+        };
+        assert!(convergence(field_only, 0, &[0]).is_none());
+        // `flag && wrap.inner` where the member path is two segments deep.
+        let nested = Boolean::And {
+            left: Box::new(Boolean::Parameter { position: 0 }),
+            right: Box::new(Boolean::StructuralParameterField {
+                parameter_position: 0,
+                path: vec![Segment::Field("wrap".to_owned()), Segment::Field("flag".to_owned())],
+            }),
+        };
+        assert!(convergence(nested, 1, &[0]).is_none());
+        // `flag && (token.observed || left == right)` keeps the member/integer
+        // mixture out of the shared tail.
+        let with_integer = Boolean::And {
+            left: Box::new(Boolean::Parameter { position: 0 }),
+            right: Box::new(Boolean::Or {
+                left: Box::new(direct_field(0, "observed")),
+                right: Box::new(Boolean::IntegerComparison {
+                    kind: CheckedIntegerComparisonKind::Equal,
+                    left: Box::new(CheckedScalarExpression::Parameter {
+                        position: 1,
+                        primitive_type: PrimitiveType::U8,
+                    }),
+                    right: Box::new(CheckedScalarExpression::Parameter {
+                        position: 2,
+                        primitive_type: PrimitiveType::U8,
+                    }),
+                }),
+            }),
+        };
+        assert!(convergence(with_integer, 3, &[0]).is_none());
+    }
 }
