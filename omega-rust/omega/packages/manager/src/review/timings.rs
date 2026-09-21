@@ -89,7 +89,7 @@ fn completed_stages() -> Vec<(&'static str, u64)> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{StageTiming, completed_stages};
 
     #[test]
     fn nested_stages_report_inside_the_outermost_run() {
