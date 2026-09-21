@@ -61,3 +61,13 @@ slice under any of them:
   evidence retained across the package boundary, pinned by
   `public_dynamic_return_may_carry_private_producer_selected_evidence`
   and `quotient_formation_retains_selected_evidence_as_private_package_custody`.
+
+## Re-verification (PRIVATE-PRODUCER-EVIDENCE-LOAN-ORIGIN)
+
+Re-verified at `c924529921` on linux x86-64 (Zergling-126, claim
+`1c8f936b`): `cargo nextest run -p compiler --test
+package_compilation_inputs -E 'test(~cross_package_visibility)'` — all 21
+tests pass, including both named pins
+(`public_dynamic_return_may_carry_private_producer_selected_evidence`,
+`quotient_formation_retains_selected_evidence_as_private_package_custody`)
+with zero loan-origin diagnostics. Still no independent slice.
