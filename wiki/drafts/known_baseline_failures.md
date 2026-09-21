@@ -711,6 +711,54 @@ plans, 3 scalar-return custody, 1 fixed-fuel unranked-loop verdict); the
 five tests added since all pass. The blowup member did not finish at 150s
 — still nonterminating/pathological, still PROOF-SEARCH-MEASUREMENT's.
 
+Residual attribution at e7c0099cb2b7 (2026-09-21, linux x86-64), same
+command with the blowup member filtered out: 2206 run, 2183 passed, 23
+failed, 1 skipped — same headline count as 7b224763615, different
+composition. Every member still attributes to an owned family:
+
+- Missing checked transitive machine plan (18 tests, same
+  `InvalidUnitMachinePlan` "attached Unit closure is missing a checked
+  transitive machine plan" diagnostic). The family's membership shifted
+  without changing shape: `provider_attachment_source` ×6,
+  `unit_plan_omissions` ×3, and
+  `guarded_scalar_returns_source::stored_returned_cases_support_borrowed_refined_getters`
+  all pass now (10 members drained), while `unit_state_graph::
+  provider_attachments` remains at 9 members (the same nine under the
+  reworked `*_rejects_*_with_unchanged_plan` spellings; the omission now
+  reads "local construction stopped at structural field store: record
+  literal field, state 0") and nine new members joined with the
+  identical diagnostic — `retention::conformance_applications` ×3
+  (panicking at `src/retention/conformance_applications.rs:477`),
+  `tests::composed_operand_catalogs` ×5 (the `dynamic_unit` trio plus
+  `dynamic_continuation_operands_preserve_forwarding_and_helper_identities`
+  and `dynamic_result_continuation_calls_an_observable_ordinary_unit_body`,
+  panicking at `src/tests/composed_operand_catalogs.rs:11`), and
+  `tests::composed_unit_internal_calls::
+  composed_caller_lowers_a_retained_scalar_graph_call_result` (`Main::main`
+  calls scalar `Main::rot`, "neither a registered target nor an ordinary
+  body"). Still the provider-attachment lane's claim.
+- Scalar-return custody (1 test): only
+  `owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`
+  remains (`Lowering(Unsupported("composed Unit scalar call requires
+  structural call custody"))`); `discarded_scalar_invocation_precedes_whole_owned_return`
+  and `source_replay_rejects_return_parameter_and_carrier_substitution`
+  pass since the 7b224763615 reading.
+- New — cyclic scalar-array establishment panic (4 tests):
+  `scalar_array_source::cyclic::cyclic_{affine_empty_record,
+  trivial_affine_local}_{reestablishes_inside_the_component,
+  rejects_when_an_edge_drops_its_disposal}` all panic `index out of
+  bounds: the len is 1 but the index is 3` at
+  `src/scalar_graph/scalar_graph_lowering/call_lowering.rs:419` (the
+  erased-proof-argument roster zip). The members entered with
+  f0f808f419989's affine empty-record admission and the
+  member-established relocation work at 576b9a76dc49a; an index panic
+  is a lowering bug, not an authored rejection. Candidate lane:
+  scalar-graph call lowering / LICM relocation.
+- Closed since 7b224763615: the fixed-fuel unranked-loop verdict member
+  `unit_state_graph::bindings::unranked_self_bindings_validate_without_claiming_finite_fuel`
+  passes again; the unattributed tail remains empty — all 23 failures
+  sit on owned families.
+
 `cargo nextest run -p checked-trees-to-lowered-psi --no-fail-fast` at
 9d0d864656 plus the anonymous-arithmetic repair beside this row (2026-09-18,
 macOS arm64) runs the whole crate: 2032 run, 2012 passed, 20 failed. With the
