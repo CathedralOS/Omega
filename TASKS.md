@@ -12630,7 +12630,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CONCURRENT-WHOLE-COMPOSITION-EXTRACTION, WHOLE-COMPOSITION-EXTRACTION,
   WHOLE-COMPOSITION-INTERACTION-EXTRACTION.
 - **WHOLE-COMPOSITION-INTERACTION-EXTRACTION.** — mined candidate; scope verified, authorization gate recorded. This stub's subject is the inter-activation leg of the deferred whole-composition extraction: `omega-rust/omega/representations/task-plans/src/composition_model` already extracts the sealed model (`compose_composition_model` + `replay_composition_model`), and its `CompositionCrossActivationEdges` — joins, channel handoffs, and other cross-activation waits-for relations — publishes `NotRetained` because the settled plan vocabulary retains only intra-activation `canonical_suspension_crossings`. Re-mines the gated surface of CONCURRENT-PROTOCOL-EXTRACTION / CONCURRENT-PROTOCOL-WHOLE-COMPOSITION / CONCURRENT-WHOLE-COMPOSITION-EXTRACTION (see the concurrency stubs above): `wiki/spec/language/concurrency.md` §protocol-proofs states "This extraction remains deferred, not implicit authority supplied by a bounded search or a proposed graph format," and `wiki/language_guide/chapter_18_concurrency.md` §Concurrent Protocol Model defers whole-composition extraction "until a concrete protocol or safety-profile customer needs it." No join/channel/handoff field exists in `TaskActivationPlanSet` — activation requires such a customer plus upstream inter-activation vocabulary (the WAIT-WAKE-SUBSTRATE surface). No implementation slice exists to claim. Sibling stub on the same gated surface: WHOLE-COMPOSITION-EXTRACTION.
-- **WINDOWS-FILE-TIME-CARRIER-RESPELL.** — mined candidate; verify scope then implement.
+- **WINDOWS-FILE-TIME-CARRIER-RESPELL.** — mined candidate; scope verified,
+  covered — the stub is the same "unsigned carrier" clause of
+  WINDOWS-SET-FILE-TIME-RESPELL as resolved sibling
+  WINDOWS-FILE-TIME-UNSIGNED-RESPELL (merged with
+  FILESYSTEM-WINDOWS-FILETIME-RESPELL): the respelling landed at
+  `ff782bdf21` — `tests/omega/pass/filesystem/windows_set_file_time_exit/main.omg`
+  assembles `st_mtime` through the u64 carrier (`widen_u8_to_u64` per byte,
+  `narrow_u64_to_i64_wrapping` once at landing, main.omg:74-81) instead of
+  the overflowing `widen_u8_to_i64(byte) << 56` idiom, and the fixture is
+  registered in `CHECKED_ONLY_PASS_CANARIES` (`canary_suite.rs:1056`).
+  Re-verified on tip `43104bde655` (linux x86-64, source inspection): the
+  u64-carrier assembly is still in place and the old idiom does not recur;
+  the fixture's native-execution leg stays Windows-gated and unmeasurable
+  on this host, as `wiki/drafts/known_baseline_failures.md` records. The
+  parent row owns the residual bookkeeping; no independent slice exists
+  here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-UNSIGNED-RESPELL,
+  WINDOWS-SET-FILE-TIME-CARRIER, WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
 - **WINDOWS-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified,
   covered. The stub is the "unsigned carrier" clause of
   WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with
