@@ -15,16 +15,10 @@ use selected_instructions::{SelectedBlockOrigin, SelectedFunction, SelectedInstr
 use super::MemberRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    CrossingDirection, all_edges, crossed_window, edge_surface, terminator_instruction,
-    terminator_successors,
+    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, edge_surface,
+    terminator_instruction, terminator_successors,
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
-
-/// The acyclic-path walk bound: every per-shape family bounded its window
-/// by shape; the shared admission bounds the derivation itself. A
-/// function whose run-to-destination paths take more edges than this
-/// abandons as over budget rather than reporting a truncated window.
-const PATH_EDGE_LIMIT: usize = 64;
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,

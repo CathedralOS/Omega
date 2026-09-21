@@ -2,26 +2,28 @@
 //! one block's body, require that block to end in a two-successor
 //! conditional branch whose distinct targets — the arms — are each reached
 //! by that branch's edges alone and each end in an unconditional `Jump` to
-//! one common join reached by arm edges alone, and prove the window the
-//! move crosses independent — no register or condition-state hazard
-//! between the member and any crossed position, no interference with any
-//! crossed edge's register transports, no roster-carrying member sharing
-//! the window with a second memory-access actor, no barrier, call, hosted
-//! effect, or call-roster entry inside the window, and no boundary
-//! settlement whose observed executed prefix changes.
+//! one common join reached by arm edges alone, then derive the window the
+//! move crosses and prove it independent through the shared relocation
+//! admission: no register or condition-state hazard between the member and
+//! any crossed position, no interference with any crossed edge's register
+//! transports, no roster-carrying member sharing the window with a second
+//! memory-access actor, no barrier, call, hosted effect, or call-roster
+//! entry inside the window, and no boundary settlement whose observed
+//! executed prefix changes.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedSuccessor, SelectedTerminator,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedSuccessor,
+    SelectedTerminator,
 };
 
 use super::DiamondRelocationError;
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::block_edges::{
-    all_edges, edge_accounted, plain_edge, terminator_instruction, transport_conflict,
+    CrossingDirection, PATH_EDGE_LIMIT, all_edges, crossed_window, plain_edge,
+    terminator_instruction,
 };
-use crate::rewrites::window_hazards::{coupled, has_call_contract, schedulable, surface};
+use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -94,7 +96,6 @@ pub(super) fn admit<'source>(
             return Err(DiamondRelocationError::UnsupportedPair);
         }
     };
-    let terminator = terminator_instruction(&block.terminator);
     for edge in &branch_edges {
         if !plain_edge(edge) {
             return Err(DiamondRelocationError::UnsupportedPair);
@@ -141,13 +142,11 @@ pub(super) fn admit<'source>(
     // Each arm must leave through an unconditional `Jump` to one common
     // join on a plain semantic edge — the converging side of the diamond.
     let mut target_index: Option<usize> = None;
-    let mut arm_edges: Vec<&SelectedSuccessor> = Vec::new();
-    let mut arm_terminators: Vec<&SelectedInstruction> = Vec::new();
     for &arm_index in &arm_indices {
         let arm = &function.blocks[arm_index];
         let SelectedTerminator::Jump {
-            instruction: arm_terminator,
             successor: arm_edge,
+            ..
         } = &arm.terminator
         else {
             return Err(DiamondRelocationError::UnsupportedPair);
@@ -167,8 +166,6 @@ pub(super) fn admit<'source>(
             Some(_) => {}
             None => target_index = Some(join_index),
         }
-        arm_edges.push(arm_edge);
-        arm_terminators.push(arm_terminator);
     }
     let target_index = target_index.ok_or(DiamondRelocationError::UnsupportedPair)?;
     let target = &function.blocks[target_index];
@@ -213,109 +210,56 @@ pub(super) fn admit<'source>(
                 .then_some(target.instructions.len())
         })
         .ok_or(DiamondRelocationError::UnsupportedPair)?;
-    let member_accounted = schedulable(function, member_instruction)
-        .ok_or(DiamondRelocationError::UnsupportedInstruction)?;
-    // Every crossed edge's register transports sit between the member's old
-    // and new positions — the two branch edges and each arm's jump edge.
-    for edge in branch_edges
-        .iter()
-        .copied()
-        .chain(arm_edges.iter().copied())
-    {
-        if transport_conflict(member_instruction, edge) {
-            return Err(DiamondRelocationError::UnsupportedPair);
+    // The window the member's move crosses derives through the shared
+    // relocation rule once: the member's own tail behind it, every arm's
+    // whole body, the join's head before the landing index, and the two
+    // branch edges plus each arm's `Jump` edge — the same set this family
+    // enumerated by hand. The shared audit applies the schedulable,
+    // coupling, memory-ordering, transport, and settlement refusals
+    // unchanged; the topology gates above already bound every traversal.
+    let crossing = crossed_window(
+        function,
+        block_index,
+        member_index,
+        member_index,
+        target_index,
+        landing_index,
+        CrossingDirection::Forward,
+        PATH_EDGE_LIMIT,
+    )
+    .ok_or(DiamondRelocationError::WorkBudgetExceeded)?;
+    admit_run_relocation(function, &[member_instruction], &crossing).map_err(|rejection| {
+        match rejection {
+            RunRelocationRejection::Unschedulable => DiamondRelocationError::UnsupportedInstruction,
+            RunRelocationRejection::UnreachableDestination
+            | RunRelocationRejection::Coupled
+            | RunRelocationRejection::MemoryOrdering
+            | RunRelocationRejection::TransportConflict
+            | RunRelocationRejection::NonPlainEdge
+            | RunRelocationRejection::Settlement => DiamondRelocationError::UnsupportedPair,
         }
-    }
-    // The branch terminator plus its two edges is the first crossed
-    // position: it is exempt from the barrier-kind rule but not from the
-    // call, hazard, or memory accounting.
-    if has_call_contract(function, terminator.id) {
-        return Err(DiamondRelocationError::UnsupportedInstruction);
-    }
-    let branch_accounted = branch_edges
-        .iter()
-        .copied()
-        .any(|edge| edge_accounted(function, terminator, edge));
-    if member_accounted && branch_accounted {
-        return Err(DiamondRelocationError::UnsupportedPair);
-    }
-    if coupled(member_instruction, terminator) {
-        return Err(DiamondRelocationError::UnsupportedPair);
-    }
-    // Each arm's whole body sits inside the window, then its `Jump`
-    // terminator and outgoing edge form that arm's boundary position.
-    for position in 0..arm_indices.len() {
-        let arm = &function.blocks[arm_indices[position]];
-        let arm_edge = arm_edges[position];
-        let arm_terminator = arm_terminators[position];
-        for crossed in &arm.instructions {
-            let crossed_accounted = schedulable(function, crossed)
-                .ok_or(DiamondRelocationError::UnsupportedInstruction)?;
-            if member_accounted && crossed_accounted {
-                return Err(DiamondRelocationError::UnsupportedPair);
-            }
-            if coupled(member_instruction, crossed) {
-                return Err(DiamondRelocationError::UnsupportedPair);
-            }
-        }
-        if has_call_contract(function, arm_terminator.id) {
-            return Err(DiamondRelocationError::UnsupportedInstruction);
-        }
-        let arm_boundary_accounted = edge_accounted(function, arm_terminator, arm_edge);
-        if member_accounted && arm_boundary_accounted {
-            return Err(DiamondRelocationError::UnsupportedPair);
-        }
-        if coupled(member_instruction, arm_terminator) {
-            return Err(DiamondRelocationError::UnsupportedPair);
-        }
-    }
-    // The member trades order with the positions behind it in its own body
-    // and the positions before the landing index in the join body. Every
-    // other position keeps the member on the side it always had.
-    for crossed in block.instructions[member_index + 1..]
-        .iter()
-        .chain(target.instructions[..landing_index].iter())
-    {
-        let crossed_accounted =
-            schedulable(function, crossed).ok_or(DiamondRelocationError::UnsupportedInstruction)?;
-        if member_accounted && crossed_accounted {
-            return Err(DiamondRelocationError::UnsupportedPair);
-        }
-        if coupled(member_instruction, crossed) {
-            return Err(DiamondRelocationError::UnsupportedPair);
-        }
-    }
-    // A settlement positioned past the member's index observed it inside
-    // the source block's executed prefix; a settlement positioned past the
-    // landing index observes it inside the join's. Both refuse; positions
-    // at or before either boundary keep the executed set they always had.
-    // Arm blocks are unaffected: the member never enters an arm's body, so
-    // no arm prefix ever contained or loses it.
-    if function.boundary_settlements.iter().any(|settlement| {
-        (settlement.block == block.id && settlement.instruction_index as usize > member_index)
-            || (settlement.block == target.id
-                && settlement.instruction_index as usize > landing_index)
-    }) {
-        return Err(DiamondRelocationError::UnsupportedPair);
-    }
+    })?;
     // The scan walks every block body and terminator instruction once to
     // locate the member, and again with successor edges to count
     // predecessor edges; the window audit walks the member's surface
     // against each crossed position's, plus the function's three rosters
     // and every crossed edge's binding roster.
-    let mut crossed_instructions = block.instructions[member_index + 1..]
+    let mut terminator_ids = std::collections::BTreeSet::new();
+    let crossed_surfaces = crossing
+        .positions
         .iter()
-        .chain(arm_indices.iter().flat_map(|&arm| {
-            function.blocks[arm]
-                .instructions
+        .flat_map(|(block_index, positions)| {
+            positions
                 .iter()
-                .chain(std::iter::once(terminator_instruction(
-                    &function.blocks[arm].terminator,
-                )))
-        }))
-        .chain(target.instructions[..landing_index].iter())
-        .chain(std::iter::once(terminator));
-    let crossed_surfaces = crossed_instructions
+                .map(|position| &function.blocks[*block_index].instructions[*position])
+        })
+        .chain(
+            crossing
+                .edges
+                .iter()
+                .map(|edge| edge.instruction)
+                .filter(|instruction| terminator_ids.insert(instruction.id)),
+        )
         .try_fold(0usize, |total, crossed| {
             total
                 .checked_add(surface(member_instruction))?
@@ -349,10 +293,9 @@ pub(super) fn admit<'source>(
                 .checked_add(function.boundary_settlements.len())
         })
         .and_then(|total| {
-            branch_edges
-                .iter()
-                .chain(arm_edges.iter())
-                .try_fold(total, |total, edge| total.checked_add(edge.bindings.len()))
+            crossing.edges.iter().try_fold(total, |total, edge| {
+                total.checked_add(edge.successor.bindings.len())
+            })
         })
         .ok_or(DiamondRelocationError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| DiamondRelocationError::IdentityOverflow)?
