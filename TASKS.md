@@ -6881,7 +6881,25 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BENCHMARK-SELECTION-ROW-MATRIX, BENCHMARK-SELECTION-VARIANT-ROWS,
   BENCHMARK-SELECTION-CONTRAST-ROWS.
 - **BENCHMARK-SELECTION-ROW-MATRIX** — mined candidate; verify scope then implement.
-- **BENCHMARK-SELECTION-VARIANT-ROWS** — mined candidate; verify scope then implement.
+- **BENCHMARK-SELECTION-VARIANT-ROWS.** Mined candidate — scope
+  verified, coverage landed. Bare re-mine of the variant-selection leg
+  already closed by resolved sibling BENCHMARK-SELECTION-MATRIX
+  (`9d566263d0`): `tools/benchmark/records/` carries the
+  non-default-selection rows this stub names —
+  `wrapping_square_sum__linux_x86_64__sel-885944b13b84` and
+  `sel-9c09e32a82fb` — beside the default-selection `cli_mvp` row and
+  the three cross-compile rows (`linux_arm64`/`macos_arm64`/
+  `windows_x86_64` at `52ceeeabb7b`, runtime legs `skipped` per
+  contract); `test_benchmark.py` 21/21 green on linux x86-64 and the
+  `wiki/drafts/benchmarks.md` embedded matrix is regenerated to the
+  six-row census. The remaining gap — a re-measured `linux_x86_64`
+  default-selection row at a newer revision — stays with
+  BENCHMARK-LINUX-X64-ROW-REFRESH; record production is fenced to
+  BENCHMARK-COMPARISON-OCCURRENCE-GATE (`tools/benchmark`) and
+  BENCHMARK-HOST-ROW-MATRIX (`wiki/drafts/benchmarks.md` +
+  `tools/tests/test_benchmark.py`). No independent slice; sibling stubs
+  BENCHMARK-SELECTION-ROW-MATRIX and BENCHMARK-SELECTION-CONTRAST-ROWS
+  mine the same coverage.
 - **BENCHMARK-STANDALONE-SUBJECT.** Depend-free benchmark subject. Verified scope: a subject with no `depend()` skips the shared std plumbing and is the only compile reaching a published artifact at this revision — `samples/cli/basics/standalone` landed: empty `Main::main` bound to all hosted `ProgramEntry` roots, ~25 s end-to-end compile on w9 Linux x86-64. Runtime leg stays `skipped` (`--no-run`): `ProcessExit` provider authority is bound to the std package identity and a subject-local boundary machine produces no provider plan, so the artifact cannot exit cleanly. Re-verified on 97eeaf222a: `benchmark.py measure --target linux_x86_64 --no-run --print` publishes an 8192-byte artifact, median compile 27.6 s, peak RSS ~146 MB, runtime `skipped`; no committed record row yet. Remaining: the committed record row under `tools/benchmark/records/` and the `wiki/drafts/benchmarks.md` coverage entry are fenced to sibling claims this wave.
 - **BENCHMARK-STD-COMPARISON-OCCURRENCE-GATE** — mined candidate; scope verified, resolved — re-mine of BENCHMARK-COMPILE-UNBLOCK-COMPARISON-OCCURRENCES' producer fix (integer comparison-occurrence rejection repaired at `76dc49a99e`; `terminal_product::integer_comparisons` counts selected occurrences only against the artifact-bound checked scope). The "std" residual the name implies — provider coverage for genuinely selected occurrences, std-wide verification — is exactly what the landed publication test pins. Re-verified green at `1edade1a48`: `cargo nextest run -p compiler --test integer_comparison_publication` → `selected_comparison_publication_preserves_complete_custody_among_builtins` PASS (19.9s, linux x86-64). Sibling re-mines named on the parent row: BENCHMARK-COMPARISON-OCCURRENCE-GATE, COMPARISON-OCCURRENCE-PRODUCER-COVERAGE, the INTEGER-COMPARISON-OCCURRENCE-* family.
 - **BENCHMARK-SUBJECT-CORPUS-EXPANSION** — mined candidate; verify scope then implement.
