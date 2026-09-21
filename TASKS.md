@@ -10834,6 +10834,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   REGION-ALIGNMENT-EXPANSION and SQUALR-NAMED-TRAIT-OPERATORS hold
   item-level claims on the same lane. Coordinate with GEOMETRY-PARITY's
   owner lane before working it.
+  Re-witnessed at `5fdd41efd8` (submodule pin `5b0307c`, initialized and
+  read-only inspected): the three ported files moved inside the submodule —
+  `structures/scanning/filters/snapshot_region_filter.omg`,
+  `structures/memory/normalized_region.omg`,
+  `structures/memory/memory_alignment.omg` — and the gap stands verbatim:
+  `snapshot_region_filter.omg:62` still carries only the comment "Upstream
+  debug assertions require an aligned base and size >= value width", no
+  `crash`/`requires` clause landed anywhere in the ported surfaces. Fence
+  refreshed: `samples/apps/squalr` wholesale under SQUALR-WINDOWS-GEOMETRY-
+  VALIDATION (exp 05:49Z), SQUALR-GEOMETRY-PARITY-RESIDUE live (03:32Z),
+  SQUALR-NAMED-TRAIT-OPERATORS item claim (10:24Z).
 - **SQUALR-GEOMETRY-PARITY-REMAINDER.** — mined candidate; scope verified at
   `10d93dd448`, re-verified at `3533f7d0e8` — the `samples/apps/squalr`
   wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
