@@ -14257,6 +14257,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   mines the neighboring region residual.
 - **SQUALR-SEED-REGION-OPERATIONS** — mined candidate; verify scope then implement.
 - **SQUALR-SUPPLIED-BYTES-SCAN** — mined candidate; verify scope then implement.
+- **SQUALR-GEOMETRY-WINDOWS-VALIDATION.** Resolved 2026-09-21 — minted
+  alias of the same Windows leg of the app repo's GEOMETRY-PARITY gate,
+  settled on the adjacent GEOMETRY-WINDOWS-VALIDATION /
+  SQUALR-WINDOWS-GEOMETRY-VALIDATION rows. Re-verified at `832c55e69b`
+  on linux x86-64: recorded evidence stays macOS ARM64 + Linux x86-64
+  (`Squalr geometry: PASS`, native exit 0); the Windows leg requires
+  `python tools/verify.py native --timeout 600` on a Windows host and no
+  Windows development host exists in this lane. The submodule gitlink
+  pins `5b0307c352`; `samples/apps/squalr` carries live sibling claims
+  this wave (SQUALR-NAMED-TRAIT-OPERATORS item claim ~10:24Z,
+  SQUALR-SEED-PARITY 15:14Z on the draft ledger). A Linux
+  `--target windows_x86_64` emit leg does not satisfy the run-based
+  acceptance. No linux_x86_64 slice exists under this name.
 - **SQUALR-WINDOWS-GEOMETRY-VALIDATION.** Mined candidate — scope
   verified, re-mine of the audited sibling row
   SQUALR-GEOMETRY-WINDOWS-VALIDATION (~line 10273, verified against
