@@ -5949,7 +5949,23 @@ moved to the termination-catalog fence (see that row's refresh note).
   `InvokeNominal` is executable cleanup-machine work rejected by
   `plain_home_cleanup` (needs a real call leg, not a home discard); and
   `accepts` still decides owned-arrival home suppression, so its
-  retirement waits on those legs.
+  retirement waits on those legs. Re-verified at `12ea4941ebd` (z203
+  leg): `c58da7957f6` reworked `accepts` — the recognizer now admits
+  per-action edge discards rather than requiring empty lists
+  (`unobserved_owned.rs` `edge_discards`: Jump trivial+residual discards
+  admitted on declared owned-affine arrivals and their non-overlapping
+  projected residuals; Conditional arms admit only trivial discards —
+  `&[]` residuals still passed). Representation unchanged:
+  `SuccessorEdge`, `StructuralCaseSuccessorEdge`, `ReturnStructural`,
+  and `ReturnUnit` still carry `trivial_affine_discards` only
+  (`control_flow/termination.rs`); producers emit non-empty residuals
+  only at `structural_values/emission.rs:1553` +
+  `argument_evaluation.rs:497`, every Conditional/ReturnUnit site writes
+  `Vec::new()`; Jump residuals realize natively at
+  `control_flow/terminator.rs:386`. All implementing surfaces are
+  unfenced at tip; the residual-field propagation remains a
+  representation + producer + codec + verifier + interpreter + lowering
+  leg — no bounded slice verified under this name.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary evaluation/value transport
   in Psi argument normalization, checked scalar computations, call/result plans
