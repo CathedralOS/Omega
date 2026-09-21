@@ -130,6 +130,10 @@ fn classify_builtin_function(function: BuiltinFunction) -> TerminalAuthorityDisp
         | BuiltinFunction::AsmSpinPause
         | BuiltinFunction::AsmYieldHint
         | BuiltinFunction::AsmNop
+        | BuiltinFunction::AsmWaitForEvent
+        | BuiltinFunction::AsmWaitForInterrupt
+        | BuiltinFunction::AsmSendEvent
+        | BuiltinFunction::AsmSendEventLocal
         | BuiltinFunction::AsmSnapshotFlags
         | BuiltinFunction::FloatIsNan
         | BuiltinFunction::FloatMultiplyThenAddF32
