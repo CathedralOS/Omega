@@ -45,3 +45,5 @@ the `records/` surface belongs to the substrate item (fenced to the runner
 lanes this wave). This leg's scope was bounded to the format gate plus the
 two scoped canary filters the prior records established as the runnable
 subset.
+
+> Field note (9f5e4b46f328..3dac85e5ccce review): this replaces rust_release_record_z70.md under a revision-stamped name; a release record is one row per revision on RUST-RELEASE-RECORD, not a draft per re-run — fold and delete when the next stamp lands.

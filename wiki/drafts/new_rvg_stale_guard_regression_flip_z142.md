@@ -38,3 +38,5 @@ positive dominating-guard/equality-transport legs.
 
 **Resolved / record-only.** The regression flip the item names is
 landed and freshly witnessed; no slice remains in the scoped file.
+
+> Field note (9f5e4b46f328..3dac85e5ccce review): already-landed verification record; fold the one-line verdict into the RVG row and delete rather than keeping a per-lane ledger.
