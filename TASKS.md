@@ -3064,152 +3064,60 @@ syntax and other terminal services are not prerequisites.
   is sufficient; do not weaken assembly to manufacture a second diagnostic
   for a provider selection whose import already failed.
 
-- **COMPONENT-SUBSTRATE.** Implement independently selected component closure
-  under the [component publication contract](wiki/spec/build/component_publication.md),
-  keeping deployment/update policy in runtime packages or Cathedral.
-  Componentization must bind exact imports, exports, services, mappings, stack
-  demand, leases, and installed provider closure. Until that carrier is
-  complete, an `Independent` selection with no verified component fails at one
-  explicit fence (`provider-planning` `selection_provenance.rs`, pinned by
-  `package_compilation_inputs/authority_and_build_files.rs::independent_provider_selection_reaches_the_componentization_fence`).
+- **COMPONENT-SUBSTRATE.** Deliver independently selected component products
+  and their admission/replacement closure under the
+  [component publication contract](wiki/spec/build/component_publication.md).
+  Runtime packages or Cathedral own deployment, acquisition and update policy.
 
-  The [verified-description](wiki/spec/build/component_publication.md#verified-component-descriptions)
-  carrier and consumer exist in `backend/artifacts/component-description`:
-  `describe_component_facts`, `verify_component` and
-  `VerifiedComponent::realizes_selected_plan`. `provider-planning` closes each
-  `Independent` plan against exactly one verified component,
-  `build-evaluation/src/provider_settlement/independent_components.rs`
-  re-verifies attached descriptions, and
-  `compiler::published_independent_component_description` publishes one from a
-  dependency's own checked compilation
-  (`compiler/tests/package_compilation_inputs/independent_components.rs`). This
-  is a checked-stage join driven by a test that attaches the description. The
-  producer now has a non-test caller: `compile_dependency_closure` retains
-  every dependency's checked compilation as a component candidate, and when a
-  package's compile rejects at the fence the loop publishes each named
-  component's description with `compiler::published_independent_component_description`
-  and recompiles once with them attached. The compiler reports the evaluated
-  `Independent` selections — with the dependency package each names — through
-  `IndependentComponentDiscovery`, a write-beside output recorded after build
-  evaluation and before settlement, so the roster survives a fence rejection;
-  a settled compilation retains the admitted descriptions as custody, and the
-  package-evidence replay re-verifies them under the build's admission profile
-  instead of hitting the fence again. The retry's abandoned build evaluation
-  is real sponsored consumption, reconciled through
-  `verify_build_session_accounting`'s discarded-usage roster. A component that
-  seals its requirement with its own checked adapter already publishes and
-  settles — the landed `pick-component` selects `PickProvider`, a checked
-  machine inside the same package, and `derive_component_inventory` retains
-  `Pick::mark` as a sealed `BoundaryCall`; the feared fused-lowering erasure
-  never materializes. Build vocabulary for mechanism acceptances now exists:
-  `builder.accept_component_assumption("<64 hex chars>")` is declared beside
-  `exclude_crash` in the build prelude, build-evaluation harvests the declared
-  digests statically from the root build machine's typed statements (the same
-  rule as `select_provider`), settlement passes the set into
-  `verify_independent_components` as the `accepted_assumptions` roster, and
-  the settled `CheckedExecution` retains it so the package-evidence replay
-  re-verifies under the same acceptances. A consumer that never accepted a
-  description's `port-mechanism` digest still rejects it unaccepted; a wrong
-  digest leaves it unaccepted and a malformed spelling rejects at the
-  consumer's own declaration
-  (`package_compilation_inputs/independent_components.rs` pins all three).
-  Product emission now reads the composition mode: both Terminal-artifact
-  producers (`produce_retained_terminal_artifact` and
-  `produce_program_entry_terminal_artifact`) run the
-  `terminal_artifact/composition_modes.rs` fence over the retained selection
-  provenance and reject a settled `Independent` edge — naming the plan and
-  provider — instead of emitting a silently fused artifact
-  (`independent_components.rs` pins both product routes; check-level
-  compilation, description publication and the component join are
-  unaffected). The same file pins the attachment fence's coordinate checks —
-  a description naming the root package, a foreign package, or a second
-  description for one dependency each reject at
-  `with_independent_component_descriptions` before any byte is consulted —
-  plus the carried-subject substitution rejection (the expected subject is
-  caller-supplied, never read from the bytes), the unmatched-component
-  rejection when the named dependency selects `Fused` or selects nothing at
-  all, and the settled compilation's custody retention of the admitted
-  description beside an empty acceptance roster. Corrupt and truncated
-  description bytes each reject inside independent verification rather than
-  being treated as complete, and the join is per selection: a second
-  dependency's own `Independent` edge stays unmatched — naming its plan —
-  while only the first dependency's description is attached. Forged fields
-  inside otherwise-canonical bytes are pinned the same way: decoding the
-  published description, mutating one field, and re-encoding reaches the
-  check inside `verify_component` — an unadmitted schema, a frontier
-  preceding artifact closure, a forged export row, an omitted module-derived
-  entry or export, a declared assumption the consumer never authored, and an
-  entry row bound to an assumption absent from the roster each reject inside
-  settlement's independent-verification wrapper. The deeper rosters are
-  pinned the same way: a forged import slot names no unsealed requirement,
-  an outgoing row sealed to a foreign provider digest, an omitted
-  provider-occurrence obligation, one requirement claimed by two provider
-  digests, a custody row claiming a fact the artifact lacks, and an
-  installation-bound service bound the artifact does not retain each reject
-  inside the same wrapper.
-  Still, a settled `Independent` edge carries no symbolic import or
-  installation obligation into the product past that emission fence.
+  Description publication and checked `Independent` settlement already have a
+  production path through package-manager dependency compilation,
+  `compiler::published_independent_component_description` and
+  `component-description::verify_component`. The current product boundary
+  remains `checked-compilation-to-terminal-artifact`'s
+  `terminal_artifact/composition_modes.rs`: both Terminal and native products
+  reject settled independent edges because symbolic imports/exports,
+  entry/leave resources and installation/replacement custody are absent.
+  Remove that fence only when the requested independent product exists; never
+  emit a silently fused substitute.
 
-  Remaining work:
+  Carry the exact import/export, complete entry/outgoing-authority, service,
+  mapping, lease, stack and retained-provider inventories into the product.
+  `CustodyKind` and `ObligationKind` already have Mapping/Lease vocabulary;
+  supply actual producer facts, independent reconstruction and per-occurrence
+  discharge, not more enum-only scaffolding. Connect native
+  `component-candidate::describe_component`'s derived stack and realization
+  identity to publication. A Psi-only capsule correctly has no native facts;
+  do not fabricate them to fill the fields.
 
-  - Supply the native facts. Compiler-published descriptions leave
-    `stack_demand` and `realization_identity` absent because a Psi capsule has
-    no native realization; the native producer `describe_component` sits in
-    `component-candidate`, behind the runtime quarantine in
-    `tests/architecture/layering.rs`. `ObligationKind` and `CustodyKind` carry
-    no mapping or lease row yet.
-  - Realize the settled edge: symbolic imports/exports, entry/leave and
-    resource demands, and installation/replacement obligations carried into
-    the product. Until that carrier exists the product-emission fence keeps
-    rejecting rather than emitting a silent Fused artifact.
-  - Expose the same consumer to independent admission/replacement and to
-    **TOPOLOGY-PLAN-VERIFICATION**. First inventory actual producer/replay
-    coverage; implement missing complete facts in their Psi, component, or
-    provider owners, not a second topology census. The inventory is landed at
-    [component_substrate_coverage](wiki/drafts/component_substrate_coverage.md):
-    producers, consumers, and replay are mapped, the topology binding already
-    consumes `VerifiedComponent`, and no admission/replacement consumer of
-    `verify_component` exists — `component-deployment` binds candidate custody
-    directly and never verifies a description.
-    **BOUNDED-INSTALLATION-REACH-ROWS** waits on this carrier for its
-    component-contract fence.
-    z21 leg: inventory found the installer's `AdmittedArtifact` carrying a
-    bare caller-supplied `component_subject` — a forged subject was
-    representable. The artifact now carries `admission:
-    Arc<AdmittedComponent>`, so admission/replacement derives component
-    subject *and* request profile from the verified description itself;
-    `prepare_installation` re-binds both against the plan's component
-    record and `InstallationRejection::ArtifactMismatch` names the
-    divergent field (`component_subject`/`verification_profile`).
-    `verify_plan`/`compose_plan`/`check_instance_binding` take
-    `&[impl Borrow<AdmittedComponent>]` so owned and shared rosters both
-    feed the same consumer (`topology/src/{topology_installation,
-    verified_components,plan_verification,plan_composition}.rs`; `cargo
-    nextest run -p topology-plan`: 98/100 pass — the 2 codec golden-fixture
-    failures reproduce identically at base `739e4e81e97`, linux-x86_64).
-    Still open here: admission under a replacement profile is a distinct
-    artifact in the request, but no replacement-leg owner pins the
-    live-replacement path yet; the description-side demand/supply gap
-    above is unchanged.
+  Independent admission/replacement must consume the same verified-description
+  contract as **TOPOLOGY-PLAN-VERIFICATION**, retaining exact artifact, profile,
+  authority and resource correspondence. `component-deployment` currently
+  binds candidate/installed-byte custody directly, not a verified description;
+  preserve those checks while joining the shared contract. Topology's simulated
+  replacement-profile controls do not establish loaded execution or retirement.
+  **BOUNDED-INSTALLATION-REACH-ROWS** needs this complete component contract;
+  **WIRE-RUNTIME-AND-INSTALLATION** owns platform installation/execution and
+  **PSI-COMPONENT-REPLACEMENT** owns the interpreted embedding customer.
 
-  Acceptance: an ordinary two-package `omega` build whose root selects
-  `Independent` publishes and consumes the dependency's description with no
-  test-side attachment. An independent source-free consumer checks
-  subject/profile/schema, all entries and outgoing authority, custody and
-  inseparable assumptions; corrupt, omitted, early-frontier, forged-complete,
-  substituted, stale and unrelated descriptions reject and never fall back to
-  Fused. Include startup, callbacks, timers, cleanup and retained providers.
-  Reading descriptions grants no callable authority; installation-dependent
-  facts remain obligations and require fresh per-occurrence resource/profile
-  admission.
+  Acceptance: an ordinary two-package build selecting `Independent` emits
+  the independent products and publishes/consumes the dependency description
+  without test-side attachment. A source-free consumer checks exact subject,
+  profile, schema, all entries/outgoing authority, custody, retained providers
+  and inseparable assumptions, including startup, callbacks, timers and cleanup.
+  Preserve corrupt/truncated, substituted/stale/unrelated, early-frontier,
+  omitted/forged inventory, duplicate dependency/plan and unaccepted-assumption
+  rejection. Reading a description grants no callable or installation authority;
+  installation facts require fresh per-occurrence admission.
 
-  `verify_component` now runs `terminal-verifier` on the decoded module under
-  the request's `admission_profile` (a new `ComponentVerificationRequest`
-  field, bound into `profile_identity`) and derives the inventory from the
-  verified module; the authority scan enumerates every `OperationKind` so a
-  future authority-bearing kind stops compiling instead of silently reading
-  as empty coverage. An empty admission profile still admits only
-  kernel-dischargeable modules.
+  Exercise actual authorized stable-slot replacement: compatible imports/exports
+  and behavior exclusions, fresh candidate resource/profile admission, new calls
+  entering the new era, old sessions retaining theirs, and retirement only after
+  every activation, registration, returned object and claim has a valid disposition.
+  Pin state migration/retention, coexistence capacity and failure behavior.
+  Unauthorized, incompatible, weaker-policy, underprovisioned and premature
+  operations reject without losing custody. Continuity-free replacement need not
+  drain every old era before publication; stronger continuity needs its explicit
+  contract. Keep model-level checks distinct from this execution acceptance.
 
 - **FFIVAL.** Complete and run the Windows user32 boundary-coherence
   customer at `tests/omega/pending/host/user32_window_procedure_registration`,
@@ -3410,107 +3318,45 @@ Finish the Rust [completion contract](wiki/drafts/rust_compiler_completion.md)
 before starting the product-language migration. Rust can remain a differential
 implementation afterward, but neither Rust agreement nor Rust-specific machinery
 is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
-- **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as two
-  sibling Omega packages: target-neutral phases under `source/psi/` and the
-  Terminal-Psi-consuming product under `source/omega/`, with hosted entrypoints
-  at `source/omega/{build.omg,main.omg}`. Two packages rather than two modules
-  is settled, not a layout choice: the firewall keeps Psi target-neutral while
-  `source/omega/build.omg` selects a provider and binds target roots, and
-  [package boundaries](wiki/spec/packages/boundaries.md) make a subsystem
-  needing its own dependency-reach set a separate package. The maintained Rust
-  compiler is the differential implementation, not source for this task. Work
-  backward from complete Omega behavior in small, live vertical slices; do not
-  create a bootstrap-private dialect, file allowlist, or parallel
-  source-to-native path.
-  What exists is a lexer and a partial parser: about 3,600 lines across
-  `source/psi/{lex,parse,source,syntax,tokens}/`, the parser gate at
-  `source/psi/gates/parser/`, and a 70-line `source/omega/main.omg` that drives
-  lexing and parsing over console input. The parser now admits `T in Domain`
-  qualified type references on data fields and case payloads —
-  `TypeReferenceKind::Qualified` carrying the domain span, OMGPAR7 domain
-  columns in the gate observation, three acceptances and six rejections pinned;
-  resolution of the domain name remains ahead. `omega --check` on the parser
-  gate clears the new states and stops at selected-dispatch service custody
-  (`selected ProgramEntry establishment rejoins 0 Terminal attachment
-  identities; expected one`), reproduced identically on the pre-slice base, so
-  the gate's checked compilation is red before the documented `source_full`
-  Unit omission and `test-parser.sh` cannot mint the artifact it runs.
-  `omega --check
-  source/omega/main.omg` now clears target-profile admission and stops at
-  selected-dispatch service custody (`selected ProgramEntry establishment
-  rejoins 0 Terminal attachment identities; expected one`) — the same stop
-  the parser-gate check reports — observed on Linux x86-64 through
-  `cargo run -p omega -- --check source/omega/main.omg`.
+- **OMEGA-PRODUCT-COMPILER-SOURCE.** After the Rust release-completion gate,
+  complete the Omega-written production compiler as separate `source/psi/`
+  and `source/omega/` packages, retaining `source/omega/{build.omg,main.omg}`
+  as product roots. Psi owns target-neutral parsing, resolution, typing,
+  checking, proof and Terminal Psi production; Omega consumes Terminal Psi for
+  provider selection, realization, ABI and artifact emission. Package separation
+  and the firewall are settled.
 
-  Remaining work:
+  The current root drives a lexer and partial whole-file parser, then exits;
+  it produces no compiler artifact. Extend the connected product in ordinary,
+  compositional vertical slices through the complete language and requested
+  products. No bootstrap-private dialect, file/AST allowlist, source-shape-only
+  lowering path or parallel source-to-native route. D in `bootstrap/5_omega/`
+  is the separate Epsilon-written implementation; Rust is a nonauthoritative
+  differential comparator.
 
-  - Target-profile recognition (landed at af052a232e): `alpha_bootstrap` is a
-    recognized `TargetProfile` reached through the ordinary canonical-name,
-    root-slot-owner, and build-case routes; the binding at
-    `source/omega/build.omg:11` is unchanged and no parallel bootstrap
-    selection exists. An inactive Alpha row demands no realization, unknown
-    profile and slot names still reject, and a selected Alpha reports
-    "native realization for target profile `alpha_bootstrap` is not
-    implemented" from `NativeTarget::from_omega_target_name` — never a
-    checked result or artifact; `compiler/tests/alpha_profile_selection.rs`
-    pins all three through `compiler::compile`. Rust Alpha emission stays
-    out of scope.
-  - Std name shadowing. A user declaration spelled like a std one (`ByteRead`,
-    `Lexer`) makes std's own machines fail checking. The implicit-case-domain
-    capture is fixed: dispatch-arm `Type::Case` classification in
-    `symbol-resolved-trees-to-typed-trees`' `exhaustiveness.rs` and domain-fact
-    case lookup in `domain_membership.rs` scanned every loaded package by
-    spelling, so a consumer's package-private `data ByteRead {}` captured
-    `read_line`'s own dispatch as `can fall through`. Both now honor the
-    authored-selection `case_type_symbol`/`case_symbol` and `Named.symbol`,
-    and spelling fallbacks resolve inside the referencing source's package
-    scope (`data_definition_index`). Pinned by `module_machine_indices`
-    bare_cases
-    `consumer_same_named_data_does_not_capture_dependency_case_dispatch`; a
-    `data ByteRead {}` + `console.read_line` repro on linux-x86_64 now clears
-    the dispatch and stops at the remaining same-family diagnostics: a
-    cross-package `duplicate data ByteRead` check plus `read_line`'s `store`
-    overflow and `LinuxX86_64::extent_shape`'s range. The red
-    `compiler/tests/calling_policy_plans/macos_entry.rs` tests are the same
-    family; that directory is currently claimed by
-    OPAQUE-BY-VALUE-BOUNDARY-ABI.
-  - The parser gate's next Unit omission: `statement sequence: call: call
-    operation`, state `source_full`, statement 1 of
-    `source/psi/gates/parser/harness.omg` — an attached call through a nested
-    receiver whose first argument is a copy-enum case literal beside two ranged
-    scalars. `Main::main` has no such call, so the product's own next stop
-    after target recognition is unmeasured.
-  - Native production for `pass/structs/runtime_copy_sum_array_receiver_exit`
-    and `pass/calls/runtime_nested_receiver_cast_argument_exit`, both on
-    `canary_suite.rs`'s checked-only roster. Their entry statements stop at
-    `structural field store: scalar field type`, `local data: structural call
-    binding`, and `state graph: terminator: conditional successors: parameter
-    transfer`. **STATE-LOCAL-VALUE-FRONTIER** owns those Unit slices.
-  - Gate-check cost. A full parser-gate check takes about 6,500 s wall against
-    about 1,500 s before `d0371277e3..fc633a98ae`, with sampling inside
-    `typed-trees-to-checked-trees` `flow::builder::build_flow_facts` calling
-    `validation/src/machine_calls/calls/write_frames/`. Attribute it before
-    taking the next slice; iteration at that cost is the practical blocker.
-  - Everything after the parser. Resolution, typing, checking, proof and
-    Terminal production in `source/psi/`, and the whole `source/omega/`
-    consumer, are unwritten.
+  Resume from a fresh product-root check and freshly build/run
+  `source/psi/test-parser.sh` with explicit `OMEGA_CLI` and `OMEGA_TARGET`.
+  This is a parser golden-observation gate, not a two-compiler differential
+  harness. Preserve acceptance/rejection, lexical handoff, structural identity,
+  capacity and determinism controls; Python only decodes/compares observations.
+  Cached artifacts and checked-source success do not establish native execution.
+  Reproduce and attribute the previously reported package-name-shadowing,
+  entry-custody and expensive-checking issues before assigning repairs; their
+  old diagnostics and timings are not a current frontier. Route general
+  value-transport/native gaps to **STATE-LOCAL-VALUE-FRONTIER** and existing
+  borrowed-storage/crash gaps to **BORROWED-STORAGE-RESTORATION** and
+  **CRASH-CONTRACT**. Do not infer invalid source from a lowering omission:
+  the nested-receiver narrowing-cast fixture carries range evidence.
 
-  Acceptance: the exact Omega source closure implements the complete language
-  and production pipeline, passes the shared product suite, and publishes a
-  deterministic manifest of every transitive compiler/build input. Bootstrap
-  construction of that closure belongs in `TASKS_BOOTSTRAP.md`.
-
-  **BORROWED-STORAGE-RESTORATION** and **CRASH-CONTRACT** own stops split out
-  of this item.
-
-  Flag: a checking gap is being closed one stage below where it opens. The
-  narrowing cast above is accepted in checking and fenced in the Unit builder,
-  and the pinned test asserts the builder's omission rather than a rejection,
-  so a program that should not check does check and stops later with a lowering
-  message. The gate advances the same way: one statement shape per slice, each
-  landing a canary for the arrangement the harness reaches next, the next
-  omission again a single statement, while the general mechanism is the
-  ordinary statement sequencing **STATE-LOCAL-VALUE-FRONTIER** names.
+  Acceptance: the exact package-resolved source closure implements the complete
+  language and production pipeline under the
+  [compiler product contract](wiki/spec/build/compiler_request.md), passes the
+  shared product suite and Rust/Omega differential behavior checks, and publishes
+  a deterministic manifest of every transitive compiler/build input. Preserve
+  requested-product/target and admission boundaries; partial parser acceptance
+  is not compiler completion. C's ordinary Alpha obligation remains required;
+  Rust Alpha emission is not a prerequisite. Bootstrap construction and
+  `omega0 → omega` closure remain on `TASKS_BOOTSTRAP.md`.
 
 
 ## Mined items (swarm wave 9 mine legs)
@@ -5365,14 +5211,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `typed-trees-to-checked-trees/src/execution/unit/*`, Fused custody in
   `selected-dispatch`) sit in PROVIDER-ATTACHMENT-MACHINE-PLAN /
   ENTRY-CONTENT-ROOTS / GENERAL-CYCLIC-EXECUTION lanes — outside this item's
-  fixture fence; the windows run leg is host-gated by design.  Re-verified 2026-09-20 (ffival) at `59e0b5ec22`: compile stop UNCHANGED —
-  `Main::gui requires a selected Fused provider for boundary Gui` witnessed via
-  OMEGA_PASS_CANARY_FILTER=runtime_gui_foreground_window_exit (1 fail). Fence
-  probes exit 2 on both producing surfaces: execution/unit held by
-  PROVIDER-ATTACHMENT-MACHINE-PLAN (Zergling-200, ~09:49Z Sep 21) +
-  CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP (~08:46Z); selected-dispatch held
-  by RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL (z140, ~15:31Z Sep 21). Fixture
-  claim b7ba6f3a released.
+  fixture fence; the windows run leg is host-gated by design.
 
   Re-verified at `c3e3bfec35`: fixture still
   authored under `tests/omega/pass/host/runtime_gui_foreground_window_exit`
@@ -5739,64 +5578,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ~16:35Z, holding rewrite/selection surfaces). The relocation itself remains
   the owning sibling's slice; the audit carries no unclaimed work.
   The truncated duplicate stub line for this name is removed.
-- **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
-  alias of CROSS-COMPILER-DIFFERENTIAL-LANE (scope verified at
-  `36ffc8af87`), which names this row verbatim. Re-verified on linux
-  x86-64 at `d32183a35c`: the gate is unchanged —
-  `selected-dispatch/src/service_custody/root.rs` still emits "selected
-  ProgramEntry establishment rejoins {} Terminal attachment identities;
-  expected one", the pin at
-  `compiler/tests/source_evaluated_native_realization/linux_dynamic_realization.rs`
-  still asserts the unattached-Service stop, and the
-  OMEGA-PRODUCT-COMPILER-SOURCE row still records the parser gate and
-  `source/omega/main.omg` stopping at the same service-custody frontier.
-  The lane's only entrypoint, `source/psi/test-parser.sh`, cannot mint
-  the artifact it drives until that gate clears; no independent slice
-  exists here. Remaining sibling alias: RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL.
-- **CROSS-COMPILER-DIFFERENTIAL-LANE.** Mined candidate; scope verified at
-  `36ffc8af87`. The lane is the cross-check between the maintained Rust
-  compiler and the Omega-written product compiler: `omega-rust/README.md`
-  retains the Rust producer "for cross-compiler bug finding" and
-  OMEGA-PRODUCT-COMPILER-SOURCE declares it "the differential
-  implementation". The lane's only present entrypoint is
-  `source/psi/test-parser.sh`: it rebuilds the Omega-written parser gate
-  (`source/psi/gates/parser/main.omg`) through the freshly built Rust CLI
-  (`OMEGA_CLI`/`OMEGA_TARGET`) and hands the minted `omega-program` artifact
-  to `source/psi/parse/test_parser.py` for black-box parser-slice
-  observations. The lane is red upstream of itself: the Rust check of both
-  the parser gate and `source/omega/main.omg` stops at selected-dispatch
-  service custody — "selected ProgramEntry establishment rejoins 0 Terminal
-  attachment identities; expected one"
-  (`omega-rust/omega/build/selected-dispatch/src/service_custody/root.rs`),
-  the recorded OMEGA-PRODUCT-COMPILER-SOURCE frontier — so test-parser.sh
-  cannot mint the artifact it drives. The stop is pinned behavior for
-  unattached Service entries
-  (`compiler/tests/source_evaluated_native_realization/linux_dynamic_realization.rs`);
-  a `--check` attempt at this revision ran past 240 s without reaching a
-  diagnostic, consistent with the ~6,500 s gate-check cost recorded under
-  the owner item. No second compiler implementation can produce artifacts
-  yet, so no deeper lane harness can exist; the omega0↔omega self-compile
-  differential is separately tracked under TASKS_BOOTSTRAP's OMEGA-C.
-  Remaining: none inside this row — it unblocks only when
-  OMEGA-PRODUCT-COMPILER-SOURCE clears the service-custody gate; sibling
-  rows CROSS-COMPILER-DIFFERENTIAL and
-  RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL name the same scope.
-  Re-verified at `fff3918dc42f` (z133, linux x86-64): the gate is
-  unchanged — `service_custody/root.rs:146` still emits the
-  ProgramEntry-attachment rejoin refusal and
-  `linux_dynamic_realization.rs:310` still pins it;
-  `source/psi/test-parser.sh` remains the lane's only entrypoint and the
-  parser-gate/`source/omega/main.omg` surfaces are in place. No live
-  claims on this lane's surfaces at stamp time (OMEGA-PRODUCT-COMPILER-
-  SOURCE and the service-custody/selected-dispatch files are unclaimed);
-  NATIVE-DIFFERENTIAL-MATRIX (z182, ~14:30Z) is the only adjacent
-  item-claim. No independent slice. Re-verified at `796814691e`
-  (z146, linux x86-64): the refusal still emits at
-  `service_custody/root.rs:145` and the pin still stands at
-  `linux_dynamic_realization.rs:310` (now also accepting the earlier
-  lowering root guard); lane surfaces remain unclaimed — no second
-  implementation produces artifacts, so no deeper harness exists.
-  covered — no second implementation produces artifacts yet; lane is OMEGA-PRODUCT-COMPILER's downstream, no independent slice
 - **CROSS-PACKAGE-DYNAMIC-LOAN-ORIGIN.** Mined candidate; scope verified —
   resolved re-mine of the cross-package dynamic loan-origin cluster already
   closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at `e76d715c8e`), per
@@ -7403,17 +7184,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **NATIVE-DIFF-HOSTED-RECEIVER-HARNESS-MIGRATION** — mined candidate; verify scope then implement.
 - **NATIVE-I32-REMAINDER-LEGALIZATION** — mined candidate; verify scope then implement.
 - **OBLIGATION-NORMALIZED-IDENTITY** — mined candidate; verify scope then implement.
-- **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; scope verified, residual owned — re-mines OMEGA-PRODUCT-COMPILER-SOURCE wholesale (the Omega-written production compiler chain IS that item: `source/psi/` target-neutral phases + `source/omega/` Terminal-Psi consumer). Its documented frontier is not a separable zergling slice: (1) the parser gate's next Unit omission — `source_full` statement-sequence call through a nested receiver with a copy-enum case literal — is measured but `Main::main`'s next stop is unmeasured; (2) native production stops on `terminal_psi_indexed_receivers` legs owned by STATE-LOCAL-VALUE-FRONTIER (live claim to ~02:17Z); (3) the gate-check cost regression (~6,500 s wall) needs attribution before further slices iterate; (4) everything after the parser — resolution/typing/checking/proof/Terminal production in `source/psi` and the whole `source/omega` consumer — is unwritten by design. No independent slice exists here.
-- **OMEGA-WRITTEN-PRODUCT-COMPILER.** — mined candidate; verify scope then implement.
-- **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN.** — mined candidate; scope verified, residual owned — re-mines OMEGA-PRODUCT-COMPILER-SOURCE wholesale (the Omega-written production compiler chain IS that item: `source/psi/` target-neutral phases + `source/omega/` Terminal-Psi consumer). Its documented frontier is not a separable zergling slice: (1) the parser gate's next Unit omission — `source_full` statement-sequence call through a nested receiver with a copy-enum case literal — is measured but `Main::main`'s next stop is unmeasured; (2) native production stops on `terminal_psi_indexed_receivers` legs owned by STATE-LOCAL-VALUE-FRONTIER (live claim to ~02:17Z); (3) the gate-check cost regression (~6,500 s wall) needs attribution before further slices iterate; (4) everything after the parser — resolution/typing/checking/proof/Terminal production in `source/psi` and the whole `source/omega` consumer — is unwritten by design. No independent slice exists here.
-  Re-verified at `bc772bf7cd7` on the current wave: the wholesale fence is
-  unchanged — OMEGA-WRITTEN-PRODUCT-COMPILER (Zergling-74) still holds
-  `source/psi` + `source/omega` end to end, so the named chain's entire
-  implementing surface is claim-held. The cited STATE-LOCAL-VALUE-FRONTIER
-  lease has since drained, but leg (2)'s dependency ordering is unaffected:
-  the `terminal_psi_indexed_receivers` legs sit inside the wholesale fence
-  regardless of who owns them this wave. Adjudication unchanged — no
-  independent slice exists.
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; scope
   verified, covered — re-mines the review-projection input-resolution clause
   in `wiki/spec/packages/review.md` ("read each fact from the earliest
@@ -7430,12 +7200,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (certificates, transitive open obligations, schema migration, admission
   decisions in `src/ledger/obligation_ledger.rs`) stay named under
   PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent slice.
-- **OMEGA-WRITTEN-PRODUCT-COMPILER.** Omega-written product compiler (verify scope, then implement).
-- **OMEGA-WRITTEN-PRODUCT-COMPILER-CHAIN** — mined candidate; folded into the
-  canonical row above: scope verified, resolved as a wholesale re-mine of
-  OMEGA-PRODUCT-COMPILER-SOURCE with no separable zergling slice (the
-  `terminal_psi_indexed_receivers` gate stays owned — STATE-LOCAL-VALUE-FRONTIER
-  live claim to ~15:45Z at 53817f8759).
 - **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Scope verified at
   `d7f3c43e302` — re-mines the fact-source rule of
   `wiki/spec/packages/review.md:46` + `acceptance.md:126` ("read each
@@ -8223,27 +7987,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   frame, probe, unwind and native replay. Do not add implicit variable-sized
   locals, provider-backed issuance, a new syntax category or an OS allocator.
 
-- **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
-  covered — alias of CROSS-COMPILER-DIFFERENTIAL-LANE, blocked on OMEGA-PRODUCT-COMPILER-SOURCE
-- **RUST-PRODUCER-OMISSION** — mined candidate; scope verified at `8734480a01`, resolved — covered on both faces. The omission gate landed at `a3e094aea4`: `tools/rust_producer_omission.sh` pins the canonical bootstrap input set with `tools/rust_producer_omission.py --require omitted` over every `*.sources` closure manifest under `bootstrap/` and every `*.sh` step under `tools/bootstrap/` (both discovered, so new rungs are audited without edits; an empty set refuses rather than passing). Witnessed green on this host: "omitted (249 members, 932 steps, 0 findings)". The policy face is RUST-PRODUCER-RETENTION-POLICY's resolved row: Rust is a comparator, not bootstrap authority, and OFFLINE-REBUILD requires "no retired rung or undisclosed authority substitute". Sibling stubs on the same clauses: RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RC-RELEASE-RECORD-AND-CLOSURE.
-  covered — omission gate landed (`a3e094aea4`, `tools/rust_producer_omission.py`)
-- **RUST-PRODUCER-RETENTION-POLICY** — mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RC-RELEASE-RECORD-AND-CLOSURE.
-- **RUST-PRODUCER-RETIREMENT-GATE.** Scope verified at `faf902cea487` —
-  covered on both faces by the resolved sibling rows. The gate's
-  enforcement leg is landed: `tools/rust_producer_omission.py --require
-  omitted` (a3e094aea4) pins the canonical bootstrap input set over every
-  `*.sources` closure manifest and `tools/bootstrap/*.sh` step —
-  witnessed "omitted (249 members, 932 steps, 0 findings)". The policy
-  leg is RUST-PRODUCER-RETENTION-POLICY's row: Rust stays a comparator,
-  not bootstrap authority (bootstrap/CONTRACT.md), and retirement itself
-  is gated on "settled exercised Omega behavior, the Rust product
-  completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all
-  still open on TASKS_BOOTSTRAP.md, so the gate cannot fire this wave.
-  No independent slice exists.
-  covered — enforcement landed; retirement decision upstream-gated on TASKS_BOOTSTRAP.md self-hosting clause
-- **RUST-PRODUCER-OMISSION.** — mined candidate; scope verified at `8734480a01`, resolved — covered on both faces. The omission gate landed at `a3e094aea4`: `tools/rust_producer_omission.sh` pins the canonical bootstrap input set with `tools/rust_producer_omission.py --require omitted` over every `*.sources` closure manifest under `bootstrap/` and every `*.sh` step under `tools/bootstrap/` (both discovered, so new rungs are audited without edits; an empty set refuses rather than passing). Witnessed green on this host: "omitted (249 members, 932 steps, 0 findings)". The policy face is RUST-PRODUCER-RETENTION-POLICY's resolved row: Rust is a comparator, not bootstrap authority, and OFFLINE-REBUILD requires "no retired rung or undisclosed authority substitute". Sibling stubs on the same clauses: RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RC-RELEASE-RECORD-AND-CLOSURE.
-  covered — omission gate landed (`a3e094aea4`, `tools/rust_producer_omission.py`)
-- **RUST-PRODUCER-RETENTION-POLICY.** Mined candidate; scope verified, covered — the policy is already stated on the bootstrap board: "Rust remains a comparator, not bootstrap authority," Rust Alpha emission "is not a dependency" of the selected execution chain (bootstrap/CONTRACT.md#selected-execution-chain), and OFFLINE-REBUILD requires the audited manifest to contain "no retired rung or undisclosed authority substitute" with Rust "never semantic stages." The only residual decision is when the comparator itself retires, which TASKS_BOOTSTRAP.md gates on "settled exercised Omega behavior, the Rust product completion plan, complete D, and OMEGA-PRODUCT-COMPILER-SOURCE" — all still open, so no independent slice exists here. Re-verified at `e7c0099cb2`: the TASKS_BOOTSTRAP.md gate stands verbatim ("Full self-hosting remains dependent on settled exercised Omega behavior, the Rust product completion plan, complete D, and `OMEGA-PRODUCT-COMPILER-SOURCE`") — OMEGA-PRODUCT-COMPILER-SOURCE (TASKS.md:6472) and OMEGA-C are still open rows, so the comparator-retirement decision named by sibling stub RUST-PRODUCER-RETIREMENT-GATE stays gated; the three earlier same-item claims (01:30Z/00:20Z/05:12Z) have drained. Sibling stubs on the same clauses: RUST-PRODUCER-OMISSION, RUST-PRODUCER-RETIREMENT-GATE, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL, RC-RELEASE-RECORD-AND-CLOSURE. Re-verified at `268e8b6fece` (linux x86-64): the comparator clauses all hold — `bootstrap/4_epsilon/README.md:89` ("remains a comparator, not a producer in the canonical"), `bootstrap/5_omega/README.md:32` ("differential comparator, never bootstrap authority"), `bootstrap/README.md:46` ("development comparator and grants no bootstrap authority"), CONTRACT.md:95 ("agreement with Rust are diagnostic evidence, not compiler-correctness proofs") — the TASKS_BOOTSTRAP.md retirement gate stands verbatim (:76-78) and OMEGA-PRODUCT-COMPILER-SOURCE (:7411) is still open, so the comparator-retirement decision stays gated. The earlier claims have all drained; the row's settled verdict stands.
 - **SAMPLES-COMPILE-MULTI-HOST.** Verified scope — the per-host gate already
   exists as `compiler`'s `samples_compile` suite
   (`all_samples_reach_checked_trees` + per-cohort authored-entry legs +
@@ -8474,41 +8217,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 - **SCOPED-LOOKUP-MAP-AUDIT.** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build. Re-verified green at `771d0469a1c47` (linux x86-64, same command 2/2); a third bare mined stub further down this board names the same surface — drained by this row. Deduped under NEW-DEDUPE-SCOPED-LOOKUP-MAP-AUDIT-ROWS: the bare repeat stub and the field-note stub below are deleted (the field note itself asked for deletion), and an orphaned stale Squalr-gitlink fragment glued inside this row is removed — its current resolution lives on the SCAN-SCALAR rows.
   covered — landed and self-enforcing (`tests/architecture/scoped_lookup_maps.rs`)
-- **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL** — mined candidate; scope
-  verified, covered — resolved sibling alias of
-  CROSS-COMPILER-DIFFERENTIAL-LANE (~:9453), which names this row verbatim
-  (and CROSS-COMPILER-DIFFERENTIAL ~:9439 names it the remaining alias).
-  The lane is the Rust↔Omega-written cross-check whose only entrypoint,
-  `source/psi/test-parser.sh`, is red upstream of itself at the
-  selected-dispatch service-custody frontier. Re-verified at `90df29812c`
-  (linux x86-64): the gate message is unchanged —
-  `omega-rust/omega/build/selected-dispatch/src/service_custody/root.rs:146`
-  still emits "selected ProgramEntry establishment rejoins {} Terminal
-  attachment identities; expected one" for unattached Service entries, and
-  the lane stays blocked until OMEGA-PRODUCT-COMPILER-SOURCE clears that
-  frontier. Same-name clause faces also covered by resolved siblings
-  RUST-PRODUCER-OMISSION (~:13611) and RUST-PRODUCER-RETENTION-POLICY
-  (~:13612). No independent slice.
-  covered — alias of CROSS-COMPILER-DIFFERENTIAL-LANE, blocked on OMEGA-PRODUCT-COMPILER-SOURCE
-- **RUST-PRODUCER-OMISSION** — mined candidate; scope verified, gate wired. The name resolves to the omission contract in `omega-rust/README.md`: a produced closure's closed dependency set carries no `omega-rust/` artifact, build step, or checkout-derived path. The audit tool `tools/rust_producer_omission.py` (landed 6fc17a6cf5, with `tools/tests/test_rust_producer_omission.py`) already decides it; the residual was that no gate consumed the audit, so a closure regression would pass silently. Wired it into `tools/bootstrap/check-chain-hygiene.sh` ahead of the byte-identity pins: every `bootstrap/**/*.sources` manifest is audited as members and every `tools/bootstrap/*.{sh,py}` file as the declared step surface, `--require omitted` (the gate script self-excludes from the step scan, same as the retired-path grep). Fixture coverage added to `tests/bootstrap/chain-hygiene.sh`: a forged `tools/bootstrap` step invoking `cargo` and a forged `omega-rust/` manifest member both reject with "produced closure carries the Rust producer"; the restored set re-accepts (19 cases green, linux x86-64). Residual siblings remain open on their own surfaces: retention policy (RUST-PRODUCER-RETENTION-POLICY) and retirement (RUST-PRODUCER-RETIREMENT-GATE) are the workspace-retention policy legs the README keeps separate from omission.
-  covered — omission gate landed (`a3e094aea4`, `tools/rust_producer_omission.py`)
-- **RUST-PRODUCER-RETENTION-POLICY** — mined candidate; verify scope then implement.
-- **RUST-PRODUCER-RETIREMENT-GATE** — mined candidate; scope verified at
-  `90df29812c0`, covered — re-mines the comparator-retirement decision the
-  sibling row RUST-PRODUCER-RETENTION-POLICY (:13612) already bounds: the
-  gate is the TASKS_BOOTSTRAP.md self-hosting clause, which still reads
-  verbatim — retirement is dependent on "settled exercised Omega behavior,
-  the Rust product completion plan, complete D, and
-  `OMEGA-PRODUCT-COMPILER-SOURCE`". All four preconditions remain open
-  rows on this host (OMEGA-PRODUCT-COMPILER-SOURCE :6984 open,
-  OMEGA-C :11188 precondition unmet — D still under construction);
-  RUST-PRODUCER-OMISSION's audit gate (`tools/rust_producer_omission.py`,
-  wired into `check-chain-hygiene.sh`) already enforces the omission face.
-  No retirement gate to add — the decision is upstream-gated, not an
-  implementable slice. Sibling stubs on the same clauses:
-  RUST-PRODUCER-OMISSION, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL,
-  RC-RELEASE-RECORD-AND-CLOSURE.
-  covered — enforcement landed; retirement decision upstream-gated on TASKS_BOOTSTRAP.md self-hosting clause
 - **SAMPLES-COMPILE-MULTI-HOST** — mined candidate; verify scope then implement.
   covered — gate exists as `samples_compile`; remaining legs host-gated (windows/macos/arm64)
 - **SCOPED-LOOKUP-MAP-AUDIT** — mined candidate; scope verified, already landed and enforced. The audit exists as the repeatable architecture gate `tests/architecture/scoped_lookup_maps.rs`: it enforces the `omega-rust/pipeline.md` rule ("scoped symbol-tree lookup is the baseline; extra lookup maps require a measured reason") by census — every production `HashMap`/`BTreeMap` keyed by an authored-spelling token (`str`, `String`, `SymbolName`, `InternedName`, `Identifier`, tuple-containing) must appear in `JUSTIFIED_LOOKUP_MAP_FILES` with its recorded key domain (the measured reason), and cataloged files that no longer declare such a map fail the reverse staleness check. The one-shot census it encodes lives at `wiki/drafts/lookup_map_justification.md` (run at `c2ccb2a202`). Verified green on `e12b9e8e06`: `cargo nextest run -p omega-architecture-test --test scoped_lookup_maps` 2/2 pass on Linux x86-64 (`every_name_keyed_lookup_map_file_is_cataloged`, `every_cataloged_file_still_observes_a_name_keyed_map`). No independent slice remains — the gate is self-maintaining: a new name-keyed map without a recorded justification fails the build.
