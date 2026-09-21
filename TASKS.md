@@ -8022,6 +8022,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (exp 10:19Z) covering the canary file and handoff.omg; the verifier's
   cyclic-custody surfaces are fenced under REGISTERED-CALLBACK-LIFETIME and
   CONSERVATION-CONTRACT. Still no landable slice from this row.
+  Re-witnessed at `b53c7ea26032`: the recorded frontier moved upstream
+  again — the cyclic-control-custody shape now lowers (record-local
+  forwarders ride `Loader::run`'s plain block-parameter extents) and the
+  pinned refusal is
+  `native_uefi_os_handoff_invocation_reports_termination_catalog_frontier`
+  ("no closed native catalog identity" for the compiler-owned
+  `UefiOsHandoffTermination::transfer`/`firmware_return` edges — a UEFI
+  physical-entry lane leg). Both pins green here:
+  `native_..._termination_catalog_frontier` +
+  `checked_uefi_os_handoff_invocation_retains_edge_binding` 2/2 in 48s.
+  UEFI-OS-HANDOFF claim still live (exp 10:19Z) on the canary fixture and
+  handoff.omg; REGISTERED-CALLBACK-LIFETIME's verifier fences live to
+  ~14:37Z; CONSERVATION-CONTRACT has drained. Still no landable slice
+  from this row.
 - **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; verify scope then implement.
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; resolved as drained: the same-name row below carries the triage (57-failure census at bd6cddcb59, closed by attribution into `wiki/drafts/known_baseline_failures.md`); residual ledger refreshed at `e7c0099cb2b7` (2206 run / 2183 pass / 23 fail, member→family mapping current). Repairs stay with the owning lanes named there; no slice under this stub.
 - **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; scope verified,
