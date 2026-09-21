@@ -8839,7 +8839,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   BUILD-DIR-ALIAS-AND-RACE-COLLISION-DETECTION's lane, and the
   request/options admission slice remains with it.
 - **HOSTED-INLINE-ASSEMBLY-AUTHORITY** — mined candidate; scope verified, authority question already settled. The catalog in `psi/foundation/language-core/src/inline_assembly/` carries `required_authority` per instruction (`MachineOwner`, `PortIoAuthority`, `IdtControlAuthority`, `None`), per the privileged-services contract in `wiki/spec/build/permissions.md` (separate `MachineControl`/`PortIo`/`Mmio` service identities — listing the service does not establish ownership). The hosted-side authority decision is the implemented v0 discharge: `validation/src/machine_calls/effects/asm_discharge.rs::validate_asm_discharge` rejects every non-`None`-authority asm instruction on non-freestanding builds ("only code that owns the machine may emit privileged instructions; a hosted build would fault at ring 3") and passes freestanding — so hosted inline-assembly authority is denied by contract, not unimplemented. A finer hosted grant is a permissions.md spec change, not a compiler slice on this row.
-- **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; verify scope then implement.
+- **HOSTED-PLATFORM-RUN-MATRIX** — mined candidate; scope verified, resolved
+  re-mine at `5246ff65f4`. The name mines the four-row "required platform
+  runs" hosted matrix in
+  [rust_compiler_completion.md](wiki/drafts/rust_compiler_completion.md#required-platform-runs)
+  (each hosted target's emitted programs directly executed on the matching
+  host — `linux_x86_64` ELF, `linux_arm64` ELF, `macos_arm64` Mach-O,
+  `windows_x86_64` PE). Sibling row RC-PLATFORM-RUN-RECORDS already resolved
+  this stub's slice and names it: recorded state at tip is linux_x86_64
+  witnessed natively (recorded run at `a0b906db9`, row open — 143/913 direct
+  canary executions plus the native-differential gate's open failure set),
+  linux_arm64 cross-compile-only, windows_x86_64 named-open, macos_arm64 with
+  no record, and `tools/release/` carrying only README + release_record.py
+  (no committed records directory). Every producible leg is under live
+  claims: the four host rows RC-NATIVE-MATRIX-LINUX-X86-64 (~01:27Z) /
+  -LINUX-ARM64 (~07:03Z) / -MACOS-ARM64 (Codex legs) / -WINDOWS-X64-NATIVE-ROW
+  (~08:36Z), host coordination RC-NATIVE-MATRIX-HOSTS /-HOST-RUNS /
+  NATIVE-MATRIX-MATCHING-HOSTS / RC-NATIVE-MATRIX-CLOSURE, the record
+  substrate and lanes RC-HOST-RUNNER-LANES + RC-MATRIX-RUNNER, the contract
+  doc itself under RC-REPRESENTATIVE-PROGRAMS-GATE (~08:38Z), and the record
+  documents under RC-RELEASE-RECORD*/RUST-*-RELEASE-RECORD rows. No
+  independent unfenced slice exists under this name; a platform row skips
+  only when irrelevant to its runner per the contract.
 - **INDEXED-OPERAND-ATTACHED-RECEIVER.** Resolved — scope verified, covered
   (re-verified `d74f2145b9`, linux x86-64: `cargo nextest run -p
   typed-trees-to-checked-trees --lib -E 'test(multiplicity::)'` — 196/196
