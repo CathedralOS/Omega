@@ -35,3 +35,5 @@ POC-SPILL-FAMILY-SEQUENCING lane that currently fences the directory).
 Coordinator: fold this stub into UNSEQUENCED-SPILL-STAGES-DISPOSITION —
 the cluster now has eight folded aliases; retiring stubs into the
 canonical row beats stamping each.
+
+> Field note (e1dc35c92948..97be15c1b592 review): this records a re-verification of a row already resolved as a duplicate (ninth UNSEQUENCED-SPILL-* alias); fold into UNSEQUENCED-SPILL-STAGES-DISPOSITION and delete rather than re-stamping.

@@ -76,3 +76,5 @@ No live claim fences `executable-installation/` or this file. Provider and
 physical-invocation neighbors were claim-held in recent wave dumps
 (UEFI-PHYSICAL-SEMANTIC-ENTRY on native-realization surfaces); re-check
 `tools/claims.py status` before starting a code leg.
+
+> Field note (e1dc35c92948..97be15c1b592 review): the dispatched name has no board row; either mint one resolved row pointing at WIRE-RUNTIME-AND-INSTALLATION (so the planner stops re-dispatching it) or delete this draft once the landed-substrate table is folded into that row.
