@@ -8021,7 +8021,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **CONST-GENERIC-INFERRED-EXTENT-RANGE** — mined candidate; verify scope then implement.
 - **CONSTANT-LEAF-EXACT-CARRIER** — mined candidate; verify scope then implement.
 - **CONSTRUCTIVE-REAL-FOUNDATIONS** — mined candidate; verify scope then implement.
-- **COORDINATOR-OVEROWNERSHIP-AUDIT** — mined candidate; verify scope then implement.
+- **COORDINATOR-OVEROWNERSHIP-AUDIT** — mined candidate; scope verified, audit
+  artifact exists and its actionable finding is landed. The row re-mines
+  `wiki/drafts/coordinator_overownership_audit.md`, which swept every named
+  sequencing owner (`compiler`, `terminal-production`, `native-realization`,
+  plus the rule-named build/product owners) at `4a6bd936dc` and recorded four
+  findings. F1 (unreachable `compiler/src/compiler/native/prepared.rs`) is
+  REPAIRED on `origin/main` at `e5492eee179`. Re-verified there: F2
+  (`terminal-production`'s 1,181-line `receiver_eligibility.rs` derivation
+  resident in the sequencer — placement debt, flagged for relocation when it
+  next grows), F3 (`native-realization`'s terminal-authority policy
+  subsystem — interim verdict: load-bearing, monitor), and F4 (the orphan
+  optimized-semantic-wrapper codec — owned by WRAPPER-OBJECT-OWNERSHIP /
+  DURABLE-CODEC-RELOCATION) all stand as recorded. Residual relocations are
+  sibling items' moves, not audit work; no unclaimed slice remains.
 - **CRATE-ROOT-RESPONSIBILITY-AUDIT** — mined candidate; verify scope then implement.
 - **CROSS-COMPILER-DIFFERENTIAL.** Mined candidate — resolved: sibling
   alias of CROSS-COMPILER-DIFFERENTIAL-LANE (scope verified at
