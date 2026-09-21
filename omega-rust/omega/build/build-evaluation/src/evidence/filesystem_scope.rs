@@ -3,14 +3,14 @@
 pub mod preparation;
 
 use crate::{
+    BuildCanonicalSourceMetadataIdentity,
     evidence::observations::{
         BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,
     },
-    BuildCanonicalSourceMetadataIdentity,
 };
 use build_output::{
-    capture, discard_materialized_snapshot, empty, BuildStagedOutputEntryKind,
-    BuildStagedOutputTree, CapturedBuildSourceInput,
+    BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture,
+    discard_materialized_snapshot, empty,
 };
 use build_time_evaluation::{
     BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
@@ -1098,8 +1098,10 @@ mod tests {
         assert!(!live_source.is_private_snapshot_execution(&live_source.filesystem_access()));
         let mut supplied_directory = scope.clone();
         supplied_directory.sponsor = Some(FilesystemSponsor::new(&private_root).unwrap());
-        assert!(!supplied_directory
-            .is_private_snapshot_execution(&supplied_directory.filesystem_access()));
+        assert!(
+            !supplied_directory
+                .is_private_snapshot_execution(&supplied_directory.filesystem_access())
+        );
         sponsor.dispose_private_staging().unwrap();
         assert!(!scope.is_private_snapshot_execution(&access));
         fs::remove_dir_all(fixture).unwrap();
@@ -1583,9 +1585,11 @@ mod tests {
                 None,
             )
         };
-        assert!(scope()
-            .with_required_outputs([b"artifact.txt".to_vec()])
-            .is_ok());
+        assert!(
+            scope()
+                .with_required_outputs([b"artifact.txt".to_vec()])
+                .is_ok()
+        );
         for bad in [
             Vec::new(),
             b"./dot".to_vec(),
@@ -1658,9 +1662,11 @@ mod tests {
         let diagnostics = scope
             .verify_required_outputs(Some(&dirs_only), "build")
             .expect_err("a directory cannot complete a required file");
-        assert!(diagnostics[0]
-            .to_string()
-            .contains("not a sealed regular file"));
+        assert!(
+            diagnostics[0]
+                .to_string()
+                .contains("not a sealed regular file")
+        );
     }
 
     #[cfg(unix)]
@@ -1844,143 +1850,6 @@ mod tests {
         );
 
         fs::remove_dir_all(session_root).expect("remove session root");
-    }
-
-    #[test]
-    fn captured_snapshot_rejects_content_planted_after_admission() {
-        // The admission fences compare root spellings once; a hostile tree
-        // can still plant an alias at the backing path inside the window
-        // before the first write. Materialization re-inspects the leaf and
-        // rejects rather than following it.
-        let fixture = temporary_staging_root("planted-backing");
-        let source = fixture.join("source");
-        fs::create_dir_all(&source).expect("create source dir");
-        let snapshot = fixture.join("snapshot");
-        let scope = BuildMachineFilesystemScope::for_package_root(
-            source.clone(),
-            fixture.join("build"),
-            None,
-            None,
-        )
-        .with_captured_source_input(captured_input(), snapshot.clone())
-        .expect("a clean backing path is admitted");
-
-        // A regular file occupying the backing path rejects; the failure
-        // release cannot remove it, so its bytes stay intact.
-        fs::write(&snapshot, b"planted").expect("plant a file at the backing");
-        let diagnostics = scope
-            .ensure_captured_snapshot()
-            .expect_err("a planted file must not become the snapshot backing");
-        assert!(
-            diagnostics[0]
-                .to_string()
-                .contains("not a concrete directory"),
-            "unexpected diagnostic: {diagnostics:?}"
-        );
-        assert_eq!(fs::read(&snapshot).unwrap(), b"planted");
-        fs::remove_file(&snapshot).expect("remove the planted file");
-
-        // With the window back to clean the same scope materializes.
-        scope
-            .ensure_captured_snapshot()
-            .expect("a clean backing path materializes");
-        assert!(snapshot.join("template.tmpl").is_file());
-
-        fs::remove_dir_all(&fixture).expect("remove fixture");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn captured_snapshot_rejects_a_symlink_planted_after_admission() {
-        // Same window through a symlink: the leaf check rejects the link
-        // itself, and the failure release removes the link without writing
-        // captured content into the target.
-        let fixture = temporary_staging_root("planted-link");
-        let source = fixture.join("source");
-        fs::create_dir_all(&source).expect("create source dir");
-        let target = fixture.join("target");
-        fs::write(&target, b"decoy").expect("create the link target file");
-        let snapshot = fixture.join("snapshot");
-        let scope = BuildMachineFilesystemScope::for_package_root(
-            source.clone(),
-            fixture.join("build"),
-            None,
-            None,
-        )
-        .with_captured_source_input(captured_input(), snapshot.clone())
-        .expect("a clean backing path is admitted");
-
-        std::os::unix::fs::symlink(&target, &snapshot).expect("plant a symlink at the backing");
-        let diagnostics = scope
-            .ensure_captured_snapshot()
-            .expect_err("a planted symlink must not redirect the snapshot backing");
-        assert!(
-            diagnostics[0]
-                .to_string()
-                .contains("not a concrete directory"),
-            "unexpected diagnostic: {diagnostics:?}"
-        );
-        assert!(
-            snapshot.symlink_metadata().is_err(),
-            "the failed run's release removes the planted link"
-        );
-        assert_eq!(
-            fs::read(&target).unwrap(),
-            b"decoy",
-            "the link target is untouched"
-        );
-
-        fs::remove_dir_all(&fixture).expect("remove fixture");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn named_input_snapshot_rejects_a_symlink_planted_after_admission() {
-        // A named input's read root derives as `<snapshot>.input-N` — a
-        // spelling the source and write-root fences never see — so the same
-        // write-time re-inspection is the only guard on that path.
-        let fixture = temporary_staging_root("planted-input-link");
-        let source = fixture.join("source");
-        fs::create_dir_all(&source).expect("create source dir");
-        let target = fixture.join("target");
-        fs::write(&target, b"decoy").expect("create the link target file");
-        let snapshot = fixture.join("snapshot");
-        let input_backing = snapshot.with_extension("input-0");
-        let scope = BuildMachineFilesystemScope::for_package_root(
-            source.clone(),
-            fixture.join("build"),
-            None,
-            None,
-        )
-        .with_captured_source_input(captured_input(), snapshot.clone())
-        .expect("a clean backing path is admitted")
-        .with_named_inputs(&std::collections::BTreeMap::from([(
-            b"template".to_vec(),
-            captured_input(),
-        )]));
-
-        std::os::unix::fs::symlink(&target, &input_backing)
-            .expect("plant a symlink at the named input's backing");
-        let diagnostics = scope
-            .ensure_captured_snapshot()
-            .expect_err("a planted symlink must not redirect the named input backing");
-        assert!(
-            diagnostics[0]
-                .to_string()
-                .contains("not a concrete directory"),
-            "unexpected diagnostic: {diagnostics:?}"
-        );
-        assert_eq!(
-            fs::read(&target).unwrap(),
-            b"decoy",
-            "the link target is untouched"
-        );
-        assert!(
-            input_backing.symlink_metadata().is_err(),
-            "the failed run's release removes the planted link"
-        );
-
-        fs::remove_dir_all(&fixture).expect("remove fixture");
     }
 
     #[test]

@@ -555,15 +555,11 @@ fn absolute_data_references_admit_general_relocation_rows() {
         };
         let rows = &plan.contents.general_relocations;
         assert_eq!(
-            rows.iter()
-                .map(|row| row.source_offset)
-                .collect::<Vec<_>>(),
+            rows.iter().map(|row| row.source_offset).collect::<Vec<_>>(),
             [8, 24]
         );
         assert_eq!(
-            rows.iter()
-                .map(|row| row.request_index)
-                .collect::<Vec<_>>(),
+            rows.iter().map(|row| row.request_index).collect::<Vec<_>>(),
             [0, 2]
         );
         assert_eq!(

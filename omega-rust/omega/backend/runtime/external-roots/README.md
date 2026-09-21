@@ -80,11 +80,13 @@ the checked post-handoff writer program whose fragments resolve each member's
 sealed entry target into the produced gate's offset fields, while the
 consumer-declared descriptor constants — selector, gate kind, privilege, IST
 slot, and the reserved-zero bytes — are staged table content the writer
-preserves. `validate_written_descriptor_table` is the consumer's semantic
-edge: it proves the produced image came from exactly this table's derived
-writer over this exact installed realization, replays every declared
-descriptor's constant fields plus the zero fill across undeclared slots,
-joins each member's declared IST slot through the installed TSS to its
-declared critical stack class, and only then mints the established value
-naming the exact written destination. Publication still consumes only that
+preserves. **Corrected 2026-09-21:** `f47afed31d676` retired the
+compiler-owned interrupt-table model from this crate, so the validation triple
+this paragraph described (`validate_written_descriptor_table`,
+`descriptor_table_writer_plan`, `descriptor_table_staged_image`) no longer
+exists here. The semantic edge is consumer-owned: the authored
+`DescriptorTableValidation::validate`
+(`tests/omega/pass/memory/interrupt_table_canary/cathedral/interrupt_validation.omg:106`)
+issues the Accepted verdict that warrants the established value the publication
+carrier binds. Publication still consumes only that
 established value plus separately supplied authority.

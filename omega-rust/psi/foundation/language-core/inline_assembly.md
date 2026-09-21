@@ -1,7 +1,7 @@
 # Checked instruction catalog
 
 [Assembly](../../../../wiki/spec/language/assembly.md) owns the language contract.
-[inline_assembly.rs](src/inline_assembly.rs) is the closed shared source catalog:
+[inline_assembly.rs](src/inline_assembly/mod.rs) is the closed shared source catalog:
 instruction shape, availability, target, authority, ordered operand constraints,
 ordering, flag data flow and realized clobbers. A catalog row is not proof that
 every source-to-native consumer realizes it.
@@ -71,7 +71,7 @@ consumer-defined publication authority stays receiver-side per
 A source gate, catalog row, parser
 test or instruction encoder is not final-artifact or native execution evidence.
 
-The [implicit freestanding entry plan](../../../omega/representations/calling-conventions/src/plans.rs)
+The [implicit freestanding entry plan](../../../omega/representations/calling-conventions/src/plans/mod.rs)
 adds instruction-pointer, stack-pointer and control-state use to its ordinary
 volatile-state ceiling. This compatibility path applies only to the compiler-
 selected boot root; it must not widen an explicit source-selected boundary
