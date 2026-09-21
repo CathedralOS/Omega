@@ -2046,6 +2046,19 @@ moved to the termination-catalog fence (see that row's refresh note).
   REGISTERED-CALLBACK-LIFETIME); relevant-precondition derivation and
   the remaining absence-of-bound causes still wait on the
   dependent-bound machinery as recorded above.
+- **NEW-CODEC-LEDGER-SPIKE-FIXTURE-DRIFT.** Resolved — re-mines the
+  `ledger_spike` gamma fixture byte-pin family named in PSIIR's
+  codec-fence notes above. Repaired on main by `e763377285f6c`
+  ("re-record ledger-spike fixtures for the erased_proof_arguments
+  wire"), which re-recorded `tests/fixtures/terminal_ledger_spike*.hex`
+  and `terminal_ledger_structural_effect.hex` for the `e2728569622f6`
+  erased-proof-formals wire shift. Re-verified at `832c55e69b7` (linux
+  x86-64): `cargo nextest run -p terminal-codec -E
+  'test(~ledger_spike)'` → 3/3 pass; the full crate now reads 374 pass
+  / 10 fail, with only the `semantic_module::block_wire` roundtrip
+  family still red — the canonical decoder/identity and publication
+  families are green too, and block_wire belongs to the remaining
+  unattributed-drift lanes, not this item. No code change.
 
 - **GENERAL-CYCLIC-EXECUTION.** Complete the
   [cyclic control contract](wiki/spec/terminal-psi/control_flow.md) and
