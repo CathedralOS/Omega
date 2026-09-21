@@ -2344,6 +2344,22 @@ Owners include
     `numeric_cross_signed_conversion_surface`) — verified identical with
     and without this leg's edits.
 
+  Re-verified at `59e0b5ec22d` (z203 leg): no unblocked slice exists.
+  The implementing surfaces are unfenced this wave (the row's
+  "live NOMINAL-FIELD-FLOW claim at this writing" has drained, and
+  `expression_preparation/`, `terminal_trace_v1.rs` and
+  `observations.md` hold no claims) but every remaining leg stops
+  upstream of code: the Trapping family is still DESIGN-BLOCKED —
+  `OWNER_QUESTIONS.md` question 3
+  (`terminal-operation-level-trap-crash-site`) sits unanswered under
+  Open questions, and `prepare_expression.rs:250` still refuses
+  `TrappingShiftLeft`/`TrappingShiftRight` with "checked trapping
+  operation requires runtime policy realization" — and both signed
+  conversion legs need Lowered Psi vocabulary the representation does
+  not have (a value-level select for same-width sign
+  reinterpretation; a signed clamp spelling), per the dead-end notes
+  recorded above.
+
   Acceptance: the six `core/numeric_*` pass canaries and every
   `source/library/core/numeric_conversion.omg` machine ending in a Trapping
   conversion compile and execute their trap routes, an independent verifier
