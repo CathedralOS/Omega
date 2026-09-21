@@ -53,7 +53,7 @@ pub struct StructuralPlaceDeclaration {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{StructuralPathSegment, is_bounded_structural_scalar_store_path};
 
     fn field(identity: &str) -> StructuralPathSegment {
         StructuralPathSegment::Field(identity.to_owned())
