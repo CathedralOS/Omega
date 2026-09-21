@@ -535,3 +535,45 @@ fn granted_restricted_build_request_executes_its_effect() {
     );
     let _ = fs::remove_dir_all(&session);
 }
+
+#[test]
+fn a_default_checked_request_leaves_the_timing_record_unmeasured() {
+    let fixture = PreparedFixture::new();
+    let checked = super::compile_to_checked(super::CheckedCompileRequest::new(
+        &fixture.main,
+        Some("windows_x86_64"),
+    ))
+    .expect("default request checks");
+    assert!(checked.timings().phases().is_empty());
+}
+
+#[test]
+fn a_timing_collection_request_retains_the_internal_stage_ladder() {
+    let fixture = PreparedFixture::new();
+    let mut request = super::CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"));
+    request.collect_timings = true;
+    let checked = super::compile_to_checked(request).expect("timed request checks");
+    let phases = checked.timings().phases();
+    assert!(
+        phases
+            .iter()
+            .any(|phase| phase.phase
+                == artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES.label()),
+        "the collected ladder must carry the checked stage rows: {phases:#?}"
+    );
+}
+
+#[test]
+fn a_prepared_source_collects_its_ladder_across_reused_children() {
+    let fixture = PreparedFixture::new();
+    let prepared =
+        super::PreparedCheckedSource::prepare_with_timing_collection(&fixture.main, None, true)
+            .expect("timed preparation");
+    let checked = prepared
+        .compile_to_checked(super::CheckedCompileRequest::new(
+            &fixture.main,
+            Some("windows_x86_64"),
+        ))
+        .expect("reused timed source checks");
+    assert!(!checked.timings().phases().is_empty());
+}
