@@ -1437,13 +1437,15 @@ const PENDING_CANARIES: &[PendingCanary] = &[
     // authored against the generic private-callback route. The first
     // unreached dependency is the routed-domain case payload —
     // `RegisterClassOutcome::Registered(registration: Registration in
-    // Registration::Live)` cannot yet authorize a case payload. Behind it:
-    // callback ABI transport in the common instruction pipeline, then the
-    // Windows host leg (unavailable elsewhere by contract).
+    // Registration::Live)` cannot yet authorize a case payload, whether the
+    // outcome arrives as the result or through a by-reference parameter (case
+    // data has no boundary shape). Behind it: callback ABI transport in the
+    // common instruction pipeline, then the Windows host leg (unavailable
+    // elsewhere by contract).
     PendingCanary {
         path: "host/user32_window_procedure_registration",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "does not name the domain on its exact result or an exact non-self external-root parameter",
+            fragment: "cannot prove requires contract",
         },
     },
 ];

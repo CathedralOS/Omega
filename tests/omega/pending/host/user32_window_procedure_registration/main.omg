@@ -16,9 +16,11 @@
 // `Registration::Live` domain cannot yet authorize the
 // `RegisterClassOutcome::Registered` case payload
 // (`cannot prove requires contract`), so the observed-rejection sum cannot
-// be written to disk yet. Behind it stand CALLBACK-PRIVATE-MATERIALIZATION
-// (callback ABI transport in the common instruction pipeline) and the
-// Windows host leg itself, which other hosts report unavailable.
+// be written yet — and case data has no boundary shape, so the outcome
+// arrives through a by-reference parameter rather than the call result.
+// Behind it stand CALLBACK-PRIVATE-MATERIALIZATION (callback ABI transport
+// in the common instruction pipeline) and the Windows host leg itself,
+// which other hosts report unavailable.
 use omega::language::core::layout;
 use omega::language::core::service;
 use omega_language_std::calling;
@@ -116,21 +118,24 @@ User32PolicyCalling: User32Policy satisfies CallingPolicy;
 machine User32Policy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
-    transition signature.has_result {
-        true -> select_operation(signature)
-        _ -> reject()
+    transition signature.callback_demand_count == 1 {
+        true -> check_register(signature)
+        _ -> check_has_result(signature)
     }
 
-    state select_operation(signature: BoundarySignature) -> BoundaryPlanResult {
-        transition signature.callback_demand_count == 1 {
-            true -> check_register(signature)
-            _ -> check_ordinary(signature)
+    // register_class carries its outcome through a by-reference parameter
+    // (case data has no boundary shape), so it is the one operation with no
+    // result; every ordinary operation must return a value.
+    state check_has_result(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.has_result {
+            true -> check_ordinary(signature)
+            _ -> reject()
         }
     }
 
     state check_register(signature: BoundarySignature) -> BoundaryPlanResult {
-        transition signature.parameter_count == 2 && signature.native_parameter_count == 2 {
-            true -> build(signature, true)
+        transition signature.parameter_count == 3 && signature.native_parameter_count == 3 {
+            true -> bound(signature, true)
             _ -> reject()
         }
     }
@@ -138,72 +143,82 @@ machine User32Policy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     state check_ordinary(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.parameter_count == signature.native_parameter_count
             && signature.parameter_count <= 4 {
-            true -> build(signature, false)
+            true -> bound(signature, false)
+            _ -> reject()
+        }
+    }
+
+    // Shape indices are u64 values the telescope cannot bound by itself:
+    // guard each one before it indexes `signature.shapes`.
+    state bound(signature: BoundarySignature, registration: bool) -> BoundaryPlanResult {
+        let p0: u64 = signature.parameters[0];
+        let p1: u64 = signature.parameters[1];
+        let p2: u64 = signature.parameters[2];
+        let p3: u64 = signature.parameters[3];
+        let result: u64 = signature.result;
+        transition p0 < 256 && p1 < 256 && p2 < 256 && p3 < 256 && result < 256 {
+            true -> build(signature, registration, p0, p1, p2, p3, result)
             _ -> reject()
         }
     }
 
     state build(
         signature: BoundarySignature,
-        registration: bool
+        registration: bool,
+        p0: u64,
+        p1: u64,
+        p2: u64,
+        p3: u64,
+        result: u64
     ) -> BoundaryPlanResult {
         let mut output: BoundaryEntryPlan;
         output.call.convention = CallingConvention::MicrosoftX64;
         output.call.parameter_count = signature.parameter_count;
         output.call.parameters[0].shape.class = AbiValueClass::Integer;
         output.call.parameters[0].shape.byte_size =
-            signature.shapes[signature.parameters[0]].byte_size;
+            signature.shapes[p0].byte_size;
         output.call.parameters[0].shape.alignment =
-            signature.shapes[signature.parameters[0]].alignment;
+            signature.shapes[p0].alignment;
         output.call.parameters[0].location_count = 1;
         output.call.parameters[0].locations[0] = ValueLocation::Register {
             register: MachineRegister::X86Rcx,
             value_byte_offset: 0,
-            byte_size: signature.shapes[signature.parameters[0]].byte_size,
+            byte_size: signature.shapes[p0].byte_size,
         };
         output.call.parameters[1].shape.class = AbiValueClass::Integer;
         output.call.parameters[1].shape.byte_size =
-            signature.shapes[signature.parameters[1]].byte_size;
+            signature.shapes[p1].byte_size;
         output.call.parameters[1].shape.alignment =
-            signature.shapes[signature.parameters[1]].alignment;
+            signature.shapes[p1].alignment;
         output.call.parameters[1].location_count = 1;
         output.call.parameters[1].locations[0] = ValueLocation::Register {
             register: MachineRegister::X86Rdx,
             value_byte_offset: 0,
-            byte_size: signature.shapes[signature.parameters[1]].byte_size,
+            byte_size: signature.shapes[p1].byte_size,
         };
         output.call.parameters[2].shape.class = AbiValueClass::Integer;
         output.call.parameters[2].shape.byte_size =
-            signature.shapes[signature.parameters[2]].byte_size;
+            signature.shapes[p2].byte_size;
         output.call.parameters[2].shape.alignment =
-            signature.shapes[signature.parameters[2]].alignment;
+            signature.shapes[p2].alignment;
         output.call.parameters[2].location_count = 1;
         output.call.parameters[2].locations[0] = ValueLocation::Register {
             register: MachineRegister::X86R8,
             value_byte_offset: 0,
-            byte_size: signature.shapes[signature.parameters[2]].byte_size,
+            byte_size: signature.shapes[p2].byte_size,
         };
         output.call.parameters[3].shape.class = AbiValueClass::Integer;
         output.call.parameters[3].shape.byte_size =
-            signature.shapes[signature.parameters[3]].byte_size;
+            signature.shapes[p3].byte_size;
         output.call.parameters[3].shape.alignment =
-            signature.shapes[signature.parameters[3]].alignment;
+            signature.shapes[p3].alignment;
         output.call.parameters[3].location_count = 1;
         output.call.parameters[3].locations[0] = ValueLocation::Register {
             register: MachineRegister::X86R9,
             value_byte_offset: 0,
-            byte_size: signature.shapes[signature.parameters[3]].byte_size,
+            byte_size: signature.shapes[p3].byte_size,
         };
         output.call.has_result = signature.has_result;
-        output.call.result.shape.class = AbiValueClass::Integer;
-        output.call.result.shape.byte_size = signature.shapes[signature.result].byte_size;
-        output.call.result.shape.alignment = signature.shapes[signature.result].alignment;
-        output.call.result.location_count = 1;
-        output.call.result.locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rax,
-            value_byte_offset: 0,
-            byte_size: signature.shapes[signature.result].byte_size,
-        };
         output.call.stack_alignment = 16;
         output.call.shadow_bytes = 32;
         output.call.entry_control = EntryControl::CallReturn;
@@ -211,6 +226,39 @@ machine User32Policy::plan(signature: BoundarySignature) -> BoundaryPlanResult
         output.state.stack = EntryStack::ProviderSelected;
         output.state.preemption = Preemption::NotApplicable;
         output.call.callback_materialization_count = signature.callback_demand_count;
+        transition signature.has_result && result < 256 {
+            true -> with_result(signature, registration, result, output)
+            _ -> finish_call(signature, registration, output)
+        }
+    }
+
+    state with_result(
+        signature: BoundarySignature,
+        registration: bool,
+        result: u64,
+        output: BoundaryEntryPlan
+    ) -> BoundaryPlanResult {
+        let mut bound_result: BoundaryEntryPlan = output;
+        bound_result.call.result.shape.class = AbiValueClass::Integer;
+        bound_result.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        bound_result.call.result.shape.alignment = signature.shapes[result].alignment;
+        bound_result.call.result.location_count = 1;
+        bound_result.call.result.locations[0] = ValueLocation::Register {
+            register: MachineRegister::X86Rax,
+            value_byte_offset: 0,
+            byte_size: signature.shapes[result].byte_size,
+        };
+        transition registration {
+            true -> bind_callback(signature, bound_result)
+            _ -> finish(bound_result)
+        }
+    }
+
+    state finish_call(
+        signature: BoundarySignature,
+        registration: bool,
+        output: BoundaryEntryPlan
+    ) -> BoundaryPlanResult {
         transition registration {
             true -> bind_callback(signature, output)
             _ -> finish(output)
@@ -255,8 +303,9 @@ data WindowGeometry {
 boundary trait User32: Calling<User32Policy> {
     machine register_class<machine Selected>(
         specification: &WindowClass,
-        capacity: Registration
-    ) -> RegisterClassOutcome
+        capacity: Registration,
+        outcome: &mut RegisterClassOutcome
+    )
     where machine Selected satisfies WindowProcedure::window_procedure;
 
     machine unregister_class(registration: Registration in Live) -> Registration;
@@ -313,8 +362,9 @@ data Main {
 }
 
 machine Main::main(&mut self)
-reaches Console + User32
+reaches Console + User32 + WindowProcedure
 invokes User32;
+invokes Console;
 {
     self.class.style = 3;
     self.class.context = 77;
@@ -331,8 +381,13 @@ invokes User32;
     self.class.class_name[10] = 119;
     self.class.class_name[11] = 80;
     self.class.class_name[12] = 0;
-    let outcome: RegisterClassOutcome =
-        User32::register_class<WindowMessages::window_procedure>(&self.class, self.capacity);
+    let registration_capacity: Registration = Registration { slot: 0 };
+    let mut outcome: RegisterClassOutcome;
+    User32::register_class<WindowMessages::window_procedure>(
+        &self.class,
+        registration_capacity,
+        &mut outcome
+    );
     transition outcome {
         RegisterClassOutcome::Registered { registration } -> self.created(registration)
         RegisterClassOutcome::Rejected { capacity } -> self.reject_observed(capacity)
@@ -356,14 +411,14 @@ invokes User32;
         let answer: u64 = User32::dispatch_message(&registration, &self.message);
         transition answer == 0 {
             true -> self.destroy(registration)
-            _ -> self.bad()
+            _ -> self.bad(registration)
         }
     }
     state destroy(&mut self, registration: Registration in Registration::Live) {
         let destroyed: u32 = User32::destroy_window(&registration, self.window);
         transition destroyed != 0 {
             true -> self.release(registration)
-            _ -> self.bad()
+            _ -> self.bad(registration)
         }
     }
     state release(&mut self, registration: Registration in Registration::Live) {
@@ -374,10 +429,13 @@ invokes User32;
     // class before conceding — the observed-rejection path the acceptance
     // names.
     state reject_observed(&mut self, capacity: Registration) {
-        self.capacity = capacity;
         self.class.class_name[0] = 82;
-        let retry: RegisterClassOutcome =
-            User32::register_class<WindowMessages::window_procedure>(&self.class, self.capacity);
+        let mut retry: RegisterClassOutcome;
+        User32::register_class<WindowMessages::window_procedure>(
+            &self.class,
+            capacity,
+            &mut retry
+        );
         transition retry {
             RegisterClassOutcome::Registered { registration } -> self.created(registration)
             RegisterClassOutcome::Rejected { capacity } -> self.concede(capacity)
@@ -387,7 +445,8 @@ invokes User32;
         self.capacity = capacity;
         self.console.exit_process(71);
     }
-    state bad(&mut self) {
+    state bad(&mut self, registration: Registration in Registration::Live) {
+        self.capacity = User32::unregister_class(registration);
         self.console.exit_process(72);
     }
 }
