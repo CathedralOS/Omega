@@ -4,6 +4,15 @@ Run `sh tests/gamma/beta-encoding-check/run.sh` from the repository root, on
 macOS arm64, Linux x86-64, or Windows x64 Git Bash; other hosts report
 unsupported. An absent Python skips rather than fails.
 
+`sh tests/gamma/beta-encoding-check/run.sh --reference-vm` is the diagnostic
+leg on any host with `cc` and python3: it compiles the gate-local Alpha VM
+[alpha_vm.c](alpha_vm.c), drives the pinned evaluator tape through it instead
+of a stamped seed, and otherwise runs the identical packing, emission,
+production, and check. The reference leg's observation is a recorded reading,
+never artifact admission — the audited seeds remain the admission route, and
+a divergent reference result is a gate failure to investigate, not a verdict
+to accept.
+
 The gate checks the complete certificate for the owner proposition
 
 ```text
@@ -62,12 +71,14 @@ premises, and every comparison and substitution transition — on the shared
 67,108,864-unit counter
 ([CHECKING.md](../../../bootstrap/proofs/checker/CHECKING.md)), so the
 session bound is a stale sub-budget to raise toward that provision rather
-than a separate allowance. The fixture boundary legs sized to 655,360
+than a separate allowance. Exhaustion legs sized to 655,360 cannot be
+regenerated at a 2^26-unit bound — an exhausting table would exceed the
+request extent — so the derivation-checking boundary legs
 (`exact_complete_checking_work`, `adjacent_final_root_comparison`,
-`fresh_proof_index_reservation_exhaustion` in derivation-checking
-[resources.py](../derivation-checking/resources.py)) cannot be regenerated
-at a 2^26-unit bound — an exhausting table would exceed the request extent
-— and retire under the same opt-in pattern the heap/pair-boundary
-veterans use. The re-pin of checker identities across
+`proof_index_and_rows_share_work`, `fresh_proof_index_reservation` in
+[resources.py](../derivation-checking/resources.py)) instead migrated to
+checked completions under the raised counter, and any future exhaustion
+leg retires under the same opt-in pattern the heap/pair-boundary veterans
+use. The re-pin of checker identities across
 `tools/bootstrap/proofs` and the seven derivation gates follows the
 `a31bdf79e5` shape and stays fenced to its claim lanes until it lands.

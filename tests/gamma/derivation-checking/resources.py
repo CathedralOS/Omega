@@ -1,6 +1,6 @@
 """Actual full-checker proof tables, never injected comparison state."""
 
-from proof_wire import NAT, ZERO, checked, clause, failure, function, proof_row, record, theory, vector
+from proof_wire import NAT, ZERO, checked, clause, function, record, theory, vector
 
 
 def cases():
@@ -25,6 +25,13 @@ def cases():
     # inside the 67,108,864-unit provision.
     yield vector("proof_index_and_rows_share_work",
                  checked(count, 1048577), (reflexivity,) * count,
+                 repetitions=1, timeout=600)
+    count = 655360
+    # The 130 MiB request extent admits a fresh table whose count+1 index
+    # reservation alone requests 655361 units; under the selected bound it
+    # completes like the other all-Ref tables at 4P+5 = 2621445 units.
+    yield vector("fresh_proof_index_reservation",
+                 checked(count, 2621445), (reflexivity,) * count,
                  repetitions=1, timeout=600)
     count = 32768
     rows = (reflexivity,) + tuple(record(2, 1, 1, previous) for previous in range(1, count))
