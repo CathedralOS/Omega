@@ -10,7 +10,7 @@
 //! `frontend` folder owns loading, lexing, parsing and import binding; the
 //! `source` folder owns source storage, import queues and project roots.
 
-pub mod frontend;
+pub(crate) mod frontend;
 pub mod source;
 mod source_assembly;
 
