@@ -13226,6 +13226,29 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `src/ledger/obligation_ledger.rs`) stay named under
   PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent
   slice.
+||||||| parent of a8e4521f014b (board: PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS scope-verified — rule landed)
+- **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS** — mined candidate; verify scope then implement.
+- **PACKAGE-ADMISSION-PROJECTION-EARLIEST-FACTS.** Scope verified at
+  `d7f3c43e302` — re-mines the fact-source rule of
+  `wiki/spec/packages/review.md:46` + `acceptance.md:126` ("read each
+  fact from the earliest coherent compiler-owned representation that
+  establishes its meaning; typed/resolved state owns structural identity,
+  checked facts own acceptance/effects/proof/witnesses/assumptions").
+  That rule is landed in `packages/review/evidence`'s capture joins:
+  `src/capture/` reads authored spans from the earliest owning stage and
+  rejoins checked custody (Source roles in `capture.md` — e.g.
+  `body_call` keeps the authored occurrence joined to checked flow
+  "before provider settlement rewrites identity", `trait_parent` keeps
+  the typed parent application). Witnessed at `d7f3c43e302`:
+  `cargo nextest run -p package-evidence` — 360/373 run passed before
+  the 540s bound; the 13 failures are the recorded `Service<R>`-spelling
+  fixture-drift family (`callable_policy` fixtures reject `in Bound` on
+  `Service<ClockHost>` — "the core `Service` carrier is closed"), owned
+  by the ENTRY-CONTENT-ROOTS cluster, not this surface. Write surface
+  fenced at verification time: `review/evidence/src/capture` is claimed
+  by PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION (dev-88738, exp 04:50Z) and
+  the crate dir by PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION (z112).
+  No independent slice exists.
 - **PACKAGE-CROSS-VISIBILITY-LOAN-ORIGIN.** Mined candidate — resolved:
   the name re-covers the cross-package-visibility loan-origin cluster
   already closed by SHARED-RECEIVER-LOAN-ORIGIN (resolved at e76d715c8e (verified base 6ef64f6dd6) —
