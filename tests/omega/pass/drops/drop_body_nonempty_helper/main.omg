@@ -1,7 +1,5 @@
-// FAIL canary: cleanup helpers must be exact-empty — a helper whose own
-// body carries statements exercises the empty-helper arm of the slice
-// recognizer. Nesting a call inside the helper does not substitute for
-// an empty body, so the drop must reject.
+// A `drop` body is an ordinary Unit machine: helpers it calls may carry
+// their own bodies, and the call closure keeps them transitively.
 
 data Guard {
     handle: i32;

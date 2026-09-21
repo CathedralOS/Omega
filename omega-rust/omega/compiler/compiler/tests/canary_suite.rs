@@ -326,6 +326,15 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // reaches terminal and fixed-fuel, so `inspect-terminal` shows the exact
     // owner-attached hook invoked once.
     "drops/core_drop_owner_hook",
+    // Ordinary hook bodies: field stores on the borrowed `self` receiver,
+    // calls with arguments, membered and unattached helpers, helpers with
+    // their own bodies, and an `ensures` postcondition the body establishes.
+    "drops/nonempty_drop_body",
+    "drops/drop_body_call_with_argument",
+    "drops/drop_body_membered_helper",
+    "drops/drop_body_nonempty_helper",
+    "drops/drop_body_unattached_helper",
+    "drops/drop_ensures_body",
     "contracts/proof_fact_indexed_domain_application",
     "memory/address_translation_canary",
     // The descriptor-table leg of exception-roots-and-timer: the authored
@@ -2009,12 +2018,6 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "calls/mutual_cycle_disqualified_shape",
     "drops/authored_cleanup_static_argument_rejected",
     "drops/authored_cleanup_forwarded_reference_rejected",
-    "drops/nonempty_drop_body_rejected",
-    "drops/drop_body_call_with_argument_rejected",
-    "drops/drop_body_membered_helper_attachment_rejected",
-    "drops/drop_body_nonempty_helper_rejected",
-    "drops/drop_body_unattached_helper_rejected",
-    "drops/drop_ensures_nonempty_body_rejected",
     "drops/drop_ensures_unlocked_predicate",
     "drops/drop_nonblocking_effect_unknown",
     "relax/retired_relax_statement",
