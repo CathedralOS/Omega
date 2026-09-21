@@ -13441,6 +13441,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION/-READS/-REMOVAL,
   SELECTED-REWRITE-ANCESTRY-REMOVAL, STAGE-ANCESTRY-DIRECT-READS,
   STAGED-ANCESTRY-ELIMINATION.
+- **RO-S2S-ANCESTRY-WALKS.** Resolved 2026-09-21 — minted sibling stub of
+  the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface (carrier row
+  above). Re-verified at `72fc66d6c3` on linux x86-64: zero
+  `.optimized_target()` data reads remain under
+  `selected-instructions-to-selected-instructions/src`, and the
+  `tests/ancestry_contract.rs` ratchet (4 tests) pins the surviving
+  `selected_stage`/`liveness_stage`/`live_range_stage`/`source_legality_stage`
+  hops to the named custody/replay file inventory — ancestry climbs are
+  contract inputs, not data reads. No independent slice exists under this
+  name.
 - **SELECTED-REWRITE-CATALOG-EXECUTION.** Mined candidate; scope verified
   at 6d00135b89 — re-mines the execution leg of **EXACT-MACHINE-SIMPLIFICATIONS**
   (TASKS_OPTIMIZER.md:641) — "give the stage an execution route under
