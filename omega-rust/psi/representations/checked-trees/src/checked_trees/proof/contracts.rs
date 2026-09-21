@@ -84,8 +84,9 @@ pub struct InheritedContractScope {
 
 /// Producer-side carrier for one outcome-specific guarantee row. These rows
 /// stay separate from unconditional contract facts. A named row owns an erased
-/// output identity so the producer can discharge it, but that identity is not
-/// published to callers until guarded result-arm selection is implemented.
+/// output identity so the producer can discharge it; a caller receives that
+/// identity only at an exact guarded result-case arm that selects the row by
+/// `public_selector`, where it lands as the arm row's `selected_term`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OutcomeSpecificGuaranteeFact {
     pub machine_symbol: SymbolHandle,
