@@ -48,8 +48,12 @@ def require_identity(label, source, length, digest):
 
 
 def main():
-    directory = Path(sys.argv[1]).resolve()
-    adapter = Path(sys.argv[2]).read_bytes()
+    argv = sys.argv[1:]
+    identity_only = argv and argv[0] == "--identity"
+    if identity_only:
+        argv = argv[1:]
+    directory = Path(argv[0]).resolve()
+    adapter = Path(argv[1]).read_bytes()
     gate = Path(__file__).resolve().parent
     timeout = int(os.environ.get("OMEGA_OUTCOME_OBSERVATION_SECONDS", "14400"))
     if timeout <= 0:
@@ -80,6 +84,16 @@ def main():
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
                + subject + support)
+    if identity_only:
+        # Host-free leg: every bound identity above is checked — entry and the
+        # assembled customer/DCREQ byte streams — and the expected observation
+        # decodes; only the evaluator executions need a seed host (macOS arm64,
+        # Windows x64, or Linux x86-64).
+        (directory / "evaluator.exe").stat()
+        print(f"Omega outcome: identity legs green; execution legs need a seed "
+              f"host ({len(request)}-byte receipt request, {len(customer)}-byte "
+              f"customer, {len(expected)}-byte expected observation)", flush=True)
+        return
     receipt = evaluate(directory, (directory / "delta_compiler.gamma").read_bytes(),
                        request, receipt_seconds, "Epsilon receipt reconstruction")
     require_identity("Epsilon execution receipt", receipt, 721484,
