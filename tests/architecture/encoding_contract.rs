@@ -2185,6 +2185,17 @@ fn certificate_level_table_matches_codec() {
 // also refuse every tag the spec leaves unassigned, so each table marker is
 // paired with the decode function and the `InvalidTag` label its fallthrough
 // arm reports. `(marker, wire file under `sections/`, decode fn, label)`.
+//
+// Every `InvalidTag`-producing decode site of a spec-tabled tag space is
+// listed, not just the primary decoder: the same space is re-decoded inline at
+// each wire position that carries it (a boundary machine's multiplicity field,
+// a terminator's crash cause, a suspension plan's path segments). One marker
+// therefore legitimately repeats across files and functions. The exception is
+// deliberate table forks — `decode_retained_borrow_place` decodes
+// `ContentPlaceSegment` under `retained-borrow-segment-tags`, whose Case-first
+// order the spec states must not share the content-place segment table.
+// Tag spaces the codec rejects but the spec has no table for are intentionally
+// absent here; giving them contract tables is separate spec work.
 const CODEC_SECTIONS: &str = "omega-rust/psi/semantics/terminal-codec/src/sections";
 
 const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
@@ -2255,6 +2266,18 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "ContentAlgebraKind",
     ),
     (
+        "content-algebra-kind-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_projection",
+        "ContentAlgebraKind",
+    ),
+    (
+        "content-algebra-kind-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_boundary_machine",
+        "ContentAlgebraKind",
+    ),
+    (
         "content-place-version-tags",
         "semantic_module/content_wire.rs",
         "decode_content_structural_place",
@@ -2264,6 +2287,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "content-place-version-tags",
         "proof_bundle/proposition_codec.rs",
         "decode_content_term",
+        "ContentPlaceVersion",
+    ),
+    (
+        "content-place-version-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_place",
         "ContentPlaceVersion",
     ),
     (
@@ -2297,6 +2326,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "ProofRule",
     ),
     (
+        "proof-rule-tags",
+        "proof_bundle/proof_node_codec.rs",
+        "decode_proof_rule",
+        "ProofRule",
+    ),
+    (
         "machine-result-tags",
         "semantic_module/machine_wire.rs",
         "decode_machine",
@@ -2324,6 +2359,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "structural-path-segment-tags",
         "semantic_module/structural_place_wire.rs",
         "decode_structural_path",
+        "StructuralPathSegment",
+    ),
+    (
+        "structural-path-segment-tags",
+        "semantic_module/module_wire/carry_and_suspension_wire.rs",
+        "decode_suspension_call_plan",
         "StructuralPathSegment",
     ),
     (
@@ -2369,15 +2410,69 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "CanonicalStructuralPathSegment",
     ),
     (
+        "canonical-path-segment-tags",
+        "semantic_module/scalar_term_wire.rs",
+        "decode_scalar_term",
+        "CanonicalStructuralPathSegment",
+    ),
+    (
+        "canonical-path-segment-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_scalar_term",
+        "CanonicalStructuralPathSegment",
+    ),
+    (
         "structural-access-tags",
         "semantic_module/structural_signature_wire.rs",
         "decode_structural_access",
         "StructuralAccess",
     ),
     (
+        "structural-access-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_custody",
+        "StructuralAccess",
+    ),
+    (
+        "structural-access-tags",
+        "semantic_module/module_wire/borrow_wire.rs",
+        "decode_borrow_access",
+        "StructuralAccess",
+    ),
+    (
+        "structural-access-tags",
+        "semantic_module/module_wire/placed_view_wire.rs",
+        "decode_placed_view_input",
+        "StructuralAccess",
+    ),
+    (
         "structural-multiplicity-tags",
         "semantic_module/structural_signature_wire.rs",
         "decode_structural_parameters",
+        "StructuralMultiplicity",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_retained_borrow_custody",
+        "StructuralMultiplicity",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/structural_signature_wire.rs",
+        "decode_boundary_machine",
+        "StructuralMultiplicity",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/provider_candidate_wire.rs",
+        "decode_provider_candidate",
+        "StructuralMultiplicity",
+    ),
+    (
+        "structural-multiplicity-tags",
+        "semantic_module/structural_result_wire.rs",
+        "decode_multiplicity",
         "StructuralMultiplicity",
     ),
     (
@@ -2420,6 +2515,12 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "crash-cause-tags",
         "semantic_module/contract_wire.rs",
         "decode_crash_route_bucket",
+        "CrashCause",
+    ),
+    (
+        "crash-cause-tags",
+        "semantic_module/block_wire/terminator_wire.rs",
+        "decode_terminator",
         "CrashCause",
     ),
     (
@@ -2591,6 +2692,18 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "IeeeFloatFormat",
     ),
     (
+        "ieee-format-tags",
+        "semantic_module/scalar_wire.rs",
+        "decode_ieee_float_format",
+        "IeeeFloatFormat",
+    ),
+    (
+        "ieee-format-tags",
+        "proof_bundle/scalar_term_codec.rs",
+        "decode_ieee_float_format",
+        "IeeeFloatFormat",
+    ),
+    (
         "float-operand-tags",
         "semantic_module/module_wire/float_meaning_wire.rs",
         "decode_float_meaning_projection",
@@ -2715,6 +2828,24 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "proof_sidecar.rs",
         "decode",
         "pcc product kind",
+    ),
+    (
+        "certificate-term-tags",
+        "semantic_module/mathematical_certificate_wire.rs",
+        "decode_term",
+        "MathematicalTerm",
+    ),
+    (
+        "certificate-sort-tags",
+        "semantic_module/mathematical_certificate_wire.rs",
+        "decode_sort",
+        "MathematicalSort",
+    ),
+    (
+        "certificate-level-tags",
+        "semantic_module/mathematical_certificate_wire.rs",
+        "decode_level",
+        "MathematicalLevel",
     ),
 ];
 
