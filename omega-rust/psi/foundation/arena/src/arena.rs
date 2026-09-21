@@ -147,18 +147,32 @@ impl<T: Default> Arena<T> {
         Handle::from_arena_index(arena_index)
     }
 
-    pub fn append_to_span(&mut self, span: &mut HandleSpan<T>, item: T) -> Handle<T> {
-        let next_index = next_arena_index(self.items.len());
-        if !span.is_empty() {
-            let expected_index = span
-                .start()
-                .arena_index()
-                .checked_add(span.count())
-                .expect("arena span index overflow");
-            assert_eq!(
-                next_index, expected_index,
-                "arena span append must be contiguous"
+    /// A span grows in place only while its rows still end at the arena tail
+    /// carrying generation 1, the generation every fresh append receives. A
+    /// span that went stale — other rows landed on this arena's tail between
+    /// appends, or the span was built on recycled-generation slots — is first
+    /// relocated to the tail, the same snapshot move `copy_span_pair` performs
+    /// for retained prefixes, so the span keeps resolving to the same row
+    /// sequence. A stale span whose rows no longer resolve (freed or
+    /// generation-shifted slots) has nothing to relocate and still panics.
+    pub fn append_to_span(&mut self, span: &mut HandleSpan<T>, item: T) -> Handle<T>
+    where
+        T: Clone,
+    {
+        if !span.is_empty()
+            && (span.start().generation() != 1
+                || span
+                    .start()
+                    .arena_index()
+                    .checked_add(span.count())
+                    .expect("arena span index overflow")
+                    != next_arena_index(self.items.len()))
+        {
+            assert!(
+                self.valid_span_range(*span).is_some(),
+                "arena span append on an unresolvable span"
             );
+            *span = self.copy_span_pair(*span, HandleSpan::empty());
         }
 
         let handle = self.append(item);
