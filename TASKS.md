@@ -9280,7 +9280,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   place's retained `AssignedValue` expression. Note: a live freeform claim by
   `devin-w9-dependent-values` (ticket 6c47f5116a7c, expires ~22:20Z) already
   fences `proof_contracts/default_domains` for this item — coordinate before
-  working it.
+  working it. Re-verified at `a43a1929b1` (linux x86-64, 2026-09-21 ~07:23Z):
+  the named slice's surface `checks/contracts/exits/` is now fenced outright
+  to PROOF-CERTIFICATION-BRIDGE (zergling-136, exp 10:52Z) and the sibling
+  `checks/contracts/writes.rs` is under NEW-MNR-LOCAL-INITIALIZER-PREDICATE-
+  DOMAIN (zergling-200, exp 15:18Z) — no unfenced slice remains under this
+  name until those lanes settle.
 - **DIVISION-CANARY-ENTRY-BINDING.** Scope verified at ea025447fe — re-mines
   the surface CANARY-EXACT-ENTRY-SELECTION already owns ("exact entry
   selection for division/value canaries and entry binding"). The missing
