@@ -10030,26 +10030,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PHYSICAL-ENTRY-BRIDGES, PHYSICAL-ACCESS-PROFILES.
 - **PIPELINE-OWNER-CONSOLIDATION.** Mined candidate — scope verified; this stub
   is a self-mine of the canonical coordinator row in `TASKS_OPTIMIZER.md`
-  (~line 26), not a separate task. At `54e321bdf0` every enumerated leg is
-  routed and claimed this wave: the ~38 orphan `rewrites/` entrances sit under
-  PIPELINE-REWRITE-CATALOG-WIRING (`rewrites/{mod,module_catalog}.rs` +
-  `selected_optimization.rs`, ~08:00Z), SELECTED-REWRITE-CATALOG-ROUTE and
+  (~line 26), not a separate task. Re-verified at `408953d975a`: every
+  enumerated leg is routed and claimed this wave — the ~38 orphan `rewrites/`
+  entrances sit under PIPELINE-REWRITE-CATALOG-WIRING
+  (`rewrites/{mod,module_catalog}.rs` + `selected_optimization.rs`, ~08:00Z),
+  SELECTED-REWRITE-CATALOG-ROUTE (~04:11Z) and
   SELECTED-REWRITE-CATALOG-WIRING/PIPELINE-REWRITE-ORPHANS item claims, with
   `rewrites/allocation_recovery` under DURABLE-CODEC-EXTRACTION (~07:34Z); the
   `unsequenced_spill_stages/` families are wholesale under
-  POC-SPILL-FAMILY-SEQUENCING (~06:53Z) plus UNSEQUENCED-SPILL-STAGE-TRIAGE /
-  UNSEQUENCED-SPILL-DISPOSITION item claims; the coupled
+  POC-SPILL-FAMILY-SEQUENCING (~06:53Z) plus UNSEQUENCED-SPILL-STAGE-TRIAGE
+  (~02:46Z) / UNSEQUENCED-SPILL-DISPOSITION (~04:06Z) item claims; the coupled
   `optimized_semantic_wrapper_{encoding,object}` disposition is claimed by
   OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION (~06:52Z) and SEMANTIC-WRAPPER-OWNER-
-  RESOLUTION, with the whole `backend/native-realization` crate additionally
-  under OPAQUE-BY-VALUE-BOUNDARY-ABI (~08:24Z); the audit leg is resolved
+  RESOLUTION (~02:04Z), with `native-realization` crate legs additionally
+  under TWO-AXIS-TERMINAL-AUTHORITY-REVIEW (~04:54Z) and
+  BUILD-EXCLUSION-REALIZATION (~07:37Z); and the audit leg is resolved
   (STAGE-ENTRANCE-ORPHAN-AUDIT's sweep at `280c4a83b6`, ORPHAN-ENTRANCE-AUDIT
   resolved, POC-ORPHAN-ENTRANCE-AUDIT resolved — its `wiki/drafts/
-  poc_orphan_entrance_audit.md` remains claimed ~07:58Z for the draft update).
-  No unfenced slice of the coordinator exists on this host; the canonical row
-  carries the wave-ownership map. Sibling stubs on this row's bullets:
-  PIPELINE-REWRITE-ORPHANS, PIPELINE-SPILL-FAMILY-ORPHANS,
-  PIPELINE-WRAPPER-OBJECT-ORPHAN, and the resolved POC-* family.
+  poc_orphan_entrance_audit.md` remains claimed ~07:58Z for the draft update,
+  now beside ORPHAN-STAGE-OUTPUT-AUDIT ~06:14Z on
+  `wiki/drafts/stage_output_orphan_audit.md`, with
+  BASELINE-NATIVE-DIFF-PIPELINE-OWNERSHIP ~07:31Z covering the
+  pipeline-ownership differential test). No unfenced slice of the coordinator
+  exists on this host; the canonical row carries the wave-ownership map.
+  Sibling stubs on this row's bullets: PIPELINE-REWRITE-ORPHANS,
+  PIPELINE-SPILL-FAMILY-ORPHANS, PIPELINE-WRAPPER-OBJECT-ORPHAN, and the
+  resolved POC-* family.
 - **PIPELINE-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
 - **PIPELINE-ROUTE-CONFORMANCE-AUDIT** — mined candidate; scope verified, resolved by landed audits. `1ccc88fb51` added `tests/architecture/representation_ownership/route_conformance.rs` pinning the documented program route: every route-table owner link resolves inside its named crate, every pipeline crate on disk is owned by exactly one row, and crate/package names keep the X-to-Y shape (the stale `timing_report.rs` link it caught was repointed to `compile_timings/mod.rs`). `36ffc8af87` added the connectivity leg in `tests/architecture/stage_crate_ownership.rs`: every designed stage entrance reachable at its crate root must have a caller outside its own crate, so the executable route — not only the crate-name chain — stays connected. Both halves of the stub's named audit are landed and pinned.
 - **PIPELINE-SPILL-FAMILY-ORPHANS** — mined candidate; verify scope then implement.
