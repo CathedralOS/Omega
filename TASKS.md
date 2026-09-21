@@ -10160,7 +10160,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ENTRY-CONTENT-ROOTS — plus the runtime-capable family-call leg owned by
   FINITE-GENERIC-DISPATCH (`execution/unit/dynamic_scalar_calls/`).
   Sibling re-mine on the same contract: GENERAL-SOURCE-BINDER-SYNTAX
-  (resolved, PROOF-CONTRACT-MIGRATION surface, distinct). 
+  (resolved, PROOF-CONTRACT-MIGRATION surface, distinct). Re-verified at
+  `4f9fb5964f` (linux x86-64, 2026-09-21 ~06:16Z): the landed half is
+  intact — `TypeParameterKind::Value` still flows through typed-trees,
+  `monomorphization/` and `runtime_value_generics.rs` are in place — and
+  none of the residual-owner lanes (STATE-LOCAL-VALUE-FRONTIER,
+  ENTRY-CONTENT-ROOTS, FINITE-GENERIC-DISPATCH) currently holds a live
+  claim, but those legs remain named bullets on their own board items,
+  not free slices under this name.
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Scope verified at `e12b9e8e06`,
   re-verified at `c1e0b08537` (the row's composition-host path corrected:
   `compose_task_stack_demand` lives in
