@@ -5205,6 +5205,20 @@ moved to the termination-catalog fence (see that row's refresh note).
   bounded slice — codec without verifier replay is a dead field, and the
   section boundary is a terminal-semantics decision. Record:
   `wiki/drafts/domain_issuer_routes.md`.
+  Re-witnessed at `6f91898606` (zergling-132, linux x86-64): the minting
+  leg stays green through the newest route extensions (9964a44a8bb,
+  851052b4f8f) — `cargo nextest run -p typed-trees-to-checked-trees -E
+  'test(~qualification_evidence)'` -> 17/17 PASS. Fence refresh: c2l
+  src/unit under STRUCTURAL-UNIT-LOWERING (~09:16Z), terminal-codec
+  artifact custody tests under CUSTODY-MATRIX-HARNESS-MIGRATION
+  (~09:19Z), proof-admission under PROOF-KERNEL-CORE (~09:49Z),
+  terminal-interpreter src + terminal-verifier provider_result.rs under
+  REGISTERED-CALLBACK-LIFETIME (~14:37Z), c2l scalar_contracts.rs under
+  RC-REPOSITORY (~14:39Z), l2t boundary_operator_custody under
+  TV-OPERATOR-APPLICATIONS-REPLAY (~16:22Z). The terminal-verifier
+  frontier fence (OWNED-SUCCESSOR-DISCARD-ORDER) has drained, but the
+  chain is still indivisible for a bounded slice — codec without
+  verifier replay remains a dead field.
 
 - **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW.** Finish receiver admission under
   [artifact production versus receiver admission](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
