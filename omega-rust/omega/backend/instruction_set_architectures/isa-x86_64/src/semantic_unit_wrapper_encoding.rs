@@ -552,8 +552,8 @@ fn validate_request(
     if request.target != NativeTarget::uefi_x64() {
         return Err(X86_64SemanticUnitWrapperEncodingError::UnsupportedTarget);
     }
-    if let Some(receiver) = request.receiver {
-        if receiver.byte_count == 0
+    if let Some(receiver) = request.receiver
+        && (receiver.byte_count == 0
             || receiver.byte_count > X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_MAX_BYTE_COUNT
             || !receiver.alignment.is_power_of_two()
             || receiver.alignment > 16
@@ -562,10 +562,9 @@ fn validate_request(
             || receiver.slot_byte_count < 16
             || receiver.outgoing_stack_byte_offset
                 != X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_SLOT_BYTE_OFFSET
-            || receiver.register != MachineRegister::X86Rcx
-        {
-            return Err(X86_64SemanticUnitWrapperEncodingError::NonCanonicalRequest);
-        }
+            || receiver.register != MachineRegister::X86Rcx)
+    {
+        return Err(X86_64SemanticUnitWrapperEncodingError::NonCanonicalRequest);
     }
     if request
         != canonical_x86_64_semantic_unit_wrapper_encoding_request_shaped(
