@@ -17,7 +17,7 @@ fn acyclic_mutable_write_cannot_substitute_another_available_byte() {
         .replacen("byte: u8)", "byte: u8, other: u8)", 1)
         .replace("scan(out, position + 1, byte)", "done()");
     let lowered = lower_writer(&source, "fill");
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(
@@ -29,7 +29,11 @@ fn acyclic_mutable_write_cannot_substitute_another_available_byte() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

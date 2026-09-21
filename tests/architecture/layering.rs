@@ -2392,11 +2392,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     .expect("native artifact admission owner");
     let production_input = input.split("#[cfg(test)]").next().unwrap();
     assert!(
-        production_input
-            .matches("lower_artifact_for_native_realization(")
-            .count()
-            == 1
-            && !production_input.contains("lower_artifact_for_optimization(")
+        production_input.matches("lower_artifact(").count() == 1
+            && !production_input.contains("lower_artifact_for_")
             && !production_input.contains("NativeRealizationInput::new(")
             && model.contains("VerifiedNativeArtifactInput as NativeRealizationInput")
             && native_admission.contains("pub struct VerifiedNativeArtifactInput")

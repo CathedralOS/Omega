@@ -33,7 +33,7 @@ fn preserves_exact_non_utf8_literal_and_structural_source() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified byte-sequence artifact lowers");
 
     let [
@@ -104,7 +104,7 @@ fn byte_sequence_length_retains_exact_source_result_type_and_rejects_drift() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .unwrap();
     let AbstractOperation::ByteSequenceLength {
         psi_operation,

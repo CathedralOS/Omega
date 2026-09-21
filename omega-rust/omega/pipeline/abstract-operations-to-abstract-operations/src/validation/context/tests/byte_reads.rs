@@ -45,7 +45,7 @@ fn surviving_byte_field_length_retains_exact_operation_and_storage_identity() {
         trivial_affine_discards: Vec::new(),
     };
     assert_eq!(machine.structural_parameters[1].structural_type, byte_type);
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(
@@ -57,7 +57,11 @@ fn surviving_byte_field_length_retains_exact_operation_and_storage_identity() {
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
@@ -418,7 +422,7 @@ pub(super) fn verified_byte_operation(
         }],
         ..terminal_verifier::ProofBundle::default()
     };
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(&module, &proof).unwrap(),
@@ -426,7 +430,11 @@ pub(super) fn verified_byte_operation(
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

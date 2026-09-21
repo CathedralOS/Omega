@@ -4,10 +4,7 @@ use abstract_operations::AbstractOperation;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
-use terminal_psi_to_abstract_operations::{
-    build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_native_realization,
-    lower_artifact_for_optimization,
-};
+use terminal_psi_to_abstract_operations::{build_verified_psi_optimization_unit, lower_artifact};
 
 #[test]
 fn verified_scalar_array_constructors_retain_empty_and_material_payloads() {
@@ -96,9 +93,9 @@ fn assert_array_retention(source: &str, entry: &str) {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("ordinary abstract lowering retains the verified array payload");
-    let optimizer_input = lower_artifact_for_optimization(
+    let optimizer_input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -106,9 +103,13 @@ fn assert_array_retention(source: &str, entry: &str) {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("optimizer admission retains arrays");
-    let native_input = lower_artifact_for_native_realization(
+    let native_input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -116,7 +117,7 @@ fn assert_array_retention(source: &str, entry: &str) {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_native_input())
+    .and_then(|admitted| admitted.try_into_native_input(&[]))
     .expect("native artifact admission retains arrays");
     assert_eq!(&plan, optimizer_input.plan());
     assert_eq!(&plan, native_input.plan());

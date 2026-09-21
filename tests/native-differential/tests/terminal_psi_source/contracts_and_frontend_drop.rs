@@ -169,7 +169,7 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("canonical artifact sections should lower without producer state");
     let measured = interpret_terminal_artifact_measured(
         &canonical_bytes,

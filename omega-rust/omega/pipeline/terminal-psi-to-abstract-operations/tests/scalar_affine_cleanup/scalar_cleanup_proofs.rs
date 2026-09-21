@@ -19,7 +19,6 @@ use terminal_psi::{
 };
 use terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, build_verified_psi_optimization_unit, lower_artifact,
-    lower_artifact_for_optimization,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -92,7 +91,7 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
     let proof_bytes =
         encode_proof_section(&module, &proof).expect("contextual scalar proof encodes");
     assert!(matches!(
-        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantics, proof_bytes: &encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes"), obligation_ledger_bytes: None }, &AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
+        lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantics, proof_bytes: &encode_proof_section(&module, &ProofBundle::default()).expect("empty proof encodes"), obligation_ledger_bytes: None }, &AdmissionProfile::default()).map(|admitted| admitted.into_plan()),
         Err(ArtifactLoweringError::Verification(
             terminal_verifier::VerificationError::MissingEvidence(obligation)
         )) if obligation == obligation_id(1)
@@ -106,9 +105,9 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified contextual scalar cleanup enters Omega");
-    let optimizer_input = lower_artifact_for_optimization(
+    let optimizer_input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantics,
             proof_bytes: &proof_bytes,
@@ -116,7 +115,11 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("verified contextual scalar cleanup retains optimizer context");
     assert_eq!(optimizer_input.plan(), &plan);
     let optimizer_context = optimizer_input.context();

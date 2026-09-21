@@ -155,7 +155,7 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan());
+    .map(|admitted| admitted.into_plan());
     result.expect("empty scalar-case constructor reaches abstract operations");
 
     let mut called = module;
@@ -258,6 +258,6 @@ fn omega_retains_verified_empty_scalar_case_materialization() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan());
+    .map(|admitted| admitted.into_plan());
     result.expect("ordinary empty scalar-case call reaches abstract operations");
 }

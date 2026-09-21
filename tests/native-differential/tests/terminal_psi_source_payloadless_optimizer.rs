@@ -18,9 +18,7 @@ use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelSchedule;
-use terminal_psi_to_abstract_operations::{
-    build_verified_psi_optimization_unit, lower_artifact, lower_artifact_for_optimization,
-};
+use terminal_psi_to_abstract_operations::{build_verified_psi_optimization_unit, lower_artifact};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -73,7 +71,7 @@ fn optimizer_unit(
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode proof");
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -81,7 +79,11 @@ fn optimizer_unit(
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("optimizer-only lowering retains exact payloadless semantics");
     build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
         .expect("build verified payloadless optimization unit")
@@ -113,10 +115,10 @@ fn source_payloadless_producer_retains_ordinary_and_optimizer_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("ordinary lowering retains the same payloadless constructor");
 
-    let optimizer_input = lower_artifact_for_optimization(
+    let optimizer_input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -124,7 +126,11 @@ fn source_payloadless_producer_retains_ordinary_and_optimizer_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("optimizer-only lowering retains the exact producer");
     let targeted = lower_to_target_operations(
         optimizer_input.plan(),
@@ -188,8 +194,8 @@ fn source_scalar_payload_constructor_retains_exact_abstract_fields() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan()),
-        lower_artifact_for_optimization(
+        .map(|admitted| admitted.into_plan()),
+        lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
                 proof_bytes: &proof,
@@ -197,7 +203,11 @@ fn source_scalar_payload_constructor_retains_exact_abstract_fields() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_optimization_input())
+        .map(|admitted| {
+            admitted
+                .into_optimization_artifact()
+                .into_optimization_input()
+        })
         .map(|input| input.plan().clone()),
     ] {
         let result = result.expect("ordinary scalar payload reaches the shared abstract graph");

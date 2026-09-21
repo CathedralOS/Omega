@@ -56,7 +56,7 @@ fn native_entrance_rejects_missing_or_substituted_scalar_invariant_certificates(
             }
             let bytes = terminal_codec::encode_proof_section(&module, &proof).unwrap();
             assert!(matches!(
-                super::lower_artifact_for_native_realization(
+                super::lower_artifact(
                     terminal_psi_to_abstract_operations::ArtifactSections {
                         semantic_bytes: artifact.semantic_bytes(),
                         proof_bytes: &bytes,
@@ -64,7 +64,7 @@ fn native_entrance_rejects_missing_or_substituted_scalar_invariant_certificates(
                     },
                     &super::AdmissionProfile::default()
                 )
-                .and_then(|admitted| admitted.try_into_native_input()),
+                .and_then(|admitted| admitted.try_into_native_input(&[])),
                 Err(super::ArtifactLoweringError::Verification(_))
             ));
         }

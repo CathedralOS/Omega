@@ -83,7 +83,7 @@ fn checked_source_exact_add_uses_known_addend_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("exact addition should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -195,7 +195,7 @@ fn checked_source_exact_add_uses_joint_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("joint-bound exact addition should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -271,7 +271,7 @@ fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("signed joint-bound exact addition should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -338,7 +338,7 @@ fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("signed lower joint-bound exact addition should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -431,7 +431,7 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("exact subtraction should cross the Omega boundary");
     assert!(
         abstract_operations.functions[0]
@@ -515,7 +515,7 @@ fn checked_source_exact_subtract_uses_joint_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("joint-bound exact subtraction should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -582,7 +582,7 @@ fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("signed joint-bound exact subtraction should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -649,7 +649,7 @@ fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("signed upper joint-bound exact subtraction should cross Omega");
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let _target_operations =
@@ -728,7 +728,7 @@ fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .expect("signed i64 add/subtract should cross Omega");
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let _target_operations = lower_to_target_operations(
@@ -818,7 +818,7 @@ fn checked_source_exact_arithmetic_uses_unsigned_u64_runtime_bounds() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .expect("unsigned u64 arithmetic should cross Omega");
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let _target_operations = lower_to_target_operations(

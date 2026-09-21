@@ -5,8 +5,7 @@
 use proof_admission::AdmissionProfile;
 use terminal_codec::{ProofCodecError, encode_module, encode_proof_bundle, encode_proof_section};
 use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, ArtifactSections, lower_artifact, lower_artifact_for_native_realization,
-    lower_artifact_for_optimization,
+    ArtifactLoweringError, ArtifactSections, lower_artifact,
 };
 
 const SOURCE: &str = r#"
@@ -67,12 +66,12 @@ fn every_admission_rejects_an_unsealed_proof_bundle() {
                 &profile,
             )
             .map(|_| ()),
-            "optimizer" => lower_artifact_for_optimization(
+            "optimizer" => lower_artifact(
                 artifact_sections(&semantic_bytes, &bare_proof_bytes),
                 &profile,
             )
             .map(|_| ()),
-            _ => lower_artifact_for_native_realization(
+            _ => lower_artifact(
                 artifact_sections(&semantic_bytes, &bare_proof_bytes),
                 &profile,
             )
@@ -109,12 +108,12 @@ fn every_admission_rejects_a_proof_section_sealed_for_another_subject() {
                 &profile,
             )
             .map(|_| ()),
-            "optimizer" => lower_artifact_for_optimization(
+            "optimizer" => lower_artifact(
                 artifact_sections(&semantic_bytes, &foreign_sealed_bytes),
                 &profile,
             )
             .map(|_| ()),
-            _ => lower_artifact_for_native_realization(
+            _ => lower_artifact(
                 artifact_sections(&semantic_bytes, &foreign_sealed_bytes),
                 &profile,
             )

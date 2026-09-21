@@ -3,9 +3,7 @@ mod legacy_fixture;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use terminal_psi_to_abstract_operations::{
-    ArtifactLoweringError, lower_artifact, lower_artifact_for_native_realization,
-};
+use terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact};
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -52,7 +50,7 @@ fn natural_countdown_without_certificate_is_rejected_at_native_entrance() {
     // No shape route remains: the native entrance demands the reconstructed
     // control-cycle certificate like every other ranked component.
     assert!(matches!(
-        lower_artifact_for_native_realization(
+        lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
                 proof_bytes: &proof,
@@ -60,7 +58,7 @@ fn natural_countdown_without_certificate_is_rejected_at_native_entrance() {
             },
             &profile
         )
-        .and_then(|admitted| admitted.try_into_native_input()),
+        .and_then(|admitted| admitted.try_into_native_input(&[])),
         Err(ArtifactLoweringError::Verification(_))
     ));
     assert!(
@@ -72,7 +70,7 @@ fn natural_countdown_without_certificate_is_rejected_at_native_entrance() {
             },
             &profile
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .is_err()
     );
 }
@@ -85,7 +83,7 @@ fn deleting_countdown_metadata_cannot_convert_a_cycle_to_ordinary_custody() {
     }
     let semantic = terminal_codec::encode_module(&module).unwrap();
     assert!(
-        lower_artifact_for_native_realization(
+        lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
                 proof_bytes: &proof,
@@ -93,7 +91,7 @@ fn deleting_countdown_metadata_cannot_convert_a_cycle_to_ordinary_custody() {
             },
             &proof_admission::AdmissionProfile::default()
         )
-        .and_then(|admitted| admitted.try_into_native_input())
+        .and_then(|admitted| admitted.try_into_native_input(&[]))
         .is_err()
     );
 }

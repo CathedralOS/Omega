@@ -3,9 +3,7 @@
 use proof_admission::AdmissionProfile;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
-use terminal_psi_to_abstract_operations::{
-    lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
-};
+use terminal_psi_to_abstract_operations::lower_artifact;
 
 #[test]
 fn borrowed_primitive_local_survives_every_abstract_entrance() {
@@ -63,8 +61,8 @@ fn borrowed_primitive_local_survives_every_abstract_entrance() {
             },
             &profile,
         )
-        .and_then(|admitted| admitted.try_into_plan()),
-        lower_artifact_for_optimization(
+        .map(|admitted| admitted.into_plan()),
+        lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic_bytes,
                 proof_bytes: &proof_bytes,
@@ -72,9 +70,13 @@ fn borrowed_primitive_local_survives_every_abstract_entrance() {
             },
             &profile,
         )
-        .and_then(|admitted| admitted.try_into_optimization_input())
+        .map(|admitted| {
+            admitted
+                .into_optimization_artifact()
+                .into_optimization_input()
+        })
         .map(|input| input.plan().clone()),
-        lower_artifact_for_native_realization(
+        lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic_bytes,
                 proof_bytes: &proof_bytes,
@@ -82,7 +84,7 @@ fn borrowed_primitive_local_survives_every_abstract_entrance() {
             },
             &profile,
         )
-        .and_then(|admitted| admitted.try_into_native_input())
+        .and_then(|admitted| admitted.try_into_native_input(&[]))
         .map(|input| input.plan().clone()),
     ] {
         let plan = result.expect("primitive storage survives abstract admission");

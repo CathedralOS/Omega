@@ -59,7 +59,7 @@ fn bounded_byte_input_cycle_keeps_case_edges_in_replay() {
         validate_psi_cycle_component_snapshot, validate_verified_psi_cycle_components,
     };
     let lowered = reader();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(
@@ -71,7 +71,11 @@ fn bounded_byte_input_cycle_keeps_case_edges_in_replay() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

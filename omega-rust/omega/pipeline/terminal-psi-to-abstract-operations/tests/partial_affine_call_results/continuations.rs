@@ -1,8 +1,8 @@
 use super::{
     AbstractOperation, AdmissionProfile, Lexer, ResolutionRequest,
-    build_verified_psi_optimization_unit, encode_module, encode_proof_section,
-    lower_artifact_for_optimization, lower_symbol_resolved_trees, lower_typed_trees,
-    parse_syntax_trees, resolve, validate_psi_optimization_unit,
+    build_verified_psi_optimization_unit, encode_module, encode_proof_section, lower_artifact,
+    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
+    validate_psi_optimization_unit,
 };
 use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
@@ -64,7 +64,7 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
             let semantic = encode_module(&terminal.semantic_module).unwrap();
             let proof =
                 encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle).unwrap();
-            let input = lower_artifact_for_optimization(
+            let input = lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {
                     semantic_bytes: &semantic,
                     proof_bytes: &proof,
@@ -72,7 +72,11 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
                 },
                 &AdmissionProfile::default(),
             )
-            .and_then(|admitted| admitted.try_into_optimization_input())
+            .map(|admitted| {
+                admitted
+                    .into_optimization_artifact()
+                    .into_optimization_input()
+            })
             .unwrap();
             let verified = build_verified_psi_optimization_unit(
                 input,

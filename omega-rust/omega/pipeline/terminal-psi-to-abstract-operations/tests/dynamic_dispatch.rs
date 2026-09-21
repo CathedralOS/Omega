@@ -52,7 +52,7 @@ fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimiza
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("stored descriptor reaches target-neutral Omega");
     let caller = plan
         .functions
@@ -175,7 +175,7 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified rebound dispatch reaches target-neutral Omega");
 
     let caller = plan
@@ -314,7 +314,7 @@ fn verified_changed_conformance_rebound_retains_both_applications() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified changed-conformance rebound reaches target-neutral Omega");
 
     let caller = plan
@@ -434,7 +434,7 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified forwarded dispatch reaches target-neutral Omega");
 
     let caller = plan
@@ -642,7 +642,7 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("direct scalar forwarding reaches target-neutral Omega");
 
     let caller = plan

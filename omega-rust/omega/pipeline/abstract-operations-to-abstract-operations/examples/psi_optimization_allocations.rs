@@ -13,8 +13,7 @@ use abstract_operations_to_abstract_operations::run_psi_pipeline;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::recompute_psi_optimization_unit_identity;
 use terminal_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationUnit, build_verified_psi_optimization_unit,
-    lower_artifact_for_optimization,
+    VerifiedPsiOptimizationUnit, build_verified_psi_optimization_unit, lower_artifact,
 };
 
 struct CountAllocations;
@@ -104,7 +103,7 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("encode proof");
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -112,7 +111,11 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("verify for optimizer admission");
     build_verified_psi_optimization_unit(
         input,

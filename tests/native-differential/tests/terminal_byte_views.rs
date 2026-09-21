@@ -395,7 +395,7 @@ fn assert_byte_read_proof_rejected(module: &TerminalModule, proof: &ProofBundle)
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     {
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::Verification(_)) => {}
         Err(error) => panic!("byte-read proof must reject before native lowering: {error}"),

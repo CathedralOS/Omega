@@ -22,7 +22,7 @@ fn omega_retains_the_exact_installed_provider_scalar_argument() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
@@ -50,7 +50,7 @@ fn omega_rejects_removing_the_installed_provider_scalar_argument() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     scalar_call_arguments_mut(&mut plan).clear();
 
@@ -97,7 +97,7 @@ fn omega_installs_the_verified_computed_argument_and_rejects_operand_substitutio
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("computed i32 argument is valid Terminal Psi");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)
@@ -125,7 +125,7 @@ fn omega_rejects_installed_provider_boundary_scalar_type_drift() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     plan.boundary_machines[0].scalar_parameters[0] = ScalarType::Boolean;
 
@@ -146,7 +146,7 @@ fn omega_rejects_installed_provider_candidate_scalar_type_drift() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     plan.functions
         .iter_mut()

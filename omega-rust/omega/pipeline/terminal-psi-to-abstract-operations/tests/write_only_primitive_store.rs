@@ -46,7 +46,7 @@ fn verified_source_store_retains_exact_mutable_parameter_and_preceding_value() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified write-only store reaches target-neutral Omega");
 
     let store_function = plan
@@ -130,7 +130,7 @@ fn verified_boolean_store_retains_exact_write_only_parameter_and_preceding_value
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified Boolean store reaches target-neutral Omega");
 
     let store_function = plan
@@ -205,7 +205,7 @@ fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_va
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified IEEE float store reaches target-neutral Omega");
 
     let store_function = plan
@@ -290,7 +290,7 @@ fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified runtime-indexed store reaches target-neutral Omega");
 
     let [function] = plan.functions.as_slice() else {
@@ -364,7 +364,7 @@ fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified parameter store reaches target-neutral Omega");
 
     let [function] = plan.functions.as_slice() else {

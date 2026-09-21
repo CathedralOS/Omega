@@ -1,15 +1,15 @@
 use super::error::ArtifactLoweringError;
-use crate::lowering::lower_decoded_optimizable_module;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
 use abstract_operations::AbstractOperationPlan;
 use terminal_verifier::VerifiedOptimizableTerminalModule;
 
 /// One canonical optimizer-admitted program plus its exact plan-laid input
-/// roster. Construction is private to artifact admission so the roster cannot
-/// be paired with an unrelated verified input. The rows stay beside the
-/// verified optimizer input as semantic custody: they grant no backing,
-/// lifetime, or access-event authority, and remain visible inside the
-/// retained verifier context module.
+/// roster. Construction is private to artifact admission — it exists only as
+/// the downgrade of a native admission — so the roster cannot be paired with
+/// an unrelated verified input. The rows stay beside the verified optimizer
+/// input as semantic custody: they grant no backing, lifetime, or
+/// access-event authority, and remain visible inside the retained verifier
+/// context module.
 ///
 /// Optimizer authority has no conversion to native authority:
 /// ```compile_fail
@@ -36,33 +36,15 @@ impl AdmittedOptimizationArtifact {
         &self.context().module().placed_view_inputs
     }
 
-    /// Consumers without placed-view custody support may only take empty rosters.
-    pub fn try_into_optimization_input(
-        self,
-    ) -> Result<VerifiedPsiOptimizationInput, ArtifactLoweringError> {
-        super::require_empty_placed_view_inputs(self.placed_view_inputs())?;
-        Ok(self.input)
-    }
-
-    /// Consumers that own the separate plan-laid input carrier take the
-    /// verified optimizer input with the complete roster still retained
+    /// The verified optimizer input with the complete roster still retained
     /// inside the verifier context module. The handoff stays exact because
     /// construction is private to artifact admission, so a stale or
     /// substituted roster is unrepresentable here rather than merely
     /// unchecked. The rows remain semantic custody only: they grant no
     /// backing, range, access, or lifetime authority.
-    pub fn into_optimization_input_with_placed_view_inputs(self) -> VerifiedPsiOptimizationInput {
+    pub fn into_optimization_input(self) -> VerifiedPsiOptimizationInput {
         self.input
     }
-}
-
-pub(super) fn retain_verified_optimization_input(
-    verified: &VerifiedOptimizableTerminalModule<'_>,
-) -> Result<VerifiedPsiOptimizationInput, ArtifactLoweringError> {
-    let plan =
-        lower_decoded_optimizable_module(verified).map_err(ArtifactLoweringError::Lowering)?;
-    let context = retain_verified_optimization_context(verified)?;
-    Ok(VerifiedPsiOptimizationInput { plan, context })
 }
 
 pub(super) fn retain_verified_optimization_context(

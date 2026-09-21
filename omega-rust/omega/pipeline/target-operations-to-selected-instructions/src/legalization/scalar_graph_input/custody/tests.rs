@@ -20,8 +20,7 @@ use terminal_psi::{
     TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use terminal_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationUnit, build_verified_psi_optimization_unit,
-    lower_artifact_for_optimization,
+    VerifiedPsiOptimizationUnit, build_verified_psi_optimization_unit, lower_artifact,
 };
 
 fn id<T>(raw: u64, constructor: impl FnOnce(u64) -> Option<T>) -> T {
@@ -108,7 +107,7 @@ fn verified(backedge_ordinal: u64) -> VerifiedPsiOptimizationUnit {
             },
         }],
     };
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(&module, &ProofBundle::default())
@@ -117,7 +116,11 @@ fn verified(backedge_ordinal: u64) -> VerifiedPsiOptimizationUnit {
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     build_verified_psi_optimization_unit(input, FuelScheduleIdentity::new(1).unwrap()).unwrap()
 }
@@ -256,7 +259,7 @@ fn plain_block(
 }
 
 fn build(module: &TerminalModule, proof: &ProofBundle) -> VerifiedPsiOptimizationUnit {
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(module, proof).unwrap(),
@@ -264,7 +267,11 @@ fn build(module: &TerminalModule, proof: &ProofBundle) -> VerifiedPsiOptimizatio
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     build_verified_psi_optimization_unit(input, FuelScheduleIdentity::new(1).unwrap()).unwrap()
 }

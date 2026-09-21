@@ -12,12 +12,12 @@ use optimization_unit_semantics::{
 use proof_admission::AdmissionProfile;
 use terminal_psi_to_abstract_operations::{
     ArtifactLoweringError, VerifiedPsiOptimizationUnit, build_verified_psi_optimization_unit,
-    lower_artifact_for_optimization,
+    lower_artifact,
 };
 
 fn verified_source(source: &str) -> VerifiedPsiOptimizationUnit {
     let artifact = super::produce(source, false);
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: artifact.semantic_bytes(),
             proof_bytes: artifact.proof_bytes(),
@@ -25,7 +25,11 @@ fn verified_source(source: &str) -> VerifiedPsiOptimizationUnit {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("unranked artifact has independently verified safety and source custody");
     build_verified_psi_optimization_unit(
         input,
@@ -258,7 +262,7 @@ fn unranked_optimizer_rejects_missing_safety_proof_and_changed_proof_catalog() {
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let changed_proof = terminal_codec::encode_proof_section(&module, &proof).unwrap();
     assert!(matches!(
-        lower_artifact_for_optimization(
+        lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: artifact.semantic_bytes(),
                 proof_bytes: &changed_proof,
@@ -266,7 +270,9 @@ fn unranked_optimizer_rejects_missing_safety_proof_and_changed_proof_catalog() {
             },
             &AdmissionProfile::default()
         )
-        .and_then(|admitted| admitted.try_into_optimization_input()),
+        .map(|admitted| admitted
+            .into_optimization_artifact()
+            .into_optimization_input()),
         Err(ArtifactLoweringError::Verification(_))
     ));
     let verified = verified_countdown();

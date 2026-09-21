@@ -159,7 +159,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
     };
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let proof = terminal_codec::encode_proof_section(&module, &proof).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -167,7 +167,11 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
@@ -408,7 +412,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
     };
     let semantic = terminal_codec::encode_module(&module).unwrap();
     let proof = terminal_codec::encode_proof_section(&module, &proof).unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -416,7 +420,11 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

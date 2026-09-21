@@ -153,7 +153,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("exact structural custody return should enter Omega");
     let [function] = plan.functions.as_slice() else {
         panic!("fixture has one terminal function")
@@ -218,7 +218,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("a structural result does not change the crash operation's semantics");
     assert!(matches!(lowered.functions[0].operations.as_slice(),
         [AbstractOperation::Crash { frontier_lower_bound, .. }] if frontier_lower_bound == &[claim]));
@@ -282,7 +282,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified operations compose before a structural return");
     assert_eq!(lowered.functions[0].block_entries.len(), 2);
     assert!(matches!(lowered.functions[0].operations.as_slice(),
@@ -365,7 +365,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .unwrap();
     assert!(matches!(lowered.functions[0].operations.as_slice(),
         [AbstractOperation::EstablishTrivialAffineLocal { place, .. },
@@ -429,7 +429,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("one exact affine cleanup should enter Omega abstract operations");
     let [function] = plan.functions.as_slice() else {
         panic!("fixture has one terminal function")
@@ -484,7 +484,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("a finite exact affine cleanup tail should enter Omega abstract operations");
     let [function] = plan.functions.as_slice() else {
         panic!("fixture has one terminal function")

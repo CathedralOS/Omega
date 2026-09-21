@@ -17,8 +17,7 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationInput, build_verified_psi_optimization_unit,
-    lower_artifact_for_optimization,
+    VerifiedPsiOptimizationInput, build_verified_psi_optimization_unit, lower_artifact,
 };
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
@@ -61,7 +60,7 @@ fn countdown_input() -> (terminal_psi::TerminalModule, VerifiedPsiOptimizationIn
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("encode countdown proof");
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -69,7 +68,11 @@ fn countdown_input() -> (terminal_psi::TerminalModule, VerifiedPsiOptimizationIn
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .expect("optimizer-only ranked admission");
     (lowered.semantic_module, input)
 }

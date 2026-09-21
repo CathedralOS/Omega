@@ -58,7 +58,7 @@ fn dynamic_unit() -> optimization_unit::PsiOptimizationUnit {
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("lower verified Terminal artifact");
     optimization_unit::reconstruct_psi_optimization_unit_seed(
         &plan,

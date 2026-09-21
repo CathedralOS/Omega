@@ -6,9 +6,7 @@ use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
-use terminal_psi_to_abstract_operations::{
-    lower_artifact, lower_artifact_for_native_realization, lower_artifact_for_optimization,
-};
+use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -93,9 +91,9 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_plan())
+            .map(|admitted| admitted.into_plan())
             .map(|_| ()),
-            lower_artifact_for_optimization(
+            lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {
                     semantic_bytes: &semantic_bytes,
                     proof_bytes: &proof_bytes,
@@ -103,9 +101,13 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_optimization_input())
+            .map(|admitted| {
+                admitted
+                    .into_optimization_artifact()
+                    .into_optimization_input()
+            })
             .map(|_| ()),
-            lower_artifact_for_native_realization(
+            lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {
                     semantic_bytes: &semantic_bytes,
                     proof_bytes: &proof_bytes,
@@ -113,7 +115,7 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_native_input())
+            .and_then(|admitted| admitted.try_into_native_input(&[]))
             .map(|_| ()),
         ] {
             assert!(
@@ -129,7 +131,7 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
             },
             &profile,
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .unwrap();
         let actual = plan
             .functions
@@ -240,9 +242,9 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_plan())
+            .map(|admitted| admitted.into_plan())
             .map(|_| ()),
-            lower_artifact_for_optimization(
+            lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {
                     semantic_bytes: &semantic_bytes,
                     proof_bytes: &proof_bytes,
@@ -250,9 +252,13 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_optimization_input())
+            .map(|admitted| {
+                admitted
+                    .into_optimization_artifact()
+                    .into_optimization_input()
+            })
             .map(|_| ()),
-            lower_artifact_for_native_realization(
+            lower_artifact(
                 terminal_psi_to_abstract_operations::ArtifactSections {
                     semantic_bytes: &semantic_bytes,
                     proof_bytes: &proof_bytes,
@@ -260,7 +266,7 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
                 },
                 &profile,
             )
-            .and_then(|admitted| admitted.try_into_native_input())
+            .and_then(|admitted| admitted.try_into_native_input(&[]))
             .map(|_| ()),
         ] {
             assert!(
@@ -276,7 +282,7 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
             },
             &profile,
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .unwrap();
         assert!(
             plan.functions

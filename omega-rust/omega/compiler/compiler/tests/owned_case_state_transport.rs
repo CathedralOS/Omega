@@ -60,7 +60,7 @@ machine evaluate(selected: bool) -> u64 {{ helper(selected) }}
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "evaluate")
             .produce_artifact()
             .expect("callee-local storage is not a caller input");
-        let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        let input = terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: artifact.semantic_bytes(),
                 proof_bytes: artifact.proof_bytes(),
@@ -68,7 +68,11 @@ machine evaluate(selected: bool) -> u64 {{ helper(selected) }}
             },
             &proof_admission::AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_optimization_input())
+        .map(|admitted| {
+            admitted
+                .into_optimization_artifact()
+                .into_optimization_input()
+        })
         .expect("local case calls lower through the ordinary abstract-operation path");
         let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
             input,

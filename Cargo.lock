@@ -509,6 +509,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations",
  "abstract-operations-to-target-operations",
  "access-plans",
  "arena",

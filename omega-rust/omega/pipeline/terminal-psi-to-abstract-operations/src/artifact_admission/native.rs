@@ -11,9 +11,8 @@ use terminal_verifier::AcceptedControlCycle;
 
 /// Native-admitted input and the provider establishments bound to its
 /// direct-entry placed-view roster rows. Construction is private:
-/// `try_into_native_input` requires an empty roster, and
-/// `AdmittedNativeArtifact::try_into_native_input_with_placed_view_establishments`
-/// joins one supply per declared row.
+/// `AdmittedNativeArtifact::try_into_native_input` joins one supply per
+/// declared row, so an empty roster takes an empty supply.
 #[derive(Debug, Clone)]
 pub struct VerifiedNativeArtifactInput {
     optimization_input: VerifiedPsiOptimizationInput,
@@ -76,7 +75,7 @@ impl AdmittedNativeArtifact {
     /// The ranked control cycles the verifier accepted for this exact
     /// artifact, in the verifier's acceptance order. The roster is admission
     /// authority bound to this artifact; it stays available through
-    /// `try_into_native_input*` for the realization boundary but does not
+    /// `try_into_native_input` for the realization boundary but does not
     /// transfer into optimizer authority via `into_optimization_artifact`.
     pub fn accepted_control_cycles(&self) -> &[AcceptedControlCycle] {
         &self.accepted_control_cycles
@@ -89,30 +88,26 @@ impl AdmittedNativeArtifact {
         }
     }
 
-    /// The executable-image realization input for a program that declared no
-    /// placed-view inputs. The boundary stays fail-closed for a nonempty
-    /// roster because custody the plan names cannot be silently erased:
-    /// consumers holding one provider establishment per declared direct-entry
-    /// row take `try_into_native_input_with_placed_view_establishments`
-    /// instead — a roster or a pointer is not the authority that lends the
-    /// referent. Native execution of the derived placed-entry ABI with a lent
-    /// host referent is exercised by the compiler control
-    /// `direct_placed_view_input_survives_codec_and_native_replay`.
-    pub fn try_into_native_input(
-        self,
-    ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
-        self.try_into_native_input_with_placed_view_establishments(&[])
+    /// The lowered plan alone. The plan carries no placed-view rows or
+    /// verifier context; consumers that need either keep the admission and
+    /// read `placed_view_inputs` or `context` instead.
+    pub fn into_plan(self) -> AbstractOperationPlan {
+        self.optimization_input.plan
     }
 
-    /// The executable-image realization input for a program whose direct
-    /// entry declares placed-view inputs: join one provider establishment to
-    /// each declared roster row. The bound supplies ride inside the native
-    /// input so the realized entry boundary can lend the exact qualified
-    /// backing for the invocation's duration; a supply that answers no
-    /// declared row, answers one twice, carries noncanonical qualifications,
-    /// or overlaps another exclusive referent rejects here rather than at
-    /// access, and a row left unanswered still fails custody.
-    pub fn try_into_native_input_with_placed_view_establishments(
+    /// The executable-image realization input: join one provider
+    /// establishment to each placed-view roster row the direct entry
+    /// declares. A program that declared none takes an empty supply. The
+    /// bound supplies ride inside the native input so the realized entry
+    /// boundary can lend the exact qualified backing for the invocation's
+    /// duration; a supply that answers no declared row, answers one twice,
+    /// carries noncanonical qualifications, or overlaps another exclusive
+    /// referent rejects here rather than at access, and a row left
+    /// unanswered still fails custody — a roster or a pointer is not the
+    /// authority that lends the referent. Native execution of the derived
+    /// placed-entry ABI with a lent host referent is exercised by the
+    /// compiler control `direct_placed_view_input_survives_codec_and_native_replay`.
+    pub fn try_into_native_input(
         self,
         establishments: &[TerminalPlacedViewEstablishment],
     ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {

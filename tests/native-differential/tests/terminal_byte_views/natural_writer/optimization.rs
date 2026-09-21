@@ -6,7 +6,7 @@ use super::{
 };
 fn verified_writer() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
     let lowered = writer();
-    let input = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
             proof_bytes: &terminal_codec::encode_proof_section(
@@ -18,7 +18,11 @@ fn verified_writer() -> terminal_psi_to_abstract_operations::VerifiedPsiOptimiza
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_optimization_input())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .unwrap();
     terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,

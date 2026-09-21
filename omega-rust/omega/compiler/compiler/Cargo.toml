@@ -91,6 +91,7 @@ image = { path = "../../backend/images/image" }
 image-emission = { path = "../../backend/images/image-emission", features = ["test-support", "installed-artifact"] }
 machine-code = { path = "../../representations/machine-code" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
+abstract-operations = { path = "../../representations/abstract-operations" }
 executable-installation = { path = "../../backend/runtime/executable-installation" }
 external-roots = { path = "../../backend/runtime/external-roots" }
 provider-planning = { path = "../../build/provider-planning", features = ["installed-writer"] }

@@ -25,7 +25,7 @@ fn omega_retains_and_replays_the_whole_root_structural_provider_call() {
         },
         &profile,
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified lowering");
     let selected = selected("second-plan", "SecondProvider", "SecondProvider::emit");
     let installation = admit_provider_installation(&plan, &semantic, &proof, &profile, &selected)

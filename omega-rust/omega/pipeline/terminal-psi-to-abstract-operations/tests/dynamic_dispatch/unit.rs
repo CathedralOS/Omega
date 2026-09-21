@@ -74,7 +74,7 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
             },
             &AdmissionProfile::default(),
         )
-        .and_then(|admitted| admitted.try_into_plan())
+        .map(|admitted| admitted.into_plan())
         .expect("verified dynamic Unit dispatch reaches target-neutral Omega");
 
         let caller = plan
@@ -214,7 +214,7 @@ fn verified_rebound_dynamic_unit_retains_exact_indirect_custody() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified rebound Unit dispatch reaches target-neutral Omega");
     let caller = plan
         .functions
@@ -278,7 +278,7 @@ fn verified_changed_conformance_unit_retains_both_applications() {
         },
         &AdmissionProfile::default(),
     )
-    .and_then(|admitted| admitted.try_into_plan())
+    .map(|admitted| admitted.into_plan())
     .expect("verified changed-conformance Unit dispatch reaches target-neutral Omega");
     let caller = plan
         .functions

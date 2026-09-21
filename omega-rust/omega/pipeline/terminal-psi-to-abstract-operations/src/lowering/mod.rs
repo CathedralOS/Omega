@@ -4,7 +4,7 @@
 
 use abstract_operations::AbstractOperationPlan;
 use terminal_codec::terminal_psi_identity;
-use terminal_verifier::{VerifiedOptimizableTerminalModule, VerifiedTerminalModule};
+use terminal_verifier::VerifiedTerminalModule;
 mod block_bindings;
 mod error;
 #[path = "machine/lower_machine.rs"]
@@ -21,12 +21,6 @@ use terminal_psi::TerminalModule;
 /// verification, retaining its explicit control-flow and operation relationships.
 pub(crate) fn lower_decoded_verified_module(
     verified: &VerifiedTerminalModule<'_>,
-) -> Result<AbstractOperationPlan, LoweringError> {
-    lower_decoded_module(verified.module())
-}
-
-pub(crate) fn lower_decoded_optimizable_module(
-    verified: &VerifiedOptimizableTerminalModule<'_>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
     lower_decoded_module(verified.module())
 }

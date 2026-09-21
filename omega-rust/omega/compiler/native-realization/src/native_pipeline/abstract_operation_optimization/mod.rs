@@ -18,23 +18,20 @@ use abstract_operations_to_abstract_operations::{
     AbstractOptimizationError, ValidatedOptimizedAbstractPlan, optimize_abstract_operations,
 };
 use proof_admission::AdmissionProfile;
-use terminal_psi_to_abstract_operations::{
-    VerifiedPsiOptimizationInput, lower_artifact_for_optimization,
-};
+use terminal_psi_to_abstract_operations::{VerifiedPsiOptimizationInput, lower_artifact};
 
 /// Artifact-sections admission followed by the complete abstract
 /// optimization phase. This entrance is custody-owning: an admitted
 /// placed-view roster stays retained inside the returned plan's verified
 /// input as semantic custody and never grants backing, range, access, or
-/// lifetime authority by itself. Consumers without custody support use
-/// `try_into_optimization_input` upstream instead.
+/// lifetime authority by itself.
 pub fn optimize_artifact_sections(
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &AdmissionProfile,
     request: impl Into<OptimizationPipelineRequest>,
 ) -> Result<ValidatedOptimizedAbstractPlan, OptimizationPipelineError> {
-    let input = lower_artifact_for_optimization(
+    let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes,
             proof_bytes,
@@ -42,7 +39,11 @@ pub fn optimize_artifact_sections(
         },
         profile,
     )
-    .map(|admitted| admitted.into_optimization_input_with_placed_view_inputs())
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
     .map_err(OptimizationPipelineError::ArtifactLowering)?;
     optimize_verified_abstract_input(input, request)
 }

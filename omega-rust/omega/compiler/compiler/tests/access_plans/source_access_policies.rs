@@ -10,6 +10,17 @@ use layout::{DataShape, build_layout_plan};
 use std::fs;
 use target::NativeTarget;
 
+/// The admitted plan beside its exact retained placed-view roster, in the
+/// carrier the placed-input target lowering consumes.
+fn admitted_plan_with_placed_view_inputs(
+    admitted: terminal_psi_to_abstract_operations::AdmittedNativeArtifact,
+) -> abstract_operations::AbstractOperationPlanWithPlacedViewInputs {
+    abstract_operations::AbstractOperationPlanWithPlacedViewInputs {
+        placed_view_inputs: admitted.placed_view_inputs().to_vec(),
+        plan: admitted.into_plan(),
+    }
+}
+
 #[test]
 fn compiler_accessor_templates_are_inert_without_placed_views() {
     let main = write_program(
@@ -586,10 +597,6 @@ machine Inspector::inspect(
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("encode placed-view proof bundle");
 
-    assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &proof_admission::AdmissionProfile::default()).and_then(|admitted| admitted.try_into_plan()),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
-    ));
     let abstract_plan = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -598,7 +605,7 @@ machine Inspector::inspect(
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .map(|admitted| admitted.into_parts())
+    .map(admitted_plan_with_placed_view_inputs)
     .expect("retain exact placed-view custody");
     let [terminal_input] = abstract_plan.placed_view_inputs.as_slice() else {
         panic!("one retained placed-view input")
@@ -763,7 +770,7 @@ machine Inspector::inspect(
         },
         &proof_admission::AdmissionProfile::default(),
     )
-    .map(|admitted| admitted.into_parts())
+    .map(admitted_plan_with_placed_view_inputs)
     .expect("retain exact placed-view custody");
     let [first_input, second_input] = abstract_plan.placed_view_inputs.as_slice() else {
         panic!("two retained placed-view inputs")
@@ -919,7 +926,7 @@ machine Inspector::inspect(
             .expect("encode multi-row proof bundle");
     let profile = proof_admission::AdmissionProfile::default();
     let readmit_native = || {
-        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+        terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
                 proof_bytes: &proof,
@@ -961,11 +968,11 @@ machine Inspector::inspect(
     // partial supply both leave an entry row unanswered and keep failing
     // custody exactly like the single-row entrance.
     assert!(matches!(
-        readmit_native().try_into_native_input_with_placed_view_establishments(&[]),
+        readmit_native().try_into_native_input(&[]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
     ));
     assert!(matches!(
-        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+        readmit_native().try_into_native_input(&[
             establishment_for(0, referent(0x5a17, Vec::new()))
         ]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
@@ -975,7 +982,7 @@ machine Inspector::inspect(
     let mut stale_row_supply = establishment_for(1, referent(0xbeef, Vec::new()));
     stale_row_supply.input.placement_commitment[0] ^= 1;
     assert!(matches!(
-        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+        readmit_native().try_into_native_input(&[
             establishment_for(0, referent(0x5a17, Vec::new())),
             stale_row_supply
         ]),
@@ -987,10 +994,7 @@ machine Inspector::inspect(
     let first_supply = establishment_for(0, referent(0x5a17, Vec::new()));
     let second_supply = establishment_for(1, referent(0xbeef, Vec::new()));
     let established = readmit_native()
-        .try_into_native_input_with_placed_view_establishments(&[
-            second_supply.clone(),
-            first_supply.clone(),
-        ])
+        .try_into_native_input(&[second_supply.clone(), first_supply.clone()])
         .expect("each declared row binds its exact establishment");
     assert_eq!(
         established.placed_view_establishments(),
@@ -1002,7 +1006,7 @@ machine Inspector::inspect(
     // shared row rejects before either is bound, and sub-path containment
     // counts as overlap rather than only exact-path equality.
     assert!(matches!(
-        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+        readmit_native().try_into_native_input(&[
             establishment_for(0, referent(0x5a17, Vec::new())),
             establishment_for(1, referent(0x5a17, Vec::new()))
         ]),
@@ -1011,7 +1015,7 @@ machine Inspector::inspect(
         ))
     ));
     assert!(matches!(
-        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+        readmit_native().try_into_native_input(&[
             establishment_for(0, referent(0x5a17, Vec::new())),
             establishment_for(
                 1,
@@ -1029,7 +1033,7 @@ machine Inspector::inspect(
     // backing.
     assert!(
         readmit_native()
-            .try_into_native_input_with_placed_view_establishments(&[
+            .try_into_native_input(&[
                 establishment_for(
                     0,
                     referent(
@@ -1091,7 +1095,7 @@ machine Inspector::inspect(
             },
         };
     assert!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+        terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &shared_semantic,
                 proof_bytes: &shared_proof,
@@ -1100,10 +1104,7 @@ machine Inspector::inspect(
             &profile,
         )
         .expect("shared-row artifact replays at native admission")
-        .try_into_native_input_with_placed_view_establishments(&[
-            shared_establishment_for(0),
-            shared_establishment_for(1),
-        ])
+        .try_into_native_input(&[shared_establishment_for(0), shared_establishment_for(1),])
         .is_ok()
     );
 }
@@ -1140,30 +1141,19 @@ machine Inspector::inspect(
             .and_then(|ledger| terminal_codec::encode_terminal_obligation_ledger(&ledger))
             .expect("canonical obligation ledger for the placed-view module");
 
-    // Admission retains the roster; extracting an input that cannot carry it fails closed.
+    // Admission retains the roster; a native input left without its
+    // establishments fails closed.
     assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: Some(&obligation_ledger) }, &profile).and_then(|admitted| admitted.try_into_plan()),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
-    ));
-    assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &profile).and_then(|admitted| admitted.try_into_native_input()),
+        terminal_psi_to_abstract_operations::lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &profile).and_then(|admitted| admitted.try_into_native_input(&[])),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
     ));
     // A successfully replayed ledger does not bypass the custody gate either.
     assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: Some(&obligation_ledger) }, &profile).and_then(|admitted| admitted.try_into_native_input()),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
-    ));
-    assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_optimization(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: None }, &profile).and_then(|admitted| admitted.try_into_optimization_input()),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
-    ));
-    assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_optimization(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: Some(&obligation_ledger) }, &profile).and_then(|admitted| admitted.try_into_optimization_input()),
+        terminal_psi_to_abstract_operations::lower_artifact(terminal_psi_to_abstract_operations::ArtifactSections { semantic_bytes: &semantic, proof_bytes: &proof, obligation_ledger_bytes: Some(&obligation_ledger) }, &profile).and_then(|admitted| admitted.try_into_native_input(&[])),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
     ));
 
-    // The owning entrances replay and admit the exact verified roster.
+    // Admission replays and retains the exact verified roster.
     let codec_plan = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
@@ -1172,7 +1162,7 @@ machine Inspector::inspect(
         },
         &profile,
     )
-    .map(|admitted| admitted.into_parts())
+    .map(admitted_plan_with_placed_view_inputs)
     .expect("retain exact placed-view custody");
     let replayed = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
@@ -1182,7 +1172,7 @@ machine Inspector::inspect(
         },
         &profile,
     )
-    .map(|admitted| admitted.into_parts())
+    .map(admitted_plan_with_placed_view_inputs)
     .expect("placed-view input survives codec replay");
     assert_eq!(replayed, codec_plan);
     assert_eq!(
@@ -1272,7 +1262,7 @@ machine Inspector::inspect(
         ))
     ));
 
-    let native = terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+    let native = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -1286,18 +1276,16 @@ machine Inspector::inspect(
         native.placed_view_inputs(),
         lowered.semantic_module.placed_view_inputs.as_slice()
     );
-    // Native admission replays the offered exact ledger before retaining the
-    // roster, the same as the ordinary and optimizer entrances.
-    let native_replayed =
-        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
-            terminal_psi_to_abstract_operations::ArtifactSections {
-                semantic_bytes: &semantic,
-                proof_bytes: &proof,
-                obligation_ledger_bytes: Some(&obligation_ledger),
-            },
-            &profile,
-        )
-        .expect("placed-view input survives native replay of the exact ledger");
+    // Admission replays the offered exact ledger before retaining the roster.
+    let native_replayed = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: Some(&obligation_ledger),
+        },
+        &profile,
+    )
+    .expect("placed-view input survives native replay of the exact ledger");
     assert_eq!(native_replayed.plan(), native.plan());
     assert_eq!(
         native_replayed.placed_view_inputs(),
@@ -1311,7 +1299,7 @@ machine Inspector::inspect(
     // duration. The bound set is invocation-scoped evidence; custody of the
     // supply stays with the provider.
     let native_established = native_replayed
-        .try_into_native_input_with_placed_view_establishments(&establishments)
+        .try_into_native_input(&establishments)
         .expect("exact provider establishments bind the declared roster");
     assert_eq!(native_established.plan(), &codec_plan.plan);
     assert_eq!(
@@ -1340,7 +1328,7 @@ machine Inspector::inspect(
     // answered twice rejects before access, as does a noncanonical referent
     // qualification list.
     let readmit_native = || {
-        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
+        terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &semantic,
                 proof_bytes: &proof,
@@ -1351,18 +1339,18 @@ machine Inspector::inspect(
         .expect("native re-admission for the establishment rejection legs")
     };
     assert!(matches!(
-        readmit_native().try_into_native_input_with_placed_view_establishments(&[]),
+        readmit_native().try_into_native_input(&[]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
     ));
     let mut stale_native_supply = establishments[0].clone();
     stale_native_supply.input.placement_commitment[0] ^= 1;
     assert!(matches!(
         readmit_native()
-            .try_into_native_input_with_placed_view_establishments(&[stale_native_supply]),
+            .try_into_native_input(&[stale_native_supply]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentUnexpected { .. })
     ));
     assert!(matches!(
-        readmit_native().try_into_native_input_with_placed_view_establishments(&[
+        readmit_native().try_into_native_input(&[
             establishments[0].clone(),
             establishments[0].clone()
         ]),
@@ -1375,7 +1363,7 @@ machine Inspector::inspect(
     ];
     assert!(matches!(
         readmit_native()
-            .try_into_native_input_with_placed_view_establishments(&[noncanonical_supply]),
+            .try_into_native_input(&[noncanonical_supply]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentQualificationsNonCanonical)
     ));
 
@@ -1414,7 +1402,7 @@ machine Inspector::inspect(
     reject_interpreted_supply(&undeclared_backing);
     assert!(matches!(
         readmit_native()
-            .try_into_native_input_with_placed_view_establishments(&[undeclared_backing]),
+            .try_into_native_input(&[undeclared_backing]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentBackingUndeclared(_))
     ));
     let mut stale_range = establishments[0].clone();
@@ -1424,7 +1412,7 @@ machine Inspector::inspect(
     reject_interpreted_supply(&stale_range);
     assert!(matches!(
         readmit_native()
-            .try_into_native_input_with_placed_view_establishments(&[stale_range]),
+            .try_into_native_input(&[stale_range]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentRangeUnresolved)
     ));
     let mut forged_qualification = establishments[0].clone();
@@ -1433,7 +1421,7 @@ machine Inspector::inspect(
     reject_interpreted_supply(&forged_qualification);
     assert!(matches!(
         readmit_native()
-            .try_into_native_input_with_placed_view_establishments(&[forged_qualification]),
+            .try_into_native_input(&[forged_qualification]),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::PlacedViewEstablishmentQualificationUndeclared(_))
     ));
 
@@ -1448,11 +1436,11 @@ machine Inspector::inspect(
         lowered.semantic_module.placed_view_inputs
     );
 
-    // The owning optimization entrances retain the same roster beside the
-    // verified optimizer input. The roster rejoins the optimizer handoff as a
+    // The optimizer downgrade retains the same roster beside the verified
+    // optimizer input. The roster rejoins the optimizer handoff as a
     // private-construction carrier, so a stale or substituted roster is
     // unrepresentable there rather than merely unchecked.
-    let optimized = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let optimized = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -1460,14 +1448,15 @@ machine Inspector::inspect(
         },
         &profile,
     )
-    .expect("placed-view input survives optimizer admission");
+    .expect("placed-view input survives optimizer admission")
+    .into_optimization_artifact();
     assert_eq!(optimized.plan(), &codec_plan.plan);
     assert_eq!(
         optimized.placed_view_inputs(),
         lowered.semantic_module.placed_view_inputs.as_slice()
     );
     assert_eq!(optimized, native_input);
-    let optimized_replayed = terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+    let optimized_replayed = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
             proof_bytes: &proof,
@@ -1475,7 +1464,8 @@ machine Inspector::inspect(
         },
         &profile,
     )
-    .expect("placed-view input survives optimizer replay");
+    .expect("placed-view input survives optimizer replay")
+    .into_optimization_artifact();
     assert_eq!(optimized_replayed, optimized);
 
     // A stale roster row still decodes and validates on its own bytes, but its
@@ -1495,58 +1485,13 @@ machine Inspector::inspect(
                 obligation_ledger_bytes: Some(&stale_ledger)
             },
             &profile
-        )
-        .map(|admitted| admitted.into_parts()),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
-    ));
-    assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
-            terminal_psi_to_abstract_operations::ArtifactSections {
-                semantic_bytes: &semantic,
-                proof_bytes: &proof,
-                obligation_ledger_bytes: Some(&stale_ledger)
-            },
-            &profile
         ),
         Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
     ));
+    // The substituted module replays its own ledger but is rejected when the
+    // proof section's sealed subject names the original module instead.
     assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
-            terminal_psi_to_abstract_operations::ArtifactSections {
-                semantic_bytes: &semantic,
-                proof_bytes: &proof,
-                obligation_ledger_bytes: Some(&stale_ledger)
-            },
-            &profile
-        ),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ObligationReplay(_))
-    ));
-    let stale_replayed = terminal_psi_to_abstract_operations::lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &stale_semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: Some(&stale_ledger),
-        },
-        &profile,
-    )
-    .map(|admitted| admitted.into_parts());
-    assert!(stale_replayed.is_err() || stale_replayed.unwrap() != codec_plan);
-    // At the native and optimizer entrances the substituted module replays its
-    // own ledger but is rejected when the proof section's sealed subject names
-    // the original module instead.
-    assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_native_realization(
-            terminal_psi_to_abstract_operations::ArtifactSections {
-                semantic_bytes: &stale_semantic,
-                proof_bytes: &proof,
-                obligation_ledger_bytes: Some(&stale_ledger)
-            },
-            &profile
-        ),
-        Err(terminal_psi_to_abstract_operations::ArtifactLoweringError::ProofDecode(_))
-    ));
-    assert!(matches!(
-        terminal_psi_to_abstract_operations::lower_artifact_for_optimization(
+        terminal_psi_to_abstract_operations::lower_artifact(
             terminal_psi_to_abstract_operations::ArtifactSections {
                 semantic_bytes: &stale_semantic,
                 proof_bytes: &proof,
@@ -1588,9 +1533,8 @@ machine Inspector::inspect(
 
     // The same stage accepts the custody-owning optimizer input moved out of
     // the native-admitted artifact: the exact handoff the realization
-    // pipeline performs. The fail-closed extraction above remains the route
-    // for consumers without custody support.
-    let stage_input = native_input.into_optimization_input_with_placed_view_inputs();
+    // pipeline performs.
+    let stage_input = native_input.into_optimization_input();
     assert_eq!(
         stage_input.context().module().placed_view_inputs,
         lowered.semantic_module.placed_view_inputs
