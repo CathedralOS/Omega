@@ -135,3 +135,28 @@ collapses from O(N^2) toward O(N·spine).
   equations (first-wins), a closure that is empty (sentinel), and a cycle of
   forward definitions (the existing `expanded.contains` rejection is
   untouched).
+
+## Anchor re-verification
+
+Re-checked against the live code at `f9efadbb493e` (linux x86-64 working
+tree); every load-bearing anchor holds:
+
+- `conditions.rs` still clones the whole `Equal(Value, _)` roster into both
+  per-arm certificates (`transport_certified`, the
+  `axioms.iter().enumerate().rev().filter_map` block at ~:71-84), and the
+  `check_certificate` call passes the full ambient `axioms` slice unchanged —
+  the sparse-projection contract (retain original `SemanticAxiom` indices,
+  shrink only the `equalities` vec) is what the call shape requires.
+- `predicate_denotation.rs:189-190` rejects an empty equation list with
+  `InvalidValueEquality` — the sentinel rule is mandatory, not optional.
+- `value_equalities.rs:28` keeps first-wins per `ValueId`
+  (`!definitions.iter().any(...)` gate), and `scalar()` (:82-100) is a pure
+  head-id lookup recursing through definitions — so the transitive closure
+  over first-wins right-hand sides is exactly the consulted equation set;
+  `active.contains` → `CyclicValueEquality` is the untouched cycle
+  rejection, and `condition_proposition`'s own `expanded.contains` guards
+  sit at conditions.rs :112-119 and :228-233.
+- `budget.proposition` charges per validated equation inside the same
+  per-certificate budget (`check_value_equality_denotation` :178-184), so
+  dropping dead equations can only shrink consumption — no verdict can flip
+  from Ok to Err.
