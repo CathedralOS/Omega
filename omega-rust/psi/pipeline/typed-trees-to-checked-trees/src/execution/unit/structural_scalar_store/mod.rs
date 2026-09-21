@@ -75,6 +75,9 @@ pub(in crate::execution) fn build_local_scalar_field_store(
             return None;
         }
         let field = exact_relevant_field(program, owner, *symbol)?;
+        if crosses_reference(program, field.type_reference) {
+            return None;
+        }
         carrier_path.push(CheckedUnitStructuralPathSegment::Field(
             terminal_field_identity(program, field.symbol)?,
         ));
@@ -671,6 +674,9 @@ fn build_record_literal_field_store_sequence(
         {
             return None;
         }
+        if crosses_reference(program, carrier.type_reference) {
+            return None;
+        }
         carrier_path.push(CheckedUnitStructuralPathSegment::Field(
             terminal_field_identity(program, carrier.symbol)?,
         ));
@@ -1008,6 +1014,9 @@ fn build_structural_field_store_at(
                 {
                     return None;
                 }
+                if crosses_reference(program, carrier.type_reference) {
+                    return None;
+                }
                 carrier_path.push(CheckedUnitStructuralPathSegment::Field(
                     terminal_field_identity(program, carrier.symbol)?,
                 ));
@@ -1027,6 +1036,9 @@ fn build_structural_field_store_at(
                     return None;
                 };
                 if *index >= *length {
+                    return None;
+                }
+                if crosses_reference(program, *element_type) {
                     return None;
                 }
                 carrier_path.push(CheckedUnitStructuralPathSegment::FixedIndex(
@@ -1507,9 +1519,21 @@ fn checked_parameter_source(value: &CheckedScalarExpression) -> Option<(usize, P
     }
 }
 
+/// A record whose scalar leaves this module may store through.
+///
+/// Lifetime binders are deliberately not part of this test. A declared
+/// lifetime is an erased region, "separate from runtime generic arity, layout
+/// and monomorphization" (wiki/spec/language/lifetimes.md, Binders and source
+/// applications), and store admission retains "the complete home declaration,
+/// path, field, access, qualifications/claims, scalar type, and dominating
+/// definition" (wiki/spec/terminal-psi/structural_access.md, Store
+/// vocabulary) -- a binder changes none of them. The borrow leaves a binder
+/// names are excluded on their own terms instead: `exact_relevant_field` skips
+/// erased fields, `crosses_reference` stops every carrier hop at a reference,
+/// and a reference leaf has no primitive type. Runtime generic arity is still
+/// excluded by the type-parameter and owner-application tests below.
 fn plain_record(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
     data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-        && data.lifetime_parameters.is_empty()
         && program.data_type_parameters(data).is_empty()
         && retained_record_owner_application(data, program)
         && data.quotient.is_none()
@@ -1559,6 +1583,27 @@ fn retained_record_owner_application(
                 .type_reference_table
                 .type_reference_handles(*arguments)
                 .len()
+}
+
+/// Whether a declared field type names storage behind a reference.
+///
+/// A carrier path is direct storage access: its segments select record fields
+/// and fixed-array indices of one referent. Stepping through a reference-typed
+/// field would turn a pointer hop into an inline field offset, which the store
+/// vocabulary rejects -- "Cases, reference crossings and nonprimitive leaves
+/// reject. This is direct storage access, not a synthetic record field or an
+/// introduced reference lifetime" (wiki/spec/terminal-psi/structural_access.md,
+/// Store vocabulary). `data_definition_for_field_type` deliberately peels
+/// `&`/`&mut` for the entry-invariant seed, so carrier hops test this first.
+fn crosses_reference(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. } => true,
+        TypeReferenceNode::Constrained { base_type, .. } => crosses_reference(program, *base_type),
+        _ => false,
+    }
 }
 
 fn exact_relevant_field<'a>(
