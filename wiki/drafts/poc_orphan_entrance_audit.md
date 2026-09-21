@@ -2,7 +2,15 @@
 
 Status: point-in-time inventory of the parked proof-of-concept spill boundaries
 under `omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/`,
-recorded at revision `61e01c1d66`. This audit fixes the entrance inventory and
+recorded at revision `61e01c1d66` — **which is not an ancestor of main** (it
+lives only on `origin/zergling/z186-root-file-discipline`), so this reading is
+not reproducible from main. **Corrected 2026-09-21: the park now holds 16
+families, not 18.** `logical_spill_operations` and `stack_slot_coloring` were
+sequenced into production at `96b4afed92e55` and `a5dd60617e191` and now live
+under `.../src/assignment/`, reached through `assignment::runtime_spill`
+recovery; `tests/architecture/optimizer_source_organization/retired_paths.rs:227`
+pins their old park paths as retired. Finding 1's "zero production entrances"
+no longer covers those two rows. This audit fixes the entrance inventory and
 its caller graph; it authorizes no sequencing and no deletion — disposition
 belongs to POC-SPILL-FAMILY-SEQUENCING and the allocation owners.
 

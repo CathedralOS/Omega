@@ -29,10 +29,14 @@ cataloged, not flagged.
   `execute_resolved_layout_optimization`, and both
   `selected-form-encoding-to-resolved-layout` validators (machine-emission +
   native-differential pipeline-ownership fixtures).
-- Test-only kept variants: `lower_symbol_resolved_trees_owned`
-  (symbol-resolved-trees-to-typed-trees) — invoked only by the
-  `authored_declaration_selection_ledger` integration test; retained as a
-  deliberately-owned alternate entrance, not an orphan.
+- Test-only kept variants: none. **Corrected 2026-09-21:** this row named
+  `lower_symbol_resolved_trees_owned`
+  (symbol-resolved-trees-to-typed-trees), which does not exist anywhere in the
+  tree. The `authored_declaration_selection_ledger` test imports the ordinary
+  entrance `lower_symbol_resolved_trees` (`src/lowerer.rs:16`), so there is no
+  alternate entrance to keep. The crate's only `pub fn lower_*` entrances are
+  that one plus `lower_symbol_resolved_trees_to_seeded_base` and
+  `lower_seeded_extension` (`src/lowerer/seeded_continuation.rs:59,73`).
 - Internal plumbing re-exported at crate root but not a stage entrance:
   `normalize_open_index_identities` (typed-trees-to-checked-trees; three
   internal calls in `checking.rs`) and
