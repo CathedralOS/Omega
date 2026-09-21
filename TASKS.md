@@ -7733,7 +7733,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **GENERAL-SOURCE-BINDER-SYNTAX.** Resolved — scope verified: the general mathematical binder surface (`let`/`boundary let` telescopes, `core::Level`/`core::Type<u>`/`core::Strict<v>`/`core::Squash` carriers, generalized and authored universe binders, arrow-typed telescope parameters, named assumptions) already landed under the PROOF-CONTRACT-MIGRATION structural legs; the in-fence residual was the bounded machine-valued body denotation in `typed-trees-to-checked-trees/src/proof`. Extended it: `x != y` now denotes `Squash (Not (Id S l r))` through an interned `Not : Π(_ : Type 0). Type 0` assumption — kept at `Type 0`, not `sEmpty` elimination, so inequality composes inside `&&`/`||` like `==` — and `()` interned a dedicated `Unit : Type 0` carrier, so unit binder domains and unit-carried calls denote instead of refusing. Remaining named legs stay with their owners: `core::*` symbol-identity classification (blocked on the fixed `core::*` declarations landing in `source/library/core`), checked-signature encoding into Terminal evidence, member-call `target_symbol` binding inside `let` bodies, and order relations over non-integer operands. Gate on linux x86-64: `cargo check`/`clippy -p typed-trees-to-checked-trees` clean of new warnings; `cargo nextest run -p typed-trees-to-checked-trees` 5008/5009 — `open_range_token_use_rejects_instead_of_falling_back` fails verbatim at base `d82697ffca` (unrelated wave breakage). Re-verified at `8734480a01`: the filtered binder/signature/denotation suite passes 128/128 and `open_range_token_use_rejects_instead_of_falling_back` is green again — the unrelated failure has since been repaired.
 - **GENERATED-CODEC-INDEPENDENT-VERIFICATION** — mined candidate; verify scope then implement.
 - **GENERIC-DYNAMIC-FAMILY-DISPATCH** — mined candidate; verify scope then implement.
-- **GENERIC-RETURNED-VIEW-LIFETIMES** — mined candidate; verify scope then implement.
+- **GENERIC-RETURNED-VIEW-LIFETIMES.** Mined candidate — scope verified,
+  owner row; residuals fenced or spec-gated. This is the named owner of
+  the view-lifetime correspondence surface cited by resolved sibling
+  LIFETIME-SOURCE-CORRESPONDENCE (`8ccd793fa8`): `borrow/view_link.rs`
+  ("Lifetimes stage 2") resolves an explicit result lifetime to exactly
+  one input parameter and its complete matching structural leaves —
+  reusing one lifetime across multiple inputs rejects today, and that
+  rejection is the deliberate recorded boundary, not a gap. Residuals:
+  (1) multi-source leg — every parameter carrying the selected lifetime
+  contributes its leaves as possible sources, each supporting the
+  returned access — is implementation work on the fenced
+  `checks/borrows/` surface (live claim BORROW-PROOF-CONVERGENCE,
+  ~06:46Z); (2) outlives leg — general authored outlives bounds have no
+  surface: lifetimes.md spells binders only and conformances.md states
+  whole-conformance applications do not gain outlives/variance/
+  subtyping, so it waits on a spec decision, not a checker gap. No
+  unclaimed slice exists this wave; sibling LIFETIME-MULTI-SOURCE-AND-
+  OUTLIVES mines the same residual pair.
 - **GENERIC-VIRTUAL-CALLS.** Mined candidate — scope verified, covered:
   same leg as FINITE-GENERIC-DISPATCH's remaining-work bullet
   "Runtime-capable family calls in Psi checking
