@@ -17545,6 +17545,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   decisions, not implementable slices. Sibling stubs on the same covered
   surface: PROMOTION-REJOIN-EVIDENCE, RULE-PROMOTION-EVIDENCE,
   RULE-PROMOTION-EVIDENCE-COMPLETION.
+||||||| parent of 201b7844f84a (board: WR-REJOIN-LEGS resolved — rejoin legs landed)
+- **WR-REJOIN-LEGS** — mined candidate; verify scope then implement.
+- **WR-REJOIN-LEGS.** Resolved — re-mines the WORKSPACE-ROLLOUT
+  promotion contract's `Rollback evidence` rejoin legs
+  (TASKS_OPTIMIZER.md:145): "the every-target rejoin legs in
+  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`
+  cover each selected rule under `--disable-optimization` rejoining the
+  byte-identical ordinary artifact on all four hosted targets". Verified
+  at `3a505ad6ff5`: all six staged promotion records
+  (`optimization-core/promotions/{ControlFlowCleanup,CopyPropagation,
+  DeadPureScalarElimination,GlobalValueNumbering,ProofCheckElision,
+  SparseConditionalConstantPropagation}.md`) carry completed Rollback
+  evidence fields citing their `*_rollback_rejoins_exact_ordinary_path_
+  on_every_target` tests, plus the product-gating/empty-request custody
+  pins. `exact_rule_rollout_is_complete_and_promotion_gated` keeps the
+  inventory in step; `Approved`/`Measurement evidence` stay PENDING on
+  the BENCHMARKS measurement leg, not this surface. No independent slice
+  exists — the same legs are named on PROMOTION-ROLLBACK-REJOIN-LEGS.
 - **WRITE-ONLY-BORROW-RESIDUE.** Verified scope: re-mines
   **WRITE-ONLY-BORROW**'s enumerated remaining work
   (TASKS.md:2981): aggregate/[copy]-sum replacement, domain-qualified
