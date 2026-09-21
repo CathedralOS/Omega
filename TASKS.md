@@ -12360,6 +12360,78 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   at `72fc66d6c32`. There is no stale custody expectation to retarget; the
   actual expected.txt drift census (12 drifted canaries + silent
   acceptances) is RC-DIAGNOSTICS-GATE's named lane, not this row.
+||||||| parent of 1ea238dda60e (board: insert NATIVE-DIFF-FRONTEND-DROP-ORDER resolved row)
+  on linux x86-64. Remaining acceptance: wire the emitted clauses and
+  evidence into the bounded comparison harness — fenced to
+  MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice/`, live claim);
+  no encoding-to-checker translation is admitted authority.
+- **MATCHING-LOGIC-VERTICAL-SLICE** — mined candidate; verify scope then implement.
+- **MATH-PROOFS-CALL-SELECTION-OCCURRENCE.** Mined candidate — scope
+  verified, covered. The name re-covers two already-owned surfaces: the
+  math-proofs checked-call-selection/occurrence leg, resolved with
+  CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS at `1fc01bb690`
+  (specification_calls.rs attributes the selected precondition to the
+  call's exact subject; `proofs/case_call_wrong_subject` /
+  `case_citation_wrong_result` reject, `case_call_premises` compiles),
+  and the broader contract-proof + mathematical-traits surface that is
+  PROOF-CONTRACT-MIGRATION's connected implementation (its
+  `MATH-FOUNDATION-BINDINGS` bindings leg and `PROOF-KERNEL-CORE`
+  substrate are live-claimed at verification time `ac4e4eee9b`).
+  `samples/cli/proofs/math_proofs` is fenced by
+  PROOF-SAMPLES-CHECKED-CALL-SELECTION. No independent slice exists
+  here. Sibling stubs on the same surfaces:
+  MATH-PROOFS-DECLARATION-SELECTION, PROOF-SUBJECT-CALL-SELECTION,
+  PROOF-SUBJECT-CHECKED-CALL-SELECTION, CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.
+- **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
+- **MATHEMATICAL-PREDICATE-PARAMETERS** — mined candidate; verify scope then implement.
+- **MODULE-CONSTANT-COMPUTED-CARRIER** — mined candidate; verify scope then implement.
+- **NAMED-TRAIT-OPERATORS** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
+- **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY** — mined candidate; verify scope then implement.
+  on linux x86-64. Remaining acceptance: wire the emitted clauses and
+  evidence into the bounded comparison harness — fenced to
+  MATCHING-LOGIC-BOUNDED-SLICE (`tools/matching-logic-slice/`, live claim);
+  no encoding-to-checker translation is admitted authority.
+- **MATCHING-LOGIC-VERTICAL-SLICE** — mined candidate; verify scope then implement.
+- **MATH-PROOFS-CALL-SELECTION-OCCURRENCE.** Mined candidate — scope
+  verified, covered. The name re-covers two already-owned surfaces: the
+  math-proofs checked-call-selection/occurrence leg, resolved with
+  CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS at `1fc01bb690`
+  (specification_calls.rs attributes the selected precondition to the
+  call's exact subject; `proofs/case_call_wrong_subject` /
+  `case_citation_wrong_result` reject, `case_call_premises` compiles),
+  and the broader contract-proof + mathematical-traits surface that is
+  PROOF-CONTRACT-MIGRATION's connected implementation (its
+  `MATH-FOUNDATION-BINDINGS` bindings leg and `PROOF-KERNEL-CORE`
+  substrate are live-claimed at verification time `ac4e4eee9b`).
+  `samples/cli/proofs/math_proofs` is fenced by
+  PROOF-SAMPLES-CHECKED-CALL-SELECTION. No independent slice exists
+  here. Sibling stubs on the same surfaces:
+  MATH-PROOFS-DECLARATION-SELECTION, PROOF-SUBJECT-CALL-SELECTION,
+  PROOF-SUBJECT-CHECKED-CALL-SELECTION, CHECKED-CALL-SELECTION-OCCURRENCE-MATH-PROOFS.
+- **MATH-PROOFS-DECLARATION-SELECTION** — mined candidate; verify scope then implement.
+- **MATHEMATICAL-PREDICATE-PARAMETERS** — mined candidate; verify scope then implement.
+- **MODULE-CONSTANT-COMPUTED-CARRIER** — mined candidate; verify scope then implement.
+- **NAMED-TRAIT-OPERATORS** — mined candidate; scope verified, resolved — named trait operator requirements are implemented end to end on `main` per the chapter 14 contract: the trait owns the fixed token binding (`machine < compare` requirements resolve through `authored_selections/operator_targets.rs` + `monomorphization/selected_operator_providers.rs`), token uses consume exactly one proof-static selected conformance (never an ambient visible candidate), multiple applicable selected binders reject, and bindings are unique per normalized operand telescope — all pinned by `tests/operators/trait_operator_bindings.rs` (7 tests incl. `trait_operator_use_consumes_only_the_selected_conformance_application`, `trait_operator_use_rejects_multiple_selected_conformance_binders`, `visible_conformance_does_not_supply_an_unbound_trait_operator`, `trait_operator_bindings_are_unique_per_normalized_operand_telescope`). Sibling stubs on the same surface: GEOMETRY-NAMED-TRAIT-OPERATORS, SQUALR-NAMED-TRAIT-OPERATORS (app-lane delegate).
+- **NAMESPACE-AWARE-NORMALIZATION** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-CUSTODY-EXPECTATION-RETARGET** — mined candidate; verify scope then implement.
+- **NATIVE-DIFF-FRONTEND-DROP-ORDER.** Resolved — the frontend drop-order
+  expectations lane is landed and green in
+  `tests/native-differential/tests/frontend_drop_expectations.rs`'s
+  drop-order block (:705+): authored consume sequences decide hook
+  eligibility per exit, multiple drop fences on one declaration emit
+  diagnostics in a fixed precedence order, and cleanup ORDER is pinned
+  through admission + diagnostic sequencing (the reference interpreter
+  runs no observable cleanup yet — a future cleanup-executing
+  interpreter must extend, not silently change, the block). Re-witnessed
+  at `5246ff65f4c`: `cargo nextest run -p omega-native-differential-test
+  --test frontend_drop_expectations` → 26/26 PASS on linux x86-64
+  (incl. drop-order-two-hooks, -reverse-explicit, -double-consume,
+  -reassign-consumed, -field-path). The residual — runtime cleanup-order
+  evidence — is pinned as a deliberate future expectation change, not an
+  open board leg.
+- **NATIVE-DIFF-HOSTED-RECEIVER-CHECKED-ENTRY** — mined candidate; verify scope then implement.
 - **NATIVE-DIFFERENTIAL-MATRIX.** Mined candidate; scope verified at
   `ac4e4eee9b`: names the native-differential leg of the
   [RC-NATIVE-MATRIX](wiki/drafts/rust_compiler_completion.md#release-matrix)
