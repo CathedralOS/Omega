@@ -42,7 +42,20 @@ pub(in crate::encoding::encode) fn type_parameter(
                     encoder.sequence(&value.parameters, |encoder, parameter| {
                         encoder.field("type_identity", |encoder| {
                             encode_type_identity(encoder, &parameter.type_identity)
-                        })
+                        })?;
+                        encoder.field("is_const", |encoder| {
+                            encoder.boolean(parameter.is_const);
+                            Ok(())
+                        })?;
+                        encoder.field("is_mutable", |encoder| {
+                            encoder.boolean(parameter.is_mutable);
+                            Ok(())
+                        })?;
+                        encoder.field("is_self", |encoder| {
+                            encoder.boolean(parameter.is_self);
+                            Ok(())
+                        })?;
+                        Ok(())
                     })
                 })?;
             }

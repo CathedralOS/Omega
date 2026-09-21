@@ -211,6 +211,9 @@ fn structural_machine_contract_recovers_all_parameter_and_fact_kinds() {
         PackageReviewTypeParameterKind::Proposition(PackageReviewPropositionParameterSignature {
             parameters: vec![PackageReviewPropositionParameterValue {
                 type_identity: value_type(),
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
             }],
         }),
     ]
