@@ -10838,7 +10838,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   directories. No independent slice exists.
 - **DUPLICATE-NAMED-MACHINE-OVERLOAD** — mined candidate; verify scope then implement.
 - **DUPLICATE-OVERLOAD-RESOLUTION.** Resolved — the duplicate-overload
-  resolution rule is landed and pinned. Re-verified at `bbcff399ed7`
+  resolution rule is landed and pinned. Re-verified at `7b2594090733`
   (linux x86-64): `validate_named_callable_overload_declarations`
   (`validation/src/machine_calls/callable_overloads.rs:19-70`) resolves
   overload identity by `NormalizedNamedCallableIdentity` (path + parameter
