@@ -10303,7 +10303,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   grammar surfaces are fenced by DOMAIN-REFINEMENT-CHAINS and friends). No
   unmanned widening lane exists; unspec'd judgment surgery in a fail-closed
   proof engine is exactly what this board must not carry. Row consumed —
-  residual is the canonical items'.
+  residual is the canonical items'. Re-stamped at `a4d396d0de4` (swarm-w9-ffival): the entailment surface keeps landing under the canonical items — `c431bc813` (residue binders/conjunct guards), `e479fcbc9` (Boolean contract facts as constant arithmetic verdicts), `f491aacba` (runtime-division actuals in rank-range substitution), `874f3ab0e` (open-index operator normalization conformance).
 - **CHECKED-CALL-SUBJECT-ENTAILMENT-WIDENING.** (split-of:PROOF-AUTOMATION-WIDENING)
   Own the call-attribution leg that PROOF-AUTOMATION-WIDENING,
   PROOF-QUANTIFIER-AUTOMATION and PROOFS-SUBJECT-CHECKED-CALL-SELECTION all
