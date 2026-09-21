@@ -89,6 +89,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   unfinished join. Reuse the stage ownership and catalogs described in
   [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay).
 
+  Wave ownership at `54e321bdf0` (re-check `tools/claims.py status` before
+  scheduling a leg): rewrites under PIPELINE-REWRITE-CATALOG-WIRING +
+  SELECTED-REWRITE-CATALOG-ROUTE/-WIRING (allocation_recovery slice under
+  DURABLE-CODEC-EXTRACTION); `unsequenced_spill_stages/` under
+  POC-SPILL-FAMILY-SEQUENCING with UNSEQUENCED-SPILL-STAGE-TRIAGE and
+  UNSEQUENCED-SPILL-DISPOSITION; the wrapper disposition under
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION / SEMANTIC-WRAPPER-OWNER-RESOLUTION
+  (`native-realization` additionally under OPAQUE-BY-VALUE-BOUNDARY-ABI);
+  the audit bullet is executed — STAGE-ENTRANCE-ORPHAN-AUDIT's sweep landed
+  `280c4a83b6` and its findings route to the legs above.
+
 - **REPRESENTATION-OWNERSHIP.** Finish
   `omega-rust/{omega,psi}/representations/` under
   [native representation ownership](omega-rust/omega/representations/README.md):

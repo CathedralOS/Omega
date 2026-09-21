@@ -9941,7 +9941,28 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   triple. Remaining audit surface: other stage and coordinator entrances — the
   named families belong to PIPELINE-REWRITE-ORPHANS,
   PIPELINE-SPILL-FAMILY-ORPHANS, and PIPELINE-WRAPPER-OBJECT-ORPHAN.
-- **PIPELINE-OWNER-CONSOLIDATION** — mined candidate; verify scope then implement.
+- **PIPELINE-OWNER-CONSOLIDATION.** Mined candidate — scope verified; this stub
+  is a self-mine of the canonical coordinator row in `TASKS_OPTIMIZER.md`
+  (~line 26), not a separate task. At `54e321bdf0` every enumerated leg is
+  routed and claimed this wave: the ~38 orphan `rewrites/` entrances sit under
+  PIPELINE-REWRITE-CATALOG-WIRING (`rewrites/{mod,module_catalog}.rs` +
+  `selected_optimization.rs`, ~08:00Z), SELECTED-REWRITE-CATALOG-ROUTE and
+  SELECTED-REWRITE-CATALOG-WIRING/PIPELINE-REWRITE-ORPHANS item claims, with
+  `rewrites/allocation_recovery` under DURABLE-CODEC-EXTRACTION (~07:34Z); the
+  `unsequenced_spill_stages/` families are wholesale under
+  POC-SPILL-FAMILY-SEQUENCING (~06:53Z) plus UNSEQUENCED-SPILL-STAGE-TRIAGE /
+  UNSEQUENCED-SPILL-DISPOSITION item claims; the coupled
+  `optimized_semantic_wrapper_{encoding,object}` disposition is claimed by
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION (~06:52Z) and SEMANTIC-WRAPPER-OWNER-
+  RESOLUTION, with the whole `backend/native-realization` crate additionally
+  under OPAQUE-BY-VALUE-BOUNDARY-ABI (~08:24Z); the audit leg is resolved
+  (STAGE-ENTRANCE-ORPHAN-AUDIT's sweep at `280c4a83b6`, ORPHAN-ENTRANCE-AUDIT
+  resolved, POC-ORPHAN-ENTRANCE-AUDIT resolved — its `wiki/drafts/
+  poc_orphan_entrance_audit.md` remains claimed ~07:58Z for the draft update).
+  No unfenced slice of the coordinator exists on this host; the canonical row
+  carries the wave-ownership map. Sibling stubs on this row's bullets:
+  PIPELINE-REWRITE-ORPHANS, PIPELINE-SPILL-FAMILY-ORPHANS,
+  PIPELINE-WRAPPER-OBJECT-ORPHAN, and the resolved POC-* family.
 - **PIPELINE-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
 - **PIPELINE-ROUTE-CONFORMANCE-AUDIT** — mined candidate; scope verified, resolved by landed audits. `1ccc88fb51` added `tests/architecture/representation_ownership/route_conformance.rs` pinning the documented program route: every route-table owner link resolves inside its named crate, every pipeline crate on disk is owned by exactly one row, and crate/package names keep the X-to-Y shape (the stale `timing_report.rs` link it caught was repointed to `compile_timings/mod.rs`). `36ffc8af87` added the connectivity leg in `tests/architecture/stage_crate_ownership.rs`: every designed stage entrance reachable at its crate root must have a caller outside its own crate, so the executable route — not only the crate-name chain — stays connected. Both halves of the stub's named audit are landed and pinned.
 - **PIPELINE-SPILL-FAMILY-ORPHANS** — mined candidate; verify scope then implement.
