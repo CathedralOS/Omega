@@ -13843,7 +13843,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL** — mined candidate; verify scope then implement.
 - **RUST-PRODUCER-OMISSION** — mined candidate; scope verified, gate wired. The name resolves to the omission contract in `omega-rust/README.md`: a produced closure's closed dependency set carries no `omega-rust/` artifact, build step, or checkout-derived path. The audit tool `tools/rust_producer_omission.py` (landed 6fc17a6cf5, with `tools/tests/test_rust_producer_omission.py`) already decides it; the residual was that no gate consumed the audit, so a closure regression would pass silently. Wired it into `tools/bootstrap/check-chain-hygiene.sh` ahead of the byte-identity pins: every `bootstrap/**/*.sources` manifest is audited as members and every `tools/bootstrap/*.{sh,py}` file as the declared step surface, `--require omitted` (the gate script self-excludes from the step scan, same as the retired-path grep). Fixture coverage added to `tests/bootstrap/chain-hygiene.sh`: a forged `tools/bootstrap` step invoking `cargo` and a forged `omega-rust/` manifest member both reject with "produced closure carries the Rust producer"; the restored set re-accepts (19 cases green, linux x86-64). Residual siblings remain open on their own surfaces: retention policy (RUST-PRODUCER-RETENTION-POLICY) and retirement (RUST-PRODUCER-RETIREMENT-GATE) are the workspace-retention policy legs the README keeps separate from omission.
 - **RUST-PRODUCER-RETENTION-POLICY** — mined candidate; verify scope then implement.
-- **RUST-PRODUCER-RETIREMENT-GATE** — mined candidate; verify scope then implement.
+- **RUST-PRODUCER-RETIREMENT-GATE** — mined candidate; scope verified at
+  `90df29812c0`, covered — re-mines the comparator-retirement decision the
+  sibling row RUST-PRODUCER-RETENTION-POLICY (:13612) already bounds: the
+  gate is the TASKS_BOOTSTRAP.md self-hosting clause, which still reads
+  verbatim — retirement is dependent on "settled exercised Omega behavior,
+  the Rust product completion plan, complete D, and
+  `OMEGA-PRODUCT-COMPILER-SOURCE`". All four preconditions remain open
+  rows on this host (OMEGA-PRODUCT-COMPILER-SOURCE :6984 open,
+  OMEGA-C :11188 precondition unmet — D still under construction);
+  RUST-PRODUCER-OMISSION's audit gate (`tools/rust_producer_omission.py`,
+  wired into `check-chain-hygiene.sh`) already enforces the omission face.
+  No retirement gate to add — the decision is upstream-gated, not an
+  implementable slice. Sibling stubs on the same clauses:
+  RUST-PRODUCER-OMISSION, RUST-OMEGA-CROSS-COMPILER-DIFFERENTIAL,
+  RUST-RELEASE-RECORD.
 - **RUST-RELEASE-RECORD** — covered alias of the resolved
   `**RUST-RELEASE-RECORD.**` row above (~:13472): both faces verified,
   no independent slice; the z70 ledger verdict is folded there.
