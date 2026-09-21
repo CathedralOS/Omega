@@ -8,7 +8,7 @@ mod catalog_route_tests;
 use crate::{
     SELECTED_STAGE_RULE_CATALOG, SelectedInstructionOptimizationError,
     SelectedInstructionOptimizationEvidence, SelectedInstructionOptimizationOutput,
-    StagedOptimizedLiveRanges, run_selected_lowering_optimizations,
+    SelectedStageRuleRows, StagedOptimizedLiveRanges, run_selected_lowering_optimizations,
     stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_live_ranges,
     stage_optimized_liveness,
 };
@@ -31,10 +31,7 @@ pub fn optimize_analyzed_selected_instructions(
     ranges: StagedOptimizedLiveRanges,
 ) -> Result<SelectedInstructionOptimizationOutput, SelectedInstructionOptimizationError> {
     let selections = ranges.selections();
-    if selections
-        .for_phase(OptimizationExecutionPhase::SelectedLowering)
-        .is_empty()
-    {
+    if !has_executed_selections(selections) {
         return SelectedInstructionOptimizationOutput::from_evidence(
             SelectedInstructionOptimizationEvidence::Identity(ranges),
         );
@@ -55,24 +52,39 @@ pub fn optimize_analyzed_selected_instructions(
     )
 }
 
-/// With a selected-lowering composition in flight, the first other phase the
-/// stage catalog carries whose selection this entrance cannot execute. A
-/// selection under an executor-less slice without lowering members is
-/// tolerated: the rule is declared but no stage runs it yet, and the output
-/// stays a no-op identity.
+/// Whether this entrance executes a catalog slice's selections, keyed on the
+/// slice's family rows rather than a phase literal: a family joins the
+/// executed set by adding its `SelectedStageRuleRows` arm here alongside its
+/// executor and evidence variant, not by editing admission predicates.
+fn slice_executes_at_stage(rows: SelectedStageRuleRows) -> bool {
+    matches!(rows, SelectedStageRuleRows::SelectedLowering(_))
+}
+
+/// Whether any slice with a stage executor has selections in flight.
+/// Declared-but-unexecuted slices alone compose to a no-op identity: the
+/// rule is admitted but no stage runs it yet.
+fn has_executed_selections(selections: &OptimizationSelections) -> bool {
+    SELECTED_STAGE_RULE_CATALOG
+        .iter()
+        .filter(|slice| slice_executes_at_stage(slice.rows()))
+        .any(|slice| !selections.for_phase(slice.phase()).is_empty())
+}
+
+/// With an executed composition in flight, the first other phase the stage
+/// catalog carries whose selection this entrance cannot execute. A selection
+/// under an executor-less slice with no executed members is tolerated: the
+/// rule is declared but no stage runs it yet, and the output stays a no-op
+/// identity.
 fn unexecutable_catalog_composition(
     selections: &OptimizationSelections,
 ) -> Option<OptimizationExecutionPhase> {
-    if selections
-        .for_phase(OptimizationExecutionPhase::SelectedLowering)
-        .is_empty()
-    {
+    if !has_executed_selections(selections) {
         return None;
     }
     SELECTED_STAGE_RULE_CATALOG
         .iter()
+        .filter(|slice| !slice_executes_at_stage(slice.rows()))
         .map(|slice| slice.phase())
-        .filter(|phase| *phase != OptimizationExecutionPhase::SelectedLowering)
         .find(|phase| !selections.for_phase(*phase).is_empty())
 }
 
