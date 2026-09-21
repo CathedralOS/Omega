@@ -268,7 +268,7 @@ fn call_result_place(
     // `result_relative` is the demanded path into the call result; the callee
     // trace applies it inside its own body so a returned constructor routes
     // the demand to the operand that supplied that exact field or element.
-    let returned = callee_value_place(
+    let mut returned = callee_value_place(
         program,
         frames,
         body,
@@ -277,28 +277,28 @@ fn call_result_place(
         result_relative,
         depth,
     )?;
-    let PlaceRoot::Symbol(root) = returned.root else {
+    let PlaceRoot::Symbol(mut root) = returned.root else {
         return None;
     };
     let parameters = program.state_parameters(callee_state);
-    let parameter = parameters
+    let mut parameter = parameters
         .iter()
         .find(|parameter| parameter.symbol == root)?;
     if parameter.is_mutable || !frozen_input_reference(program, parameter.type_reference) {
-        // A mutable or write-capable binding still carries exact provenance
-        // when no statement in this body may write the demanded projection:
-        // writes are what let an owned copy diverge or a reference rebind.
-        // Any overlap or opaque frame keeps the result unproven.
-        callee_leaves_demanded_path_unwritten(
-            program,
-            frames,
-            callee,
-            callee_state,
-            &CanonicalPlace {
-                root: PlaceRoot::Symbol(parameter.symbol),
-                segments: returned.segments.clone(),
-            },
-        )?;
+        // A mutable or write-capable binding carries exact provenance only
+        // through the callee's own statement stream: replay the demanded
+        // place so an exact store supplies the value the returned expression
+        // names — the replacement input, not the written binding. Writes and
+        // frames the trace cannot replay leave the path unproven rather than
+        // borrowing root correspondence.
+        returned = callee_demanded_origin(program, frames, body, returned, depth)?;
+        let PlaceRoot::Symbol(resolved) = returned.root else {
+            return None;
+        };
+        root = resolved;
+        parameter = parameters
+            .iter()
+            .find(|parameter| parameter.symbol == root)?;
     }
     let actual = if parameter.is_self {
         call.receiver
@@ -611,16 +611,24 @@ fn callee_value_place_leaf(
     let mut demanded = place.segments;
     demanded.extend_from_slice(relative);
     if local.is_mutable {
-        callee_leaves_demanded_path_unwritten(
+        let demanded_place = CanonicalPlace {
+            root: PlaceRoot::Symbol(local.symbol),
+            segments: demanded.clone(),
+        };
+        if callee_leaves_demanded_path_unwritten(
             program,
             frames,
             body.machine,
             body.state,
-            &CanonicalPlace {
-                root: PlaceRoot::Symbol(local.symbol),
-                segments: demanded.clone(),
-            },
-        )?;
+            &demanded_place,
+        )
+        .is_none()
+        {
+            // A mutable local's demanded path was written: an exact store
+            // supplies the value it names, so replay the place through the
+            // body's own prefix rather than the declaration's initializer.
+            return callee_demanded_origin(program, frames, body, demanded_place, depth);
+        }
     }
     callee_value_place(
         program,
@@ -630,6 +638,63 @@ fn callee_value_place_leaf(
         local.type_reference,
         &demanded,
         depth - 1,
+    )
+}
+
+/// A callee's demanded place replayed through the body's own statement
+/// stream: an exact store into the path supplies the value's provenance —
+/// the replacement input, not the written binding — and any write the shared
+/// backward trace cannot replay leaves the path unproven. Nested call results
+/// resolve through the same callee scope at a decremented depth.
+fn callee_demanded_origin(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    body: CalleeBody<'_>,
+    place: CanonicalPlace,
+    depth: usize,
+) -> Option<CanonicalPlace> {
+    if depth == 0 {
+        return None;
+    }
+    // The result is evaluated after the whole prefix, so the trace bound is
+    // the terminal statement's index: every statement in `prefix` precedes it.
+    let fact = FlowStateFact {
+        machine_symbol: body.machine.symbol,
+        state_symbol: body.state.symbol,
+        ..FlowStateFact::default()
+    };
+    let resolve = |_: &FlowStateFact,
+                   _index: usize,
+                   call: &TableCallExpression,
+                   relative: &[PlaceSegment]| {
+        call_result_place(
+            program,
+            frames,
+            ArgumentScope::Callee { body },
+            call,
+            relative,
+            depth - 1,
+        )
+    };
+    flow::trace_value_origin_before_statement(
+        program,
+        body.machine,
+        &fact,
+        body.prefix.len(),
+        place,
+        frames,
+        &resolve,
+        |state: &FlowStateFact, bound: usize, place: &CanonicalPlace| {
+            reference_boundary_before_statement(
+                program,
+                frames,
+                body.machine,
+                state,
+                bound,
+                place,
+                &resolve,
+            )
+        },
     )
 }
 
@@ -1181,8 +1246,11 @@ fn shared_bound_operand_root_symbols_agree(
             ExpressionNode::Name(path) => {
                 // `path.symbol` names the root on a single-member spelling;
                 // on a dotted path it may name the leaf instead.
-                let single_member =
-                    program.expression_table.name_path_members(path.members).len() == 1;
+                let single_member = program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    == 1;
                 return [Some(path.head_symbol), single_member.then_some(path.symbol)]
                     .into_iter()
                     .flatten()

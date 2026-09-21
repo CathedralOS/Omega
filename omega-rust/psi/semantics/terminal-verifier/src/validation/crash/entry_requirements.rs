@@ -937,6 +937,7 @@ mod tests {
                 id: semantic_id(1, BlockId::new),
                 parameters: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 structural_parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: Terminator::ReturnUnit {
@@ -948,6 +949,7 @@ mod tests {
                 id: semantic_id(1, ContractId::new),
                 crash_routes: Vec::new(),
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 requires: vec![boolean(true), bounded.clone()],
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),

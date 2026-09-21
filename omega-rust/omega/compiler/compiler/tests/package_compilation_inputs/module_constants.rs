@@ -488,6 +488,120 @@ fn public_float_identity_preserves_explicit_literal_landings() {
 }
 
 #[test]
+fn public_float_constants_carry_landed_identity_through_composition() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+    TempTree::write(
+        dependency.join("settings.omg"),
+        r#"
+        module settings;
+        pub const SCALE: f32 = 1.5;
+        pub const HALF_SCALE: f32 = SCALE / 2.0f32;
+        pub const TWICE: f32 = SCALE + SCALE;
+        pub const ALIAS: f32 = SCALE;
+        pub const CHAINED: f32 = ALIAS;
+        pub const MIXED: f32 = SCALE * 2;
+        pub const FLAG: bool = SCALE > 1.0f32;
+    "#,
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        r#"
+        use dep::settings::HALF_SCALE;
+        machine halved() -> f32 { dep::settings::HALF_SCALE }
+        machine doubled() -> f32 { dep::settings::TWICE }
+        machine flagged() -> bool { dep::settings::FLAG }
+    "#,
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dep",
+            identity(2),
+        )],
+    )
+    .expect("one direct dependency");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&root.join("main.omg"), None)
+    })
+    .expect("landed float constants compose at their declared format across packages");
+    let encoding = |name: &str| {
+        let declaration = checked
+            .const_declarations()
+            .iter()
+            .find(|declaration| {
+                checked.symbols.display_path(declaration.symbol, "::")
+                    == format!("settings::{name}")
+            })
+            .expect("exact public constant");
+        assert_eq!(
+            checked.symbols.symbol_package_identity(declaration.symbol),
+            Some(identity(2))
+        );
+        declaration
+            .canonical_value_encoding
+            .as_deref()
+            .expect("public declaration encoding")
+    };
+    assert_eq!(encoding("SCALE"), "float:f32:3fc00000");
+    assert_eq!(encoding("HALF_SCALE"), "float:f32:3f400000");
+    assert_eq!(encoding("TWICE"), "float:f32:40400000");
+    assert_eq!(encoding("ALIAS"), encoding("SCALE"));
+    assert_eq!(encoding("CHAINED"), encoding("SCALE"));
+    assert_eq!(encoding("MIXED"), encoding("TWICE"));
+    assert_eq!(
+        encoding("FLAG"),
+        language_semantics::const_value::CanonicalConstValue::boolean(true)
+            .encoding
+            .as_str()
+    );
+    for (name, expected) in [("halved", 0.75), ("doubled", 3.0)] {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("constant consumer");
+        let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed, None)
+            .evaluate_machine_symbol_for_invocation_measured(
+                &checked.typed,
+                machine.symbol,
+                vec![],
+                build_time_evaluation::BuildTimeInvocationCustody::Symbol(machine.symbol),
+            )
+            .expect("composed constant body evaluates");
+        assert_eq!(
+            value.value(),
+            &build_time_evaluation::BuildTimeValue::Float(expected),
+            "{name}"
+        );
+    }
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "flagged")
+        .expect("comparison consumer");
+    let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&checked.typed, None)
+        .evaluate_machine_symbol_for_invocation_measured(
+            &checked.typed,
+            machine.symbol,
+            vec![],
+            build_time_evaluation::BuildTimeInvocationCustody::Symbol(machine.symbol),
+        )
+        .expect("constant comparison evaluates");
+    assert_eq!(
+        value.value(),
+        &build_time_evaluation::BuildTimeValue::Bool(true),
+    );
+}
+
+#[test]
 fn nominal_constant_bodies_preserve_qualified_and_imported_carriers() {
     let tree = TempTree::new();
     let root = tree.package("root");

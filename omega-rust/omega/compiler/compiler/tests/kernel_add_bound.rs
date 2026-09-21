@@ -225,11 +225,11 @@ fn check_source_correlated_add_bound(machine_name: &str, lower: bool) {
             // This is the target bound's closure, not a claim that unrelated
             // rules in the complete operation certificate are axiom-free.
             if lower {
-                assert_eq!(denoted.certificate.signature.len(), 61);
-                assert_eq!(closure, (0..13).chain([14, 46]).chain(48..61).collect());
+                assert_eq!(denoted.certificate.signature.len(), 57);
+                assert_eq!(closure, (0..12).chain([13, 45]).chain(47..57).collect());
             } else {
-                assert_eq!(denoted.certificate.signature.len(), 92);
-                assert_eq!(closure, (0..3).chain(67..92).collect());
+                assert_eq!(denoted.certificate.signature.len(), 89);
+                assert_eq!(closure, (0..3).chain(67..89).collect());
             }
             let definitions = denoted
                 .certificate
@@ -240,12 +240,13 @@ fn check_source_correlated_add_bound(machine_name: &str, lower: bool) {
                     declaration.body.is_some().then_some(position)
                 })
                 .collect::<Vec<_>>();
+
             if lower {
                 assert_eq!(
                     definitions,
-                    [13].into_iter()
-                        .chain(15..46)
-                        .chain([47])
+                    [12].into_iter()
+                        .chain(14..45)
+                        .chain([46])
                         .collect::<Vec<_>>()
                 );
             } else {

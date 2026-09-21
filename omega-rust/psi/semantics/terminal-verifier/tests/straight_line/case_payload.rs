@@ -116,6 +116,7 @@ fn bounded_payload_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: receiver.id,
             arguments: vec![ValueId::new(10).unwrap()],
             structural_arguments: Vec::new(),
@@ -508,12 +509,14 @@ fn selected_case_payload_certificate_survives_ordinary_forwarding() {
         target: BlockId::new(12).unwrap(),
         arguments: vec![ValueId::new(10).unwrap()],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(12).unwrap(),
         parameters: vec![ValueDeclaration {
             qualifications: Default::default(),
@@ -642,6 +645,7 @@ fn forwarded_call_module() -> TerminalModule {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: callee.id,
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -658,6 +662,7 @@ fn forwarded_call_module() -> TerminalModule {
     let machine = &mut module.machines[0];
     let continuation = Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(12).unwrap(),
         parameters: vec![ValueDeclaration {
             qualifications: Default::default(),
@@ -677,6 +682,7 @@ fn forwarded_call_module() -> TerminalModule {
         target: continuation.id,
         arguments: vec![ValueId::new(10).unwrap()],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
@@ -746,6 +752,7 @@ fn selected_case_payload_observation_expires_after_owned_call() {
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: mutator.id,
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -770,6 +777,7 @@ fn selected_case_payload_observation_expires_after_owned_call() {
     };
     callee.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(903).unwrap(),
         parameters: vec![ValueDeclaration {
             qualifications: Default::default(),
@@ -801,6 +809,7 @@ fn selected_case_payload_observation_expires_after_owned_call() {
     });
     call.kind = OperationKind::CallStructuralScalar {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: MachineId::new(901).unwrap(),
         arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
@@ -935,6 +944,7 @@ fn selected_case_payload_observation_expires_at_mixed_structural_result_call() {
     }];
     call.kind = OperationKind::CallStructuralWithScalarArguments {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         callee: MachineId::new(901).unwrap(),
         arguments: Vec::new(),
         structural_arguments,

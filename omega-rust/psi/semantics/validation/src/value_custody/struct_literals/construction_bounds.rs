@@ -1,4 +1,5 @@
 use diagnostics::Diagnostic;
+use std::collections::BTreeSet;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
@@ -155,9 +156,10 @@ fn local_initializer_bounds(
 pub(super) fn bounds_fold(
     program: &TypedTrees,
     valuation: &[(&str, Bounds)],
+    declared: &BTreeSet<&str>,
     expression: ExpressionHandle,
 ) -> Truth {
-    let bounds = bounds_eval(program, valuation, expression);
+    let bounds = bounds_eval(program, valuation, declared, expression);
     match (bounds.low, bounds.high) {
         (Some(low), _) if low >= 1 => Truth::True,
         (_, Some(high)) if high <= 0 => Truth::False,
@@ -168,6 +170,7 @@ pub(super) fn bounds_fold(
 fn bounds_eval(
     program: &TypedTrees,
     valuation: &[(&str, Bounds)],
+    declared: &BTreeSet<&str>,
     expression: ExpressionHandle,
 ) -> Bounds {
     use typed_trees::expression::BinaryOperator;
@@ -184,8 +187,15 @@ fn bounds_eval(
                 .iter()
                 .find(|(name, _)| *name == last.as_str())
                 .map(|(_, bounds)| *bounds)
-                // Omitted fields read the ZII zero at construction.
-                .unwrap_or(Bounds::point(0))
+                // Omitted declared fields read the ZII zero at construction;
+                // a name bound to nothing in scope is unprovable, not zero.
+                .unwrap_or_else(|| {
+                    if declared.contains(last.as_str()) {
+                        Bounds::point(0)
+                    } else {
+                        Bounds::UNKNOWN
+                    }
+                })
         }
         ExpressionNode::Integer(value) => value
             .text()
@@ -205,8 +215,10 @@ fn bounds_eval(
                                 "capacity" => bounds.capacity,
                                 _ => None,
                             },
-                            // An omitted sequence field has the ZII empty value.
-                            None => Some(0),
+                            // An omitted declared sequence field has the
+                            // ZII empty value; a receiver outside the scope
+                            // has no measure at all.
+                            None => declared.contains(name.as_str()).then_some(0),
                         }
                     }),
                 _ => None,
@@ -214,8 +226,8 @@ fn bounds_eval(
             measure.map(Bounds::point).unwrap_or(Bounds::UNKNOWN)
         }
         ExpressionNode::Binary(binary) => {
-            let left = bounds_eval(program, valuation, binary.left);
-            let right = bounds_eval(program, valuation, binary.right);
+            let left = bounds_eval(program, valuation, declared, binary.left);
+            let right = bounds_eval(program, valuation, declared, binary.right);
             match binary.operator {
                 BinaryOperator::Add => Bounds {
                     low: left.low.zip(right.low).map(|(a, b)| a.saturating_add(b)),
@@ -254,7 +266,7 @@ fn bounds_eval(
                 _ => Bounds::UNKNOWN,
             }
         }
-        ExpressionNode::Borrow(inner) => bounds_eval(program, valuation, inner.target),
+        ExpressionNode::Borrow(inner) => bounds_eval(program, valuation, declared, inner.target),
         _ => Bounds::UNKNOWN,
     }
 }
@@ -344,12 +356,16 @@ pub(super) fn validate_literal_default_domain(
     if data_definition.where_facts.is_empty() {
         return;
     }
+    // A type-wide fact may read only the data's common fields; case payloads
+    // are indexed by the active case and are never in scope here.
+    let declared = common_field_names(program, data_definition);
     fold_literal_facts(
         program,
         machine,
         state,
         literal,
         data_definition.where_facts,
+        &declared,
         &format!("data `{}`", literal.type_name.as_str()),
         "the default domain",
         "default-domain",
@@ -366,11 +382,39 @@ pub(super) fn validate_literal_case_constraints(
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
+    data_definition: &DataDefinition,
     case_name: &str,
     variant: &typed_trees::data::DataVariant,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if variant.where_facts.is_empty() {
+        return;
+    }
+    // In scope for a case's facts: that case's payload bindings plus the
+    // data's common fields. A sibling case's payload -- or a name bound to
+    // nothing at all -- is not a field the literal can supply and must not
+    // silently read the ZII zero.
+    let mut declared = common_field_names(program, data_definition);
+    declared.extend(
+        program
+            .data_payload_fields(variant)
+            .iter()
+            .map(|field| field.name.as_str()),
+    );
+    let mut out_of_scope = Vec::new();
+    for fact in program.proof_facts.span_or_empty(variant.where_facts) {
+        if let typed_trees::domain::ProofFact::Expression(expression) = fact {
+            collect_out_of_scope_leaf_names(program, &declared, *expression, &mut out_of_scope);
+        }
+    }
+    if !out_of_scope.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{}` case `{case_name}` constraint names `{}`, which is not in scope: \
+             a case `where` fact may read only the case's payload bindings and \
+             the data's common fields (a sibling case's payload is never in scope)",
+            literal.type_name.as_str(),
+            out_of_scope.join("`, `"),
+        )));
         return;
     }
     fold_literal_facts(
@@ -379,11 +423,66 @@ pub(super) fn validate_literal_case_constraints(
         state,
         literal,
         variant.where_facts,
+        &declared,
         &format!("data `{}` case `{case_name}`", literal.type_name.as_str()),
         "the case constraint",
         "case",
         diagnostics,
     );
+}
+
+/// The names of `data`'s common (non-case) fields.
+fn common_field_names<'a>(
+    program: &'a TypedTrees,
+    data_definition: &'a DataDefinition,
+) -> BTreeSet<&'a str> {
+    program
+        .data_members(data_definition)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => Some(field.name.as_str()),
+            typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect()
+}
+
+/// Collect the leaf names one fact expression consults that are not declared
+/// in scope: `Name` leaves and the receiver of a `len`/`capacity` measure,
+/// mirroring the leaf shapes `bounds_eval` resolves against the literal's
+/// field valuation. Other leaf kinds carry no field name.
+fn collect_out_of_scope_leaf_names(
+    program: &TypedTrees,
+    declared: &BTreeSet<&str>,
+    expression: ExpressionHandle,
+    out_of_scope: &mut Vec<String>,
+) {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => {
+            if let Some(last) = program
+                .expression_table
+                .name_path_members(path.members)
+                .last()
+                && !declared.contains(last.as_str())
+                && !out_of_scope.iter().any(|name| name == last.as_str())
+            {
+                out_of_scope.push(last.as_str().to_owned());
+            }
+        }
+        ExpressionNode::Member(member) if matches!(member.member.as_str(), "len" | "capacity") => {
+            collect_out_of_scope_leaf_names(program, declared, member.receiver, out_of_scope);
+        }
+        ExpressionNode::Binary(binary) => {
+            collect_out_of_scope_leaf_names(program, declared, binary.left, out_of_scope);
+            collect_out_of_scope_leaf_names(program, declared, binary.right, out_of_scope);
+        }
+        ExpressionNode::Borrow(inner) => {
+            collect_out_of_scope_leaf_names(program, declared, inner.target, out_of_scope);
+        }
+        ExpressionNode::Unary(unary) => {
+            collect_out_of_scope_leaf_names(program, declared, unary.operand, out_of_scope);
+        }
+        _ => {}
+    }
 }
 
 fn fold_literal_facts(
@@ -392,6 +491,7 @@ fn fold_literal_facts(
     state: &State,
     literal: &TableStructLiteral,
     facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
+    declared: &BTreeSet<&str>,
     subject: &str,
     fact_label: &str,
     fact_adjective: &str,
@@ -409,7 +509,7 @@ fn fold_literal_facts(
     for fact in program.proof_facts.span_or_empty(facts) {
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
-                match bounds_fold(program, &valuation, *expression) {
+                match bounds_fold(program, &valuation, declared, *expression) {
                     Truth::True => {}
                     Truth::False => diagnostics.push(Diagnostic::error(format!(
                         "{subject} literal violates {fact_label}: a `where` \

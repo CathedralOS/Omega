@@ -6,6 +6,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn extract(
     program: &TypedTrees,
+    termination: &dyn super::CheckedTerminationOracle,
 ) -> Result<Vec<CanonicalQuotientCorrespondence>, Vec<String>> {
     let requests = program
         .expression_table
@@ -24,7 +25,13 @@ pub(super) fn extract(
     let mut rows = Vec::with_capacity(requests.len());
     let mut errors = Vec::new();
     for request_expression in requests {
-        match extract_one(program, request_expression, &operational, &service_reaches) {
+        match extract_one(
+            program,
+            termination,
+            request_expression,
+            &operational,
+            &service_reaches,
+        ) {
             Ok(row) => rows.push(row),
             Err(error) => errors.push(error),
         }
@@ -54,6 +61,7 @@ pub(super) fn extract(
 
 fn extract_one(
     program: &TypedTrees,
+    termination: &dyn super::CheckedTerminationOracle,
     request_expression: ExpressionHandle,
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -87,9 +95,15 @@ fn extract_one(
         .quotient_operation
         .as_ref()
         .ok_or_else(|| "the retained call lost its quotient request".to_owned())?;
-    let plan =
-        super::relation_plan::derive_direct_terminal_plan(program, machine, state, call, request)
-            .map_err(|error| format!("direct faithful plan is unresolved: {error}"))?;
+    let plan = super::relation_plan::derive_direct_terminal_plan(
+        program,
+        termination,
+        machine,
+        state,
+        call,
+        request,
+    )
+    .map_err(|error| format!("direct faithful plan is unresolved: {error}"))?;
     let representative_purity = super::relation_plan::pure_representative_effect(
         &plan.representative,
         operational,

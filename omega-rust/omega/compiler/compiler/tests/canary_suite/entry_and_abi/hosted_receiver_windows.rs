@@ -34,8 +34,8 @@ impl Drop for HostedProject {
 }
 
 /// Compile one authored Windows x86-64 receiver application. `bare_interface`
-/// swaps the storage-only receiver for one carrying a boundary-trait field
-/// with no Bound occurrence, which must fail closed.
+/// swaps the storage-only receiver for one carrying a `Service` customer field
+/// that no provider selection ever establishes, which must fail closed.
 fn compile_and_run_windows_hosted_receiver(bare_interface: bool) {
     let directory = unique_no_output_build_dir();
     fs::create_dir(&directory).expect("create exclusively owned hosted-entry project");
@@ -56,10 +56,10 @@ fn compile_and_run_windows_hosted_receiver(bare_interface: bool) {
         ),
     )
     .expect("write authored target and entry selection");
-    let (helper_trait, helper_field) = if bare_interface {
+    let (helper_header, helper_field) = if bare_interface {
         (
-            "pub boundary trait Helper {\n    machine help();\n}\n\n",
-            "    helper: Helper;\n",
+            "use omega::language::core::service;\n\npub boundary trait Helper {\n    machine help();\n}\n\n",
+            "    helper: Service<Helper>;\n",
         )
     } else {
         ("", "")
@@ -67,7 +67,7 @@ fn compile_and_run_windows_hosted_receiver(bare_interface: bool) {
     fs::write(
         project.0.join("main.omg"),
         format!(
-            r#"{helper_trait}
+            r#"{helper_header}
 data Main {{
     value: i32;
     bytes: [u8; 256];
@@ -104,13 +104,13 @@ machine Main::main(&mut self) {{
         product: CanaryCompileProduct::NativeArtifact,
     });
     if bare_interface {
-        let diagnostics = result.expect_err("a bare interface field supplies no Bound occurrence");
+        let diagnostics = result.expect_err(
+            "a receiver service field without a selected provider is never established",
+        );
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(
-                    "Windows x86-64 hosted receiver bridge lost exact contract, storage, or entry custody"
-                )),
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("requires a selected Fused provider for boundary `Helper`")),
             "unexpected missing-establishment rejection: {diagnostics:#?}"
         );
         return;

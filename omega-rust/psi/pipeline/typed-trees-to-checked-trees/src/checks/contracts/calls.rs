@@ -99,6 +99,7 @@ pub(super) fn check_call_requires(
                             // the call (conservative whole-state scan).
                             incoming_guard_proves_requires(
                                 program,
+                                facts,
                                 state_flow,
                                 call_flow,
                                 expression,
@@ -506,9 +507,12 @@ fn explain_domain_requirement_failure(
 /// exactly (`self.a <= self.b`), as an `&&` conjunct, or through the
 /// multi-arm `(subject) == true` desugar. The caller state itself must also
 /// preserve every field the expression names (whole-state: any assignment
-/// mentioning one, or any call statement, defeats the route).
+/// mentioning one, or any call statement, defeats the route) and every
+/// unqualified operand name the instantiated requirement spells (a rebinding
+/// such as `limit = 0` leaves the label match quoting a stale premise).
 fn incoming_guard_proves_requires(
     program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
@@ -573,6 +577,126 @@ fn incoming_guard_proves_requires(
     fields
         .iter()
         .all(|field| caller_state_preserves_field(program, state, field))
+        && caller_state_preserves_label_names(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            state,
+            &required_label,
+        )
+}
+
+/// The guard match above compares display labels, so it stands only while
+/// every unqualified name the instantiated requirement spells still refers to
+/// the caller value the guard was evaluated against. Rebinding such a name
+/// before the call -- `limit = 0`, a shadowing `let`, or a mutation through a
+/// call's write frame (recorded as a pre-call invalidation) -- makes the label
+/// quote a stale premise, and this route must refuse; the remaining provers
+/// may still establish the fact from current evidence. Qualified `self.field`
+/// operands are covered by the field walk above, so `self` itself is skipped.
+fn caller_state_preserves_label_names(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    state: &typed_trees::state::State,
+    required_label: &str,
+) -> bool {
+    let names = unqualified_label_identifiers(required_label);
+    if names.is_empty() {
+        return true;
+    }
+    let rebound_before_call = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(call_flow.statement_index)
+        .any(|statement| match statement {
+            StatementNode::Assignment(assignment) => names
+                .iter()
+                .any(|name| assignment_target_mentions_name(program, assignment.target, name)),
+            StatementNode::LocalData(local) => names
+                .iter()
+                .any(|name| local.name.as_str() == name.as_str()),
+            _ => false,
+        });
+    if rebound_before_call {
+        return false;
+    }
+    !facts
+        .flow
+        .state_call_prior_invalidations(state_flow, call_flow)
+        .any(|invalidation| {
+            let PlaceRoot::Symbol(symbol) = invalidation.mutated_root else {
+                return false;
+            };
+            names
+                .iter()
+                .any(|name| name.as_str() == symbol_name(program, symbol))
+        })
+}
+
+/// Unqualified identifier tokens in a display label, skipping `self` and any
+/// token reached through `.`/`::` (those are member or namespace paths, not
+/// caller-local names).
+fn unqualified_label_identifiers(label: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut cursor = 0usize;
+    while cursor < label.len() {
+        let Some(ch) = label[cursor..].chars().next() else {
+            break;
+        };
+        if ch == '_' || ch.is_alphabetic() {
+            let start = cursor;
+            cursor += ch.len_utf8();
+            while cursor < label.len() {
+                let Some(next) = label[cursor..].chars().next() else {
+                    break;
+                };
+                if next == '_' || next.is_alphanumeric() {
+                    cursor += next.len_utf8();
+                } else {
+                    break;
+                }
+            }
+            let identifier = &label[start..cursor];
+            let qualified =
+                start > 0 && matches!(label.as_bytes().get(start - 1), Some(b'.' | b':'));
+            if !qualified
+                && identifier != "self"
+                && !names.iter().any(|name: &String| name == identifier)
+            {
+                names.push(identifier.to_owned());
+            }
+        } else {
+            cursor += ch.len_utf8();
+        }
+    }
+    names
+}
+
+fn assignment_target_mentions_name(
+    program: &typed_trees::TypedTrees,
+    target: typed_trees::expression::ExpressionHandle,
+    name: &str,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+    match program.expression_table.expression(target) {
+        ExpressionNode::Name(_) => program.expression_table.display_name(target) == name,
+        ExpressionNode::Member(member) => {
+            assignment_target_mentions_name(program, member.receiver, name)
+        }
+        ExpressionNode::Borrow(inner) => {
+            assignment_target_mentions_name(program, inner.target, name)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            assignment_target_mentions_name(program, indexed.collection, name)
+        }
+        _ => false,
+    }
 }
 
 /// Rebind a contract label already instantiated in `state` through the

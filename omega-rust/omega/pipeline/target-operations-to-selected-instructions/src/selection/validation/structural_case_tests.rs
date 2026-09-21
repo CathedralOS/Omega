@@ -1,9 +1,10 @@
 //! Lawful case graphs and hostile substitutions through full selected admission.
 use super::{
-    FuelSettlement, PsiProvenance, SelectedInstructionKind, SelectedSelectionConstraints,
-    SelectedTerminator, ValueDefinitionSite, ValueId, VirtualRegisterOrigin,
+    SelectedInstructionKind, SelectedSelectionConstraints, SelectedTerminator, ValueDefinitionSite,
+    ValueId, VirtualRegisterOrigin,
 };
 use crate::validate_selected_instructions;
+use optimization_unit::{FuelSettlement, PsiProvenance};
 use selected_instructions::{
     SelectedBlockOrigin, SelectedCasePayloadTransport as Transport, SelectedMemoryAccessOrigin,
 };

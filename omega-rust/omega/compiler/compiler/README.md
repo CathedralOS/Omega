@@ -41,9 +41,9 @@ The [checked entrance](../../pipeline/assembled-syntax-to-checked-compilation/sr
 [check selected execution](../../pipeline/assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs),
 then [seal the result against current source custody](../../pipeline/assembled-syntax-to-checked-compilation/src/checking/checked_compilation.rs).
 The result retains the selected-execution settlement intact. Clones share program
-storage until mutation; review instantiation still uses mutable clones as scratch.
-Such mutation does not reseal evidence, and downstream reconstruction remains
-mandatory. `into_program` consumes the result and discards its compilation
+storage until mutation; review instantiation borrow-projects table rows rather
+than clone-rebuilding scratch. Any mutation does not reseal evidence, and
+downstream reconstruction remains mandatory. `into_program` consumes the result and discards its compilation
 evidence; compiler malformed-tree tests use that raw representation.
 
 Candidate discovery can supply `CheckedCompileRequest::prepared_source_output`
@@ -112,7 +112,7 @@ format and identities.
 
 ## Intrinsic settlement conversion
 
-[intrinsic_settlements.rs](../native-realization/src/native_product/realization.rs) validates all
+[intrinsic_settlements.rs](../../build/provider-planning/src/compiler_intrinsics/mod.rs) validates all
 selected plan provenance, then joins sorted borrowed intrinsic rows to lexical
 Terminal demand. Original plan indices remain attached to each row. Duplicate
 demanded rows reject; undemanded rows need no executable proposal. One exhaustive

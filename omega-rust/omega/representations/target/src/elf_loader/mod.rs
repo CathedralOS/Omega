@@ -141,7 +141,10 @@ impl Fnv1a {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, TargetProfile,
+        normalize_elf_interpreter_plan,
+    };
 
     fn normalize(path: &[u8], target: TargetProfile) -> NormalizedElfInterpreterPlan {
         normalize_elf_interpreter_plan(path.to_vec(), target).expect("valid interpreter plan")

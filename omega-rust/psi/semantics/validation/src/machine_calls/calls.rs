@@ -22,7 +22,7 @@ use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::TableCall;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod argument_bounds;
 mod call_gates;
@@ -118,13 +118,14 @@ pub(crate) fn validate_call_node(
     };
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
-    crate::proof_contracts::contract_entailment::validate_const_range_call(
+    crate::proof_contracts::contract_entailment::validate_const_range_call_in_environment(
         program,
         current_machine,
         current_state,
         call.target_symbol,
         &call.machine_arguments,
         arguments,
+        Some(value_env),
         diagnostics,
     );
     if call_gates::validate_named_conformance_call(&scope, arguments, diagnostics) {
@@ -446,6 +447,13 @@ pub(crate) fn validate_call_arguments_handles(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let retain_arithmetic_policy = callee_state.is_some_and(|callee_state| {
+        machine_state_by_symbol(program, callee_state.symbol).is_some_and(
+            |(callee_machine, callee_state)| {
+                float_requirement_retains_argument_policy(program, callee_machine, callee_state)
+            },
+        )
+    });
     validate_call_arguments_handles_with_policy_retention(
         program,
         current_machine,
@@ -456,10 +464,39 @@ pub(crate) fn validate_call_arguments_handles(
         parameters,
         callee_state,
         writable_roots,
-        false,
+        retain_arithmetic_policy,
         &[],
         diagnostics,
     );
+}
+
+/// Whether a call to this state retains its arguments' arithmetic policy the
+/// way a named `F32::`/`F64::` float operator use does: the callee is a
+/// public nongeneric receiver-free top-level `boundary requirement` whose path
+/// starts with `F32::` or `F64::` and whose result is f32 or f64. Both
+/// spellings of one float requirement adapt policy-qualified operands through
+/// the selected provider; an ordinary machine still weakens nothing implicitly.
+pub(crate) fn float_requirement_retains_argument_policy(
+    program: &TypedTrees,
+    callee_machine: &Machine,
+    callee_state: &State,
+) -> bool {
+    let float_result = matches!(
+        program.primitive_type_reference(callee_state.return_type),
+        Some(PrimitiveType::F32 | PrimitiveType::F64)
+    );
+    callee_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        && callee_machine.is_public
+        && callee_machine.lifetime_parameters.is_empty()
+        && program.machine_type_parameters(callee_machine).is_empty()
+        && (callee_machine.name.as_str().starts_with("F32::")
+            || callee_machine.name.as_str().starts_with("F64::"))
+        && float_result
+        && matches!(program.machine_states(callee_machine), [entry] if entry.symbol == callee_state.symbol)
+        && !program
+            .state_parameters(callee_state)
+            .iter()
+            .any(|parameter| parameter.is_self)
 }
 
 /// The same argument validation as `validate_call_arguments_handles`, but the
@@ -1056,15 +1093,27 @@ fn validate_value_call_argument_classes_with_self_argument(
             "argument",
             diagnostics,
         );
-        crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening(
-            program,
-            current_machine,
-            Some(current_state),
-            *argument,
-            parameter.type_reference,
-            &slot_context,
-            diagnostics,
-        );
+        if float_requirement_retains_argument_policy(program, callee_machine, callee_state) {
+            crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening_retaining_arithmetic_policy(
+                program,
+                current_machine,
+                Some(current_state),
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                diagnostics,
+            );
+        } else {
+            crate::proof_contracts::domain_weakening::validate_implicit_domain_weakening(
+                program,
+                current_machine,
+                Some(current_state),
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                diagnostics,
+            );
+        }
         // (No array/scalar shape check here -- see the note in
         // `validate_call_arguments_handles`: `&buffer`-into-`addr` and text/byte args
         // make the argument position a false-positive minefield.)

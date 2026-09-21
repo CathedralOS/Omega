@@ -46,6 +46,7 @@ mod fixtures_copy_propagation;
 mod fixtures_gvn;
 mod fixtures_proof_elision;
 mod fixtures_scalar;
+mod fixtures_state_specialization;
 
 use fixtures_boundary_qualifications::*;
 use fixtures_common::*;
@@ -54,6 +55,7 @@ use fixtures_copy_propagation::*;
 use fixtures_gvn::*;
 use fixtures_proof_elision::*;
 use fixtures_scalar::*;
+use fixtures_state_specialization::*;
 
 mod boundary_qualifications;
 mod control_flow;

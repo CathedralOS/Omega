@@ -1,3 +1,9 @@
+//! The `omega` binary's entry point: typed-invocation dispatch.
+//!
+//! `cli::arguments` parses the invocation, `cli::{compilation, execution,
+//! inspection, packages}` owns each command surface, and `main` maps outcomes
+//! onto process exits. No compilation semantics live at this root.
+
 mod cli;
 
 use arguments::Invocation;

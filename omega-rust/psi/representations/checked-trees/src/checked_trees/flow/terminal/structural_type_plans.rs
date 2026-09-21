@@ -65,13 +65,25 @@ pub enum CheckedUnitStructuralTypeShape {
     Record {
         fields: Vec<CheckedUnitStructuralFieldPlan>,
     },
-    /// The first indexed aggregate carrier admits only literal lengths and a
-    /// structural element type. Runtime lengths and scalar elements remain
-    /// outside this checked terminal slice.
+    /// The owning indexed aggregate carrier: its extent is the declaration's
+    /// own literal length, so the length is part of the type identity rather
+    /// than a stored value. A runtime extent belongs to `BorrowedSliceView`,
+    /// which borrows this storage instead of owning it.
     FixedArray {
         element_type_identity: String,
         length: u64,
     },
+    /// A borrowed `&[T]` view: the contiguous elements of storage some other
+    /// value owns, carrying its own extent as a stored runtime length. Fixed
+    /// arrays and vectors own storage and slices borrow it, and a slice's
+    /// stored length is an ordinary runtime dependence measured by
+    /// `Slice::Length` rather than a declared constant — so no length appears
+    /// in this shape, and the view is a distinct type from any one backing
+    /// extent. Borrow access stays on the parameter, argument or value plan
+    /// that carries the view, exactly as it does for the borrowed
+    /// `ByteSequence` carrier, and the pointer/length descriptor that realizes
+    /// it stays a target-side implementation detail.
+    BorrowedSliceView { element_type_identity: String },
     /// A closed pure sum. Each case owns its exact payload-field roster; an
     /// empty roster is the payload-less case form.
     Sum {

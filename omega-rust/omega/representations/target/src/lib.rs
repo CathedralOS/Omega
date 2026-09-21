@@ -92,11 +92,11 @@ pub enum TargetProfile {
     LinuxX64,
     MacosArm64,
     /// The macOS x86-64 host profile. Recognition catalogues the Intel-macOS
-    /// host so `host()` resolves and `macos_x86_64` names a selected target;
-    /// realization still awaits its physical entry contract package and an
-    /// x86-64 Mach-O image writer — `program_entry_slot` keeps the hosted
-    /// compatibility fields empty and image emission refuses
-    /// `(MachO, X86_64)` until those legs land.
+    /// host so `host()` resolves and `macos_x86_64` names a selected target.
+    /// The x86-64 Mach-O writer and `targets/macos_x86_64` contract package
+    /// are implemented; `program_entry_slot` keeps the hosted compatibility
+    /// fields empty until the physical-contract-package arm and hosted-bridge
+    /// legs land (tracked under MACOS-X64-HOST-PROFILE on TASKS.md).
     MacosX64,
     WindowsX64,
     UefiX64,
@@ -615,9 +615,28 @@ impl NativeTarget {
         }
     }
 
+    /// The host's native shape when this host is a catalogued deployment
+    /// profile. Unlike `host()`, this cannot fabricate a triple for a host the
+    /// toolchain does not certify: the shape comes through the profile, so an
+    /// uncatalogued host returns `None` rather than guessing.
+    pub fn host_if_supported() -> Option<Self> {
+        TargetProfile::host_if_supported().map(|profile| profile.native_target())
+    }
+
     pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
         match target_name {
-            None => Ok(Self::host()),
+            // An omitted name is the Host convenience, not open-ended
+            // inference: it resolves through the catalogued deployment
+            // profile. A host with no catalogued profile refuses with a
+            // diagnostic instead of panicking in `host()` or naming a
+            // foreign shape.
+            None => Self::host_if_supported().ok_or_else(|| {
+                Diagnostic::error(
+                    "no target profile named and this host has no catalogued Omega \
+                     deployment profile; name an exact target profile explicitly"
+                        .to_owned(),
+                )
+            }),
             Some(target_name) => match TargetProfile::from_omega_target_name(Some(target_name))? {
                 // A recognized profile is not an implemented one: profile
                 // identity is a target-catalog fact, while this function is
@@ -976,8 +995,8 @@ mod tests {
         );
         assert_eq!(profile.build_case_name(), "MacosX86_64");
 
-        // The triple is real: an x86-64 Mach-O image is a valid host shape,
-        // it just has no writer in this toolchain yet.
+        // The triple is real and the x86-64 Mach-O writer admits it; the
+        // remaining gap is the program-entry contract binding below.
         let native = profile.native_target();
         assert_eq!(native.architecture, super::Architecture::X86_64);
         assert_eq!(native.object_format, super::ObjectFormat::MachO);
@@ -1008,5 +1027,31 @@ mod tests {
                 .map(|slot| slot.slot_name()),
             Some("ProgramEntry")
         );
+    }
+
+    #[test]
+    fn omitted_target_name_resolves_through_the_catalogued_host_profile() {
+        // The Host convenience resolves through the deployment-profile
+        // catalog: on a certified host it agrees with `host()`, and a host
+        // with no catalogued profile refuses instead of panicking or
+        // fabricating an uncertified triple.
+        let resolved = NativeTarget::from_omega_target_name(None);
+        match TargetProfile::host_if_supported() {
+            Some(profile) => {
+                let target = resolved.expect("catalogued host must resolve");
+                assert_eq!(target, profile.native_target());
+                assert_eq!(target, NativeTarget::host());
+                assert_eq!(NativeTarget::host_if_supported(), Some(target));
+            }
+            None => {
+                assert_eq!(NativeTarget::host_if_supported(), None);
+                let diagnostic = resolved.expect_err("uncatalogued host must refuse");
+                assert!(
+                    diagnostic
+                        .to_string()
+                        .contains("no catalogued Omega deployment profile")
+                );
+            }
+        }
     }
 }

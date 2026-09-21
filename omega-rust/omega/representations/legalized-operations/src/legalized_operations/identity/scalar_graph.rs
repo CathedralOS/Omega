@@ -411,6 +411,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(67);
                     super::normalized_foreign::encode(bytes, call);
                 }
+                LegalizedScalarInstructionKind::DynamicParameterCall(call) => {
+                    bytes.push(73);
+                    super::dynamic_calls::encode_dynamic_parameter_call(bytes, call);
+                }
                 LegalizedScalarInstructionKind::SaturatingAdd {
                     carrier,
                     left,

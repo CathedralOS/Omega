@@ -1,0 +1,35 @@
+// Division at value position selects its exact entry per operand carrier:
+// `u64` `/` selects the realized exact-division entry, `i32` `/` selects the
+// typed truncating entry, and `%` selects the paired remainder entry on the
+// same operands. The selection must hold through every value position — let
+// binding, transition argument, and guard operand — so the quotient lands as
+// an ordinary integer value rather than an anonymous rational intermediate.
+// The deployable shape exits 70 only when every selected entry's result is
+// exact.
+
+use omega_language_std::console;
+use omega::language::core::service;
+
+data Main {
+    console: Service<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let unsigned: u64 = 12u64 / 4u64;
+    transition unsigned == 3u64 {
+        true -> finish((0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
+        false -> wrong()
+    }
+    state finish(&mut self, value: i32) {
+        transition value == (0i32 - 5) {
+            true -> good()
+            false -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}

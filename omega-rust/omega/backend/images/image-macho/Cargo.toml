@@ -15,4 +15,5 @@ image = { path = "../image" }
 calling-conventions = { path = "../../../representations/calling-conventions" }
 object-file = { path = "../../object/object-file" }
 target = { path = "../../../representations/target" }
+isa-x86_64 = { path = "../../instruction_set_architectures/isa-x86_64" }
 sha2 = "0.10"
