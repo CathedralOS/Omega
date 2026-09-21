@@ -78,9 +78,11 @@ OMEGA_PATH_BETA_ENCODING_SOURCES=$OMEGA_PATH_PROOFS/beta_encoding/theory/theory.
 OMEGA_PATH_BETA_ENCODING_PACKAGE=$OMEGA_PATH_PROOFS/beta_encoding/definition_package.bin
 
 # Gate-local prefix entries packed on top of the bound proof-closure member
-# bytes. Each derivation gate supplies its own diagnostic entry; the
-# substitution and comparison paths name the gate directory holding a shared
-# diagnostic prefix and per-vector entry members.
+# bytes. The beta-encoding producer entry is shared by the theory and
+# certificate-check gates; each derivation gate supplies its own diagnostic
+# entry; the substitution and comparison paths name the gate directory
+# holding a shared diagnostic prefix and per-vector entry members.
+OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY=$OMEGA_REPO_ROOT/tests/gamma/beta-encoding-theory/main.gamma
 OMEGA_PATH_DERIVATION_ADMISSION_ENTRY=$OMEGA_REPO_ROOT/tests/gamma/derivation-admission/main.gamma
 OMEGA_PATH_DERIVATION_CHECKING_ENTRY=$OMEGA_REPO_ROOT/tests/gamma/derivation-checking/main.gamma
 OMEGA_PATH_DERIVATION_FORMATION_ENTRY=$OMEGA_REPO_ROOT/tests/gamma/derivation-formation/main.gamma
@@ -116,7 +118,7 @@ export OMEGA_PATH_OMEGA_OUTCOME_ENTRY OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES
 export OMEGA_PATH_OMEGA_REQUEST_ENTRY OMEGA_PATH_OMEGA_REQUEST_FIXTURE
 export OMEGA_PATH_OMEGA_OCREQ_ENTRY
 export OMEGA_PATH_PROOFS OMEGA_PATH_DERIVATION_CHECKER_SOURCES OMEGA_PATH_BETA_ENCODING_SOURCES
-export OMEGA_PATH_BETA_ENCODING_PACKAGE
+export OMEGA_PATH_BETA_ENCODING_PACKAGE OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY
 export OMEGA_PATH_DERIVATION_ADMISSION_ENTRY OMEGA_PATH_DERIVATION_CHECKING_ENTRY
 export OMEGA_PATH_DERIVATION_FORMATION_ENTRY
 export OMEGA_PATH_DERIVATION_GROUND_ENTRY OMEGA_PATH_DERIVATION_LAYOUT_ENTRY

@@ -24,9 +24,11 @@ persisted Alpha tape, following the
 [complete encoding acceptance](../../../bootstrap/proofs/beta_encoding/ACCEPTANCE.md)
 and the [checking profile](../../../bootstrap/proofs/checker/CHECKING.md).
 
-[run.sh](run.sh) packs the bound emitter and checker closures (the same
-audited materializations the theory and checking gates use) and materializes
-the selected evaluator. [check.py](check.py) then:
+[run.sh](run.sh) requires the bound [producer
+entry](../beta-encoding-theory/README.md) and checking diagnostic entry
+identities, packs them on the bound emitter and checker member closures (the
+same audited materializations the theory and checking gates use), and
+materializes the selected evaluator. [check.py](check.py) then:
 
 1. emits the theory through the evaluator itself and verifies the emitted
    package against the fixed wire identity (shared
