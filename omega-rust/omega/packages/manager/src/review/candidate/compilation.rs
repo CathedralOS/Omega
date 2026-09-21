@@ -18,6 +18,7 @@ use super::{
 };
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
+use crate::review::timings;
 use package_pass::{CompiledPackageReviews, TargetEntryDiscovery};
 use session::ReviewBuildSession;
 use std::path::Path;
@@ -338,6 +339,7 @@ fn compile_candidate(
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    let _stage = timings::stage("candidate_compilation");
     preparation.size_for(target_closure.source_closure());
     if let SemanticBindingReview::Explicit(inputs) = bindings {
         return compile_pass(

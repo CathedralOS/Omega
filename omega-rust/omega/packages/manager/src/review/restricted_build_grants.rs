@@ -26,6 +26,7 @@ use crate::lock::{
     PackagePolicyAcceptance,
 };
 use crate::resolution::graph::{DependencyRequestPath, ResolvedPackageSourceClosure};
+use crate::review::timings;
 
 /// One normalized restricted build request a checked package occurrence
 /// projected without identical retained accepted-request meaning. Its
@@ -263,6 +264,7 @@ pub fn ungranted_restricted_build_requests(
     reviews: &CompilerIssuedPackageReviewSet,
     closure: &ResolvedPackageSourceClosure,
 ) -> Result<Vec<UngrantedRestrictedBuildRequest>, PackageLockError> {
+    let _stage = timings::stage("restricted_build_grant_join");
     let checkpoint = RestrictedBuildCheckpoint::derive(accepted);
     let mut ungranted = Vec::new();
     for review in reviews.reviews() {

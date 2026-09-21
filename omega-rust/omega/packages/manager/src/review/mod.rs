@@ -7,6 +7,7 @@ mod decision;
 pub(crate) mod reconstruction;
 mod restricted_build_grants;
 mod symbolic_boundary_applications;
+mod timings;
 
 pub(crate) use candidate::{
     compile_resolved_package_candidate_for_check,
