@@ -54,10 +54,7 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
     if places.is_empty() {
         return Some(places);
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let state = find_state(program, state_symbol)?;
     let statement = program
         .statement_table
@@ -103,10 +100,7 @@ pub(super) fn assignment_storage_places(
     let StatementNode::Assignment(assignment) = statement else {
         return None;
     };
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let state = find_state(program, state_symbol)?;
     let mut projection = assignment.target;
     loop {
