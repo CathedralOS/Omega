@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. State-argument specialization validation.
+//! Optimizer module role: executable entrance. Case-membership specialization validation.
 use crate::AnalysisInvalidationSet;
 use crate::AnalysisKind;
 use crate::AnalysisSet;
@@ -12,9 +12,7 @@ use crate::validate_psi_optimization_unit;
 
 mod replay;
 
-pub(crate) use replay::cyclic_machines;
-
-pub fn validate_state_argument_specialization_candidate(
+pub fn validate_case_membership_specialization_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
@@ -24,26 +22,16 @@ pub fn validate_state_argument_specialization_candidate(
     }
     if candidate.rule()
         != OptimizationRuleIdentity::from_canonical_bytes(
-            b"omega.psi-rule.state-argument-specialization.v1",
+            b"omega.psi-rule.case-membership-specialization.v1",
         )
         || candidate.required_analyses()
-            != AnalysisSet::new([
-                AnalysisKind::ScalarConstants,
-                AnalysisKind::StronglyConnectedComponents,
-            ])
+            != AnalysisSet::new([AnalysisKind::StronglyConnectedComponents])
         || candidate.invalidated_analyses()
             != AnalysisInvalidationSet::new([
-                AnalysisKind::ControlFlowGraph,
-                AnalysisKind::Dominators,
-                AnalysisKind::PostDominators,
-                AnalysisKind::LoopForest,
-                AnalysisKind::StronglyConnectedComponents,
                 AnalysisKind::UseDefinition,
-                AnalysisKind::ExecutableEdges,
                 AnalysisKind::ScalarConstants,
                 AnalysisKind::ValueRanges,
                 AnalysisKind::EffectSummaries,
-                AnalysisKind::ValueLiveness,
             ])
         || candidate.safety_class() != OptimizationSafetyClass::StructuralIdentity
         || !candidate.substitutions().is_empty()

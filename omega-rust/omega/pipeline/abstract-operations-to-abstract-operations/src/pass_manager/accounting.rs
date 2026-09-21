@@ -273,6 +273,10 @@ pub(super) fn convergence_measure(
         optimization_core::OptimizationPassIdentity::from_canonical_bytes(
             b"omega.psi-pass.state-specialization.v1",
         );
+    let representation_specialization_pass =
+        optimization_core::OptimizationPassIdentity::from_canonical_bytes(
+            b"omega.psi-pass.representation-specialization.v1",
+        );
     if registry.pass() == Some(cfg_pass) {
         control_flow_structure_count(unit)
     } else if registry.pass() == Some(copy_pass) {
@@ -289,9 +293,30 @@ pub(super) fn convergence_measure(
             .sum()
     } else if registry.pass() == Some(state_specialization_pass) {
         dispatch_chain_depth_measure(unit)
+    } else if registry.pass() == Some(representation_specialization_pass) {
+        case_membership_operation_count(unit)
     } else {
         integer_evaluation_operation_count(unit)
     }
+}
+
+/// Non-increasing convergence measure for the representation-specialization
+/// pass: the count of `StructuralCaseMembership` observations left to fold.
+/// Every committed candidate rewrites each admitted observation into a
+/// `BooleanConstant`, so a commit strictly lowers the measure and a fixed
+/// point is reached when no proven membership remains.
+fn case_membership_operation_count(unit: &PsiOptimizationUnit) -> u64 {
+    unit.functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .filter(|node| {
+            matches!(
+                node.operation,
+                abstract_operations::AbstractOperation::StructuralCaseMembership { .. }
+            )
+        })
+        .count() as u64
 }
 
 /// Non-decreasing convergence measure for the state-specialization pass: the

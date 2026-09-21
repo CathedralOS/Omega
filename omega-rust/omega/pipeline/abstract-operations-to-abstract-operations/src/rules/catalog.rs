@@ -10,9 +10,9 @@ use optimization::PsiOptimization;
 use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
 use super::passes::{
-    control_flow_cleanup_rule_registrations, copy_propagation_rule_registrations,
-    dead_scalar_elimination_rule_registrations, global_value_numbering_rule_registrations,
-    proof_check_elision_rule_registrations,
+    case_membership_specialization_rule_registrations, control_flow_cleanup_rule_registrations,
+    copy_propagation_rule_registrations, dead_scalar_elimination_rule_registrations,
+    global_value_numbering_rule_registrations, proof_check_elision_rule_registrations,
     sparse_conditional_constant_propagation_rule_registrations,
     state_specialization_rule_registrations,
 };
@@ -62,7 +62,7 @@ impl PsiPassCatalogEntry {
 }
 
 /// The single built-in Psi enable/disable and ordering table.
-pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 7] = [
+pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 8] = [
     PsiPassCatalogEntry::new(
         PsiOptimization::SparseConditionalConstantPropagation,
         sparse_conditional_constant_propagation_rule_registrations,
@@ -91,10 +91,14 @@ pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 7] = [
         PsiOptimization::StateSpecialization,
         state_specialization_rule_registrations,
     ),
+    PsiPassCatalogEntry::new(
+        PsiOptimization::RepresentationSpecialization,
+        case_membership_specialization_rule_registrations,
+    ),
 ];
 
 /// Compatibility view derived from [`PSI_PASS_CATALOG`], never a second table.
-pub const ORDERED_PSI_PASSES: [PsiOptimization; 7] = [
+pub const ORDERED_PSI_PASSES: [PsiOptimization; 8] = [
     PSI_PASS_CATALOG[0].optimization(),
     PSI_PASS_CATALOG[1].optimization(),
     PSI_PASS_CATALOG[2].optimization(),
@@ -102,6 +106,7 @@ pub const ORDERED_PSI_PASSES: [PsiOptimization; 7] = [
     PSI_PASS_CATALOG[4].optimization(),
     PSI_PASS_CATALOG[5].optimization(),
     PSI_PASS_CATALOG[6].optimization(),
+    PSI_PASS_CATALOG[7].optimization(),
 ];
 
 pub(crate) fn registry_for_optimization(

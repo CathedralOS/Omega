@@ -63,6 +63,15 @@ pub(super) fn derive(
                 node: 0,
             })
         }
+        PsiRewritePatch::SpecializeCaseMembership(patch) => {
+            let Some(first) = patch.memberships.first() else {
+                return Err(PsiRewriteCandidateError::EmptyAffectedRegion);
+            };
+            if first.site.machine != patch.machine {
+                return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
+            }
+            PsiRewriteDecisionPoint::Node(first.site)
+        }
         PsiRewritePatch::PruneUnreachablePrivateMachines(patch) => {
             if patch.machines.is_empty() || patch.machines.windows(2).any(|pair| pair[0] >= pair[1])
             {

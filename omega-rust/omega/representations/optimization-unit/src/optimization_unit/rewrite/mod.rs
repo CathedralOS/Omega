@@ -13,7 +13,7 @@ use optimization_core::{
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, ScalarType, ValueId,
+    OperationId, PlaceId, ScalarType, StructuralCaseId, ValueId,
 };
 
 use crate::{

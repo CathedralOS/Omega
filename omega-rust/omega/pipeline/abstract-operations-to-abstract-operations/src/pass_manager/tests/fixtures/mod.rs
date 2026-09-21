@@ -12,6 +12,7 @@ mod cyclic;
 mod division_and_remainder;
 mod exact_add;
 mod proof_certificates;
+mod representation_specialization;
 mod scalars;
 mod state_specialization;
 
@@ -29,6 +30,10 @@ pub(super) use division_and_remainder::{
     verified_exact_self_remainder_unit, verified_exact_signed_remainder_by_negative_one_unit,
 };
 pub(super) use exact_add::{verified_exact_add_unit, verified_exact_add_zero_unit};
+pub(super) use representation_specialization::{
+    verified_cyclic_membership_unit, verified_membership_decline_unit,
+    verified_representation_specialization_unit,
+};
 pub(super) use scalars::{
     verified_dead_literals_unit, verified_half_dead_literals_unit, verified_parameter_add_unit,
 };

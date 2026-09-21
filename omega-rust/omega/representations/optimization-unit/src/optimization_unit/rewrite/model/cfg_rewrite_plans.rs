@@ -1,6 +1,6 @@
 use super::super::{
-    BlockId, EdgeId, MachineId, OwnershipFrontierFactIdentity, OwnershipFrontierSite, ScalarType,
-    ValueId,
+    BlockId, EdgeId, MachineId, OperationId, OwnershipFrontierFactIdentity, OwnershipFrontierSite,
+    PlaceId, ScalarType, StructuralCaseId, ValueId,
 };
 use super::foundations::NodeLocation;
 
@@ -143,4 +143,42 @@ pub struct StateArgumentSpecializationRewrite {
     pub machine: MachineId,
     pub dispatch: BlockId,
     pub edges: Vec<SpecializedStateEdgeRow>,
+}
+
+/// One `StructuralCaseMembership` observation folded to a `BooleanConstant`
+/// at the same node. The row records the observation's site (`site`), the
+/// source custody identity the folded constant retains (`psi_operation`), the
+/// Boolean value it still defines (`result`), the place it observed
+/// (`source`), the case it asked about (`observed_case`), the case the unit
+/// proves at the observed position (`proven_case`), and the folded verdict
+/// (`outcome`, always `proven_case == observed_case`). `producer` names the
+/// `EstablishScalarCase` operation whose result place the empty-path
+/// observation reads; a roster-proven row — at the place's root type or at a
+/// resolved nested position — carries `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FoldedCaseMembershipRow {
+    pub site: NodeLocation,
+    pub psi_operation: OperationId,
+    pub result: ValueId,
+    pub source: PlaceId,
+    pub producer: Option<OperationId>,
+    pub observed_case: StructuralCaseId,
+    pub proven_case: StructuralCaseId,
+    pub outcome: bool,
+}
+
+/// Fold every proven `StructuralCaseMembership` observing `place` in
+/// `machine` to its proven Boolean verdict at the same node. Each folded node
+/// keeps its operation custody identity, result value, successors,
+/// definitions, uses, ownership events, and fuel settlement; only the
+/// operation and the recomputed unit identity differ. `producer` is the
+/// place's `EstablishScalarCase` root-case witness when one exists — rows
+/// still carry their own basis, so a roster-only candidate holds `None`.
+/// Rows are canonical in `site` order.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CaseMembershipSpecializationRewrite {
+    pub machine: MachineId,
+    pub place: PlaceId,
+    pub producer: Option<OperationId>,
+    pub memberships: Vec<FoldedCaseMembershipRow>,
 }
