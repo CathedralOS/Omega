@@ -7018,7 +7018,24 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TV-BOUNDARY-SETTLEMENTS-REPLAY into next day). No independent slice is
   landable from this row. Re-verified at `7110606f46` — the same-item
   claim remains live and no new leg landed since `db3dfb4302`.
-- **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
+- **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; scope verified,
+  covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
+  surface recorded on the resolved ENTRY-MECHANICS-RUNTIME-CONSOLIDATION
+  row (~TASKS.md:7467, audit at `be03555d17`): entry/exit mechanics sit
+  under one owner,
+  `omega-rust/omega/backend/runtime/external-roots/src/root_entry/`
+  (root_validation, root_admission, provider_execution,
+  progress_profile_installation, opaque_callback_replacement) plus
+  `platform_bringup` for UEFI bootstrap; the runtime leg was settled by
+  BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS — free Unit entries emit process
+  adapters and ELF `e_entry` round-trips through final-image validation
+  (`image-emission/src/hosted_unit_entry.rs` pins the exact Linux
+  x86-64/ARM64 adapter selection). Re-verified at `83625209125b` on linux
+  x86-64: `root_entry/` module layout intact, `cargo check -p
+  external-roots` clean, `hosted_unit_entry` suite 7/7 green. No
+  independent slice exists here. Sibling aliases: STARTUP-ENTRY-MECHANICS,
+  STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS,
+  BACKEND-STARTUP-ENTRY-MECHANICS.
 - **BACKEND-STARTUP-ENTRY-MECHANICS** — mined candidate; verify scope then implement.
 - **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
   cb01abfa42 — audit that every vocabulary operation reaching the backend is
