@@ -9027,6 +9027,15 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Re-verified at `a84ebca9720` for the CHAIN-MANIFEST-GATE-LOCAL-PREFIX-PACKING
   stub: the bullet stays struck in TASKS_BOOTSTRAP.md (:278), the closing
   commit `e1fba5f523` is an ancestor of main, and no residual exists under
+- **CHAIN-MANIFEST-GATE-LOCAL-PREFIXES.** — mined candidate; scope
+  verified, resolved — re-mine stub of the same struck bullet as
+  GATE-LOCAL-PREFIX-BINDING above (TASKS_BOOTSTRAP.md:279).
+  Re-verified at `138ed79a67` (z181): the bullet stays struck — all
+  gate-local drivers bound including the shared Epsilon slice driver
+  at `e1fba5f523` (`EPSILON_EXECUTION_DRIVER_*` pins +
+  `require_epsilon_execution_driver_identity`), closing commit is an
+  ancestor of main. No residual exists under this stub's name.
+
   this stub's name.
 - **GENERAL-LICM.** — mined candidate; verify scope then implement.
 - **GENERAL-RELOCATION-ADMISSION.** Mined candidate — slice landed
