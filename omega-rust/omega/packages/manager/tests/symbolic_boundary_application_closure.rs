@@ -119,6 +119,15 @@ pub machine compare_lifetime<'scope, Element>(value: Element) -> Element {
 pub machine compare_bounded<Element [copy]>(value: Element) -> Element {
     GenericMath::bounded(value)
 }
+
+pub trait Countable {}
+
+pub machine compare_where<Element>(value: Element) -> Element
+where
+    Element satisfies Countable
+{
+    GenericMath::identity(value)
+}
 "#,
     )
     .expect("write producer main");
@@ -523,26 +532,61 @@ fn rejects_missing_extra_unsupported_and_unused_producer_substitutions() {
         ]),
         Err(SymbolicBoundaryApplicationClosureError::UnsupportedProducerLifetimeTelescope),
     );
+}
 
-    let bounded_producer = demand(&artifacts.producer, "compare_bounded");
+#[test]
+fn closes_bounded_operator_and_conformance_bound_producers() {
+    let Some(artifacts) = reviewed_fixture() else {
+        return;
+    };
     let selected_bounded = selected(&artifacts.consumer, "GenericMath::bounded");
     let bounded_concrete = selected_type(selected_bounded);
-    assert_eq!(
-        close_reviewed_symbolic_boundary_applications(vec![
-            SymbolicBoundaryApplicationClosureRequest::new(
+    let bounded_demand = demand(&artifacts.producer, "compare_bounded");
+    let selected_identity = selected(&artifacts.consumer, "GenericMath::identity");
+    let concrete = selected_type(selected_identity);
+    let where_demand = demand(&artifacts.producer, "compare_where");
+
+    let closed = close_reviewed_symbolic_boundary_applications(vec![
+        SymbolicBoundaryApplicationClosureRequest::new(
+            &artifacts.producer,
+            &artifacts.producer,
+            &artifacts.consumer,
+            bounded_demand,
+            specialization(
                 &artifacts.producer,
-                &artifacts.producer,
-                &artifacts.consumer,
-                bounded_producer,
-                specialization(
-                    &artifacts.producer,
-                    "compare_bounded",
-                    &[0],
-                    &bounded_concrete,
-                ),
-                selected_bounded,
+                "compare_bounded",
+                &[0],
+                &bounded_concrete,
             ),
-        ]),
-        Err(SymbolicBoundaryApplicationClosureError::UnsupportedOperatorBinderBounds(0)),
-    );
+            selected_bounded,
+        ),
+        SymbolicBoundaryApplicationClosureRequest::new(
+            &artifacts.producer,
+            &artifacts.producer,
+            &artifacts.consumer,
+            where_demand,
+            specialization(&artifacts.producer, "compare_where", &[0], &concrete),
+            selected_identity,
+        ),
+    ])
+    .expect("bounded and conformance-bound producers close under exact substitution");
+    assert_eq!(closed.rows().len(), 2);
+    for (demand_row, expected) in [(bounded_demand, bounded_concrete), (where_demand, concrete)] {
+        let row = closed
+            .rows()
+            .iter()
+            .find(|row| row.requirement().overload() == demand_row.requirement_identity())
+            .expect("closed row retains the demand requirement");
+        let BoundaryApplication::Exact(arguments) = row.application() else {
+            panic!("one exact closed application")
+        };
+        assert!(matches!(
+            arguments.as_slice(),
+            [BoundaryApplicationArgument::Type {
+                binder_ordinal: 0,
+                type_identity,
+            }] if type_identity.canonical() == expected.canonical()
+        ));
+        assert_eq!(row.sources().len(), 1);
+    }
 }
