@@ -68,7 +68,7 @@ pub boundary trait ProgramStorageEntry {
 // bound even when `addr` cannot represent it. Both conversions remain visible:
 // embedding selects the uniform proof-Int meaning, while `as Nat` consumes its
 // derived nonnegative range fact at the content-algebra boundary.
-machine Granted::content(extent: &Extent) -> IntervalSet<Nat>
+pub machine Granted::content(extent: &Extent) -> IntervalSet<Nat>
 satisfies Content<IntervalSet<Nat>>::project
 {
     IntervalSet {

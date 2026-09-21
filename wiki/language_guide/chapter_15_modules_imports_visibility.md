@@ -224,9 +224,11 @@ module dungeon::combat;
 
 Module paths participate in name resolution and artifact identity. They are
 not filesystem escape paths or additional package reach boundaries. The Rust
-implementation supports selected nominal/free-machine namespace paths; remaining
-forms, including module-owned domains, still reject pending namespace-aware
-normalization. See [source resolution](../../omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization).
+implementation admits module-owned forms — domains, operator homes, constants
+and qualified case membership in declared-domain proof facts — under the same
+namespace law: qualified spellings select exactly, and relative spellings bind
+inside the declaring module or through a narrow import of the exact
+declaration. See [source resolution](../../omega-rust/psi/pipeline/README.md#resolution-and-closed-instance-normalization).
 
 ## Imports
 

@@ -7,7 +7,8 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{LocalRelocationError, LocalRelocationReceipt, ValidatedLocalRelocation};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::window_hazards::{coupled, interior_settlement, schedulable};
+use crate::rewrites::block_edges::{CrossingDirection, crossed_window};
+use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation};
 
 /// The validator's own reconstruction of the relocation the contract
 /// permits: the touched block plus the member's and destination's
@@ -18,6 +19,15 @@ struct Reconstructed<'source> {
     block_index: usize,
     member_index: usize,
     destination_index: usize,
+}
+
+/// Map the shared audit's rejection onto this module's public error the
+/// same way the producer does.
+fn reject(rejection: RunRelocationRejection) -> LocalRelocationError {
+    match rejection {
+        RunRelocationRejection::Unschedulable => LocalRelocationError::UnsupportedInstruction,
+        _ => LocalRelocationError::UnsupportedPair,
+    }
 }
 
 /// Reconstruct the legality of moving `member` onto `destination` from the
@@ -68,40 +78,32 @@ fn reconstruct<'source>(
         .filter(|position| *position != member_index)
         .ok_or(LocalRelocationError::UnsupportedPair)?;
     let member_instruction = &block.instructions[member_index];
-    let member_accounted = schedulable(function, member_instruction)
-        .ok_or(LocalRelocationError::UnsupportedInstruction)?;
+    // The single member is a one-instruction run: the shared derivation
+    // returns the positions between it and the landing index, the
+    // destination included, and the shared audit proves that window
+    // independent once. An in-block move crosses no edge, so the path
+    // bound is inert.
+    let crossing = crossed_window(
+        function,
+        block_index,
+        member_index,
+        member_index,
+        block_index,
+        destination_index,
+        CrossingDirection::Forward,
+        0,
+    )
+    .ok_or(LocalRelocationError::WorkBudgetExceeded)?;
+    admit_run_relocation(function, &[member_instruction], &crossing).map_err(reject)?;
+    // The validator's own audit walks the same surfaces the family
+    // publishes: one scan of the plan's body and terminator instructions,
+    // every crossed member's operand and unit lists, and the function's
+    // three rosters.
     let (first, last) = (
         member_index.min(destination_index),
         member_index.max(destination_index),
     );
     let window = &block.instructions[first..=last];
-    for (offset, crossed) in window.iter().enumerate() {
-        if first + offset == member_index {
-            continue;
-        }
-        // Every crossed instruction meets the same schedulable bar as the
-        // member: no barrier kind, no call contract, and no unaccounted
-        // memory reach. Its roster rows may keep their relative order only
-        // while the member records none — a row-carrying member passing a
-        // second accounted actor would reorder recorded accesses.
-        let crossed_accounted =
-            schedulable(function, crossed).ok_or(LocalRelocationError::UnsupportedInstruction)?;
-        if member_accounted && crossed_accounted {
-            return Err(LocalRelocationError::UnsupportedPair);
-        }
-        // The member trades order with every crossed position, so each
-        // direction of every hazard applies against each.
-        if coupled(member_instruction, crossed) {
-            return Err(LocalRelocationError::UnsupportedPair);
-        }
-    }
-    if interior_settlement(function, block.id, first + 1..=last) {
-        return Err(LocalRelocationError::UnsupportedPair);
-    }
-    // The validator's own audit walks the same surfaces the family
-    // publishes: one scan of the plan's body and terminator instructions,
-    // every crossed member's operand and unit lists, and the function's
-    // three rosters.
     let steps = plan
         .functions
         .iter()

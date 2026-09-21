@@ -150,8 +150,31 @@ fn close_selection(
             "opaque representation selection must retain exactly one opaque data path and one named conformance path",
         ));
     };
-    let opaque = opaque_argument.symbol;
+    let opaque = product_scope_instance(
+        typed,
+        opaque_argument.symbol,
+        typed
+            .data_definitions()
+            .iter()
+            .map(|definition| definition.symbol),
+    );
     let opaque_name = opaque_argument.display_name();
+    let conformance_symbol = product_scope_instance(
+        typed,
+        conformance_argument.symbol,
+        typed
+            .conformances()
+            .iter()
+            .map(|conformance| conformance.symbol),
+    );
+    let mut conformance_argument_owned;
+    let conformance_argument = if conformance_symbol == conformance_argument.symbol {
+        conformance_argument
+    } else {
+        conformance_argument_owned = conformance_argument.clone();
+        conformance_argument_owned.symbol = conformance_symbol;
+        &conformance_argument_owned
+    };
     let Some(opaque_definition) = typed
         .data_definitions()
         .iter()
@@ -180,8 +203,14 @@ fn close_selection(
         .iter()
         .find(|candidate| candidate.symbol == application.declaration)
         .ok_or_else(|| Diagnostic::error("selected opaque conformance disappeared"))?;
+    // The conformance and its application may carry distinct symbol instances
+    // of the same toolchain trait declaration: a source imported on both the
+    // product and build scopes is lowered once per scope, so symbol equality
+    // would reject a genuine compiler-owned relationship. Identity is the
+    // toolchain declaration itself (origin, path, and closed shape), which the
+    // helper already checks on both sides.
     if !is_compiler_owned_opaque_representation_trait(typed, conformance.trait_symbol)
-        || application.trait_definition != conformance.trait_symbol
+        || !is_compiler_owned_opaque_representation_trait(typed, application.trait_definition)
     {
         return Err(Diagnostic::error(format!(
             "conformance `{}` does not satisfy the exact compiler-owned `OpaqueRepresentation` trait",
@@ -242,4 +271,47 @@ fn close_selection(
         selecting_machine,
         source_span,
     ))
+}
+
+/// The product-scope instance of the same authored declaration. A source
+/// imported on both the product and build dependency scopes is lowered once
+/// per scope, so a build-authored selection argument resolves the build
+/// instance while boundary consumers plan against the product instance. The
+/// two instances share the source's bytes and path, so declaration identity
+/// is (file path, byte span) plus the file's dependency scope. Symbols
+/// without source provenance, or already product-side, return unchanged.
+fn product_scope_instance(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    candidates: impl Iterator<Item = SymbolHandle>,
+) -> SymbolHandle {
+    let Some(declaration) = typed.symbols.symbol_provenance_source_span(symbol) else {
+        return symbol;
+    };
+    let Some(file) = typed.symbols.source_file(declaration) else {
+        return symbol;
+    };
+    if file.dependency_scope != source::DependencyScope::Build {
+        return symbol;
+    }
+    candidates
+        .filter(|candidate| *candidate != symbol)
+        .find(|candidate| {
+            typed
+                .symbols
+                .symbol_provenance_source_span(*candidate)
+                .and_then(|candidate_span| {
+                    typed
+                        .symbols
+                        .source_file(candidate_span)
+                        .map(|candidate_file| (candidate_span, candidate_file))
+                })
+                .is_some_and(|(candidate_span, candidate_file)| {
+                    candidate_file.dependency_scope == source::DependencyScope::Product
+                        && candidate_file.path == file.path
+                        && candidate_file.package_identity == file.package_identity
+                        && candidate_span.span == declaration.span
+                })
+        })
+        .unwrap_or(symbol)
 }

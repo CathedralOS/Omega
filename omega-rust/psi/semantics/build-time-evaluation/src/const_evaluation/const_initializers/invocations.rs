@@ -151,6 +151,19 @@ pub(crate) struct Invocation<'program> {
 }
 
 impl Invocation<'_> {
+    /// Whether this probe machine's reachable closure holds a resolved
+    /// boundary-operator use that only exact selected execution can run — the
+    /// same gate `evaluate_or_defer` applies to pending typed const
+    /// positions. The probe program keeps every authored machine, so the
+    /// admission plan's call edges already see the application's closure.
+    pub(crate) fn needs_operator_selection(&self) -> bool {
+        let typed = self.program.typed();
+        let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
+        self.program
+            .admission
+            .closure_needs_operator_selection(typed, self.machine.symbol, &facts)
+    }
+
     fn require_concrete_failure_discharge(
         &self,
         expression: ExpressionHandle,

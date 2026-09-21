@@ -41,6 +41,9 @@ use tokens::PunctuationKind;
 ///   and view-addressed data spells its authorized index expression
 /// - x86 fences and `cli`/`sti` -> zero-operand unnameable intrinsics carrying
 ///   their catalog ordering/state/effect contracts
+/// - `serialize`/`isb`/`pause`/`yield` -> zero-operand pipeline directives:
+///   instruction-stream serialization or scheduling hints with no modeled
+///   machine-state effect (no authority, no operands, no clobbers)
 /// - `pushfq <dest>`            -> `<dest> = asm#pushfq()`; the backend emits
 ///   a balanced snapshot sequence
 /// - `popfq <source>`           -> `asm#popfq(source)`; the backend emits a
@@ -343,6 +346,26 @@ fn reject_bracketed_asm_operand(
     Ok(())
 }
 
+fn zero_operand_asm_intrinsic_call(
+    syntax_trees: &mut SyntaxTrees,
+    mnemonic: &Identifier,
+    intrinsic_name: &'static str,
+) -> StatementHandle {
+    syntax_trees
+        .statements
+        .insert(StatementNode::Call(TableCall {
+            target_is_static: false,
+            receiver: HandleSpan::empty(),
+            receiver_starts_at_self: false,
+            target: Identifier::new(intrinsic_name, mnemonic.source_span()),
+            machine_arguments: Box::default(),
+            arguments: HandleSpan::empty(),
+            evidence_arguments: Box::default(),
+            operational_acknowledgement: Default::default(),
+            discards_result: false,
+        }))
+}
+
 fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -354,8 +377,9 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         return Err(mnemonic_site.error_here(format!(
             "unknown asm instruction `{}`: only known-contract instructions compile \
              (`hlt`, `in`, `out`, `jmp`, `mov`/`movq`, `lfence`, `sfence`, `mfence`, `cli`, `sti`, \
-             `pushfq`, `popfq`, `rdmsr`, `wrmsr`, structured `read_crN`/`write_crN`); opaque forms \
-             (`db`, raw bytes) are rejected",
+             `serialize`, `isb`, `pause`, `yield`, `wfe`, `wfi`, `sev`, `sevl`, `nop`, `pushfq`, `popfq`, \
+             `rdmsr`, `wrmsr`, `wbinvd`, `invd`, `wbnoinvd`, \
+             structured `read_crN`/`write_crN`); opaque forms (`db`, raw bytes) are rejected",
             mnemonic.as_str()
         )));
     };
@@ -544,6 +568,39 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         operational_acknowledgement: Default::default(),
                         discards_result: false,
                     })),
+                contract,
+            },
+            input,
+        )),
+        AsmInstructionShape::InstructionSerialization(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: zero_operand_asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                ),
+                contract,
+            },
+            input,
+        )),
+        AsmInstructionShape::SchedulingHint(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: zero_operand_asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                ),
+                contract,
+            },
+            input,
+        )),
+        AsmInstructionShape::CacheOperation(kind) => Ok((
+            ParsedAsmInstruction {
+                statement: zero_operand_asm_intrinsic_call(
+                    syntax_trees,
+                    &mnemonic,
+                    kind.intrinsic_name(),
+                ),
                 contract,
             },
             input,

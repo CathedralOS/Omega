@@ -350,6 +350,7 @@ fn fresh_nested_record_transition_retains_shapes_operations_and_scalar_occurrenc
                 result,
                 value,
                 calls,
+                operand_source: _,
                 discard_result_on_return,
             },
         ] = state.unit_operations.as_slice()
@@ -613,7 +614,16 @@ fn record_move_disposition_retains_only_final_owners_and_original_provenance() {
     for (_, event) in checked.facts.flow.ownership.permissions.iter() {
         eprintln!("event {event:?}");
     }
-    eprintln!("disposition0={:?}", validation::record_local_disposition(&checked.typed, &checked.facts, machine, checked.typed.machine_states(&checked.machines()[0])[0].symbol, 0));
+    eprintln!(
+        "disposition0={:?}",
+        validation::record_local_disposition(
+            &checked.typed,
+            &checked.facts,
+            machine,
+            checked.typed.machine_states(&checked.machines()[0])[0].symbol,
+            0
+        )
+    );
     let graph = checked
         .facts
         .flow

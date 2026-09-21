@@ -124,6 +124,7 @@ pub(super) fn lower(
                     argument,
                     declaration,
                     destination,
+                    function,
                     prepared,
                     live,
                     types,

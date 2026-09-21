@@ -445,3 +445,125 @@ fn interpreted_register_unregister_round_trip_drives_the_ledger() {
     assert_eq!(*unregister_call, unregister.id);
     assert_eq!(unregister_arguments.as_slice(), &[registered]);
 }
+
+/// The authored-customer form of the ledger: `register` returns a sum whose
+/// `Registered` case carries the live registration (`registration in
+/// Registration::Live` inside `Reply`). The routed domain authorizes that
+/// case payload — `established by` reaches the domain through `Reply`'s
+/// members, and the checker grants the case-scoped claim under the same
+/// issuance authority as a bare `-> Registration in Registration::Live`
+/// result. The `Rejected` arm carries no qualification, so the domain is
+/// minted per-case rather than per-carrier.
+const REPLY_SUM_SOURCE: &str = r#"
+    data RegistrationSlot {}
+    data CountedQuantity<Unit> { magnitude: u64; }
+    trait Content<A> {
+        machine project(subject: &Self) -> A;
+    }
+
+    data Registration [linear] { slot: u64; }
+
+    domain Registration::Live
+    established by Registrar::register, Registrar::unregister;
+
+    machine Live::content(registration: &Registration) -> CountedQuantity<RegistrationSlot>
+    satisfies Content<CountedQuantity<RegistrationSlot>>::project
+    {
+        CountedQuantity { magnitude: 1 }
+    }
+
+    data Reply {
+        case Registered(registration: Registration in Live);
+        case Rejected;
+    }
+
+    boundary trait Registrar {
+        machine register(registration: Registration) -> Reply;
+        machine unregister(registration: Registration in Live);
+    }
+
+    data Customer {}
+    machine Customer::run(&mut self, registration: Registration)
+    reaches Registrar invokes Registrar;
+    {
+        let reply: Reply = Registrar::register(registration);
+        transition reply {
+            Reply::Registered { registration } -> ok(registration)
+            Reply::Rejected -> again()
+        }
+        state ok(&mut self, registration: Registration in Live) {
+            Registrar::unregister(registration);
+        }
+        state again(&mut self) {}
+    }
+"#;
+
+/// The sum customer checks: the routed domain authorizes the `Registered`
+/// case payload, the arm binding carries `Registration in Live` into `ok`,
+/// and `unregister` discharges that exact occurrence. Checked-tree admission
+/// is where the item's semantics live; the remaining legs (unit-machine plan
+/// admission for the affine-classified sum result, installed-provider
+/// `supported_result`, native callback entry) are owned by sibling items.
+#[test]
+fn sum_reply_case_payload_authorizes_the_routed_domain() {
+    let tokens = Lexer::new(REPLY_SUM_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("sum reply customer checks");
+}
+
+/// A boundary machine that returns the same `Reply` but is not named by the
+/// domain's `established by` routes cannot mint the case payload's
+/// qualification — the route binds issuance to the exact requirement.
+#[test]
+fn non_route_requirement_cannot_mint_the_case_payload_domain() {
+    let source = REPLY_SUM_SOURCE.replace(
+        "machine register(registration: Registration) -> Reply;",
+        "machine register(registration: Registration) -> Reply;\n        machine mint(registration: Registration) -> Reply;",
+    );
+    let source = source.replace(
+        "Registrar::register(registration)",
+        "Registrar::mint(registration)",
+    );
+    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("mint is not a route");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot establish call-result qualification `Registration::Live`")),
+        "expected a call-result qualification rejection, got {diagnostics:?}",
+    );
+}
+
+/// The payload annotation is what mints the membership: with `Registered`'s
+/// payload declared as plain `Registration`, the `ok` arm's
+/// `Registration in Live` contract has no evidence and the customer is
+/// rejected — an unqualified case never borrows the route's authority.
+#[test]
+fn unqualified_case_payload_cannot_serve_the_qualified_state() {
+    // `Vouched` keeps `Live` named on `Reply` so `register` remains a valid
+    // route; `Registered`'s own payload is unqualified.
+    let source = REPLY_SUM_SOURCE.replace(
+        "case Registered(registration: Registration in Live);\n        case Rejected;",
+        "case Registered(registration: Registration);\n        case Vouched(voucher: Registration in Live);\n        case Rejected;",
+    );
+    let source = source.replace(
+        "Reply::Rejected -> again()",
+        "Reply::Rejected -> again()\n            Reply::Vouched { voucher } -> ok(voucher)",
+    );
+    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = lower_typed_trees(typed).expect_err("unqualified payload must fail");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("Registration::Live")),
+        "expected a `Registration::Live` qualification rejection, got {diagnostics:?}",
+    );
+}

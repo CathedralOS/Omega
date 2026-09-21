@@ -235,8 +235,8 @@ An external realization binds an irreducible imported operation to a
 requirement without pretending the binding is executable Omega code:
 
 ```omega
-windows_x86_64 machine WindowsBindings::write_file() -> Binding<12, 9, 0> {
-    Binding::DllImport {
+windows_x86_64 machine WindowsBindings::write_file() -> ForeignBinding<12, 9, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "WriteFile",

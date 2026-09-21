@@ -23,8 +23,7 @@ use crate::rewrites::window_hazards::{
 };
 
 /// The admitted run relocation: where the run leaves and where it lands.
-pub(super) struct Admission<'source> {
-    pub(super) function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The block the contiguous run vacates.
     pub(super) block_index: usize,
     /// The first body index the run occupies.
@@ -249,7 +248,7 @@ pub(super) fn admit<'source>(
     destination: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, ScheduledRelocationError> {
+) -> Result<Admission, ScheduledRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ScheduledRelocationError::SourceMismatch);
@@ -594,7 +593,6 @@ pub(super) fn admit<'source>(
         return Err(ScheduledRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         member_first,
         member_last,

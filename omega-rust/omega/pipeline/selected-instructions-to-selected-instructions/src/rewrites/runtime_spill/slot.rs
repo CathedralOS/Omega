@@ -27,7 +27,7 @@ use selected_instructions::{
     VirtualRegisterId,
 };
 
-use super::admission::{StorageDefinition, StoragePosition};
+use super::{StorageDefinition, StoragePosition};
 
 /// Admitted use positions for the victim, one entry per block in order. The
 /// sharing check needs positions, not just block membership: a proposed reload
