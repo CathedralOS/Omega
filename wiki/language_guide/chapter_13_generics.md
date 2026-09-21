@@ -137,7 +137,14 @@ results need a common representation or an explicit finite sum/eligible owner;
 no implicit boxing or variable-layout return is introduced. The
 [specialization contract](../spec/language/generics.md#finite-specialization-boundary)
 and [dynamic-family contract](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-define the rules. This is intended support, not implemented generic virtual calls.
+define the rules.
+
+Generic virtual calls of this shape are implemented, not merely intended:
+`tests/omega/pass/traits/dyn_finite_family_dispatch` erases a receiver to
+`&dyn Shape` and calls `erased.code<16>()` and `erased.code<32>()`, each
+resolving to its own generated row. The limit is narrower than "no generic
+virtual calls": the only legal binder tuple is one complete roster tuple of
+closed static values, so a width chosen at runtime has no dispatch.
 
 ## Type Equality And Indexed-Domain Matching
 
