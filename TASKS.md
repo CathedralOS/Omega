@@ -8370,6 +8370,17 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   legs (build.omg + ProgramEntry, tools/benchmark record) stay on the
   owning sibling rows. Sibling re-mine names: MATH-PROOFS-CHECKED-CALL-
   SELECTION, PROOFS-SUBJECT-CHECKED-CALL-SELECTION.
+- **PROOF-SAMPLES-CHECKED-CALL-SELECTION.** Resolved — the stub name the
+  sibling rows above cite for `math_proofs`'s checked-call-selection
+  blockage; that fix landed on BENCHMARK-PROOF-SUBJECT-CHECKED-CALL-
+  SELECTION (verified `1f7301b710`): unbound receiverless
+  contract-position calls mint a finalized ProofView ledger row per
+  (span, exposure) site via `collect_checked_proof_view_call_selections`.
+  Re-verified at `90df29812c0` (linux x86-64):
+  `undeclared_contract_view_calls_finalize_as_proof_view_intrinsics`
+  green; resolver pin `contract_clause_calls_naming_no_declaration_
+  skip_call_selection` green; `omega --check` on
+  `samples/cli/proofs/math_proofs/main.omg` compiles. No residual slice.
 - **MATH-PROOFS-CALL-SELECTION-OCCURRENCE.** Resolved —
   covered-alias of the checked-call-selection blockage that
   failed `math_proofs`, landed on sibling
