@@ -129,7 +129,13 @@ impl RetainedForeignArgumentRequest {
 #[derive(Debug)]
 enum RetainedForeignCustody {
     LifetimeBorrowed,
+    // No authored Terminal custody row selects the moved or snapshot
+    // dispositions yet; their entries exist only so tests can witness the
+    // ledger's admission machinery until `retain_foreign_argument_under_custody`
+    // learns those rows.
+    #[cfg(test)]
     Moved(Extent),
+    #[cfg(test)]
     Snapshot(Extent),
 }
 
@@ -196,7 +202,9 @@ impl RetainedForeignArgument {
             RetainedForeignCustody::LifetimeBorrowed => {
                 RetainedForeignArgumentDisposition::LifetimeBorrowed
             }
+            #[cfg(test)]
             RetainedForeignCustody::Moved(_) => RetainedForeignArgumentDisposition::Moved,
+            #[cfg(test)]
             RetainedForeignCustody::Snapshot(_) => RetainedForeignArgumentDisposition::Snapshot,
         }
     }
@@ -256,7 +264,7 @@ impl RetainedForeignArgumentError<RetainedForeignArgument> {
 }
 
 impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
-    pub fn retain_foreign_argument_borrowed(
+    pub(crate) fn retain_foreign_argument_borrowed(
         &mut self,
         extent: &Extent,
         request: RetainedForeignArgumentRequest,
@@ -291,7 +299,8 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         ))
     }
 
-    pub fn retain_foreign_argument_moved(
+    #[cfg(test)]
+    pub(crate) fn retain_foreign_argument_moved(
         &mut self,
         extent: Extent,
         access: RetainedForeignAccess,
@@ -349,7 +358,8 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         ))
     }
 
-    pub fn retain_foreign_argument_snapshot(
+    #[cfg(test)]
+    pub(crate) fn retain_foreign_argument_snapshot(
         &mut self,
         source: &Extent,
         request: RetainedForeignArgumentRequest,
@@ -430,7 +440,11 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
     /// at the row's own source position and records it as
     /// `LifetimeBorrowed`/`Shared`. Other authored guarantee rows authorize
     /// no retention; moved and snapshot dispositions have no authored
-    /// Terminal row yet and cannot be selected here.
+    /// Terminal row yet and cannot be selected here. This is the registry's
+    /// only public retention entry: the borrowed entry stays crate-internal
+    /// for this selector's use, and the moved/snapshot entries exist only
+    /// under `cfg(test)` so no production caller can pick a disposition the
+    /// authored row did not select.
     pub fn retain_foreign_argument_under_custody(
         &mut self,
         arguments: &[&Extent],
@@ -514,6 +528,7 @@ impl<'root, 'code> ProgramLocalExtentRegistry<'root, 'code> {
         let disposition = retained.disposition();
         let returned = match retained.custody {
             RetainedForeignCustody::LifetimeBorrowed => None,
+            #[cfg(test)]
             RetainedForeignCustody::Moved(extent) | RetainedForeignCustody::Snapshot(extent) => {
                 Some(extent)
             }

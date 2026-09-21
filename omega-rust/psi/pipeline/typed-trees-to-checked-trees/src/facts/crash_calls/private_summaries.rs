@@ -26,14 +26,9 @@ pub(crate) fn infer_private_body_summaries(
     let mut nodes = plans
         .iter()
         .filter(|target| {
-            program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == target.machine)
-                .is_some_and(|machine| {
-                    machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                })
-                && target.crash.published().is_empty()
+            crate::lookup::machine_by_symbol(program, target.machine).is_some_and(|machine| {
+                machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            }) && target.crash.published().is_empty()
         })
         .filter_map(|target| {
             Some(SummaryNode {
@@ -61,16 +56,11 @@ pub(crate) fn infer_private_body_summaries(
                     .iter()
                     .find(|plan| plan.machine == invocation.target_machine)
                 {
-                    program
-                        .machines()
-                        .iter()
-                        .find(|machine| machine.symbol == plan.machine)
-                        .is_some_and(|machine| {
-                            machine.supply_mode
-                                != language_semantics::MachineSupplyMode::CheckedBody
-                                || !plan.crash.published().is_empty()
-                                || viable_machines.contains(&invocation.target_machine)
-                        })
+                    crate::lookup::machine_by_symbol(program, plan.machine).is_some_and(|machine| {
+                        machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                            || !plan.crash.published().is_empty()
+                            || viable_machines.contains(&invocation.target_machine)
+                    })
                 } else {
                     crash_capsules.iter().any(|capsule| {
                         capsule.target_machine() == invocation.target_machine
@@ -124,11 +114,9 @@ pub(crate) fn infer_private_body_summaries(
                 .iter()
                 .find(|plan| plan.machine == invocation.target_machine)
             {
-                let target_machine = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == invocation.target_machine)
-                    .expect("a local crash plan has its typed machine");
+                let target_machine =
+                    crate::lookup::machine_by_symbol(program, invocation.target_machine)
+                        .expect("a local crash plan has its typed machine");
                 let target_state = program
                     .machine_states(target_machine)
                     .iter()
@@ -420,15 +408,10 @@ fn private_dependency_reaches(
                 .iter()
                 .find(|plan| plan.machine == invocation.target_machine)
                 .filter(|plan| {
-                    program
-                        .machines()
-                        .iter()
-                        .find(|machine| machine.symbol == plan.machine)
-                        .is_some_and(|machine| {
-                            machine.supply_mode
-                                == language_semantics::MachineSupplyMode::CheckedBody
-                                && plan.crash.published().is_empty()
-                        })
+                    crate::lookup::machine_by_symbol(program, plan.machine).is_some_and(|machine| {
+                        machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                            && plan.crash.published().is_empty()
+                    })
                 })
                 .map(|_| invocation.target_machine)
         }));

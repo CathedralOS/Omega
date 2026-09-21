@@ -42,12 +42,17 @@
 //! flag consumer: only its kind field changes. Either way the instruction
 //! keeps its identity, position, result register, and provenance.
 //!
-//! Proposal and independent replay share only the admission predicates and
-//! the rewritten-instruction constructor. Validation re-derives the
-//! admitted pair from the source, requires the proposed instruction to
-//! equal the reconstructed form, and restores the complete source by
-//! content: every other instruction, register, roster row, call, and
-//! settlement is retained bit-identical.
+//! Validation consumes the proposed program, requires the instruction at
+//! the materialization's position to equal the independently computed
+//! fold, and restores the complete source by content: every other
+//! instruction, register, roster row, call, and settlement is retained
+//! bit-identical. The validator re-derives the fold's preconditions on
+//! its own audit — the flag-reader shape, the one compare every used
+//! unit's reaching event must resolve to, the boundary operand poles the
+//! predicate outcome is decided from, and the materialize row a constant
+//! fold is built from — never consulting the producer's `admission`
+//! routine; only the module's shared condition-state walk and operand
+//! audit are common to both sides.
 
 mod admission;
 mod rewrite;

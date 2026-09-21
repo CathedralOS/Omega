@@ -824,105 +824,127 @@ fn validate_canonical_proposition(
     proposition: &Proposition,
     depth: usize,
 ) -> Result<(), CodecError> {
-    if depth > MAX_PROPOSITION_DEPTH {
-        return Err(CodecError::PropositionNestingTooDeep);
+    // The proposition depth guard walks its tree through an explicit worklist
+    // rather than the call stack, matching `validate_scalar_term_depth` and
+    // `validate_integer_math_term_depth` below: a deeply nested conjunction,
+    // disjunction, or implication must reach the depth bound and reject instead
+    // of overflowing the stack on hosts with small thread stacks.
+    enum Step<'a> {
+        Validate(&'a Proposition, usize),
+        StrictlyIncreasing(&'a [Proposition], &'static str),
     }
-    match proposition {
-        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => Ok(()),
-        Proposition::Equal(left, right) => {
-            validate_scalar_term_depth(left)?;
-            validate_scalar_term_depth(right)?;
-            if canonical_scalar_term_bytes(left)? > canonical_scalar_term_bytes(right)? {
-                return Err(CodecError::NonCanonicalOrder("equality operands"));
+    let mut pending = vec![Step::Validate(proposition, depth)];
+    while let Some(step) = pending.pop() {
+        match step {
+            Step::Validate(proposition, depth) => {
+                if depth > MAX_PROPOSITION_DEPTH {
+                    return Err(CodecError::PropositionNestingTooDeep);
+                }
+                match proposition {
+                    Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+                    Proposition::Equal(left, right) => {
+                        validate_scalar_term_depth(left)?;
+                        validate_scalar_term_depth(right)?;
+                        if canonical_scalar_term_bytes(left)? > canonical_scalar_term_bytes(right)?
+                        {
+                            return Err(CodecError::NonCanonicalOrder("equality operands"));
+                        }
+                    }
+                    Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => {
+                        validate_scalar_term_depth(left)?;
+                        validate_scalar_term_depth(right)?;
+                    }
+                    Proposition::IntegerMathEqual(left, right) => {
+                        validate_integer_math_term_depth(left)?;
+                        validate_integer_math_term_depth(right)?;
+                        if left > right {
+                            return Err(CodecError::NonCanonicalOrder(
+                                "mathematical integer equality operands",
+                            ));
+                        }
+                    }
+                    Proposition::IntegerMathLessThan(left, right)
+                    | Proposition::IntegerMathLessOrEqual(left, right) => {
+                        validate_integer_math_term_depth(left)?;
+                        validate_integer_math_term_depth(right)?;
+                    }
+                    Proposition::IeeeFloatComparison { left, right, .. } => {
+                        if left > right {
+                            return Err(CodecError::NonCanonicalOrder("IEEE equality operands"));
+                        }
+                    }
+                    Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+                        validate_scalar_term_depth(left)?;
+                        validate_scalar_term_depth(right)?;
+                        if left > right {
+                            return Err(CodecError::NonCanonicalOrder(
+                                "scalar IEEE equality operands",
+                            ));
+                        }
+                    }
+                    Proposition::ByteSequenceEqual { left, right } => {
+                        if left > right {
+                            return Err(CodecError::NonCanonicalOrder(
+                                "byte-sequence equality operands",
+                            ));
+                        }
+                    }
+                    Proposition::StructuralCaseMembership { .. } => {}
+                    Proposition::Conjunction(conjuncts) => {
+                        if conjuncts
+                            .iter()
+                            .any(|conjunct| matches!(conjunct, Proposition::Conjunction(_)))
+                        {
+                            return Err(CodecError::NestedConjunction);
+                        }
+                        // The ordering check runs after every conjunct is
+                        // validated, matching the recursive version's order.
+                        pending.push(Step::StrictlyIncreasing(
+                            conjuncts,
+                            "conjunction propositions",
+                        ));
+                        for conjunct in conjuncts.iter().rev() {
+                            pending.push(Step::Validate(conjunct, depth + 1));
+                        }
+                    }
+                    Proposition::Disjunction(disjuncts) => {
+                        if disjuncts
+                            .iter()
+                            .any(|disjunct| matches!(disjunct, Proposition::Disjunction(_)))
+                        {
+                            return Err(CodecError::NestedDisjunction);
+                        }
+                        pending.push(Step::StrictlyIncreasing(
+                            disjuncts,
+                            "disjunction propositions",
+                        ));
+                        for disjunct in disjuncts.iter().rev() {
+                            pending.push(Step::Validate(disjunct, depth + 1));
+                        }
+                    }
+                    Proposition::Implication {
+                        premise,
+                        conclusion,
+                    } => {
+                        // `premise` is visited before `conclusion`, matching the
+                        // recursive version's operand order.
+                        pending.push(Step::Validate(conclusion, depth + 1));
+                        pending.push(Step::Validate(premise, depth + 1));
+                    }
+                    Proposition::ContentConservation(conservation) => {
+                        validate_content_term_depth(conservation.left())?;
+                        validate_content_term_depth(conservation.right())?;
+                    }
+                }
             }
-            Ok(())
-        }
-        Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => {
-            validate_scalar_term_depth(left)?;
-            validate_scalar_term_depth(right)
-        }
-        Proposition::IntegerMathEqual(left, right) => {
-            validate_integer_math_term_depth(left)?;
-            validate_integer_math_term_depth(right)?;
-            if left > right {
-                return Err(CodecError::NonCanonicalOrder(
-                    "mathematical integer equality operands",
-                ));
+            Step::StrictlyIncreasing(propositions, order_label) => {
+                if !canonical_propositions_strictly_increase(propositions)? {
+                    return Err(CodecError::NonCanonicalOrder(order_label));
+                }
             }
-            Ok(())
-        }
-        Proposition::IntegerMathLessThan(left, right)
-        | Proposition::IntegerMathLessOrEqual(left, right) => {
-            validate_integer_math_term_depth(left)?;
-            validate_integer_math_term_depth(right)
-        }
-        Proposition::IeeeFloatComparison { left, right, .. } => {
-            if left > right {
-                return Err(CodecError::NonCanonicalOrder("IEEE equality operands"));
-            }
-            Ok(())
-        }
-        Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
-            validate_scalar_term_depth(left)?;
-            validate_scalar_term_depth(right)?;
-            if left > right {
-                return Err(CodecError::NonCanonicalOrder(
-                    "scalar IEEE equality operands",
-                ));
-            }
-            Ok(())
-        }
-        Proposition::ByteSequenceEqual { left, right } => {
-            if left > right {
-                return Err(CodecError::NonCanonicalOrder(
-                    "byte-sequence equality operands",
-                ));
-            }
-            Ok(())
-        }
-        Proposition::StructuralCaseMembership { .. } => Ok(()),
-        Proposition::Conjunction(conjuncts) => {
-            if conjuncts
-                .iter()
-                .any(|conjunct| matches!(conjunct, Proposition::Conjunction(_)))
-            {
-                return Err(CodecError::NestedConjunction);
-            }
-            for conjunct in conjuncts {
-                validate_canonical_proposition(conjunct, depth + 1)?;
-            }
-            if !canonical_propositions_strictly_increase(conjuncts)? {
-                return Err(CodecError::NonCanonicalOrder("conjunction propositions"));
-            }
-            Ok(())
-        }
-        Proposition::Disjunction(disjuncts) => {
-            if disjuncts
-                .iter()
-                .any(|disjunct| matches!(disjunct, Proposition::Disjunction(_)))
-            {
-                return Err(CodecError::NestedDisjunction);
-            }
-            for disjunct in disjuncts {
-                validate_canonical_proposition(disjunct, depth + 1)?;
-            }
-            if !canonical_propositions_strictly_increase(disjuncts)? {
-                return Err(CodecError::NonCanonicalOrder("disjunction propositions"));
-            }
-            Ok(())
-        }
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => {
-            validate_canonical_proposition(premise, depth + 1)?;
-            validate_canonical_proposition(conclusion, depth + 1)
-        }
-        Proposition::ContentConservation(conservation) => {
-            validate_content_term_depth(conservation.left(), 0)?;
-            validate_content_term_depth(conservation.right(), 0)
         }
     }
+    Ok(())
 }
 
 fn validate_integer_math_term_depth(term: &IntegerMathTerm) -> Result<(), CodecError> {
@@ -1043,13 +1065,16 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
     Ok(())
 }
 
-fn validate_content_term_depth(term: &ContentTerm, depth: usize) -> Result<(), CodecError> {
-    if depth > MAX_CONTENT_TERM_DEPTH {
-        return Err(CodecError::ContentTermNestingTooDeep);
-    }
-    if let ContentTerm::Separate(terms) = term {
-        for term in terms {
-            validate_content_term_depth(term, depth + 1)?;
+fn validate_content_term_depth(term: &ContentTerm) -> Result<(), CodecError> {
+    let mut pending = vec![(term, 0_usize)];
+    while let Some((term, depth)) = pending.pop() {
+        if depth > MAX_CONTENT_TERM_DEPTH {
+            return Err(CodecError::ContentTermNestingTooDeep);
+        }
+        if let ContentTerm::Separate(terms) = term {
+            for term in terms {
+                pending.push((term, depth + 1));
+            }
         }
     }
     Ok(())

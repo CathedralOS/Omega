@@ -40,6 +40,7 @@ pub(super) fn artifact_parts(value: u64) -> (TerminalModule, ProofBundle) {
     };
     let call = |operation, result, callee, argument| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(operation).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -48,6 +49,7 @@ pub(super) fn artifact_parts(value: u64) -> (TerminalModule, ProofBundle) {
         }),
         kind: OperationKind::Call {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee,
             arguments: vec![argument],
             requirement_obligations: Vec::new(),
@@ -66,6 +68,7 @@ pub(super) fn artifact_parts(value: u64) -> (TerminalModule, ProofBundle) {
     let constant = ValueId::new(28_020).unwrap();
     entry.blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(28_021).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -449,6 +452,7 @@ fn mixed_arithmetic_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let zero = |id| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(id)),
         kind: OperationKind::IntegerConstant {
@@ -457,6 +461,7 @@ fn mixed_arithmetic_artifact() -> (Vec<u8>, Vec<u8>) {
     };
     let exact = |id, left, right, subtract| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(id).unwrap(),
         result: OperationResult::Scalar(declaration(id)),
         kind: if subtract {

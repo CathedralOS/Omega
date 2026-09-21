@@ -3,6 +3,7 @@ use crate::ConstantBranchReceipt;
 use crate::ValidatedConstantBranch;
 use crate::ValidatedSelectedAnalysis;
 use crate::fold_selected_constant_branch;
+use crate::rewrites::test_support::{instruction, measured_step_budget};
 use crate::validate_constant_branch_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
@@ -24,37 +25,6 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
 }
 
 const MATERIALIZE_A: SelectedInstructionId = SelectedInstructionId(2);
@@ -1367,7 +1337,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         ),
         (wider, 980u64),
     ] {
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result =
             fold_selected_constant_branch(&source, 0, BRANCH, &environment, exact).unwrap();
         validate_constant_branch_fold(
@@ -1379,7 +1349,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             fold_selected_constant_branch(&source, 0, BRANCH, &environment, starved).unwrap_err(),
             ConstantBranchError::WorkBudgetExceeded

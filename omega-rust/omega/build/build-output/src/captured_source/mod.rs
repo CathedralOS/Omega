@@ -606,10 +606,35 @@ fn unseal_materialized_tree(path: &Path) -> Result<(), CapturedSourceMaterializa
             })?;
             unseal_materialized_tree(&child.path())?;
         }
-    } else {
+    } else if !aliases_external_custody(&metadata) {
         unseal_captured_file(path)?;
     }
     Ok(())
+}
+
+/// A symlink or hard link inside the private tree aliases custody that is
+/// not this snapshot's alone: the mode write would follow the alias or share
+/// its inode with a host file outside the tree. Removal unlinks the entry
+/// itself, so an aliased entry has no mode to restore.
+fn aliases_external_custody(metadata: &std::fs::Metadata) -> bool {
+    metadata.file_type().is_symlink() || !has_single_link(metadata)
+}
+
+#[cfg(unix)]
+fn has_single_link(metadata: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    metadata.nlink() == 1
+}
+
+#[cfg(windows)]
+fn has_single_link(metadata: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    metadata.number_of_links().ok() == Some(1)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn has_single_link(_metadata: &std::fs::Metadata) -> bool {
+    true
 }
 
 #[cfg(unix)]

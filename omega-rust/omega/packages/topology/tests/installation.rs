@@ -1410,6 +1410,83 @@ fn a_binding_without_a_registered_schema_is_refused_at_admission() {
 }
 
 #[test]
+fn a_second_schema_registration_for_one_contract_is_refused_as_substitution() {
+    let (_, _, plan) = payment_pair();
+    let contract = plan.instances[0].endpoints[0].contract;
+    let mut schemas = OperationSchemas::new();
+    schemas
+        .register(contract, payment_operation_schema())
+        .expect("the contract's first operation table registers");
+    // Two operation tables for one contract identity is substitution, not
+    // versioning: re-presenting a registration for the governed contract
+    // refuses rather than replacing the law the codec enforces.
+    assert_eq!(
+        schemas.register(contract, OperationSchema::new([(77, PayloadSchema::Empty)])),
+        Err(SchemaRegistrationError::ContractAlreadyRegistered { contract })
+    );
+}
+
+#[test]
+fn a_replayed_schema_registration_is_refused_and_the_first_law_still_governs() {
+    let (_, _, plan) = payment_pair();
+    let contract = plan.instances[0].endpoints[0].contract;
+    let mut schemas = payment_operation_schemas();
+    // Re-presenting the contract's own table verbatim is still a second
+    // registration for one identity — replay is not dedup.
+    assert_eq!(
+        schemas.register(contract, payment_operation_schema()),
+        Err(SchemaRegistrationError::ContractAlreadyRegistered { contract })
+    );
+    // A refused re-registration must not replace the governing table: a
+    // table admitting operation 77 is refused to register, and the wire
+    // law the codec enforces is still the one that was registered first.
+    assert_eq!(
+        schemas.register(contract, OperationSchema::new([(77, PayloadSchema::Empty)])),
+        Err(SchemaRegistrationError::ContractAlreadyRegistered { contract })
+    );
+
+    let mut supervisor = SimSupervisor::<SimEndpoint>::new();
+    let (checked, request_bytes, _) = checked_payment_plan();
+    let prepared = prepare_installation(
+        checked,
+        supervisor
+            .lifecycle
+            .authorize(payment_installation_request(&request_bytes, 1))
+            .expect("owner authorization"),
+        SimAdapter::new(),
+        schemas,
+    )
+    .expect("preparation admits");
+    let mut installed = prepared
+        .activate(&mut supervisor)
+        .expect("activation admits");
+
+    let (request_id, request_token) = {
+        let end = installed.members()[0].end(0, ChannelEnd::RequestWrite);
+        (end.id, end.token)
+    };
+    let grant = installed
+        .authorize_send(request_id, request_token)
+        .expect("the send is granted");
+    let replayed_law = Frame {
+        operation: 77,
+        payload: Vec::new(),
+    };
+    assert_eq!(
+        installed.deliver_send(grant, Ok(&replayed_law)),
+        Err(DeliveryRefusal::Protocol {
+            binding: 0,
+            violation: SchemaViolation::UnlistedOperation { operation: 77 },
+        }),
+        "the refused table does not govern"
+    );
+    assert_eq!(
+        installed.authorize_send(request_id, request_token),
+        Err(InvocationRefusal::BindingClosed { binding: 0 })
+    );
+}
+
+#[test]
 fn a_schema_violating_frame_closes_the_binding() {
     let (mut installed, _) = installed_payment();
     let (request_id, request_token) = {

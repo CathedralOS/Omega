@@ -394,3 +394,124 @@ fn data_field_name(program: &TypedTrees, field_symbol: SymbolHandle) -> Option<&
             })
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{content_paths_match, content_segments_to_fact_path};
+    use language_semantics::content::{
+        ContentCaseSegment, ContentFieldSegment, ContentPlaceSegment,
+    };
+    use symbols::SymbolHandle;
+
+    fn case_segment(name: &str, arena_index: u32) -> ContentPlaceSegment {
+        ContentPlaceSegment::Case(ContentCaseSegment {
+            symbol: SymbolHandle::from_arena_index(arena_index),
+            name: name.to_owned(),
+        })
+    }
+
+    fn field_segment(name: &str, arena_index: u32) -> ContentPlaceSegment {
+        ContentPlaceSegment::Field(ContentFieldSegment {
+            symbol: SymbolHandle::from_arena_index(arena_index),
+            name: name.to_owned(),
+        })
+    }
+
+    #[test]
+    fn content_segments_to_fact_path_keeps_symbol_bound_segments() {
+        let segments = [
+            case_segment("Some", 7),
+            field_segment("payload", 9),
+            ContentPlaceSegment::FixedIndex(3),
+        ];
+        let path = content_segments_to_fact_path(&segments)
+            .expect("symbol-bound segments convert to a fact path");
+        assert!(matches!(
+            path.as_slice(),
+            [
+                facts::PlaceSegment::Case { variant }
+                    , facts::PlaceSegment::Field { symbol }
+                    , facts::PlaceSegment::FixedIndex { index: 3 }
+            ] if variant.arena_index() == 7 && symbol.arena_index() == 9
+        ));
+    }
+
+    #[test]
+    fn content_segments_to_fact_path_drops_symbol_free_segments() {
+        assert!(
+            content_segments_to_fact_path(&[case_segment("Some", 0)]).is_none(),
+            "a case segment with no variant symbol cannot become a fact path"
+        );
+        assert!(
+            content_segments_to_fact_path(
+                &[field_segment("kept", 4), field_segment("dropped", 0),]
+            )
+            .is_none(),
+            "one symbol-free field segment sinks the whole path"
+        );
+    }
+
+    #[test]
+    fn content_paths_match_compares_exact_segments() {
+        let left = [case_segment("Some", 7), field_segment("payload", 9)];
+        let right = [case_segment("Some", 7), field_segment("payload", 9)];
+        assert!(content_paths_match(&left, &right));
+    }
+
+    #[test]
+    fn content_paths_match_admits_symbol_free_names() {
+        // Contract-authored places may carry a name but no resolved symbol:
+        // equality then falls back to the spelled name alone.
+        assert!(content_paths_match(
+            &[field_segment("payload", 0)],
+            &[field_segment("payload", 9)],
+        ));
+        assert!(content_paths_match(
+            &[case_segment("Some", 7)],
+            &[case_segment("Some", 0)],
+        ));
+    }
+
+    #[test]
+    fn content_paths_match_rejects_symbol_disagreement() {
+        assert!(!content_paths_match(
+            &[field_segment("payload", 4)],
+            &[field_segment("payload", 9)],
+        ));
+        assert!(!content_paths_match(
+            &[case_segment("Some", 4)],
+            &[case_segment("Some", 9)],
+        ));
+    }
+
+    #[test]
+    fn content_paths_match_rejects_name_disagreement() {
+        assert!(!content_paths_match(
+            &[field_segment("payload", 9)],
+            &[field_segment("count", 9)],
+        ));
+    }
+
+    #[test]
+    fn content_paths_match_rejects_shape_disagreement() {
+        assert!(!content_paths_match(
+            &[case_segment("Some", 7)],
+            &[field_segment("Some", 7)],
+        ));
+        assert!(!content_paths_match(
+            &[field_segment("payload", 9)],
+            &[
+                field_segment("payload", 9),
+                ContentPlaceSegment::FixedIndex(0)
+            ],
+        ));
+        assert!(!content_paths_match(
+            &[ContentPlaceSegment::FixedIndex(3)],
+            &[ContentPlaceSegment::FixedIndex(4)],
+        ));
+        assert!(content_paths_match(
+            &[ContentPlaceSegment::FixedIndex(3)],
+            &[ContentPlaceSegment::FixedIndex(3)],
+        ));
+    }
+}

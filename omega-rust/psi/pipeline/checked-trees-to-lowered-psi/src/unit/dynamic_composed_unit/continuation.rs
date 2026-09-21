@@ -302,6 +302,7 @@ pub(super) fn lower(
     if let Some(id) = descriptor_store_operation {
         caller_operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id,
             result: OperationResult::Unit,
             kind: OperationKind::StoreDynamicDescriptor {
@@ -311,6 +312,7 @@ pub(super) fn lower(
     }
     caller_operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: call_operation,
         result: OperationResult::Scalar(call_result),
         kind: call_kind,
@@ -321,6 +323,7 @@ pub(super) fn lower(
         id: caller_block,
         parameters: Vec::new(),
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: caller_operations,
         terminator: Terminator::Conditional {
             condition,
@@ -500,6 +503,7 @@ fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge
         target,
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     })
 }

@@ -14,9 +14,7 @@
 //! changes.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedTerminator,
-};
+use selected_instructions::{SelectedBlockOrigin, SelectedInstructionId, SelectedTerminator};
 
 use super::EdgeRunRelocationError;
 use crate::ValidatedSelectedAnalysis;
@@ -26,8 +24,7 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::window_hazards::{RunRelocationRejection, admit_run_relocation, surface};
 
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
+pub(super) struct Admission {
     /// The run's own block: it ends in the crossed `Jump` edge.
     pub block_index: usize,
     /// The run's first member index in the block body.
@@ -44,15 +41,15 @@ pub(super) struct Admission<'source> {
     pub landing_index: usize,
 }
 
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
+pub(super) fn admit(
+    source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     first_member: SelectedInstructionId,
     last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
+    environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, EdgeRunRelocationError> {
+) -> Result<Admission, EdgeRunRelocationError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(EdgeRunRelocationError::SourceMismatch);
@@ -212,7 +209,6 @@ pub(super) fn admit<'source>(
         return Err(EdgeRunRelocationError::WorkBudgetExceeded);
     }
     Ok(Admission {
-        function,
         block_index,
         first_index,
         last_index,

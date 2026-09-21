@@ -37,9 +37,10 @@ python tools/claims.py claim --board TASKS.md --item TERMINATION-RANKING-CHECKS 
 ```
 
 Retain the returned ticket. `--board` validates the item's `**<item>.**`
-marker; omit it for work not on a board. `--path` repeats; paths are
-normalized to repository-relative form (Windows-style separators accepted).
-The default lease is 8 hours; `--lease-minutes` accepts 15..1440.
+marker; omit it for work not on a board. `--path` repeats, and each value may
+also be a comma-joined list (`--path a/b,c/d`); empty segments are rejected.
+Paths are normalized to repository-relative form (Windows-style separators
+accepted). The default lease is 8 hours; `--lease-minutes` accepts 15..1440.
 
 Exit 2 means a live conflicting claim exists; the JSON lists the owner, item,
 and either the shared item or the overlapping paths. Stop and coordinate —

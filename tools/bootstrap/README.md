@@ -60,8 +60,10 @@ recorded in its gate's README.
 `check-chain-hygiene.sh` is the single repository-topology gate. It positively
 enumerates the implemented compiler source/tape identities, inventories every
 retained source, test, and bootstrap-tool owner, rejects alternate bootstrap
-owners and native compiler identities above Alpha, and prevents a lower
-compiler owner from reaching beyond its immediate successor.
+owners and native compiler identities above Alpha, prevents a lower
+compiler owner from reaching beyond its immediate successor, and audits the
+manifested closure members plus bootstrap step surfaces for the
+Rust-producer omission contract.
 Owner roots come from tracked and nonignored untracked files in a Git checkout,
 or from physical files in a source archive. Empty directories left by a move do
 not create owners. `sh tests/bootstrap/chain-hygiene.sh` checks this inventory

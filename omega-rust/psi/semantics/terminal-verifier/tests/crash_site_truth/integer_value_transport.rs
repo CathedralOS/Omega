@@ -19,6 +19,7 @@ fn integer_guard(expected: bool) -> TerminalModule {
     checked.machines[0].blocks[0].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(1).unwrap(),
             result: OperationResult::Scalar(integer_declaration(3)),
             kind: OperationKind::IntegerConstant {
@@ -27,6 +28,7 @@ fn integer_guard(expected: bool) -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(integer_declaration(4)),
             kind: OperationKind::WrappingIntegerAdd {
@@ -36,6 +38,7 @@ fn integer_guard(expected: bool) -> TerminalModule {
         },
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(3).unwrap(),
             result: OperationResult::Scalar(declaration(5)),
             kind: OperationKind::IntegerLessOrEqual {

@@ -979,6 +979,7 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::FixedArray { .. }
             | StructuralTypeShape::Sum { .. }
             | StructuralTypeShape::Mixed { .. } => None,

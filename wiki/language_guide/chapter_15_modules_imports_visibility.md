@@ -114,7 +114,7 @@ builder.pcc.psi = true;
 builder.pcc.native = true;
 ```
 
-These fields remain implementation work. Psi PCC retains the Psi artifact and
+Both requests are implemented. Psi PCC retains the Psi artifact and
 its `.proof` sidecar; native PCC supplies a standalone sidecar next to the final
 executable. Neither enables ordinary checking—it already runs—and neither
 selects the receiver's trust policy. See
@@ -206,7 +206,7 @@ Use `::` to resolve a static name: a package, module, type, or associated
 declaration. Use `.` to access a field or call through a value.
 
 ```omega
-let room = dungeon::rooms::create();
+let room: dungeon::rooms::Room = dungeon::rooms::create();
 room.describe();
 ```
 
@@ -272,7 +272,7 @@ type owned by one of its dependencies. You may use that API without directly
 depending on the handle's owner:
 
 ```omega
-let handle = filesystem::open(path);
+let handle: filesystem::Handle = filesystem::open(path);
 filesystem::read(&handle);
 filesystem::close(handle);
 ```

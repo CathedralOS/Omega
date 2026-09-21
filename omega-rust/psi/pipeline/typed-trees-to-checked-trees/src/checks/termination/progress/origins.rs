@@ -69,7 +69,7 @@ pub(super) fn at_call(
         call,
         place,
         Some(frames),
-        &resolve,
+        resolve,
         |state, bound, place| {
             reference_boundary_before_statement(
                 program, frames, machine, state, bound, place, &resolve,
@@ -212,13 +212,8 @@ fn call_result_place(
     if depth == 0 {
         return None;
     }
-    let callee_state = crate::semantic_calls::find_state(program, call.target_symbol)?;
-    let callee = program.machines().iter().find(|candidate| {
-        program
-            .machine_states(candidate)
-            .iter()
-            .any(|state| state.symbol == callee_state.symbol)
-    })?;
+    let (callee, callee_state) =
+        crate::semantic_calls::find_state_with_machine(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
         || !callee.lifetime_parameters.is_empty()
@@ -683,7 +678,7 @@ fn callee_demanded_origin(
         body.prefix.len(),
         place,
         frames,
-        &resolve,
+        resolve,
         |state: &FlowStateFact, bound: usize, place: &CanonicalPlace| {
             reference_boundary_before_statement(
                 program,
@@ -920,7 +915,7 @@ where
             root: PlaceRoot::Symbol(root),
             segments: Vec::new(),
         };
-        let mut referent = match reference_bound_operand_place(
+        let mut referent = reference_bound_operand_place(
             program,
             frames,
             machine,
@@ -929,10 +924,7 @@ where
             local.initial_value,
             resolve,
             shared,
-        ) {
-            Some(place) => place,
-            None => return None,
-        };
+        )?;
         let mut captured = decl_index;
         for (index, statement) in statements
             .get(decl_index + 1..cursor)?
@@ -1104,21 +1096,17 @@ where
             // shared leaf's referent is its stored origin via the leaf scan;
             // a write-capable leaf's is the prefix's exact stored origin.
             // Provenance that stays unproven keeps the whole operand unproven.
-            let Some(root_type) =
-                statements_local_type(program, state, root, index).or_else(|| {
-                    crate::semantic_calls::find_state(program, state.state_symbol).and_then(
-                        |typed_state| {
-                            program
-                                .state_parameters(typed_state)
-                                .iter()
-                                .find(|parameter| parameter.symbol == root)
-                                .map(|parameter| parameter.type_reference)
-                        },
-                    )
-                })
-            else {
-                return None;
-            };
+            let root_type = statements_local_type(program, state, root, index).or_else(|| {
+                crate::semantic_calls::find_state(program, state.state_symbol).and_then(
+                    |typed_state| {
+                        program
+                            .state_parameters(typed_state)
+                            .iter()
+                            .find(|parameter| parameter.symbol == root)
+                            .map(|parameter| parameter.type_reference)
+                    },
+                )
+            })?;
             let reached = flow::project_type_reference_from_segments(
                 program,
                 root_type,

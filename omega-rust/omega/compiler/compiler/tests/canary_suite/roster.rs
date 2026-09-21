@@ -221,11 +221,16 @@ fn pass_roster() -> Vec<&'static str> {
     fixtures
 }
 
+/// Fail fixtures pinned outside a `fixture_rosters` module: this hub is the
+/// only registration surface their planner lane authorizes.
+const HUB_PINNED_FAIL_CANARIES: &[&str] = &["arithmetic/trapping_shift_requires_realization"];
+
 fn file_expectation_fail_roster() -> Vec<&'static str> {
     // Cross-target rows only annotate compilation scheduled by these arrays.
     CHECKED_ONLY_FAIL_CANARIES
         .iter()
         .chain(ACTIVE_FAIL_CANARIES)
+        .chain(HUB_PINNED_FAIL_CANARIES)
         .chain(domains_control_and_structures::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(proof_and_float_suites::FILE_EXPECTATION_FAIL_CANARIES)
         .chain(proof_and_float_suites::RANGE_GATED_ESTABLISHMENT_FILE_FAIL_CANARIES)

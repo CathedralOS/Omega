@@ -108,7 +108,21 @@ pub(super) fn decode_call_plan(
 
 fn encode_callback(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
     bytes.extend_from_slice(&row.binder.get().to_le_bytes());
-    match &row.destination {
+    encode_native_place(bytes, &row.destination);
+}
+
+fn decode_callback(
+    cursor: &mut Cursor<'_>,
+) -> Result<CallbackMaterialization, FixedViewCopyDecodeError> {
+    let binder = decode_nominal(cursor, StaticMachineBinderId::new)?;
+    Ok(CallbackMaterialization {
+        binder,
+        destination: decode_native_place(cursor)?,
+    })
+}
+
+pub(super) fn encode_native_place(bytes: &mut Vec<u8>, destination: &NativePlace) {
+    match destination {
         NativePlace::Parameter(parameter) => {
             bytes.push(1);
             bytes.extend_from_slice(&parameter.get().to_le_bytes());
@@ -129,12 +143,14 @@ fn encode_callback(bytes: &mut Vec<u8>, row: &CallbackMaterialization) {
     }
 }
 
-fn decode_callback(
+pub(super) fn decode_native_place(
     cursor: &mut Cursor<'_>,
-) -> Result<CallbackMaterialization, FixedViewCopyDecodeError> {
-    let binder = decode_nominal(cursor, StaticMachineBinderId::new)?;
-    let destination = match cursor.byte()? {
-        1 => NativePlace::Parameter(decode_nominal(cursor, NativeParameterId::new)?),
+) -> Result<NativePlace, FixedViewCopyDecodeError> {
+    match cursor.byte()? {
+        1 => Ok(NativePlace::Parameter(decode_nominal(
+            cursor,
+            NativeParameterId::new,
+        )?)),
         2 => {
             let parameter = decode_nominal(cursor, NativeParameterId::new)?;
             let layout = decode_nominal(cursor, LayoutPlanId::new)?;
@@ -143,18 +159,14 @@ fn decode_callback(
             for _ in 0..count {
                 field_path.push(decode_nominal(cursor, LayoutSlotId::new)?);
             }
-            NativePlace::Field {
+            Ok(NativePlace::Field {
                 parameter,
                 layout,
                 field_path,
-            }
+            })
         }
-        tag => return Err(FixedViewCopyDecodeError::UnknownNativePlace(tag)),
-    };
-    Ok(CallbackMaterialization {
-        binder,
-        destination,
-    })
+        tag => Err(FixedViewCopyDecodeError::UnknownNativePlace(tag)),
+    }
 }
 
 pub(super) fn encode_placement(bytes: &mut Vec<u8>, placement: &ValuePlacement) {

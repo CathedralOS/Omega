@@ -44,7 +44,7 @@ pub(super) fn propagate_statement_transfers(
     // holds a declared domain after the write exactly when it held it
     // before, and those rows are re-established below.
     let mut candidate_targets: Vec<CanonicalPlace> = Vec::new();
-    let (target_place, source_expression, source_place) = match statement {
+    let (mut target_place, source_expression, source_place) = match statement {
         StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => return,
         StatementNode::LocalData(local_data) => (
             semantic.append_symbol_place(local_data.symbol),
@@ -145,20 +145,6 @@ pub(super) fn propagate_statement_transfers(
         }
     };
     let source_label = program.expression_table.display_name(source_expression);
-    // A runtime index can change without writing the collection. Until value
-    // facts retain index dependencies, only immutable selectors carry values.
-    let stable_value_target = semantic
-        .place_segments
-        .span_or_empty(semantic.places.get(target_place).segments)
-        .iter()
-        .all(|segment| {
-            matches!(
-                segment,
-                facts::PlaceSegment::Field { .. }
-                    | facts::PlaceSegment::Case { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
-            )
-        });
 
     let mut refs = HandleSpan::empty();
     let context_handles: Vec<_> = ctx
@@ -168,6 +154,63 @@ pub(super) fn propagate_statement_transfers(
         .iter()
         .map(|context_ref| context_ref.context)
         .collect();
+
+    // A runtime index can change without writing the collection. Until value
+    // facts retain index dependencies, only immutable selectors carry values.
+    // A selector whose live value is already pinned names the one exact
+    // element this write hits, though: narrow its `Index` segment to the
+    // `FixedIndex` it selects at this point -- the same narrowing the
+    // requires-side read performs (`projected_formal_leaf_value` in
+    // checks/contracts/direct.rs) -- so the recorded fact lands on the place
+    // callers actually read instead of an unreachable runtime spelling.
+    let mut target_segments: Vec<facts::PlaceSegment> = semantic
+        .place_segments
+        .span_or_empty(semantic.places.get(target_place).segments)
+        .to_vec();
+    for segment in &mut target_segments {
+        let facts::PlaceSegment::Index { expression } = *segment else {
+            continue;
+        };
+        let Some(selector) = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            expression,
+        ) else {
+            continue;
+        };
+        let Some(facts::ScalarValue::Integer(index)) = crate::values::scalar_value_at_place(
+            program,
+            semantic,
+            context_handles
+                .iter()
+                .map(|handle| semantic.contexts.get(*handle)),
+            &selector,
+        ) else {
+            continue;
+        };
+        if let Some(index) = index.to_u64().and_then(|index| usize::try_from(index).ok()) {
+            *segment = facts::PlaceSegment::FixedIndex { index };
+        }
+    }
+    let stable_value_target = target_segments.iter().all(|segment| {
+        matches!(
+            segment,
+            facts::PlaceSegment::Field { .. }
+                | facts::PlaceSegment::Case { .. }
+                | facts::PlaceSegment::FixedIndex { .. }
+        )
+    });
+    if stable_value_target
+        && target_segments
+            != semantic
+                .place_segments
+                .span_or_empty(semantic.places.get(target_place).segments)
+    {
+        let root = semantic.places.get(target_place).root;
+        target_place =
+            crate::semantic_places::append_place_with_segments(semantic, root, &target_segments);
+    }
 
     if let Some(source) = source_place {
         let source = semantic.places.get(source);
@@ -651,7 +694,7 @@ pub(super) fn propagate_statement_transfers(
     let declared_target_domains = match statement {
         StatementNode::Assignment(assignment) => {
             match (
-                crate::facts::field_domain::machine_by_symbol(program, machine_symbol),
+                crate::lookup::machine_by_symbol(program, machine_symbol),
                 crate::semantic_calls::find_state_in_machine(program, machine_symbol, state_symbol),
             ) {
                 (Some(machine), Some(state)) => {
@@ -1067,10 +1110,7 @@ fn correspondence_root_type_reference(
     formation_statement_index: usize,
     root: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
     let state = program
         .machine_states(machine)
         .iter()
@@ -1136,10 +1176,7 @@ fn correspondence_data_type(
         typed_trees::types::TypeReferenceNode::Named { symbol, name }
             if *symbol == machine_symbol && name.as_str() == "Self" =>
         {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
+            let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
             machine.attached_data_symbol.is_valid().then_some(())?;
             program
                 .data_definitions()

@@ -124,7 +124,7 @@ fn exact_five_call_nominal_affine_cleanup_validates_and_verifies_in_order() {
 }
 
 #[test]
-fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
+fn two_call_nominal_affine_cleanup_admits_nonempty_bodies_and_rejects_uncalled_helpers() {
     let mut repeated = two_call_executable_nominal_affine_module();
     let first_callee = match repeated.machines[1].blocks[0].operations[0].kind {
         OperationKind::CallUnit { callee, .. } => callee,
@@ -146,10 +146,12 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
         .operations
         .push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: machine_id(3),
                 structural_arguments: Vec::new(),
@@ -158,18 +160,17 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
                 crash_continuations: Vec::new(),
             },
         });
-    assert!(matches!(
-        validate_module(&nonempty_second),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&nonempty_second).expect("a helper body lowers like any other Unit machine");
 
     let mut third_call = two_call_executable_nominal_affine_module();
     third_call.machines[1].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: Vec::new(),
@@ -178,10 +179,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
             crash_continuations: Vec::new(),
         },
     });
-    assert!(matches!(
-        validate_module(&third_call),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&third_call).expect("recalling an already-called helper is ordinary code");
 
     let mut extra_helper = two_call_executable_nominal_affine_module();
     let mut unused = extra_helper.machines[3].clone();
@@ -201,7 +199,7 @@ fn two_call_nominal_affine_cleanup_rejects_repeated_or_nonempty_helpers() {
 }
 
 #[test]
-fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
+fn one_call_nominal_affine_cleanup_rejects_recursive_and_uncalled_helpers() {
     let mut recursive_target = executable_nominal_affine_module();
     let cleanup_id = recursive_target.machines[1].id;
     let OperationKind::CallUnit { callee, .. } =
@@ -220,10 +218,12 @@ fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
         .operations
         .push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 arguments: Vec::new(),
                 callee: machine_id(3),
                 structural_arguments: Vec::new(),
@@ -234,7 +234,7 @@ fn one_call_nominal_affine_cleanup_rejects_nonexact_closures() {
         });
     assert!(matches!(
         validate_module(&nonempty_helper),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+        Err(ModuleError::RecursiveCallSliceNotYetSupported(_))
     ));
 
     let mut extra_machine = executable_nominal_affine_module();
@@ -387,7 +387,7 @@ fn nominal_affine_cleanup_rejects_forged_target_and_unsupported_field_type() {
 }
 
 #[test]
-fn nominal_affine_cleanup_rejects_contract_carrying_members_and_self() {
+fn nominal_affine_cleanup_admits_hook_ensures_and_rejects_other_contract_carriers() {
     let mut ensured_caller = nominal_affine_module();
     ensured_caller.machines[0]
         .contract
@@ -424,10 +424,7 @@ fn nominal_affine_cleanup_rejects_contract_carrying_members_and_self() {
             obligation: obligation_id(1),
             proposition: Proposition::Truth,
         });
-    assert!(matches!(
-        validate_module(&ensured_target),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&ensured_target).expect("the hook may declare ensures like any Unit machine");
 
     let mut crashing_target = nominal_affine_module();
     crashing_target.machines[1]
@@ -458,7 +455,7 @@ fn nominal_affine_cleanup_rejects_contract_carrying_members_and_self() {
 }
 
 #[test]
-fn executable_nominal_affine_cleanup_rejects_contract_or_unattached_helpers() {
+fn executable_nominal_affine_cleanup_helpers_carry_ordinary_contracts() {
     let mut ensured_helper = executable_nominal_affine_module();
     ensured_helper.machines[2]
         .contract
@@ -467,10 +464,7 @@ fn executable_nominal_affine_cleanup_rejects_contract_or_unattached_helpers() {
             obligation: obligation_id(1),
             proposition: Proposition::Truth,
         });
-    assert!(matches!(
-        validate_module(&ensured_helper),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&ensured_helper).expect("helper contracts are ordinary machine contracts");
 
     let mut required_helper = executable_nominal_affine_module();
     required_helper.machines[2]
@@ -479,7 +473,7 @@ fn executable_nominal_affine_cleanup_rejects_contract_or_unattached_helpers() {
         .push(Proposition::Truth);
     assert!(matches!(
         validate_module(&required_helper),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+        Err(ModuleError::CallRequirementArityMismatch { .. })
     ));
 
     let mut crashing_helper = executable_nominal_affine_module();
@@ -494,15 +488,13 @@ fn executable_nominal_affine_cleanup_rejects_contract_or_unattached_helpers() {
         });
     assert!(matches!(
         validate_module(&crashing_helper),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
+        Err(ModuleError::UnitCallContractPlaceHasNoArgument { .. })
     ));
 
     let mut unattached_helper = executable_nominal_affine_module();
     unattached_helper.machines[2].attachment = None;
-    assert!(matches!(
-        validate_module(&unattached_helper),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&unattached_helper)
+        .expect("helper attachment is no longer part of the cleanup fence");
 
     let mut nonempty_helper_attachment = executable_nominal_affine_module();
     nonempty_helper_attachment.structural_types[1].shape = StructuralTypeShape::Record {
@@ -513,10 +505,8 @@ fn executable_nominal_affine_cleanup_rejects_contract_or_unattached_helpers() {
             relevance: terminal_psi::BindingRelevance::Relevant,
         }],
     };
-    assert!(matches!(
-        validate_module(&nonempty_helper_attachment),
-        Err(ModuleError::InvalidNominalAffineCleanup { .. })
-    ));
+    validate_module(&nonempty_helper_attachment)
+        .expect("helper attached shapes are ordinary records");
 }
 
 #[test]
@@ -1023,6 +1013,7 @@ fn projected_unit_calls_accept_only_the_exact_unqualified_whole_claim_slice() {
     qualified_caller
         .structural_domains
         .push(StructuralDomainDeclaration {
+            establishment_routes: Vec::new(),
             id: domain_id(2),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
             identity: "ArrayPending".into(),
@@ -1175,11 +1166,13 @@ fn linear_projected_custody_survives_an_empty_jump() {
         target: block_id(3),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     module.machines[0].blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(3),
         parameters: Vec::new(),
@@ -1531,10 +1524,12 @@ fn projected_move_blocks_later_whole_root_use() {
     module.machines.push(whole_callee);
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(6),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             arguments: Vec::new(),
             callee: machine_id(3),
             structural_arguments: vec![StructuralArgument {

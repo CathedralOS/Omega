@@ -18,6 +18,7 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 fn result(place: u64) -> OperationResult {
     OperationResult::Structural(terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
         place: place_id(place),
         structural_type: structural_type_id(1),
         multiplicity: StructuralMultiplicity::Unrestricted,
@@ -44,6 +45,7 @@ fn jump(edge: u64, target: u64) -> Terminator {
         target: block_id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     }
@@ -74,6 +76,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
     helper.blocks[1].operations = vec![
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(12),
             result: result(4),
             kind: OperationKind::ByteSequenceSubslice {
@@ -87,10 +90,12 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
         integer(14, 64, 0),
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(13),
             result: OperationResult::Unit,
             kind: OperationKind::CallUnit {
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 callee: machine_id(3),
                 arguments: vec![value_id(14)],
                 structural_arguments: vec![StructuralArgument {
@@ -108,6 +113,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
     helper.blocks[2].terminator = jump(5, 5);
     helper.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         structural_parameters: Vec::new(),
         id: block_id(5),
         parameters: Vec::new(),
@@ -124,12 +130,14 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
     inspector.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(6),
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(30),
                     result: OperationResult::Scalar(scalar(30, 64)),
                     kind: OperationKind::ByteSequenceLength {
@@ -139,6 +147,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
                 length_effect(34, 30),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(31),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -159,12 +168,14 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(7),
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(35),
                     result: result(6),
                     kind: OperationKind::ByteSequenceSubslice {
@@ -177,6 +188,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(36),
                     result: OperationResult::Scalar(scalar(36, 64)),
                     kind: OperationKind::ByteSequenceLength {
@@ -185,6 +197,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
                 },
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(37),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),
@@ -205,6 +218,7 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(8),
             parameters: Vec::new(),
@@ -213,12 +227,14 @@ fn module(bytes: Vec<u8>) -> TerminalModule {
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             structural_parameters: Vec::new(),
             id: block_id(9),
             parameters: Vec::new(),
             operations: vec![
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(32),
                     result: OperationResult::Scalar(scalar(32, 8)),
                     kind: OperationKind::ByteSequenceRead {
@@ -389,6 +405,7 @@ fn subslice_boundary_receives_only_the_window_and_preserves_caller_continuation(
             1,
             Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: operation_id(15),
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
@@ -443,6 +460,7 @@ fn subslice_rejects_fake_wrong_source_later_sibling_and_reobserved_lengths() {
         let mut changed = base.clone();
         let mut length = Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(15),
             result: OperationResult::Scalar(scalar(15, 64)),
             kind: OperationKind::ByteSequenceLength {
@@ -697,6 +715,7 @@ fn subslice_types_and_borrowed_return_are_not_implicitly_supported() {
         0,
         Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: operation_id(15),
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),

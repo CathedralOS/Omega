@@ -157,7 +157,15 @@ pub(crate) fn build_checked_value_computation_plans(
                         || (matches!(statement, StatementNode::LocalData(_))
                             && structural_values::is_shared_borrow_value(
                                 program, expression, expected,
-                            )))
+                            ))
+                        // A `&[T]` view local lends an existing collection the
+                        // same way `&place` lends a record: its value is the
+                        // lent place under the loan checked borrow admission
+                        // already recorded, so it belongs to the same
+                        // LocalData admission rather than to a producer family
+                        // of its own.
+                        || (matches!(statement, StatementNode::LocalData(_))
+                            && structural_values::is_borrowed_slice_view_value(program, expected)))
                     && let Some(root) =
                         builder.structural_value(expression, expected, &mut structural_values, pure)
                 {
@@ -242,6 +250,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     };
                     builder.record_call_arguments(
                         pure,
+                        &mut structural_values,
                         statement_ordinal,
                         call_ordinal,
                         call.target_symbol,
@@ -266,6 +275,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         // become computations, before the destination enters scope.
                         builder.record_call_arguments(
                             pure,
+                            &mut structural_values,
                             statement_ordinal,
                             0,
                             call.target_symbol,
@@ -317,6 +327,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 if let StatementNode::Call(call) = statement {
                     builder.record_call_arguments(
                         pure,
+                        &mut structural_values,
                         statement_ordinal,
                         0,
                         call.target_symbol,
@@ -330,6 +341,7 @@ pub(crate) fn build_checked_value_computation_plans(
                 {
                     builder.record_call_arguments(
                         pure,
+                        &mut structural_values,
                         statement_ordinal,
                         0,
                         call.target_symbol,
@@ -843,6 +855,9 @@ impl Builder<'_, '_> {
         }
         match self.program.expression_table.expression(expression).clone() {
             ExpressionNode::Call(call) => {
+                if let Some(selection) = self.integer_min_max(expression, &call, expected_type) {
+                    return Some(selection);
+                }
                 if !call.machine_arguments.is_empty()
                     || !call.evidence_arguments.is_empty()
                     || call.static_requirement_dispatch.is_some()
@@ -851,13 +866,11 @@ impl Builder<'_, '_> {
                 {
                     return None;
                 }
-                let target_machine = self.program.machines().iter().find(|machine| {
-                    self.program
-                        .machine_states(machine)
-                        .first()
-                        .is_some_and(|state| state.symbol == call.target_symbol)
-                })?;
-                let target_state = self.program.machine_states(target_machine).first()?;
+                let (target_machine, target_state) =
+                    crate::semantic_calls::find_machine_by_entry_state(
+                        self.program,
+                        call.target_symbol,
+                    )?;
                 let has_runtime_receiver =
                     !self
                         .program
