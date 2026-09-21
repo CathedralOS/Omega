@@ -116,16 +116,16 @@ Measurement alone never establishes admission.
 
 ## Status
 
-The reference compiler implements the whole lifecycle in
+The reference compiler implements the linear lifecycle model in
 `omega-rust/omega/backend/runtime/executable-installation/`: admit, materialize,
 freeze, validate, install, retire and quarantine, with every failed transition
 returning its inputs. Install and retirement receipts carry the demanded
 provider-canonical fact digests; the replacement join patches declared entries
-with bound admitted fragments before the superseded custody drains; a provider
-operation performs the write-to-execute transition itself (final bytes resident,
-ordering, readback, then write authority suspended), and a sealed entry
-reference hands physical invocation a borrow that blocks retire or patch until
-release. What remains ahead is the authored route: no Omega source yet names an
-admitted artifact, placement or installed code, so no program reaches this
-boundary end to end. That leg is tracked under
+with bound admitted fragments before the superseded custody drains.
+`OwnedImageProvider` performs convention-controlled resident-buffer operations,
+and its driver composes the lifecycle gates. A sealed entry reference hands the
+executor a resident-byte borrow that blocks retirement or patching until release;
+it does not perform a physical control transfer or target-specific execute/cache
+operations. The authored provider route and matching-host installation/invocation
+remain necessary for an end-to-end program. Those joins are tracked under
 `WIRE-RUNTIME-AND-INSTALLATION` on [TASKS.md](../../../TASKS.md).
