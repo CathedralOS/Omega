@@ -7756,6 +7756,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `0f75a052f0` stands; the only in-window bootstrap commit is
   `be849161f7` (delta/epsilon seed gates refuse on unaudited hosts), which
   strengthens the host-refusal legs and leaves the VERIFIED edge intact.
+- **BOOTSTRAP-CHAIN-NATIVE-EXECUTION.** — mined candidate; covered-alias
+  of BOOTSTRAP-HOST-COVERAGE's recorded native-execution evidence,
+  re-verified at `f600f8400b` on linux x86-64 (z181):
+  `tools/bootstrap/check-chain-hygiene.sh` OK here; the host-feasible
+  seed-execution legs are already recorded green on the board —
+  `tests/alpha/conformance.sh` 34/34, native bounds 78/78, seed parity
+  33/33, Beta reconstruction byte-identical, word-prefix 736/736,
+  compiler-diamond 6/6, `alpha-beta-edge.sh --edge` VERIFIED on the
+  audited `alpha_x64_linux` seed — and `tests/bootstrap/*-identity.sh`
+  plus `source-closure.sh` run host-free. Residual native legs are
+  host-gated to owning items: literal Windows Git Bash route +
+  macOS/Windows seed hosts (ALPHA-WINDOWS-CONFORMANCE,
+  GAMMA-DERIVATION-CHECKER native acceptance), and the D->omega0/omega
+  tapes await OMEGA-C. Nothing implementable remains on this host class.
+
 - **BOOTSTRAP-OMEGA-D-COMPILER.** Scope verified 2026-09-20: this mined stub
   re-covers **OMEGA-D** in [TASKS_BOOTSTRAP.md](TASKS_BOOTSTRAP.md), the real
   tracked item completing the Epsilon closure
