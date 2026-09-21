@@ -16369,7 +16369,23 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   SELECTED-REWRITE-CATALOG-EXECUTION; no independent slice.
   SEED-PARITY-ASSERTIONS.
 - **SEED-PARITY-ASSERTIONS** — mined candidate; verify scope then implement.
-- **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES** — mined candidate; verify scope then implement.
+- **SELECTED-DISPATCH-SERVICE-CARRIER-FIXTURES.** Scope verified at
+  `2a9f9c02ad6` — names the selected-dispatch libtest family recorded by
+  RC-REPOSITORY-CLOSURE's `18cebfa1062`-era census: 64 failures, mostly
+  `Service<R>`-spelling stale fixtures inside
+  `omega-rust/omega/build/selected-dispatch/` (the `boundary_dispatch`
+  test tree). The migration recipe is proven by sibling
+  BASELINE-SERVICE-CARRIER-FAILURES (`62c502f9f6`): bare
+  `console: Console`/`runtime: TaskRuntime`/`output: Output` value
+  spellings migrate to `&'s mut Service<…>` receivers per the
+  `0e1977994b` raw-pipeline recipe. Caveat per that row: migrated
+  members still stop at `signature`-phase local construction, joining
+  the missing-transitive-machine-plan family until ENTRY-CONTENT-ROOTS'
+  receiver-lifecycle leg lands — fixture migration alone cannot turn
+  this family green, and `selected-dispatch/src/service_custody.rs` is
+  itself fenced by ENTRY-CONTENT-ROOTS (linw2, exp 09:57Z). No
+  green-producing slice exists under this stub this wave; the fixture
+  tree stays workable in increments alongside the family owner.
 - **SELECTED-OPTIMIZATION-ANCESTRY-ELIMINATION.** Resolved — sibling stub
   on the settled SELECTED-OPTIMIZATION-ANCESTRY-REMOVAL surface, named in
   that cluster's re-mine list (:9612). The elimination is landed: staged
