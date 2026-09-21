@@ -14591,6 +14591,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   idiom does not recur. Sibling stubs resolved on the same clause:
   WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
   WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
+- **WINDOWS-SET-FILE-TIME-RESPELL.** Resolved — the named repair
+  landed at `ff782bdf21` and stands at `b868b9ee8f270`:
+  `tests/omega/pass/filesystem/windows_set_file_time_exit/main.omg`
+  assembles `st_mtime` in the unsigned `u64` carrier
+  (`widen_u8_to_u64(byte) << N` per byte, `narrow_u64_to_i64_wrapping`
+  once at the landing — `255 << 56` stays Exact-representable only in
+  `u64`; the overflowing `widen_u8_to_i64(byte) << 56` idiom does not
+  recur), and the fixture is registered in `CHECKED_ONLY_PASS_CANARIES`
+  (`canary_suite.rs`). The native-execution leg is Windows-gated — the
+  entry's `Main::fs` wants a selected fused `FilesystemHost` provider —
+  so it is unmeasurable on this linux x86-64 host and stays attributed
+  there (`wiki/drafts/known_baseline_failures.md`,
+  BASELINE-CANARY-PASS-CLUSTER disposition). No slice remains on this
+  host. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL,
+  WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
+  WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL, FILESYSTEM-WINDOWS-FILETIME-RESPELL.
 - **WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified, covered — the stub is the "unsigned carrier" clause of WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with FILESYSTEM-WINDOWS-FILETIME-RESPELL): `known_baseline_failures.md` already names the respelling — `widen_u8_to_i64(byte) << 56` intermediates (about 1.84e19/4.28e9 against the i64/i32 ceilings) assemble in the unsigned carrier of the field's own width and reinterpret once at landing — and records that `tests/omega/pass/filesystem/windows_set_file_time_exit` is Windows-gated, so neither its failure nor its repair can be measured on a non-Windows host. The parent item owns the leg; no independent slice exists here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER.
 - **WORKLOAD-CORPUS.** Mined candidate; scope verified (re-verified at
   0f5ae41e7d), authorization gate recorded. Re-mines WORKLOAD-CORPUS-AND-MULTIVERSIONING's corpus leg (the versioned workload corpus that GRAPH-COST-MODEL-STUDY's `predicted_cost_delta` comparison is missing). Source doc `wiki/drafts/learned_optimization_policy.md` authorizes no implementation: the corpus is a far-future extension gated on the Omega-written product compiler (OMEGA-PRODUCT-COMPILER-SOURCE) plus a concrete justification, and `wiki/spec/build/optimizations.md` forbids trainer-side machinery in the Rust reference compiler. The versioned workload surface that exists today is BENCHMARKS' `tools/benchmark` records. Same verdict already recorded on sibling GRAPH-COST-EVIDENCE-CORPUS; other sibling stub on this gated surface: OPTIMIZATION-WORKLOAD-CORPUS.
