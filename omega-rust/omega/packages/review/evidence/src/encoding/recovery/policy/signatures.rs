@@ -68,6 +68,9 @@ pub(super) fn type_parameter(reader: &mut Reader<'_>) -> Result<PackageReviewTyp
                 parameters: reader.sequence(8, |reader| {
                     Ok(PackageReviewPropositionParameterValue {
                         type_identity: type_identity(reader)?,
+                        is_const: reader.boolean()?,
+                        is_mutable: reader.boolean()?,
+                        is_self: reader.boolean()?,
                     })
                 })?,
             },

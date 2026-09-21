@@ -28,6 +28,9 @@ pub(super) fn generic_fixture() -> PackagePolicyTerminalPermissions {
                         type_identity: PackageReviewTypeIdentity {
                             canonical: "u64".into(),
                         },
+                        is_const: false,
+                        is_mutable: false,
+                        is_self: false,
                     }],
                 },
             ),

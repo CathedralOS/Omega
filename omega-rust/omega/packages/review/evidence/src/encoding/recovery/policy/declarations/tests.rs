@@ -63,6 +63,9 @@ fn parameters() -> Vec<PackageReviewTypeParameter> {
                 PackageReviewPropositionParameterSignature {
                     parameters: vec![PackageReviewPropositionParameterValue {
                         type_identity: value_type(),
+                        is_const: false,
+                        is_mutable: true,
+                        is_self: false,
                     }],
                 },
             ),
