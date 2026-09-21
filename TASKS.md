@@ -9127,28 +9127,32 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   returns `Unknown`. Consumer binding in the selected-instructions rewrites
   stays under ALIAS-AWARE-MEMORY.
 - **PLACE-STORAGE-EXTENT-OWNER.** Mined candidate; scope verified at
-  `797e99ead7`: names the storage-extent ownership surface — `Extent`
-  (linear `base`/`length`, `source/library/core/extent.omg`) qualified
-  `Extent in Granted` only through an owner-authorized route
-  (`established by ExtentRootProvider::grant, ProgramStorageEntry::enter,
-  DeviceLoanProvider::complete` — "the domain owner authorizes exactly this
-  admitted root crossing"), and resident ownership `Extent::Resident<P,T>`
-  over an exact placement per
+  `066d3b3472` (re-verified from `797e99ead7`): names the
+  storage-extent ownership surface — `Extent` (linear `base`/`length`,
+  `source/library/core/extent.omg`) qualified `Extent in Granted` only
+  through an owner-authorized route (`established by
+  ExtentRootProvider::grant, ProgramStorageEntry::enter,
+  DeviceLoanProvider::complete` — "the domain owner authorizes exactly
+  this admitted root crossing"), and resident ownership
+  `Extent::Resident<P,T>` over an exact placement per
   [placed_access](wiki/spec/resources/placed_access.md) /
   [chapter_20](wiki/language_guide/chapter_20_memory_layout_abi.md#admission-and-placement).
-  Currently unworkable — every implementing surface sits inside live
-  fences this wave: the `ProgramStorageEntry`/`initial_storage` entry leg
-  is **ENTRY-CONTENT-ROOTS** (Zergling-193, ~2026-09-21T01:45Z) with the
-  UEFI arrival leg under UEFI-PHYSICAL-SEMANTIC-ENTRY (~22:59Z); the
-  placed-access route (terminal-psi ownership/placement, access-plans
+  Still unworkable — every implementing surface sits inside live fences:
+  the placed-access route (terminal-psi ownership/placement, access-plans
   `owned_placement_lifecycle`, placed_view_referent, native-realization)
-  is split across PLAN-LAID-VIEWS (~02:30Z) and PLACED-ACCESS-NATIVE-OPS
-  (~00:56Z — space-joined path entry `conflicts()` does not match; treat
-  as claimed intent per the PROCESS-EXIT-PORTABLE-OBSERVATION note); the
-  alias-analysis crate is PLACE-ALIAS-ANALYSIS-PRODUCER (~22:30Z). No
-  unfenced slice remains. Sibling re-mines on this family:
-  PLACE-ACCESS-GEOMETRY, PLACED-ACCESS-NATIVE-OPS (claimed), plus the
-  entered-extent siblings under ENTRY-CONTENT-ROOTS.
+  is split across PLAN-LAID-VIEWS (~09:25Z Sep 21) and
+  PLACED-ACCESS-NATIVE-OPS (~06:27Z Sep 21); the UEFI arrival leg under
+  UEFI-PHYSICAL-SEMANTIC-ENTRY (~08:44Z Sep 21). Adjacent extent/entry
+  surfaces also fenced: RUNTIME-SIZED-ACTIVATION-STORAGE
+  (`psi/foundation/extents`, ~01:34Z), CONST-GENERIC-EXTENT-RANGE-DISCHARGE
+  (ranges checks, ~09:26Z), HOSTILE-SHARED-MEMORY-REMAPPING
+  (`external-roots/program_local_extents`), BORROWED-STORAGE-RESTORATION
+  (`borrowed_window` emission). ENTRY-CONTENT-ROOTS and
+  PLACE-ALIAS-ANALYSIS-PRODUCER claims have since expired, but no
+  unfenced slice remains — their surfaces are co-held by the claims
+  above. Sibling re-mines on this family: PLACE-ACCESS-GEOMETRY,
+  PLACED-ACCESS-NATIVE-OPS (claimed), plus the entered-extent siblings
+  under ENTRY-CONTENT-ROOTS.
 - **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
   handed off by **WRITE-ONLY-BORROW**. The checked producer, Terminal verifier,
   codec/interpreter and verified abstract inventory already carry the runtime
