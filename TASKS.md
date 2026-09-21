@@ -7083,6 +7083,20 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   TV-BOUNDARY-SETTLEMENTS-REPLAY into next day). No independent slice is
   landable from this row. Re-verified at `7110606f46` — the same-item
   claim remains live and no new leg landed since `db3dfb4302`.
+  Re-witnessed at `f501d377d8`: the recorded frontier moved upstream —
+  `native_uefi_os_handoff_invocation_reports_missing_boundary_plan` no longer
+  exists; bodied boundary machines now lower as ordinary Unit callees and
+  `&mut` boundary requirements carry caller-side plans, so gap (a) landed.
+  The pinned refusal is now
+  `native_uefi_os_handoff_invocation_reports_cyclic_control_frontier`
+  (cyclic-machine custody: ControlCycle rejection while `self.legs.*`,
+  `self.terminal.*`, `self.cycle` receivers and `retain`'s granted extents
+  stay outside the bare-`self` envelope). Both pins green here:
+  `native_..._cyclic_control_frontier` + `checked_uefi_os_handoff_invocation
+  _retains_edge_binding` 2/2 in 54s. UEFI-OS-HANDOFF claim still live
+  (exp 10:19Z) covering the canary file and handoff.omg; the verifier's
+  cyclic-custody surfaces are fenced under REGISTERED-CALLBACK-LIFETIME and
+  CONSERVATION-CONTRACT. Still no landable slice from this row.
 - **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; verify scope then implement.
 - **BASELINE-CHECKED-LOWERED-PSI-CLUSTERS.** — mined candidate; verify scope then implement.
 - **BENCHMARK-COMPILE-ONLY-ROWS.** Mined candidate. Upstream:
