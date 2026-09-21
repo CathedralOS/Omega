@@ -1398,855 +1398,245 @@ syntax and other terminal services are not prerequisites.
 
 ## P4 - ABI, borrowing, and callbacks
 
-- **NORMALIZED-ABI-LOWERING.** Finish target-independent signature
-  normalization and target-owned calling/layout realization for aggregates,
-  dynamic values, callbacks, and foreign boundaries under the
-  [calling-plan contract](wiki/spec/build/calling_plans.md).
+- **NORMALIZED-ABI-LOWERING.** Finish aggregate and descriptor foreign
+  argument/result transport under the
+  [calling-plan contract](wiki/spec/build/calling_plans.md). Owners:
+  `abstract-operations-to-target-operations`,
+  `target-operations-to-selected-instructions` and backend call-frame emission.
 
-  Remaining work:
+  Target lowering and replay already retain owned whole-place aggregates,
+  borrowed descriptors and scalar arguments in formal order. Instruction
+  legalization and selection still restrict structural arguments to borrowed
+  field projections passed as one pointer:
+  `legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
+  and `selection/scalar_call_abi/normalized_foreign.rs::validate`.
+  Realize the selected plan's aggregate locations, descriptor words and result
+  custody through those consumers and emission; do not substitute an owned
+  aggregate's indirect placement for a semantic borrow.
 
-  - Finish aggregate and descriptor foreign transport. Fixed scalar arguments
-    and results now reach independently validated native execution; preserve
-    the macOS ARM64 source-to-C oracle:
-    `mbx nextest run -p compiler --test source_evaluated_native_realization --no-fail-fast --no-tests fail -E 'test(=scalar_native_arguments::mixed_foreign_scalars_execute_with_exact_argument_and_result_values)'`.
-    Other matching-host runtime legs and the mixed scalar/record execution
-    below remain open; cross-target selection replay is not runtime evidence.
-    Borrowed flat-record projections, owned
-    whole-place aggregates, and borrowed dynamic descriptors all compose
-    with scalars in retained formal order: an `Owned` argument admits only
-    an empty path against the root structural type and joins the plan's
-    ABI-classified destination on byte size, alignment, and a
-    non-`BorrowedReference` class; a `ByteSequence(BorrowedView)` formal
-    borrows the caller's whole stored view or a stored descriptor field and
-    joins the plan's two-word by-value destination, witnessed by
-    `normalized_foreign_owned_aggregate_arguments_retain_whole_place_and_plan_transport`
-    and
-    `normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_field`.
-    The a2t replay now admits both classes —
-    `validation/structural_call_arguments.rs::normalized_foreign_call`
-    classifies the formals' shapes against the calling policy itself
-    (`validation/structural_shapes.rs::classified_boundary_shape`, mirrored
-    crate-locally from provider planning), replays `Owned` whole-place rows
-    from caller placements and affine call-result `StructuralHome` custody,
-    and replays `BorrowedView` formals from a whole stored view or a stored
-    descriptor field via `borrowed_view_field_offset`, witnessed by
-    `normalized_foreign_owned_aggregate_arguments_replay_across_native_targets`,
-    `normalized_foreign_borrowed_view_descriptors_replay_whole_place_and_stored_field`,
-    `normalized_foreign_owned_aggregate_from_call_result_replays_affine_home`,
-    and `normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows`.
-    The frontier moved to instruction selection: a source-produced
-    scalar+record foreign call now stops at
-    `Selection(Legalization(SourceCustodyMismatch))` because the legalizer's
-    `legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
-    and selection's
-    `selection/scalar_call_abi/normalized_foreign.rs` operand views still
-    admit only borrowed single-pointer sources — those two mirrors are the Fence stamp `c924529921dd` (swarm-w9-ffival): the selection-side operand-views leg is live-fenced — claim probe on `src/selection` + `src/legalization` exit 2, both held by NEW-NF-LEGALIZER-AGGREGATE-SOURCE-CUSTODY (Devin / z56, exp ~13:34Z); the a2t-admitted Owned/descriptor classes' two mirrors ride that lane.
-    remaining legs before matching-host execution.
-  - Dynamic descriptor calls. Target lowering produces
-    `StoreDynamicDescriptor`, the stored, rebound and parameter dynamic calls
-    and the `...WithDynamicArguments` calls, and
-    `target-operations-to-selected-instructions/src/legalization` consumes none
-    of them. **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns the ordinary
-    indirect-call operand they need.
-  - Callback transport. The common route rejects every request carrying a
-    callback in `native-realization/src/native_realization/object_emission.rs`;
-    **CALLBACK-PRIVATE-MATERIALIZATION** owns that route.
+  Acceptance: convert
+  `source_evaluated_native_realization::record_native_arguments::mixed_scalar_and_record_arguments_stop_at_legalization_custody`
+  from its current rejection pin to a source-to-C execution oracle on a matching
+  host. Preserve the existing `scalar_native_arguments` oracle and test exact
+  argument/result values, stack/register placement, formal order, and rejection
+  of substituted plans, placements and provider bindings. Each stage must
+  independently reconstruct the ABI; Terminal Psi retains no target placement.
+  Dynamic descriptors belong to RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY;
+  private callbacks belong to CALLBACK-PRIVATE-MATERIALIZATION. Use ordinary
+  call operands and explicit custody, not one call family per signature shape.
 
-  Acceptance: every call's ABI is independently reconstructible from its
-  declaration and the selected calling policy, and no target placement appears
-  in Terminal Psi. A source-produced foreign call with mixed scalar and record
-  arguments executes on a matching host; substituted plan rows, placements and
-  provider bindings reject at each stage that retains them. Stored
-  dynamic-reference layouts stay equal to the normalized calling-policy shapes
-  (`calling_policy_plans::borrowed_dynamic_trait_record_fields_retain_both_descriptor_words`);
-  layout agreement alone does not close native transport.
+- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Connect selected opaque representations
+  to executable by-value exchanges under
+  [representation agreement](wiki/spec/build/opaque_representations.md).
+  Selection, independent rederivation, package attribution and installation
+  commitment checks exist; they do not move the carrier's bytes.
 
-  Flag: dynamic arguments/dispatch still split the target call inventory by
-  signature shape (`target-operations/src/target_operations/operations/unit.rs`).
-  Extend the ordinary `Call` and its explicit result custody with argument
-  classes and callee sources realized by the target's calling policy as native
-  descriptor support lands. Preserve the foreign formal-order mapping and
-  independent checks; do not introduce another call family for each newly
-  supported signature combination.
+  `provider-planning/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
+  derives exact parameter/result and nested-field placements, but its consumers
+  remain planning, review and tests. Connect those movements to Omega's provider
+  call-frame transport and backend emission. Preserve one semantic occurrence
+  for affine/linear values even when placement copies bytes; only checked
+  semantic copying creates another occurrence.
 
-- **OPAQUE-BY-VALUE-BOUNDARY-ABI.** Complete
-  [representation agreement](wiki/spec/build/opaque_representations.md) at
-  independently compiled by-value exchanges. Selection and review exist.
-  `representation-planning` admits a selection only after the transitive
-  inert-carrier and copy checks
-  (`src/representation_selection/carrier_closure.rs`); calling-policy closure,
-  general layout and compatibility boundaries derive the carrier from that one
-  selection list (`evaluate_compatibility_boundary_entry_plan`); and
-  dependency-first review
-  rejoins each consumer's foreign opaque use to the producer's own declaration,
-  availability rows and selection, rejecting a consumer-local application with
-  `SelectedApplicationMismatch`
-  (`PackagePolicyRepresentation::rejoin_foreign_demands`,
-  `package-manager/tests/opaque_boundary_agreement.rs`). That is compile-time
-  and review-time policy. The artifact custody bullet below has since bound
-  the selected-application commitment into installation records
-  (`3f3115d27f94`); still open is transport: no opaque by-value crossing is
-  transported or executed.
-
-  Remaining work:
-
-  - Physical transport in Omega lowering and the backend: move the selected
-    carrier's bytes through argument, result and nested-field placements. An
-    affine or linear value keeps one semantic occurrence while bytes are copied
-    for placement; only a checked semantic copy creates another occurrence.
-    Frontier re-verified at `98c9599eda1e`: the plan side already assigns
-    exact movements — `BoundaryOpaqueRepresentationMovement` (role
-    Parameter{formal_ordinal,native_ordinal}/Result, path
-    FixedArrayElement/RecordField, validated `ValuePlacement`) in
-    `provider-planning/calling_policy_plans/opaque_representations.rs`,
-    rejoined by `materialized_signature().opaque_representation_movement()`
-    and pinned by `compiler/tests/calling_policy_plans/opaque_boundaries.rs`
-    (result-placement and nested-field rejoins green). The movement has no
-    downstream consumer: nothing outside provider-planning/tests/review-
-    evidence references `BoundaryOpaqueRepresentationMovement`, and no
-    target-operations/selected-instructions/native-realization module reads
-    an opaque application — the first consumer is the provider-call frame
-    marshal that must turn a movement's validated placement into byte
-    copies at the frame edge.
-  - Artifact custody: bind the strong selected-application commitment into
-    native artifacts, installation records and replay, so producer and
-    consumer artifacts compare it at each actual by-value edge.
-    Landed at `3f3115d27f94` — the installation record retains
-    `boundary_opaque_applications` (one row per edge: requirement identity,
-    signature shape coordinate, report fingerprint, the 256-bit
-    selected-application commitment;
-    `installation_record/codec/opaque_application_codec.rs`,
-    `record_construction.rs:278`, `record_types.rs:130`), and bind-time
-    replay in `installed_artifact.rs:516-522` rejects a record whose
-    retained custody disagrees with the bound artifact's
-    `NativeArtifact::boundary_application_coverage().opaque_applications`.
-    Re-verified at `98c9599eda1e` (linux x86-64). Residual inside this
-    bullet: the comparison fires at install/bind only — no per-crossing
-    execution exists to observe yet (that is the transport bullet above).
-  - Replacement: carry the application through replacement compatibility,
-    stable-handle eras and independently replaceable provider contracts.
-    **COMPONENT-SUBSTRATE** owns the component closure these attach to.
-  - Cleanup-owning carriers need the separate versioned lifecycle relationship
-    the specification reserves. Until it exists every selection stays `Inert`
-    and a cleanup-owning carrier rejects.
-
-  Acceptance: independently compiled producer/consumer and historical-selection
-  canaries cover sealed `Ptr<T>` target semantics, proof-only `Real`,
-  `EfiSystemTable`, provider/replay drift, cleanup, and multiplicity;
-  incompatible by-value exchanges and replacements reject before execution.
-  Equal size/alignment or a compact fingerprint never establishes agreement.
-
-  Re-verified 2026-09-20 at `e7c0099cb2` (Devin/z117): the "no native
-  artifact carries the selected application" and "no by-value crossing is
-  transported" claims have aged past the code. Artifact custody is landed —
-  `native-artifact/src/native_artifact/boundary_applications.rs` requires
-  exact boundary-application coverage against the Terminal module's
-  operations, and installation-record format 99 rows carry the requirement
-  identity, shape root, application-report fingerprint and the 256-bit
-  `selected_application_commitment`
-  (`image-emission/src/installation_record/codec/opaque_application_codec.rs`,
-  round-tripped and image-validated in
-  `tests/artifacts/installation_records.rs`); boundary-plan admission
-  rederives the commitment and rejects conformance/lifecycle/copy-disposition
-  drift (`calling_policy_plans/opaque_representations.rs`). Plan-level
-  transport is landed — the materialized signature computes argument, result
-  and nested-path movements per opaque use
-  (`opaque_result_rejoins_its_exact_result_placement`,
-  `nested_opaque_path_ignores_an_identically_shaped_ordinary_field`,
-  `repeated_opaque_values_rejoin_distinct_equal_layout_occurrences`,
-  `distinct_opaque_values_with_equal_layout_retain_distinct_nominal_markers`,
-  `opaque_movement_retains_native_ordinal_after_direct_callback_insertion`,
-  `opaque_by_value_custody_binds_the_selected_application_commitment`; 21/21
-  green under `cargo nextest run -p compiler --test calling_policy_plans
-  opaque` on linux x86-64). Still open: a by-value opaque carrier executed
-  end-to-end in emitted code (no pass canary crosses one today —
-  `proofs/boundary_data_opaque_contract` names an opaque carrier in a
-  contract only); replacement stays COMPONENT-SUBSTRATE-owned (claimed);
-  cleanup-owning carriers still reject
-  (`carrier_closure_rejects_direct_and_nested_nominal_cleanup`, 6/6
-  `opaque_representation_lifecycle` green) — `CheckedSemanticCopy` and the
-  `representation_schema_version` coordinate exist but no non-`Inert`
-  lifecycle relationship is admitted yet; and the sealed `Ptr<T>`/`Real`/
-  `EfiSystemTable` acceptance targets remain with the UEFI/physical-entry
-  owners (UEFI-PHYSICAL-SEMANTIC-ENTRY claimed).
+  Acceptance: independently compiled producer/consumer programs execute opaque
+  argument, result and nested-field exchanges. Reconstruct exact application
+  agreement at each composition edge; reject provider, carrier, target,
+  lifecycle, multiplicity and historical-selection drift. Preserve
+  `calling_policy_plans/opaque_boundaries.rs`, `opaque_boundary_agreement`
+  and installation-record substitution controls. Equal layout or a compact
+  fingerprint is not agreement. Keep sealed `Ptr<T>` target semantics,
+  `EfiSystemTable` and erased proof-only `Real` distinct: proof-only use does
+  not acquire a runtime representation demand.
+  COMPONENT-SUBSTRATE owns replacement compatibility and stable-handle eras;
+  carry these same application commitments into that path. V1 admits only
+  `Inert` carriers: direct or nested cleanup-owning carriers must continue to
+  reject, not acquire an unspecified lifecycle through this transport repair.
 
 - **WRITE-ONLY-BORROW.** Finish `&write T` under
-  [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority)
-  through calls/results, dynamic dispatch, cleanup and native execution.
-  Source planning belongs to `typed-trees-to-checked-trees/src/execution/`
-  and `checked-trees-to-lowered-psi`; native reference preparation belongs to
-  `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/`.
-  **STRUCTURAL-BORROW-IDENTITY** owns the common reference ABI. Preserve
-  original referents and exact place/loan custody across these stages.
+  [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority),
+  preserving original referents and exact place/loan custody. Owners:
+  `typed-trees-to-checked-trees/src/execution/`, `checked-trees-to-lowered-psi`
+  and native reference preparation in instruction legalization.
 
-  Remaining work:
+  Remaining source-to-native work: general aggregate and `[copy]` sum
+  replacement beyond scalar-field record literals; runtime domain-qualified
+  byte-field replacement with encoding evidence; guarded/computed runtime-index
+  production; and computed IEEE store transport through FLOAT-PROVIDERS.
+  PLACED-ACCESS-NATIVE-OPS owns native realization of the retained indexed-store
+  operation. Its source fixture still needs the revoked bracketed-range
+  migration owned by REMOVE-BRACKETED-RANGE-ANNOTATIONS. Route mutable dynamic
+  dispatch through GENERIC-VIRTUAL-DISPATCH, common reference identity through
+  STRUCTURAL-BORROW-IDENTITY, and sequencing through STATE-LOCAL-VALUE-FRONTIER.
+  Consult the [parked IEEE recovery record](wiki/drafts/write_only_borrow_ieee_store_branch.md)
+  before duplicating work; its unpublished tip is not available in this checkout.
 
-  - General aggregate and `[copy]` sum replacement beyond literal plain records
-    with scalar fields. Preserve displaced custody and whole-value validity;
-    the existing ordered field-store decomposition is not a general aggregate
-    replacement operation.
-  - Domain-qualified byte-field replacement from a runtime source. The named
-    `frontier_pins::domain_qualified_field_store_still_misses_the_checked_control_plan`
-    control supplies the source; retain its encoding proof and exact source
-    value through field-store planning, Terminal replay and native execution.
-  - Runtime indexes. Terminal Psi has `WriteOnlyIndexedPrimitiveStore` with
-    verifier, codec and interpreter support. The producer now emits it when a
-    retained declared scalar range discharges `index < extent` — the checked
-    plan keeps the runtime selector as a `u64` operand beside the array path,
-    Terminal emission attaches the bounds obligation, and Omega's abstract
-    inventory carries `AbstractOperation::WriteOnlyIndexedPrimitiveStore`
-    through optimization mirrors (`indexed_stores::
-    declared_range_runtime_index_store_reaches_verified_abstract_inventory`).
-    Literal, out-of-range, computed and unranged indexes still fail closed.
-    The remaining hole is native target lowering:
-    `abstract-operations-to-target-operations` rejects the operation with
-    `LoweringError::UnsupportedWriteOnlyPrimitiveStore` until the
-    **PLACED-ACCESS-NATIVE-OPS** leg realizes parameter-address recovery,
-    element-width scaling and the proof-aware bounds step.
-  - `&mut dyn` dispatch.
-  - Computed IEEE stores: a source-selected floating operation, its result
-    transport and an ordinary store, retaining format, selected occurrence and
-    result evidence through Psi's `execution/unit/selected_ieee_float.rs` and
-    Omega's shared graph/provider route. Widening store admission is not the
-    repair; **FLOAT-PROVIDERS** owns the operations. A 135-file slice for this
-    was parked on an unpublished local branch `write-only-borrow`
-    (71a647f464); it is not on `origin`. Ask the coordinator whether it still
-    exists before re-implementing. Recovery record:
-    [write_only_borrow_ieee_store_branch.md](wiki/drafts/write_only_borrow_ieee_store_branch.md)
-    (`6898e16053`) — the tip's objects are absent from origin and this
-    checkout, so Path A stays the coordinator merge; Path B's
-    re-implementation contract (failing pin, producer gap, neighbor fences)
-    is fixed there.
+  Acceptance: move repaired `terminal_psi_indexed_receivers/frontier_pins`
+  limitations to caller-storage execution controls. Cover exact width, untouched
+  neighbors, runtime signed/Boolean/floating sources, restoration/return custody,
+  non-observation and independent replay. Reject reads, bare write-only
+  forwarding, readable widening and overlapping exclusive arguments. General
+  replacement must preserve displaced custody and whole-value validity, not
+  merely decompose more source patterns. Observe computed stores in the original
+  caller, not a copied frame home. Run
+  `mbx nextest run -p omega-native-differential-test --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail`
+  on matching hosts, including both Linux targets and Windows/macOS; the
+  recorded macOS ARM64 run requires `RUST_MIN_STACK=67108864`.
+  Cross-publication is not execution.
 
-  Acceptance: writes affect the original caller referent across calls and
-  register/stack passing; reads through write-only access, bare `&write`
-  forwarding, `&write`-to-`&mut` widening and same-root `&write` argument pairs
-  reject. Cover exact width/write coverage, untouched neighbors, runtime
-  signed/Boolean/floating sources, restoration/return behavior, access
-  substitution and independent artifact replay. Observe computed floating
-  stores on the caller, not only in checking or a copied frame home. Add each
-  shape to the `terminal_psi_indexed_receivers` suite, not a store-specific
-  emitter. Run both Linux target runtime legs when available and record
-  unavailable hosts; cross-emission is not matching-host execution.
+- **STRUCTURAL-BORROW-IDENTITY.** Complete source-owner/projection routes under
+  [structural access](wiki/spec/terminal-psi/structural_access.md), retaining
+  original caller storage through call preparation, native placement and
+  independent receiving replay. Owners: checked execution's `receiver_calls`
+  and `calls/computation_arguments`, lowered structural calls, target
+  `structural_call_arguments` and image `argument_custody`.
 
-  Resume with the maintained `terminal_psi_indexed_receivers` integration target,
-  not the deleted `zz_wob_probe`. Its `frontier_pins` module distinguishes
-  required semantic rejections from outstanding producer limitations; move a
-  repaired limitation into the relevant execution module with caller-storage
-  observation. Preserve `held_borrows`, `indexed_stores`, `owned_subloans`,
-  `borrowed_arguments`, and `primitive_stores` as regression coverage, not new
-  implementation assignments. Run `mbx nextest run -p omega-native-differential-test
-  --test terminal_psi_indexed_receivers --no-fail-fast --no-tests fail` with
-  `RUST_MIN_STACK=67108864` on macOS ARM64; retain separate Windows and Linux
-  runtime requirements rather than counting four-target publication as execution.
-  Extend the shared place/loan sequencer under **STATE-LOCAL-VALUE-FRONTIER**;
-  do not reintroduce one producer family per arrangement of calls and stores.
+  Static `Field`/`FixedIndex` shared receivers and explicit shared scalar-call
+  arguments are supported. Remaining `src/tests/borrow/receiver_access.rs`
+  pins cover local-rooted indexed receivers and runtime-indexed parameter
+  receivers/explicit shared arguments. `CheckedUnitStructuralPathSegment`
+  has no runtime-index variant: retain a checked selector/value and bounds
+  relationship, not a widened path predicate or trusted byte offset. Coordinate
+  those fixtures' bracketed-range migration with
+  REMOVE-BRACKETED-RANGE-ANNOTATIONS. Owned-root and construction-local admission
+  remain separate obligations; reuse `terminal-semantics::static_path`.
 
-- **WRITE-ONLY-BORROW-RESIDUE.** Mined candidate — scope verified at
-  `82741ec4391`, no unfenced slice. Re-mines the residual bullets of
-  WRITE-ONLY-BORROW; each leg's implementing surface is live-fenced or
-  owner-laned: general aggregate replacement sits in
-  `execution/unit/structural_scalar_store` under BASELINE-T2C-BOUNDARY-BYTE-
-  BUFFER-REPAIR (~15:05Z); the runtime-index native lowering hole is
-  `abstract-operations-to-target-operations/src/lowering` under
-  COORDINATOR-SCOPE-AUDIT (~07:18Z) with PLACED-ACCESS-NATIVE-OPS owning the
-  leg on the board; `&mut dyn` dispatch is `execution/unit/dynamic_scalar_calls`
-  under GENERIC-VIRTUAL-DISPATCH (~15:00Z); computed IEEE stores belong to
-  FLOAT-PROVIDERS (producer `execution/unit/selected_ieee_float.rs` unfenced
-  but the leg's 135-file slice is parked on an unpublished `write-only-borrow`
-  branch — coordinator confirmation required before re-implementing, per the
-  parent row); the domain-qualified byte-field producer path runs through
-  `structural_scalar_store`/`checked_machine` (same fences). The lone
-  unfenced surface, `terminal_psi_indexed_receivers/frontier_pins.rs`, is a
-  test pin that can only move when its producer legs land. The z133
-  same-item claim drained; no other holder at this verification. Native
-  runtime legs remain macOS/Windows host-gated as recorded.
+  Acceptance: repair the omission pins and execute caller-visible
+  projected/forwarded writes, owned-field mutable/write-only subloans, legal
+  synchronized shared observations and register/stack reference passing.
+  Reject copied borrowed homes and substituted access/type/projection/placement
+  evidence; shape equality does not create authority or a standalone field
+  type. Preserve `terminal_psi_indexed_receivers` and `primitive_store_return`.
+  Complete matching-host coverage, especially the unrecorded Linux AArch64 and
+  Windows legs; another callee observing a staged copy is not caller writeback.
 
-- **STRUCTURAL-BORROW-IDENTITY.** Enforce the settled
-  [structural borrow identity contract](wiki/spec/terminal-psi/structural_access.md)
-  through call argument preparation and native validation/replay. The
-  [target signature checks](omega-rust/omega/pipeline/abstract-operations-to-target-operations/README.md#references-calls-and-storage)
-  now replay embedded callee plans, projected argument/home identity and
-  standalone receiving entrances against signatures derived from the
-  declarations. Every borrowed access keeps `BorrowedReference`, an inline byte
-  field cannot satisfy a parameter by shape equality, an exclusive view
-  reaches an ordinary call from a non-entry block parameter. Owned parameter
-  fields now lend exact mutable/write-only subloans through receiver
-  reconciliation, Terminal verification and `structural_arguments_match`.
-  This does not establish every projected source form.
+- **BORROW-PROOF-CONVERGENCE.** Carry ordinary borrow compatibility from
+  checked certificates to independent portable replay under
+  [loans](wiki/spec/terminal-psi/loans.md).
+  Owners: `typed-trees-to-checked-trees/src/checks/borrows/`,
+  `checked-trees/src/checked_trees/borrow.rs`, checked-to-lowered publication
+  and Terminal verification. Current checking supports immutable normalized
+  bounds, requires/domain predicates, incoming guards, immutable whole-result
+  call guarantees and transparent propositions. Two premises can already
+  compose through a shared middle. These certificates remain checked-stage
+  records, not portable authority.
 
-  Remaining work:
+  Retain exact formation, captured places/resource identities, source
+  establishment and consulted premise order through publication. Reconstruct
+  availability, dominance and value/place versions independently. Broader
+  callee/domain predicates, mutable or projected results, same-statement and
+  theorem-call establishment need exact substitution/version evidence.
+  Reuse existing contract/range readers, including the original assignment's
+  exact call occurrence; do not collect a second set of guarantees. Include
+  adversarial call-prerequisite removal/replacement and cross-call copy
+  substitution in the replay controls.
 
-  - Complete mixed field/index paths and other admitted source owners through
-    receiver preparation, native lowering and replay. Literal-indexed and
-    mixed `Field`/`FixedIndex` paths now lend to `SharedBorrow` receivers:
-    `receiver_calls/mod.rs` admits them for every borrowed target, and the
-    lowered/native `exact_borrowed_projection` route plus `argument_custody`
-    replay already consume the emitted records
-    (`receiver_access::mutable_self_literal_indexed_element_can_supply_shared_receiver`,
-    `mutable_self_mixed_field_index_path_can_supply_shared_receiver`,
-    `dynamic_indexed_element_still_cannot_supply_shared_receiver`). Explicit
-    shared indexed arguments and dynamic `Index` segments still stop in
-    `execution/unit/calls`, and the stop points are now pinned per shape
-    (`receiver_access::explicit_shared_indexed_argument_still_omits_caller_in_call_operation`,
-    `local_indexed_receiver_still_omits_in_call_statement_shape`,
-    `dynamic_indexed_parameter_receiver_stops_at_receiver_reconciliation`,
-    `literal_indexed_parameter_receiver_can_supply_shared_receiver`):
-    explicit `&` arguments carrying a LITERAL index segment now name their
-    caller — `shared_nominal_argument`
-    (`execution/unit/calls/computation_arguments/mod.rs`) admitted only
-    all-`Field` paths, and now admits `FixedIndex` beside `Field`, so
-    `take(&self.cells[0])` plans with
-    `source: Parameter { parameter_index: 0 }, path: [Field("cells"),
-    FixedIndex(0)]`. The former reason recorded here — "a reference `self` is
-    not a structural parameter under the non-retained builders" — was
-    measured false: the retained-self retry does fire, the same shape with a
-    non-`self` root (`take(&rack.cells[0])`) omitted identically, and the
-    same shape with a Unit-returning callee already planned; only the
-    scalar-computation lane was blocked. Dynamic `Index` segments still stop
-    in the call-operation phase, and by construction rather than by a guard:
-    `CheckedUnitStructuralPathSegment` has `Referent | Field | FixedIndex`
-    and no `Index` variant at all, so admitting it needs a representation
-    change. The per-shape pins are now
-    `explicit_shared_literal_indexed_argument_names_its_caller_in_the_call_operation`
-    and `explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation`.
-    **Corpus re-verified once the ElementView legs unblocked `-p compiler`:
-    `borrow_disjoint_fixed_index_call_mut`, `borrow_premised_call_argument` and
-    the two runtime indexed-parameter write-exit canaries all still compile —
-    4/4, no regression from the widened predicate.**
-    Local-rooted indexed receivers stop earlier at
-    call-statement shape, and parameter-rooted dynamic `Index` reaches
-    receiver reconciliation before dropping. Terminal's owned-root array and
-    construction-local restrictions remain separate; do not infer their
-    availability merely from a parameter declaration.
-  - Record matching-host runtime results for both Linux targets and Windows.
-    `terminal_psi_indexed_receivers::owned_subloans` publishes objects, images
-    and installation records for all four hosted targets; its published text
-    has run on macOS ARM64 and, as of this wave, linux-x86_64 — the full
-    `terminal_psi_indexed_receivers` harness (79 tests) passed on that host
-    with every emitted byte sequence linked and executed through the host C
-    driver. linux-aarch64 and Windows remain unrecorded (QEMU/Windows hosts
-    unavailable in that session). Cross-emission is not runtime coverage.
-    Preserve the broader `terminal_psi_indexed_receivers` and
-    `primitive_store_return` controls.
+  Read-footprint expansion is paused for lack of a demonstrated customer:
+  first recheck the recorded `items[low + 0u64..high]` lost-bound candidate.
+  An incomplete footprint conservatively retires facts after writes; admitting
+  more expression kinds without preserving a needed source fact is not progress.
+  The builtin bound-meaning gate is distinct from the read-footprint check.
 
-  Acceptance: caller-visible writes, forwarded references, legal synchronized
-  shared observations, write-only non-reading, and register/stack pointer
-  passing work on both Linux targets, including an owned local's field lent
-  `&mut` and `&write`. Independently formed or substituted access/shape/
-  placement pairs reject; shared physical shape never authorizes access
-  substitution. Direct-home controls use owned semantics or test rejection of
-  borrowed copies. A following callee seeing the staged write is not
-  caller-visible writeback.
+  Acceptance: each new establishment has source pass coverage for disjoint
+  loans, writes and exclusive call operands, with independently replayed
+  certificates. Missing, stale, reordered/substituted or insufficient premises,
+  overlapping mutation and containment-only second exclusive loans reject.
+  Proof never creates, widens, duplicates or extends authority. Preserve
+  `src/tests/borrow/checks/premised_disjoint_writes.rs`, the `certificates/`
+  suite and stated, sum, guarded, domain, returned-window, proposition and
+  chained-premise corpus controls. CANARY-CORPUS routes borrow-obligation
+  failures here; these are implementation gaps, not unsettled language rules.
 
-  The duplicated static-path rule is consolidated in
-  `terminal-semantics::static_path`, following the settled
-  [loan table](wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access):
-  `canonical_structural_path_tip` (declaration-local field ids, unique match)
-  and `runtime_structural_path_tip` (runtime field identities) now serve
-  `primitive_place`, `call_composition` and `fixed_byte_view`, which keep
-  their access, multiplicity, qualification and tip-shape obligations. The
-  rule is parent custody and an exact type-resolved `Field`/`FixedIndex`
-  path, not a roster selected by the callee's result kind.
-  `record_field_carrier` keeps its own walk because it emits each hop's
-  runtime identity rather than only the tip; overlapping-loan rejection,
-  material write-only path restrictions and the byte-view presentation
-  authority are preserved. An owned inline byte field must not acquire a
-  standalone type identity or inherit the borrowed-parent view adapter.
+- **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
+  [private callbacks](wiki/spec/build/private_callbacks.md). The bounded direct
+  parameter route now reaches native artifact, final-address and installation
+  replay; `callback_terminal_custody::direct_callback_relocation_resolves_to_its_private_function`
+  is a success witness, not a fragment-import rejection.
 
-  Claim evidence (2026-09-20 ~19:10Z, Zergling-181): same-item claim by
-  Jarod / swarm-w9-structural-borrow-identity (expires 21:38Z) fences
-  `execution/unit/receiver_calls`, `src/tests/borrow`,
-  `lowering/unit/structural_call.rs`,
-  `validation/structural_call_arguments.rs`, image-emission
-  `call_custody{,/argument_custody}.rs` and terminal-verifier
-  `structural_arguments.rs` — the item's own named surfaces. The
-  runtime-record leg's `tests/native-differential/tests/
-  terminal_psi_indexed_receivers*` is additionally under WRITE-ONLY-BORROW
-  (01:30Z+1d). Do not re-mine while these are live.
+  Remaining: multiple callbacks and layout-field destinations; authenticated
+  complete plan applications and independent authored-use-to-Terminal-operation
+  correspondence; ordinary callback bodies and inbound signatures through
+  proposal validation, native lowering and image replay. Psi's
+  `machine_lowering/bounded_callbacks.rs` already delegates ordinary machine
+  lowering. The remaining exact single-`u64` identity/Unit recognizer is in
+  `checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs`;
+  native thunk/image consumers also reject call-bearing bodies. Replace those
+  shape restrictions with requirement, ABI and call-custody checking, not more
+  admitted body families. Close hosted private-stack callback occupancy and
+  ordinary-product admission restrictions only with their missing custody.
 
-- **BORROW-PROOF-CONVERGENCE.** Make ordinary borrow checking proof-producing
-  under the [loan contract](wiki/spec/terminal-psi/loans.md): relational
-  evidence may establish disjointness or containment between existing places
-  and occurrences, and never creates, extends, duplicates or widens a loan.
-  Owners: `typed-trees-to-checked-trees/src/checks/borrows/` and the
-  certificate rows in `checked-trees/src/checked_trees/borrow.rs`.
+  Owners: native proposal construction, `native-realization`'s
+  `retained_native_product` and `callback_thunks`, selected-call ABI transport,
+  and image private-function/relocation replay. See
+  [receiving custody limits](omega-rust/omega/compiler/native-realization/README.md#callback-custody-boundaries).
+  Acceptance: the direct witness and
+  `source/library/std/tests/callback_materialization_closure.omg` two-slot
+  registrar produce native images binding exact function, symbol, relocation,
+  executable region and destination through object/final replay. Missing,
+  duplicate, reordered, substituted, overlapping or incompatible materializations
+  reject. Private slots remain inaccessible to source. Registration outcome
+  and lifetime belong to REGISTERED-CALLBACK-LIFETIME.
 
-  Index extents compare as normalized bounds inside one replayed selector
-  session (`overlap/indexes.rs`, `overlap/segments.rs`), `overlap/premises.rs`
-  supplies ordering premises from the forming scope's own `requires` rows and
-  shared incoming-guard analysis, and
-  forming-loan, statement-mutation, and call admissions retain replayable
-  `Structural` or `Premised` certificates. Bounds admit an integer, one
-  immutable symbol plus a constant, or the canonical sum of two distinct
-  immutable exact-domain symbols plus a constant
-  (`validation::immutable_integer_bound_sum`, also unfolded through immutable
-  locals bound to bound-shaped initializers so generated index hoists reach
-  the sum); `pass/borrows/borrow_premised_sum_index_mut` witnesses the
-  admission. That is still not general proof-derived compatibility: exactly
-  one premise answers a query, multi-term arithmetic and negative or
-  repeated coefficients stay unknown, and certificates are checked-stage
-  records that no lowering or Terminal reader consumes.
-
-  Remaining work:
-
-  - Extend establishment to broader callee/domain predicates and theorem-call
-    conclusions, valid for the captured value and place versions at formation.
-    Ordinary scalar `ensures` now use the contract checker's shared
-    `call_guarantees/availability.rs` reader at each statement entry. Exact
-    source facts, invocation coordinates and live assignment provenance bind
-    immutable whole results; immutable actuals use the existing bound normalizer.
-    Preserve `pass/borrows/borrow_returned_window_write_and_call` and
-    `certificates/call_premises.rs`. Mutable results, result-field selectors,
-    same-statement nested establishment and theorem-only calls still require
-    their exact version/substitution evidence. Guard-derived
-    window writes and calls use the range checker's shared
-    `incoming_guards.rs` and `requirements.rs` readers; immutable owned
-    scalar parameters survive renaming and forwarding only with preservation
-    at every hop. Mutable, computed and foreign subjects remain unproven until
-    the shared reader supplies version evidence. Do not add a second collector.
-    Required concrete integer membership now supplies direct `self`/literal
-    comparisons through the same Boolean decomposer. Tokens rejoin the exact
-    membership, definition and predicate; aliases use typed expansion.
-    Indexed theories, nested membership transport, domain arithmetic and
-    other establishment points still need their exact substitution/meaning
-    evidence. Preserve `pass/borrows/borrow_domain_window_write_and_call`
-    and `certificates/domain_premises.rs` when extending them.
-  - Range-premise read sets (`checks/ranges/facts/dependencies/reads.rs`) stay
-    incomplete for requirement-dispatched calls, machine-valued and nested
-    static applications, quotient and private-layout operations,
-    `CompareExchangeOnce`, and authored non-arithmetic operators. Admit one
-    only with a complete footprint and operation stability: explicit arguments
-    do not establish all callee reads, and preserved numeric captures must
-    stay independent of later source writes. The builtin bound-meaning floor
-    in `record_dependencies` (`facts/dependencies.rs`) decides what may be a
-    range premise. It is not a read-set limit; do not widen it under this item.
-  - The "immutable owned scalar parameters survive renaming and forwarding
-    only with preservation at every hop" contract is pinned by unit tests in
-    `checks/borrows/persistent/tests.rs` (swarm w9): stable-index provenance
-    rebases across a call frame only through immutable local-copy chains onto
-    immutable target parameters, while mutable targets, non-name arguments,
-    arity mismatches, and any unresolvable segment retire the path, and
-    segment overlap stays fail-closed on mixed or mismatched stable indexes.
-    Extending establishment into `overlap/`, `elision`/`view_link`/`loans`,
-    `src/tests/borrow`, `checks/ranges`, `checked_trees/borrow.rs`, and
-    `contracts/calls.rs` was fenced to other workers during that leg; those
-    surfaces remain open for their owners.
-
-  Acceptance: `tests/omega` pass canaries exercise each newly supported
-  establishment point with disjoint loans, writes, and exclusive call operands;
-  every admission replays from its retained certificate. An absent, non-strict,
-  stale, reordered or
-  tampered premise, a write inside the borrowed extent, and a second mutable
-  loan licensed only by proven containment all reject. No certificate extends
-  a lifetime, duplicates a loan or replaces resource accounting. Start from
-  `src/tests/borrow/checks/premised_disjoint_writes.rs` and
-  `src/tests/borrow/certificates/`. **CANARY-CORPUS** routes borrow-obligation
-  failures here.
-
-  Flag: the read-dependency part has no customer. Fourteen consecutive changes
-  each admitted one more expression form into `reads.rs` (now 1,652 lines) and
-  touched only that directory and crate unit tests; no `tests/omega` or sample
-  file changed, the authored-arithmetic change records that no source compiles
-  differently and that its witness fabricates an operator-use row production
-  never emits, and nothing under `checks/borrows/` reads `RangeFacts`. An
-  incomplete read set is conservative, because any write then retires the
-  fact. Resume from a corpus program that loses a fact it needs, not from the
-  next refused node kind. The same change recorded one candidate: builtin
-  `items[low + 0u64..high]` cannot prove its start bound in
-  `checks/ranges/indexes/validation.rs`; rerun it before relying on that.
-
-  z168 wave state: every producing surface the remaining bullets name is
-  fenced to live claims — `src/checks/borrows/` to
-  GENERIC-RETURNED-VIEW-LIFETIMES (22:27Z), `src/checks/ranges/` to the
-  forwarded-slice-bounds leg of RC-NATIVE-MATRIX-MACOS-ARM64 (00:12Z),
-  and `src/tests/borrow/` to STRUCTURAL-BORROW-IDENTITY (21:38Z). The
-  sanctioned next slice stays the recorded candidate above
-  (`items[low + 0u64..high]` proving its start bound) once the ranges
-  fence opens; wider establishment extension needs the borrows fence.
-
-  These are implementation gaps under the settled loan contract, not owner
-  design decisions. Preserve `pass/borrows/borrow_stated_index_disequality_mut`
-  and the unknown-index negative control while extending premise sources.
-  Preserve `pass/borrows/borrow_guarded_window_write_and_call` and its mutable
-  forwarding, backedge, and tampered-source controls in `certificates/guarded_premises.rs`.
-  Existing compatibility certificates are checked-stage records; their
-  relation enum is not a persisted Terminal wire format.
-  Broader independent replay also needs authenticated call-prerequisite rosters
-  and copy provenance. Source inspection of `checks/contracts/calls.rs` and
-  `prover/call_guarantees.rs::captured_place` finds retained payload/context
-  trust; adversarial prerequisite replacement/removal and cross-call copy
-  substitution probes remain unrun. The immutable borrow-result join additionally
-  checks the original assignment's exact call occurrence; do not remove that
-  check while generalizing copies.
-
-- **CALLBACK-PRIVATE-MATERIALIZATION.** Realize target-owned private callback
-  slots natively under the
-  [private-callback contract](wiki/spec/build/private_callbacks.md). Checked
-  compilation and the Terminal product already close for
-  `source/library/std/tests/callback_materialization_closure.omg`: two
-  `NativePlace::Field` placements selected through exact conformances, one
-  `BoundaryCall`, and one canonical thunk artifact per placement
-  (`compiler/tests/callback_terminal_custody.rs`,
-  `reachable_private_callback_registrar_binds_its_terminal_occurrence`). No
-  private channel exists but no native product for a callback does:
-  callback thunks now lower to machine code inside realization and reach the
-  emitted object as private functions, and the direct-parameter witness
-  `direct_callback_relocation_resolves_to_its_private_function` now crosses
-  selection, allocation and emission and stops at the native-artifact
-  fragment import custody join, which rejects an import row whose retained
-  relocation carries no selected callback custody (`fragment import lacks
-  selected call custody`).
-
-  Remaining work:
-
-  - Landed: each thunk's Terminal artifact lowers to machine code inside the
-    same realization. `callback_thunks::lower_callback_thunks`
-    (`native-realization/src/native_realization/callback_thunks.rs`)
-    re-derives each settlement's artifact through the sealed verified input,
-    the request's abstract optimization, target lowering, the verified
-    physical pipeline and the fragment-emission ladder, then binds the single
-    emitted span into a `CompilerPrivateMachineCodeFunction` (identity = the
-    settlement's `MachineFunctionIdentity::callback_thunk`, private symbol =
-    the settlement's pinned name, `source_psi` = the thunk's Terminal
-    identity). Foreign source identities, multi-function thunks and
-    call/import-bearing thunk bodies reject inside realization before the
-    program's target-stage wall.
-  - Landed: retained realization has a private-function channel.
-    `build_function_fragment_object_artifact_with_private_functions`
-    (`image-emission/src/function_fragments/production.rs`) emits validated
-    private functions between the program text and the import tail;
-    `validate_private_functions` (`object_artifact/private_functions.rs`)
-    admits any number of rows and dedupes identities and symbols instead of
-    rejecting a second one; `emit_optimized_fragments`' projection
-    (`optimized_fragment_projection.rs`) carries the realized roster. The
-    fragment validator joins each retained carrier to its symbol row,
-    function-symbol binding and exact text span, and the image-time replay
-    of the retained container now accepts the carrier roster on its own
-    evidence. `callback_custody` covers a two-slot registrar materializing
-    both thunks into one object, plus foreign-identity, duplicate-symbol and
-    substituted-roster rejections.
-  - Landed: the common instruction pipeline carries callback ABI transport.
-    The retained roster's `TargetNativeCallbackArgument` lands on
-    `LegalizedNormalizedForeignCall.callback`, legalization source custody
-    admits it (`native_callback_at`), replay rejects a substituted roster,
-    and the selected codec round-trips it. A register-resident private slot
-    is transport pinned at the call, not a value operand — the private-
-    callback contract gives it no semantic runtime formal — so each
-    register-unit-call catalog emits callback-position row variants whose
-    operands omit the pinned position and whose `implicit_uses` join the
-    callback view's units to the stack baseline (x86-64 System V 4000-series,
-    Microsoft 4600-series; aarch64 3600-/4600-series). `call_key` and
-    `validate` in `selection/scalar_call_abi/normalized_foreign.rs` bind the
-    expected implicit-use set to the retained placement and reject scalar
-    arguments at the callback ordinal, while `plan_operand_views` and
-    `structural_parameter_positions` project around the interleaved slot;
-    the witness's materialized registrar row now crosses
-    `construction::build_plan`.
-  - Add a layout-field address destination. `CallbackAddressDestination`
-    (`machine-code/src/machine_code/calls/callbacks.rs`) has only `Register`
-    and `OutgoingStack`; `validate_callback_address_bytes` and relocation
-    replay cover those two on x86-64 and aarch64.
-  - Authenticate the complete plan application and replay the
-    authored-use-to-Terminal-operation join in the native receiving stages.
-    The target-side application commitment and placement index are producer
-    provenance only; see
-    [callback custody boundaries](omega-rust/omega/compiler/native-realization/README.md#callback-custody-boundaries).
-  - Then delete the rejections instead of widening them:
-    `reject_unconsumed_callbacks` (`native_product/admission.rs`), the
-    one-direct-callback and field-cohort arms of `admitted_native_callbacks`
-    (`retained_native_product.rs`), and the optimization-selection arm of
-    `lower_realization_optimization_stage`.
-
-  Acceptance: the two-slot registrar fixture and the direct-parameter witness
-  each produce a native image in which object and final-image replay bind the
-  private symbol, relocation, executable region and patched address to the
-  same function and native destination. Source holds no raw code pointer and
-  no placement authority is duplicated. Missing, duplicate, reordered,
-  substituted and shape-incompatible materializations reject, and a private
-  slot has no source projection, read, write or address. Registration outcome
-  and lifetime belong to **REGISTERED-CALLBACK-LIFETIME**.
-
-  Flag: the callback body route is a fixed-shape cohort, not machine lowering.
-  `lower_bounded_callback_identity_machine`
-  (`checked-trees-to-lowered-psi/src/machine_lowering.rs`) admits a
-  `u64 -> u64` identity return with no bindings, or a `u64 -> Unit` body whose
-  only operation is `Complete`; the second matches the fixture's empty `{ }`
-  provider. `validate_direct_callback_thunk_shape` lists the same two leaves,
-  and `validate_private_functions` rejects any body with a call, parameter
-  ABI, port effect or boundary settlement. A window procedure has several
-  parameters, calls and a result. Lower the selected machine through ordinary
-  machine lowering rooted at the callback entry, and validate the thunk
-  against the requirement's signature and inbound entry plan, not against a
-  list of admitted bodies.
-
-
-  The `callback_terminal_custody` suite ran 0 of 5 before 2026-09-18, and not
-  for a callback reason: since 2f30c89f04 gave `windows_x86_64` a closed
-  physical-contract package, binding its `ProgramEntry` pulls the authored
-  target contract and its bundled `std::calling` module into the program,
-  while the fixtures still carried their own copy of `calling.omg`, so each
-  compile died on duplicate declarations before reaching any callback
-  behavior. Composing them like the Windows hosted-receiver fixture, with the
-  standard library as an ordinary dependency, took the suite off that wall;
-  it now runs 4 of 6 with two documented stops: the direct-parameter witness
-  reaches the native-artifact fragment import custody join (the receiving-
-  stage bullet's surface), and
-  `a_package_local_calling_copy_rejects_beside_the_standard_library_entry`
-  fails on a pre-existing boundary-schema regression (`retains 0 evaluated
-  calling plans for semantic requirement ProgramStorageEntry::enter`)
-  reproduced on aebd2c1a8d without the transport slice. Other fixtures that bind
-  `windows_x86_64::ProgramEntry` beside a package-local library copy may have
-  broken the same way at that commit, and one had: `calling_policy_plans` was
-  45 of 59. `hosted_entry_contract_seed` seeds the authored target contract
-  into every target-selected compilation, needing no build declaration and no
-  entry binding, so any fixture carrying its own copy of a bundled
-  standard-library source declares it twice. Eleven calling-vocabulary tests
-  copied the calling module and three macOS entry tests copied the target
-  contract itself; taking the standard library as an ordinary dependency, and
-  checking the bundled contract under its custody as the Linux and Windows
-  fixtures already did, returns that suite to 59 of 59. One of those tests had
-  been asserting a rejection the compile never produced, so it passed while
-  observing nothing, and now reaches exactly that one diagnostic.
-- **REGISTERED-CALLBACK-LIFETIME.** Model successful registration as a linear
-  external root, and unregister as the operation that ends it before code and
-  component leases release, under
-  [registration and lifetime](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
+- **REGISTERED-CALLBACK-LIFETIME.** Complete an authored registrar lifecycle
+  under [registration and lifetime](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
   and [opaque retention](wiki/spec/build/component_publication.md#opaque-retention-and-quarantine).
-  Capacity bounds live registrations, not emitted thunks.
+  Owners: checked execution/result planning, Terminal result qualification and
+  claim replay, installed-provider interpretation, and
+  `component-publication/src/callback_registration.rs`.
+  Routed-domain authorization of registration sum payloads, interpreted
+  register/unregister ledger integration and installed-provider minting of bare
+  linear result claims exist; do not reopen the resolved payload-authorization
+  question.
 
-  `component-publication/src/callback_registration.rs` holds the runtime
-  ledger: private-entry attribution, registration lease, `lower_registration`,
-  `unregister_and_quiesce` and `release_component_era`. Its only caller is
-  `tests::package_registration_owns_exact_component_era_lease_through_replacement`
-  in the same crate, which sequences the ledger by hand. No Omega source,
-  build declaration or canary expresses a registration or an unregister, and
-  registration capacity is named only in `component-publication` and
-  `external-roots`.
+  Carry the success/rejection sum through executable planning, case-conditional
+  qualifications/claims and an authored provider/customer. The installed-provider
+  path still rejects projected result qualifications and admits affine results
+  only without claims/qualifications
+  (`terminal-interpreter/src/terminal_interpreter/call_operations.rs`).
+  Success must join the exact live-registration capacity occurrence to the
+  external root and code/component leases; rejection preserves that capacity
+  without a root. Teardown requires quiescence before lease release.
+  Capacity counts live registrations, not emitted thunks; successful teardown
+  returns the same capacity occurrence.
+  Use ordinary custody, not registration-specific checker rules.
 
-  The authored contract is pinned through the generic program-local chain in
-  `checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs`:
-  `Registration [linear]` is the authority token, `domain Registration::Live`
-  is established by `Registrar::register` and `Registrar::unregister`, and
-  `Live::content` bounds each live registration at one `RegistrationSlot`
-  (capacity counts registrations, not thunks). `unregister`'s `in Live`
-  argument lowers a `ProgramLocalRootIntroductionSchema` that survives the
-  codec and verifier, `VerifiedProgramLocalRootProducerCatalog` exposes the
-  producer row, and an interpreted `Customer::run` entry forwards the
-  host-installed live registration to the provider boundary on `unregister`.
+  Acceptance: one authored program rejects, retries, replaces using returned
+  capacity, and unregisters. Dropped, repeated, stale/cross-occurrence
+  registrations and spent-capacity reuse reject. Preserve
+  `checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs` and
+  the interpreted ledger tests, but manual ledger sequencing or injected
+  provider-conformance rows do not close this authored acceptance.
+  CALLBACK-PRIVATE-MATERIALIZATION supplies the native entry; FFIVAL owns
+  the Windows foreign-invocation customer. Other hosts must report that leg
+  unavailable rather than claim execution.
 
-  A claimed linear boundary result now crosses provider to program:
-  `Registrar::register(registration) -> Registration in Registration::Live`
-  runs in a Unit statement sequence, the returned registration lands on the
-  caller's claim frontier under the result place, and a following
-  `Registrar::unregister(registered)` settles that exact occurrence —
-  pinned by `interpreted_register_unregister_round_trip_drives_the_ledger`,
-  which observes both boundary effects in order through the checked,
-  lowered, verified, codec and interpreted chain.
+- **FOREIGN-RETAINED-ARGUMENT-BACKING.** Connect authored retained-argument
+  custody to executable native backing under
+  [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody).
+  Owners: checked content/call planning, checked-to-lowered retention,
+  Terminal boundary validation, native call-site marshaling, and
+  `external-roots/src/program_local/program_local_extents/retained_foreign_arguments.rs`.
 
-  Remaining work:
+  Shared retained-borrow custody attaches to the invoked Terminal boundary;
+  verification checks its exact shared source and retained result loan.
+  `retain_foreign_argument_under_custody` selects shared lifetime retention
+  from that row, but still has only test callers. Complete the authored
+  source-to-Terminal-to-native call-site connection, materializing pointers
+  only from established stable root/range/access/lifetime/revision-or-lease
+  custody. Reuse the admitted result-`ensures`, nominal-match and structural-result
+  catalog path rather than recreating those gates.
 
-  - An authored registrar customer under the linked contract: success yields
-    the linear registration holding the exact live-registration capacity
-    occurrence, failure returns that capacity with no root, and unregister
-    consumes the registration. Use ordinary linear custody; add no
-    registration-specific checker rule. One grammar seam still blocks the
-    full program: a routed domain cannot authorize a case payload. Verified
-    sharper at `797e99ead7a`: the payload's own declaration and construction
-    now check — `case Registered(registration: Registration in Live)` accepts
-    a `Registration in Live` value supplied by an authorized route (post-
-    `556a3a0d5d45`, which admitted claimed linear results on boundary calls).
-    What still rejects is putting the sum on the establishing requirement
-    itself: `Registrar::register(...) -> Outcome` fails
-    `requirement_authorizes_domain_subject` ("does not name the domain on its
-    exact result or an exact non-self external-root parameter") because
-    `type_reference_domain_symbols` never looks inside a `Named` type's
-    declared members — and past that gate, result qualification is flat
-    (`StructuralOperationResult.qualifications`/`projected_qualifications`
-    derive only from the result type-reference expression, not member
-    payloads), so the routed membership would need a payload-path schema and
-    verifier evidence. Whether a returned sum's payload counts as "the exact
-    result subject" (authority.md) is the open spec question. The
-    installed-provider interpreter path now mints and settles the claimed
-    linear result (see the Sep 20 wave-state note below); the uninstalled
-    effect path admits the claimed linear result.
-  - Omega: join that boundary outcome to the ledger — landed for the whole
-    interpreted lifetime: `interpreted_register_and_unregister_drive_the_
-    registration_ledger` in `component-publication/src/tests.rs` drives root
-    admission, provider registration, lease acquisition and lowering off the
-    program's own `register` effect, and quiescence plus lease release off
-    its `unregister` effect, on a real
-    `RunnableComponentCallbackRegistrationRuntime`.
-  - **CALLBACK-PRIVATE-MATERIALIZATION.** must supply a native callback entry
-    before any foreign invocation can be witnessed.
+  Add the permitted-snapshot source/checked contract and persistent demand per
+  live occurrence; copying must be explicitly allowed, without invented identity
+  preservation or write-back. Connect moved backing through CONSERVATION-CONTRACT
+  and TERMINAL-CONTENT-CLAIMS. Moved/snapshot registry helpers are test-only;
+  promote a route only when authored custody selects it.
 
-  Acceptance: one authored program registers, observes a rejection and retries,
-  replaces a registration by reusing the returned slot and capacity, and
-  unregisters with quiescence before lease release. A dropped registration, a
-  second unregister, a stale or cross-occurrence registration and reuse of
-  spent capacity reject. On Windows a real foreign callback enters the
-  registered machine; other hosts report the leg unavailable. The ledger test
-  is not the customer witness. **FFIVAL** names the same host-gated run.
-
-  Flag: the previous acceptance counted rejection, retry, replacement and
-  cleanup as covered by that Rust test, although no program can reach the
-  ledger. It is supporting machinery until an authored registrar drives it.
-
-  Wave state at `9f48bb2a59` (~21:55Z Sep 20): the grammar seam named in
-  the first remaining bullet is landed — `3cfe2d969d` ("routed domains
-  authorize owned case payloads on result carriers") made
-  `type_reference_domain_symbols` descend a named carrier's record
-  fields, case payloads and fixed-array elements, and
-  `check_call_result_qualifications` admit the case-scoped claim under
-  the route's issuance authority, so `register -> Reply{Registered(
-  registration: Registration in Live)}` now checks at admission (pinned
-  by `sum_reply_case_payload_authorizes_the_routed_domain` plus the
-  non-route and unqualified-payload controls in
-  `checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs`).
-  The authored customer still cannot run: unit-machine plan admission
-  for the affine-classified sum result is sibling-fenced
-  (`typed-trees-to-checked-trees/src/execution/unit` legs under
-  PROVIDER-ATTACHMENT-MACHINE-PLAN ~22:37Z, STRUCTURAL-BORROW-IDENTITY
-  ~05:17Z, GENERAL-CYCLIC-EXECUTION-OPTIMIZER ~03:48Z, and
-  PSI-NATIVE-FIELD-STORES ~02:12Z), and the installed-provider seam is
-  still open — `supported_result` in terminal-interpreter
-  `call_operations.rs` admits only claim-free affine results, and the
-  suspended-frame machinery (`rebind_structural_result_claims`) models
-  callee-*returned* claim transfers, while a boundary route *mints* the
-  claim by establishment authority: installing `result.claims` on the
-  caller at resume needs the minted-claim path made case-conditional
-  (a `Rejected` return must not mint `Live` on a payload that does not
-  exist) — no current frame records that distinction. Native foreign
-  invocation still waits on CALLBACK-PRIVATE-MATERIALIZATION; the
-  interpreted ledger join and the uninstalled-path claimed-result
-  round-trip are already landed. Ordered frontier: execution/unit plan
-  admission (sibling fence) → installed-provider boundary result minted
-  claims + introduced qualifications → authored customer witness →
-  CALLBACK-PRIVATE-MATERIALIZATION's native entry → the acceptance
-  program.
-
-  Re-witnessed at `94e764a6da` (~04:15Z Sep 21, linux x86-64): the ordered
-  frontier is still fenced. The first leg's `execution/unit` surface carries
-  six live claims — providers.rs + types/mod.rs under
-  PROVIDER-ATTACHMENT-MACHINE-PLAN (exp 09:49Z), dynamic_scalar_calls/ under
-  GENERIC-DYNAMIC-FAMILY-DISPATCH (05:31Z), control/checked_machine.rs under
-  CRASH-CONTRACT (04:27Z) and CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP
-  (08:46Z), composed_control/ under CONSERVATION-CONTRACT (09:57Z), and
-  control/call_occurrences.rs under PASS-CANARY-UNIT-PLAN-CLASS (11:01Z).
-  The named STRUCTURAL-BORROW-IDENTITY / GENERAL-CYCLIC-EXECUTION-OPTIMIZER /
-  PSI-NATIVE-FIELD-STORES claims have drained; terminal-interpreter
-  `call_operations.rs` (supported_result minted-claim leg) and
-  component-publication are currently claim-free, but the authored customer
-  still cannot run without the fenced unit-plan admission. Native entry stays
-  gated on CALLBACK-PRIVATE-MATERIALIZATION (live, exp 09:13Z). No landable
-  slice from this row this wave.
-  Wave state at `2a9f9c02ad` (~13:00Z Sep 20, z152): the installed-
-  provider minted-claims + introduced-qualifications leg is landed.
-  `supported_result` admits a claimed linear result (linear results and
-  affine results stay claim-free; unrestricted results still reject),
-  and `settle_return_structural` distinguishes the minted frame
-  (`result.claims` non-empty with no `returned_claim_transfers`) from
-  the transferred frame: `mint_boundary_result_claims` installs each
-  `result.claims` binding on the caller's live-claim ledger at the
-  returned place, skipping any binding whose path the returned sum does
-  not inhabit (`boundary_claim_path_inhabited` walks `Field` segments
-  through `observe_structural_case` on the callee frame, fail-closed),
-  so a `Rejected` return mints no `Live` on an absent payload. Result
-  `qualifications` are introduced at return — minted onto the returned
-  value — and the verifier admits the introduced direction through
-  `matches_return_source` (source ⊆ result) on return edges while calls
-  keep exact `call_result_matches`. `provider_result` admits linear
-  results and lets `entry_claims` bind structural parameters, so a
-  Linear `registration` param can carry the claim the result mints back.
-  `installed_registered_provider_mints_and_settles_the_live_claim`
-  splices a provider machine + `ProviderCandidateConformance` row into
-  the compiled `INSTALLED_PROVIDER_SOURCE` module, admits the
-  installation, runs the customer, and observes exactly the `unregister`
-  boundary effect with `released.qualifications == [Live]` — the full
-  verified, admitted, interpreted path. The authored-customer witness is
-  the next leg: an authored provider cannot mint the domain today (its
-  `satisfies` body still needs ordinary `in Live` evidence to return a
-  qualified value), which waits on the sibling-fenced execution/unit
-  plan admission above; the trusted-surface ledger re-recorded the three
-  verifier sites under the claim-held `sites.rs` because the digest
-  must match the working tree.
-
-- **FOREIGN-RETAINED-ARGUMENT-BACKING.** Execute outbound arguments that a
-  foreign callee retains after return, beyond callbacks, under
-  [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody), with
-  explicit call-scoped, lifetime-borrowed, moved and snapshot dispositions.
-  Every retained pointer needs exact stable backing, range, access, lifetime
-  and revision provenance; unknown or mutable ambient backing rejects.
-
-  Checking already derives the disposition from the authored contract. A
-  consumed owned source or one exact shared lifetime-bound source is recorded;
-  borrow-only, mutable lifetime-bound and ambiguous sources reject
-  (`typed-trees-to-checked-trees/src/tests/content/retained_content_custody.rs`,
-  `core/content_retained_custody_round_trip`,
-  `fail/core/content_retained_custody_from_borrow`). The shared-borrow row
-  lowers to `terminal_psi::RetainedBorrowCustody`
-  (`checked-trees-to-lowered-psi/src/retention/retained_borrow_custody.rs`).
-  It IS invocable — this paragraph is stale and contradicts the row's own
-  "Resume evidence" below it. `143636cec8a6a` ("psi: admit invoked
-  retained-borrow boundary calls under custody") replaced the blanket refusal
-  with custody validation: `boundary_calls.rs:39` destructures the
-  `RetainedBorrow` guarantee and `:89` gates the call on
-  `ModuleError::InvalidRetainedBorrowBoundaryCall`, admitting a call whose
-  source argument is the whole borrowed place presented `SharedBorrow`.
-  `RetainedBorrowBoundaryIsNotExecutable` has zero hits in the tree.
-
-  Resume evidence (Zergling-181, wave 2026-09-20): the Terminal leg of the
-  first bullet landed. `retain_foreign_borrow_custodies` now merges the
-  custody row onto the invoked callable's authored boundary declaration
-  instead of synthesizing a detached carrier
-  (`checked-trees-to-lowered-psi/src/retention/retained_borrow_custody.rs`),
-  `validate_retained_borrow_custody` replays the row against the authored
-  signature (non-self shared-borrow parameter at the source's formal position
-  on the exact nominal carrier carrying the source domain; linear result on
-  the exact nominal carrier qualified by the retained domain), and
-  `validate_boundary_call` admits the call as
-  `InvalidRetainedBorrowBoundaryCall`-gated: the source argument must be the
-  whole borrowed place presented `SharedBorrow`, and the result must be the
-  exact retained occurrence carrying the caller's loan claims, which stay live
-  on that result until a redeem call re-homes them (unit tests in
-  `retained_borrow_custody.rs` witness admit + moved-source and
-  unbound-loan rejections). Still open: the source-level invocation leg is
-  blocked by other owners' claims — `typed-trees-to-checked-trees/src/execution/unit`
-  contract gates (`signature_contracts_are_exact_parameter_qualifications`
-  rejects authored `ensures result in Domain`), `checked-trees-to-lowered-psi/src/unit`
-  composed catalogs reject qualified structural boundary results
-  (`catalogs.rs` ~line 263), and the checked-side nominal match in
-  `facts/qualification_evidence.rs` (~line 346) never observed the authored
-  domain spelling. Also `retain_foreign_argument_borrowed` is not yet driven
-  from a lowered unit call site.
-
-  Remaining work:
-
-  - Psi: the snapshot disposition has no source or checked form. It needs the
-    contract's explicit permission for independent copying and persistent
-    demand counted per live occurrence.
-  - Omega: native realization materializes a retained pointer only from an
-    established storage claim, and each slot carries root, range, access,
-    lifetime and revision or lease provenance.
-    `ProgramLocalExtentRegistry::retain_foreign_argument_{borrowed,moved,snapshot}`
-    (`external-roots/src/program_local/program_local_extents/retained_foreign_arguments.rs`)
-    already records that and rejects unheld, provider-issued, stale-era,
-    out-of-range and excess-rights backing. Drive it from the Terminal custody
-    row.
-
-  Acceptance: one authored boundary per retaining disposition runs natively on
-  an available host: a moved buffer redeemed by its completion, a shared loan
-  retained for an explicit lifetime while a conflicting write rejects, and a
-  permitted snapshot. Retention from a call-scoped borrow, a mutable
-  lifetime-bound source, an ambiguous source mapping, or unknown, stale,
-  out-of-range or excess-rights backing rejects. The moved disposition's
-  conserved-content route belongs to
-  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**; registration custody
-  belongs to **REGISTERED-CALLBACK-LIFETIME**.
-
-  Flag: that ledger has no caller outside its own tests, and its disposition
-  is whichever Rust method the caller picks. The contract assigns that choice
-  to the authored types, so the Terminal custody row must select it.
+  Acceptance: authored moved, lifetime-borrowed and permitted-snapshot boundaries
+  run natively. Completion redeems moved backing; a live shared loan excludes
+  conflicting writes. Call-scoped, mutable lifetime-borrowed or ambiguous retention and
+  unknown/stale/out-of-range/excess-rights backing reject. Preserve
+  `retained_content_custody` and `retention/retained_borrow_custody` controls.
+  Registration-specific lease custody remains REGISTERED-CALLBACK-LIFETIME.
 
 ## P5 - Cathedral over general Omega primitives
 
@@ -5576,34 +4966,29 @@ syntax and other terminal services are not prerequisites.
   as empty coverage. An empty admission profile still admits only
   kernel-dischargeable modules.
 
-- **FFIVAL.** Author and run the Windows `user32` boundary-coherence canary: an
-  Omega window procedure registered with `RegisterClassEx`, entered through
-  `CreateWindowEx`/`WM_NCCREATE` and `DispatchMessage`, and released through
-  `DestroyWindow` and `UnregisterClass`, with no raw function pointer or
-  Win32-only compiler escape.
+- **FFIVAL.** Run the Windows `user32` boundary-coherence customer:
+  an Omega window procedure registered with `RegisterClassEx`, entered
+  through `CreateWindowEx`/`WM_NCCREATE` and `DispatchMessage`, then
+  released through `DestroyWindow` and `UnregisterClass`. Use the generic
+  [private-callback route](wiki/spec/build/private_callbacks.md), not a raw
+  function pointer or Win32-specific compiler escape.
 
-  The canary is authored and parked at
-  `tests/omega/pending/host/user32_window_procedure_registration` (`main.omg`
-  plus its retained `build.omg`), watched by
-  `pending_canaries_reproduce_known_gaps` in
-  `canary_suite/layouts_and_pending.rs`. It pins the first unreached
-  dependency on revision d05ec39a5d: `domain Registration::Live authorizes
-  User32::register_class but that requirement does not name the domain on
-  its exact result or an exact non-self external-root parameter` — the
-  routed domain cannot authorize the
-  `RegisterClassOutcome::Registered(registration: Registration in Live)`
-  case payload, so the observed-rejection sum cannot be written yet.
-  Behind it stand **REGISTERED-CALLBACK-LIFETIME** (the rest of the authored
-  registration route) and **CALLBACK-PRIVATE-MATERIALIZATION** (callback ABI
-  transport in the common instruction pipeline). The pending watcher flips
-  when the authorization gate opens; at that point re-drive the fixture,
-  move it to `pass/host/`, and re-pin whatever surfaces next.
+  Resume from `tests/omega/pending/host/user32_window_procedure_registration`
+  and its `build.omg`. The `canary_suite/layouts_and_pending.rs` watcher
+  currently expects `cannot prove requires contract`; its explanation and
+  fixture comments still describe case-payload authorization as wholly absent,
+  although generic routed result-payload authorization now exists. Reproduce
+  this particular by-reference outcome fixture's current diagnostic before
+  assigning the next repair. REGISTERED-CALLBACK-LIFETIME owns the authored
+  outcome/capacity lifecycle; CALLBACK-PRIVATE-MATERIALIZATION owns the
+  multiple-argument, call-bearing callback and private layout destination.
 
-  Acceptance: on a Windows host the canary builds from its `build.omg`
-  through the generic [private-callback](wiki/spec/build/private_callbacks.md)
-  route, receives a real foreign callback, recovers per-window state without
-  an ambient closure, and unregisters before its code lease is released. Other
-  hosts report the leg unavailable.
+  Acceptance: on Windows, build through the authored root, receive a real
+  foreign callback, recover per-window state without an ambient closure,
+  exercise rejection/retry and capacity reuse, and unregister with quiescence
+  before releasing the code lease. Update the pending watcher and promote the
+  canary only when its corresponding acceptance works; checking alone is not
+  foreign invocation. Other hosts report that runtime leg unavailable.
 
 - **WIRE-RUNTIME-AND-INSTALLATION.** Complete the
   [admitted executable installation contract](wiki/spec/build/executable_installation.md):
@@ -6687,25 +6072,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `UnsupportedTarget` in catalog.rs and `hosted_sequences.rs` emits the
   out-of-range diagnostic. No authorized implementation surface; resolved
   with the parent row.
-- **ABI-LAYOUT-REDERIVATION-AUDIT.** Mined candidate — resolved: the name
-  names the landed opaque-representation-selection rederivation audit.
-  `representation-planning::rederive_opaque_representation_selections`
-  (`representation_selection.rs:97`) independently replays the build-time
-  `select_representation` harvest over the final typed graph and rejects any
-  divergence from the retained build custody — per-row stale custody
-  (selecting-machine or stored-vs-rederived `selected_application_commitment`
-  mismatch), roster omission/duplication/reorder/extension, and a build
-  machine that does not resolve to exactly one final declaration — before
-  the boundary calling plan and package-review evidence consumers trust the
-  rows (`phase_transitions.rs:172`,
-  `packages/review/evidence/.../policy/selections.rs:41`). The
-  `BoundaryOpaqueRepresentationUse` rederivation is also re-audited at
-  boundary-plan admission (`callback_bindings.rs`, "stale
-  opaque-representation application custody"). Re-verified green on linux
-  x86-64 at `94e764a6da`: `cargo nextest run -p representation-planning
-  --lib representation_selection` — 5/5 (honest replay, recompute-from-
-  evidence, roster rejection, per-field substitution matrix, single-
-  build-machine pin).
 - **ALIGNMENT-STRING-PARSING.** Mined candidate — scope verified,
   covered. Bare re-mine of SQUALR-ALIGNMENT-STRING-PARSING: the
   alignment-string parsing gap inside the Squalr app's geometry lane
@@ -8257,32 +7623,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
 - **CLI-COMMANDS** — mined candidate; verify scope then implement.
   covered — contentless mined stub; CLI surface is documented in AGENTS.md with no named gap
-- **COMMON-ROUTE-REJECTION-INVENTORY** — mined candidate; verify scope then implement.
-  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION). Re-witnessed at
-  `38054732a3cd` (linux x86-64): both family-1 reds unchanged —
-  `ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
-  still reads `0x600000000` segments at :1497 and
-  `ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64` still
-  `BoundOverflow` at :1890; family 2's closed-projection replay stays
-  green. Doc-recording leg now fenced by RC-REPOSITORY-CLOSURE
-  (exp 09:29Z); repair remains the PSIIR ranked-segment lane's decision
-  (carrier-wide bound vs verified countdown).
-
-  Verified scope: re-mines NORMALIZED-ABI-LOWERING's callback-transport
-  bullet (TASKS.md:2273) — "the common route rejects every request carrying
-  a callback in `native_realization/object_emission.rs`". That recorded
-  inventory is now partially stale: `lower_callback_thunks` runs inside the
-  common route and callback thunks reach the emitted object as private
-  functions (witness `direct_callback_relocation_resolves_to_its_private_
-  function`); the surviving rejection is `construction::build_plan`
-  refusing the materialized registrar row — CALLBACK-PRIVATE-
-  MATERIALIZATION's active surface, and its implementing files
-  (`object_emission.rs`, `callback_custody.rs`,
-  `callback_terminal_custody.rs`, `callback_materialization_closure.omg`)
-  sit under that item's live claim (Jarod / swarm-w9, expires 20:36Z).
-  A fuller inventory of remaining common-route rejections belongs inside
-  that owner's lane. Sibling re-mine name: REPLACEMENT-REJECTION-INVENTORY
-  (replacement-side inventory, separately claimed).
 - **COMPARE-TEST-SELECTION.** — mined candidate; verify scope then implement.
 - **COMPILER-OBSERVATION-PRODUCTS.** — mined candidate; scope verified,
   resolved as a deliberately closed surface with no authorized slice.
@@ -8343,8 +7683,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   that belongs to the parent COMPILER-PASS-PROFILE-TIMINGS row
   (psi_does_not_depend_on_omega forbids the dependency route).
 - **COMPILER-PASS-PROFILE-TIMINGS.** — advanced: the omega-side product legs now record into the `CompileTimings` accumulator the checked record carries. `CheckedCompilation::timings_mut` exposes it; `produce_retained_terminal_artifact` records `terminal-production`, `terminal-verification` and `native-realization-proposal` rows via take/put-back; the direct route carries `terminal-production` on `ProgramEntryTerminalArtifact::stage_timings` (merged back in `prepare_native_product`), and `NativeInputReuse` records `native-input-preparation` on cache miss. Enable+report legs landed (this wave): `CompileRequest::with_timings` reaches `PreparedCheckedSource::prepare`, which builds an `enabled` accumulator when asked; `CompileReport::timings()` carries each target's recorded ladder (`compiler -> tooling` dep edge `artifacts` is downward-legal per `workspace_layering_is_respected`), and `--timings` prints the report's stage rows after the command-level rows. Remaining leg: decompose the coarse boundary rows into per-stage rows — finer in-Psi rows need a Psi-owned timing carrier because `terminal-production` cannot depend on `artifacts` under `psi_does_not_depend_on_omega`; the prepared-project route (`PreparedLocalProjectNativeRequest`/`check_prepared_local_project`) also does not yet thread the flag. Witnessed on linux x86-64 at the pre-`c17b63d7592` green base (main is red there on `crossed_window`'s missing `CrossingDirection` arg — unrelated sibling landing): `timings_request_carries_the_recorded_stage_ladder_to_the_report` + `checked_admission_and_compilation_do_not_write_debug_dumps` pass; `compilation-report` + `assembled-syntax-to-checked-compilation` lib 93/93; `omega --lib` 16/16; architecture layering filter 14/14.
-- **COMMON-ROUTE-REJECTION-INVENTORY.** — mined candidate; scope verified, covered — the inventory already lives on sibling row REPLACEMENT-REJECTION-INVENTORY (this row's :7828 citation drifted to :11236). Re-verified at `fbf36233c9`: `lower_callback_thunks` still runs inside the common route (`native_realization/object_emission.rs:49`) so callback thunks reach the emitted object as private functions; the registrar rejoin machinery still sits in `checked-compilation-to-terminal-artifact/src/native_proposal/` (`callback_registrars`, exact target-closed replay at `native_proposal/mod.rs:257-268`); and the surviving common-route refusal is the callback-occupancy rejection at `native_realization.rs:342` ("hosted private-stack entry does not yet admit callback occupancy") — the materialization surface CALLBACK-PRIVATE-MATERIALIZATION owns, still live-claimed (Zergling-55, exp ~09:13Z). The producing files (`native_realization.rs`, `program_entry.rs`, `optimized_fragment_projection.rs`, `object_emission.rs`) remain under UEFI-PHYSICAL-SEMANTIC-ENTRY's claim. No independent slice exists here.
-  Re-verified at `3dac85e5cc`: all pins still hold — `lower_callback_thunks` still runs in the common route (object_emission.rs:49, now via `native_realization::callback_thunks`), the callback-occupancy refusal moved to `native_realization.rs:345` with the same message, and the registrar machinery is unchanged but the crate now sits at `omega/pipeline/checked-compilation-to-terminal-artifact` (path relabel). CALLBACK-PRIVATE-MATERIALIZATION's claim has drained; UEFI-PHYSICAL-SEMANTIC-ENTRY still fences the producing files (~08:44Z lease window).
 - **COMPOSABLE-PAIR-DESCRIPTORS.** Compose selected-lowering pair-rule descriptors over independent axes instead of enumerated products. Landed: `PairMachineEffects` is now a struct of three axis enums — `PairNonUnitSurface` (isolated vs indexed-pointer-read fold), `PairFaultDischarge` (isolated vs discharged-by-literal vs discharged-by-obligation), `PairUnitDefRelation` (covered vs retired-when-dead vs operand-swapped) — with admission computed as the conjunction of per-axis gates and the eight prior variants expressed as named consts over the product (`literal_fold/pair_rule.rs`); the obligation gate now derives the obligation from the consumer kind's declared field instead of a variant-coupled kind list. `PairOperandShape` is now a struct of `PairLiteralPosition` (right/left/sole `Use` victim) × `PairOperandResult` (surviving operand, swapped operand, constant-of-literal, literal recompute) × `PairTailCustody` (bare, auxiliary `Use`s under zero-provenance custody, scratch `Def`s under occurrence-free custody, or the per-access mixed tail) with the twelve grammars expressed as named consts over the product; `victim_operand`, `fold_immediate`, and the action/validator matchers now read the axes directly — `compute/actions.rs`'s twelve-arm operand-shape match collapsed into one axis-driven admission (head layout from position+result, drop-tail custody from the tail axis) and `compute/constraints.rs`'s `validate_immediate_row` re-derives the row grammar from `(operand_result, result)` so a descriptor mistake still cannot self-certify. `PairUnitEffects` is now a struct of two `PairConsumerBindingAdmission` axes (`consumer_fixed_view`, `consumer_early_clobber`; `tied_to` stays a fixed rejection since no composition can rebuild a shared-home tie) with `ISOLATED`/`BOUND_CONSUMER_OPERANDS`/`BOUND_EARLY_CLOBBER_CONSUMER_OPERANDS` as named consts. Remaining: none — every pair-rule descriptor is axis-composed. Re-witnessed at `ab6ad3e438a` (linux x86-64, pre-rebase): the landed axis decomposition is present and green — `selected-instructions-to-selected-instructions` 342/342 filtered tests pass over rewrites/selected_lowering + pair surfaces; the row now correctly records "Remaining: none".
 - **CONCURRENT-PROTOCOL-COMPOSITION-EXTRACTION.** — mined candidate; resolved alias, authorization gate recorded (re-verified at `fbf36233c9`: concurrency.md:138 + chapter_18:399-400 deferral sentences intact, `cross_activation_edges: CompositionCrossActivationEdges::NotRetained` still published at composition_model/mod.rs:226). Sibling re-mine of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface — whole-composition extraction is deferred until a concrete protocol or safety-profile customer needs it; no implementation slice exists to claim. Same resolution as the rostered siblings on that row.
   covered — alias of CONCURRENT-PROTOCOL-EXTRACTION's deferred surface (concurrency.md:138 authorization gate)
@@ -10360,7 +9698,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   still naming this surface stay owned where they live:
   CROSS-PACKAGE-DYNAMIC-EVIDENCE-LOAN-ORIGIN and the
   *-LOAN-ORIGIN stubs beside this row.
-- **PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE** — mined candidate; scope verified, covered — same package-evidence contract surface as resolved siblings PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION and PACKAGE-PROJECTION-EVIDENCE-MIGRATION (this section). The resolution-scope leg is already implemented and pinned in `omega-rust/omega/packages/review/evidence/src/capture/`: unique-trait selection rejects non-unique/absent cases at each leg (`provider_schema.rs`, `services/authority.rs`, `calling/application/signature.rs`, `providers/policy/rows.rs`, `terminal_authority_permissions/declarations.rs` — each "has no unique exact declaring trait"), scoped per subject ordinal + selected application + lifetimes + structural arguments. The genuinely unfinished ledger joins (certificates, transitive open obligations, schema migration, admission decisions in `src/ledger/obligation_ledger.rs`) are named under PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
+- **PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE** — mined candidate; scope verified, covered — same package-evidence contract surface as resolved siblings PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION and PACKAGE-PROJECTION-EVIDENCE-MIGRATION (this section). The resolution-scope leg is already implemented and pinned in `omega-rust/omega/packages/review/evidence/src/capture/`: unique-trait selection rejects non-unique/absent cases at each leg (`provider_schema.rs`, `services/authority.rs`, `calling/application/signature.rs`, `providers/policy/rows.rs`, `terminal_authority_permissions/declarations.rs` — each "has no unique exact declaring trait"), scoped per subject ordinal + selected application + lifetimes + structural arguments. The genuinely unfinished ledger joins (certificates, transitive open obligations, schema migration, admission decisions in `src/ledger/obligation_ledger.rs`) are named under PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
   ("requires an exact retained loan origin for its shared receiver" stopped
   emitting after the retained-lineage/borrow-evidence family landed).
   Re-verified at `d6a0625f6b` (macOS arm64, mbx/nextest): all 21
@@ -10387,33 +9725,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `calling_policy_source::inherited_requirement_retains_declaring_trait_and_concrete_parent_application`
   expects `pub boundary trait ProcedureBase<Value>` in rendered fixture
   source — preexisting drift on the base commit, outside this claim.
-- **PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION.** Mined candidate; scope
-  verified, resolved — the opaque-use attribution leg is landed and
-  pinned: `review/evidence/src/record/calling/opaque.rs` carries
-  `PackagePolicyCallingOpaqueUse` (per-opaque identity, carrier,
-  selection owner, conformance application, origin/lifecycle/copy
-  dispositions, and the exact sorted occurrence roster with
-  carrier-shape roots, movement roles, paths, and placements), and
-  `capture/calling/opaque.rs::project` attributes every
-  `opaque_representation_uses()` entry of a boundary calling signature
-  to its exact `OpaqueRepresentationSelection` — fail-closed on a
-  missing or ambiguous selection, an unresolved selection owner, stale
-  representation custody (`validate_selection_use` re-checks opaque,
-  conformance, carrier, both fingerprints/commitments, schema version,
-  origin, lifecycle, copy disposition, selected-application
-  commitment), or a missing/duplicated occurrence. The row contract
-  sits in `EVIDENCE_SCHEMA.md` ("Actual by-value consumer demand …
-  exact opaque occurrences/paths, replay-validated placement").
-  Re-verified green at `758e8ad9e241a` (linux x86-64):
-  `cargo nextest run -p package-evidence -E 'test(/calling_policy_opaque/)'`
-  → 2/2 (`opaque_calling_policy_retains_exact_occurrences_and_excludes_unused_selections`,
-  `foreign_opaque_declarations_keep_the_local_selection_owner`). The
-  genuinely unfinished ledger joins (certificates, transitive open
-  obligations, schema migration, admission decisions) stay with sibling
-  PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not here. No independent slice.
-  Sibling stubs on this surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE,
-  PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION,
-  PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.** Mined candidate;
   scope verified, covered — the name re-mines the package-evidence contract
   pair in `omega-rust/omega/packages/review/evidence/EVIDENCE_SCHEMA.md`:
@@ -10442,7 +9753,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ledger joins (certificates, transitive open obligations, schema migration,
   admission decisions — `src/ledger/obligation_ledger.rs`) are named under
   the sibling resolved stub PACKAGE-PROJECTION-EVIDENCE-MIGRATION, not
-  here. Sibling stubs on this surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION,
+  here. Sibling stubs on this surface:
   PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION.
 - **PACKAGE-INPUTS-PSI-FAILURES.** — mined candidate; scope verified,
   resolved — the psi-failure legs of package compilation inputs are
@@ -10461,7 +9772,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `0f75a052f0` (linux x86-64): `cargo nextest run -p compiler --test
   package_compilation_inputs -E 'test(~reject) or test(~do_not_admit)
   or test(~fail)'` — 51/51 PASS (206s). No independent slice remains.
-- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION.** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
+- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION.** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF.** Mined candidate — resolved:
   re-mines the computed-constant leaf surface landed under
   PKG-INPUTS-FLOAT-IDENTITY-LANDING (`742a2f1d84`), same resolution as
@@ -10472,7 +9783,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (linux x86-64): `cargo nextest run -p compiler -E
   'test(~public_float_constants_retain_landed_identity_and_exact_
   import_owner)'` — 1/1 pass. No independent slice remains.
-- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
+- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 - **PACKAGE-REVIEW-HOTSPOT-ATTRIBUTION** — mined candidate; verify scope then implement.
 - **PACKAGE-INPUTS-COMPUTED-CONSTANT-LEAF.** Mined candidate — resolved:
   re-mines the computed-constant leaf surface landed under
@@ -10484,7 +9795,7 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (linux x86-64): `cargo nextest run -p compiler -E
   'test(~public_float_constants_retain_landed_identity_and_exact_
   import_owner)'` — 1/1 pass. No independent slice remains.
-- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Re-witnessed at `00f36e8cfa` (linux x86-64): `obligation_ledger.rs:116` still lists certificates, transitive open obligations, schema migration, and local admission decisions as separate unfinished joins, and `EVIDENCE_SCHEMA.md` still reserves replacement encodings to PROOF-CONTRACT-MIGRATION. Sibling stubs on the same surface: PACKAGE-EVIDENCE-OPAQUE-USE-ATTRIBUTION, PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
+- **PACKAGE-PROJECTION-EVIDENCE-MIGRATION** — mined candidate; scope verified, no independent slice — the name conflates two owned surfaces: the ordinary package-review obligation ledger's unfinished **schema migration** join (`omega-rust/omega/packages/review/evidence/src/ledger/obligation_ledger.rs` lists it beside certificates, subjects, and admission decisions as a separate unfinished join of the ledger row set), and the **contract/bundle encoding migration** that `EVIDENCE_SCHEMA.md` reserves to PROOF-CONTRACT-MIGRATION ("Contract/bundle migration must preserve exact occurrence, substitution, law/member, and witness joins; replacement encodings remain `PROOF-CONTRACT-MIGRATION` work"). Executable evidence projections and nested executable machine applications are explicitly not admitted by adding a review row, so no local implementable slice exists here. Re-witnessed at `00f36e8cfa` (linux x86-64): `obligation_ledger.rs:116` still lists certificates, transitive open obligations, schema migration, and local admission decisions as separate unfinished joins, and `EVIDENCE_SCHEMA.md` still reserves replacement encodings to PROOF-CONTRACT-MIGRATION. Sibling stubs on the same surface: PACKAGE-EVIDENCE-TRAIT-RESOLUTION-SCOPE, PACKAGE-EVIDENCE-TRAIT-SCOPE-COLLISION, PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION.
 
 - **PACKAGE-REVIEW-ROUTE-ATTRIBUTION.** Mined candidate; scope verified at
   `0977a4249e`: the open reading is dependency-route attribution on the
@@ -11244,7 +10555,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **RECURSIVE-ARGUMENT-OVERLOAD-DEDUP.** Mined candidate — resolved as an alias of RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP: the name re-mines the same `calls/statement_call_recursive_{argument,overload}_compile` dedup surface that row carries (Peano/peano_add rename at `e5912f303a` ended the `core/nat.omg` collision; negative half pinned by `duplicate_overload_and_visibility_admissions_reject`). Re-witnessed at `9e3edc7be9a3` on Linux x86-64: `OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile` → pass (94.6s), and `OMEGA_FAIL_CANARY_FILTER=duplicate_named_machine_overload_rejected,recursive_argument_imported_name_collision_rejected ... surface_and_targets::duplicate_overload_and_visibility_admissions_reject` → pass. No independent slice exists.
 - **REGION-ALIGNMENT-EXPANSION.** — mined candidate; verify scope then implement.
   covered — port landed in the squalr submodule pin (`ef6682f75f48`); app-lane residual is SQUALR-REGION-ALIGNMENT-EXPANSION's
-- **REPLACEMENT-REJECTION-INVENTORY.** — mined candidate; scope verified, covered — this is the named sibling re-mine of COMMON-ROUTE-REJECTION-INVENTORY (:7828), asking the same inventory from the replacement side. The surface state recorded there still stands and re-verifies at `a2c9e44e554`: the old record ("the common route rejects every request carrying a callback") is partially stale — `lower_callback_thunks` runs inside the common route (`native-realization/src/native_realization/object_emission.rs:43`) and callback thunks reach the emitted object as private functions (witness `direct_callback_relocation_resolves_to_its_private_function`); the surviving rejection is the materialized registrar row refusal — CALLBACK-PRIVATE-MATERIALIZATION's surface — with the registrar/proposal machinery now living in `checked-compilation-to-terminal-artifact/src/native_proposal/callback_registrars*`. A fuller enumeration of remaining rejections belongs inside that owner's lane per the sibling record; additionally the producing files themselves (`native_realization.rs`, `program_entry.rs`, `optimized_fragment_projection.rs`, `object_emission.rs`) sit under UEFI-PHYSICAL-SEMANTIC-ENTRY's live claim (exp ~07:51Z), so no uncontested impl edit exists anyway. Nothing left to claim or land here. Re-verified at `500878c473f` (linux x86-64) (z153): `lower_callback_thunks` still runs inside the common route — now imported from `native_realization/callback_thunks.rs` and invoked at `object_emission.rs:49` (the row's `:43` drifted); the callback-occupancy refusal sits at `native_realization.rs:345` (the sibling's `:342` drifted); `callback_registrars` machinery still under `checked-compilation-to-terminal-artifact/src/native_proposal/`. Fence roster rotated: UEFI-PHYSICAL-SEMANTIC-ENTRY's claim on the producing files expired — `native_realization.rs`, `program_entry.rs`, `optimized_fragment_projection.rs`, `object_emission.rs` are now unfenced (nearest live neighbors: BUILD-EXCLUSION-REALIZATION over `native_realization/behavior_exclusions` + `native_product` to ~15:52Z, SEMANTIC-WRAPPER-OWNERSHIP over `optimized_semantic_wrapper_*` to ~17:41Z); CALLBACK-PRIVATE-MATERIALIZATION re-leased to zergling-z173 (~17:47Z) on machine-code `calls/callbacks.rs` + image-emission `call_sites.rs`, not the registrar machinery. The inventory itself still belongs to the resolved sibling; still nothing left to claim or land here.
 - **RESOLVER-SCOPE-CANDIDATE-FILTERING.** — mined candidate; scope verified, resolved — the name is a retired alias (annotated at `a8993c14af`, cited under its parent row's sibling re-mine list) for the landed source-scoped candidate narrowing in symbol lookup. Re-verified at `3a1304c93e`: `prefer_module_local_domain` still narrows a candidate list to the reference's own module when a same-module candidate exists (`syntax-trees-to-symbol-resolved-trees/src/symbols/lookup.rs:39`), and `source_reference_can_see_symbol` still gates candidate visibility from the reference's provenance span (`foundation/symbols/src/table.rs:864`, consulted at `table.rs:686`, `:795` and `table/modules.rs:551` for scope-candidate filtering). No independent slice exists.
   covered — retired alias; source-scoped candidate narrowing landed (`table.rs`)
 - **RECURSIVE-ARGUMENT-OVERLOAD-DECL-DEDUP** — mined candidate; scope verified, resolved — same re-mine of the `calls/statement_call_recursive_{argument,overload}_compile` dedup surface the resolved sibling rows carry: `e5912f303a` renamed the argument fixture's local `Nat`/`add` to `Peano`/`peano_add` ending the `core/nat.omg` collision, both pass canaries re-witnessed green on linux x86-64 at `a1daf35f2e` (`OMEGA_PASS_CANARY_FILTER=statement_call_recursive_argument_compile,statement_call_recursive_overload_compile cargo nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`, 74s), and the dedup's negative half stays pinned by `surface_and_targets::duplicate_overload_and_visibility_admissions_reject` covering `duplicate_named_machine_overload_rejected` + `recursive_argument_imported_name_collision_rejected`. No independent slice exists; this closes the name-surface sibling set the resolved rows name.
@@ -11301,14 +10611,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   covered — port landed in the squalr submodule pin (`ef6682f75f48`); app-lane residual is SQUALR-REGION-ALIGNMENT-EXPANSION's
 - **REMAINING-INTRINSIC-SPAN-ARMS** — mined candidate; verify scope then implement.
   covered — span-arm surface complete per TV-INTRINSIC-SPAN-ARMS (`14e6f8f72e`)
-- **REPLACEMENT-REJECTION-INVENTORY.** — mined candidate; resolved as
-  covered (re-verified `c924529921d`): the same-name row at :16129
-  already adjudicates this stub — sibling re-mine of
-  COMMON-ROUTE-REJECTION-INVENTORY asking the same inventory from the
-  replacement side; the surviving common-route refusal is the callback-
-  occupancy rejection CALLBACK-PRIVATE-MATERIALIZATION owns, and the
-  producing files were under UEFI-PHYSICAL-SEMANTIC-ENTRY's claim. No
-  slice under this stub.
 - **RETAINED-ARTIFACT-EXECUTABLE-PUBLICATION** — mined candidate; scope verified, resolved — same surface as COMPILER-EXECUTABLE-PUBLICATION-OPERATION (resolved on `origin/main`): the retained-artifact leg is `CompileReport::publish_retained_native_artifact` in `compilation-report/src/compile_report.rs`, which validates the retained artifact and manifest, refuses non-local output filenames, requires compiler-text/function validation evidence, and self-checks a requested PCC pair pre-install before `executable_publication.rs` commits one staged tree + atomic rename — a failed publish leaves no half-written executable or stale sidecar. Witnessed green at `ea025447fe`: `cargo nextest run -p compilation-report executable_publication` 15/15 and the compiler `activation_identifiers_and_publication` suite 15/15. Sibling stubs on the same resolved surface: EXECUTABLE-PUBLICATION, EXECUTABLE-PUBLICATION-JOIN, EXECUTABLE-PUBLICATION-OPERATION, EXECUTABLE-PUBLICATION-STAGE, EXECUTABLE-PUBLICATION-STEP.
 - **REVIEW-INSTANTIATION-CLONE-FREE-SCRATCH.** Mined candidate; scope verified
   at `d8041919ad`, owned — names the residual the evidence README already
@@ -13020,34 +12322,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`canary_suite.rs:1066`).
 - **WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified, covered — the stub is the "unsigned carrier" clause of WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with FILESYSTEM-WINDOWS-FILETIME-RESPELL): `known_baseline_failures.md` already names the respelling — `widen_u8_to_i64(byte) << 56` intermediates (about 1.84e19/4.28e9 against the i64/i32 ceilings) assemble in the unsigned carrier of the field's own width and reinterpret once at landing — and records that `tests/omega/pass/filesystem/windows_set_file_time_exit` is Windows-gated, so neither its failure nor its repair can be measured on a non-Windows host. The parent item owns the leg; no independent slice exists here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER.
 - **WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified, covered — the stub is the "unsigned carrier" clause of WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with FILESYSTEM-WINDOWS-FILETIME-RESPELL): `known_baseline_failures.md` already names the respelling — `widen_u8_to_i64(byte) << 56` intermediates (about 1.84e19/4.28e9 against the i64/i32 ceilings) assemble in the unsigned carrier of the field's own width and reinterpret once at landing — and records that `tests/omega/pass/filesystem/windows_set_file_time_exit` is Windows-gated, so neither its failure nor its repair can be measured on a non-Windows host. The parent item owns the leg; no independent slice exists here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER. Parent stub **WINDOWS-SET-FILE-TIME-RESPELL** resolved at `138ed79a677` (linux x86-64, source inspection): the `ff782bdf21` respelling still stands — `tests/omega/pass/filesystem/windows_set_file_time_exit/main.omg:74-82` assembles `st_mtime` through `widen_u8_to_u64` per byte with `narrow_u64_to_i64_wrapping` at landing, no `widen_u8_to_i64` recurrence, and the fixture stays registered in `CHECKED_ONLY_PASS_CANARIES` (`canary_suite.rs:1056`); its native-execution leg remains Windows-gated and unmeasurable on this host. The respell item's whole surface closes on that pin.
-- **WRITE-ONLY-BORROW-RESIDUE.** Verified scope: re-mines
-  **WRITE-ONLY-BORROW**'s enumerated remaining work
-  (TASKS.md:2981): aggregate/[copy]-sum replacement, domain-qualified
-  byte-field stores, runtime indexes, `&mut dyn` dispatch,
-  and computed IEEE stores (the 135-file draft for that leg was parked on an
-  unpublished `write-only-borrow` branch `71a647f464` — still absent from
-  `origin` at re-verification; confirm with the
-  coordinator before re-implementing). Re-verified at `39317a770b1f`
-  (linux x86-64): the runtime-index leg has narrowed since this row's
-  recording — a Psi producer now exists
-  (`typed-trees-to-checked-trees` emits `WriteOnlyIndexedPrimitiveStore`
-  when a retained declared scalar range discharges `index < extent`,
-  `primitive_store.rs`), the abstract inventory carries it through the
-  optimization mirrors, and the recorded `UnsupportedIndexedPrimitiveStore`
-  rejection no longer exists; the remaining hole is native target lowering
-  (`abstract-operations-to-target-operations` rejects with
-  `LoweringError::UnsupportedWriteOnlyPrimitiveStore` until
-  **PLACED-ACCESS-NATIVE-OPS** realizes parameter-address recovery,
-  element-width scaling and the proof-aware bounds step). Fence map
-  refreshed: the recorded live claims have expired (dev-l3-wobstore
-  ~01:30Z, STRUCTURAL-BORROW-IDENTITY ~21:38Z); at re-verification only
-  BORROW-PROOF-CONVERGENCE holds related surface
-  (`typed-trees-to-checked-trees/src/checks/borrows`, ~06:46Z) and
-  STATE-LOCAL-VALUE-FRONTIER is unclaimed. The maintained integration
-  target is
-  `terminal_psi_indexed_receivers`, not a store-specific emitter; the
-  shared place/loan sequencer extension is STATE-LOCAL-VALUE-FRONTIER's. No
-  independent slice exists here.
 - **ZERO-BYTE-ARRAY-FENCE-PLACEMENT.** Resolved — re-mines the fence-placement leg of the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row. Re-verified at `2bbe4727a2c`: the fail fixtures and the `InvalidStructuralArrayLength` fence at `structural_types.rs:51` are unchanged. The fences are placed and pinned: check-time rejection covers unprovable `x[0]` into `[u8; 0]` and non-exact fixed literals (`fail/data/zero_length_byte_array_{index_rejected,literal_arity_rejected}` + `zero_length_byte_literal_length_rejected`, driven by `zero_length_byte_array_use_fences_reject_at_check`), and the non-scalar-leaf `[T; 0]` fence sits in the terminal verifier at `terminal-verifier/src/validation/foundation/structural_types.rs:51` (`InvalidStructuralArrayLength`), mirrored in optimization-unit-semantics — i.e. the placement decision is already made and named. Sibling re-mines of the same cluster: FIXED-ARRAY-ZERO-EXTENT-FENCE, ZERO-EXTENT-BYTE-ARRAY-ADMISSION, ZERO-EXTENT-BYTE-ARRAY-FENCE, ZERO-LENGTH-BYTE-ARRAY-ADMISSION-FENCE, ZERO-LENGTH-BYTE-ARRAY-FENCE, ZERO-LENGTH-FIXED-BYTE-ARRAY-FENCE. The remaining named residual is the native-route corpus pin, which the landed row assigns to the ACTIVE_FAIL roster — not this stub.
 - **ZERO-EXTENT-BYTE-ARRAY-ADMISSION.** Resolved — re-mines the admission
   half of the landed **FUZZ-CLUSTER-ZERO-BYTE-ARRAY** row with the same
