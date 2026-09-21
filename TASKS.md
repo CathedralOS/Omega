@@ -11101,6 +11101,13 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     (matches the check-time caveat recorded on NOMINAL-FIELD-FLOW —
     scale, not yet evidence of a hang). Classes (2) and (3) stay
     recorded at `e092723726` above, unverified at tip.
+  Re-witnessed at `ea78f0e486` (linux x86-64): class (1) still reproduces
+  verbatim — `basics_samples_compile_from_authored_program_entry_bindings`
+  rejects brightness_control's windows_x86_64 authored entry with the same
+  `named-callable(path(WindowsProcessEntry::enter),...)` diagnostic in 11.3 s.
+  The suite file itself is claimed by SAMPLE-CORPUS (~10:52Z); the
+  windows_x86_64/macos_arm64/linux_arm64 host legs remain unavailable on this
+  machine and the repair classes stay with their owning rows.
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Give Terminal Psi a borrowed-view vocabulary for non-byte element types, so
   a callee can use a `&[T]` it receives. `d7a48d7af0` made the view local a
