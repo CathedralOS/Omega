@@ -15,6 +15,7 @@ fn scalar_qualification_catalog_round_trips_and_commits_semantic_identity() {
             semantic_domain: DomainSemanticId::new(7).unwrap(),
             identity: "bool::Tag<7>".into(),
             carrier: ScalarType::Boolean,
+            establishment_routes: Vec::new(),
         });
     module
         .scalar_qualifications
@@ -71,12 +72,14 @@ fn explicit_scalar_erasure_round_trips_and_commits_its_exact_edge() {
         target: BlockId::new(901).unwrap(),
         arguments: vec![source.id],
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: vec![],
         trivial_affine_discards: vec![],
         residual_affine_discards: vec![],
     };
     machine.blocks.push(Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: BlockId::new(901).unwrap(),
         parameters: vec![destination],
         structural_parameters: vec![],
@@ -95,6 +98,7 @@ fn explicit_scalar_erasure_round_trips_and_commits_its_exact_edge() {
             semantic_domain: DomainSemanticId::new(7).unwrap(),
             identity: "bool::Tag<7>".into(),
             carrier: ScalarType::Boolean,
+            establishment_routes: Vec::new(),
         });
     module
         .scalar_qualifications

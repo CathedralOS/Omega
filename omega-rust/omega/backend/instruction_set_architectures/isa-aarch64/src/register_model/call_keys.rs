@@ -103,9 +103,12 @@ pub fn aarch64_aapcs64_register_call_keys() -> Vec<RegisterConstraintKey> {
 
 /// Normalized foreign scalar calls: integer-only Unit inputs, then mixed Unit
 /// inputs, each with Unit, integer, and IEEE result choices. Stack arguments
-/// remain outgoing custody rather than register-row operands.
+/// remain outgoing custody rather than register-row operands. The trailing
+/// variants are the private-callback-position rows: each integer-bank operand
+/// position of each input bank, again with all three result choices.
 pub fn aarch64_aapcs64_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
     (3000..3243)
+        .chain(3600..4572)
         .map(|variant| RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant,
@@ -117,6 +120,7 @@ pub fn aarch64_aapcs64_normalized_foreign_call_keys() -> Vec<RegisterConstraintK
 /// Its range is disjoint from the other convention and existing call families.
 pub fn aarch64_darwin_normalized_foreign_call_keys() -> Vec<RegisterConstraintKey> {
     (3300..3543)
+        .chain(4600..5572)
         .map(|variant| RegisterConstraintKey {
             family: RegisterConstraintFamily::Call,
             variant,

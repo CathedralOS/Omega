@@ -35,6 +35,7 @@ fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
         &program,
         &checked_trees::CheckedOperatorFacts::default(),
         &[],
+        &mut Vec::new(),
     );
     for (role, authored, expected) in [
         (
@@ -112,6 +113,7 @@ fn byte_subslice_endpoint_retention_lands_only_exact_u64_and_keeps_omissions() {
             &program,
             &checked_trees::CheckedOperatorFacts::default(),
             &[],
+            &mut Vec::new(),
         );
         for (role, retained) in [
             (

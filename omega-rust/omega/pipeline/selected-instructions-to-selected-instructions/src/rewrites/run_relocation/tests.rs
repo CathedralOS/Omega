@@ -1,14 +1,12 @@
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{EffectLink, ValueDefinitionSite};
 use register_environment::baseline_target_register_environment;
-use register_model::RegisterInstructionConstraint;
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedBoundarySettlement,
-    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction, SelectedInstruction,
+    SelectedBoundarySettlementPayload, SelectedCallContract, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedOperand, SelectedSuccessor,
-    SelectedSuccessorRole, SelectedTerminator, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
@@ -26,41 +24,7 @@ use super::{
     validate_run_relocation,
 };
 use crate::ValidatedSelectedAnalysis;
-
-fn budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap()
-}
-
-fn instruction(
-    id: SelectedInstructionId,
-    kind: SelectedInstructionKind,
-    row: &RegisterInstructionConstraint,
-    registers: &[VirtualRegisterId],
-) -> SelectedInstruction {
-    SelectedInstruction {
-        id,
-        kind,
-        constraint: row.key,
-        operands: row
-            .operands
-            .iter()
-            .zip(registers)
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: *register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
-        implicit_uses: row.implicit_uses.clone(),
-        implicit_defs: row.implicit_defs.clone(),
-        clobbers: row.clobbers.clone(),
-        provenance: Default::default(),
-    }
-}
+use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const MAT_A: SelectedInstructionId = SelectedInstructionId(2);
 const SUM: SelectedInstructionId = SelectedInstructionId(3);
@@ -1528,7 +1492,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         // 28.
         (roster_actor, MAT_A, SUM, MAT_B, 28u64),
     ] {
-        let exact = OptimizationWorkBudget::new(1, 1, exact_steps, 1, 1).unwrap();
+        let exact = measured_step_budget(exact_steps);
         let result =
             relocate_selected_run(&source, 0, first, last, destination, &environment, exact)
                 .unwrap();
@@ -1543,7 +1507,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             result.transformed().clone(),
         )
         .unwrap();
-        let starved = OptimizationWorkBudget::new(1, 1, exact_steps - 1, 1, 1).unwrap();
+        let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
             relocate_selected_run(&source, 0, first, last, destination, &environment, starved)
                 .unwrap_err(),
@@ -1631,4 +1595,153 @@ fn run_relocation_is_deterministic_and_re_admitted() {
     let body = &swapped.transformed().functions[0].blocks[0].instructions;
     assert_eq!(body[0].id, MAT_D);
     assert_eq!(body[1].id, MAT_C);
+}
+
+/// The validator cannot consult the producer's admission: each forged
+/// proposal below is handed to `validate_run_relocation` directly, so
+/// every rejection comes from the validator's own window audit.
+mod independence_tests {
+    use super::{
+        FIRST, MAT_A, MAT_B, MAT_C, NativeTarget, POINTER, RunRelocationError, SUM,
+        SelectedInstructionKind, SelectedInstructionPlan, THIRD, ValidatedRunRelocation,
+        baseline_target_register_environment, budget, fixture, instruction, mutated,
+        validate_run_relocation,
+    };
+
+    /// Move the run `run` onto `destination_index` inside a source
+    /// fixture's plan — the edit a producer emitting that relocation
+    /// would publish — without asking admission whether the window is
+    /// legal.
+    fn forged(
+        source: &ValidatedRunRelocation,
+        run: std::ops::RangeInclusive<usize>,
+        destination_index: usize,
+    ) -> SelectedInstructionPlan {
+        let mut proposed = source.transformed().clone();
+        let instructions = &mut proposed.functions[0].blocks[0].instructions;
+        let width = *run.end() - *run.start() + 1;
+        let members: Vec<_> = instructions.drain(*run.start()..=*run.end()).collect();
+        let landing = if destination_index > *run.end() {
+            destination_index + 1 - width
+        } else {
+            destination_index
+        };
+        instructions.splice(landing..landing, members);
+        proposed
+    }
+
+    /// A forged relocation of a window the validator's own audit admits
+    /// validates: the run's members and the crossed positions carry no
+    /// hazards, no roster rows, and no barriers, so the audit derives the
+    /// move and the content comparison accepts the rotation.
+    #[test]
+    fn forged_run_move_on_a_legal_window_validates() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        validate_run_relocation(
+            &source,
+            0,
+            MAT_A,
+            SUM,
+            MAT_B,
+            &environment,
+            budget(),
+            forged(&source, 0..=1, 4),
+        )
+        .unwrap();
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the run moved past a crossed position reading a register a
+    /// member defines — here `MAT_C` mutated to read `FIRST` from `MAT_A`.
+    /// The validator's own legality audit refuses with `UnsupportedPair`,
+    /// not a replay mismatch, because it reconstructs the window's
+    /// hazards instead of trusting the producer's admission record.
+    #[test]
+    fn forged_run_past_a_coupled_crossed_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let add = environment
+                .constraint(environment.selected_keys().add_i64)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[2] = instruction(
+                MAT_C,
+                SelectedInstructionKind::WrappingAddI64,
+                &add,
+                &[FIRST, POINTER, THIRD],
+            );
+        });
+        assert_eq!(
+            validate_run_relocation(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_B,
+                &environment,
+                budget(),
+                forged(&source, 0..=1, 4),
+            )
+            .unwrap_err(),
+            RunRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that landed the run away from the destination's window
+    /// edge publishes a window whose content is not the admitted
+    /// rotation: the run split across the interior and the destination
+    /// left trailing fails the content comparison with `ReplayMismatch`.
+    #[test]
+    fn forged_run_off_the_derived_edge_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        // The run lands at positions 1..=2 — not the trailing edge the
+        // derived window admits for this destination.
+        let mut proposed = source.transformed().clone();
+        let instructions = &mut proposed.functions[0].blocks[0].instructions;
+        let members: Vec<_> = instructions.drain(0..=1).collect();
+        instructions.splice(1..1, members);
+        assert_eq!(
+            validate_run_relocation(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                MAT_B,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            RunRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A destination naming a position inside the run is inadmissible on
+    /// the validator's own audit — the run's span would swallow the slot
+    /// the move targets — before any proposal content is compared.
+    #[test]
+    fn destination_inside_the_run_rejects_on_the_audit() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_run_relocation(
+                &source,
+                0,
+                MAT_A,
+                SUM,
+                SUM,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            RunRelocationError::UnsupportedPair
+        );
+    }
 }

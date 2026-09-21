@@ -1,0 +1,1 @@
+parameter `console` on signature `Notifier.notify` names bare boundary trait `Console` in value position

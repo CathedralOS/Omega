@@ -496,6 +496,7 @@ fn installed_provider_result_must_match_occurrence_and_boundary_declaration() {
         let (mut plan, mut installation, boundary, operation) = installed_provider_plan();
         let result =
             terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
                 place: PlaceId::new(9_602).unwrap(),
                 structural_type: StructuralTypeId::new(950).unwrap(),
                 multiplicity: StructuralMultiplicity::Affine,

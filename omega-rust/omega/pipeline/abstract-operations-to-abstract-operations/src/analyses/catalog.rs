@@ -11,9 +11,9 @@ use super::{
     },
     semantic::{
         EffectSummaryAnalysis, ExecutableEdgeAnalysis, OwnershipFrontierAnalysis,
-        ScalarConstantAnalysis, UseDefinitionAnalysis, ValueLivenessAnalysis, ValueRangeAnalysis,
-        effect_summaries, executable_edges, ownership_frontiers, scalar_constants, use_definitions,
-        value_liveness, value_ranges,
+        PlaceAliasesAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueLivenessAnalysis,
+        ValueRangeAnalysis, effect_summaries, executable_edges, ownership_frontiers, place_aliases,
+        scalar_constants, use_definitions, value_liveness, value_ranges,
     },
 };
 
@@ -25,6 +25,7 @@ pub enum AnalysisProduct {
     LoopForest(LoopAnalysis),
     StronglyConnectedComponents(StronglyConnectedComponentAnalysis),
     CallGraph(CallGraphAnalysis),
+    PlaceAliases(PlaceAliasesAnalysis),
     UseDefinition(UseDefinitionAnalysis),
     ExecutableEdges(ExecutableEdgeAnalysis),
     ScalarConstants(ScalarConstantAnalysis),
@@ -43,6 +44,7 @@ impl AnalysisProduct {
             Self::LoopForest(_) => AnalysisKind::LoopForest,
             Self::StronglyConnectedComponents(_) => AnalysisKind::StronglyConnectedComponents,
             Self::CallGraph(_) => AnalysisKind::CallGraph,
+            Self::PlaceAliases(_) => AnalysisKind::PlaceAliases,
             Self::UseDefinition(_) => AnalysisKind::UseDefinition,
             Self::ExecutableEdges(_) => AnalysisKind::ExecutableEdges,
             Self::ScalarConstants(_) => AnalysisKind::ScalarConstants,
@@ -89,6 +91,7 @@ pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::UseDefinition,
         ])),
+        AnalysisKind::PlaceAliases => Some(AnalysisSet::new([AnalysisKind::OwnershipFrontiers])),
         _ => None,
     }
 }
@@ -107,6 +110,7 @@ pub fn compute_analysis(unit: &PsiOptimizationUnit, kind: AnalysisKind) -> Optio
         ),
         AnalysisKind::LoopForest => Some(AnalysisProduct::LoopForest(loops(unit))),
         AnalysisKind::CallGraph => Some(AnalysisProduct::CallGraph(call_graph(unit))),
+        AnalysisKind::PlaceAliases => Some(AnalysisProduct::PlaceAliases(place_aliases(unit))),
         AnalysisKind::UseDefinition => Some(AnalysisProduct::UseDefinition(use_definitions(unit))),
         AnalysisKind::ScalarConstants => {
             Some(AnalysisProduct::ScalarConstants(scalar_constants(unit)))

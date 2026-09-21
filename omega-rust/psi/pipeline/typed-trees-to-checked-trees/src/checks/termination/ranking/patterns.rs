@@ -186,11 +186,7 @@ fn target_symbol_matches_state_symbol(
     if target_symbol == state_symbol {
         return true;
     }
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == target_symbol)
-    else {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, target_symbol) else {
         return false;
     };
     let entry_name = machine

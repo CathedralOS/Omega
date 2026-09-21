@@ -56,10 +56,10 @@ members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current eight-member
-manifest materializes 16,152 lines / 558,065 bytes with SHA-256
-`3929385ba14a7e71557968424f4f29144f589265b9e558d5a001b8b10c898950`.
+manifest materializes 16,286 lines / 561,794 bytes with SHA-256
+`60754c730dfb928f9b2b6edbf2904d9a7bb292b0657eb6656a31930c28be05af`.
 The manifest itself is 1,338 bytes, SHA-256
-`1b13e19dcd7abbb3af26547c41eee5472689cd3c9e901879c4e2eaf8eb820aa4`;
+`cc0b7e320a26ba4906a1bc177e90cd85c106de8a45e1500179819cc6c60af959`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being compiled, not a proof that
@@ -69,15 +69,21 @@ diagnostic coordinates.
 
 The [source-to-executable gate](../../tests/bootstrap/omega-executable/README.md)
 connects parsed nullary scalar machines to range checking and the shared Alpha
-encoder. It is a diagnostic invocation route over the complete compiler source,
-not the final package/Build/request interface. The compiler checks all admitted
+encoder. Its entry is the real request route: a canonical OCREQ V1 frame
+carries the source package, and the entry runs D's own request shape passes
+plus a bounded subject re-walk before selecting the bound `main` entry
+machine — the route and target supply the entry contract rather than an
+adapter-supplied spelling. The retired raw-source adapter stays reachable
+under the gate's `--diagnostic` lane for refusal coverage. The compiler checks
+all admitted
 machine bodies, resolves an explicitly supplied entry, and refuses unsupported
 forms rather than treating them as opaque executable code. Its first result type
 is `u8` over literal operands joined by the arithmetic, bitwise, and shift
-binary operators, folded under the default Exact policy — every node must stay
-representable in the carrier, so overflow, underflow, a zero divisor, or a
-shift count at or above the width refuses the source while comparison, logical,
-unary, path, and other non-`u8`-producing forms remain implementation work.
+binary operators and the `~` bitwise-complement prefix, folded under the
+default Exact policy — every node must stay representable in the carrier, so
+overflow, underflow, a zero divisor, or a shift count at or above the width
+refuses the source while comparison, logical `!`, arithmetic-negation `-`,
+path, and other non-`u8`-producing forms remain implementation work.
 Within that scalar slice the same checking pass now covers bounded control
 flow: a state body is a sequence of nullary calls to free machines followed
 by one terminal — a folded `u8` expression, a grouped nullary call whose
@@ -94,14 +100,18 @@ The scalar failure paths also record the canonical OCOUT outcome tuple
 (outcome tag, coordinate space, code, coordinate, canonical ordinals, limit,
 requested). Parser exhaustion projects onto its assigned resource code, tape
 capacity reports under emitted-artifact coordinates, and source refusals
-anchor at the retained span. D's `Reject` projection embeds the assigned
-codes 1–12: `malformed_request`, the eight lexical refusals projected from
+anchor at the retained span. The assigned `Reject` codes 1–12 remain
+`malformed_request`, the eight lexical refusals projected from
 the scanner's retained diagnostic, `duplicate_name` at the later
 declaration's name, `missing_entry` with no coordinate, and
 `integer_literal_out_of_range` at the refused literal's first byte. The
-still-unassigned syntax and checking `Reject` inventory and the coverage
-provisions cannot publish a frame, and the encoder refuses tuples carrying
-codes it does not assign. The
+embedded projections now cover the full assigned inventory: the syntax
+`Reject` codes 13–89 and the scalar checking codes 90–97 all anchor in
+canonical source, and the `Incomplete` coverage provisions project
+resource codes 15–23 onto canonical source and 24–25 onto the
+coordinate-free space. Producers still record the unassigned marker for
+the syntax, checking, and coverage refusals themselves, so the encoder
+keeps refusing those recorded tuples until the recording side is wired. The
 [outcome gate](../../tests/bootstrap/omega-outcome/README.md) exercises the
 embedded tables, exact and refused frame encodings, bounded arithmetic, and
 the recorded tuples through the selected evaluator.
@@ -118,9 +128,11 @@ commitment checks — remain unimplemented. The assigned OCOUT header,
 outcome-code, coordinate-space, phase, and scalar-resource tables are embedded
 there as projections with the canonical failure-frame encoder. The contract's
 lexical `Reject` codes 2–9 and the named declaration, entry, and literal
-refusals 10–12 are assigned and implemented in D; the syntax and remaining
-checking `Reject` inventory and the `Incomplete` coverage provisions remain
-unfinished under OMEGA-D/OMEGA-C in [the board](../../TASKS_BOOTSTRAP.md).
+refusals 10–12 are assigned and implemented in D; the syntax `Reject`
+inventory, the remaining checking codes, and the `Incomplete` coverage
+provisions are assigned in the contract and still need producer wiring and
+the semantic phases over the decoded fields under OMEGA-D/OMEGA-C in
+[the board](../../TASKS_BOOTSTRAP.md).
 A raw-single-file stdin convention cannot replace the sealed request.
 [Build execution](../../wiki/spec/build/execution.md) owns the admitted checkpoint,
 one-way generated-source continuation, and dependency-bundle no-rerun contract.
@@ -344,8 +356,7 @@ that `D` has semantic, lowering, or emission closure.
 Data syntax retains an optional `[copy]` property, bare named fields,
 payload-free cases, contextual `case: Type` fields, structured case payloads
 over the same bare named type leaf, one unqualified `Base in Domain`
-constraint, one inclusive unsuffixed decimal-literal range
-`Base [minimum..=maximum]`, recursively nested fixed arrays `[Type; length]`
+constraint, recursively nested fixed arrays `[Type; length]`
 over bare named leaves with the same unsuffixed decimal length spelling and an
 optional outer domain, optional final member/case semicolons, mixed field/case
 order, and relative spans in separate live-prefix tables. A case reaches its
@@ -356,8 +367,12 @@ an outer Reference points backward to its complete referee tree and retains
 shared/mutable/write-only access plus an optional exact lifetime span.
 FixedArray and Slice nodes point backward to their element; FixedArray also
 retains the exact length span. SelfType and Unit need no payload.
-Domain constraints point into the general path arena; literal ranges and array
-lengths retain exact spans without interpreting their values. Bracket syntax
+Domain constraints point into the general path arena; array lengths retain exact
+spans without interpreting their values. D also still parses the removed scalar
+range-annotation suffix and retains its literal endpoint spans. That is migration
+debt under `REMOVE-BRACKETED-RANGE-ANNOTATIONS` in [the board](../../TASKS.md), not
+part of the accepted Omega language; bounds use contracts or named predicate
+domains. Bracket syntax
 uses a bounded invocation-local frame stack and emits named, array, and slice
 nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child

@@ -8,6 +8,7 @@ mod ieee_float_fma_settlements;
 mod installed_provider_calls;
 pub(crate) mod native_callbacks;
 mod projected_qualifications;
+mod settlement_roster;
 
 #[cfg(test)]
 pub(crate) fn lower_to_target_operations_with_settlements(
@@ -66,22 +67,8 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         .iter()
         .map(|boundary| (boundary.id, boundary))
         .collect::<BTreeMap<_, _>>();
-    let mut settlements_by_boundary = BTreeMap::new();
-    for binding in settlement_bindings {
-        if settlements_by_boundary
-            .insert(binding.boundary, binding.clone())
-            .is_some()
-        {
-            return Err(LoweringError::DuplicateBoundarySettlement(binding.boundary));
-        }
-        if !plan
-            .boundary_machines
-            .iter()
-            .any(|boundary| boundary.id == binding.boundary)
-        {
-            return Err(LoweringError::UnknownBoundarySettlement(binding.boundary));
-        }
-    }
+    let settlements_by_boundary =
+        settlement_roster::index_settlement_bindings(plan, settlement_bindings)?;
     ieee_float_fma_settlements::validate_ieee_float_fma_settlements(plan, target, ieee_float_fma)?;
     let installed_by_call =
         installed_provider_calls::index_installed_provider_calls(plan, installation)?;
@@ -93,44 +80,11 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         &installed_by_call,
         &boundary_calls,
     )?;
-    let installed_boundaries = installed_by_call
-        .keys()
-        .map(|(_, _, boundary)| *boundary)
-        .collect::<BTreeSet<_>>();
-    if let Some(boundary) = settlements_by_boundary
-        .keys()
-        .find(|boundary| installed_boundaries.contains(boundary))
-    {
-        return Err(LoweringError::BoundarySettlementOverlapsInstalledProvider(
-            *boundary,
-        ));
-    }
-    if let Some((machine, operation, boundary)) = boundary_calls
-        .keys()
-        .find(|key| installed_boundaries.contains(&key.2) && !installed_by_call.contains_key(key))
-        .copied()
-    {
-        return Err(LoweringError::PartialInstalledProviderBoundary {
-            machine,
-            operation,
-            boundary,
-        });
-    }
-    let required_settlements = boundary_calls
-        .keys()
-        .filter_map(|key| (!installed_by_call.contains_key(key)).then_some(key.2))
-        .collect::<BTreeSet<_>>();
-    for boundary in &required_settlements {
-        if !settlements_by_boundary.contains_key(boundary) {
-            return Err(LoweringError::MissingBoundarySettlement(*boundary));
-        }
-    }
-    if let Some(extra) = settlements_by_boundary
-        .keys()
-        .find(|boundary| !required_settlements.contains(boundary))
-    {
-        return Err(LoweringError::UnusedBoundarySettlement(*extra));
-    }
+    settlement_roster::validate_settlement_roster(
+        &settlements_by_boundary,
+        &installed_by_call,
+        &boundary_calls,
+    )?;
     let target_plan = TargetOperationPlan {
         psi: plan.psi,
         target,

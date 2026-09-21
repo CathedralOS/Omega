@@ -91,23 +91,16 @@ fn prove(
     if !ordinary_call {
         return None;
     }
-    let caller_machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == caller.machine_symbol)?;
+    let caller_machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
     let caller_state = crate::semantic_calls::find_state_in_machine(
         program,
         caller.machine_symbol,
         caller.state_symbol,
     )?;
-    let callee = program.machines().iter().find(|machine| {
-        machine.symbol == call.target_symbol
-            || program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|state| state.symbol == call.target_symbol)
-    })?;
-    let parameters = program.state_parameters(program.machine_states(callee).first()?);
+    // The callee is a machine head: the target names the machine itself or
+    // resolves to the machine's entry state.
+    let (callee, entry) = crate::semantic_calls::find_machine_head(program, call.target_symbol)?;
+    let parameters = program.state_parameters(entry);
     if caller.machine_symbol == callee.symbol
         && matches!(
             site,

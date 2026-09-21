@@ -1,0 +1,19 @@
+data Entry {
+    value: i32;
+}
+
+data Main {
+}
+
+machine Main::main(
+    &mut self,
+    entries: &[Entry],
+    start: u64,
+    end: u64
+) -> u64
+requires
+    start <= end && end == entries.len
+{
+    let window: &[Entry] = entries[start + 0u64..end];
+    window.len
+}

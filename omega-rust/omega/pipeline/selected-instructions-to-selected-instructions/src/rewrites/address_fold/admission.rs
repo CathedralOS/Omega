@@ -28,7 +28,9 @@ pub(super) struct Admission<'source> {
 /// whose operand 0 is a referent base pointer and whose kind carries a
 /// `byte_offset` can fold: indexed, slot, packed, hosted, and register-only
 /// forms have no referent displacement to absorb.
-fn consumer_shape(kind: SelectedInstructionKind) -> Option<(u32, RegisterOperandAccess)> {
+pub(super) fn consumer_shape(
+    kind: SelectedInstructionKind,
+) -> Option<(u32, RegisterOperandAccess)> {
     use SelectedInstructionKind::*;
     let scale = match kind {
         Load8 { .. } | AddressOffset { .. } => 1,
@@ -59,7 +61,11 @@ fn consumer_shape(kind: SelectedInstructionKind) -> Option<(u32, RegisterOperand
 /// 4095`), or x86-64's unscaled disp32, whose positive half admits every
 /// nonnegative byte offset through `i32::MAX` (`byte_offset` carries no
 /// negative values).
-fn admitted_offset(combined: u32, scale: u32, architecture: target::Architecture) -> bool {
+pub(super) fn admitted_offset(
+    combined: u32,
+    scale: u32,
+    architecture: target::Architecture,
+) -> bool {
     match architecture {
         target::Architecture::Aarch64 => combined.is_multiple_of(scale) && combined / scale <= 4095,
         target::Architecture::X86_64 => combined <= i32::MAX as u32,
@@ -72,7 +78,7 @@ fn admitted_offset(combined: u32, scale: u32, architecture: target::Architecture
 /// observes; edge and entry bindings can only reach it when no body
 /// instruction defines the register, in which case there is no in-block
 /// `AddressOffset` producer to fold.
-fn last_definition_before(
+pub(super) fn last_definition_before(
     block_instructions: &[SelectedInstruction],
     position: usize,
     register: VirtualRegisterId,

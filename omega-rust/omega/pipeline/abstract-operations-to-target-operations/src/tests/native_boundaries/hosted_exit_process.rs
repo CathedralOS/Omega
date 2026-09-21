@@ -289,6 +289,7 @@ fn hosted_exit_settlement_replays_and_rejects_forged_rows() {
                                     target_operations::TargetStructuralHomeOrigin::OperationResult {
                                         operation: settlement_operation,
                                         result: terminal_psi::StructuralOperationResult {
+                                            qualification_establishments: Vec::new(),
                                             place: semantic_vocabulary::PlaceId::new(909).unwrap(),
                                             structural_type:
                                                 semantic_vocabulary::StructuralTypeId::new(909)

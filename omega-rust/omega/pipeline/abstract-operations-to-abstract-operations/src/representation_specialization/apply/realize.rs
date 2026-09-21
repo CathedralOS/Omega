@@ -10,7 +10,7 @@
 
 use super::super::{
     CaseMembershipPlan, CaseMembershipSpecializationError, O, PsiOptimizationFunction,
-    PsiOptimizationUnit, ResolvedCaseMembership, ScalarType, propose,
+    PsiOptimizationUnit, ResolvedCaseMembership, ScalarType, admission,
     recompute_psi_optimization_unit_identity,
 };
 use optimization_unit::{OptimizationFact, OptimizationNode, PsiProvenance};
@@ -95,7 +95,7 @@ pub(crate) fn folded_node(
                 .iter()
                 .find(|declaration| declaration.id == row.source);
             if declaration.and_then(|declaration| {
-                propose::sole_case_at_path(unit, function, declaration, path)
+                admission::sole_case_at_path(unit, function, declaration, path)
             }) != Some(row.proven_case)
             {
                 return Err(CaseMembershipSpecializationError::CandidateMismatch);

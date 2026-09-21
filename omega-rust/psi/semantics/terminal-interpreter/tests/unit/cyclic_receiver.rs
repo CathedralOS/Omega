@@ -101,6 +101,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
     let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     let scalar = |identity, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(identity),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -129,6 +130,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
     };
     let store = |identity, destination, field, value| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(identity),
         result: OperationResult::Unit,
         kind: OperationKind::StructuralScalarFieldStore {
@@ -141,10 +143,12 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
     };
     let call = |identity, callee, receiver| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation_id(identity),
         result: OperationResult::Unit,
         kind: OperationKind::CallUnit {
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             callee: machine_id(callee),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -162,12 +166,14 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
         target: block_id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
     let block = |identity, operations, terminator| Block {
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         id: block_id(identity),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
@@ -179,6 +185,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
         target: block_id(target),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
         trivial_affine_discards: Vec::new(),
     };
@@ -236,6 +243,7 @@ fn cyclic_receiver_module(projected: bool) -> TerminalModule {
                 constant(21, 4),
                 Operation {
                     static_reach_binding: None,
+                    suspension_crossing: None,
                     id: operation_id(22),
                     result: OperationResult::Scalar(ValueDeclaration {
                         qualifications: Default::default(),

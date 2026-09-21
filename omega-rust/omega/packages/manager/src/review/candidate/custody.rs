@@ -2,6 +2,7 @@ use super::{CompileResolvedPackageReviewsError, PackageSourceVerificationPhase};
 use crate::declarations::PackageKey;
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
+use crate::review::timings;
 use package_source::ImmutableSourceResolution;
 use package_source::local::operations::verify_package_source_snapshot;
 use std::collections::BTreeSet;
@@ -12,6 +13,7 @@ pub(crate) fn verify_transitive_source_custody(
     compiling_package: &PackageKey,
     phase: PackageSourceVerificationPhase,
 ) -> Result<(), CompileResolvedPackageReviewsError> {
+    let _stage = timings::stage("source_custody_verification");
     verify_selected_source_custody(
         &PackageCompilationScope::new(closure, compiling_package),
         phase,

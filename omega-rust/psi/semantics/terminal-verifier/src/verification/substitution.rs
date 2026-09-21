@@ -50,6 +50,17 @@ pub(crate) fn substitute_proposition_values(
             left: left.clone(),
             right: right.clone(),
         },
+        Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        } => Proposition::ScalarIeeeFloatComparison {
+            kind: *kind,
+            format: *format,
+            left: substitute_scalar_term_values(left, substitutions),
+            right: substitute_scalar_term_values(right, substitutions),
+        },
         Proposition::ByteSequenceEqual { left, right } => Proposition::ByteSequenceEqual {
             left: left.clone(),
             right: right.clone(),
@@ -157,6 +168,17 @@ pub(crate) fn substitute_proposition_structural_places(
                 right: rebase(right),
             }
         }
+        Proposition::ScalarIeeeFloatComparison {
+            kind,
+            format,
+            left,
+            right,
+        } => Proposition::ScalarIeeeFloatComparison {
+            kind: *kind,
+            format: *format,
+            left: substitute_scalar_term_places(left, substitutions),
+            right: substitute_scalar_term_places(right, substitutions),
+        },
         Proposition::ByteSequenceEqual { left, right } => {
             let rebase = |field: &semantic_vocabulary::ByteSequenceStructuralField| {
                 substitutions

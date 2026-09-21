@@ -3,9 +3,11 @@
 //! `omega-rust/pipeline.md` declares the connected program route and the Omega
 //! frontend stages as labelled owner links, and states that private analyses and
 //! target setup are not additional public program stages. These checks pin the
-//! map to the disk: every declared owner resolves inside its named crate, and
-//! every pipeline crate on disk is a declared route owner — no orphan stages,
-//! no duplicate claims on the route.
+//! map to the disk: every declared owner resolves inside its named crate, every
+//! pipeline crate on disk is a declared route owner — no orphan stages, no
+//! duplicate claims on the route — and every crate named like a transform
+//! keeps its single placement home under `omega-rust/{psi,omega}/pipeline/`,
+//! the only directories the route can own.
 
 use super::repository;
 use std::collections::BTreeMap;
@@ -152,6 +154,58 @@ fn every_declared_route_owner_resolves_inside_its_named_crate() {
     }
 }
 
+/// A `#fragment` target names a heading in the linked markdown: the file
+/// check above strips the fragment, so a renamed or deleted heading drifts
+/// silently. GitHub's anchor form lowercases, drops punctuation other than
+/// `-` and `_`, and turns spaces into hyphens.
+fn markdown_anchors(path: &Path) -> Vec<String> {
+    std::fs::read_to_string(path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
+        .lines()
+        .filter_map(|line| {
+            let heading = line.trim_start_matches('#');
+            (heading != line && heading.starts_with(' ')).then(|| {
+                heading
+                    .trim()
+                    .to_lowercase()
+                    .chars()
+                    .filter_map(|c| match c {
+                        c if c.is_alphanumeric() || c == '-' || c == '_' => Some(c),
+                        ' ' => Some('-'),
+                        _ => None,
+                    })
+                    .collect()
+            })
+        })
+        .collect()
+}
+
+#[test]
+fn every_doc_link_fragment_resolves_to_a_heading() {
+    let document = pipeline_map();
+    for (label, target) in links(&document) {
+        let Some((_, fragment)) = target.split_once('#') else {
+            continue;
+        };
+        let resolved = resolve(&target);
+        assert!(
+            resolved.is_file(),
+            "pipeline.md link [{label}]({target}) does not resolve to a file"
+        );
+        assert_eq!(
+            resolved.extension().and_then(|ext| ext.to_str()),
+            Some("md"),
+            "pipeline.md link [{label}]({target}) names a fragment on a non-markdown target"
+        );
+        assert!(
+            markdown_anchors(&resolved)
+                .iter()
+                .any(|anchor| anchor == fragment),
+            "pipeline.md link [{label}]({target}) names no heading in {resolved:?}"
+        );
+    }
+}
+
 #[test]
 fn every_pipeline_crate_is_a_documented_route_owner() {
     let document = pipeline_map();
@@ -204,4 +258,46 @@ fn pipeline_crate_names_and_packages_follow_the_route_shape() {
             "pipeline crate {name} must publish a package of the same name"
         );
     }
+}
+
+/// The placement rule's other direction: `omega-rust/{psi,omega}/pipeline/` is
+/// the only home for transform crates. An `X-to-Y`/`X-to-X`-named crate nested
+/// under any other bucket — or deeper inside `pipeline/` than the direct
+/// children the route enumerates — is a stage no route row can own. `target`
+/// build trees and hidden directories never carry crate owners, so the scan
+/// skips them rather than trusting every workspace subdirectory.
+#[test]
+fn transform_crates_live_only_in_pipeline_directories() {
+    let root = repository();
+    let mut misplaced = Vec::new();
+    for half in ["psi", "omega"] {
+        let pipeline = root.join("omega-rust").join(half).join("pipeline");
+        let mut stack = vec![root.join("omega-rust").join(half)];
+        while let Some(directory) = stack.pop() {
+            for entry in std::fs::read_dir(&directory)
+                .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
+                .flatten()
+            {
+                let path = entry.path();
+                if !path.is_dir() {
+                    continue;
+                }
+                let name = entry.file_name().into_string().unwrap();
+                if name == "target" || name.starts_with('.') {
+                    continue;
+                }
+                if name.contains("-to-")
+                    && path.join("Cargo.toml").is_file()
+                    && path.parent() != Some(pipeline.as_path())
+                {
+                    misplaced.push(path.strip_prefix(&root).unwrap().to_owned());
+                }
+                stack.push(path);
+            }
+        }
+    }
+    assert!(
+        misplaced.is_empty(),
+        "transform-named crates outside the pipeline directories: {misplaced:?}"
+    );
 }

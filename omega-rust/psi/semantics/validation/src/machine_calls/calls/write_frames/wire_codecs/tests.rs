@@ -76,6 +76,30 @@ fn decode_call_frame_keeps_the_local_destination_out_of_the_state_frame() {
 }
 
 #[test]
+fn decode_call_frame_writes_through_a_bound_exclusive_reference_local() {
+    assert_eq!(
+        main_state_frame(
+            "let d: PointSample; d.x = 0; d.y = 0; \
+             let v: &mut WireVerdict = &mut self.verdict; \
+             PointMsg::decode(&mut d, &self.buffer, &mut self.read, v);"
+        ),
+        Some(vec!["self.read".to_owned(), "self.verdict".to_owned()]),
+    );
+}
+
+#[test]
+fn decode_call_frame_skips_a_bound_shared_reference_local() {
+    assert_eq!(
+        main_state_frame(
+            "let d: PointSample; d.x = 0; d.y = 0; \
+             let b: &[u8; 32] = &self.buffer; \
+             PointMsg::decode(&mut d, b, &mut self.read, &mut self.verdict);"
+        ),
+        Some(vec!["self.read".to_owned(), "self.verdict".to_owned()]),
+    );
+}
+
+#[test]
 fn all_shared_argument_codec_call_contributes_nothing() {
     assert_eq!(
         main_state_frame(
@@ -93,9 +117,17 @@ fn codec_call_with_an_unborrowed_argument_stays_opaque() {
          let q: PointSample; q.x = 3; q.y = 4; \
          PointMsg::encode(q, &mut self.buffer, &mut self.written); }}"
     ));
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .expect("Main::main");
     let call = first_call(&program);
     assert!(is_wire_codec_call(&program, call));
-    assert_eq!(known_wire_codec_call_written_paths(&program, call), None);
+    assert_eq!(
+        known_wire_codec_call_written_paths(&program, machine, call, &[], &[], &[], &[]),
+        None
+    );
 }
 
 #[test]

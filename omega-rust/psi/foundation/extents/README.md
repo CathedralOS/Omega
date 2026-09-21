@@ -3,7 +3,7 @@
 Contracts: [extent authority](../../../../wiki/spec/resources/extents.md) and
 [device custody](../../../../wiki/spec/resources/device_access.md).
 [lib.rs](src/lib.rs) owns normalized authority, conservation, and external-loan
-carriers; [mapping.rs](src/mapping.rs) owns pending/active mapping and reclamation.
+carriers; [mapping.rs](src/mapping/mod.rs) owns pending/active mapping and reclamation.
 
 These non-clonable carriers validate exact authority and provider receipts and
 return consuming inputs on rejection. Foundation validation does not execute a
