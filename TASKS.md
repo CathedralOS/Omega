@@ -9735,36 +9735,22 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   boundary-entry root surface owned by ENTRY-CONTENT-ROOTS). Witness:
   `wiki/drafts/rc_native_matrix_linux_x86_64.md`. Re-run the row when that
   family closes.
-- **RC-PCC-REPLAY.** Measure the one release gate that has never produced
-  evidence. `RC-PCC-REPLAY` is a named gate of the eight-gate release matrix
-  (`wiki/drafts/rust_compiler_completion.md:39`, encoded at
-  `tools/release/release_record.py:72-84`): requested artifact/`.proof` pairs
-  round-trip, hostile or substituted evidence rejects before PCC-required
-  interpretation or lowering, and ordinary output still checks without
-  publishing PCC. Five of the other seven gates carry a per-host evidence
-  draft under `wiki/drafts/rc_*.md`; this one carries none, and the only
-  committed release record marks it "not completed — did not reach a verdict
-  within this leg's bound" (`wiki/drafts/release_record_e12b9e8e06.md:26`).
-
-  Why it does not terminate is probably already known. The gate's own command
-  is `nextest run -p checked-trees-to-lowered-psi -p terminal-codec
-  -p terminal-verifier -p terminal-interpreter
-  -p terminal-psi-to-abstract-operations --no-fail-fast`, and
-  `checked-trees-to-lowered-psi` contains the member that never returns a
-  verdict — see **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT**, which records it
-  SIGTERM'd at ~892s and ~900s. A `--no-fail-fast` run of that package cannot
-  finish while that member hangs, so this gate is blocked behind that
-  containment decision rather than behind anything PCC-specific. Confirm that
-  before attributing the gate's silence to anything else; if it holds, the
-  two rows land in order.
-
-  Use `cargo nextest run` — `mbx` is absent on this host, and the manifest's
-  `mbx` spelling is the contract's, not a requirement to use that driver.
-
-  Acceptance: a `wiki/drafts/rc_pcc_replay_<host>.md` record giving pass/fail
-  per named package for both manifest commands run verbatim at a named
-  commit, with every failure attributed to an owning row or family — the same
-  shape the five existing per-gate drafts use.
+- **RC-PCC-REPLAY.** First evidence recorded — linux_x86_64 draft at
+  `wiki/drafts/rc_pcc_replay_linux_x86_64.md` (measured at `5ae1ed1fe51c`,
+  cargo spelling; `mbx` absent on this host). The gate **does terminate at
+  this revision — red, 1474.9s**: 3786/3840 passed, 54 failed. The
+  non-terminating member is confirmed to be the cause of every prior silent
+  run:
+  `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
+  was still unreturned when the harness SIGTERM'd it at 1385.2s — owner
+  **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT** (live claim ~09:18Z). All 54
+  failures attribute to recorded families: c2l provider-attachment (15) +
+  scalar-return custody (4), terminal-codec canonical wire-tag drift (22,
+  `103`→`104`), terminal-verifier nominal-affine-cleanup contract (4),
+  terminal-interpreter affine-cleanup/case-membership (3), t2a affine
+  continuations/cleanup (2); doctest leg green. Remaining for the gate:
+  the same record on linux_arm64, macos_arm64 and windows_x86_64 hosts
+  (unavailable on this lane) and green runs once the owning rows land.
 - **RC-PLATFORM-RUN-RECORDS.** — scope verified 2026-09-20: re-mines the
   "required platform runs" contract in
   [rust_compiler_completion.md](wiki/drafts/rust_compiler_completion.md#required-platform-runs)
