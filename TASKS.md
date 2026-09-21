@@ -8110,7 +8110,12 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Residual: family 1 stays red under the ranked-cycle/fuel lane;
   recording the attributions into `wiki/drafts/known_baseline_failures.md`
   is fenced to that doc's live claims (LOWERED-UNIT-FAILURE-ATTRIBUTION,
-  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
+  CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION). Re-verified at `1805e07c7d`
+  (2026-09-21 ~06:02Z): the fence map rotated but the surface stays
+  claimed — the ledger doc now sits under KNOWN-BASELINE-FAILURES-REFRESH
+  (swarm-z143, exp 13:57Z) and family 1's surface
+  `terminal-fixed-fuel/src/fuel_certification` is under PSIIR
+  (devin-848972c1, exp 13:59Z). No independent slice remains.
   Verified scope: re-mines NORMALIZED-ABI-LOWERING's callback-transport
   bullet (TASKS.md:2273) — "the common route rejects every request carrying
   a callback in `native_realization/object_emission.rs`". That recorded
