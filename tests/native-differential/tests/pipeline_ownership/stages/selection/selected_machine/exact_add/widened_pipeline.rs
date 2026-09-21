@@ -37,7 +37,9 @@ fn widened_exact_arithmetic_reaches_verified_register_and_machine_pipeline() {
             .iter()
             .flat_map(|block| &block.instructions)
             .filter(|row| {
-                row.kind == SelectedInstructionKind::CopyI64
+                // A u8 widened to i64 zero-extends the source width; whole
+                // register copies would carry the destination's stale high bits.
+                row.kind == SelectedInstructionKind::ZeroExtendU8
                     && !row.provenance.operations.is_empty()
             })
             .count();
