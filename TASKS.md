@@ -12431,6 +12431,21 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `omega-rust/omega/packages/review/evidence` tree by
   PACKAGE-EVIDENCE-TRAIT-UNIQUENESS-OVERCOLLECTION (01:23Z). The slice
   remains owned and unfenced-work-free; coordinate after those leases.
+  owner's branch; no in-fence work attempted. Implemented by that owner
+  (z36): `signature/scratch.rs` now builds an invocation-local `TypedTrees`
+  that seeds only the arenas signature/type-identity reads can index —
+  trait/data/domain/const/proposition/operator declaration tables, state
+  parameters, expression and type-reference arenas, `plan_laid_layouts`,
+  `placed_view_plans`, `semantic_domains`, `external_bindings`,
+  `machine_specializations`, `open_index_normalizations`, and authored
+  declaration-selection custody — while statement, machine-body, measure,
+  wire, and proof arenas stay uncloned. `project_application`,
+  `declaration_parameters`, and `project_declaration` reify into it instead
+  of `compilation.typed.clone()`; `instantiate`'s per-node row writes land
+  in the scratch arena while `Ok(*actual)` passthroughs keep source handles.
+  The remaining whole-tree clone sites under `capture/callables` and
+  `capture/semantics/signatures/policy.rs` belong to their own owners'
+  fences.
 - **REVIEW-RESEAL-ELIMINATION** — mined candidate; verify scope then implement.
 - **REWRITE-CATALOG-ADMISSION** — mined candidate; verify scope then implement.
 - **REWRITE-VALIDATOR-INDEPENDENCE.** Mined candidate — resolved at
