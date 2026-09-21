@@ -11862,6 +11862,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   PIPELINE-SPILL-FAMILY-ORPHANS, and PIPELINE-WRAPPER-OBJECT-ORPHAN.
 - **PIPELINE-OWNER-CONSOLIDATION** — mined candidate; verify scope then implement.
 - **PIPELINE-REWRITE-ORPHANS** — mined candidate; verify scope then implement.
+- **PIPELINE-CRATE-SWEEP.** Resolved — the mined name resolves to the fmt
+  drift leg RC-REPOSITORY-GATE-CLOSURE attributed to this row:
+  `tests/architecture/optimizer_source_organization/inventory.rs` drifted
+  under ORPHAN-STAGE-OUTPUT-AUDIT's `fddf82a61dfe`. Verified at `758e8ad9e24`:
+  the file was reformatted at `b4a2376ddb` ("workspace: format upstream
+  sources before landing") and `rustfmt --check` is clean on it at base; the
+  whole-workspace fmt gate re-measured GREEN at `94e764a6da6` with all
+  sixteen fenced rows repaired. No residual slice under this name — the
+  remaining RC-REPOSITORY-GATE redness sits on other lanes' fences.
+
 - **PIPELINE-ROUTE-CONFORMANCE-AUDIT** — mined candidate; scope verified, resolved by landed audits. `1ccc88fb51` added `tests/architecture/representation_ownership/route_conformance.rs` pinning the documented program route: every route-table owner link resolves inside its named crate, every pipeline crate on disk is owned by exactly one row, and crate/package names keep the X-to-Y shape (the stale `timing_report.rs` link it caught was repointed to `compile_timings/mod.rs`). `36ffc8af87` added the connectivity leg in `tests/architecture/stage_crate_ownership.rs`: every designed stage entrance reachable at its crate root must have a caller outside its own crate, so the executable route — not only the crate-name chain — stays connected. Both halves of the stub's named audit are landed and pinned.
 - **PIPELINE-SPILL-FAMILY-ORPHANS.** — mined candidate; scope verified,
   resolved — covered by the landed stage-entrance orphan audit's POC
