@@ -1065,6 +1065,7 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "proofs/case_call_wrong_subject",
     "proofs/case_citation_wrong_result",
     "proofs/constructor_omitted_field_wrong_guarantee",
+    "proofs/quotient_lift_unproved_termination_rejected",
     "relevance/erased_parameter_runtime_read",
     "relevance/erased_local_runtime_read",
     "relevance/erased_state_parameter_runtime_read",
