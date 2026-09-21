@@ -122,7 +122,7 @@ fi
 
 # The container leg inspects the committed seeds' native structure, so it runs
 # on every host with Python 3, including ones that cannot execute a seed.
-echo "--- container (all seeds' native structure) ---"
+echo "--- container (both seeds' native structure) ---"
 if sh "$OMEGA_REPO_ROOT/tests/alpha/container.sh"; then :; else rc=1; fi
 
 # Seed-execution legs need a host that can run an audited Alpha container
@@ -135,7 +135,7 @@ echo "--- behavior (conformance) ---"
 if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
   if sh "$OMEGA_REPO_ROOT/tests/alpha/conformance.sh"; then :; else rc=1; fi
 else
-  echo "alpha conformance: requires macOS arm64, Windows x64, or Linux x86-64" >&2
+  echo "alpha conformance: requires macOS arm64, Linux x86-64, or Windows x64" >&2
   refused=1
 fi
 
@@ -147,7 +147,7 @@ if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
     echo "reconstruction SKIP - Beta compiler gate not found"
   fi
 else
-  echo "Beta compiler reconstruction: requires macOS arm64, Windows x64, or Linux x86-64" >&2
+  echo "Beta compiler reconstruction: requires macOS arm64, Linux x86-64, or Windows x64" >&2
   refused=1
 fi
 
@@ -162,7 +162,7 @@ echo "--- shared hexadecimal prefix (strict grammar) ---"
 if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
   if sh "$OMEGA_REPO_ROOT/tests/beta/compiler/word-prefix.sh"; then :; else rc=1; fi
 else
-  echo "Beta word prefix: requires macOS arm64, Windows x64, or Linux x86-64" >&2
+  echo "Beta word prefix: requires macOS arm64, Linux x86-64, or Windows x64" >&2
   refused=1
 fi
 
@@ -170,7 +170,7 @@ echo ""
 if [ $rc != 0 ]; then
   echo "alpha seed verification FAILED"
 elif [ $refused != 0 ]; then
-  echo "Alpha-to-Beta edge UNAVAILABLE — seed execution requires macOS arm64, Windows x64, or Linux x86-64"
+  echo "Alpha-to-Beta edge UNAVAILABLE — seed execution requires macOS arm64, Linux x86-64, or Windows x64"
   rc=2
 elif [ "$ALPHA_VERIFY_MODE" = full ]; then
   echo "Alpha-to-Beta edge VERIFIED (provenance diagnostic + behavior + Beta compiler construction)"

@@ -35,11 +35,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Remaining work:
 
   - `selected-instructions-to-selected-instructions/src/rewrites/` holds about
-    40 rewrite modules (`copy_removal`, `dead_store`, `load_forwarding`,
-    `store_motion`, `address_fold`, `literal_compare`, `redundant_extension`,
+    38 rewrite modules (`copy_removal`, `dead_store`, `load_forwarding`,
+    `store_motion`, `address_fold`, `literal_minuend`, `redundant_extension`,
     the relocation and interchange families) whose entrances, such as
     `remove_selected_copy` and `eliminate_selected_dead_store`, are called only
-    from their own tests. `optimize_selected_instructions` runs
+    from their own tests. `literal_compare` and `literal_arithmetic` were
+    deleted as second producers of folds the cataloged pair rules already
+    produce (their general-case nomination leg stays with
+    `DECLARATIVE-PEEPHOLES`). `optimize_selected_instructions` runs
     `run_selected_lowering_optimizations` and nothing else, and none of these
     rewrites has an exact name in
     [rules.md](omega-rust/omega/representations/optimization-core/rules.md).
@@ -47,8 +50,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     or delete it. Their behavior stays with `EXACT-MACHINE-SIMPLIFICATIONS`,
     `DECLARATIVE-PEEPHOLES` and `ALIAS-AWARE-MEMORY`.
   - `selected-instructions-to-register-homes/src/unsequenced_spill_stages/`
-    holds 18 spill families, each with public plan and receipt records, that
-    `stage_register_allocation` never calls. `SPILL-REALIZATION` owns
+    holds the remaining spill families outside executable allocation.
+    Logical spill planning has moved to `assignment/logical_spill_operations`
+    and is called, retained and replayed, but recovery still chooses the actual
+    spill rewrites independently. `SPILL-REALIZATION` owns that join and
     sequencing the ones it needs; delete or merge the ones the executable
     `assignment/runtime_spill` route has superseded.
   - `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
@@ -57,6 +62,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `stage_validated_optimized_program_storage_semantic_wrapper_object` have no
     caller outside their own tests. Move the live part to its backend or
     representation owner, or delete it.
+    Disposition verified at `25709a6870`: the two modules are one coupled
+    chain — the encode stage's product is a typed parameter of the object
+    stage's entrance (`stage_..._object(settlement, object, encoding)`) and
+    its only non-test consumer — so the encoding leg cannot be deleted or
+    moved independently. Neither end of the chain is wired:
+    `plan_optimized_program_storage_semantic_wrapper` has no production
+    caller and `StagedValidatedOptimizedProgramStorageSemanticWrapperObject`
+    has no emission or installation consumer (`native_pipeline/report.rs`
+    still reports "wrapper bytes: unavailable"). The coupled disposition —
+    wiring the chain into the entry-realization route or joint removal —
+    is claimed this wave under OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION;
+    the surface stays off the locally-schedulable list until it settles.
   - Audit the remaining stage and coordinator crates the same way: a public
     stage entrance that no coordinator or successor stage calls is an orphan
     output.
@@ -65,13 +82,23 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   entrances or orphan outputs remain, and coordinators only sequence typed
   stages. Renaming a helper or adding a wrapper is not completion.
 
-  Flag: three owners carry validated, replayed and mutation-tested machinery
-  that no executable route reaches (about 40 selected rewrites, 18 spill
-  families, the ProgramStorage wrapper object). Each new slice adds tests and
-  board text for code the compiler never runs. The general mechanism is the
-  one [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay)
-  already names: one ordered catalog per owning stage, executed by the stage
-  entrance.
+  Flag: validation, replay and mutation tests do not establish an executable
+  consumer. The selected rewrites, remaining unsequenced spill families and
+  ProgramStorage wrapper need that consumer or deletion. Calling and retaining
+  a logical plan without using it for the physical transformation is also an
+  unfinished join. Reuse the stage ownership and catalogs described in
+  [optimization.md](omega-rust/optimization.md#catalogs-and-independent-replay).
+
+  Wave ownership at `54e321bdf0` (re-check `tools/claims.py status` before
+  scheduling a leg): rewrites under PIPELINE-REWRITE-CATALOG-WIRING +
+  SELECTED-REWRITE-CATALOG-ROUTE/-WIRING (allocation_recovery slice under
+  DURABLE-CODEC-EXTRACTION); `unsequenced_spill_stages/` under
+  POC-SPILL-FAMILY-SEQUENCING with UNSEQUENCED-SPILL-STAGE-TRIAGE and
+  UNSEQUENCED-SPILL-DISPOSITION; the wrapper disposition under
+  OPTIMIZED-SEMANTIC-WRAPPER-DISPOSITION / SEMANTIC-WRAPPER-OWNER-RESOLUTION
+  (`native-realization` additionally under OPAQUE-BY-VALUE-BOUNDARY-ABI);
+  the audit bullet is executed — STAGE-ENTRANCE-ORPHAN-AUDIT's sweep landed
+  `280c4a83b6` and its findings route to the legs above.
 
 - **REPRESENTATION-OWNERSHIP.** Finish
   `omega-rust/{omega,psi}/representations/` under
@@ -112,11 +139,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     representation because validation replay and test fixtures outside the
     producer stage consume `reconstruct_psi_optimization_unit_seed` directly.
   - Move durable codecs out of transforms and coordinators with their
-    consuming stage changes: `post_allocation_manifest/codec` and
-    `rewrites/allocation_recovery/fixed_view_copy/codec` in the two selected
-    stages, and `optimized_semantic_wrapper_object/codec` in
+    consuming stage changes. `rewrites/allocation_recovery/fixed_view_copy/codec`
+    is already relocated (`2e3c662c32e` — now
+    `register-homes/src/register_homes/recovery/fixed_view_copy/codec`).
+    Remaining: `post_allocation_manifest/codec` in
+    `selected-instructions-to-register-homes`, and
+    `optimized_semantic_wrapper_object/codec` in
     `native-realization` (see `PIPELINE-OWNER-CONSOLIDATION` for whether that
-    owner survives).
+    owner survives). Re-verified at `c1e0b085375`: both sites still sit in
+    their transform/compiler homes under live claims.
   - `representations/target` is shared vocabulary, not a program: its
     deployment profiles, entry schemas and UEFI/ELF/foreign-locator
     structures have no current-program aggregate, and the guard's
@@ -138,11 +169,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   library and native-differential failures. Six staged records now exist —
   the complete Psi-phase selection vocabulary in
   [promotions/](omega-rust/omega/representations/optimization-core/promotions/),
-  one per rule — each recording that rule's coverage state. Only
-  ControlFlowCleanup and DeadPureScalarElimination carry a completed
-  `Rollback evidence` field (the every-target rejoin legs in
-  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`);
-  the other four name the selected-rule rejoin leg still missing. `Approved
+  one per rule — each recording that rule's coverage state. Every record now
+  carries a completed `Rollback evidence` field (the every-target rejoin legs
+  in
+  `omega-rust/omega/compiler/compiler/tests/no_selection_golden/rollback.rs`
+  cover each selected rule under `--disable-optimization` rejoining the
+  byte-identical ordinary artifact on all four hosted targets). `Approved
   status`, owner approval, and measurement evidence stay `PENDING` on all
   six — the measurement leg waits on the native realization failure the
   BENCHMARKS item records (every `depend()`-ing subject rejects at the
@@ -152,7 +184,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   promotion, confines every `path`/`path::subject` citation to
   repository-relative names with nonempty subjects, and requires every schema
   label exactly once with no contradictory value, so a promotion leg passes
-  only on the contract's full evidence set.
+  only on the contract's full evidence set. Re-verified at `b8d336adcf2`
+  (linux x86-64): `exact_rule_rollout_is_complete_and_promotion_gated` green;
+  all six records still carry completed `Rollback evidence` with `Approved
+  status`, `Owner approval`, and `Measurement evidence` PENDING — the
+  remaining legs are owner/product decisions plus the BENCHMARKS-gated
+  measurement leg, not implementable slices.
   Acceptance: the command passes from a clean checkout and every promoted
   exact rule has the evidence the
   [promotion contract](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
@@ -187,23 +224,37 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `IntegerLessThan`, `IntegerLessOrEqual`), whose instruction-only
     operations take `DirectInstructionBytes` over their
     provenance-attributed byte interval when the realization carries a
-    `PrimitiveIntegerComparison` execution. `CallDynamic*` kinds carry
-    descriptor or parameter ordinals rather than a static callee, and
-    the remaining intrinsic kinds have no span arm. Verified
-    (w9, `fcef01c59a`): those operations do not produce coverage
-    occurrences at all yet — the checked boundary-operator replay
-    (`lowered-psi-to-terminal-psi/boundary_operator_custody/replay_scope.rs`)
-    admits only IEEE FMA, structural returns, and float/integer
-    comparisons — so the first work is a new occurrence replay family
-    with demand/realization companions; only then do span arms join the
-    emitted dynamic-call records (`dynamic_calls`, `stored_dynamic_calls`,
-    `dynamic_parameter_calls`, `forwarded_dynamic_*`), which already carry
-    `psi_operation`/`operation_ordinal`/`code_offset`/`byte_count`.
-    Descriptor-materializing records additionally need relocation custody
-    beyond the single window `derive_span` models (AArch64 table
-    addressing emits two windows) plus a conformance-table symbol join;
-    parameter-routed calls are register-indirect. `physical/` is fenced
-    by DYNAMIC-CALL-OCCURRENCE-SPANS this wave. Regressions:
+    `PrimitiveIntegerComparison` execution. Landed (w9, `95019d341a9`):
+    `CallDynamic*` kinds now carry occurrences and children — physical
+    derivation enumerates every surviving `CallDynamicScalar`,
+    `CallDynamicParameterScalar`, `CallDynamicUnit`, and
+    `CallDynamicParameterUnit` Terminal operation as a `DynamicCall`
+    occurrence, each binding exactly one child under
+    `PhysicalChildParent::DynamicCallDispatch` (the exact dispatch catalog
+    row the operation names), and `derive_dynamic_call_span` joins all
+    five emitted record families — `dynamic_calls`,
+    `stored_dynamic_calls`, and `dynamic_parameter_calls` take
+    `DirectInstructionBytes` over the register-indirect interval
+    (rejecting empty or relocated spans) while
+    `forwarded_dynamic_parameter_calls` and
+    `forwarded_dynamic_descriptor_calls` require exactly one Text
+    relocation plus an exact callee join for `ResolvedInternalCall`.
+    Witness `derivation::tests::dynamic_call_occurrence_binds_its_dispatch_role_and_parent_identity`.
+    Remaining intrinsic kinds still produce no occurrences, so their
+    span arms have no demand side — the occurrence replay for them is
+    TV-OPERATOR-APPLICATIONS-REPLAY's scope. Descriptor-materializing
+    records additionally need relocation custody beyond the single
+    window `derive_span` models (AArch64 table addressing emits two
+    windows) plus a conformance-table symbol join; that surface in
+    `physical/` is fenced by PHYSICAL-ACCESS-PROFILES this wave.
+    Measured (w9, `577d6ac2ba`): no end-to-end `physical_child_replay`
+    leg for the dynamic family is reachable yet — dynamic-call programs
+    are red before the physical stage on this host
+    (`runtime_local_named_dyn_unit_multi_hop_return` rejects
+    `CallUnitWithDynamicArguments` under Selection/Legalization; the
+    rebound and stored shapes hit the `ProgramEntry establishment
+    rejoins 0 Terminal attachment identities` family), so the family's
+    e2e replay leg waits on those upstream gaps. Regressions:
     `physical_child_replay::structural_result_operator_occurrence_replays_one_exact_physical_child`
     (Linux x86-64) drives a structural-result boundary operator through
     emission, exact-child binding, and every mutation-class rejection;
@@ -353,9 +404,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Remaining work:
 
-  - Other non-scalar families. `EstablishTrivialAffineLocal` has no admitted
-    relocation evidence and falls to the scalar-result fallthrough in the
-    verifier's `unranked_cycles::eligible`. `CallStructural` relocates only in
+  - Other non-scalar families. `EstablishTrivialAffineLocal` relocates: the
+    verifier admits cyclic-member establishments — the entry-prefix contract
+    relaxes to one establishment site per local, member sites confined to
+    self-reachable blocks — and the optimizer relocates the whole-place
+    establishment behind `invariant_trivial_affine_local_admission`, with the
+    freeze replay re-deriving custody (member-internal edges keep the
+    persistent place live, exits and member returns dispose it) and rejecting
+    kept internal discards, dropped exit disposals, and stale frontier
+    catalogs. `CallStructural` relocates only in
     its affine claim-free form bound to the same block's `StructuralCase` or
     `ReturnStructural` terminator — an unrestricted place result would leave
     later traversals dispatching a disposed place — and its structural
@@ -414,6 +471,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Remaining work:
 
+  - Logical-to-physical join. `assignment/runtime_spill/recovery.rs` calls
+    `sequenced_logical_operations` to choose logical victims and plan their
+    operations; recovery retains the result and replay recomputes it. The
+    actual candidate loop still selects and rewrites victims independently.
+    Connect the plan to the emitted spill/reload or frame obligations where it
+    is needed, or remove redundant planning. Preserve executable recovery and
+    independent checking; retaining another plan is not completion. A mismatch
+    with the actual emitted operations must reject, not merely a changed copy
+    of the retained plan.
   - Victim and use admission (`rewrites/runtime_spill/admission.rs`). A
     foreign-class IEEE scalar reaches its slot through the frame rows'
     shared carrier class: stores prepend `Float*ToBits`, reloads append
@@ -432,9 +498,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `LocalStorageSlotId::Spill` slot. `runtime_spill/slot.rs` shares an
     existing slot only for the zero-offset `Store64` or
     `FrameAddress`-plus-`Load64` idiom when a last-writer replay proves the
-    windows cannot interleave. Interval-based coloring exists only as
-    `unsequenced_spill_stages/stack_slot_coloring`, which
-    `stage_register_allocation` never calls.
+    windows cannot interleave. Interval-based coloring is sequenced as
+    `assignment/stack_slot_coloring`: `stage_register_allocation`'s
+    runtime-spill recovery colors its retained logical-operation plan and
+    replays the coloring, but emission still consumes only the per-step
+    `LocalStorageSlotId` homes — the colored plan is validated evidence, not
+    yet a physical input.
   - Composition (`src/register_allocation.rs`). A completed selected-lowering
     run takes `assignment::transformed` homes and surfaces pressure as
     `TransformedHomes`; it never enters `assignment::runtime_spill`. A
@@ -465,16 +534,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   as the hosted execution control, with its installed-image demand replay and
   stale-frame rejection (`terminal_psi_indexed_receivers/stack_pointers/`).
 
-  Flag: `unsequenced_spill_stages/` holds 18 spill families in about 25,700
-  non-test lines (logical spill operations, slot coloring, abstract
-  insertion, reload-value homes, recursive and generalized worklists,
-  pseudo-instruction lowering, memory effects, access constraints).
-  `stage_register_allocation` calls none of them; native-differential tests,
-  architecture ladders and machine emission's non-authoritative
-  `frame_layout/spill_requirements/` are their only consumers. The executable
-  route is about 1,100 non-test lines of allocation code plus 2,950 of
-  rewrite, and slot reuse now has two owners. Sequence a staged family behind
-  the executable route or delete it; do not extend both.
+  Flag: the remaining `unsequenced_spill_stages/` families have test,
+  architecture and non-authoritative frame-planning consumers, not an
+  executable allocation route. Logical planning has moved out but still needs
+  the physical join above. Slot reuse still has two producers:
+  `assignment/stack_slot_coloring` (sequenced, retained evidence) and
+  `runtime_spill/slot.rs` (drives the emitted slot sharing). Follow consumers
+  when sequencing a needed family or deleting a superseded one with its
+  exports and tests; do not extend both implementations.
 
 - **ALLOCATION-REFINEMENT.** Add general live-range splitting to
   [register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)
@@ -643,10 +710,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   compiler-produced selected programs, each as an
   [atomic candidate with independent validation](wiki/spec/build/optimizations.md#atomic-candidates-and-independent-validation).
   Owner: `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/`.
-  `src/rewrites/` already holds 37 modules for these transformations:
-  `copy_removal`, `redundant_extension`, `address_fold`, `literal_arithmetic`,
-  seven compare and flag rewrites (`literal_*`, `constant_*`, `boundary_*`,
-  `dead_compare`), and 26 interchange and relocation families. Each entrance
+  `src/rewrites/` already holds 35 modules for these transformations:
+  `copy_removal`, `redundant_extension`, `address_fold`, six compare and flag
+  rewrites (`literal_minuend`, `constant_*`, `boundary_*`, `dead_compare`),
+  and 26 interchange and relocation families. The `literal_compare` and
+  `literal_arithmetic` modules were deleted as second producers of the
+  cataloged pair-rule folds. Each entrance
   takes caller-named instruction identities and replays by
   restore-by-content. None is an `Optimization` member, has a catalog row or
   candidate discovery, or has a caller outside its own tests, which
@@ -667,16 +736,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     `Optimization` member in `representations/optimization-core`, claimed by
     WORKSPACE-ROLLOUT in wave w9 — arrange the handoff there before the
     catalog work proceeds.
-  - Separate validation from proposal: `copy_removal` and
-    `redundant_extension` now re-derive the legality contract without the
-    producer's `admission` routine — a wrong legality decision fails their
-    validators even when the proposal matches the emitted edit, and each
-    validator proves it on a forged proposal in its own `independence_tests`.
-    Every other module's `validation.rs` still calls the same
-    `admission::admit` as its `rewrite.rs`, then checks that undoing the edit
-    restores the source. That detects a wrong edit, not a wrong legality
-    decision. The validator must reconstruct the preconditions without the
-    producer's admission routine.
+  - Separate validation from proposal: `copy_removal`, `redundant_extension`,
+    `load_forwarding`, `constant_boolean`, `constant_branch`, the scheduling
+    relocation family, and the `dead_compare` families now re-derive the
+    legality contract without the producer's `admission` routine — a wrong
+    legality decision fails their validators even when the proposal matches
+    the emitted edit, and each validator proves it on a forged proposal in
+    its own `independence_tests`. Every other module's `validation.rs` still
+    calls the same `admission::admit` as its `rewrite.rs`, then checks that
+    undoing the edit restores the source. That detects a wrong edit, not a
+    wrong legality decision. The validator must reconstruct the preconditions
+    without the producer's admission routine.
   - Scheduling refuses any window containing a call, hosted effect, barrier
     kind or call-roster entry, any cross-block move through a block that is
     not a plain `Source` block, and any control-flow shape without its own
@@ -712,10 +782,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   destination point that derives the crossed positions and edges on every
   path between them and the traversals that gain or lose the run, then
   applies the hazard, dead-path and commutation audits once. Separately,
-  `literal_compare` and `literal_arithmetic` re-implement folds the cataloged
-  pair rules already produce; widen candidate nomination for those
-  descriptors under DECLARATIVE-PEEPHOLES instead of keeping a second
-  producer.
+  `literal_compare` and `literal_arithmetic` re-implemented folds the
+  cataloged pair rules already produce and were deleted; widen candidate
+  nomination for those descriptors under DECLARATIVE-PEEPHOLES to cover the
+  general (non-pressure-nominated) materialization the deleted modules
+  admitted.
 
   DECLARATIVE-PEEPHOLES owns the cataloged
   pair-rule folds. ALIAS-AWARE-MEMORY owns the load, store and mutation
@@ -818,9 +889,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   selects `omega.psi-pass.state-specialization.v1` (rule
   `omega.psi-rule.state-argument-specialization.v1`) by exact name through
   `PSI_PASS_CATALOG`/`optimize_abstract_operations`, publishing and replaying
-  independently under the evidence-matrix legs. It still declines every
-  machine holding a cyclic component and does not cover non-Boolean state
-  arguments, conditional incoming edges, or result specialization.
+  independently under the evidence-matrix legs. The fused incoming edge is an
+  unconditional `Jump` successor or one arm of a `Conditional` predecessor —
+  a fused conditional arm leaves its sibling byte-exact, and both arms of one
+  predecessor may specialize in a single candidate. The state argument itself
+  may be Boolean (the condition reads the parameter directly) or an integer
+  the condition reads through an in-block `parameter CMP literal` comparison
+  — equality, less-than, or less-or-equal, evaluated under the operand type's
+  own `IntegerType::compare`, with every other node in the block a pure
+  scalar constant. It still declines every machine holding a cyclic
+  component and does not cover result specialization or state arguments
+  beyond those two condition shapes.
   Acceptance: a source-produced state machine selects the rule by exact name
   through `optimize_abstract_operations`, publishes, and replays
   independently. Forged or stale edge provenance, a dispatch whose every
@@ -849,7 +928,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   [rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
   has those legs beside its rule, as do the mandatory `runtime_spill` and
   `runtime_rematerialization` recovery rewrites, which have no disabled axis
-  by design. The 40 uncalled rewrite modules under
+  by design. The 38 uncalled rewrite modules under
   `selected-instructions-to-selected-instructions/src/rewrites/` (the
   EXACT-MACHINE-SIMPLIFICATIONS and ALIAS-AWARE-MEMORY families) have
   positive, negative, boundary, budget, determinism, fixed-point and

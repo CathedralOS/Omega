@@ -165,7 +165,7 @@ fn selected_plan_for_external_root<'a>(
 const POLICY: &str = r#"
 use omega::language::std::calling;
 
-data NoResultPolicy { }
+pub data NoResultPolicy { }
 NoResultPolicyCallingPolicy: NoResultPolicy satisfies CallingPolicy;
 
 machine NoResultPolicy::plan(
@@ -247,7 +247,7 @@ data ForeignRecord {
     payload: u64;
 }
 
-data RegistrarPolicy { }
+pub data RegistrarPolicy { }
 RegistrarPolicyCallingPolicy: RegistrarPolicy satisfies CallingPolicy;
 
 machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -357,7 +357,7 @@ data PicAckCarrier {
 PicAckRepresentation:
     PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;
 
-data X86InterruptPolicy { }
+pub data X86InterruptPolicy { }
 X86InterruptPolicyCallingPolicy: X86InterruptPolicy satisfies CallingPolicy;
 
 machine X86InterruptPolicy::plan(
@@ -496,7 +496,7 @@ machine build(builder: &mut Build) {
 "#;
 
 const INTERRUPT_OPAQUE_RESULT_POLICY: &str = r#"
-data InterruptResultPolicy { }
+pub data InterruptResultPolicy { }
 InterruptResultPolicyCallingPolicy: InterruptResultPolicy satisfies CallingPolicy;
 
 machine InterruptResultPolicy::plan(

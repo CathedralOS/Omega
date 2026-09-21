@@ -101,6 +101,20 @@ fn expected_omega_case_application_name(root: &Path) -> String {
 
 const DECLARATION_REJECTION_CASES: &[&str] = &["fail/build/build-machine-wrong-arity"];
 
+/// Samples that bind hosted entries without any package dependency, each
+/// stating why in its own `build.omg`: `uefi/uefi_hello` is freestanding, the
+/// two wrapping-arithmetic subjects and `cli/basics/standalone` are
+/// dependency-free benchmark subjects `tools/benchmark` measures without
+/// settling a dependency graph, and `cli/proofs/structural_proofs` emits no
+/// runtime code. Every other sample declares the ordinary std edge.
+const DEPENDENCY_FREE_SAMPLES: &[&str] = &[
+    "cli/arithmetic/wrapping_collatz_max",
+    "cli/arithmetic/wrapping_square_sum",
+    "cli/basics/standalone",
+    "cli/proofs/structural_proofs",
+    "uefi/uefi_hello",
+];
+
 /// Corpus roots that are package members of a sibling case rather than
 /// applications, keyed like `DECLARATION_REJECTION_CASES` with their declared
 /// package names.
@@ -246,7 +260,7 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
     let samples = repository_root().join("samples");
     let mut roots = Vec::new();
     collect_build_roots(&samples, &mut roots);
-    assert_eq!(roots.len(), 141, "unexpected executable sample population");
+    assert_eq!(roots.len(), 148, "unexpected executable sample population");
 
     for root in roots {
         let expected_name = expected_sample_application_name(&root);
@@ -266,7 +280,10 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
             root.display()
         );
 
-        let expected_dependencies = if root.ends_with("samples/uefi/uefi_hello") {
+        let expected_dependencies = if DEPENDENCY_FREE_SAMPLES
+            .iter()
+            .any(|sample| root.ends_with(sample))
+        {
             Vec::new()
         } else {
             let location = if root.starts_with(samples.join("cli")) {
@@ -290,6 +307,26 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
     }
 }
 
+/// Every `.omg` source under a packaged canary root, including member sources
+/// in subdirectories such as `platform/`, except the build declaration itself.
+fn collect_canary_member_sources(root: &Path, sources: &mut Vec<PathBuf>) {
+    let mut entries = fs::read_dir(root)
+        .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap_or_else(|error| panic!("read canary entry in {}: {error}", root.display()));
+    entries.sort_by_key(fs::DirEntry::path);
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_canary_member_sources(&path, sources);
+        } else if path.extension().is_some_and(|extension| extension == "omg")
+            && path.file_name().is_some_and(|name| name != "build.omg")
+        {
+            sources.push(path);
+        }
+    }
+}
+
 fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
     let projection = extract_build_dependency_projection(root).unwrap_or_else(|error| {
         panic!(
@@ -307,12 +344,9 @@ fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
         root.display()
     );
 
-    for source in fs::read_dir(root)
-        .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
-        .map(|entry| entry.expect("read canary source entry").path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
-        .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
-    {
+    let mut sources = Vec::new();
+    collect_canary_member_sources(root, &mut sources);
+    for source in sources {
         let contents = fs::read_to_string(&source)
             .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
         assert!(
@@ -320,11 +354,13 @@ fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
             "packaged canary {} retains a bundled std import",
             source.display()
         );
-        assert!(
-            contents.contains("omega_language_std"),
-            "packaged canary {} does not use its dependency alias",
-            source.display()
-        );
+        if source.parent() == Some(root) {
+            assert!(
+                contents.contains("omega_language_std"),
+                "packaged canary {} does not use its dependency alias",
+                source.display()
+            );
+        }
     }
 }
 
@@ -364,12 +400,9 @@ fn assert_mixed_canary_category_standard_library_edges(
     let mut standard_library_consumers = 0;
     for root in roots {
         let mut uses_dependency_alias = false;
-        for source in fs::read_dir(&root)
-            .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
-            .map(|entry| entry.expect("read canary source entry").path())
-            .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
-            .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
-        {
+        let mut sources = Vec::new();
+        collect_canary_member_sources(&root, &mut sources);
+        for source in sources {
             let contents = fs::read_to_string(&source)
                 .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
             assert!(
@@ -391,9 +424,15 @@ fn assert_mixed_canary_category_standard_library_edges(
             .iter()
             .filter(|dependency| *dependency == &expected_dependency)
             .count();
+        // The managed `Quotient::define` admission refuses the
+        // standalone-source identity a fixture compiles under without a
+        // package dependency, so this canary's std edge is load-bearing
+        // provenance rather than an import. No other packaged canary declares
+        // an edge it does not name through `omega_language_std`.
+        let provenance_only_edge = root.ends_with("pass/proofs/quotient_define_managed_compile");
         assert_eq!(
             standard_library_edges,
-            usize::from(uses_dependency_alias),
+            usize::from(uses_dependency_alias || provenance_only_edge),
             "std import/dependency mismatch in {}",
             root.display()
         );
@@ -419,7 +458,7 @@ fn time_canaries_declare_ordinary_standard_library_edges() {
 fn filesystem_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/filesystem"),
-        85,
+        86,
     );
 }
 
@@ -436,8 +475,7 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("errors", 1),
         ("generics", 37),
         ("layouts", 19),
-        ("proofs", 14),
-        ("recast", 23),
+        ("recast", 24),
         ("structs", 13),
     ] {
         assert_canaries_declare_ordinary_standard_library_edges(
@@ -445,6 +483,20 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
             expected_count,
         );
     }
+}
+
+/// `proofs` holds both std-free kernel canaries and std consumers, plus the
+/// one packaged root whose std edge carries package provenance instead of an
+/// import: `quotient_define_managed_compile` compiles under the
+/// standalone-source identity its managed `Quotient::define` admission
+/// refuses when the edge is absent.
+#[test]
+fn proof_canaries_declare_only_their_consumed_standard_library_edges() {
+    assert_mixed_canary_category_standard_library_edges(
+        &repository_root().join("tests/omega/pass/proofs"),
+        15,
+        13,
+    );
 }
 
 #[test]
@@ -459,7 +511,7 @@ fn slice_canaries_declare_only_their_consumed_standard_library_edges() {
 #[test]
 fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
-        [("expressions", 52, 51), ("storage", 11, 10)]
+        [("expressions", 53, 51), ("storage", 12, 10)]
     {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -473,8 +525,8 @@ fn expression_and_storage_canaries_declare_only_their_consumed_standard_library_
 fn wire_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/wire"),
-        44,
-        37,
+        46,
+        39,
     );
 }
 
@@ -500,8 +552,8 @@ fn collection_canaries_declare_only_their_consumed_standard_library_edges() {
 fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/arithmetic"),
-        140,
-        139,
+        142,
+        141,
     );
 }
 
@@ -509,15 +561,15 @@ fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
 fn call_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/calls"),
-        176,
-        174,
+        181,
+        179,
     );
 }
 
 #[test]
 fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
-        [("capabilities", 16, 2), ("control_flow", 60, 50)]
+        [("capabilities", 16, 2), ("control_flow", 61, 51)]
     {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -540,7 +592,7 @@ fn float_canaries_declare_only_their_consumed_standard_library_edges() {
 fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/traits"),
-        32,
+        33,
         29,
     );
 }
@@ -549,8 +601,8 @@ fn trait_canaries_declare_only_their_consumed_standard_library_edges() {
 fn operator_and_type_runtime_canaries_declare_ordinary_standard_library_edges() {
     assert_mixed_canary_category_standard_library_edges(
         &repository_root().join("tests/omega/pass/operators"),
-        10,
-        9,
+        12,
+        11,
     );
     assert_canaries_declare_ordinary_standard_library_edges(
         &repository_root().join("tests/omega/pass/types"),
@@ -593,7 +645,7 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("range", 6, 6),
         ("core", 14, 7),
         ("dungeon", 19, 15),
-        ("domains", 28, 26),
+        ("domains", 29, 27),
         ("host", 23, 22),
         ("providers", 35, 19),
     ] {

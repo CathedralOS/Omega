@@ -1,15 +1,16 @@
 use super::{
-    Arc, CheckedTrees, ProviderBinding, ProviderPlan, plan, selected_plan,
-    settle_selected_boundary_adapter_dispatch,
+    Arc, CheckedTrees, ProviderBinding, ProviderPlan, bind_fixture_fused_service_erasures, plan,
+    selected_every_plan, selected_plan, settle_selected_boundary_adapter_dispatch,
+    typed_with_core_service,
 };
 use provider_planning::ProviderPlanDerivation;
-/// A boundary trait carrying two requirement-local generic requirements beside
+/// A pub boundary trait carrying two requirement-local generic requirements beside
 /// a nongeneric one. Without an authored finite `where` roster the generic
 /// requirements are dynamically ineligible individually: `ping` still settles
 /// while `scan`/`watch` calls reject rather than reaching the unbound generic
 /// adapter template at every demanded tuple.
 const FAMILY_SOURCE: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64;
         machine watch<const Width: u32>(value: u32);
         machine ping(value: u32) -> u32;
@@ -22,7 +23,7 @@ const FAMILY_SOURCE: &str = r#"
     machine ScanProvider::ping(value: u32) -> u32 satisfies Scanner::ping {
         transition { _ -> (value) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u32 reaches Scanner {
         _ = self.service.ping(1);
         transition { _ -> (self.service.ping(2)) }
@@ -30,21 +31,21 @@ const FAMILY_SOURCE: &str = r#"
 "#;
 
 const GENERIC_VALUE_CALL: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine scan<const Width: u32>(value: u32) -> u64;
     }
     data ScanProvider {}
     machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7) + self.service.scan<32>(8)) }
     }
 "#;
 
 const GENERIC_STATEMENT_CALL: &str = r#"
-    boundary trait Scanner {
+    pub boundary trait Scanner {
         machine watch<const Width: u32>(value: u32);
         machine ping(value: u32) -> u32;
     }
@@ -53,7 +54,7 @@ const GENERIC_STATEMENT_CALL: &str = r#"
     machine ScanProvider::ping(value: u32) -> u32 satisfies Scanner::ping {
         transition { _ -> (value) }
     }
-    data Client { service: Scanner; }
+    data Client { service: Service<Scanner>; }
     machine Client::run(&mut self) -> u32 reaches Scanner {
         self.service.watch<8>(1);
         transition { _ -> (self.service.ping(2)) }
@@ -61,17 +62,7 @@ const GENERIC_STATEMENT_CALL: &str = r#"
 "#;
 
 fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize generic-requirement fixture");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-        .expect("parse generic-requirement fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve generic-requirement fixture");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type generic-requirement fixture");
+    let mut typed = typed_with_core_service("selected-dispatch/generic_requirements.omg", source);
     let plans = provider_planning::derive_satisfies_plans(
         &typed,
         ProviderPlanDerivation::unevaluated(None),
@@ -79,6 +70,7 @@ fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
+    bind_fixture_fused_service_erasures(&mut typed, &selected_every_plan(&plans));
     let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
         .expect("check generic-requirement fixture");
     (checked, plans)
@@ -153,7 +145,17 @@ fn statement_calls_to_a_generic_requirement_reject() {
 
 #[test]
 fn ineligible_rows_skip_adapter_resolution() {
-    let (checked, plans) = family_fixture(GENERIC_VALUE_CALL);
+    let mut typed = typed_with_core_service(
+        "selected-dispatch/generic_ineligible.omg",
+        GENERIC_VALUE_CALL,
+    );
+    let plans = provider_planning::derive_satisfies_plans(
+        &typed,
+        ProviderPlanDerivation::unevaluated(None),
+    )
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let mut selected = plan(&plans, "Scanner").clone();
     let row = selected
         .rows
@@ -164,11 +166,16 @@ fn ineligible_rows_skip_adapter_resolution() {
         machine_identity: "ScanProvider::missing".into(),
         machine_package_identity: None,
     };
-    let selected = effects::SelectedProviderPlanFacts::from_selection(
-        std::slice::from_ref(&selected),
-        std::slice::from_ref(&selected.name),
-    )
-    .expect("select mutated generic plan");
+    // The mutated binding is part of the selected plan's identity, so the
+    // fused-service authorization must be bound from this drifted selection —
+    // checking first would authorize the unmutated digest and the routed
+    // `Service<Scanner>` field would fail its plan join before the row's own
+    // diagnostic can be observed.
+    let selected = effects::SelectedProviderPlanFacts::from_selected_plans(vec![selected])
+        .expect("select mutated generic plan");
+    bind_fixture_fused_service_erasures(&mut typed, &selected);
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .expect("check generic-ineligible fixture");
     let mut settled = Arc::new(checked);
     let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
         .expect_err("the ineligible requirement is excluded before realization checks");

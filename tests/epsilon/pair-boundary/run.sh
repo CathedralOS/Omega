@@ -20,11 +20,7 @@ command -v python3 >/dev/null 2>&1 || {
     echo "Epsilon pair boundary: skipped (python3 absent)"
     exit 0
 }
-case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64|Linux-x86_64) ;;
-    *) echo "Epsilon pair boundary: unsupported host; needs macOS arm64, Windows x64, or Linux x86-64" >&2
-       exit 2 ;;
-esac
+require_seed_execution_host "Epsilon pair boundary"
 
 PAIR_TMP=$(mktemp -d)
 trap 'rm -rf -- "$PAIR_TMP"' EXIT HUP INT TERM

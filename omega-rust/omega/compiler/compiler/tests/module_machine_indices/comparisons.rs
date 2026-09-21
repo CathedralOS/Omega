@@ -129,12 +129,7 @@ fn comparisons_reject_runtime_operands_unsafe_arithmetic_and_authored_operators(
         ),
         ("u8", "1", "(LIMIT == 256)", "cannot land exactly"),
         ("u8", "3", "(7 / 2 == LIMIT)", "cannot land exactly"),
-        (
-            "u64",
-            "1",
-            "(LIMIT / 0 == 0)",
-            "integer constant operation",
-        ),
+        ("u64", "1", "(LIMIT / 0 == 0)", "integer constant operation"),
     ] {
         Sources::write(
             root.join("main.omg"),
@@ -570,11 +565,7 @@ fn literal_boolean_indices_retain_selection_types_and_evaluated_failures() {
     let tree = Sources::new();
     let root = tree.package("root");
     for (declarations, expression, expected) in [
-        (
-            "",
-            "(true && (1u8 / 0 == 0))",
-            "integer constant operation",
-        ),
+        ("", "(true && (1u8 / 0 == 0))", "integer constant operation"),
         (
             "",
             "(false || (255u8 + 1 == 0))",

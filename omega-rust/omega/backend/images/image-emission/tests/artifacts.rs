@@ -14,10 +14,14 @@ mod fragment_container;
 mod hosted_exit_runtime;
 #[path = "artifacts/hosted_receiver.rs"]
 mod hosted_receiver;
+#[path = "artifacts/installation_field_substitution_fields.rs"]
+mod installation_field_substitution_fields;
 #[path = "artifacts/installation_field_substitutions.rs"]
 mod installation_field_substitutions;
 #[path = "artifacts/installation_function_nested_custody.rs"]
 mod installation_function_nested_custody;
+#[path = "artifacts/installation_function_nested_custody_fields.rs"]
+mod installation_function_nested_custody_fields;
 #[path = "artifacts/installation_records.rs"]
 mod installation_records;
 #[path = "artifacts/installed_artifact.rs"]
@@ -48,9 +52,8 @@ use dynamic_and_cleanup_plans::{
     structural_call_scalar_return_plan, two_call_edge_owned_cleanup_plan,
 };
 use provider_and_call_plans::{
-    WriteExitProvider, admitted_x86_fma_provider, artifact_symbol,
-    assert_header_substitution_rejected, callback_private_plan, internal_call_plan,
-    linux_foreign_call_plan, linux_write_line_exit_plan, port_effect_plan,
+    WriteExitProvider, admitted_x86_fma_provider, artifact_symbol, callback_private_plan,
+    internal_call_plan, linux_foreign_call_plan, linux_write_line_exit_plan, port_effect_plan,
     refresh_x86_fma_identity, structural_return_plan, two_function_plan, windows_foreign_call_plan,
     x86_fma_plan,
 };

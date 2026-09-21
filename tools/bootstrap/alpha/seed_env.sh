@@ -1,16 +1,16 @@
 #!/usr/bin/env sh
 # Sourced by the bootstrap build scripts. Selects the per-platform alpha seed
-# and the stamping mechanics, so one script set serves every host. The
-# fallback branch selects the hand-audited Windows flow (seed
-# alpha_x64_windows.exe, hole at file offset 5120/5124, no signing); Linux
-# x86-64 selects the audited static ELF64 seed (alpha_x64_linux, hole at file
-# offset 12288, no signing).
+# and the stamping mechanics, so one script set serves every host. The Linux
+# x86-64 branch selects the audited static ELF seed (alpha_x64_linux, hole at
+# file offset 12288, no signing); the remaining non-mac branch selects the
+# hand-audited Windows flow (seed alpha_x64_windows.exe, hole at file offset
+# 5120/5124, no signing).
 #
 # macOS arm64 differs in three ways, all OS-imposed: a Mach-O seed
 # (alpha_arm64_macos), the hole at a different file offset, and a mandatory
 # re-sign after stamping (dd invalidates the code signature; Apple Silicon
-# refuses to exec an invalid one). AlphaBootstrapV5 gives every container one
-# exact 16 MiB hole including the four-byte length.
+# refuses to exec an invalid one). AlphaBootstrapV5 gives all three containers
+# one exact 16 MiB hole including the four-byte length.
 ALPHA_SEED_HOLE_SIZE=16777216
 ALPHA_MAX_RAW_TAPE_SIZE=16777212
 
@@ -28,11 +28,11 @@ ALPHA_SEED_X64_LINUX_SIZE=16789856
 ALPHA_SEED_X64_LINUX_SHA256=39ccffa0303d07c0c1fee7dc40ded00e0e667b311836cdbced2768f868b775b1
 
 # Each container's stamping hole file offset, recorded beside the bound
-# identities so non-host gates can address any container. The hole is the
-# raw extent of the container's tape section (`.tape` in the PE32+, `__tape`
-# in the Mach-O); tests/alpha/container.sh pins that equality, so a rebuilt or
-# re-signed container that moved the section is refused here rather than
-# stamped into the wrong bytes.
+# identities so non-host gates can address every container. The hole is the
+# raw extent of the container's tape section (`.tape` in the PE32+ and the
+# ELF64, `__tape` in the Mach-O); tests/alpha/container.sh pins that equality,
+# so a rebuilt or re-signed container that moved the section is refused here
+# rather than stamped into the wrong bytes.
 ALPHA_SEED_ARM64_MACOS_HOLE_OFF=32768
 ALPHA_SEED_X64_WINDOWS_HOLE_OFF=5120
 ALPHA_SEED_X64_LINUX_HOLE_OFF=12288
@@ -65,14 +65,14 @@ case "$(uname -s)-$(uname -m)" in
 esac
 
 # Seed-execution hosts: the OS/arch pairs that can exec an audited Alpha
-# container — the arm64 Mach-O seed on macOS arm64, the PE32+ x64 seed under
-# the Windows build shells, the static ELF64 seed on Linux x86-64. Every
+# container — the arm64 Mach-O seed on macOS arm64, the static x86-64 ELF
+# seed on Linux, and the PE32+ x64 seed under the Windows build shells. Every
 # seed-executing gate reads this flag rather than repeating the uname match,
 # so admitting a new audited container/host pair is one edit here, not a
 # sweep across every gate.
 ALPHA_SEED_EXECUTABLE=0
 case "$(uname -s)-$(uname -m)" in
-  Darwin-arm64|MINGW*-x86_64|MSYS*-x86_64|Linux-x86_64) ALPHA_SEED_EXECUTABLE=1 ;;
+  Darwin-arm64|Linux-x86_64|MINGW*-x86_64|MSYS*-x86_64) ALPHA_SEED_EXECUTABLE=1 ;;
 esac
 
 # require_seed_execution_host LABEL : refuse a seed-executing gate on a host
@@ -83,7 +83,7 @@ require_seed_execution_host() {
   if [ "$ALPHA_SEED_EXECUTABLE" = 1 ]; then
     return 0
   fi
-  echo "$1: requires macOS arm64, Windows x64, or Linux x86-64" >&2
+  echo "$1: requires macOS arm64, Linux x86-64, or Windows x64" >&2
   exit 2
 }
 

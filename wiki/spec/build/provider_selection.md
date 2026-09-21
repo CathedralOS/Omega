@@ -17,6 +17,12 @@ the compiler derives ProviderPlan; configuration selects it. Requirements do not
 select their own providers. A boundary operator has no provider clause, and there
 is no parallel top-level primitive-provider registry.
 
+[Test groups](testing.md) request providers for separate runner roots, not
+application-wide replacements or new grants. Their selected closures remain
+within root-delegated authority: a child cannot replace virtual filesystem
+backing with host access. Test discovery collects exact checked satisfiers as
+independent invocations; it is not provider selection among competing candidates.
+
 A token-bearing boundary requirement is authored `boundary machine + Name(...)`
 (or another fixed token), not a separate operator declaration species. Ordinary
 nonboundary token-bearing machines own checked bodies and do not participate in

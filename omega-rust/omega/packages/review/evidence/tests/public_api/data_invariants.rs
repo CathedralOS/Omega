@@ -98,7 +98,7 @@ fn public_data_invariants_keep_generic_binders_distinct_from_fields() {
     package.write(
         "main.omg",
         r#"pub data Buffer<const N: u64>
-where N <= 8,
+where N <= 8u64,
 {
     used: u64;
 }
@@ -368,34 +368,77 @@ where count <= len,
     assert_rejects(&malformed_extra_context, "data invariant evidence");
 
     let mut missing_context = compile();
+    let data_symbol = missing_context
+        .facts
+        .semantic
+        .data_definition_facts
+        .iter()
+        .next()
+        .map(|(_, record)| record.data_symbol)
+        .expect("data ownership record");
     let context = missing_context
         .facts
         .semantic
         .contexts
         .iter()
         .find_map(|(handle, context)| {
-            matches!(context.point, facts::ProgramPoint::Definition { .. }).then_some(handle)
+            matches!(context.point, facts::ProgramPoint::Definition { symbol } if symbol == data_symbol)
+                .then_some(handle)
+        })
+        .or_else(|| {
+            missing_context
+                .facts
+                .semantic
+                .contexts
+                .iter()
+                .find_map(|(handle, context)| {
+                    missing_context
+                        .facts
+                        .semantic
+                        .refs
+                        .span_or_empty(context.facts)
+                        .iter()
+                        .any(|fact_ref| {
+                            missing_context.facts.semantic.facts.iter().any(
+                                |(fact_handle, fact)| {
+                                    fact_handle == fact_ref.fact
+                                        && matches!(
+                                            fact.origin,
+                                            facts::FactOrigin::DataDefinition { .. }
+                                        )
+                                },
+                            )
+                        })
+                        .then_some(handle)
+                })
         })
         .expect("data fact context");
     assert!(missing_context.facts.semantic.contexts.free(context));
     assert_rejects(&missing_context, "data invariant evidence");
 
     let mut missing_symbol_set = compile();
+    let data_symbol = missing_symbol_set
+        .facts
+        .semantic
+        .data_definition_facts
+        .iter()
+        .next()
+        .map(|(_, record)| record.data_symbol)
+        .expect("data ownership record");
     let symbol_set = missing_symbol_set
         .facts
         .semantic
         .symbol_sets
         .iter()
-        .next()
+        .find(|(_, set)| set.symbol == data_symbol)
         .map(|(handle, _)| handle)
         .expect("data symbol fact set");
-    assert!(
-        missing_symbol_set
-            .facts
-            .semantic
-            .symbol_sets
-            .free(symbol_set)
-    );
+    missing_symbol_set
+        .facts
+        .semantic
+        .symbol_sets
+        .get_mut(symbol_set)
+        .facts = arena::HandleSpan::from_parts(arena::Handle::from_parts(u32::MAX, 1), 1);
     assert_rejects(&missing_symbol_set, "data invariant evidence");
 
     let mut malformed_empty_path = {
@@ -403,7 +446,7 @@ where count <= len,
         package.write(
             "main.omg",
             r#"pub data Buffer<const N: u64>
-where N <= 8,
+where N <= 8u64,
 {
     used: u64;
 }

@@ -168,6 +168,8 @@ fn materialize_function(
         scalar_structural_parameters: Vec::new(),
         scalar_structural_parameter_homes: Vec::new(),
         semantic_code_attribution: Vec::new(),
+        // Thunks never touch ports; the general producer is still missing
+        // (wiki/drafts/evaluated_foreign_bindings.md).
         port_effects: Vec::new(),
         boundary_settlements: Vec::new(),
         structural_return: None,

@@ -1,11 +1,13 @@
 //! Checked operator targets and authored operator selection candidates.
 
+use std::collections::HashMap;
+
 use crate::authored_selections::CheckedResolutionTarget;
 use crate::authored_selections::call_targets::{declaration_target, exact_named_operator_call};
 use crate::authored_selections::contract_resolution;
 use crate::authored_selections::member_targets::{
-    expression_contains, expression_is_contextual_domain_primitive,
-    expression_is_contextual_statement_primitive, expression_is_intrinsic_primitive_without_origin,
+    expression_is_contextual_domain_primitive, expression_is_contextual_statement_primitive,
+    expression_is_intrinsic_primitive_without_origin, reachable_expressions,
 };
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus};
 use diagnostics::Diagnostic;
@@ -32,9 +34,48 @@ fn intrinsic_operator_operand_is_primitive(
         || expression_is_intrinsic_primitive_without_origin(program, operand)
 }
 
+/// The checked value facts whose expression contains each expression.
+///
+/// The open-generic fallback below asks one containment question of every
+/// checked value fact, and selection finalization asks it once per authored
+/// operator occurrence. Neither the expression table nor the fact roster
+/// moves while selections finalize, so one walk per value fact answers every
+/// occurrence. Origins keep the fact order the repeated walks produced, and
+/// a fact naming an origin already recorded for that expression adds
+/// nothing, exactly as the receiving roster's own membership test did.
+pub(crate) struct GenericOperatorValueOrigins {
+    by_expression:
+        HashMap<typed_trees::expression::ExpressionHandle, Vec<checked_trees::CheckedValueOrigin>>,
+}
+
+impl GenericOperatorValueOrigins {
+    pub(crate) fn index(program: &TypedTrees, facts: &CheckFacts) -> Self {
+        let mut by_expression: HashMap<_, Vec<checked_trees::CheckedValueOrigin>> = HashMap::new();
+        for (_, value) in facts.values.values.iter() {
+            for reached in reachable_expressions(program, value.expression) {
+                let origins = by_expression.entry(reached).or_default();
+                if !origins.contains(&value.origin) {
+                    origins.push(value.origin);
+                }
+            }
+        }
+        Self { by_expression }
+    }
+
+    fn origins(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> &[checked_trees::CheckedValueOrigin] {
+        self.by_expression
+            .get(&expression)
+            .map_or(&[][..], Vec::as_slice)
+    }
+}
+
 pub(crate) fn checked_generic_operator_target(
     program: &TypedTrees,
     facts: &CheckFacts,
+    value_origins: &GenericOperatorValueOrigins,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<Option<CheckedResolutionTarget>, Diagnostic> {
     let mut selected = None;
@@ -52,12 +93,10 @@ pub(crate) fn checked_generic_operator_target(
     if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
         && let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator)
     {
-        for (_, value) in facts.values.values.iter() {
-            if expression_contains(program, value.expression, expression, &mut Vec::new()) {
-                let selected_use = (spelling, value.origin);
-                if !uses.contains(&selected_use) {
-                    uses.push(selected_use);
-                }
+        for origin in value_origins.origins(expression) {
+            let selected_use = (spelling, *origin);
+            if !uses.contains(&selected_use) {
+                uses.push(selected_use);
             }
         }
     }
@@ -452,10 +491,7 @@ fn operator_contract_value_type(
                     .any(|fact| match fact {
                         typed_trees::domain::ProofFact::Expression(root) => {
                             crate::authored_selections::member_targets::expression_contains(
-                                program,
-                                *root,
-                                expression,
-                                &mut Vec::new(),
+                                program, *root, expression,
                             )
                         }
                         typed_trees::domain::ProofFact::Membership(membership) => {
@@ -463,7 +499,6 @@ fn operator_contract_value_type(
                                 program,
                                 membership.value,
                                 expression,
-                                &mut Vec::new(),
                             )
                         }
                         typed_trees::domain::ProofFact::Proposition(_) => false,

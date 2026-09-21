@@ -5,9 +5,10 @@
 //! namespace: a reader following a call from an entrance into a leaf cannot
 //! see where a name comes from without a repository-wide search, which is the
 //! navigation failure the source-organization audits exist to prevent. The
-//! repository already holds more than two thousand such files, so this gate
-//! does not demand they vanish at once. It records, per crate, how many files
-//! carry a glob self-import today and fails when that number grows.
+//! repository once held more than two thousand such files; the residual is
+//! small enough to repair file by file, and this ratchet keeps it shrinking.
+//! It records, per crate, how many files carry a glob self-import today and
+//! fails when that number grows.
 //!
 //! An entry records the exact count its crate has right now. Growing past it
 //! fails as a regression; shrinking fails as a stale entry, and the entry is

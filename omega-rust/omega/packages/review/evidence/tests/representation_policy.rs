@@ -81,12 +81,22 @@ fn unused_placement_and_semantic_copy_selections_both_remain_visible() {
             .len(),
         2
     );
+    // The mounted toolchain vocabulary still contributes its own boundary
+    // plans; the package's own selections alone create no realization.
     assert!(
         fixture
             .checked
             .custody
             .boundary_calling_plan_realizations()
-            .is_empty()
+            .iter()
+            .all(|realization| {
+                fixture
+                    .checked
+                    .symbols
+                    .symbol_source_span(realization.boundary_trait)
+                    .and_then(|span| fixture.checked.symbols.source_file(span))
+                    .is_some_and(|file| file.origin == ::source::SourceOrigin::Toolchain)
+            })
     );
     let policy = project(&fixture.checked, package_identity());
     assert_eq!(policy.selected_availability().len(), 2);

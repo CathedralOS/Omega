@@ -13,7 +13,7 @@ identically under PowerShell on Windows and sh on macOS/Linux; no
 PowerShell or POSIX-only prerequisite is needed for the workflow
 itself. Individual metric legs degrade to an explicit `unavailable`
 status rather than disappearing when a host cannot provide them (see
-Peak memory below).
+`metrics.peak_memory_bytes` in Record schema).
 
 ## Measuring
 
@@ -84,7 +84,7 @@ Each file in `records/` is one JSON object:
 | `key` | The row identity: `target` (a target profile name like `linux_x86_64`) and `selection`, a sorted-unique `enabled`/`disabled` pair of exact rule names as `Optimization::` identifiers. The empty selection serializes as `enabled: []`, `disabled: []` and lands in the `default` filename slot. |
 | `host` | `os`, `machine`, `cpu`, `logical_cpus`, `python`, `rustc`, `omega_binary`, and `omega_profile` of the measuring host. Numbers from different hosts are different rows' context, never silently mixed. |
 | `metrics.compile_time_ms` | `measured`; per-sample wall-clock milliseconds plus `median_ms`, `min_ms`, and the last sample's `--timings` stage table. |
-| `metrics.peak_memory_bytes` | `measured` when the platform reports per-child RSS; `compile_max_rss` and `run_max_rss` in bytes. `unavailable` with a reason on hosts without `os.wait4` (Windows). |
+| `metrics.peak_memory_bytes` | `measured` when the platform reports per-child RSS — POSIX `os.wait4` (`ru_maxrss`, normalized to bytes) or a Windows job object's kernel-tracked `PeakJobMemoryUsed` (aggregate peak covering the child and its descendants); `compile_max_rss` and `run_max_rss` in bytes. `unavailable` with a reason on hosts with neither route. |
 | `metrics.code_size_bytes` | `measured`; published executable size per sample plus `stable` (whether every sample produced the identical size). |
 | `metrics.runtime_ms` | `measured` with per-sample wall-clock milliseconds, observed `exit_codes`, `exit_code_expected`, and `exit_code_match`; `skipped` for `--no-run` (e.g. a cross target with no host runtime); `unavailable` if no artifact was produced. Each non-measured status carries a `reason`. |
 | `notes` | Free-form strings supplied through `--note`. |
@@ -120,9 +120,8 @@ one explicit row per catalogued deployment profile no record covers yet
 by the test). Cell vocabulary: `measured` quotes the record's status and
 headline number; `measurable` legs run on any build host; `pending <host>`
 waits on the named runtime environment; `unavailable (<reason>)` carries
-the structural gap — `windows_x86_64` keeps its peak-RSS leg unavailable
-(`os.wait4` absent on Windows) and `uefi_x86_64` keeps its runtime leg
-unavailable (QEMU or hardware acceptance) even before either host
+the structural gap — `uefi_x86_64` keeps its runtime leg
+unavailable (QEMU or hardware acceptance) even before a host
 participates. The rendered table is embedded in
 `wiki/drafts/benchmarks.md`; regenerate and repaste it when rows land.
 
