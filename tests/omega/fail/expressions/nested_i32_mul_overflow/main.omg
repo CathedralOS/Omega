@@ -10,8 +10,10 @@
 //   - INTERPRETER: computes the multiply at full width (10e9), then
 //     10e9 % 7 = 4        -> exits 74.
 //
-// This is NOT auto-caught by the differential oracle because the canary is not
-// registered as a RUN canary (and must not be until the semantics is decided).
+// The divergence above is HISTORICAL. This is a FAIL canary today: the checker
+// landed, the program is rejected, and the pending drift ledger records the
+// promotion at canary_suite.rs:5122-5125. Both readings are kept because they
+// show WHY accepting the operation was the defect -- neither answer was right.
 // A STORED intermediate (`let p: i32 = a*b; let r = p % 7;`) does NOT diverge:
 // the interpreter wraps on write to `p`, so both give 3. Only the unstored
 // nested intermediate differs.
@@ -22,10 +24,9 @@
 // explicit opt-ins). So THIS PROGRAM IS ILL-FORMED: `100000 * 100000` cannot be
 // proven in-range for i32 and must be REJECTED at compile time. Neither runtime
 // result (3 or 4) is "correct"; the divergence is a SYMPTOM of accepting an
-// unprovable operation. The real gap is the missing overflow proof-check (the
-// exact-arithmetic obligation is not yet enforced).
-//
-// When that checker lands this becomes a FAIL canary (expected compile error).
+// unprovable operation. The overflow proof-check has since LANDED
+// (decision 17 S3), so this IS a FAIL canary -- `expected.txt` pins
+// `may overflow \`i32\``.
 // To get a DEFINED runtime result you opt the operands into wrapping/saturating
 // arithmetic explicitly; both backends must then agree on that defined behavior
 // (today they would still diverge -- see the integer-arm width note in the

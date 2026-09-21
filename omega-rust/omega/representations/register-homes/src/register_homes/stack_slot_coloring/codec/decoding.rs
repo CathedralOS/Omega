@@ -4,14 +4,14 @@ use super::super::{
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::SelectedBlockId;
+use selected_instructions::{LiveRangePoint, SelectedBlockId};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 use super::cursor::Cursor;
 use super::{MAGIC, VERSION};
 use crate::{
-    AllocatorAvailabilityIdentity, LiveRangePoint, LogicalSpillOperationIdentity,
-    LogicalSpillStorageClass, LogicalSpillStorageId,
+    AllocatorAvailabilityIdentity, LogicalSpillOperationIdentity, LogicalSpillStorageClass,
+    LogicalSpillStorageId,
 };
 
 pub(super) fn decode(

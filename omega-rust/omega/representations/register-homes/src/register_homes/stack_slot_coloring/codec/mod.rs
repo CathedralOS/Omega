@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. Versioned stack-slot-coloring transport.
+//! Versioned stack-slot-coloring transport leaves.
 
 mod cursor;
 mod decoding;

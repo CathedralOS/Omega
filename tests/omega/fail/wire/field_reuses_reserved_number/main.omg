@@ -1,6 +1,8 @@
-// Chapter 20 (Wire Protocols): reserved field numbers prevent accidental
-// reuse after a field is retired; declaring a field on a reserved number in
-// the same schema scope is rejected.
+// Chapter 20 (Wire Protocols): live and retired identities share ONE numbering
+// space per schema scope. There is no separate "reserved number" mechanism --
+// the parser runs a single duplicate scan over live-plus-retired identities, so
+// `#3 retry_count` beside `retired #3;` collides exactly as two live `#3` fields
+// would, with the same diagnostic.
 
 data CounterMessage {
     #0 counter: i32;
