@@ -1485,7 +1485,6 @@ Owners include
   settle as compiler-intrinsic provider rows but no closed native catalog
   identity exists for them — per the pin's comment that leg belongs to the
   UEFI physical-entry lane. (Same-item claim live: z19, exp ~10:19Z.)
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
   (`attached_data_shape_identity` in `selected-dispatch::service_custody`). First
   refusing emission stage remains attached-Unit closure — the legs' bodied
   boundary machines carry no boundary plan for a unit caller, and
@@ -5404,7 +5403,6 @@ moved to the termination-catalog fence (see that row's refresh note).
   `LegalizationError::UnsupportedScalarOperation` at
   `legalization/model.rs:120`. Still no unfenced slice under this item.
 
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
   Coordination note (verified at `1f10f6fd40`, linux x86-64): both
   remaining legs are dependency-gated *and* their implementing surfaces
   are live-fenced this wave — the Psi dispatch leg writes into
@@ -9428,7 +9426,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   CHAIN-CERTIFICATE-ADMISSION-BINDING (exp 05:30Z). No independent
   slice exists — residual is the upstream Alpha extent-supply leg plus
   host-gated seed execution (macOS arm64 / Windows x64).
-||||||| parent of 5b59d0095d878 (board: benchmark std-comparison-occurrence gate already open)
 - **BENCHMARK-SUBJECT-CORPUS-EXPANSION.** — mined candidate; scope verified
   at `f600f8400b7`, covered and fenced — re-mines the "more measurable
   subjects" frontier behind the benchmark matrix, and every producible leg
@@ -9798,7 +9795,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   both occupants. In-window establishment coverage inside `build-output`
   remains the sibling detector item's slice (its claim holds that dir).
 - **BUILD-DIRECTORY-HOST-ALIAS-RACE-ISOLATION.** — mined candidate.
-||||||| parent of 67f9459ac74d4 (board: BUILD-DIRECTORY-HOST-ALIAS-RACE-COVERAGE slice landed at 56ab3db3ea)
 - **BUILD-DIR-ALIAS-RACE-DETECTION** — mined candidate; verify scope then implement.
   Verified scope: re-mines the race-window residual the landed
   BUILD-DIR-HOST-ALIAS-COLLISIONS work (commits `f0f902d6ef`,
@@ -10415,8 +10411,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `terminal-fixed-fuel/src/fuel_certification` is under PSIIR
   (devin-848972c1, exp 13:59Z). No independent slice remains.
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
-||||||| parent of 5b59d0095d878 (board: benchmark std-comparison-occurrence gate already open)
-||||||| parent of 2ccef088fb73 (board: re-witness CHECKED-TREES-TO-LOWERED-PSI-UNATTRIBUTED-SET attributions)
   CHECKED-TO-LOWERED-BASELINE-ATTRIBUTION).
 - **CHECKER-PROVISION-NATIVE-VALIDATION** — mined candidate; verify scope then implement.
 - **CLI-COMMANDS** — mined candidate; verify scope then implement.
@@ -11566,7 +11560,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Remaining legs: migrate arm/fork_run and the
   interchange/commuting variants, retiring each family's hand-rolled
   window scan — `arm_relocation` stays fenced to Zergling-65.
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
   Remaining legs: migrate predecessor/diamond/join/fork/arm/bypass/
   triangle/confluence/inflow (± run and commuting variants — diamond and
   join are the first multi-path windows), then the in-block families
@@ -12337,7 +12330,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   (`cargo nextest run -p omega-architecture-test --test scoped_lookup_maps`
   2/2). No independent slice remains — this row is a duplicate name for the
   same covered surface.
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
 - **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-MEASUREMENT-AUDIT** — mined candidate; verify scope then implement.
 - **LOOKUP-MAP-JUSTIFICATION** — mined candidate; verify scope then implement.
@@ -13216,7 +13208,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   records-free leg, ~06:46Z). No separable slice: the sibling
   OMEGA-D-SCALAR-{ALPHA-EMISSION,EMISSION-EXTENSION,OPERATION-FRONTIER,
   SEQUENCING} rows name the same file.
-||||||| parent of e9d98142b2c9a (board: integer comparison occurrence producer covers std plumbing)
 - **GEOMETRY-EVIDENCE-REFRESH** — mined candidate; verify scope then implement.
 - **GEOMETRY-NAMED-TRAIT-OPERATORS** — mined candidate; verify scope then implement.
 - **GEOMETRY-NATIVE** — mined candidate; verify scope then implement.
@@ -13609,7 +13600,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   test(~owned_successors)' --no-fail-fast` 15/15 pass. Sibling
   OWNED-SUCCESSOR-DISCARD-ORDER resolved as the same landed alias at
   `34f36c13ef`. No independent slice.
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
   STRUCTURAL-SUCCESSOR-DISCARD-ORDERING.
 - **OWNED-SUCCESSOR-EDGE-ORDERING** — mined candidate; verify scope then implement.
   STRUCTURAL-SUCCESSOR-DISCARD-ORDERING. Sibling
@@ -15693,7 +15683,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Adjudication unchanged: this row is the named re-mine — fresh
   measurement and repair stay on RC-REPOSITORY-GATE-CLOSURE's lane;
   the unmarked duplicate stub under the mined list is consumed here.
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
 - **RC-RELEASE-RECORD-RUN** — mined candidate; verify scope then implement.
 - **RC-RELEASE-RECORD-SUBSTRATE** — mined candidate; verify scope then implement.
 - **RC-REPOSITORY** — measured gate state at a9fa1a4fe6 (Linux x86-64, cargo; `mbx` absent on this host). `cargo fmt --all -- --check` RED: 14 files drifted under 2026-09-20 landings — external-roots `interrupts/interrupt_table/{member_admissions.rs,tests.rs,tests/member_admission_and_publication.rs}` + `stack_and_fuel/stack_demand.rs`, compiler tests `layout_plans/interrupt_descriptor_tables.rs` + `module_machine_indices{,.rs,/comparisons.rs}`, `calling-conventions/src/lib.rs` (repaired beside this row), c2l `tests/integer_policy_realization.rs`, t2c `checks/multiplicity/{borrowed_windows,linear_obligations}.rs` + `checks/termination/progress/origins{,/tests,/tests/references}.rs`, validation `proof_contracts/domain_weakening.rs` + `value_custody/expression_types/match_dispatch.rs`. `cargo clippy --workspace --all-targets -- -D warnings` RED: `package-source` `tree/capture/traversal.rs:513` `permissions_set_readonly_false` (BUILD-PACKAGES-GATE fence — **repaired 2026-09-20 once that fence expired**: the cleanup now restores the directory's own recorded `Permissions` rather than clearing the readonly bit, which had been handing it back world-writable; `cargo clippy -p package-source --all-targets -- -D warnings` clean and 260/260 crate tests green, so the downstream crates this failure was masking are now reachable), `syntax-trees-to-symbol-resolved-trees` `symbols/type_references/queries.rs:76` collapsible-if, `validation` `machine_calls/structural_call_custody.rs:151` let-else; downstream crates unexamined past the first failure (9 `package-evidence` test unused-import warnings wait behind it). `cargo check --workspace --all-targets` RED: two stale test fixtures under live claims — `tests/native-differential/tests/abstract_publication/decision_custody.rs` (PSI_PASS_CATALOG grew to 7 with `StateSpecialization` in 9a9d1a8b32; GRAPH-FEATURE-PROJECTION-SCHEMA holds the file) and `tests/native-differential/tests/pipeline_ownership/fixtures/ordinary_graph_controls.rs` (`LegalizedScalarTerminator::Crash` added by bf8769cce1; STRUCTURAL-UNIT-CALL-GRAPH-JOINS holds the target). `omega-architecture-test --all-targets` RED 535/547: `glob_self_imports_never_grow_per_crate` — 8 new glob files (acquisition `tree/capture/traversal.rs`, optimization-unit-semantics `control_flow_cleanup/unreachable_private_machines/replay.rs`, c2l `retention/operation_crash_contracts.rs`, proof `checker/measurement.rs`, proof-admission `classicality.rs`, terminal-verifier `trusted_surface.rs` + `tests/structural_unit/self_claim_retirement.rs`, validation `value_custody/expression_types/result_type.rs`) — and an 11-test `boundary_ensures_*`/`symbolic_walk_*`/`provider_receiver` recast-witness family under today's boundary-frame commits (34ae9baa8a, e9769f34e5, 4bebb7da7a). `canary_suite` retired-domain row PASS. `nextest --workspace --lib` RED 15526/15621: selected-dispatch 32 (`boundary_dispatch` finite_family/generic_requirements/source_retention — UEFI-OS-HANDOFF fence), checked-trees-to-lowered-psi 30 (`composed_operand_catalogs`, `dynamic_composed_unit`, `structural_control_cases`), terminal-codec 10 (`block_wire` round-trips after f94e78ec39), package-manager 7 (review/candidate + capability_review; `operations` under TWO-AXIS fence), abstract-operations-to-abstract-operations 7 (`loop_invariant_scalar_motion` — GENERAL-LICM area), source-files-to-assembled-syntax 3 (`build_vocabulary`/`build_prelude` — same 7th-`Optimization` root as decision_custody), calling-conventions 2 ((X86_64,MachO) matrix rows — repaired beside this row), t2c 2, native-realization 1, a2t 1. Next action: sibling items repair their fenced rows; the calling-conventions row and the crate's fmt drift land here.
@@ -16453,7 +16442,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
     subslice_sum, framed_payload, clamp_sum, dungeon_crawler modules);
     callee `&[T]` parameters face the same vocabulary gap. The rejoin
     diagnostic now names the recorded omission stage (this commit);
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
     (fletcher_checksum and likely siblings);
     — attributed under EXACT-PROGRAM-ENTRY-MULTIPLICITY at
     `dbfa1b1702f`: the entry machine leaves the unit plan roster at
@@ -16696,7 +16684,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SCAN-SCALAR-SCAN** — mined candidate; verify scope then implement.
 - **SCHEDULING-RELOCATION-ADMISSION** — mined candidate; verify scope then implement.
 - **SCHEDULING-RELOCATION-UNIFICATION** — mined candidate; verify scope then implement.
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
   28 files). **Re-opened at `1edade1a480`**: the recorded gitlink moved to
   `5ea4a17f3b` ("pin Squalr with clone/serialization parity",
   `472563ca4c4`), which sits on a republished squalr lineage diverged from
@@ -17291,7 +17278,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **SERVICE-ERA-REPLACEMENT-SUBSTRATE** — mined candidate; verify scope then implement.
 - **SHARED-RECEIVER-LOAN-ORIGIN.** Resolved — superseded on `origin/main` (verified e76d715c8e, linux-x86_64). The recorded failure `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence` ("state `code` requires an exact retained loan origin for its shared receiver", baseline row at 63f625f942, macOS arm64) now passes; the whole `package_compilation_inputs` run emits zero "loan origin" diagnostics. Fixed by the retained-lineage/borrow-evidence cluster (f8efecfb76/b336531455/2aba180197 family). Residual: 13 unrelated authority/provider-selection failures in the same target remain red under their own items. Re-verified at `0a0662ad27a` (linux x86-64): `cross_package_visibility::public_dynamic_return_may_carry_private_producer_selected_evidence` still passes — the resolution is current.
 - **SHARED-WORD-PREFIX-NATIVE-RUN** — mined candidate; verify scope then implement.
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
   Re-verified at `3533f7d0e8` (w180, linux x86-64): `sh
   tests/beta/compiler/word-prefix.sh` again passes 736/736 natively and
   the edge-gate wiring + unlabeled refusal message are unchanged.
@@ -17492,7 +17478,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   wholesale fence still stands (GEOMETRY-ALIGNMENT-REGIONS exp 01:18Z +
   SQUALR-WINDOWS-GEOMETRY-VALIDATION exp 05:49Z), so the disposition is
   unchanged — covered; the stub re-mines the residual list of owning parent
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
 - **SQUALR-GEOMETRY-PARITY-REMAINDER** — mined candidate; scope verified at
   `10d93dd448`, covered — re-mines the residual list of owning parent
 - **SQUALR-GEOMETRY-PARITY-REMAINDER.** — mined candidate; scope verified at
@@ -17526,7 +17511,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   06:28Z) for the host-gated Windows leg. Disposition unchanged: every
   enumerated gap remains an owned sibling row and no linux_x86_64 slice
   outside a claimed fence exists.
-||||||| parent of 3da5de476d953 (board: BENCHMARK-PROOF-SUBJECT-SELECTION verified measurable at 3533f7d0e86)
 - **SQUALR-GEOMETRY-PARITY-RESIDUE.** Resolved — re-mine of the geometry-parity residual list already adjudicated on sibling SQUALR-GEOMETRY-PARITY-GAPS (adjacent row, verified `12ecbe98f8b`): every enumerated gap is an owned sibling row (alignment string parsing → SQUALR-ALIGNMENT-STRING-PARSING, clone/serialization → SQUALR-CLONE-SERIALIZATION-PARITY, region alignment/expansion → SQUALR-REGION-ALIGNMENT-EXPANSION, named trait operators → SQUALR-NAMED-TRAIT-OPERATORS, debug-only assertions → SQUALR-GEOMETRY-PARITY); the z194-recorded regression — tracked `squalr-tests/omega.lock` rejected at HEAD and git-pinned std `87d8b227` failing `omega update` post-`32f5182254` — is an edit inside `samples/apps/squalr`, wholesale-fenced (SQUALR-TARGETS-AND-THROUGHPUT, GEOMETRY-ALIGNMENT-REGIONS); and the independent residual is the Windows validation leg, host-gated under SQUALR-GEOMETRY-WINDOWS-VALIDATION. No linux_x86_64 slice outside a claimed fence exists.
 - **SQUALR-GEOMETRY-WINDOWS-NATIVE** — mined candidate; verify scope then implement.
 - **SQUALR-GEOMETRY-WINDOWS-RUN** — mined candidate; scope verified, re-mine of
