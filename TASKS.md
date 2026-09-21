@@ -8645,7 +8645,14 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   rows below, and its acceptance (interpreted D compiles the Omega C closure
   to `omega0_compiler_bytecode.tape`) additionally depends on
   OMEGA-PRODUCT-COMPILER-SOURCE (C is still a lexer plus partial parser under
-  `source/psi/` — fenced to OMEGA-WRITTEN-PRODUCT-COMPILER, 07:20Z). Sibling re-mines of the same
+  `source/psi/` — fenced to OMEGA-WRITTEN-PRODUCT-COMPILER, 07:20Z).
+  Re-verified at `72fc66d6c32` (z102): the fence picture is unchanged in
+  kind — live claims are still OMEGA-D-REQUEST-AND-ENTRY-ROUTE (z130,
+  10:05Z) and OMEGA-D-REQUEST-V1-TABLES (z126, 11:19Z, same two paths),
+  OMEGA-D-SCALAR-SEQUENCING's item lease has drained, and
+  TASKS_BOOTSTRAP.md itself is path-claimed under CHAIN-MANIFEST's duty
+  pass (z132, ~15:04Z), so the tracked row is readable but claimed for
+  editing. The C-dependency is unchanged. Sibling re-mines of the same
   OMEGA-D clauses: OMEGA-D, OMEGA-D-COMPILER-REQUEST-TABLES,
   OMEGA-D-ENTRY-ADAPTER, OMEGA-D-ENTRY-ADAPTER-RETIREMENT,
   OMEGA-D-REAL-ENTRY-ROUTE, OMEGA-D-REQUEST-ADMISSION,
