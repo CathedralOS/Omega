@@ -421,10 +421,10 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 return unsupported("saturating conversion requires an unsigned narrowing carrier");
             }
             let maximum = (1_u128.checked_shl(u32::from(target_type.bits())))
-            .and_then(|modulus| modulus.checked_sub(1))
-            .ok_or(LoweringError::Unsupported(
-                "saturating conversion bound exceeds u128",
-            ))?;
+                .and_then(|modulus| modulus.checked_sub(1))
+                .ok_or(LoweringError::Unsupported(
+                    "saturating conversion bound exceeds u128",
+                ))?;
             let modulus = 1_u128.checked_shl(u32::from(target_type.bits())).ok_or(
                 LoweringError::Unsupported("saturating conversion modulus exceeds u128"),
             )?;
@@ -433,11 +433,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             // the clamp needs no branch. The modular remainder then carries
             // the bound that the exact cast obligation consumes, exactly as
             // the wrapping conversion does.
-            let saturated = |value: u128| {
-                LoweredDirectExpression::IntegerLiteral {
-                    value: IntegerValue::Unsigned(value),
-                    scalar_type: ScalarType::Integer(source_type),
-                }
+            let saturated = |value: u128| LoweredDirectExpression::IntegerLiteral {
+                value: IntegerValue::Unsigned(value),
+                scalar_type: ScalarType::Integer(source_type),
             };
             let clamped = LoweredDirectExpression::IntegerBinary {
                 kind: LoweredIntegerBinaryKind::WrappingSubtract,
