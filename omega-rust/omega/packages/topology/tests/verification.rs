@@ -677,6 +677,38 @@ fn a_dropped_binding_leaves_the_import_unbound() {
 }
 
 #[test]
+fn a_fabricated_endpoint_slot_rejects_as_undeclared() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // A serialized endpoint key for a slot no endpoint occupies: the bytes
+    // decode cleanly and the rejection lands at graph normalization.
+    plan.bindings[0].import = endpoint(0, 7);
+    plan.bindings
+        .sort_by_key(|binding| (binding.import, binding.export));
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::InvalidGraph(GraphError::UnknownEndpoint {
+            key,
+        })) if key == endpoint(0, 7)
+    ));
+}
+
+#[test]
+fn a_rewired_reverse_connection_fails_replay() {
+    let (request_bytes, _, mut plan) = payment_pair();
+    // No implied reverse connection: binding authorization's demanded import
+    // to api's entry export names real endpoints and normalizes to a real
+    // edge, so the recorded satisfied rows must fail replay on the rewired
+    // graph rather than stand.
+    plan.bindings[1].export = endpoint(0, 0);
+    let plan_bytes = encode_plan(&plan).unwrap();
+    assert!(matches!(
+        verify_plan(&plan_bytes, &request_bytes, &payment_components()),
+        Err(PlanRejection::ReplayMismatch { .. }) | Err(PlanRejection::PolicyNotSatisfied { .. })
+    ));
+}
+
+#[test]
 fn invalid_policy_selectors_reject() {
     // A request requiring an overlapping-selector policy and a plan carrying
     // it: the row is required, and replay rejects its selectors.
