@@ -14,7 +14,9 @@ use checked_trees::{
     CheckedStructuralUnitControlTerminatorPlan,
 };
 use language_semantics::Multiplicity;
-use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, StructuralFieldId, StructuralPlaceKind,
+};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, SuccessorEdge, Terminator, ValueDeclaration};
 #[test]
@@ -437,6 +439,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                     },
                                 ],
                                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![1],
                             },
                             when_false: checked_trees::CheckedStructuralControlSuccessorPlan {
@@ -457,6 +460,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
                                     },
                                 ],
                                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                                 trivial_affine_discard_parameter_positions: vec![0],
                             },
                         },
@@ -604,6 +608,7 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
                 primitive_type: PrimitiveType::I32,
             }],
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             trivial_affine_discard_parameter_positions: Vec::new(),
         };
     plan.states[1].terminator = CheckedStructuralUnitControlTerminatorPlan::Conditional {
@@ -698,6 +703,140 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
                 trivial_affine_discard_parameter_positions: vec![0],
             },
         });
+}
+
+// A five-state acyclic dag: the entry conditional routes into two conditional
+// branches that both forward to a shared mid join; the mid join and both
+// branches then reconverge on one sink join — three conditional states, two
+// join states, and one join with three incoming frontiers.
+fn install_structural_unit_wide_dag_fixture(checked: &mut CheckedTrees) {
+    let source = &checked.facts.flow.terminal_unit_effects.machines[0];
+    let root = source.machine;
+    let entry = source.state;
+    let acknowledgement_identity = source.structural_parameters[0].type_identity.clone();
+    let attachment_identity = source
+        .attachment_type_identity
+        .clone()
+        .expect("root attachment");
+    let first_branch = SymbolHandle::from_arena_index(16);
+    let second_branch = SymbolHandle::from_arena_index(17);
+    let mid_join = SymbolHandle::from_arena_index(18);
+    let sink_join = SymbolHandle::from_arena_index(19);
+    let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
+        position,
+        is_self: false,
+        type_identity: acknowledgement_identity.clone(),
+        multiplicity: Multiplicity::Affine,
+        access: checked_trees::CheckedStructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        fused_service_erasure: None,
+    };
+    let branch_scalars = vec![
+        checked_trees::CheckedStructuralScalarParameterPlan {
+            source_position: 1,
+            primitive_type: PrimitiveType::Bool,
+        },
+        checked_trees::CheckedStructuralScalarParameterPlan {
+            source_position: 2,
+            primitive_type: PrimitiveType::I32,
+        },
+    ];
+    let leaf_scalars = vec![checked_trees::CheckedStructuralScalarParameterPlan {
+        source_position: 1,
+        primitive_type: PrimitiveType::I32,
+    }];
+    let scalar_argument = |argument_ordinal, source_index, target_index, primitive_type| {
+        checked_trees::CheckedStructuralScalarArgumentPlan {
+            argument_ordinal,
+            source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+                index: source_index,
+            },
+            target_scalar_parameter_index: target_index,
+            primitive_type,
+        }
+    };
+    let whole_frontier_transfer = vec![checked_trees::CheckedStructuralControlTransferPlan {
+        source: checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 },
+        target_parameter_index: 0,
+    }];
+    let branch_successor =
+        |statement_ordinal: u32, target_state: SymbolHandle, target_is_leaf: bool| {
+            checked_trees::CheckedStructuralControlSuccessorPlan {
+                erased_proof_arguments: Vec::new(),
+                statement_ordinal,
+                target_state,
+                transfers: whole_frontier_transfer.clone(),
+                scalar_arguments: if target_is_leaf {
+                    vec![scalar_argument(1, 1, 0, PrimitiveType::I32)]
+                } else {
+                    vec![
+                        scalar_argument(1, 0, 0, PrimitiveType::Bool),
+                        scalar_argument(2, 1, 1, PrimitiveType::I32),
+                    ]
+                },
+                erased_arguments: Vec::new(),
+                trivial_affine_discard_parameter_positions: Vec::new(),
+            }
+        };
+    let branch_state = |state: SymbolHandle| checked_trees::CheckedStructuralUnitControlStatePlan {
+        state,
+        structural_parameters: vec![affine_parameter(0)],
+        scalar_parameters: branch_scalars.clone(),
+        terminator: CheckedStructuralUnitControlTerminatorPlan::Conditional {
+            guard_scalar_parameter_index: 0,
+            when_true: branch_successor(0, sink_join, true),
+            when_false: branch_successor(1, mid_join, true),
+        },
+    };
+    checked.facts.flow.terminal_structural_unit_controls =
+        checked_trees::CheckedStructuralUnitControlPlans {
+            structural_types: checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .structural_types
+                .clone(),
+            machines: vec![CheckedStructuralUnitControlMachinePlan {
+                machine: root,
+                attachment_type_identity: attachment_identity,
+                ranked_scc: None,
+                states: vec![
+                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                        state: entry,
+                        structural_parameters: vec![affine_parameter(0)],
+                        scalar_parameters: branch_scalars.clone(),
+                        terminator: CheckedStructuralUnitControlTerminatorPlan::Conditional {
+                            guard_scalar_parameter_index: 0,
+                            when_true: branch_successor(0, first_branch, false),
+                            when_false: branch_successor(1, second_branch, false),
+                        },
+                    },
+                    branch_state(first_branch),
+                    branch_state(second_branch),
+                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                        state: mid_join,
+                        structural_parameters: vec![affine_parameter(0)],
+                        scalar_parameters: leaf_scalars.clone(),
+                        terminator: CheckedStructuralUnitControlTerminatorPlan::Jump {
+                            statement_ordinal: 0,
+                            target_state: sink_join,
+                            transfers: whole_frontier_transfer.clone(),
+                            scalar_arguments: vec![scalar_argument(1, 0, 0, PrimitiveType::I32)],
+                            trivial_affine_discard_parameter_positions: Vec::new(),
+                        },
+                    },
+                    checked_trees::CheckedStructuralUnitControlStatePlan {
+                        state: sink_join,
+                        structural_parameters: vec![affine_parameter(0)],
+                        scalar_parameters: leaf_scalars,
+                        terminator: CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+                            trivial_affine_discard_parameter_positions: vec![0],
+                        },
+                    },
+                ],
+            }],
+        };
 }
 
 #[test]
@@ -1048,10 +1187,12 @@ fn structural_unit_conditional_lowers_after_an_unconditional_prefix() {
         .machines[0]
         .states[3]
         .terminator = second_conditional;
+    // The cloned conditional lands on leaf states with no Boolean scalar input;
+    // the arity fences are gone, but the guard-signature invariant still rejects.
     assert!(matches!(
         lower_machine(&checked, "Root::enter"),
         Err(LoweringError::Unsupported(
-            "structural Unit control supports at most two checked conditional states"
+            "structural Unit conditional must select one Boolean scalar state input"
         ))
     ));
 }
@@ -1289,6 +1430,92 @@ fn structural_unit_diamond_requires_one_exact_join_frontier() {
             "structural Unit control entry has an incoming edge"
         ))
     ));
+}
+
+#[test]
+fn structural_unit_multi_frontier_dag_lowers_and_verifies() {
+    let mut checked = hard_root_checked_fixture();
+    install_structural_unit_wide_dag_fixture(&mut checked);
+
+    let lowered = lower_machine(&checked, "Root::enter")
+        .expect("a multi-conditional multi-join structural dag should lower");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("structural dag lowers one attached machine")
+    };
+    assert_eq!(machine.blocks.len(), 5);
+    assert!(matches!(
+        &machine.blocks[0].terminator,
+        Terminator::Conditional {
+            condition,
+            when_true: SuccessorEdge {
+                target: true_target,
+                arguments: true_arguments,
+                ..
+            },
+            when_false: SuccessorEdge {
+                target: false_target,
+                arguments: false_arguments,
+                ..
+            },
+        } if *condition == value_id(1)
+            && *true_target == block_id(2)
+            && *false_target == block_id(3)
+            && true_arguments == &[value_id(1), value_id(2)]
+            && false_arguments == &[value_id(1), value_id(2)]
+    ));
+    assert!(matches!(
+        &machine.blocks[1].terminator,
+        Terminator::Conditional {
+            condition,
+            when_true: SuccessorEdge {
+                target: true_target, ..
+            },
+            when_false: SuccessorEdge {
+                target: false_target, ..
+            },
+        } if *condition == value_id(3)
+            && *true_target == block_id(5)
+            && *false_target == block_id(4)
+    ));
+    assert!(matches!(
+        &machine.blocks[2].terminator,
+        Terminator::Conditional {
+            condition,
+            when_true: SuccessorEdge {
+                target: true_target, ..
+            },
+            when_false: SuccessorEdge {
+                target: false_target, ..
+            },
+        } if *condition == value_id(5)
+            && *true_target == block_id(5)
+            && *false_target == block_id(4)
+    ));
+    assert!(matches!(
+        &machine.blocks[3].terminator,
+        Terminator::Jump {
+            target, arguments, ..
+        } if *target == block_id(5) && arguments == &[value_id(7)]
+    ));
+    assert!(matches!(
+        &machine.blocks[4].terminator,
+        Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } if trivial_affine_discards == &[place_id(1)]
+    ));
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("a three-frontier structural join should verify independently");
+    let bytes = terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("structural dag should encode canonically");
+    assert_eq!(
+        terminal_codec::decode_module(&bytes).expect("structural dag should decode canonically"),
+        lowered.semantic_module
+    );
 }
 
 #[test]
@@ -1914,4 +2141,82 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
         Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
     ));
+}
+
+/// A `drop` hook with an ordinary body runs at the cleanup edge against the
+/// borrowed `self` receiver: the edge lends the consumed value into the callee
+/// frame at the hook's declared `is_self` parameter place, so the body's
+/// `self.handle` read resolves. Without that binding the hook frame starts
+/// empty and the read has no operand.
+#[test]
+fn nominal_cleanup_hook_body_interprets_against_the_consumed_receiver() {
+    let checked = checked_source(
+        r#"
+            data Latch {}
+            machine Latch::report(code: i32) {}
+
+            data Guard { handle: i32; }
+            machine Guard::drop(&mut self) {
+                Latch::report(self.handle);
+            }
+
+            data Root {}
+            machine consume<T>(v: T) {}
+            machine Root::score(guard: Guard) -> i32 { consume(guard); 41 }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Root::score").expect("drop hook invocation lowers");
+    let semantic =
+        terminal_codec::encode_module(&lowered.semantic_module).expect("semantic section encodes");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("proof section encodes");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine is in the module");
+    let structural_parameter = &machine.structural_parameters[0];
+    let structural_argument = terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 0xc0de,
+        structural_type: structural_parameter.structural_type,
+        qualifications: structural_parameter.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let handle_field = terminal_interpreter::TerminalStructuralScalarFieldValue {
+        argument_index: 0,
+        path: Vec::new(),
+        field: StructuralFieldId::new(1).expect("handle is field 1"),
+        value: terminal_interpreter::TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid"),
+            value: IntegerValue::Signed(41),
+        },
+    };
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: std::slice::from_ref(&structural_argument),
+            scalar_fields: std::slice::from_ref(&handle_field),
+            ..Default::default()
+        },
+    )
+    .expect("module with an ordinary drop body starts");
+    let mut meter = terminal_fuel::TerminalFuelMeter::unbounded();
+    let status = execution
+        .resume(&mut meter, &mut AcceptTerminalEffects)
+        .expect("drop hook body interprets");
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(_)
+            )
+        ),
+        "hook cleanup must complete with the caller's scalar result, got {status:?}"
+    );
+    assert_eq!(execution.live_affine_frontier().count(), 0);
 }

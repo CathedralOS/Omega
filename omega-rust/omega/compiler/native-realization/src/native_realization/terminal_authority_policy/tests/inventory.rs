@@ -50,6 +50,9 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmWriteCr0
             | BuiltinFunction::AsmWriteCr3
             | BuiltinFunction::AsmWriteCr4
+            | BuiltinFunction::AsmWriteBackInvalidate
+            | BuiltinFunction::AsmInvalidate
+            | BuiltinFunction::AsmWriteBackNoInvalidate
             | BuiltinFunction::AsmReadSctlrEl1
             | BuiltinFunction::AsmReadTcrEl1
             | BuiltinFunction::AsmReadTtbr0El1
@@ -81,6 +84,11 @@ fn builtin_partition_is_exact_and_explicit() {
             | BuiltinFunction::AsmInstructionSyncBarrier
             | BuiltinFunction::AsmSpinPause
             | BuiltinFunction::AsmYieldHint
+            | BuiltinFunction::AsmNop
+            | BuiltinFunction::AsmWaitForEvent
+            | BuiltinFunction::AsmWaitForInterrupt
+            | BuiltinFunction::AsmSendEvent
+            | BuiltinFunction::AsmSendEventLocal
             | BuiltinFunction::AsmSnapshotFlags
             | BuiltinFunction::FloatIsNan
             | BuiltinFunction::FloatMultiplyThenAddF32
@@ -159,6 +167,8 @@ fn linux_console_and_numeric_families_have_exact_dispositions() {
             .classes(),
         &[TerminalAuthorityClass::ProcessOutput]
     );
+    // Three hosted coordinates precede the builtin block in the closed
+    // inventory; every row after them must carry an empty authority class.
     for mechanism in closed_policy_mechanisms()
         .into_iter()
         .skip(3 + BuiltinFunction::COUNT)
@@ -191,8 +201,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            87, 93, 216, 66, 41, 42, 97, 78, 207, 204, 157, 224, 162, 42, 215, 127, 125, 89, 198,
-            231, 240, 204, 125, 64, 21, 16, 46, 3, 219, 107, 38, 186,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0,
         ]
     );
 }

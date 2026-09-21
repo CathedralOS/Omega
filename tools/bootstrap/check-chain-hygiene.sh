@@ -159,6 +159,29 @@ bootstrap/4_epsilon/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
 
+# Rust-producer omission (omega-rust/README.md): a produced closure's closed
+# dependency set carries no omega-rust/ artifact, build step, or
+# checkout-derived path. Audit every manifested member spelling and the
+# bootstrap invocation surfaces before the byte-identity pins below, so a
+# forged dependency row reports provenance rather than an identity mismatch.
+# This script names the forbidden spellings itself, exactly like the
+# retired-path grep, so it is not one of the audited step files.
+set --
+for omission_manifest in $(find "$OMEGA_PATH_BOOTSTRAP" \
+    -type f -name '*.sources' -print | sort)
+do
+  set -- "$@" --manifest "$omission_manifest"
+done
+for omission_step in $(find "$OMEGA_REPO_ROOT/tools/bootstrap" \
+    -type f \( -name '*.sh' -o -name '*.py' \) \
+    ! -name 'check-chain-hygiene.sh' -print | sort)
+do
+  set -- "$@" --steps "$omission_step"
+done
+python3 "$OMEGA_REPO_ROOT/tools/rust_producer_omission.py" \
+  --root "$OMEGA_REPO_ROOT" "$@" --require omitted ||
+  fail "produced closure carries the Rust producer"
+
 # The enumerated compiler sources must be exactly the bound chain artifacts:
 # each require_* check binds the canonical entry, manifest, every member, the
 # packed closure, and the composed record to the audited edge records, and
@@ -166,6 +189,12 @@ bootstrap/4_epsilon/epsilon_compiler.delta'
 require_delta_compiler_identity
 require_epsilon_evaluator_identity
 require_omega_compiler_identity
+
+# Gate-local prefix entries are bound subjects too: the staged-compiler
+# development driver on the Delta edge sits on top of the bound closure as a
+# raw-source prefix, so a substituted entry would otherwise pass the chain
+# gate without touching any canonical member.
+require_delta_compiler_development_entry_identity
 
 # Every gate-local subject bound in the manifest env — each omega-* gate's
 # customer entry and the request fixture — packs on top of the bound compiler

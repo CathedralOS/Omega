@@ -260,6 +260,7 @@ pub fn report(
         application_identifier: None,
         application_intent: None,
         package_publication: None,
+        timings: Vec::new(),
     }
 }
 

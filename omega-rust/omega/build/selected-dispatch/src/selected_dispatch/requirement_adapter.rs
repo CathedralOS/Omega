@@ -11,16 +11,18 @@
 //! entry state, journaled as a source edit, so the interpreter and Terminal
 //! execute the ordinary checked body while the retained row, flow facts and
 //! journal keep the requirement. An owned-`self` requirement settles the same
-//! route through a member call (`token.consume();`, or one projection hop
-//! `holder.token.consume();`): its row forwards the receiver place, which the
-//! rewrite splices in as the adapter's leading argument. A requirement
+//! route through a member call (`token.consume();`, or a projected receiver
+//! place like `holder.inner.token.consume();`): its row forwards the receiver
+//! place, which the rewrite splices in as the adapter's leading argument. A requirement
 //! satisfied by an external
 //! `via` leaf settles no dispatch row and is deliberately not rewritten:
 //! the call stays on the requirement, whose retained boundary seam is the
 //! identity the native foreign-call join executes against.
 
+use crate::boundary_dispatch::boundary_fields::named_type_symbol;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementHandle;
 
@@ -40,6 +42,11 @@ pub(super) struct RequirementCallRewrite {
     /// leading argument: the rewrite splices the receiver into argument
     /// position 0 instead of only clearing it.
     forward_receiver: bool,
+    /// Statement sites only: the exact field symbol of each projected member
+    /// after the receiver-path root (the leaf repeats `receiver_symbol`),
+    /// re-derived by name inside the already-exact owner types at plan time.
+    /// Expression sites reuse the authored receiver expression and carry none.
+    receiver_member_symbols: Vec<symbols::SymbolHandle>,
     machine: String,
     entry_symbol: symbols::SymbolHandle,
 }
@@ -74,6 +81,90 @@ fn top_level_rows(
             Some((row, requirement))
         })
         .collect()
+}
+
+/// The exact field symbol each projected member of a statement receiver path
+/// resolves to: the statement table retains only the root and leaf member
+/// symbols, so the intermediate members re-derive by name inside the previous
+/// member's already-exact named owner — the same authority the
+/// settlement-side receiver-place type walk in `boundary_dispatch` uses.
+/// `members` carries the projections after the root place; the last must
+/// resolve to `leaf`, or the path does not re-derive and stays fenced.
+fn statement_receiver_member_symbols(
+    typed: &TypedTrees,
+    root: symbols::SymbolHandle,
+    members: &[typed_trees::name::Identifier],
+    leaf: symbols::SymbolHandle,
+) -> Option<Vec<symbols::SymbolHandle>> {
+    if members.is_empty() {
+        return Some(Vec::new());
+    }
+    // The root place's declared type, wherever it is bound: place symbols are
+    // unique across the program, so more than one binding means the path does
+    // not re-derive and stays fenced.
+    let mut root_types = Vec::new();
+    // A `self.`-rooted receiver names its enclosing machine or state as the
+    // root place, whose type is the machine's attached data rather than a
+    // parameter or local declaration.
+    let mut self_attached_data = Vec::new();
+    for machine in typed.machines() {
+        if machine.symbol == root
+            || typed
+                .machine_states(machine)
+                .iter()
+                .any(|state| state.symbol == root)
+        {
+            self_attached_data.push(machine.attached_data_symbol);
+        }
+        for state in typed.machine_states(machine) {
+            for parameter in typed.state_parameters(state) {
+                if parameter.symbol == root {
+                    root_types.push(parameter.type_reference);
+                }
+            }
+            for statement in typed.statement_table.statements(state.statement_nodes) {
+                if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                    && local.symbol == root
+                {
+                    root_types.push(local.type_reference);
+                }
+            }
+        }
+    }
+    let mut data_symbol = match root_types.as_slice() {
+        [type_reference] => named_type_symbol(typed, *type_reference)?,
+        [] => match self_attached_data.as_slice() {
+            [data_symbol] if data_symbol.is_valid() => *data_symbol,
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let mut member_symbols = Vec::with_capacity(members.len());
+    for member in members {
+        let owner = typed
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == data_symbol)?;
+        let mut matching =
+            typed
+                .data_members(owner)
+                .iter()
+                .filter_map(|member_node| match member_node {
+                    typed_trees::data::DataMember::Field(field)
+                        if field.name.as_str() == member.as_str() =>
+                    {
+                        Some((field.symbol, field.type_reference))
+                    }
+                    _ => None,
+                });
+        let (symbol, next_type) = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        member_symbols.push(symbol);
+        data_symbol = named_type_symbol(typed, next_type)?;
+    }
+    (member_symbols.last().copied() == Some(leaf)).then_some(member_symbols)
 }
 
 pub(super) fn plan_selected_requirement_rewrites(
@@ -130,26 +221,38 @@ pub(super) fn plan_selected_requirement_rewrites(
                     }
                     // A `self` row rewrites `token.consume()` into
                     // `Provider::consume(token)`: the receiver place is
-                    // spliced as argument 0. The path's root and leaf keep
-                    // exact place symbols, so a single projection hop
-                    // (`holder.token.consume()`) is reified as a Member
-                    // expression on the root place; longer paths keep no
-                    // per-segment member symbols and stay fenced.
+                    // spliced as argument 0. The statement-table path retains
+                    // only the root and leaf member symbols, so each
+                    // projected member's exact field symbol re-derives by
+                    // name inside the previous member's named owner -- the
+                    // same authority the settlement-side receiver-place type
+                    // walk uses; a path that cannot re-derive stays fenced.
+                    let mut receiver_member_symbols = Vec::new();
                     if row.forward_receiver {
-                        let member_count =
-                            typed.statement_table.name_path_members(call.receiver).len();
-                        if !(1..=2).contains(&member_count)
+                        let path_members = typed.statement_table.name_path_members(call.receiver);
+                        let derived = if path_members.is_empty()
                             || !call.receiver_root_symbol.is_valid()
                             || !call.receiver_symbol.is_valid()
-                            || (member_count == 1
+                            || (path_members.len() == 1
                                 && call.receiver_root_symbol != call.receiver_symbol)
                         {
+                            None
+                        } else {
+                            statement_receiver_member_symbols(
+                                typed,
+                                call.receiver_root_symbol,
+                                &path_members[1..],
+                                call.receiver_symbol,
+                            )
+                        };
+                        let Some(symbols) = derived else {
                             diagnostics.push(Diagnostic::error(format!(
-                                "member call on receiver-bearing public boundary requirement `{}` forwards only a receiver place path of at most one projection hop",
+                                "member call on receiver-bearing public boundary requirement `{}` forwards only a receiver place path whose projected members re-derive to exact field symbols inside their owner types",
                                 requirement.name,
                             )));
                             continue;
-                        }
+                        };
+                        receiver_member_symbols = symbols;
                     }
                     let Some(flow_state) = checked
                         .facts
@@ -205,6 +308,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                         call_ordinal,
                         requirement_state: row.requirement,
                         forward_receiver: row.forward_receiver,
+                        receiver_member_symbols: std::mem::take(&mut receiver_member_symbols),
                         machine: realization.name.as_str().to_owned(),
                         entry_symbol: row.realization_state,
                     });
@@ -271,6 +375,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                 call_ordinal,
                 requirement_state: row.requirement,
                 forward_receiver: row.forward_receiver,
+                receiver_member_symbols: Vec::new(),
                 machine: realization.name.as_str().to_owned(),
                 entry_symbol: row.realization_state,
             });
@@ -349,17 +454,22 @@ pub(super) fn apply_selected_requirement_rewrites(
                 debug_assert_eq!(call.target_symbol, rewrite.requirement_state);
                 if rewrite.forward_receiver {
                     // `token.consume();` becomes `Provider::entry(token);`
-                    // and `holder.token.consume();` becomes
-                    // `Provider::entry(holder.token);`: the root place is
-                    // reified as a Name expression, one projection hop as a
-                    // Member expression on it, and the result is spliced in
-                    // as argument 0. Planning rejected longer receiver paths.
+                    // and `holder.inner.token.consume();` becomes
+                    // `Provider::entry(holder.inner.token);`: the root place
+                    // is reified as a Name expression and each projected
+                    // member as a Member expression carrying the exact field
+                    // symbol planning re-derived; the result is spliced in as
+                    // argument 0. Planning fenced receiver paths whose
+                    // members do not re-derive.
                     let path_members = checked
                         .typed
                         .statement_table
                         .name_path_members(call.receiver)
                         .to_vec();
-                    debug_assert!((1..=2).contains(&path_members.len()));
+                    debug_assert_eq!(
+                        rewrite.receiver_member_symbols.len(),
+                        path_members.len().saturating_sub(1)
+                    );
                     let mut members = arena::HandleSpan::empty();
                     let mut member_symbols = arena::HandleSpan::empty();
                     checked
@@ -378,7 +488,10 @@ pub(super) fn apply_selected_requirement_rewrites(
                             symbol: call.receiver_root_symbol,
                         }),
                     );
-                    if let [_, leaf] = path_members.as_slice() {
+                    for (member, member_symbol) in path_members[1..]
+                        .iter()
+                        .zip(rewrite.receiver_member_symbols.iter())
+                    {
                         receiver_expression =
                             checked
                                 .typed
@@ -386,8 +499,8 @@ pub(super) fn apply_selected_requirement_rewrites(
                                 .insert(ExpressionNode::Member(
                                     typed_trees::expression::TableMemberExpression {
                                         receiver: receiver_expression,
-                                        member_symbol: call.receiver_symbol,
-                                        member: leaf.clone(),
+                                        member_symbol: *member_symbol,
+                                        member: member.clone(),
                                         case_variant: None,
                                     },
                                 ));
@@ -751,6 +864,185 @@ mod tests {
         assert_eq!(authored.target_symbol, requirement);
         assert_eq!(authored.target.as_str(), "consume");
         assert_eq!(authored.receiver_symbol, token_field);
+        assert!(authored.discards_result);
+    }
+
+    const DEEP_PROJECTED_RECEIVER_SOURCE: &str = r#"
+        pub data Token {}
+        pub boundary requirement Token::consume(self) -> i32;
+
+        data TokenProvider {}
+        machine TokenProvider::consume_impl(token: Token) -> i32
+        satisfies Token::consume
+        {
+            transition { _ -> (41) }
+        }
+
+        data Inner { token: Token }
+        data Holder { inner: Inner }
+        data Client {}
+        machine Client::run(&mut self, holder: Holder) -> i32 {
+            _ = holder.inner.token.consume();
+            transition { _ -> (7) }
+        }
+        machine Client::value(&mut self, holder: Holder) -> i32 {
+            transition { _ -> (holder.inner.token.consume()) }
+        }
+    "#;
+
+    /// A member call on a deeper projected receiver place
+    /// (`holder.inner.token.consume()`) settles the same
+    /// receiver-place-keyed forwarding row on the leaf field symbol; the
+    /// rewrite re-derives the intermediate member's exact field symbol and
+    /// reifies the whole place as argument 0 in both call positions.
+    #[test]
+    fn a_deeper_projected_receiver_member_call_forwards_the_place_as_argument_zero() {
+        let (checked, plans) = requirement_fixture(DEEP_PROJECTED_RECEIVER_SOURCE);
+        let selected = selected_all(&plans);
+        let requirement = entry_symbol(&checked, "Token::consume");
+        let realization = entry_symbol(&checked, "TokenProvider::consume_impl");
+        let inner_token_field = field_symbol(&checked, "Inner", "token");
+        let holder_inner_field = field_symbol(&checked, "Holder", "inner");
+        let holder = checked
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.typed.machine_states(machine))
+            .flat_map(|state| checked.typed.state_parameters(state))
+            .find(|parameter| parameter.name.as_str() == "holder")
+            .expect("the holder parameter")
+            .symbol;
+
+        let mut settled = Arc::new(checked);
+        let edits =
+            crate::settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+                .expect("a deeper projected receiver member call settles");
+        let rows = &settled.facts.boundary_adapter_dispatch;
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!(rows[0].receiver, inner_token_field);
+        assert_eq!(rows[0].requirement, requirement);
+        assert!(rows[0].forward_receiver);
+
+        // The statement call `_ = holder.inner.token.consume();` redirects to
+        // the adapter with the whole projected place reified as
+        // `holder.inner.token` at argument 0.
+        let call = settled
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| settled.typed.machine_states(machine))
+            .flat_map(|state| {
+                settled
+                    .typed
+                    .statement_table
+                    .statements(state.statement_nodes)
+            })
+            .find_map(|statement| match statement {
+                typed_trees::statement::StatementNode::Call(call)
+                    if call.target.as_str() != "consume" =>
+                {
+                    Some(call)
+                }
+                _ => None,
+            })
+            .expect("the rewritten statement call");
+        assert_eq!(call.target_symbol, realization);
+        assert_eq!(call.target.as_str(), "TokenProvider::consume_impl");
+        assert!(call.receiver.is_empty() && !call.receiver_symbol.is_valid());
+        let arguments = settled
+            .typed
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        assert_eq!(arguments.len(), 1);
+        let ExpressionNode::Member(leaf_member) =
+            settled.typed.expression_table.expression(arguments[0])
+        else {
+            panic!("the forwarded receiver is a member projection");
+        };
+        assert_eq!(leaf_member.member_symbol, inner_token_field);
+        let ExpressionNode::Member(inner_member) = settled
+            .typed
+            .expression_table
+            .expression(leaf_member.receiver)
+        else {
+            panic!("the intermediate member is a member projection");
+        };
+        assert_eq!(inner_member.member_symbol, holder_inner_field);
+        let ExpressionNode::Name(root) = settled
+            .typed
+            .expression_table
+            .expression(inner_member.receiver)
+        else {
+            panic!("the projection root is a place name");
+        };
+        assert_eq!(root.symbol, holder);
+
+        // The value-position call `holder.inner.token.consume()` redirects
+        // the same way, splicing the authored receiver expression as
+        // argument 0.
+        let value_call = settled
+            .typed
+            .expression_table
+            .expression_entries()
+            .find_map(|(handle, expression)| match expression {
+                ExpressionNode::Call(call)
+                    if call.target.as_str() == "TokenProvider::consume_impl" =>
+                {
+                    Some((handle, call))
+                }
+                _ => None,
+            })
+            .expect("the rewritten value call");
+        assert_eq!(value_call.1.target_symbol, realization);
+        assert!(!value_call.1.receiver.is_valid());
+        let value_arguments = settled
+            .typed
+            .expression_table
+            .expression_handles(value_call.1.arguments)
+            .to_vec();
+        assert_eq!(value_arguments.len(), 1);
+        let ExpressionNode::Member(value_receiver) = settled
+            .typed
+            .expression_table
+            .expression(value_arguments[0])
+        else {
+            panic!("the forwarded value receiver is the authored projection");
+        };
+        assert_eq!(value_receiver.member_symbol, inner_token_field);
+
+        // The journal restores the authored requirement statement.
+        let statement = settled
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| settled.typed.machine_states(machine))
+            .flat_map(|state| {
+                settled
+                    .typed
+                    .statement_table
+                    .iter_statements(state.statement_nodes)
+            })
+            .find_map(|(handle, statement)| match statement {
+                typed_trees::statement::StatementNode::Call(call)
+                    if call.target.as_str() == "TokenProvider::consume_impl" =>
+                {
+                    Some(handle)
+                }
+                _ => None,
+            })
+            .expect("the rewritten statement handle");
+        let source = edits
+            .source_trees(&settled.typed)
+            .expect("restore the journaled source");
+        let typed_trees::statement::StatementNode::Call(authored) =
+            source.statement_table.statement(statement)
+        else {
+            panic!("the restored statement is a call");
+        };
+        assert_eq!(authored.target_symbol, requirement);
+        assert_eq!(authored.target.as_str(), "consume");
+        assert_eq!(authored.receiver_symbol, inner_token_field);
         assert!(authored.discards_result);
     }
 }

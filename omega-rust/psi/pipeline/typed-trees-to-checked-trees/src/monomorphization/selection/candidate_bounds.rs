@@ -121,10 +121,21 @@ pub(crate) fn validate_candidate_conformance_bounds(
                         continue;
                     }
                 };
+            // A transparent refinement is a structural bound over an
+            // existing base conformance, never a nominal satisfaction
+            // target: "a static evidence binder may require it and receive
+            // an explicitly selected `Logger` conformance whose complete
+            // contract fits" (spec, conformances.md, Transparent
+            // refinements). Compare identity against the resolved base, then
+            // -- in the same step, because the resolution alone would admit
+            // a non-fitting map -- check the selected rows against the
+            // refinement's clauses.
+            let carrier =
+                crate::monomorphization::selection::resolve_bound_carrier(program, bound.carrier);
             let expected_trait = program
                 .traits()
                 .iter()
-                .find(|definition| definition.symbol == bound.carrier);
+                .find(|definition| definition.symbol == carrier.base);
             if application.subject_identity.as_deref() != Some(type_identity.as_str())
                 || expected_trait
                     .is_none_or(|definition| application.trait_definition != definition.symbol)
@@ -148,6 +159,21 @@ pub(crate) fn validate_candidate_conformance_bounds(
                         .map_or("<unnamed>", |name| name.as_str()),
                     bound.carrier_name,
                 )));
+                continue;
+            }
+            if let Some(refinement) = carrier.refinement {
+                diagnostics.extend(
+                    crate::monomorphization::selection::refinement_fit_diagnostics(
+                        program,
+                        refinement,
+                        selected,
+                        candidate.template.template_name.as_str(),
+                        bound
+                            .binder_name
+                            .as_ref()
+                            .map_or("<missing>", |name| name.as_str()),
+                    ),
+                );
             }
             continue;
         }

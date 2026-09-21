@@ -53,6 +53,10 @@ pub(crate) struct Expansion<'a> {
     qualifications: &'a PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     base: usize,
+    /// Erased-proof roster of the enclosing state being expanded: every state
+    /// `push`ed while this is set inherits it, so `Formal` positions in its
+    /// edge terms stay in scope on the emitted block.
+    erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
     states: Vec<LoweredScalarBranchState>,
     calls: Vec<SourceCallCoordinate>,
     arrays: Vec<arrays::Slot>,
@@ -72,12 +76,34 @@ impl<'a> Expansion<'a> {
             qualifications,
             machine,
             base,
+            erased_proof_formals: Vec::new(),
             states: Vec::new(),
             calls: Vec::new(),
             arrays: Vec::new(),
             cases: Vec::new(),
             fields: &[],
         }
+    }
+
+    /// Enter the erased-proof scope of one enclosing checked state before
+    /// lowering its computations.
+    pub(crate) fn enter_proof_scope(
+        mut self,
+        roster: &[checked_trees::CheckedErasedProofParameterPlan],
+    ) -> Self {
+        self.erased_proof_formals =
+            crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(roster);
+        self
+    }
+
+    /// Re-enter the erased-proof scope mid-lowering — same roster update as
+    /// the builder form, for an already-bound expansion.
+    pub(crate) fn refresh_proof_scope(
+        &mut self,
+        roster: &[checked_trees::CheckedErasedProofParameterPlan],
+    ) {
+        self.erased_proof_formals =
+            crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(roster);
     }
 
     pub(crate) fn finish(self) -> Vec<LoweredScalarBranchState> {
@@ -414,6 +440,7 @@ impl<'a> Expansion<'a> {
             structural_effects: Vec::new(),
             parameter_types: completed_types.clone(),
             erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Jump {
                 trivial_affine_discards: Vec::new(),
@@ -424,6 +451,7 @@ impl<'a> Expansion<'a> {
                     .skip(source_types.len())
                     .collect(),
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
             },
         });
         Ok(Some(self.sequence(
@@ -435,8 +463,9 @@ impl<'a> Expansion<'a> {
         )?))
     }
 
-    pub(crate) fn push(&mut self, state: LoweredScalarBranchState) -> usize {
+    pub(crate) fn push(&mut self, mut state: LoweredScalarBranchState) -> usize {
         let index = self.base + self.states.len();
+        state.erased_proof_formals = self.erased_proof_formals.clone();
         self.states.push(state);
         index
     }
@@ -494,12 +523,14 @@ impl<'a> Expansion<'a> {
             structural_effects: Vec::new(),
             parameter_types: input_types.to_vec(),
             erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
             bindings: vec![binding],
             terminator: LoweredScalarBranchTerminator::Jump {
                 trivial_affine_discards: Vec::new(),
                 target,
                 arguments,
                 erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
             },
         })
@@ -589,6 +620,7 @@ impl<'a> Expansion<'a> {
                         structural_parameters: Vec::new(),
                         parameter_types: operand_types.clone(),
                         erased_formal_types: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         bindings: Vec::new(),
                         structural_effects: Vec::new(),
                         terminator: LoweredScalarBranchTerminator::Qualify {
@@ -658,6 +690,7 @@ impl<'a> Expansion<'a> {
                     structural_effects: Vec::new(),
                     parameter_types: condition_types,
                     erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Conditional {
                         condition: LoweredBooleanReturnExpression::Parameter {
@@ -666,9 +699,11 @@ impl<'a> Expansion<'a> {
                         when_true_target,
                         when_true_arguments: parameters(input_types),
                         when_true_erased_arguments: Vec::new(),
+                        when_true_erased_proof_arguments: Vec::new(),
                         when_false_target,
                         when_false_arguments: parameters(input_types),
                         when_false_erased_arguments: Vec::new(),
+                        when_false_erased_proof_arguments: Vec::new(),
                     },
                 });
                 self.argument(
@@ -718,6 +753,7 @@ impl<'a> Expansion<'a> {
                     structural_effects: Vec::new(),
                     parameter_types: condition_types,
                     erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Conditional {
                         condition: LoweredBooleanReturnExpression::Parameter {
@@ -726,9 +762,11 @@ impl<'a> Expansion<'a> {
                         when_true_target,
                         when_true_arguments: parameters(input_types),
                         when_true_erased_arguments: Vec::new(),
+                        when_true_erased_proof_arguments: Vec::new(),
                         when_false_target,
                         when_false_arguments: parameters(input_types),
                         when_false_erased_arguments: Vec::new(),
+                        when_false_erased_proof_arguments: Vec::new(),
                     },
                 });
                 self.argument(&operand, input_types, dispatch, site, active)?

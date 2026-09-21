@@ -229,8 +229,9 @@ fn asm_control_registers_enforce_authority_and_value_contracts() {
 // position stops at "call operation" and value position stops at "call source
 // result type", before any terminal op exists. When a dedicated asm operation
 // reaches emitted bytes, promote these fixtures to byte assertions (x86:
-// `0f 01 e8` serialize / `f3 90` pause; aarch64: `df 3f 03 d5` isb /
-// `5f 20 03 d5` yield) and an aarch64 refusal test. Target applicability is
+// `0f 01 e8` serialize / `f3 90` pause / `90` nop; aarch64: `df 3f 03 d5` isb /
+// `3f 20 03 d5` yield / `1f 20 03 d5` nop / `5f 20 03 d5` wfe / `7f 20 03 d5`
+// wfi / `9f 20 03 d5` sev / `bf 20 03 d5` sevl) and an aarch64 refusal test. Target applicability is
 // catalog metadata only -- the "x86_64-only" refusal those assertions expect
 // is itself unbuilt.
 #[test]
@@ -273,6 +274,26 @@ fn aarch64_system_registers_reach_checked_semantics() {
 #[test]
 fn system_registers_enforce_authority_and_value_contracts() {
     for &(name, expected) in fixture_roster::SYSTEM_REGISTER_FAIL_CANARIES {
+        assert_contract_rejects(name, expected);
+    }
+}
+
+// Cache maintenance is pinned at the checked surface for the same reason as
+// the pipeline directives above: asm-only program entries are refused before
+// emission. When artifact production reaches this family, promote the pass
+// fixture to byte assertions (x86: `0f 09` wbinvd / `0f 01` invd /
+// `f3 0f 01 f0` wbnoinvd) and aarch64 refusals.
+#[test]
+fn cache_maintenance_reaches_checked_semantics() {
+    compile_canary_without_output(&pass_canary(fixture_roster::ASM_CACHE_MAINTENANCE_COMPILE))
+        .unwrap_or_else(|diagnostics| {
+            panic!("cache-maintenance canary should reach checked semantics:\n{diagnostics:#?}")
+        });
+}
+
+#[test]
+fn hosted_cache_operations_cannot_claim_machine_owner_authority() {
+    for &(name, expected) in fixture_roster::CACHE_OPERATION_FAIL_CANARIES {
         assert_contract_rejects(name, expected);
     }
 }

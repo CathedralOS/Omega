@@ -67,10 +67,7 @@ fn signature_ceiling_places_inner(
     borrow_call: &BorrowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == caller_machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, caller_machine_symbol)?;
     let state = crate::semantic_calls::find_state(program, caller_state_symbol)?;
     // A builtin function (`min`, `max`, `sqrt`, the float classifiers, the
     // asm intrinsics) takes scalar values and owns no caller storage; its

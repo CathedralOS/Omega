@@ -78,12 +78,16 @@ fn prove(
     {
         return None;
     }
-    let callee = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|state| state.symbol == call.target_symbol)
-    })?;
+    // A bare call to a machine names its entry state; a target resolving to
+    // any other state is not the machine-head call this route proves.
+    let callee = crate::semantic_calls::find_state_with_machine(program, call.target_symbol)
+        .and_then(|(machine, state)| {
+            program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == state.symbol)
+                .then_some(machine)
+        })?;
     let parameters = program.state_parameters(program.machine_states(callee).first()?);
     if parameters.iter().any(|parameter| parameter.is_self) {
         return None;
@@ -92,10 +96,7 @@ fn prove(
     if arguments.len() != parameters.len() {
         return None;
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == caller.machine_symbol)?;
+    let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
     let state = crate::semantic_calls::find_state_in_machine(
         program,
         caller.machine_symbol,

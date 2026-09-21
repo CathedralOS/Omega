@@ -17,7 +17,14 @@ content, ISA/format detail) or only sequencing?
 
 ## Findings
 
-### F1 — `source_assembly.rs` owns generated-source content (moderate)
+### F1 — `source_assembly.rs` owns generated-source content (moderate) — RESOLVED
+
+Resolved at `97de35d903` ("omega: extract build prelude + entry contract
+seed from source_assembly"): `source_assembly.rs` dropped to ~507 lines of
+load/discover sequence; prelude construction lives in
+`source_assembly/build_prelude.rs` and contract-seed derivation in
+`source_assembly/entry_contract_seed.rs`. Original finding text retained
+below for the audit trail.
 
 `omega-rust/omega/pipeline/source-files-to-assembled-syntax/src/source_assembly.rs`
 (1014 lines) sequences discovery → lex → parse → import queue, which is the
@@ -33,7 +40,16 @@ entry file:
 Repair: move prelude construction and contract-seed derivation into named
 siblings; the root keeps `assemble_syntax` and the load/discover sequence.
 
-### F2 — `lowering/coordination.rs` owns the settlement roster contract (moderate)
+### F2 — `lowering/coordination.rs` owns the settlement roster contract (moderate) — RESOLVED
+
+Resolved at the commit carrying this note: the fail-closed roster moved to
+`coordination/settlement_roster.rs` — `index_settlement_bindings` owns the
+Duplicate/Unknown indexing contract and `validate_settlement_roster` owns
+the Overlaps/Partial/Missing/Unused rejoin against
+`installed_provider_calls` indexes. `coordination.rs` sequences: qualify →
+index → validate → per-function `lower_function` dispatch →
+post-validation. Original finding text retained below for the audit
+trail.
 
 `omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/coordination.rs`
 (166 lines) inlines ~100 lines of fail-closed roster validation over

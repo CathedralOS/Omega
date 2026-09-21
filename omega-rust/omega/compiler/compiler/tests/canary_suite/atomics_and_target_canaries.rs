@@ -682,11 +682,13 @@ fn cross_console_byte_targets_emit_x86_64_flavors() {
 }
 
 // The console byte-op fence: a FIELD-target read_byte is outside the served
-// shape and must refuse LOUDLY with the actionable message (the composite
-// owns the whole ByteRead result; nothing generic exists to fall back to,
-// so a silent miss would be a ZII field). Probe-swept 2026-07-17: the
-// indexed-place write arg SERVES, statement/pure discards refuse at the
-// frontend, an unused `let` refuses here too (no slot to serve).
+// shape and must refuse LOUDLY (the composite owns the whole ByteRead
+// result; nothing generic exists to fall back to, so a silent miss would be
+// a ZII field). The refusal now surfaces earlier than the retired
+// emission-stage byte-op blocker: the composite call result has no
+// field-store plan, so unit-plan local construction omits the machine at
+// the assignment and ProgramEntry establishment reports the omission.
+// Statement 0 of state 0 is `self.r = block self.console.read_byte()`.
 #[test]
 fn console_byte_field_target_rejected_canary_is_rejected() {
     let canary = fail_canary(fixture_roster::CONSOLE_BYTE_FIELD_TARGET_REJECTED);
@@ -705,9 +707,10 @@ fn console_byte_field_target_rejected_canary_is_rejected() {
         .collect::<Vec<_>>()
         .join("\n");
     assert!(
-        combined.contains("did not lower to its byte-op instruction")
-            && combined.contains("let r: ByteRead"),
-        "expected the actionable byte-op blocker (serving-shape hint), got:\n{combined}"
+        combined.contains("unit plan was omitted at local construction")
+            && combined.contains("statement sequence: assignment: call source result type")
+            && combined.contains("statement 0"),
+        "expected the field-target read_byte refusal at unit-plan local construction, got:\n{combined}"
     );
     let _ = fs::remove_dir_all(scratch);
 }

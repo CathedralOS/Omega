@@ -9,7 +9,7 @@
 //! adapter calls; `tests.rs` holds the dispatch tests.
 
 mod adapter_rows;
-mod boundary_fields;
+pub(crate) mod boundary_fields;
 mod signature_families;
 #[cfg(test)]
 mod tests;
@@ -303,7 +303,7 @@ fn plan_selected_boundary_adapter_dispatch(
     }
 
     // A by-value `self` requirement is called through a member receiver
-    // (`token.consume()` or the one-hop projection `holder.token.consume()`),
+    // (`token.consume()` or a projected place like `holder.inner.token.consume()`),
     // whose retained receiver symbol is the receiver PLACE leaf -- a per-site
     // parameter, `self` binding, local, or projected field member -- not the
     // nominal owner. Register the receiver place of each member call that
@@ -348,7 +348,20 @@ fn plan_selected_boundary_adapter_dispatch(
         let receiver_place_types =
             |root: symbols::SymbolHandle, members: &[typed_trees::name::Identifier]| {
                 let mut type_references = Vec::new();
+                // A `self.`-rooted receiver names its enclosing machine or
+                // state as the root place, whose type is the machine's
+                // attached data rather than a parameter or local
+                // declaration.
+                let mut self_attached_data = Vec::new();
                 for machine in typed.machines() {
+                    if machine.symbol == root
+                        || typed
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == root)
+                    {
+                        self_attached_data.push(machine.attached_data_symbol);
+                    }
                     for state in typed.machine_states(machine) {
                         for parameter in typed.state_parameters(state) {
                             if parameter.symbol == root {
@@ -365,13 +378,34 @@ fn plan_selected_boundary_adapter_dispatch(
                         }
                     }
                 }
-                for member in members {
-                    type_references = type_references
+                for (member_index, member) in members.iter().enumerate() {
+                    let mut next = type_references
                         .iter()
                         .flat_map(|type_reference| {
                             member_field_types(*type_reference, member.as_str())
                         })
-                        .collect();
+                        .collect::<Vec<_>>();
+                    if member_index == 0 {
+                        for data_symbol in self_attached_data.iter().copied() {
+                            if let Some(owner) = typed
+                                .data_definitions()
+                                .iter()
+                                .find(|data| data.symbol == data_symbol)
+                            {
+                                next.extend(typed.data_members(owner).iter().filter_map(
+                                    |data_member| match data_member {
+                                        typed_trees::data::DataMember::Field(field)
+                                            if field.name.as_str() == member.as_str() =>
+                                        {
+                                            Some(field.type_reference)
+                                        }
+                                        _ => None,
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                    type_references = next;
                     if type_references.is_empty() {
                         break;
                     }

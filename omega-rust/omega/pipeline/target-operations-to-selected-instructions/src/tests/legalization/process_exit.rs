@@ -283,6 +283,7 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
                 AbstractOperation::EstablishPrimitiveLocal {
                     psi_operation: OperationId::new(20).unwrap(),
                     result: terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
                         place: local_place,
                         structural_type: primitive,
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

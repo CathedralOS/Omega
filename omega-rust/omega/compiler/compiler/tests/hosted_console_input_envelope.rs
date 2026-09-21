@@ -246,7 +246,7 @@ fn a_published_caller_carries_the_envelope_it_invokes() {
     let standard_library = repo_root().join("source/library/std");
     let main_source = |signature_tail: &str| {
         format!(
-            "use omega_language_std::console;\n\npub data Main {{\n    console: Console;\n}}\n\npub machine Main::main(&mut self)\nreaches Console\ninvokes Console;{signature_tail}\n{{\n    let observed: ByteRead = block self.console.read_byte();\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"console-input-envelope-probe\");\n    builder.depend(Source::Path {{ location: \"{}\" }});\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
+            "use omega_language_std::console;\nuse omega::language::core::service;\n\npub data Main {{\n    console: Service<Console>;\n}}\n\npub machine Main::main(&mut self)\nreaches Console\ninvokes Console;{signature_tail}\n{{\n    let observed: ByteRead = block self.console.read_byte();\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"console-input-envelope-probe\");\n    builder.depend(Source::Path {{ location: \"{}\" }});\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
             standard_library.to_string_lossy().replace('\\', "/")
         )
     };

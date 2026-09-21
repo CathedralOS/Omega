@@ -125,6 +125,8 @@ pub(crate) const RUNTIME_NEGATED_COMPARISON_GUARD_EXIT: &str =
     "control_flow/runtime_negated_comparison_guard_exit";
 pub(crate) const RUNTIME_CASE_MEMBER_DISPATCH_EXIT: &str =
     "control_flow/runtime_case_member_dispatch_exit";
+pub(crate) const RUNTIME_INTEGER_LITERAL_DISPATCH_EXIT: &str =
+    "control_flow/runtime_integer_literal_dispatch_exit";
 pub(crate) const CASE_PAYLOAD_NATIVE_CONSTRUCTION: &str = "data/case_payload_native_construction";
 pub(crate) const RUNTIME_RECORD_FIELD_VALUE_PATTERN_EXIT: &str =
     "data/runtime_record_field_value_pattern_exit";
@@ -336,6 +338,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_MACHINE_OWNED_INDEXED_NESTED_ROOM_COPY_EXIT,
     RUNTIME_NEGATED_COMPARISON_GUARD_EXIT,
     RUNTIME_CASE_MEMBER_DISPATCH_EXIT,
+    RUNTIME_INTEGER_LITERAL_DISPATCH_EXIT,
     CASE_PAYLOAD_NATIVE_CONSTRUCTION,
     RUNTIME_RECORD_FIELD_VALUE_PATTERN_EXIT,
     RUNTIME_CASE_PAYLOAD_GUARD_READ_EXIT,

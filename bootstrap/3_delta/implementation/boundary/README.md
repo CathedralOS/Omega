@@ -512,6 +512,23 @@ question for post-frontend phases nor witnesses a missing DCOUT resource; it
 is one 650.7-second stress observation, not a bootstrap-chain timing or a
 whole-producer bound.
 
+### Post-frontend allocation stress frontier
+
+Every measured stress family refuses inside an existing resource row before
+post-frontend allocation is stressed: the arithmetic probe ends in resource 7
+(the retained-syntax ledger, coordinate 735,359), the wide-constructor probe
+ends in the same ledger at the constructor's 19,147th field-type atom
+(coordinate 76,595), and full-width reconstruction ends in resource 12 (the
+payload extent). No admitted-source family therefore reaches a post-frontend
+allocation boundary; post-frontend pair consumption is covered by the
+[measured worst-shape
+study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+(417,063,339 projected pairs, 8.2× under the 3,422,453,760-pair arena), which
+counts the instrumented evaluator's pair stores across the whole producer —
+post-frontend phases included. A stress refusal at a post-frontend allocation
+boundary would need a separately justified source family that survives the
+syntax ledger and payload extent; none exists on this board.
+
 ### Producer invariants rather than arbitrary corruption coverage
 
 Declaration metadata's owner and body-start checks in

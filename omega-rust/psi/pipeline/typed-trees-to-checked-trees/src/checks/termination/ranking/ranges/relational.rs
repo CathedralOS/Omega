@@ -279,13 +279,12 @@ fn preserved_entry_prefix<'program>(
             // An unrelated local does not revise the entry
             // telescope. Keep numeric substitution handle-first: local
             // expressions are not promoted into parameter hypotheses.
-            // A direct-call initializer keeps the statement-call bar: the
-            // bound local is fresh storage no premise carrier can name, so
-            // only the call's own writes matter -- a checked-body callee,
-            // pure receiver and arguments, and a complete aggregate frame
-            // disjoint from every protected carrier. Composed initializers
-            // stay refused: an authored operator beside the call would hide
-            // a write no frame sees.
+            // A call-bearing initializer keeps the statement-call bar at
+            // every value position: the bound local is fresh storage no
+            // premise carrier can name, each call names a checked-body
+            // callee with pure subterms, and the complete aggregate frame
+            // misses every protected carrier -- nested call arguments and
+            // composed initializers are admitted alike.
             let fresh_local = local.symbol.is_valid()
                 && !program
                     .state_parameters(state)
@@ -300,7 +299,7 @@ fn preserved_entry_prefix<'program>(
                 });
             let preserved = fresh_local
                 && (pure_initializer
-                    || let_call_initializer_preserves_entry(
+                    || call_tree_initializer_preserves_entry(
                         program,
                         machine,
                         state,
@@ -330,11 +329,12 @@ fn preserved_entry_prefix<'program>(
             // requirement, and admitted declarations resolve a signature
             // state whose empty body summary would claim an exclusive
             // argument write never happened.
-            let callee_machine = program.symbols.get(call.target_symbol).parent;
-            let checked_body_callee = program.machines().iter().any(|candidate| {
-                (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
-                    && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-            });
+            let checked_body_callee =
+                crate::semantic_calls::find_machine(program, call.target_symbol).is_some_and(
+                    |candidate| {
+                        candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                    },
+                );
             let preserved = checked_body_callee
                 && program
                     .statement_table
@@ -382,15 +382,17 @@ fn preserved_entry_prefix<'program>(
     Some(evaluated)
 }
 
-/// A `let` whose initializer is a direct call keeps the statement-call bar:
-/// only a checked-body callee's frame is admitted (boundary, requirement,
-/// and admitted declarations resolve a signature state whose empty body
-/// summary would claim an exclusive argument write never happened), the
-/// receiver and arguments stay pure the way transition actuals are, and the
-/// initializer's aggregate write frame must be complete and disjoint from
-/// every protected carrier. The binding writes a fresh local, so nothing
-/// else in the statement can disturb the entry telescope.
-fn let_call_initializer_preserves_entry<'program>(
+/// A `let` whose initializer carries calls keeps the statement-call bar at
+/// every value position: each call still names a checked-body callee
+/// (boundary, requirement, and admitted declarations resolve a signature
+/// state whose empty body summary would claim an exclusive argument write
+/// never happened), and every non-call subterm stays pure the way
+/// transition actuals are, so nested call arguments and composed
+/// initializers are admitted alike. The initializer's aggregate write
+/// frame is conservative over every nested call and must be complete and
+/// disjoint from every protected carrier. The binding writes a fresh local,
+/// so nothing else in the statement can disturb the entry telescope.
+fn call_tree_initializer_preserves_entry<'program>(
     program: &'program typed_trees::TypedTrees,
     machine: &'program typed_trees::machine::Machine,
     state: &State,
@@ -398,30 +400,26 @@ fn let_call_initializer_preserves_entry<'program>(
     frames: Option<&validation::CallFrameResolver<'program>>,
     protected: &[&str],
 ) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(initial_value) else {
-        return false;
-    };
-    if !call.target_symbol.is_valid() {
-        return false;
-    }
-    let callee_machine = program.symbols.get(call.target_symbol).parent;
-    program.machines().iter().any(|candidate| {
-        (candidate.symbol == call.target_symbol || candidate.symbol == callee_machine)
-            && candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-    }) && (!call.receiver.is_valid() || pure_guard(program, machine, state, call.receiver, 0))
-        && program
-            .expression_table
-            .expression_handles(call.arguments)
-            .iter()
-            .all(|argument| pure_guard(program, machine, state, *argument, 0))
-        && frames.is_some_and(|frames| {
-            protected.iter().all(|input| {
-                write_preservation::frame_preserves_path(
-                    frames.expression_write_frame(machine, initial_value),
-                    input,
-                )
-            })
+    let checked_body_callee = |call: &typed_trees::expression::TableCallExpression| {
+        crate::semantic_calls::find_machine(program, call.target_symbol).is_some_and(|candidate| {
+            candidate.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
         })
+    };
+    pure_guard_or_calls(
+        program,
+        machine,
+        state,
+        initial_value,
+        0,
+        &checked_body_callee,
+    ) && frames.is_some_and(|frames| {
+        protected.iter().all(|input| {
+            write_preservation::frame_preserves_path(
+                frames.expression_write_frame(machine, initial_value),
+                input,
+            )
+        })
+    })
 }
 
 /// A store target must be a place whose own evaluation performs no call:
@@ -476,10 +474,28 @@ fn pure_guard(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
+    pure_guard_or_calls(program, machine, state, expression, depth, &|_| false)
+}
+
+/// The same inertness walk with value-position calls admitted per
+/// `admit_call`: an accepted call's receiver and arguments recur under the
+/// same rule, so nested call arguments and composed initializers are
+/// covered, while every subterm that is not a call must still be pure the
+/// way it would be with no call present.
+fn pure_guard_or_calls(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    depth: usize,
+    admit_call: &dyn Fn(&typed_trees::expression::TableCallExpression) -> bool,
+) -> bool {
     if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
         return false;
     }
-    let inert = |expression| pure_guard(program, machine, state, expression, depth + 1);
+    let inert = |expression| {
+        pure_guard_or_calls(program, machine, state, expression, depth + 1, admit_call)
+    };
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_)
         | ExpressionNode::Integer(_)
@@ -559,6 +575,19 @@ fn pure_guard(
                         };
                         pattern_inert && inert(arm.value)
                     })
+        }
+        ExpressionNode::Call(call) => {
+            // A call admitted by the caller's bar keeps every subterm pure
+            // the way transition actuals are; the caller decides which
+            // callees may appear and covers their writes in the aggregate
+            // write frame separately.
+            admit_call(call)
+                && (!call.receiver.is_valid() || inert(call.receiver))
+                && program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .all(|argument| inert(*argument))
         }
         _ => false,
     }

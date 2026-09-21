@@ -43,6 +43,7 @@ impl GraphEmission<'_> {
                         id: pending.id,
                         parameters: pending.parameters,
                         erased_scalar_formals: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         operations: self.all_operations[operation_start..].to_vec(),
                         terminator: Terminator::Jump {
                             structural_arguments: Vec::new(),
@@ -50,6 +51,7 @@ impl GraphEmission<'_> {
                             target: pending.target,
                             arguments,
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             residual_affine_discards: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },
@@ -118,6 +120,7 @@ impl GraphEmission<'_> {
                                 id: block_id(next_stage_identity),
                                 parameters: parameters.clone(),
                                 erased_scalar_formals: Vec::new(),
+                                erased_proof_formals: Vec::new(),
                                 operations: self.all_operations[operation_start..].to_vec(),
                                 terminator: Terminator::Jump {
                                     structural_arguments: Vec::new(),
@@ -125,6 +128,7 @@ impl GraphEmission<'_> {
                                     target: next_stage,
                                     arguments,
                                     erased_arguments: Vec::new(),
+                                    erased_proof_arguments: Vec::new(),
                                     residual_affine_discards: Vec::new(),
                                     trivial_affine_discards: Vec::new(),
                                 },
@@ -146,6 +150,7 @@ impl GraphEmission<'_> {
                         id: block_id(next_stage_identity),
                         parameters: parameters.clone(),
                         erased_scalar_formals: Vec::new(),
+                        erased_proof_formals: Vec::new(),
                         operations: Vec::new(),
                         terminator: Terminator::Jump {
                             structural_arguments: Vec::new(),
@@ -156,6 +161,7 @@ impl GraphEmission<'_> {
                                 .map(|parameter| parameter.id)
                                 .collect(),
                             erased_arguments: Vec::new(),
+                            erased_proof_arguments: Vec::new(),
                             residual_affine_discards: Vec::new(),
                             trivial_affine_discards: Vec::new(),
                         },

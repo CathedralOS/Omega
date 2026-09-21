@@ -84,7 +84,7 @@ impl Denotation {
     /// operation denotes, pushed once per operation identity. `R` is `Int`
     /// for the arithmetic operations and `Two` for the value-level
     /// comparisons.
-    fn integer_operation(
+    pub(super) fn integer_operation(
         &mut self,
         operation: IntegerOperation,
     ) -> Result<u32, BoundedDenotationError> {

@@ -90,6 +90,7 @@ fn token_result(
     AbstractOperation::EstablishRecord {
         psi_operation,
         result: StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type: structural_type(TOKEN),
             multiplicity: StructuralMultiplicity::Affine,
@@ -111,6 +112,7 @@ fn pair_result(place: PlaceId, left: PlaceId, right: PlaceId) -> AbstractOperati
     AbstractOperation::EstablishRecord {
         psi_operation: operation(13),
         result: StructuralOperationResult {
+            qualification_establishments: Vec::new(),
             place,
             structural_type: structural_type(PAIR),
             multiplicity: StructuralMultiplicity::Affine,

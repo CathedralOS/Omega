@@ -75,6 +75,7 @@ pub fn component_module(calls: &[&str], provides: &[(&str, &str, &str)]) -> Term
             .push(boundary_machine(boundary, requirement));
         module.machines[0].blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            suspension_crossing: None,
             id: OperationId::new(operation_id).expect("operation identity"),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
@@ -242,6 +243,7 @@ pub fn assumption_api_module() -> (TerminalModule, Identity) {
     module.root_service_reach.concrete = vec![service];
     module.machines[0].blocks[0].operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(9).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::PortWrite {
@@ -723,4 +725,55 @@ fn hex_decode(text: &str) -> Vec<u8> {
         .filter_map(|pair| std::str::from_utf8(pair).ok())
         .filter_map(|pair| u8::from_str_radix(pair, 16).ok())
         .collect()
+}
+
+// ---- build-scope-topology package inputs -----------------------------------
+
+/// `components.bin`: the owner-admitted component descriptions in canonical
+/// request-roster order — `{u32 count}` then `{u32 desc_len, canonical
+/// description bytes, admitting profile identity[32]}` per instance. The
+/// package recomputes every composition fact from these bytes; nothing here
+/// is a plan fragment.
+pub fn components_input(components: &[impl Borrow<AdmittedComponent>]) -> Vec<u8> {
+    let mut out = Vec::new();
+    out.extend_from_slice(&(components.len() as u32).to_le_bytes());
+    for admission in components {
+        let admission = admission.borrow();
+        // The admitted description is exactly `describe_module`'s canonical
+        // encoding of the verified module.
+        let bytes = describe_module(admission.component.module());
+        out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        out.extend_from_slice(&bytes);
+        out.extend_from_slice(&admission.request.profile_identity());
+    }
+    out
+}
+
+/// `bindings.bin`: the owner's binding selections in canonical
+/// `(import, export)` order — `{u32 count}` then `{ii, is, ei, es u32,
+/// transport[32]}` rows.
+pub fn bindings_input(bindings: &[Binding]) -> Vec<u8> {
+    let mut sorted = bindings.to_vec();
+    sorted.sort_by_key(|binding| (binding.import, binding.export));
+    let mut out = Vec::new();
+    out.extend_from_slice(&(sorted.len() as u32).to_le_bytes());
+    for binding in &sorted {
+        out.extend_from_slice(&binding.import.instance.to_le_bytes());
+        out.extend_from_slice(&binding.import.slot.to_le_bytes());
+        out.extend_from_slice(&binding.export.instance.to_le_bytes());
+        out.extend_from_slice(&binding.export.slot.to_le_bytes());
+        out.extend_from_slice(&binding.transport);
+    }
+    out
+}
+
+/// Every input the build-scope-topology project reads: request, admitted
+/// components, and chosen bindings.
+pub fn build_scope_inputs() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let request = payment_request();
+    (
+        encode_request(&request).unwrap(),
+        components_input(&payment_components()),
+        bindings_input(&payment_bindings()),
+    )
 }

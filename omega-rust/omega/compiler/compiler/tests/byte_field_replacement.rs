@@ -186,6 +186,7 @@ fn runtime_replacement(nested: bool, write_only: bool) -> lowered_psi::LoweredPs
     });
     let successor = |edge, block| SuccessorEdge {
         erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
         edge: EdgeId::new(edge).unwrap(),
         target: BlockId::new(block).unwrap(),
         arguments: Vec::new(),
@@ -194,6 +195,7 @@ fn runtime_replacement(nested: bool, write_only: bool) -> lowered_psi::LoweredPs
     };
     let operation = |identity, value, scalar_type, kind| Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: OperationId::new(identity).unwrap(),
         result: OperationResult::Scalar(ValueDeclaration {
             qualifications: Default::default(),
@@ -206,6 +208,7 @@ fn runtime_replacement(nested: bool, write_only: bool) -> lowered_psi::LoweredPs
     machine.blocks = vec![
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: machine.entry,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
@@ -242,11 +245,13 @@ fn runtime_replacement(nested: bool, write_only: bool) -> lowered_psi::LoweredPs
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(1002).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
             operations: vec![Operation {
                 static_reach_binding: None,
+                suspension_crossing: None,
                 id: OperationId::new(1004).unwrap(),
                 result: OperationResult::Unit,
                 kind: OperationKind::StructuralByteSequenceFieldStore {
@@ -265,6 +270,7 @@ fn runtime_replacement(nested: bool, write_only: bool) -> lowered_psi::LoweredPs
         },
         Block {
             erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
             id: BlockId::new(1003).unwrap(),
             parameters: Vec::new(),
             structural_parameters: Vec::new(),

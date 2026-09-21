@@ -30,6 +30,10 @@ pub(crate) struct LoweredDirectCallBinding {
     /// Proof-only actuals in the callee's erased-formal order, lowered under
     /// the caller's retained/erased scalar namespaces.
     pub(crate) erased_arguments: Vec<LoweredDirectExpression>,
+    /// Erased proof-only actuals in the callee's erased-proof roster order.
+    /// Already terminal terms; `Formal` positions index the caller's
+    /// erased-proof roster.
+    pub(crate) erased_proof_arguments: Vec<semantic_vocabulary::ProofTerm>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
     pub(crate) uses_structural_frame: bool,
     pub(crate) crash_continuations: Vec<checked_trees::CrashRouteBucket>,
@@ -227,11 +231,13 @@ pub(crate) fn emit_staged_scalar_call_binding(
                 id: current_block,
                 parameters: current_block_parameters,
                 erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
                 operations: operations[operation_start..].to_vec(),
                 terminator: Terminator::Jump {
                     structural_arguments: Vec::new(),
                     edge,
                     erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     target: next_stage,
                     arguments,
                     residual_affine_discards: Vec::new(),
@@ -276,6 +282,7 @@ pub(crate) fn emit_staged_scalar_call_binding(
         id: current_block,
         parameters: current_block_parameters,
         erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
         operations: operations[operation_start..].to_vec(),
         terminator: Terminator::Jump {
             structural_arguments: Vec::new(),
@@ -283,6 +290,7 @@ pub(crate) fn emit_staged_scalar_call_binding(
             target: continuation,
             arguments: continuation_arguments,
             erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
             residual_affine_discards: Vec::new(),
             trivial_affine_discards: Vec::new(),
         },
@@ -340,6 +348,7 @@ fn emit_direct_call_operation(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     operations.push(Operation {
         static_reach_binding: None,
+        suspension_crossing: None,
         id: operation,
         result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,
@@ -351,6 +360,7 @@ fn emit_direct_call_operation(
                 callee,
                 arguments: arguments.iter().map(|argument| argument.id).collect(),
                 erased_arguments,
+                erased_proof_arguments: call.erased_proof_arguments.clone(),
                 requirement_obligations,
                 crash_continuations,
             }
@@ -359,6 +369,7 @@ fn emit_direct_call_operation(
                 callee,
                 arguments: arguments.iter().map(|argument| argument.id).collect(),
                 erased_arguments,
+                erased_proof_arguments: call.erased_proof_arguments.clone(),
                 structural_arguments: call.structural_arguments.clone(),
                 claim_transfers: Vec::new(),
                 requirement_obligations,

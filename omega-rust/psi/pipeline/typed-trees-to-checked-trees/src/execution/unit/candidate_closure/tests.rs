@@ -82,6 +82,7 @@ fn composed(plan: &CheckedUnitEffectMachinePlan) -> CheckedComposedUnitControlMa
         service_reach: plan.service_reach,
         states: vec![CheckedComposedUnitControlStatePlan {
             erased_scalar_parameters: Vec::new(),
+            erased_proof_parameters: Vec::new(),
             requires: Vec::new(),
             state: plan.state,
             structural_parameters: Vec::new(),
@@ -556,6 +557,8 @@ fn retain_available_reference(
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                    | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                     | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

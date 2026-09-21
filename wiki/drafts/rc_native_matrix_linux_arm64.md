@@ -45,6 +45,24 @@ AArch64 side of its assertions.
   + `no domain named Bound is declared for Service<Console>`) is closed on
   both native-tree and source-evaluated legs now.
 
+## Emulated execution leg (not a suite count)
+
+Recorded separately at revision `6ef64f6dd6` (the z128 leg), same host and
+toolchain; the emulator is named per the closure rule that emulated runs
+must name the emulator and version: `qemu-aarch64-static`
+`1:6.2+dfsg-2ubuntu6.31` (qemu-aarch64 6.2.0, Debian).
+
+| leg | command | result |
+|-----|---------|--------|
+| `cli_mvp` default selection compile | `omega --timings --target linux_arm64 samples/cli/basics/cli_mvp/main.omg` (after `tools/benchmark/benchmark.py prepare` settled `omega.lock`) | pass — `published native output` (ELF 64-bit LSB aarch64, statically linked), 1279539 ms |
+| `cli_mvp` run under named emulator | `qemu-aarch64-static 6.2.0 <executable>`, stdin `/dev/null` | pass — stdout `Hello, Omega.` + `[press Enter to close]` prompt, exit 0 |
+
+First recorded execution of an emitted aarch64 artifact for this row. A
+native `aarch64-unknown-linux-gnu` host re-run remains the closure
+evidence: qemu-user does not cover kernel-ABI paths the emulator
+short-circuits, and the suite's `#[cfg]`-gated runtime legs still wait on
+real hardware.
+
 ## Failure families
 
 All 73 failures reduce to these residuals (`/aarch64/` cohort counted per

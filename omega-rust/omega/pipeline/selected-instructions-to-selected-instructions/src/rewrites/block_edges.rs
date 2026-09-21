@@ -235,13 +235,29 @@ pub(super) fn acyclic_paths<'function>(
     .then_some(paths)
 }
 
+/// The direction a relocation trades order across its window. The
+/// cross-edge families move the run downstream — the paths join the run
+/// block to the destination, and the run block's tail plus the
+/// destination's head are crossed. The predecessor families move it
+/// upstream — the paths join the destination to the run block, and the
+/// destination's tail plus the run block's head are crossed.
+#[derive(Clone, Copy)]
+pub(super) enum CrossingDirection {
+    /// Acyclic paths run from the run block to the destination block.
+    Forward,
+    /// Acyclic paths run from the destination block to the run block.
+    Backward,
+}
+
 /// The window a relocation of a contiguous member run crosses between the
 /// run's block and a destination position — the shared derivation the
 /// per-shape families enumerated by hand before migrating here: the union
 /// over every acyclic path of the positions and edges the move trades order
 /// with, plus the span the run occupies and lands at. In the run block the
-/// tail behind the run is crossed; in an intermediate block the whole body
-/// is; in the destination block the head before the landing index is. Each
+/// tail behind the run is crossed when moving downstream and the head
+/// before it when moving upstream; in an intermediate block the whole body
+/// is; in the destination block the head before the landing index is
+/// crossed downstream and the tail at and after it upstream. Each
 /// traversed edge contributes its successor row and its terminator-carried
 /// instruction — the edge's own position.
 pub(super) struct RelocationCrossing<'function> {
@@ -269,10 +285,11 @@ pub(super) struct RelocationCrossing<'function> {
 
 /// Derives the window a relocation of the run at `run_start..=run_end` in
 /// `function.blocks[run_block]` to `landing_index` in
-/// `function.blocks[destination_block]` crosses. When the blocks are the
-/// same the window is the span between the run and the landing index, the
-/// landing position included — the in-block family's case — and no edge
-/// is crossed. `None` when the acyclic walk exceeds `edge_limit`.
+/// `function.blocks[destination_block]` crosses, in the direction
+/// `direction` names. When the blocks are the same the window is the span
+/// between the run and the landing index, the landing position included —
+/// the in-block family's case — and no edge is crossed either way. `None`
+/// when the acyclic walk exceeds `edge_limit`.
 pub(super) fn crossed_window<'function>(
     function: &'function SelectedFunction,
     run_block: usize,
@@ -280,6 +297,7 @@ pub(super) fn crossed_window<'function>(
     run_end: usize,
     destination_block: usize,
     landing_index: usize,
+    direction: CrossingDirection,
     edge_limit: usize,
 ) -> Option<RelocationCrossing<'function>> {
     let run = &function.blocks[run_block];
@@ -294,13 +312,18 @@ pub(super) fn crossed_window<'function>(
         };
         positions.entry(run_block).or_default().extend(span);
     } else {
-        let paths = acyclic_paths(function, run.id, destination.id, edge_limit)?;
+        let (from, to) = match direction {
+            CrossingDirection::Forward => (run.id, destination.id),
+            CrossingDirection::Backward => (destination.id, run.id),
+        };
+        let paths = acyclic_paths(function, from, to, edge_limit)?;
         let mut seen_edges = BTreeSet::new();
         for path in &paths {
-            positions
-                .entry(run_block)
-                .or_default()
-                .extend((run_end + 1)..run.instructions.len());
+            let run_side = match direction {
+                CrossingDirection::Forward => (run_end + 1)..run.instructions.len(),
+                CrossingDirection::Backward => 0..run_start,
+            };
+            positions.entry(run_block).or_default().extend(run_side);
             for (index, edge) in path.iter().enumerate() {
                 if seen_edges.insert((edge.block, edge.successor.psi_edge)) {
                     edges.push(edge.clone());
@@ -317,10 +340,14 @@ pub(super) fn crossed_window<'function>(
                         .extend(0..function.blocks[intermediate].instructions.len());
                 }
             }
+            let destination_side = match direction {
+                CrossingDirection::Forward => 0..landing_index,
+                CrossingDirection::Backward => landing_index..destination.instructions.len(),
+            };
             positions
                 .entry(destination_block)
                 .or_default()
-                .extend(0..landing_index);
+                .extend(destination_side);
         }
         return Some(RelocationCrossing {
             reachable: !paths.is_empty(),
@@ -361,7 +388,7 @@ mod tests {
     };
     use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
-    use super::{RelocationCrossing, crossed_window};
+    use super::{CrossingDirection, RelocationCrossing, crossed_window};
 
     const BLOCK_A: SelectedBlockId = SelectedBlockId(0);
     const BLOCK_B: SelectedBlockId = SelectedBlockId(1);
@@ -483,7 +510,8 @@ mod tests {
     fn crossing_a_diamond_covers_every_path() {
         let function = diamond();
         // Run is instruction 3 (index 2) in block A; lands at index 0 in D.
-        let crossing = crossed_window(&function, 0, 2, 2, 3, 0, 64).unwrap();
+        let crossing =
+            crossed_window(&function, 0, 2, 2, 3, 0, CrossingDirection::Forward, 64).unwrap();
         assert!(crossing.reachable);
         // A's tail is empty — the run is the last member — B and C are
         // fully crossed on their own paths, and nothing before index 0 in D.
@@ -509,12 +537,14 @@ mod tests {
         // Run [1..=2] landing at index 0 crosses positions 0 and 1? No —
         // backward move: positions 0..1 (destination included, run start
         // excluded).
-        let backward = crossed_window(&function, 0, 1, 2, 0, 0, 64).unwrap();
+        let backward =
+            crossed_window(&function, 0, 1, 2, 0, 0, CrossingDirection::Backward, 64).unwrap();
         assert_eq!(positions_of(&backward, 0), vec![0]);
         assert!(backward.edges.is_empty());
         // Forward move: run [0..=0] landing at index 2 crosses positions
         // 1..=2.
-        let forward = crossed_window(&function, 0, 0, 0, 0, 2, 64).unwrap();
+        let forward =
+            crossed_window(&function, 0, 0, 0, 0, 2, CrossingDirection::Forward, 64).unwrap();
         assert_eq!(positions_of(&forward, 0), vec![1, 2]);
     }
 
@@ -533,7 +563,8 @@ mod tests {
         // a block not on any path: swap E for a detached block.
         function.blocks[4].id = SelectedBlockId(9);
         function.blocks[3].terminator = ret(53);
-        let crossing = crossed_window(&function, 0, 2, 2, 4, 0, 64).unwrap();
+        let crossing =
+            crossed_window(&function, 0, 2, 2, 4, 0, CrossingDirection::Forward, 64).unwrap();
         assert!(!crossing.reachable);
         assert!(crossing.edges.is_empty());
     }
@@ -544,7 +575,8 @@ mod tests {
         // D loops back to A: the acyclic A→D paths are unchanged — the
         // back-edge can never appear on an acyclic A→D path.
         function.blocks[3].terminator = jump(53, BLOCK_A, 14);
-        let crossing = crossed_window(&function, 0, 2, 2, 3, 0, 64).unwrap();
+        let crossing =
+            crossed_window(&function, 0, 2, 2, 3, 0, CrossingDirection::Forward, 64).unwrap();
         assert!(crossing.reachable);
         assert!(!edge_pairs(&crossing).contains(&(BLOCK_D, BLOCK_A)));
     }
@@ -554,6 +586,6 @@ mod tests {
         let function = diamond();
         // The diamond needs at least two edges per path; a limit of one
         // exhausts mid-walk and must not report a partial path set.
-        assert!(crossed_window(&function, 0, 2, 2, 3, 0, 1).is_none());
+        assert!(crossed_window(&function, 0, 2, 2, 3, 0, CrossingDirection::Forward, 1).is_none());
     }
 }
