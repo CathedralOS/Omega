@@ -12094,6 +12094,8 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   callsites remain in `compilation-report`. No callsite change that would
   reopen the closed residual.
 - **PROGRAM-ENTRY-SELECTION-EXACTNESS.** — mined candidate; residual slice
+  resolved on the sibling row below (landed `c17107578f`, re-witnessed
+  `832c55e69b`).
 - **PRODUCER-CHECKER-DECISION-SHARING-AUDIT** — mined candidate; bounded audit at `8734480a01`, re-verified at `f44a1177ed` (all four mechanisms unchanged), no decision sharing found on the named reuse surfaces. `proof/src/checker/derivation_cache.rs` retains only kernel-accepted certificates and every consult re-runs `candidate.verify()` through the admission kernel — a hit is a re-checked reuse, not a trusted verdict (hits rejected by the kernel fall through to fresh derivation). `component-description`'s `verify` re-derives subject/schema/entries/custody/assumptions from bytes with the expected subject caller-supplied (substitution tests prove independent replay). `build-evaluation/src/provider_settlement/independent_components.rs::verify_independent_component_descriptions` re-verifies every attached description under the build's own admission profile, never the producer's accept. PCC admission replays normalized rows against closed target specs per `machine_state_evidence.md`. Residual: an exhaustive whole-tree audit of every verifier callsite is open, but the four decision-adjacent reuse mechanisms are each independently checked.
 - **PRODUCER-HISTORY-CUSTODY** — mined candidate; verify scope then implement.
 - **PROGRAM-ENTRY-SELECTION-EXACTNESS** — mined candidate; residual slice
@@ -12121,6 +12123,10 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   Note: the `compiler` test binary currently requires a local stub for the
   sibling half-landed `ComponentEraJournalRoster` consumer (`2d8c5136cc9`
   after `20bd592af14`) — unrelated to this change; stub kept uncommitted.
+  Re-witnessed at `832c55e69b` on linux x86-64 under this dispatch: the
+  sibling consumer has since landed, so no stub is needed —
+  `cargo nextest run -p compiler -E 'test(selected_program_entry_dispatches_by_exact_symbol_not_spelling)'`
+  compiles clean and passes 1/1 (20.4s).
 - **PROOF-AUTOMATION-WIDENING.** Verified `ac4e4eee9b`, re-verified
   `1edade1a480`: this names widening
   the bounded source-automation fragment in `validation/src/proof_contracts/
