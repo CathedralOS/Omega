@@ -14113,6 +14113,11 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   `fail_canaries_reject_with_expected_diagnostic_fragment` PASS (0.6s) —
   all five custody-named fixtures still reject with their pinned
   fragments; the verdict stands.
+  Re-verified at `b868b9ee8f27` (linux x86-64, zergling-111): the same
+  filtered run passes in 0.77s — all five custody-named fail fixtures
+  still reject with their pinned fragments. The drift census and the
+  silent acceptances remain RC-DIAGNOSTICS-GATE's named lane; no
+  custody-specific stale-expectation slice exists on this row.
 - **SUPPLIED-BYTES-SCAN.** Scope verified — real item, no bounded slice exists inside this repo's board. The stub names the Squalr submodule's ordered execution row (`samples/apps/squalr/TASKS.md`): port the scalar scan, snapshot storage, comparison dispatch, RLE encoder and query path through squalr-engine-api + squalr-engine-scanning — a multi-session port inside a submodule whose own AGENTS.md forbids placeholder bodies and requires the unchanged application command as outer acceptance. The submodule path is additionally wholesale-fenced at verification time (SQUALR-TARGETS-AND-THROUGHPUT, exp 21:39Z) and per the submodule's ordering it precedes CLI-COMMANDS, which gates on this row landing first. Execution belongs to the submodule's own lane under its pin — not a parent-repo slice; SQUALR-SUPPLIED-BYTES-SCAN is a sibling stub naming the same row.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
   rank-range endpoints expressed as field chains are landed and green.
