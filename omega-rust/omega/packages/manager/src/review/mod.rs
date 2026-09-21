@@ -10,8 +10,7 @@ mod symbolic_boundary_applications;
 
 pub(crate) use candidate::{
     compile_resolved_package_candidate_for_check,
-    compile_resolved_package_candidate_for_check_with_checkpoint,
-    verify_transitive_source_custody,
+    compile_resolved_package_candidate_for_check_with_checkpoint, verify_transitive_source_custody,
 };
 
 pub use audit::{
@@ -65,8 +64,7 @@ pub use reconstruction::{
     bind_fresh_package_root_policy,
 };
 pub use restricted_build_grants::{
-    RestrictedBuildCheckpoint, UngrantedRestrictedBuildRequest,
-    ungranted_restricted_build_requests,
+    RestrictedBuildCheckpoint, UngrantedRestrictedBuildRequest, ungranted_restricted_build_requests,
 };
 pub use symbolic_boundary_applications::{
     ClosedSuppliedBoundaryApplicationDemand, ClosedSuppliedBoundaryApplicationDemands,
