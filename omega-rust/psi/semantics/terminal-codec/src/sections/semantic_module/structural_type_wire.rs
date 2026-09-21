@@ -40,6 +40,10 @@ pub(crate) fn encode_structural_type(
                 }
             }
         }
+        StructuralTypeShape::ElementView { element } => {
+            writer.u8(8);
+            writer.id(*element);
+        }
         StructuralTypeShape::Record { fields } => {
             writer.u8(1);
             writer.len("structural fields", fields.len())?;
@@ -97,6 +101,9 @@ pub(crate) fn decode_structural_type(
         6 => StructuralTypeShape::PrimitiveScalar(decode_scalar_type(reader)?),
         1 => StructuralTypeShape::Record {
             fields: decode_counted(reader, decode_structural_field)?,
+        },
+        8 => StructuralTypeShape::ElementView {
+            element: reader.id("StructuralTypeId")?,
         },
         2 => StructuralTypeShape::FixedArray {
             element: reader.id("StructuralTypeId")?,

@@ -100,7 +100,42 @@ do
   git -C "$FIXTURE_ROOT" rm -q --cached "$tree/retired/unexpected.source"
   rm "$FIXTURE_ROOT/$tree/retired/unexpected.source"
 done
+# Gate-local prefix entries are bound subjects: corrupting one must fail the
+# chain gate even though every canonical compiler closure stays byte-exact.
+printf 'x' >> "$FIXTURE_ROOT/tests/delta/staged-compiler/development_driver.gamma"
+expect_result rejected 'modified staged-compiler prefix entry' 'development_driver.gamma'
+git -C "$FIXTURE_ROOT" checkout -- tests/delta/staged-compiler/development_driver.gamma
+
+printf 'x' >> "$FIXTURE_ROOT/tests/bootstrap/omega-parser/main.epsilon"
+expect_result rejected 'modified parser-gate prefix entry' 'main.epsilon'
+git -C "$FIXTURE_ROOT" checkout -- tests/bootstrap/omega-parser/main.epsilon
+
+printf 'x' >> "$FIXTURE_ROOT/tests/bootstrap/omega-executable/controls_b.epsilon"
+expect_result rejected 'modified executable-gate prefix entry' 'controls_b.epsilon'
+git -C "$FIXTURE_ROOT" checkout -- tests/bootstrap/omega-executable/controls_b.epsilon
+
 git -C "$FIXTURE_ROOT" add -f source/retired/.DS_Store
 expect_result rejected 'tracked file matching an ignore pattern'
+git -C "$FIXTURE_ROOT" rm -q --cached source/retired/.DS_Store
+rm "$FIXTURE_ROOT/source/retired/.DS_Store"
+expect_result accepted 'clean checkout once the retired owner is removed'
 
-echo 'bootstrap owner inventory: 16 archive, checkout, and flat-layout cases pass'
+# Rust-producer omission: no produced closure's declared dependency set may
+# carry an omega-rust/ artifact, a Rust-toolchain build step, or a
+# checkout-derived path (omega-rust/README.md).
+mkdir -p "$FIXTURE_ROOT/tools/bootstrap/omega"
+printf 'cargo build --release\n' > "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
+expect_result rejected 'bootstrap step invoking the Rust toolchain' \
+  'produced closure carries the Rust producer'
+rm "$FIXTURE_ROOT/tools/bootstrap/omega/forged_env.sh"
+cp "$FIXTURE_ROOT/bootstrap/5_omega/omega_compiler.epsilon.sources" \
+  "$FIXTURE_PARENT/omega_compiler.epsilon.sources"
+printf 'member 0000000000000000000000000000000000000000000000000000000000000009 1 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 omega-rust/forged.epsilon\n' \
+  >> "$FIXTURE_ROOT/bootstrap/5_omega/omega_compiler.epsilon.sources"
+expect_result rejected 'manifest member inside omega-rust/' \
+  'produced closure carries the Rust producer'
+cp "$FIXTURE_PARENT/omega_compiler.epsilon.sources" \
+  "$FIXTURE_ROOT/bootstrap/5_omega/omega_compiler.epsilon.sources"
+expect_result accepted 'restored manifests omit the Rust producer again'
+
+echo 'bootstrap owner inventory: 23 archive, checkout, flat-layout, gate-prefix, and Rust-producer omission cases pass'

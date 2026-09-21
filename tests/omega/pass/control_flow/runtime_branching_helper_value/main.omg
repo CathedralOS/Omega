@@ -4,7 +4,8 @@ data Main {
 
 machine Main::main(&mut self) {
     let flag: bool = true;
-    self.out = self.pick(flag);
+    let picked: i32 = self.pick(flag);
+    self.out = picked;
 }
 
 machine Main::pick(&mut self, flag: bool) -> i32 {

@@ -91,93 +91,93 @@ pub(crate) fn validate_with_const_resolution_mode(
     // generic operator selects by its qualified or imported spelling exactly
     // like a non-generic sibling.
     for item in syntax.root_items() {
-        // The `Some` arm slot is the fence for module-owned forms still
-        // awaiting namespace-aware normalization; every currently admitted
-        // form validates in place and yields `None`.
-        let unsupported: Option<(&syntax_trees::identifier::Identifier, &'static str)> = match item
+        // Module-owned constants validate their initializers in place under
+        // the same law: literal forms canonicalize or scalar-check, generic
+        // carriers select their exact base template, and nominal constants
+        // canonicalize against the selected declaration.
+        let Item::Const(constant) = item else {
+            continue;
+        };
+        if !module_sources.contains(&constant.name.source_span().source_id) {
+            continue;
+        }
+        if mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
+            && crate::constant::requires_const_initializer_evaluation(syntax, constant)
         {
-            Item::Const(constant)
-                if module_sources.contains(&constant.name.source_span().source_id) =>
-            {
-                if mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
-                    && crate::constant::requires_const_initializer_evaluation(syntax, constant)
-                {
-                    // Only value admission is deferred. Ordinary resolution
-                    // still validates the declaration's namespace and carrier.
-                    None
-                } else if module_literal_constant(syntax, constant) {
-                    if matches!(
-                        syntax
-                            .type_references
-                            .type_reference(constant.type_reference),
-                        TypeReferenceNode::FixedArray { .. }
-                    ) {
-                        crate::preparation::generic_data::canonicalize_declared_const_definition(
-                            syntax, constant,
-                        )
-                        .map_err(|reason| {
-                            vec![
-                                Diagnostic::error(format!(
-                                    "module array constant `{}` is invalid: {reason}",
-                                    constant.name.as_str()
-                                ))
-                                .with_source_span(constant.name.source_span()),
-                            ]
-                        })?;
-                    } else {
-                        crate::constant::validate_scalar_initializer(syntax, constant).map_err(
-                            |reason| {
-                                vec![
-                                    Diagnostic::error(format!(
-                                        "module scalar constant `{}` is invalid: {reason}",
-                                        constant.name.as_str()
-                                    ))
-                                    .with_source_span(constant.name.source_span()),
-                                ]
-                            },
-                        )?;
-                    }
-                    None
-                } else if let Some(base_name) = generic_const_carrier_leaf(syntax, constant) {
-                    // A `Box<u64>`-style carrier cannot hold a canonical
-                    // const-index identity before its closed instance exists,
-                    // so value admission defers to lowering exactly as for a
-                    // root constant: the base template still selects exactly in
-                    // the declaring source now, and every use destination-
-                    // checks the substituted initializer.
-                    let selected = selection.data(syntax, base_name).and_then(|definition| {
-                        if definition.type_parameters.is_empty() {
-                            Err(format!(
-                                "`{base_name}` does not select a generic data template"
-                            ))
-                        } else {
-                            Ok(())
-                        }
-                    });
-                    selected.map_err(|reason| {
+            // Only value admission is deferred. Ordinary resolution
+            // still validates the declaration's namespace and carrier.
+        } else if module_literal_constant(syntax, constant) {
+            if matches!(
+                syntax
+                    .type_references
+                    .type_reference(constant.type_reference),
+                TypeReferenceNode::FixedArray { .. }
+            ) {
+                crate::preparation::generic_data::canonicalize_declared_const_definition(
+                    syntax, constant,
+                )
+                .map_err(|reason| {
+                    vec![
+                        Diagnostic::error(format!(
+                            "module array constant `{}` is invalid: {reason}",
+                            constant.name.as_str()
+                        ))
+                        .with_source_span(constant.name.source_span()),
+                    ]
+                })?;
+            } else {
+                crate::constant::validate_scalar_initializer(syntax, constant).map_err(
+                    |reason| {
                         vec![
                             Diagnostic::error(format!(
-                                "module-owned nominal constant `{}` is invalid: {reason}",
-                                constant.name
+                                "module scalar constant `{}` is invalid: {reason}",
+                                constant.name.as_str()
                             ))
                             .with_source_span(constant.name.source_span()),
                         ]
-                    })?;
-                    None
-                } else {
-                    crate::preparation::generic_data::canonicalize_selected_declared_const_definition(syntax, constant, Some(selection))
-                        .map_err(|reason| vec![Diagnostic::error(format!(
-                            "module-owned nominal constant `{}` is invalid: {reason}", constant.name
-                        )).with_source_span(constant.name.source_span())])?;
-                    None
-                }
+                    },
+                )?;
             }
-            _ => None,
-        };
-        if let Some((name, message)) = unsupported {
-            return Err(vec![
-                Diagnostic::error(message).with_source_span(name.source_span()),
-            ]);
+        } else if let Some(base_name) = generic_const_carrier_leaf(syntax, constant) {
+            // A `Box<u64>`-style carrier cannot hold a canonical
+            // const-index identity before its closed instance exists,
+            // so value admission defers to lowering exactly as for a
+            // root constant: the base template still selects exactly in
+            // the declaring source now, and every use destination-
+            // checks the substituted initializer.
+            let selected = selection.data(syntax, base_name).and_then(|definition| {
+                if definition.type_parameters.is_empty() {
+                    Err(format!(
+                        "`{base_name}` does not select a generic data template"
+                    ))
+                } else {
+                    Ok(())
+                }
+            });
+            selected.map_err(|reason| {
+                vec![
+                    Diagnostic::error(format!(
+                        "module-owned nominal constant `{}` is invalid: {reason}",
+                        constant.name
+                    ))
+                    .with_source_span(constant.name.source_span()),
+                ]
+            })?;
+        } else {
+            crate::preparation::generic_data::canonicalize_selected_declared_const_definition(
+                syntax,
+                constant,
+                Some(selection),
+            )
+            .map_err(|reason| {
+                vec![
+                    Diagnostic::error(format!(
+                        "module-owned nominal constant `{}` is invalid: {reason}",
+                        constant.name
+                    ))
+                    .with_source_span(constant.name.source_span()),
+                ]
+            })?;
         }
     }
 

@@ -1,0 +1,8 @@
+// `units` owns a carrier-qualified domain and the `+` operator home on
+// domain-constrained parameters, selected by its declared module path.
+
+module units;
+
+pub domain u64::Distance requires self > 0;
+
+pub operator + u64::Distance::add(left: u64 in u64::Distance, right: u64 in u64::Distance) -> u64 in u64::Distance;

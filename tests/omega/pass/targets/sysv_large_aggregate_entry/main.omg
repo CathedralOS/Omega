@@ -1,9 +1,9 @@
 // A pure-integer record above two eightbytes is SysV MEMORY class and arrives
 // by value in the incoming stack-argument area.
 pub data Triple {
-    first: u64;
-    second: u64;
-    third: u64;
+    first: u64 [0..=100];
+    second: u64 [0..=100];
+    third: u64 [0..=100];
 }
 
 pub data Main { observed: u64; }

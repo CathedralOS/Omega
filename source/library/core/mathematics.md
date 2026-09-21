@@ -16,9 +16,15 @@ rational theory, not a separate private one.
 [Cauchy obligations](cauchy.omg) use static generator/modulus machines in the
 currently expressible pointwise proofs. The target witness-bundle construction
 must also reason with abstract mathematical moduli: transitivity composes
-`M3(e) = max(M1(2e), M2(2e))` and the rational triangle law without evaluating
-either hidden modulus at a numeral. Existing pointwise machines do not establish
-that general function/predicate binders or the full quotient are implemented.
+`M3(e) = nat_max(M1(2e), M2(2e))` and the rational triangle law without
+evaluating either hidden modulus at a numeral. `doubled_nat_max_modulus` and
+`doubled_nat_max_threshold` now carry that composition as ordinary static
+machines, discharged through `nat_max` order lemmas in
+[nat_metric](nat_metric.omg). The heterogeneous transitivity theorem itself
+still awaits two entailment-tier capabilities noted in cauchy.omg — the same
+gaps that keep `converges_together_at_triangle_split` from verifying. Existing
+pointwise machines do not establish that general function/predicate binders or
+the full quotient are implemented.
 
 [Real](real.omg) remains a temporary opaque axiomatic package with separately
 admitted laws. It is not yet the intended Cauchy quotient, a native primitive,

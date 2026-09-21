@@ -59,14 +59,13 @@ fn named_float_requirements_route_through_executable_semantics() {
     let main_path = write_program(
         "named-float-requirements",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
 use omega::language::core::float_operations;
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     zero: f64;
     nan: f64;
     class: FloatClass;
@@ -125,14 +124,13 @@ fn named_float_saturating_policy_clamps_ternary_overflow() {
     let main_path = write_program(
         "named-float-saturating-policy",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
 use omega::language::core::float_operations;
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     maximum: f32 in Saturating;
     two: f32 in Saturating;
     zero: f32 in Saturating;
@@ -297,15 +295,14 @@ fn range_as_let_initializer_is_frontend_rejected() {
     frontend_rejects(
         "range-let",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let r: i32 = 1..5;
     self.console.exit_process(0);
 }
@@ -319,15 +316,14 @@ fn range_as_call_argument_is_frontend_rejected() {
     frontend_rejects(
         "range-arg",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let n: i32 = self.take(1..5);
     self.console.exit_process(n);
 }
@@ -350,9 +346,8 @@ fn case_payload_construction_and_binding_deliver_payload() {
     let main_path = write_program(
         "case-payload-bind",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 data Command {
     case None;
@@ -361,7 +356,7 @@ data Command {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cmd: Command;
 }
 
@@ -406,9 +401,8 @@ fn case_equality_is_tag_only_and_mismatched_tag_falls_through() {
     let main_path = write_program(
         "case-payload-tag-equality",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 data Command {
     case None;
@@ -417,7 +411,7 @@ data Command {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cmd: Command;
     other: Command;
 }
@@ -468,9 +462,8 @@ fn case_payload_multi_field_binding_with_guard() {
     let main_path = write_program(
         "case-payload-multi-bind",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 data Command {
     case None;
@@ -478,7 +471,7 @@ data Command {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     cmd: Command;
 }
 
@@ -524,9 +517,8 @@ fn paren_variant_construction_is_frontend_rejected() {
     frontend_rejects(
         "case-paren-construct",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 data Token {
     case Number;
@@ -534,10 +526,10 @@ data Token {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let t: Token = Token::Number(5);
     self.console.exit_process(0);
 }
@@ -558,9 +550,8 @@ fn dyn_two_impl_dispatch_selects_impl_by_runtime_type() {
     let main_path = write_program(
         "dyn-two-impls",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;
@@ -587,7 +578,7 @@ SquareShape: Square satisfies Shape {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     c: Circle;
     q: Square;
 }
@@ -632,9 +623,8 @@ fn dyn_two_impl_dispatch_swapped_order() {
     let main_path = write_program(
         "dyn-two-impls-swapped",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;
@@ -661,7 +651,7 @@ SquareShape: Square satisfies Shape {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     c: Circle;
     q: Square;
 }
@@ -787,9 +777,8 @@ fn wire_borrowed_byte_slice_field_round_trips() {
     let main_path = write_program(
         "wire-borrowed-byte-slice-roundtrip",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 data Blob {
     #0 bytes: &[u8];
@@ -805,7 +794,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     source: [u8; 4];
     buffer: [u8; 64];
     written: u64;
@@ -859,9 +848,8 @@ fn wire_borrowed_scalar_slice_encodes_packed_varints() {
     let main_path = write_program(
         "wire-borrowed-scalar-slice-encode",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 data Telemetry {
     #0 readings: &[i32];
@@ -872,7 +860,7 @@ data TelemetrySample {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     source: [i32; 4];
     buffer: [u8; 64];
     written: u64;
@@ -924,11 +912,10 @@ machine Main::main(&mut self) reaches Console {
 // being re-declared inline here — so these interpreter tests exercise the exact
 // shipped boundary surface.
 const FS_PRELUDE: &str = r#"
+use omega::language::core::service;
+use omega::language::std::console;
 use omega::language::std::filesystem_host;
 
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
 "#;
 
 /// Run `FS_PRELUDE ++ body` through the frontend + interpreter, asserting a
@@ -958,15 +945,18 @@ fn filesystem_path_subslice_domain() {
     interpret_fs(
         "fs-path-subslice",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     k: u64;
     rc: i32;
     ck: i32;
     buffer: [u8; 144];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.mk("/adir/x");
 }
 machine Main::mk(&mut self, path: &[u8] in Path) reaches Console + FilesystemHost {
@@ -1003,6 +993,8 @@ fn filesystem_path_carrier_concat() {
     interpret_fs(
         "fs-path-concat",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
 domain [u8; 32]::Path
 requires
     no_nul(self)
@@ -1010,7 +1002,7 @@ domain [u8; 64]::Path
 requires
     no_nul(self)
 data Main {
-    console: Console;
+    console: Service<Console>;
     parent: [u8; 32] in Path;
     child: [u8; 64] in Path;
 }
@@ -1042,9 +1034,12 @@ fn filesystem_openat_unlinkat() {
     interpret_fs(
         "fs-at-ops",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     dirfd: i32;
     fd: i32;
     rc: i32;
@@ -1099,12 +1094,13 @@ fn filesystem_std_module_remove_dir_all() {
     let main_path = write_program(
         "fs-std-rda",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     close_rc: i32;
@@ -1174,9 +1170,12 @@ fn filesystem_value_returning_crud_round_trip() {
     interpret_fs(
         "fs-vr-crud",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     mode: i32;
     read_flags: i32;
     cap: u64;
@@ -1220,9 +1219,12 @@ fn filesystem_value_returning_append() {
     interpret_fs(
         "fs-vr-append",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     mode: i32;
     append_flags: i32;
     read_flags: i32;
@@ -1272,9 +1274,12 @@ fn filesystem_value_returning_seek_and_missing() {
     interpret_fs(
         "fs-vr-seek",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     mode: i32;
     zero: i64;
     seek_end: i32;
@@ -1315,9 +1320,12 @@ fn filesystem_value_returning_dirs_and_rename() {
     interpret_fs(
         "fs-vr-dirs",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     mode: i32;
     read_flags: i32;
     cap: u64;
@@ -1375,13 +1383,16 @@ fn filesystem_ergonomic_wrapper_crud() {
     interpret_fs(
         "fs-ergonomic",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data File [copy] { fd: i32; }
 data OpenResult { case Error; case Ok(file: File); }
 data IoResult { case Error; case Ok(count: u64); }
 data UnitResult { case Error; case Ok; }
 
 data Filesystem {
-    host: FilesystemHost;
+    host: Service<FilesystemHost>;
     create_mode: i32;
     read_flags: i32;
 }
@@ -1423,7 +1434,7 @@ machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult reaches
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -1483,12 +1494,13 @@ fn filesystem_std_module_create_dir_all() {
     let main_path = write_program(
         "fs-std-cda",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     a: bool;
     ab: bool;
@@ -1534,12 +1546,13 @@ fn filesystem_std_module_read_dir_count() {
     let main_path = write_program(
         "fs-std-readdir",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     open_result: OpenResult;
@@ -1590,12 +1603,13 @@ fn filesystem_std_module_read_dir_stats() {
     let main_path = write_program(
         "fs-std-dirstats",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     stats_result: DirStatsResult;
     open_result: OpenResult;
@@ -1654,12 +1668,13 @@ fn filesystem_std_module_read_dir_nth() {
     let main_path = write_program(
         "fs-std-readdir-nth",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     entry_result: DirEntryResult;
     open_result: OpenResult;
@@ -1731,12 +1746,13 @@ fn filesystem_std_module_read_dir_is_empty() {
     let main_path = write_program(
         "fs-std-isempty",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     empty_result: EmptyResult;
     open_result: OpenResult;
@@ -1786,12 +1802,13 @@ fn filesystem_std_module_read_dir_iteration_loop() {
     let main_path = write_program(
         "fs-std-readdir-loop",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     entry_result: DirEntryResult;
@@ -1871,12 +1888,13 @@ fn filesystem_std_module_ergonomic_crud() {
     let main_path = write_program(
         "fs-std-module",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -1936,9 +1954,12 @@ fn filesystem_value_returning_set_len() {
     interpret_fs(
         "fs-vr-setlen",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     mode: i32;
     new_len: i64;
     zero: i64;
@@ -1981,12 +2002,13 @@ fn filesystem_std_module_metadata_len() {
     let main_path = write_program(
         "fs-metadata",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     meta_result: MetadataResult;
@@ -2046,12 +2068,13 @@ fn filesystem_std_module_file_metadata() {
     let main_path = write_program(
         "fs-file-metadata",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     meta_result: MetadataResult;
@@ -2115,12 +2138,13 @@ fn filesystem_std_module_positioned_io() {
     let main_path = write_program(
         "fs-positioned-io",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     io_result: IoResult;
@@ -2189,12 +2213,13 @@ fn filesystem_std_module_set_times() {
     let main_path = write_program(
         "fs-set-times",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     meta_result: MetadataResult;
@@ -2246,12 +2271,13 @@ fn filesystem_std_module_metadata_nlink() {
     let main_path = write_program(
         "fs-nlink",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -2292,12 +2318,13 @@ fn filesystem_std_module_metadata_ext() {
     let main_path = write_program(
         "fs-metadata-ext",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -2343,12 +2370,13 @@ fn filesystem_std_module_metadata_ctime_dev() {
     let main_path = write_program(
         "fs-metadata-ctime-dev",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -2395,12 +2423,13 @@ fn filesystem_std_module_metadata_blocks() {
     let main_path = write_program(
         "fs-metadata-blocks",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -2446,12 +2475,13 @@ fn filesystem_std_module_sync() {
     let main_path = write_program(
         "fs-sync",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -2498,12 +2528,13 @@ fn filesystem_std_module_sync_data() {
     let main_path = write_program(
         "fs-sync-data",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -2552,12 +2583,13 @@ fn filesystem_std_module_open_options() {
     let main_path = write_program(
         "fs-openopts",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     meta_result: MetadataResult;
@@ -2634,12 +2666,13 @@ fn filesystem_std_module_whole_file_helpers() {
     let main_path = write_program(
         "fs-wholefile",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     cap: u64;
@@ -2692,9 +2725,12 @@ fn filesystem_value_returning_read_dir() {
     interpret_fs(
         "fs-vr-readdir",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
@@ -2766,9 +2802,12 @@ fn filesystem_read_dir_iteration() {
     interpret_fs(
         "fs-readdir-iter",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
@@ -2854,9 +2893,12 @@ fn filesystem_value_returning_errno() {
     interpret_fs(
         "fs-vr-errno",
         r#"
+use omega::language::core::service;
+use omega::language::std::console;
+use omega::language::std::filesystem_host;
 data Main {
-    fs: FilesystemHost;
-    console: Console;
+    fs: Service<FilesystemHost>;
+    console: Service<Console>;
     rdonly: i32;
     mode: i32;
     fd: i32;
@@ -2900,19 +2942,20 @@ fn filesystem_std_module_error_kind() {
     let main_path = write_program(
         "fs-errorkind",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     unit_result: UnitResult;
 }
 machine Main::main(&mut self) reaches Console {
-    self.open_result = self.fs.open("/absent.txt");
+    let open_outcome: OpenResult = self.fs.open("/absent.txt");
     // The failure self-describes: the kind is embedded in the Error case.
-    transition self.open_result { OpenResult::Error { kind } -> not_found(kind) _ -> fail() }
+    transition open_outcome { OpenResult::Error { kind } -> not_found(kind) _ -> fail() }
     state not_found(&mut self, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> make_dir() _ -> fail() }
     }
@@ -2921,8 +2964,8 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> make_dir_again() _ -> fail() }
     }
     state make_dir_again(&mut self) {
-        self.unit_result = self.fs.create_dir("/d");
-        transition self.unit_result { UnitResult::Error { kind } -> already_exists(kind) _ -> fail() }
+        let unit_outcome: UnitResult = self.fs.create_dir("/d");
+        transition unit_outcome { UnitResult::Error { kind } -> already_exists(kind) _ -> fail() }
     }
     state already_exists(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove_dir("/d");
@@ -2952,12 +2995,13 @@ fn filesystem_std_module_path_queries() {
     let main_path = write_program(
         "fs-pathquery",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
     present: bool;
@@ -3019,12 +3063,13 @@ fn filesystem_std_module_copy() {
     let main_path = write_program(
         "fs-copy",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     meta_result: MetadataResult;
@@ -3097,12 +3142,13 @@ fn filesystem_std_module_is_a_directory() {
     let main_path = write_program(
         "fs-isdir",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     write_opts: OpenOptions;
@@ -3112,8 +3158,8 @@ machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.create_dir("/d");
     transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
     state openit(&mut self) {
-        self.open_result = self.fs.open_with("/d", self.write_opts);
-        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+        let open_outcome: OpenResult = self.fs.open_with("/d", self.write_opts);
+        transition open_outcome { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
     }
     state classify(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove_dir("/d");
@@ -3143,12 +3189,13 @@ fn filesystem_std_module_set_permissions() {
     let main_path = write_program(
         "fs-perms",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     read_only: Permissions;
@@ -3164,8 +3211,8 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> trywrite() _ -> fail() }
     }
     state trywrite(&mut self) {
-        self.open_result = self.fs.open_with("/p.txt", self.write_opts);
-        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+        let open_outcome: OpenResult = self.fs.open_with("/p.txt", self.write_opts);
+        transition open_outcome { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
     }
     state classify(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/p.txt");
@@ -3207,12 +3254,13 @@ fn filesystem_std_module_hard_link() {
         "fs-hardlink",
         &format!(
             r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {{
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     cap: u64;
@@ -3229,8 +3277,8 @@ machine Main::main(&mut self) reaches Console {{
     }}
     state dupfails(&mut self) {{
         // linking onto an existing name refuses (kind per the host target)
-        self.unit_result = self.fs.hard_link("/orig.txt", "/alias.txt");
-        transition self.unit_result {{ UnitResult::Error {{ kind }} -> checkdup(kind) _ -> fail() }}
+        let unit_outcome: UnitResult = self.fs.hard_link("/orig.txt", "/alias.txt");
+        transition unit_outcome {{ UnitResult::Error {{ kind }} -> checkdup(kind) _ -> fail() }}
     }}
     state checkdup(&mut self, kind: ErrorKind) {{
         transition kind {{ {dup_kind} -> dropsrc() _ -> fail() }}
@@ -3274,12 +3322,13 @@ fn filesystem_std_module_metadata_is_dir() {
     let main_path = write_program(
         "fs-isdir-meta",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3334,12 +3383,13 @@ fn filesystem_std_module_metadata_permissions() {
     let main_path = write_program(
         "fs-meta-perms",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
     read_only: Permissions;
@@ -3406,12 +3456,13 @@ fn filesystem_std_module_metadata_modified() {
     let main_path = write_program(
         "fs-meta-mtime",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3455,12 +3506,13 @@ fn filesystem_std_module_metadata_times() {
     let main_path = write_program(
         "fs-meta-times",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3505,11 +3557,12 @@ fn filesystem_std_module_permissions_set_readonly() {
     let main_path = write_program(
         "fs-perm-setro",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     perms: Permissions;
 }
 machine Main::main(&mut self) reaches Console {
@@ -3554,12 +3607,13 @@ fn filesystem_std_module_set_file_permissions() {
     let main_path = write_program(
         "fs-fchmod",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     unit_result: UnitResult;
     read_only: Permissions;
@@ -3579,8 +3633,8 @@ machine Main::main(&mut self) reaches Console {
         transition rc == 0 { true -> trywrite() _ -> trywrite() }
     }
     state trywrite(&mut self) {
-        self.open_result = self.fs.open_with("/ff.txt", self.write_opts);
-        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+        let open_outcome: OpenResult = self.fs.open_with("/ff.txt", self.write_opts);
+        transition open_outcome { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
     }
     state classify(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/ff.txt");
@@ -3616,12 +3670,13 @@ fn filesystem_std_module_symlink() {
     let main_path = write_program(
         "fs-symlink",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     cap: u64;
@@ -3674,12 +3729,13 @@ fn filesystem_std_module_symlink_metadata() {
     let main_path = write_program(
         "fs-symlink-meta",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3747,12 +3803,13 @@ fn filesystem_std_module_file_type() {
     let main_path = write_program(
         "fs-filetype",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3818,12 +3875,13 @@ fn filesystem_std_module_workflow() {
     let main_path = write_program(
         "fs-workflow",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
     open_result: OpenResult;
@@ -3917,12 +3975,13 @@ fn filesystem_std_module_create_new() {
     let main_path = write_program(
         "fs-create-new",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -3943,8 +4002,8 @@ machine Main::main(&mut self) reaches Console {
     }
     state reject(&mut self, count: u64) {
         // create_new on an existing path -> AlreadyExists (the atomic guarantee)
-        self.open_result = self.fs.create_new("/cn.txt");
-        transition self.open_result { OpenResult::Error { kind } -> checkexist(kind) _ -> fail() }
+        let open_outcome: OpenResult = self.fs.create_new("/cn.txt");
+        transition open_outcome { OpenResult::Error { kind } -> checkexist(kind) _ -> fail() }
     }
     state checkexist(&mut self, kind: ErrorKind) {
         transition kind { ErrorKind::AlreadyExists -> readback() _ -> fail() }
@@ -3998,12 +4057,13 @@ fn filesystem_std_module_canonicalize() {
     let main_path = write_program(
         "fs-canonicalize",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     b0: u8;
     b1: u8;
@@ -4031,8 +4091,8 @@ machine Main::main(&mut self) reaches Console {
         transition self.b1 == 116 { true -> canonmissing() _ -> fail() }
     }
     state canonmissing(&mut self) {
-        self.unit_result = self.fs.canonicalize("/nope", &mut self.buffer);
-        transition self.unit_result { UnitResult::Error { kind } -> checkkind(kind) _ -> fail() }
+        let unit_outcome: UnitResult = self.fs.canonicalize("/nope", &mut self.buffer);
+        transition unit_outcome { UnitResult::Error { kind } -> checkkind(kind) _ -> fail() }
     }
     state checkkind(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/link");
@@ -4065,12 +4125,13 @@ fn filesystem_std_module_try_clone() {
     let main_path = write_program(
         "fs-try-clone",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     clone_result: OpenResult;
@@ -4131,12 +4192,13 @@ fn filesystem_std_module_locking() {
     let main_path = write_program(
         "fs-locking",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     second_result: OpenResult;
@@ -4199,12 +4261,13 @@ fn filesystem_std_module_ownership() {
     let main_path = write_program(
         "fs-ownership",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     rc: i32;
@@ -4214,8 +4277,8 @@ machine Main::main(&mut self) reaches Console {
     transition self.unit_result { UnitResult::Ok -> missing() _ -> fail() }
     state missing(&mut self) {
         // chown a path that does not exist -> NotFound
-        self.unit_result = self.fs.set_owner("/nope.txt", -1, -1);
-        transition self.unit_result { UnitResult::Error { kind } -> checkmissing(kind) _ -> fail() }
+        let unit_outcome: UnitResult = self.fs.set_owner("/nope.txt", -1, -1);
+        transition unit_outcome { UnitResult::Error { kind } -> checkmissing(kind) _ -> fail() }
     }
     state checkmissing(&mut self, kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> nooppath() _ -> fail() }
@@ -4236,9 +4299,9 @@ machine Main::main(&mut self) reaches Console {
     }
     state denyroot(&mut self, file: File) {
         // real change to root -> PermissionDenied
-        self.unit_result = self.fs.set_file_owner(file, 0, 0);
+        let unit_outcome: UnitResult = self.fs.set_file_owner(file, 0, 0);
         self.rc = self.fs.close(file);
-        transition self.unit_result { UnitResult::Error { kind } -> checkdenied(kind) _ -> fail() }
+        transition unit_outcome { UnitResult::Error { kind } -> checkdenied(kind) _ -> fail() }
     }
     state checkdenied(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/own.txt");
@@ -4269,12 +4332,13 @@ fn filesystem_std_module_try_exists() {
     let main_path = write_program(
         "fs-tryexists",
         r#"
+use omega::language::core::service;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Console;
+    console: Service<Console>;
     unit_result: UnitResult;
     exists_result: ExistsResult;
     no_access: Permissions;
@@ -4329,9 +4393,8 @@ fn match_terminal_tag_arithmetic_resolves_type_locally() {
     let main_path = write_program(
         "match-tag-type-local",
         r#"
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
+use omega::language::core::service;
+use omega::language::std::console;
 
 // Declared FIRST so a name-global variant scan would find ITS `Ok` (ordinal 0).
 data Decoy {
@@ -4345,7 +4408,7 @@ data Verdict {
 }
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     pick: i32;
     verdict: Verdict;
 }
@@ -4385,10 +4448,11 @@ fn console_byte_ops_echo_and_checksum() {
     let main_path = write_program(
         "console-byte-ops",
         r#"
+use omega::language::core::service;
 use omega::language::std::console;
 
 data Main {
-    console: Console;
+    console: Service<Console>;
     sum: i32 in Wrapping;
 }
 

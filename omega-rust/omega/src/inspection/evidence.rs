@@ -54,6 +54,7 @@ fn retain_bound(
         }
         Err(
             error @ (FixedFuelError::ControlCycle(_)
+            | FixedFuelError::UnboundedCycleComponent { .. }
             | FixedFuelError::CallCycle(_)
             | FixedFuelError::BranchingNotYetSupported(_)
             | FixedFuelError::NoTerminalPath(_)
@@ -76,6 +77,10 @@ mod tests {
         let machine = MachineId::new(1).unwrap();
         for reason in [
             FixedFuelError::ControlCycle(block),
+            FixedFuelError::UnboundedCycleComponent {
+                component: semantic_vocabulary::CycleComponentId::new(1).unwrap(),
+                cause: terminal_fixed_fuel::UnboundedCycleCause::Unranked,
+            },
             FixedFuelError::CallCycle(machine),
             FixedFuelError::BranchingNotYetSupported(block),
             FixedFuelError::NoTerminalPath(machine),

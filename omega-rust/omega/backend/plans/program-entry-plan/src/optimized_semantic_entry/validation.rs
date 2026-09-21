@@ -54,11 +54,25 @@ pub(super) fn validate(
                 .into(),
         ));
     }
-    if source.receiver() != &ProgramEntrySourceReceiverSignature::Free
-        || source.result() != ProgramEntrySourceResultSignature::Unit
-    {
+    // The semantic contract carries the selected source shape verbatim: a free
+    // Unit source and a source whose receiver the wrapper provisions as fresh
+    // mutable storage are both exact. The receiver's identity is part of the
+    // checked source signature, so its custody never re-derives from bytes.
+    match source.receiver() {
+        ProgramEntrySourceReceiverSignature::Free => {}
+        ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            normalized_type_identity,
+        } if !normalized_type_identity.is_empty() => {}
+        _ => {
+            return Err(ProgramStorageEntryDiagnostic(
+                "optimized semantic ProgramStorage entry requires an exact receiver signature"
+                    .into(),
+            ));
+        }
+    }
+    if source.result() != ProgramEntrySourceResultSignature::Unit {
         return Err(ProgramStorageEntryDiagnostic(
-            "optimized semantic ProgramStorage entry requires one receiver-free Unit source".into(),
+            "optimized semantic ProgramStorage entry requires one Unit source".into(),
         ));
     }
 

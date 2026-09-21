@@ -50,6 +50,7 @@ pub(in super::super) fn layout(
                     machine,
                     pre,
                     physical,
+                    layout.widened_branches.contains(&instruction.id),
                 )?;
             let byte_count = u64::try_from(bytes.len())
                 .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;

@@ -1,0 +1,14 @@
+// FAIL canary: a loan contained inside absent borrowed storage cannot form.
+// Moving `self.inventory` out opens a restoration window; while it is open,
+// borrowing a place inside the absent subtree reads storage the owner no
+// longer holds — the contained loan rejects before the restore can run.
+data Inventory { slots: i32; }
+data Main { inventory: Inventory; }
+
+machine Main::swap(&mut self) -> i32 {
+    let taken: Inventory = self.inventory;
+    let loan: &mut i32 = &mut self.inventory.slots;
+    self.inventory = move taken;
+    loan = 1;
+    0
+}

@@ -165,6 +165,7 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::StructuralCaseMembership { .. }
         | Instruction::EstablishByteSequenceLiteral { .. }
         | Instruction::ByteSequenceLength { .. }
-        | Instruction::BoundarySettlement(_) => false,
+        | Instruction::BoundarySettlement(_)
+        | Instruction::DynamicParameterCall(_) => false,
     }
 }

@@ -11,7 +11,7 @@ function runs one target loop: checking, trust admission, observations, then the
 requested product. There is no stateless wrapper object, finalizer callback, or
 second native scheduler.
 It prepares immutable source once, then drives each target's ordinary continuation.
-[Native input reuse](src/compiler/native/input_reuse.rs) retains exactly matching
+[Native input reuse](../native-realization/src/native_product/input_reuse.rs) retains exactly matching
 Terminal inputs as each target reaches realization. It does not retain every
 child's checked trees until a second scheduling pass. Product reports belong to
 their product owners; [package.rs](src/compiler/package.rs) owns package-custody
@@ -36,14 +36,14 @@ binding the exact build observation, logical paths, lengths and byte digests.
 Existing sets are checked against retained bytes, not trusted by directory name.
 Scratch never publishes, and a failed compilation returns no successful set. See
 [scoped build inputs](../../../../wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem).
-The [checked entrance](src/pipeline/checked_entry.rs) shows the lifecycle:
-[admit and execute the build, then continue generated source](src/pipeline/checked_entry/build_continuation.rs),
-[check selected execution](src/pipeline/checked_entry/execution_settlement.rs),
-then [seal the result against current source custody](src/pipeline/checked_entry/checked_compilation.rs).
+The [checked entrance](../../pipeline/assembled-syntax-to-checked-compilation/src/checking.rs) shows the lifecycle:
+[admit and execute the build, then continue generated source](../../pipeline/assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs),
+[check selected execution](../../pipeline/assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs),
+then [seal the result against current source custody](../../pipeline/assembled-syntax-to-checked-compilation/src/checking/checked_compilation.rs).
 The result retains the selected-execution settlement intact. Clones share program
-storage until mutation; review instantiation still uses mutable clones as scratch.
-Such mutation does not reseal evidence, and downstream reconstruction remains
-mandatory. `into_program` consumes the result and discards its compilation
+storage until mutation; review instantiation borrow-projects table rows rather
+than clone-rebuilding scratch. Any mutation does not reseal evidence, and
+downstream reconstruction remains mandatory. `into_program` consumes the result and discards its compilation
 evidence; compiler malformed-tree tests use that raw representation.
 
 Candidate discovery can supply `CheckedCompileRequest::prepared_source_output`
@@ -55,7 +55,7 @@ their before/after physical-source custody checks and final source-consumption
 verification. Retention copies parsed storage for the discovery child and holds
 that frontier until the final child consumes it; it is not a persistent cache.
 
-[Native compilation](src/compiler/native.rs) prepares and realizes the native
+[Native compilation](src/compiler/native/prepared.rs) prepares and realizes the native
 product; it is not owned by optional optimization or report writing. Re-entry
 from retained Terminal Psi uses `RetainedNativeRealizationRequest`. The current
 API threads a receiving policy alongside the image request; separating its
@@ -112,7 +112,7 @@ format and identities.
 
 ## Intrinsic settlement conversion
 
-[intrinsic_settlements.rs](src/compiler/intrinsic_settlements.rs) validates all
+[intrinsic_settlements.rs](../../build/provider-planning/src/compiler_intrinsics/mod.rs) validates all
 selected plan provenance, then joins sorted borrowed intrinsic rows to lexical
 Terminal demand. Original plan indices remain attached to each row. Duplicate
 demanded rows reject; undemanded rows need no executable proposal. One exhaustive
@@ -127,7 +127,7 @@ set, normalizes supported aliases, deduplicates and orders exact profiles by the
 trusted catalog, and rejects wildcards, empty or unknown selections. It neither
 infers targets nor certifies platform support.
 
-[Source preparation](src/pipeline/source_assembly/checkpoint.rs) retains immutable
+[Source preparation](../../pipeline/source-files-to-assembled-syntax/src/source_assembly/checkpoint.rs) retains immutable
 physical sources, unconditional imports and parse results once. Import discovery
 retains each authored occurrence's resolved destination and module requirement;
 symbol binding joins those destinations to parsed source IDs without reopening
@@ -157,7 +157,9 @@ Compilation collects one ordered outcome per target without fail-fast collection
 a shared preparation failure supplies the same diagnostics to all children.
 A target-specific malformed generated unit fails its child, not an unrelated
 sibling. Success retains the ordinary standalone artifact/manifest identity.
-The collection grants no batch manifest, support, test or audit claim.
+The collection carries an optional batch manifest binding the explicit target
+set and each child's commitment/outcome; it grants no support, test or audit
+claim.
 An absent target in a single configuration stays target-neutral for Check and
 Terminal production; Native resolves that convenience to Host. Multiple
 configurations require explicit exact targets. Configuration replacement does

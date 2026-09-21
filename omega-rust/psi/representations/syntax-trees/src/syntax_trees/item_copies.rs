@@ -529,6 +529,17 @@ impl SyntaxTrees {
             parents: self.copy_type_reference_handle_span(other, trait_definition.parents),
             requires: self.copy_item_identifier_span(other, trait_definition.requires),
             machines: self.copy_state_signature_handle_span(other, trait_definition.machines),
+            refines: trait_definition
+                .refines
+                .map(|base| self.copy_type_reference_handle(other, base)),
+            refinement_clauses: trait_definition
+                .refinement_clauses
+                .iter()
+                .map(|clause| crate::item::TraitRefinementClause {
+                    requirement: clause.requirement.clone(),
+                    signature: self.copy_state_signature_value(other, &clause.signature),
+                })
+                .collect(),
         }
     }
 

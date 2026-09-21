@@ -319,6 +319,11 @@ impl InstalledCodeEvidence {
             wx: installed.wx,
         }
     }
+
+    /// The audience the validated placement was installed under.
+    pub(crate) const fn audience(&self) -> InstallationAudience {
+        self.validated.audience
+    }
 }
 
 fn installed_artifact_occurrence_digest(
@@ -367,6 +372,7 @@ fn installed_artifact_occurrence_digest(
     digest.update([match validated.audience {
         InstallationAudience::DormantLocal => 1,
         InstallationAudience::FutureFetcher => 2,
+        InstallationAudience::PossibleCurrentExecutor => 3,
     }]);
     match constraints.permitted_range() {
         Some(range) => {

@@ -13,6 +13,12 @@ use semantic_vocabulary::{
 pub enum TargetBoundaryResult {
     Unit,
     Structural(TargetStructuralHomeRequirement),
+    /// One scalar value produced by the settlement's own emitted bytes and
+    /// retained as a known Unit-frame home (for example a direct `in al` port
+    /// read). The home names the source value, its exact type and its shape;
+    /// register placement stays a derived downstream fact, replayed from the
+    /// evaluated call plan rather than authored here.
+    Scalar(TargetUnitScalarHomeRequirement),
 }
 
 /// Exact source of one scalar argument in an ordered Unit body or graph.

@@ -1,23 +1,28 @@
 //! Optimizer module role: validation leaf. Independent plan replay and exact custody reconstruction.
 //!
-//! Validation never trusts the candidate's specialization rows: it re-derives
-//! the dispatch plan from the authenticated cycle roster and a recomputed
-//! sparse-constant analysis, requires the claimed rows to equal the replayed
-//! rows exactly, rebuilds the output itself, and binds the result through the
-//! candidate identity. The custody walk then proves the transformed function
-//! differs only at the fused predecessor sites and that each fused edge
-//! carries the incoming edge's custody followed by the resolved arm edge's —
-//! a forged or mismatched edge source changes the reconstructed function and
-//! fails the comparison before the transformed unit is re-validated.
+//! Validation never trusts the candidate's specialization rows: it re-admits
+//! every declared row against the shared admission predicates — the dispatch
+//! shape evidence and per-edge admissibility proposal also uses — without
+//! re-running the producer's own plan enumeration, requires the rows to be a
+//! sorted, distinct, strict subset of the incoming edges (fusing them all
+//! would orphan the dispatch state), rebuilds the output itself, and binds
+//! the result through the candidate identity. The custody walk then proves
+//! the transformed function differs only at the fused predecessor sites and
+//! that each fused edge carries the incoming edge's custody followed by the
+//! resolved arm edge's — a forged or mismatched edge source changes the
+//! reconstructed function and fails the comparison before the transformed
+//! unit is re-validated.
 
 use super::{
-    AnalysisProduct, DispatchSpecializationPlan, ProvenanceDisposition, ProvenanceRewrite,
-    PsiOptimizationUnit, PsiRealizationSite, StateArgumentSpecializationCandidate,
-    StateArgumentSpecializationError, ValidatedStateArgumentSpecialization,
-    VerifiedPsiOptimizationSession, apply, candidate_identity, compute_analysis, propose,
+    AnalysisProduct, DispatchSpecializationPlan, NodeLocation, ProvenanceDisposition,
+    ProvenanceRewrite, PsiOptimizationUnit, PsiRealizationSite, SpecializedStateEdge,
+    StateArgumentSpecializationCandidate, StateArgumentSpecializationError,
+    ValidatedStateArgumentSpecialization, VerifiedPsiOptimizationSession, admission, apply,
+    candidate_identity, compute_analysis,
 };
 use optimization_core::AnalysisKind;
 use semantic_vocabulary::MachineId;
+use std::collections::BTreeMap;
 
 pub(super) fn candidate(
     session: &VerifiedPsiOptimizationSession,
@@ -48,18 +53,67 @@ pub(super) fn candidate(
     else {
         return Err(StateArgumentSpecializationError::CandidateMismatch);
     };
-    let Some(plan) = propose::plan(unit, function, candidate.dispatch, &constants) else {
+    let Some(evidence) =
+        admission::dispatch_evidence(unit, function, candidate.dispatch, &constants)
+    else {
         return Err(StateArgumentSpecializationError::UnknownDispatch);
     };
-    if plan.edges.is_empty() {
+    if candidate.specializations.is_empty() {
         return Err(StateArgumentSpecializationError::AlreadySpecialized);
     }
-    if plan.machine != candidate.machine
-        || plan.dispatch != candidate.dispatch
-        || plan.edges != candidate.specializations
+    // The declared roster must be strictly ordered by supplying edge — that
+    // canonical order is also what rejects a duplicated incoming edge.
+    if candidate
+        .specializations
+        .windows(2)
+        .any(|pair| pair[0].incoming_edge() >= pair[1].incoming_edge())
     {
         return Err(StateArgumentSpecializationError::CandidateMismatch);
     }
+    // Fusing every incoming edge would leave the dispatch state unreachable;
+    // a declared set covering the complete incoming roster is refused.
+    if candidate.specializations.len()
+        >= admission::incoming_edges(function, candidate.dispatch).len()
+    {
+        return Err(StateArgumentSpecializationError::CandidateMismatch);
+    }
+    for declared in &candidate.specializations {
+        if declared.predecessor().machine != candidate.machine {
+            return Err(StateArgumentSpecializationError::CandidateMismatch);
+        }
+        let index = usize::try_from(declared.predecessor().node)
+            .map_err(|_| StateArgumentSpecializationError::CandidateMismatch)?;
+        let owner_node = function
+            .blocks
+            .iter()
+            .find(|block| block.id == declared.predecessor().block)
+            .and_then(|block| block.nodes.get(index))
+            .ok_or(StateArgumentSpecializationError::CandidateMismatch)?;
+        let edge = owner_node
+            .successors
+            .iter()
+            .find(|edge| {
+                edge.psi_edge == declared.incoming_edge() && edge.target == candidate.dispatch
+            })
+            .ok_or(StateArgumentSpecializationError::CandidateMismatch)?;
+        let admitted = admission::admit_incoming_edge(
+            &evidence,
+            declared.predecessor().block,
+            index,
+            owner_node,
+            edge,
+            &constants,
+        )
+        .ok_or(StateArgumentSpecializationError::CandidateMismatch)?;
+        if admitted != *declared {
+            return Err(StateArgumentSpecializationError::CandidateMismatch);
+        }
+    }
+    let plan = DispatchSpecializationPlan {
+        machine: candidate.machine,
+        dispatch: candidate.dispatch,
+        edges: candidate.specializations.clone(),
+    };
     let output = apply::realize(unit, &plan)?;
     let expected_identity = candidate_identity(
         unit.identity,
@@ -108,22 +162,30 @@ fn reconstruct_provenance(
         .find(|function| function.machine == machine)
         .ok_or(StateArgumentSpecializationError::UnknownDispatch)?;
     let mut expected_function = input_function.clone();
+    // Rows sharing one predecessor site — both constant arms of one
+    // conditional — fold into a single node reconstruction, matching
+    // application: applied independently, the later row would overwrite the
+    // earlier arm's fusion while this walk still claims both.
+    let mut sites = BTreeMap::<NodeLocation, Vec<&SpecializedStateEdge>>::new();
     for row in &plan.edges {
-        let index = usize::try_from(row.predecessor.node)
+        sites.entry(row.predecessor).or_default().push(row);
+    }
+    for (location, rows) in sites {
+        let index = usize::try_from(location.node)
             .map_err(|_| StateArgumentSpecializationError::CoordinateOverflow)?;
         let Some(slot) = expected_function
             .blocks
             .iter_mut()
-            .find(|block| block.id == row.predecessor.block)
+            .find(|block| block.id == location.block)
             .and_then(|block| block.nodes.get_mut(index))
         else {
             return Err(StateArgumentSpecializationError::MissingSite {
                 machine,
-                block: row.predecessor.block,
-                node: row.predecessor.node,
+                block: location.block,
+                node: location.node,
             });
         };
-        *slot = apply::fused_node(row, plan.dispatch, input_function)?;
+        *slot = apply::fused_node(&rows, plan.dispatch, input_function)?;
     }
     if *output_function != expected_function {
         return Err(StateArgumentSpecializationError::CandidateMismatch);
@@ -132,16 +194,19 @@ fn reconstruct_provenance(
 }
 
 /// The accepted custody ledger for one specialization plan: each fused edge
-/// records the incoming edge's retained occurrence, the resolved arm edge's
-/// fan-out onto the fused edge, and the resolved edge's surviving dispatch
-/// occurrence. Shared between bespoke validation and the pass rule's candidate
-/// construction so both publish identical provenance.
+/// records the incoming edge's retained occurrence and the resolved arm
+/// edge's fan-out onto the fused edge, and each resolved arm edge records its
+/// surviving dispatch occurrence once — two incoming edges may legitimately
+/// resolve to the same dispatch arm, so that occurrence is a per-edge row,
+/// not a per-specialization row. Shared between bespoke validation and the
+/// pass rule's candidate construction so both publish identical provenance.
 pub(crate) fn provenance_rows(
     input_function: &optimization_unit::PsiOptimizationFunction,
     machine: MachineId,
     plan: &DispatchSpecializationPlan,
 ) -> Result<Vec<ProvenanceRewrite>, StateArgumentSpecializationError> {
     let mut rows = Vec::new();
+    let mut resolved_edges = std::collections::BTreeSet::new();
     for row in &plan.edges {
         let incoming = find_edge(input_function, row.incoming_edge)?;
         let resolved = find_edge(input_function, row.taken_edge)?;
@@ -165,6 +230,14 @@ pub(crate) fn provenance_rows(
             sources: resolved.provenance.clone(),
             fuel: resolved.fuel.clone(),
         });
+        resolved_edges.insert(row.taken_edge);
+    }
+    for taken_edge in resolved_edges {
+        let resolved = find_edge(input_function, taken_edge)?;
+        let resolved_site = PsiRealizationSite::Edge {
+            machine,
+            edge: taken_edge,
+        };
         rows.push(ProvenanceRewrite {
             input: resolved_site,
             disposition: ProvenanceDisposition::RealizedAt(resolved_site),

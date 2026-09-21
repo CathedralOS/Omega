@@ -23,6 +23,7 @@ pub(crate) fn non_authoritative_template_compatibility_fingerprint(
     hash.bytes(&contents.bytes.plt);
     hash.bytes(&contents.bytes.got_plt);
     hash.bytes(&contents.bytes.rela_plt);
+    hash.bytes(&contents.bytes.rela_dyn);
     hash.bytes(&(contents.fixups.len() as u64).to_le_bytes());
     for fixup in &contents.fixups {
         hash.byte(fixup.storage as u8);
@@ -60,6 +61,23 @@ fn hash_semantic_target(hash: &mut Fnv1a, target: ElfProcedureLinkageSemanticTar
             hash.byte(6);
             hash.bytes(&logical_ordinal.to_le_bytes());
         }
+        ElfProcedureLinkageSemanticTarget::RelocatedImageSection {
+            section,
+            byte_offset,
+        } => {
+            hash.byte(7);
+            hash.byte(image_section_tag(section));
+            hash.bytes(&(byte_offset as u64).to_le_bytes());
+        }
+    }
+}
+
+const fn image_section_tag(section: image::FinalImageSection) -> u8 {
+    match section {
+        image::FinalImageSection::Text => 1,
+        image::FinalImageSection::Data => 2,
+        image::FinalImageSection::Bss => 3,
+        image::FinalImageSection::None => 4,
     }
 }
 

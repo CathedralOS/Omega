@@ -199,7 +199,12 @@ fn carrier_integer_range(
 /// Integer literals authored anywhere in the program, sorted ascending. They
 /// are the widening thresholds: the constants the program itself compares
 /// against, which is where a still-extending bound is most likely to settle.
-fn integer_literal_thresholds(program: &typed_trees::TypedTrees) -> Vec<numerics::bignum::BigInt> {
+/// The collection is program-pure; `FlowBuildContext` memoizes it so the
+/// arena scan runs at most once per flow build rather than per widening
+/// rejoin.
+pub(in crate::flow) fn integer_literal_thresholds(
+    program: &typed_trees::TypedTrees,
+) -> Vec<numerics::bignum::BigInt> {
     let mut literals: Vec<numerics::bignum::BigInt> = program
         .expression_table
         .iter_expressions()
@@ -234,6 +239,7 @@ pub(super) fn meet(
     previous: &mut Vec<FieldValue>,
     incoming: &[FieldValue],
     source: BoundsSource,
+    thresholds: &[numerics::bignum::BigInt],
 ) -> bool {
     let mut changed = false;
     // Every edge that has ever arrived at this destination. A field first
@@ -277,7 +283,7 @@ pub(super) fn meet(
         } else {
             field.deliveries.push((source, delivery));
         }
-        changed |= field.rejoin(program, machine);
+        changed |= field.rejoin(program, machine, thresholds);
         // Keep the row even when the join is empty: its delivery map remembers
         // which edges carry no evidence, so a re-delivered field still
         // intersects over those edges instead of claiming a fresh start.
@@ -311,7 +317,7 @@ pub(super) fn meet(
             predicate_ceiling: Vec::new(),
             bounds_growth: 0,
         };
-        field.rejoin(program, machine);
+        field.rejoin(program, machine, thresholds);
         previous.push(field);
         changed = true;
     }
@@ -320,11 +326,13 @@ pub(super) fn meet(
 
 impl FieldValue {
     /// Recompute the joined literal, predicate set, and integer bound from the
-    /// per-edge deliveries.
+    /// per-edge deliveries. `thresholds` is the memoized program literal set
+    /// widening consults when a bound keeps extending.
     fn rejoin(
         &mut self,
         program: &typed_trees::TypedTrees,
         machine: &typed_trees::machine::Machine,
+        thresholds: &[numerics::bignum::BigInt],
     ) -> bool {
         let mut changed = false;
         let literal = self
@@ -416,7 +424,6 @@ impl FieldValue {
                     // comparisons name the values that actually occur, and
                     // the sequence stays monotone and bounded by the literal
                     // count before it can reach the carrier.
-                    let thresholds = integer_literal_thresholds(program);
                     if extends_minimum {
                         widened.minimum = thresholds
                             .iter()

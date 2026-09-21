@@ -176,6 +176,54 @@ fn indexed_operand_access_preserves_shared_collection_and_owned_index() {
 }
 
 #[test]
+fn borrowed_indexed_collection_reborrows_into_the_attached_receiver() {
+    for access in ["&", "&mut"] {
+        for declaration in [
+            "machine [] Buffer::index(&self, index: Index) -> i32 { self.value }",
+            "machine [..] Buffer::range(&self, start: Index, end: Index) -> i32 { self.value }",
+        ] {
+            let (operands, tail) = if declaration.contains("[..]") {
+                ("start: Index, end: Index", "buffer[start..end]")
+            } else {
+                ("index: Index", "buffer[index]")
+            };
+            let source = format!(
+                "data Buffer {{ value: i32; }}
+                 data Index {{}}
+                 {declaration}
+                 machine read(buffer: {access} Buffer, {operands}) -> i32 {{ {tail} }}"
+            );
+            check_source(&source).unwrap_or_else(|diagnostics| {
+                panic!("borrowed collection reborrows into the attached receiver: {diagnostics:#?}")
+            });
+        }
+    }
+}
+
+#[test]
+fn borrowed_indexed_collection_cannot_move_into_an_owned_receiver() {
+    let source = r#"
+        data Buffer { value: i32; }
+        data Index {}
+        machine [] Buffer::take(self, index: Index) -> i32 { self.value }
+        machine read(buffer: &Buffer, index: Index) -> i32 { buffer[index] }
+    "#;
+    let diagnostics = match check_source(source) {
+        Ok(_) => panic!("borrowed storage cannot move into an owned `self` receiver"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("remained unresolved")
+                || diagnostic.message.contains("move")
+                || diagnostic.message.contains("consum")
+                || diagnostic.message.contains("borrowed")
+        ),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn ordinary_first_parameter_gains_no_receiver_adaptation() {
     let source = r#"
         data Buffer { value: i32; }

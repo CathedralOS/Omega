@@ -31,6 +31,8 @@ const DESCRIPTION_MAGIC: &[u8; 8] = b"OMGCMPD\0";
 const DESCRIPTION_IDENTITY_DOMAIN: &[u8] = b"omega-component-description-v1";
 /// Domain prefix for one import slot's requirement contract identity.
 const REQUIREMENT_CONTRACT_DOMAIN: &[u8] = b"omega-component-requirement-v1";
+/// Domain prefix for the canonical entry export's contract identity.
+const CANONICAL_ENTRY_CONTRACT_DOMAIN: &[u8] = b"omega-component-canonical-entry-v1";
 /// Domain prefix for a derived port-space mechanism assumption.
 const PORT_MECHANISM_DOMAIN: &[u8] = b"omega-component-port-mechanism-v1";
 
@@ -124,6 +126,27 @@ pub fn requirement_export_identity(
     candidate_identity: &str,
 ) -> String {
     format!("export:requirement:{requirement_identity}|{provider_identity}|{candidate_identity}")
+}
+
+/// One export surface's join contract — the structured half the opaque
+/// `exports` roster cannot carry on the wire.
+///
+/// These rows are never producer claims: they are derived from the verified
+/// module at admission and exposed on `VerifiedComponent`, so a consumer
+/// joins a demanded import against an offered realization by digest
+/// equality. A requirement export carries
+/// [`requirement_contract_identity`] of the offered requirement — the same
+/// domain [`ImportSlot::contract_identity`] uses — while the canonical
+/// entry export carries [`canonical_entry_contract_identity`], a distinct
+/// domain that can never alias a requirement contract (the canonical entry
+/// is an entry surface, not an importable realization).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ExportContract {
+    /// The export surface's canonical identity — the same string the
+    /// `exports` roster row carries.
+    pub identity: String,
+    /// The contract this surface offers to the join.
+    pub contract_identity: [u8; 32],
 }
 
 /// Every possible way execution may enter the described component.
@@ -284,6 +307,13 @@ pub enum CustodyKind {
     DynamicDescriptorCustody,
     /// The exact live frontier carried across a possibly-suspending call.
     SuspensionFrontier,
+    /// Custody of a resource or code mapping the composition admits. The row
+    /// preserves custody only; it grants no remap or unmap authority.
+    Mapping,
+    /// Custody of a live code or resource lease held by the installed
+    /// component. The row preserves custody only; it grants no renewal or
+    /// release authority.
+    Lease,
 }
 
 impl CustodyKind {
@@ -297,6 +327,8 @@ impl CustodyKind {
             Self::BoundaryContentGuarantee => 6,
             Self::DynamicDescriptorCustody => 7,
             Self::SuspensionFrontier => 8,
+            Self::Mapping => 9,
+            Self::Lease => 10,
         }
     }
 
@@ -310,6 +342,8 @@ impl CustodyKind {
             6 => Some(Self::BoundaryContentGuarantee),
             7 => Some(Self::DynamicDescriptorCustody),
             8 => Some(Self::SuspensionFrontier),
+            9 => Some(Self::Mapping),
+            10 => Some(Self::Lease),
             _ => None,
         }
     }
@@ -360,6 +394,12 @@ pub enum ObligationKind {
     ProgressDemand,
     /// Admit per-occurrence resource capacity named by a boundary schema.
     ResourceAdmission,
+    /// Bind one exact resource or code mapping the composition demands at
+    /// installation.
+    Mapping,
+    /// Admit one per-occurrence code or resource lease the component requires
+    /// at installation.
+    Lease,
 }
 
 impl ObligationKind {
@@ -370,6 +410,8 @@ impl ObligationKind {
             Self::ImportBinding => 3,
             Self::ProgressDemand => 4,
             Self::ResourceAdmission => 5,
+            Self::Mapping => 6,
+            Self::Lease => 7,
         }
     }
 
@@ -380,6 +422,8 @@ impl ObligationKind {
             3 => Some(Self::ImportBinding),
             4 => Some(Self::ProgressDemand),
             5 => Some(Self::ResourceAdmission),
+            6 => Some(Self::Mapping),
+            7 => Some(Self::Lease),
             _ => None,
         }
     }
@@ -540,6 +584,19 @@ pub fn requirement_contract_identity(requirement_identity: &str) -> [u8; 32] {
     digest.finalize().into()
 }
 
+/// Collision-resistant contract identity of the canonical entry export.
+///
+/// The canonical entry never satisfies a demanded import — a demanded
+/// contract is a requirement contract — so its digest lives in its own
+/// domain and cannot collide with any [`requirement_contract_identity`]
+/// output.
+pub fn canonical_entry_contract_identity(entry: MachineId) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(CANONICAL_ENTRY_CONTRACT_DOMAIN);
+    digest.update(entry.get().to_le_bytes());
+    digest.finalize().into()
+}
+
 /// Derived assumption digest for one immediate port-space mechanism.
 pub fn port_mechanism_assumption(service: ServiceId, port: u16, value: u8) -> [u8; 32] {
     let mut digest = Sha256::new();
@@ -568,8 +625,11 @@ pub(crate) struct DerivedInventory {
     pub(crate) called_requirement_identities: Vec<String>,
     /// Module-derived entry rows.
     pub(crate) entries: Vec<ComponentEntry>,
-    /// Module-derived export rows.
-    pub(crate) exports: Vec<ExportSurface>,
+    /// Module-derived export rows with their join contracts. The
+    /// description's `exports` roster carries each row's `identity`; the
+    /// `contract_identity` rides the verified component instead of the
+    /// wire, so the roster and contracts cannot disagree.
+    pub(crate) export_contracts: Vec<ExportContract>,
     /// Module-derived custody rows.
     pub(crate) custody: Vec<CustodyConstraint>,
     /// Exact port-space writes as `(service, port, value)`.
@@ -854,25 +914,28 @@ pub(crate) fn derive_component_inventory(
     service_bounds.sort();
     service_bounds.dedup();
 
-    let mut exports = vec![ExportSurface {
+    let mut export_contracts = vec![ExportContract {
         identity: format!("export:canonical:{}", module.entry.get()),
+        contract_identity: canonical_entry_contract_identity(module.entry),
     }];
     // Every checked provider candidate the module retains is an exported
     // realization: a consumer's `Independent` selection joins its selected
-    // plan rows to exactly these coordinates. The catalog is semantic, not a
-    // selection, so exporting it grants nothing; installation still binds an
-    // occurrence per selected row.
+    // plan rows to exactly these coordinates, and a demanded import joins
+    // the offered requirement by its contract identity. The catalog is
+    // semantic, not a selection, so exporting it grants nothing;
+    // installation still binds an occurrence per selected row.
     for candidate in &module.provider_candidates {
-        exports.push(ExportSurface {
+        export_contracts.push(ExportContract {
             identity: requirement_export_identity(
                 &candidate.requirement_identity,
                 &candidate.provider_identity,
                 &candidate.candidate_identity,
             ),
+            contract_identity: requirement_contract_identity(&candidate.requirement_identity),
         });
     }
-    exports.sort();
-    exports.dedup();
+    export_contracts.sort();
+    export_contracts.dedup();
 
     custody.sort();
     custody.dedup();
@@ -882,7 +945,7 @@ pub(crate) fn derive_component_inventory(
     Ok(DerivedInventory {
         called_requirement_identities,
         entries,
-        exports,
+        export_contracts,
         custody,
         port_writes,
         concrete_service_reach,
@@ -1079,7 +1142,13 @@ pub fn describe_component_facts(
         frontier: DescriptionFrontier::TerminalArtifactClosure,
         artifact_bytes,
         imports,
-        exports: inventory.exports,
+        exports: inventory
+            .export_contracts
+            .iter()
+            .map(|contract| ExportSurface {
+                identity: contract.identity.clone(),
+            })
+            .collect(),
         entries: inventory.entries,
         outgoing,
         service_bounds: inventory.service_bounds,
@@ -1605,3 +1674,6 @@ pub fn description_semantic_fingerprint(
 ) -> Result<SemanticFingerprint, DescribeError> {
     Ok(description_subject(description)?.program_fingerprint)
 }
+
+#[cfg(test)]
+mod tests;

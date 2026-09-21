@@ -1155,4 +1155,27 @@ mod tests {
             "a free entry does not acquire an implicit receiver"
         );
     }
+
+    #[test]
+    fn non_exclusive_receiver_accesses_cannot_acquire_receiver_eligibility() {
+        // The bridge provisions exclusive private storage and hands it to the
+        // continuation as a mutable borrow, so only `&mut self` can match.
+        // Other accesses are refused before or during production — where the
+        // verifier flags a unit return discarding the receiver — and never
+        // acquire eligibility.
+        for source in [
+            "data Main { value: i32; } machine Main::run(&self) {}",
+            "data Main { value: i32; } machine Main::run(self) {}",
+        ] {
+            let checked = check_source(source);
+            if let Ok(produced) =
+                TerminalProductionRequest::new(&checked, "Main::run").produce_program_entry([9; 32])
+            {
+                assert!(
+                    produced.receipt().receiver_eligibility().is_none(),
+                    "{source}"
+                );
+            }
+        }
+    }
 }

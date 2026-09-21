@@ -25,11 +25,12 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     Block, ContentPartitionComposition, ContractClause, MachineContract, Operation, OperationKind,
-    OperationResult, ScalarFloatRange, StructuralAccess, StructuralArgument, StructuralFieldType,
-    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    OperationResult, ScalarFloatRange, ScalarIntegerRange, StructuralAccess, StructuralArgument,
+    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 

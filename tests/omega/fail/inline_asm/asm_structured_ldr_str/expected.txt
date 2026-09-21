@@ -1,1 +1,1 @@
-no structured operand provenance/permission contract is modeled
+operand uses bracketed `[...]` memory addressing
